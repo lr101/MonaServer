@@ -113,7 +113,6 @@ public class RestControllerPin {
 
     @GetMapping(value = "/monas")
     public Mona getMonaByPinId (@RequestParam Long id) {
-        System.out.println(Arrays.toString(monaRepo.findMonaByPin(pinRepo.findByPinId(id)).getImage()));
         return monaRepo.findMonaByPin(pinRepo.findByPinId(id));
     }
 
