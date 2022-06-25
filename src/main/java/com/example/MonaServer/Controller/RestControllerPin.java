@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -116,6 +113,7 @@ public class RestControllerPin {
 
     @GetMapping(value = "/monas")
     public Mona getMonaByPinId (@RequestParam Long id) {
+        System.out.println(Arrays.toString(monaRepo.findMonaByPin(pinRepo.findByPinId(id)).getImage()));
         return monaRepo.findMonaByPin(pinRepo.findByPinId(id));
     }
 
@@ -132,9 +130,6 @@ public class RestControllerPin {
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
         byte[] image = reader.readValue(json.get("image"));
-        for(byte m : image) {
-            System.out.println(m);
-        }
         double latitude = json.get("latitude").asDouble();
         double longitude = json.get("longitude").asDouble();
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());
