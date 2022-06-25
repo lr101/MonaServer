@@ -9,4 +9,5 @@ import java.util.List;
 public interface MonaRepoCustom {
     public Mona updateMona(byte[] image, Pin pin);
     public void deleteMona(Mona mona);
+    public Mona findMonaByPin(Pin pin);
 }

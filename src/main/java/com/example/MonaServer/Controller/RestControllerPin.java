@@ -114,6 +114,11 @@ public class RestControllerPin {
         throw new IllegalArgumentException("type or username does not exist");
     }
 
+    @GetMapping(value = "/monas")
+    public Mona getMonaByPinId (@RequestParam Long id) {
+        return monaRepo.findMonaByPin(pinRepo.findByPinId(id));
+    }
+
     /*@PutMapping(value = "/users/{user}/pins/")
     public List<Pin> addExistingPinToUser(@PathVariable("user") String username,@RequestBody Mona mona) {
         List<Pin> pins = getAllPinsWithoutUserPinsInRadius(username, mona.getPin().getLatitude(), mona.getPin().getLongitude());
@@ -124,7 +129,12 @@ public class RestControllerPin {
 
     @PostMapping(value = "/users/{user}/pins")
     public List<Pin> addNewPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json, @RequestParam boolean newSticker) throws ParseException, IOException {
-        byte[] image = json.get("image").binaryValue();
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
+        byte[] image = reader.readValue(json.get("image"));
+        for(byte m : image) {
+            System.out.println(m);
+        }
         double latitude = json.get("latitude").asDouble();
         double longitude = json.get("longitude").asDouble();
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());

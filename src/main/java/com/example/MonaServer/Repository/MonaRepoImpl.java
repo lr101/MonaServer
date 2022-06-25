@@ -21,7 +21,7 @@ public class MonaRepoImpl implements MonaRepoCustom {
         return m.orElse(null);
     }
 
-
+    @Override
     public Mona findMonaByPin(Pin pin) {
         for (Mona mona : monaRepository.findAll()) {
             if (mona.getPin().equals(pin)) {
