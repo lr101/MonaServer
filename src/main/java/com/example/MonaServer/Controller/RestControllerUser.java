@@ -24,9 +24,17 @@ public class RestControllerUser {
         return userRepo.findByUsername(username);
     }
 
+    @GetMapping(value = "/users/{user}/check")
+    public boolean checkUser(@PathVariable("user") String username) {
+        return userRepo.findByUsername(username) != null;
+    }
+
     //working
     @PostMapping("/users/")
-    public Users postSensor(@RequestBody Users user) {
+    public Users postSensor(@RequestBody Users user) throws Exception {
+        if (checkUser(user.getUsername())) {
+            throw new Exception("user already exists");
+        }
         return userRepo.save(user);
     }
 
