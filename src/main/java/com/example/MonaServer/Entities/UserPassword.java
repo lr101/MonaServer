@@ -1,8 +1,17 @@
 package com.example.MonaServer.Entities;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
+@Entity
 public class UserPassword {
 
+    @Id
+    @Column(name = "username", nullable = false)
     String username;
+
+    @Column(name = "password", nullable = false)
     String password;
 
 
@@ -10,6 +19,8 @@ public class UserPassword {
         this.username = username;
         this.password = password;
     }
+
+    public UserPassword() {}
 
     public String getUsername() {
         return username;

@@ -2,7 +2,9 @@ package com.example.MonaServer.Entities;
 
 import javax.persistence.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity(name = "users")
 public class Users {
@@ -17,7 +19,7 @@ public class Users {
             joinColumns = { @JoinColumn(name = "username") },
             inverseJoinColumns = { @JoinColumn(name = "id") }
     )
-    private List<Pin> foundPins = new ArrayList<>();
+    private Set<Pin> foundPins = new HashSet<>();
 
     @ManyToMany
     @JoinTable(
@@ -25,24 +27,30 @@ public class Users {
             joinColumns = { @JoinColumn(name = "username") },
             inverseJoinColumns = { @JoinColumn(name = "id") }
     )
-    private List<Pin> createdPins = new ArrayList<>();
+    private Set<Pin> createdPins = new HashSet<>();
 
     @Column(name = "points")
     private int points;
 
-    public List<Pin> getFoundPins() {
+    public Users() {}
+
+    public Users(String username) {
+        this.username = username;
+    }
+
+    public Set<Pin> getFoundPins() {
         return foundPins;
     }
 
-    public void setFoundPins(List<Pin> foundPins) {
+    public void setFoundPins(Set<Pin> foundPins) {
         this.foundPins = foundPins;
     }
 
-    public List<Pin> getCreatedPins() {
+    public Set<Pin> getCreatedPins() {
         return createdPins;
     }
 
-    public void setCreatedPins(List<Pin> created_pins) {
+    public void setCreatedPins(Set<Pin> created_pins) {
         this.createdPins = created_pins;
     }
 

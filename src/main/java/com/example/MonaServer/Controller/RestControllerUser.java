@@ -1,11 +1,15 @@
 package com.example.MonaServer.Controller;
 
+import com.example.MonaServer.Entities.UserPassword;
 import com.example.MonaServer.Entities.Users;
+import com.example.MonaServer.Repository.UserPswRepo;
 import com.example.MonaServer.Repository.UserRepo;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 @RestController
 public class RestControllerUser {
@@ -13,29 +17,45 @@ public class RestControllerUser {
     @Autowired
     UserRepo userRepo;
 
+    @Autowired
+    UserPswRepo userPswRepo;
+
+
     @GetMapping(value ="/users/")
     public ArrayList<Users> getAllUsers() {
         return (ArrayList<Users>) userRepo.findAll();
     }
 
-    //working
+
     @GetMapping(value = "/users/{user}/")
     public Users getUser (@PathVariable("user") String username) {
         return userRepo.findByUsername(username);
     }
 
     @GetMapping(value = "/users/{user}/check")
-    public boolean checkUser(@PathVariable("user") String username) {
-        return userRepo.findByUsername(username) != null;
+    public String checkUser(@PathVariable("user") String username) {
+        Optional<UserPassword> up = userPswRepo.findById(username);
+        Optional<Users> up2 = userRepo.findById(username);
+        if (up.isPresent() && up2.isPresent()) {
+            return up.get().getPassword();
+        }
+        throw new IllegalArgumentException("user does not exist");
     }
 
     //working
     @PostMapping("/users/")
-    public Users postSensor(@RequestBody Users user) throws Exception {
-        if (checkUser(user.getUsername())) {
-            throw new Exception("user already exists");
+    public Users postUser(@RequestBody ObjectNode json) throws Exception {
+        String username = json.get("username").asText();
+        String password = json.get("password").asText();
+        try {
+            System.out.println("zest");
+            checkUser(username);
+            System.out.println("test");
+        } catch (Exception e) {
+            userPswRepo.save(new UserPassword(username, password));
+            return userRepo.save(new Users(username));
         }
-        return userRepo.save(user);
+        throw new Exception("user already exists");
     }
 
     @DeleteMapping("/monas/{user}")

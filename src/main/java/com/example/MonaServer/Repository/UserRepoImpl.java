@@ -5,13 +5,7 @@ import com.example.MonaServer.Entities.Users;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static java.lang.Math.asin;
-import static java.lang.Math.sqrt;
+import java.util.*;
 
 public class UserRepoImpl implements UserRepoCustom {
 
@@ -40,7 +34,7 @@ public class UserRepoImpl implements UserRepoCustom {
     }
 
     @Override
-    public List<Pin> addPinToFoundList(String username, Pin pin) {
+    public Set<Pin> addPinToFoundList(String username, Pin pin) {
         Users u = findByUsername(username);
         u.getFoundPins().add(pin);
         userRepository.save(u);
@@ -48,7 +42,7 @@ public class UserRepoImpl implements UserRepoCustom {
     }
 
     @Override
-    public List<Pin> addPinToCreatedList(String username, Pin pin) {
+    public Set<Pin> addPinToCreatedList(String username, Pin pin) {
         Users u = findByUsername(username);
         u.getCreatedPins().add(pin);
         userRepository.save(u);
@@ -61,9 +55,9 @@ public class UserRepoImpl implements UserRepoCustom {
     }
 
     @Override
-    public List<Pin> getMappedPins(String username) {
+    public Set<Pin> getMappedPins(String username) {
         Users user = this.findByUsername(username);
-        List<Pin> pins = new ArrayList<>(user.getFoundPins());
+        Set<Pin> pins = new HashSet<>(user.getFoundPins());
         pins.addAll(user.getCreatedPins());
         return pins;
     }

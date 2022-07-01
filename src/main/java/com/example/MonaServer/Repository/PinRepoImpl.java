@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Lazy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.asin;
@@ -48,11 +49,11 @@ public class PinRepoImpl implements PinRepoCustom {
 
 
     @Override
-    public List<Pin> findOtherPinsInRadius(double latitude, double longitude, List<Pin> userPins) {
-        return  ((List<Pin>) pinRepository.findAll()).stream().filter(p -> !filterOutsideOfRadius(latitude, longitude, p, userPins)).collect(Collectors.toList());
+    public Set<Pin> findOtherPinsInRadius(double latitude, double longitude, Set<Pin> userPins) {
+        return  ((List<Pin>) pinRepository.findAll()).stream().filter(p -> !filterOutsideOfRadius(latitude, longitude, p, userPins)).collect(Collectors.toSet());
     }
 
-    private boolean filterOutsideOfRadius(double lat1,double lon1, Pin pin, List<Pin> userPins){
+    private boolean filterOutsideOfRadius(double lat1,double lon1, Pin pin, Set<Pin> userPins){
         return userPins.contains(pin) || (calcDistance(lat1, lon1, pin.getLatitude(), pin.getLongitude()) > config.radius);
     }
 
