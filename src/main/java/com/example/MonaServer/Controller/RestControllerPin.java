@@ -3,7 +3,6 @@ package com.example.MonaServer.Controller;
 import com.example.MonaServer.Entities.Mona;
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.StickerType;
-import com.example.MonaServer.Helper.ImageProcessor;
 import com.example.MonaServer.Repository.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,13 +60,10 @@ public class RestControllerPin {
         throw new IllegalArgumentException("type or username does not exist");
     }
 
-    @GetMapping(value = "/monas")
-    public Mona getMonaByPinId (@RequestParam Long id) {
-        return monaRepo.findMonaByPin(pinRepo.findByPinId(id));
-    }
+
 
     @PutMapping(value = "/users/{user}/pins")
-    public Set<Pin> addExistingPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
+    public void addExistingPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
         byte[] image = reader.readValue(json.get("image"));
@@ -75,27 +71,32 @@ public class RestControllerPin {
         Pin pin = pinRepo.findByPinId(id);
         if (pin != null) {
             monaRepo.updateMona(image, pin);
-            return userRepo.addPinToFoundList(username,pin);
+            userRepo.addPinToFoundList(username,pin);
+            return;
         }
         throw new IllegalArgumentException("Sticker could not be added");
     }
 
     @PostMapping(value = "/users/{user}/pins")
-    public Set<Pin> addNewPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws ParseException, IOException {
+    public void addNewPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws ParseException, IOException {
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
         byte[] image = reader.readValue(json.get("image"));
         double latitude = json.get("latitude").asDouble();
         double longitude = json.get("longitude").asDouble();
+        Long typeId = json.get("typeId").asLong();
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());
-        StickerType type = ImageProcessor.getStickerType(image, typeRepo);
+        Optional<StickerType> type = typeRepo.findById(typeId);
+        if (type.isPresent()) {
+            Pin pin = new Pin(latitude, longitude, date, type.get());
+            Mona mona = new Mona(image, pin);
 
-        Pin pin = new Pin(latitude, longitude, date, type);
-        Mona mona = new Mona(image, pin);
-
-        mona.setPin(pinRepo.save(mona.getPin()));
-        monaRepo.save(mona);
-        return userRepo.addPinToCreatedList(username, mona.getPin());
+            mona.setPin(pinRepo.save(mona.getPin()));
+            monaRepo.save(mona);
+            userRepo.addPinToCreatedList(username, mona.getPin());
+        } else {
+            throw new IllegalArgumentException("Sticker could not be added");
+        }
     }
 
     @DeleteMapping("/pins/{id}")

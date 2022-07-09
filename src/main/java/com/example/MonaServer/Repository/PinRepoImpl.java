@@ -5,10 +5,8 @@ import com.example.MonaServer.Entities.Pin;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import javax.transaction.Transactional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.asin;
@@ -24,14 +22,10 @@ public class PinRepoImpl implements PinRepoCustom {
     Config config = new Config();
 
     @Override
+    @Transactional
     public Pin findByPinId(Long id) {
-        ArrayList<Pin> list = (ArrayList<Pin>) pinRepository.findAll();
-        for (Pin Pin : list) {
-            if (Objects.equals(Pin.getId(), id)) {
-                return Pin;
-            }
-        }
-        return null;
+        Optional<Pin> p = pinRepository.findById(id);
+        return p.orElse(null);
     }
 
     @Override

@@ -1,5 +1,8 @@
 package com.example.MonaServer.Entities;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import javax.persistence.*;
 
 @Entity(name = "monas")
@@ -9,6 +12,7 @@ public class Mona {
     private byte[] image = new byte[0];
 
     @OneToOne
+    @OnDelete(action= OnDeleteAction.CASCADE)
     @JoinColumn(name = "pin", nullable = false, referencedColumnName = "id")
     private Pin pin;
 

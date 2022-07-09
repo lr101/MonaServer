@@ -1,5 +1,8 @@
 package com.example.MonaServer.Entities;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import javax.persistence.*;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -19,6 +22,7 @@ public class Users {
             joinColumns = { @JoinColumn(name = "username") },
             inverseJoinColumns = { @JoinColumn(name = "id") }
     )
+    @OnDelete(action= OnDeleteAction.CASCADE)
     private Set<Pin> foundPins = new HashSet<>();
 
     @ManyToMany
@@ -27,6 +31,7 @@ public class Users {
             joinColumns = { @JoinColumn(name = "username") },
             inverseJoinColumns = { @JoinColumn(name = "id") }
     )
+    @OnDelete(action= OnDeleteAction.CASCADE)
     private Set<Pin> createdPins = new HashSet<>();
 
     @Column(name = "points")

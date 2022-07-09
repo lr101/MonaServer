@@ -48,9 +48,7 @@ public class RestControllerUser {
         String username = json.get("username").asText();
         String password = json.get("password").asText();
         try {
-            System.out.println("zest");
             checkUser(username);
-            System.out.println("test");
         } catch (Exception e) {
             userPswRepo.save(new UserPassword(username, password));
             return userRepo.save(new Users(username));
