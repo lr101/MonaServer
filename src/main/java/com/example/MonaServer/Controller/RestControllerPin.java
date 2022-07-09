@@ -32,6 +32,9 @@ public class RestControllerPin {
     @Autowired
     TypeRepo typeRepo;
 
+    @Autowired
+    VersionRepo versionRepo;
+
 
     @GetMapping(value ="/pins/")
     public List<Pin> getAllPins() {
@@ -90,56 +93,32 @@ public class RestControllerPin {
         if (type.isPresent()) {
             Pin pin = new Pin(latitude, longitude, date, type.get());
             Mona mona = new Mona(image, pin);
-
             mona.setPin(pinRepo.save(mona.getPin()));
             monaRepo.save(mona);
             userRepo.addPinToCreatedList(username, mona.getPin());
+            versionRepo.addPin(mona.getPin().getId());
         } else {
             throw new IllegalArgumentException("Sticker could not be added");
         }
     }
 
-    @DeleteMapping("/pins/{id}")
-    public void deletePin (@PathVariable("id") Long id) {
-        monaRepo.deleteById(id);
-    }
-
-    /*@GetMapping(value ="/pins/{user}/check")
-    public boolean getAllPinsMissing(@PathVariable("user") String username, @RequestBody ObjectNode json) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectReader reader = mapper.readerFor(new TypeReference<List<Long>>() {});
-        List<Long> ids = reader.readValue(json.get("ids"));
-        List<Long> existingIds = new ArrayList<>();
-        getPinsOfUser(username, json.get("type").asInt()).forEach(e -> existingIds.add(e.getId()));
-        for (Long id : ids) {
-            for (Long id2 : existingIds) {
-                if (Objects.equals(id, id2)) {
-                    ids.remove(id);
-                    existingIds.remove(id2);
-                }
-            }
-        }
-        if (ids.size() == 0 && existingIds.size() == 0) {
-            return true;
+    /**
+     *
+     * @param id
+     * @param username method returns null when the pin is created by this user
+     * @return
+     */
+    @GetMapping("/pins/{id}")
+    public Pin getPinById(@PathVariable("id") Long id, @RequestParam(required = false) String username) {
+        if (username == null) {
+            return pinRepo.findByPinId(id);
         } else {
-            throw new Exception("Pins are not consistent");
-        }
-    }
-
-    @GetMapping(value ="/pins/{user}/removed")
-    public Set<Long> getAllPinsRemoved(@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectReader reader = mapper.readerFor(new TypeReference<List<Long>>() {});
-        List<Long> ids = reader.readValue(json.get("ids"));
-        return ids.stream().filter(e -> filter(e, getPinsOfUser(username, json.get("type").asInt()))).collect(Collectors.toSet());
-    }
-
-    private boolean filter(Long id, Set<Pin> pins) {
-        for (Pin pin : pins) {
-            if ((long)id == pin.getId()) {
-                return true;
+            Pin pin = pinRepo.findByPinId(id);
+            if(!userRepo.getMappedPins(username).contains(pin)) {
+                return pin;
             }
         }
-        return false;
-    }*/
+        return null;
+    }
+
 }

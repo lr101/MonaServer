@@ -1,8 +1,11 @@
 package com.example.MonaServer.JDBC;
 
 import com.example.MonaServer.Entities.UserPassword;
+import com.example.MonaServer.Entities.Versioning;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 
@@ -27,12 +30,32 @@ public class JDBC {
     }
 
 
-
-
-    public void dropTable(String sensor) {
+    public List<Versioning> getVersionsOverNum(Long number) {
         try {
-           this.update(SQL_STRINGS.deleteEntryTable(), new Object[] {"s" + sensor});
-            this.update(SQL_STRINGS.deleteEntryTable(), new Object[] {"backup_" + sensor});
+            return selectVersions(new Object[]{"versions", number}, SQL_STRINGS.selectVersionsOverNum());
+        } catch (Exception e) {
+            System.out.println(e);
+            return new ArrayList<>();
+        }
+    }
+
+    private List<Versioning> selectVersions(Object[] params, String sql) throws SQLException {
+        PreparedStatement stmt = conn.prepareStatement(this.setTableName(sql, (String) params[0]));
+        this.prepareStatement(stmt, params);
+        ResultSet rs = stmt.executeQuery();
+        ArrayList<Versioning> entries = new ArrayList<>();
+        while (rs.next()) {
+            Versioning entry = new Versioning(rs.getLong("id"), rs.getLong("pin_id"), rs.getInt("type"));
+            entries.add(entry);
+        }
+        rs.close();
+        stmt.close();
+        return entries;
+    }
+
+    public void dropTable(String name) {
+        try {
+           this.update(SQL_STRINGS.deleteEntryTable(), new Object[] {name});
         } catch(SQLException e) {
             System.out.println(e);
         }
