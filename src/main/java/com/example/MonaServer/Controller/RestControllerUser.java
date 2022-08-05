@@ -42,7 +42,7 @@ public class RestControllerUser {
 
     @GetMapping(value = "/users/ranking")
     public List<UsernameXPoints> getPointRanking () {
-        return userRepo.getRanking();
+        return calcPoints();
     }
 
     @GetMapping(value = "/users/points")

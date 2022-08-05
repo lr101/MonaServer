@@ -96,7 +96,6 @@ public class RestControllerPin {
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());
         Optional<StickerType> type = typeRepo.findById(typeId);
         if (type.isPresent()) {
-            System.out.println(type.get().getName());
             Pin pin = new Pin(latitude, longitude, date, type.get());
             Mona mona = new Mona(image, pin);
             mona.setPin(pinRepo.save(mona.getPin()));
