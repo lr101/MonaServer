@@ -1,5 +1,6 @@
 package com.example.MonaServer.Controller;
 
+import com.example.MonaServer.Helper.Config;
 import com.example.MonaServer.Entities.Mona;
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.StickerType;
@@ -35,6 +36,8 @@ public class RestControllerPin {
     @Autowired
     VersionRepo versionRepo;
 
+    Config config = new Config();
+
 
     @GetMapping(value ="/pins/")
     public List<Pin> getAllPins() {
@@ -65,6 +68,8 @@ public class RestControllerPin {
 
 
 
+
+
     @PutMapping(value = "/users/{user}/pins")
     public void addExistingPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
@@ -91,12 +96,14 @@ public class RestControllerPin {
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());
         Optional<StickerType> type = typeRepo.findById(typeId);
         if (type.isPresent()) {
+            System.out.println(type.get().getName());
             Pin pin = new Pin(latitude, longitude, date, type.get());
             Mona mona = new Mona(image, pin);
             mona.setPin(pinRepo.save(mona.getPin()));
             monaRepo.save(mona);
             userRepo.addPinToCreatedList(username, mona.getPin());
             versionRepo.addPin(mona.getPin().getId());
+            userRepo.updateUser(username, config.P_NEW_PIN);
         } else {
             throw new IllegalArgumentException("Sticker could not be added");
         }
@@ -119,6 +126,16 @@ public class RestControllerPin {
             }
         }
         return null;
+    }
+
+
+
+    @PostMapping(value="pins/{id}/type")
+    public Pin changeTypeOfPin(@PathVariable("id") Long id,  @RequestBody ObjectNode json) {
+        Pin pin = pinRepo.findByPinId(id);
+        pin.setType(typeRepo.findById(json.get("typeId").asLong()).get());
+        pinRepo.save(pin);
+        return pin;
     }
 
 }

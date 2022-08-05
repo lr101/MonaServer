@@ -1,6 +1,6 @@
 package com.example.MonaServer.Repository;
 
-import com.example.MonaServer.Entities.Config;
+import com.example.MonaServer.Helper.Config;
 import com.example.MonaServer.Entities.Pin;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;

@@ -2,6 +2,7 @@ package com.example.MonaServer.Repository;
 
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.Users;
+import com.example.MonaServer.Helper.UsernameXPoints;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
@@ -27,8 +28,7 @@ public class UserRepoImpl implements UserRepoCustom {
     @Override
     public Users updateUser(String username, int points) {
         Users u = findByUsername(username);
-        u.setUsername(username);
-        u.setPoints(u.getPoints() + points);
+        u.setPoints(points);
         userRepository.save(u);
         return u;
     }
@@ -44,6 +44,8 @@ public class UserRepoImpl implements UserRepoCustom {
     @Override
     public Set<Pin> addPinToCreatedList(String username, Pin pin) {
         Users u = findByUsername(username);
+        u.addPoints(1);
+        System.out.println(u.getUsername() + " " +  u.getPoints());
         u.getCreatedPins().add(pin);
         userRepository.save(u);
         return u.getCreatedPins();
@@ -60,5 +62,14 @@ public class UserRepoImpl implements UserRepoCustom {
         Set<Pin> pins = new HashSet<>(user.getFoundPins());
         pins.addAll(user.getCreatedPins());
         return pins;
+    }
+
+    @Override
+    public List<UsernameXPoints> getRanking() {
+        List<UsernameXPoints> list = new ArrayList<>();
+        userRepository.findAll().forEach(e -> list.add(new UsernameXPoints(e.getUsername(), e.getPoints())));
+        list.sort(Comparator.comparingInt(UsernameXPoints::points));
+        Collections.reverse(list);
+        return list;
     }
 }

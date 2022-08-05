@@ -35,6 +35,7 @@ public class MonaRepoImpl implements MonaRepoCustom {
     public Mona updateMona(byte[] image, Pin pin) {
         Mona u = findMonaByPin(pin);
         u.setImage(image);
+        monaRepository.save(u);
         return u;
     }
 

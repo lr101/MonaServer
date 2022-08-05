@@ -1,6 +1,5 @@
 package com.example.MonaServer.Controller;
 
-import com.example.MonaServer.Entities.Config;
 import com.example.MonaServer.Entities.StickerType;
 import com.example.MonaServer.Repository.TypeRepo;
 import org.springframework.beans.factory.annotation.Autowired;
