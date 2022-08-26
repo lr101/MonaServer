@@ -16,4 +16,5 @@ public interface UserRepoCustom {
     public void deleteUser (String username);
     public Set<Pin> getMappedPins(String username);
     public List<UsernameXPoints> getRanking();
+    public Users findUserByPin(Pin pin);
 }

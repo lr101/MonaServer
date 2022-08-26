@@ -72,4 +72,16 @@ public class UserRepoImpl implements UserRepoCustom {
         Collections.reverse(list);
         return list;
     }
+
+    @Override
+    public Users findUserByPin(Pin pin) {
+        Users user = null;
+        for (Users u : userRepository.findAll()) {
+            if(u.getCreatedPins().contains(pin)) {
+                user = u;
+            }
+        }
+        return user;
+    }
+
 }

@@ -85,6 +85,12 @@ public class RestControllerPin {
         throw new IllegalArgumentException("Sticker could not be added");
     }
 
+    @GetMapping(value = "/pins/{id}/user")
+    public String getUsernameOfPin(@PathVariable("id")Long id) {
+        Pin pin = pinRepo.findByPinId(id);
+        return userRepo.findUserByPin(pin).getUsername();
+    }
+
     @PostMapping(value = "/users/{user}/pins")
     public void addNewPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws ParseException, IOException {
         ObjectMapper mapper = new ObjectMapper();
