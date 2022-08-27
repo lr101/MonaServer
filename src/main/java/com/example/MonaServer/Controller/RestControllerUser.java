@@ -37,7 +37,15 @@ public class RestControllerUser {
 
     @GetMapping(value = "/users/{user}/points")
     public int getUserPoints (@PathVariable("user") String username) {
-        return userRepo.findByUsername(username).getPoints();
+        int points = 0;
+        for (Pin pin : userRepo.findByUsername(username).getCreatedPins()) {
+            if(pin.getType().getId() == 0) {
+                points+=1;
+            } else if (pin.getType().getId() == 1) {
+                points+=1;
+            }
+        }
+        return points;
     }
 
     @GetMapping(value = "/users/ranking")
