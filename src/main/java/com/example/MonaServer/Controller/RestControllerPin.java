@@ -47,42 +47,19 @@ public class RestControllerPin {
     /**
      * @param username username of user account
      * @param type
-     *  0: all pins created or found by {user}
-     *  1: all pins created by {user}
-     *  2: all pins found by {user}
-     *  3: all pins not created or found by {user}
+     *  2: all pins created by {user}
+     *  3: all pins not created
      * @return List of pins
      */
     @GetMapping(value = "/users/{user}/pins")
     public Set<Pin> getPinsOfUser (@PathVariable("user") String username, @RequestParam int type) {
         switch (type) {
-            case 0 : return userRepo.getMappedPins(username);
-            case 1 : return userRepo.findByUsername(username).getCreatedPins();
-            case 2 : return userRepo.findByUsername(username).getFoundPins();
+            case 2 : return userRepo.findByUsername(username).getCreatedPins();
             case 3 :
                 Set<Pin> userPins = userRepo.getMappedPins(username);
                 return ((List<Pin>) pinRepo.findAll()).stream().filter(p -> !userPins.contains(p)).collect(Collectors.toSet());
         }
         throw new IllegalArgumentException("type or username does not exist");
-    }
-
-
-
-
-
-    @PutMapping(value = "/users/{user}/pins")
-    public void addExistingPinToUser(@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
-        byte[] image = reader.readValue(json.get("image"));
-        Long id = json.get("id").asLong();
-        Pin pin = pinRepo.findByPinId(id);
-        if (pin != null) {
-            monaRepo.updateMona(image, pin);
-            userRepo.addPinToFoundList(username,pin);
-            return;
-        }
-        throw new IllegalArgumentException("Sticker could not be added");
     }
 
     @GetMapping(value = "/pins/{id}/user")

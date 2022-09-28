@@ -2,6 +2,7 @@ package com.example.MonaServer.JDBC;
 
 import com.example.MonaServer.Entities.UserPassword;
 import com.example.MonaServer.Entities.Versioning;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -14,16 +15,25 @@ public class JDBC {
     private final SQL SQL_STRINGS = new SQL();
     private Connection conn;
 
+    @Value("${spring.datasource.username}")
+    private String user;
+
+    @Value("${spring.datasource.password}")
+    private String password;
+
+    @Value("${spring.datasource.url}")
+    private String jdbcDBString;
+
 
     public JDBC()  {
 
         try {
             Class.forName("org.postgresql.Driver");
             Properties props = new Properties();
-            props.put("user", System.getenv("DB_USER"));
-            props.put("password", System.getenv("DB_PASSWORD"));
+            props.put("user", user);
+            props.put("password", password);
 
-            conn = DriverManager.getConnection(System.getenv("DATASOURCE_URL") , props);
+            conn = DriverManager.getConnection(jdbcDBString , props);
         } catch (Exception e) {
             System.out.println(e);
         }

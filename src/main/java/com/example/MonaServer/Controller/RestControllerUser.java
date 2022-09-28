@@ -53,8 +53,7 @@ public class RestControllerUser {
         return calcPoints();
     }
 
-    @GetMapping(value = "/users/points")
-    public List<UsernameXPoints> calcPoints () {
+    private List<UsernameXPoints> calcPoints () {
         List<Users> users = (List<Users>) userRepo.findAll();
         for (Users user : users) {
             int points = 0;
@@ -85,17 +84,44 @@ public class RestControllerUser {
     public Users postUser(@RequestBody ObjectNode json) throws Exception {
         String username = json.get("username").asText();
         String password = json.get("password").asText();
+        String email = json.get("email").asText();
         try {
             checkUser(username);
         } catch (Exception e) {
-            userPswRepo.save(new UserPassword(username, password));
+            userPswRepo.save(new UserPassword(username, password, email));
             return userRepo.save(new Users(username));
         }
         throw new Exception("user already exists");
     }
 
-    @DeleteMapping("/monas/{user}")
-    public void deleteMona (@PathVariable("user") String username) {
+    @PutMapping("/users/password/")
+    public boolean putUserPassword(@RequestBody ObjectNode json) throws Exception {
+        String username = json.get("username").asText();
+        String password = json.get("password").asText();
+        try {
+            checkUser(username);
+            return userPswRepo.updatePassword(username,password);
+        } catch (Exception e) {
+
+        }
+        throw new Exception("user does not exist");
+    }
+
+    @PutMapping("/users/email/")
+    public boolean putUserEmail(@RequestBody ObjectNode json) throws Exception {
+        String username = json.get("username").asText();
+        String email = json.get("email").asText();
+        try {
+            checkUser(username);
+            return userPswRepo.updateEmail(username,email);
+        } catch (Exception e) {
+
+        }
+        throw new Exception("user does not exist");
+    }
+
+    @DeleteMapping("/users/{user}")
+    public void deleteUser (@PathVariable("user") String username) {
         userRepo.deleteUser(username);
     }
 }

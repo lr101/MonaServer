@@ -33,13 +33,6 @@ public class UserRepoImpl implements UserRepoCustom {
         return u;
     }
 
-    @Override
-    public Set<Pin> addPinToFoundList(String username, Pin pin) {
-        Users u = findByUsername(username);
-        u.getFoundPins().add(pin);
-        userRepository.save(u);
-        return u.getFoundPins();
-    }
 
     @Override
     public Set<Pin> addPinToCreatedList(String username, Pin pin) {
@@ -59,9 +52,7 @@ public class UserRepoImpl implements UserRepoCustom {
     @Override
     public Set<Pin> getMappedPins(String username) {
         Users user = this.findByUsername(username);
-        Set<Pin> pins = new HashSet<>(user.getFoundPins());
-        pins.addAll(user.getCreatedPins());
-        return pins;
+        return new HashSet<>(user.getCreatedPins());
     }
 
     @Override

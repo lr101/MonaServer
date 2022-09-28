@@ -1,15 +1,17 @@
 package com.example.MonaServer.Controller;
 
 import com.example.MonaServer.Entities.Mona;
+import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Repository.MonaRepo;
 import com.example.MonaServer.Repository.PinRepo;
 import com.example.MonaServer.Repository.VersionRepo;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -56,6 +58,19 @@ public class RestControllerMona {
             monaRepo.updateMona(compress(mona.getImage()), mona.getPin());
             System.out.println(i + " " + before + "kB -> " + mona.getImage().length / 1000 + "kB");
         }
+    }
+
+    @PutMapping(value = "/monas/{pin}/")
+    public void addExistingPinToUser(@PathVariable("pin") Long id, @RequestBody ObjectNode json) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
+        byte[] image = reader.readValue(json.get("image"));
+        Pin pin = pinRepo.findByPinId(id);
+        if (pin != null) {
+            monaRepo.updateMona(image, pin);
+            return;
+        }
+        throw new IllegalArgumentException("Picture could not be updated");
     }
 
     private byte[] compress(byte[] imageArray) {

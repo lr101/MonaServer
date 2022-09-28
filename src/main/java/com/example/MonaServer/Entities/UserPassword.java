@@ -14,10 +14,14 @@ public class UserPassword {
     @Column(name = "password", nullable = false)
     String password;
 
+    @Column(name = "email")
+    String email;
 
-    public UserPassword(String username, String password) {
+
+    public UserPassword(String username, String password, String email) {
         this.username = username;
         this.password = password;
+        this.email = email;
     }
 
     public UserPassword() {}
@@ -36,5 +40,13 @@ public class UserPassword {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 }
