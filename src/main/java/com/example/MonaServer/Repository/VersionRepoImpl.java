@@ -1,10 +1,8 @@
 package com.example.MonaServer.Repository;
 
 import com.example.MonaServer.Entities.Versioning;
-import com.example.MonaServer.JDBC.JDBC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-
 import java.util.List;
 
 
@@ -15,7 +13,6 @@ public class VersionRepoImpl implements VersionRepoCustom {
     @Lazy
     VersionRepo versionRepo;
 
-    JDBC jdbc = new JDBC();
 
     @Override
     public Long getLastVersionId() {
@@ -23,9 +20,10 @@ public class VersionRepoImpl implements VersionRepoCustom {
     }
 
     @Override
-    public List<Versioning> getVersioning(Long number){
-        return jdbc.getVersionsOverNum(number);
+    public List<Versioning> getVersioning(Long number) {
+        return null;
     }
+
 
     @Override
     public void addPin(Long pinId) {

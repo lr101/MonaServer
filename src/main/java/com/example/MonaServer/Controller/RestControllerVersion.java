@@ -6,10 +6,7 @@ import com.example.MonaServer.Repository.MonaRepo;
 import com.example.MonaServer.Repository.PinRepo;
 import com.example.MonaServer.Repository.VersionRepo;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -18,14 +15,18 @@ public class RestControllerVersion {
     @Autowired
     VersionRepo versionRepo;
 
-    @GetMapping(value = "/version/last")
-    public Long getLastVersionID () {
-        return versionRepo.getLastVersionId() - 1;
+    @GetMapping(value = "/versions")
+    @ResponseBody
+    public List<Versioning> getVersioning(@RequestParam(required = false) Long number) {
+        if (number == null) {
+            return (List<Versioning>) versionRepo.findAll();
+        }
+        return versionRepo.getVersioning(number);
     }
 
-    @GetMapping(value = "/version")
-    public List<Versioning> getVersioningFromUsername(@RequestParam Long number) {
-        return versionRepo.getVersioning(number);
+    @GetMapping(value = "/versions/last/")
+    public Long getLastVersionID () {
+        return versionRepo.getLastVersionId() - 1;
     }
 
 

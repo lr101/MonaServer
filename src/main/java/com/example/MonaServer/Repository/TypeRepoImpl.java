@@ -13,15 +13,24 @@ public class TypeRepoImpl implements TypeRepoCustom {
     @Lazy
     TypeRepo typeRepo;
 
-    public StickerType findTypeById(Long id) {
+
+    @Override
+    public StickerType getStickerTypeById(Long id) {
         Optional<StickerType> m = typeRepo.findById(id);
         return m.orElse(null);
     }
 
-
     @Override
     public void deleteType(StickerType type) {
-        typeRepo.delete(findTypeById(type.getId()));
+        typeRepo.delete(getStickerTypeById(type.getId()));
+    }
+
+    @Override
+    public StickerType updateType(StickerType stickerType) {
+        StickerType s = getStickerTypeById(stickerType.getId());
+        s.setName(stickerType.getName());
+        typeRepo.save(s);
+        return s;
     }
 
 }

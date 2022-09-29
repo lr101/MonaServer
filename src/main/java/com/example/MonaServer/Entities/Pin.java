@@ -1,5 +1,8 @@
 package com.example.MonaServer.Entities;
 
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
 import javax.persistence.*;
 import java.util.Date;
 
@@ -22,6 +25,7 @@ public class Pin {
 
     @ManyToOne
     @JoinColumn(name="type", nullable = false, referencedColumnName = "id")
+    @OnDelete(action= OnDeleteAction.CASCADE)
     private StickerType type;
 
     public Pin (double latitude, double longitude, Date creationDate, StickerType type) {

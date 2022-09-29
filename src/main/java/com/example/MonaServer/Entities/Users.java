@@ -34,22 +34,12 @@ public class Users {
     @OnDelete(action= OnDeleteAction.CASCADE)
     private Set<Pin> createdPins = new HashSet<>();
 
-    @Column(name = "points")
-    private int points;
-
     public Users() {}
 
     public Users(String username) {
         this.username = username;
     }
 
-    public Set<Pin> getFoundPins() {
-        return foundPins;
-    }
-
-    public void setFoundPins(Set<Pin> foundPins) {
-        this.foundPins = foundPins;
-    }
 
     public Set<Pin> getCreatedPins() {
         return createdPins;
@@ -67,15 +57,4 @@ public class Users {
         this.username = username;
     }
 
-    public int getPoints() {
-        return points;
-    }
-
-    public void setPoints(int points) {
-        this.points = points;
-    }
-
-    public void addPoints(int points) {
-        this.points += points;
-    }
 }

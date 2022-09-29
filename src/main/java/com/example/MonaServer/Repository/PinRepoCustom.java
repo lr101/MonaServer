@@ -12,5 +12,4 @@ public interface PinRepoCustom {
     public Pin findByPinId(Long id);
     public Pin updatePin(Pin pin);
     public void deletePin (Long id);
-    public Set<Pin> findOtherPinsInRadius(double latitude, double longitude, Set<Pin> userPins);
 }

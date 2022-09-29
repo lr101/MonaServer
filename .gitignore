@@ -36,3 +36,5 @@ update.sh
 privateKey
 **/scratches/*
 /DB_Backup/
+/REST_Routes.xlsx
+/~$REST_Routes.xlsx
