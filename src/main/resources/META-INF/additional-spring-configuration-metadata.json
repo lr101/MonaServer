@@ -1,0 +1,8 @@
+{
+  "properties": [
+    {
+      "name": "mona-server.http.auth-token",
+      "type": "java.lang.String",
+      "description": "Description for mona-server.http.auth-token."
+    }
+  ] }

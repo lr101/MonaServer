@@ -9,6 +9,7 @@ import com.example.MonaServer.Repository.MonaRepo;
 import com.example.MonaServer.Repository.UserRepo;
 import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import javax.imageio.IIOImage;
@@ -20,10 +21,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,22 +33,28 @@ public class ControllerConfig {
     @Autowired
     UserRepo userRepo;
 
-    @GetMapping(value = "/ranking")
+    @Value("${AUTH_TOKEN_ADMIN}")
+    private String principalRequestValueAdmin;
+
+    @GetMapping(value = "/api/ranking")
     public List<UsernameXPoints> getPointRanking () {
         List<UsernameXPoints> list = new ArrayList<>();
         userRepo.getRanking().forEach(e -> list.add(new UsernameXPoints((String) e[0], ((java.math.BigInteger) e[1]).longValue())));
         return list;
     }
 
-    @GetMapping(value = "/compress")
-    public void compressAllMonas() {
-        List<Mona> monas = (List<Mona>) monaRepo.findAll();
-        int i = 0;
-        for (Mona mona : monas) {
-            i++;
-            int before = mona.getImage().length / 1000;
-            monaRepo.updateMona(compress(mona.getImage()), mona.getPin());
-            System.out.println(i + " " + before + "kB -> " + mona.getImage().length / 1000 + "kB");
+    @GetMapping(value = "/api/compress")
+    public void compressAllMonas(@RequestHeader Map<String, String> headers) {
+        if(headers.containsKey(Config.API_KEY_AUTH_HEADER_NAME_ADMIN) &&                                        //request header has admin API Key
+                headers.get(Config.API_KEY_AUTH_HEADER_NAME_ADMIN).equals(principalRequestValueAdmin) ) {        //check if admin API key is correct
+            List<Mona> monas = (List<Mona>) monaRepo.findAll();
+            int i = 0;
+            for (Mona mona : monas) {
+                i++;
+                int before = mona.getImage().length / 1000;
+                monaRepo.updateMona(compress(mona.getImage()), mona.getPin());
+                System.out.println(i + " " + before + "kB -> " + mona.getImage().length / 1000 + "kB");
+            }
         }
     }
 

@@ -36,5 +36,8 @@ update.sh
 privateKey
 **/scratches/*
 /DB_Backup/
+/springboot.jks
+/springboot.p12
+/REST_Routes.xlsx
 /REST_Routes.xlsx
 /~$REST_Routes.xlsx

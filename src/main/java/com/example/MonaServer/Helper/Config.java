@@ -5,5 +5,6 @@ public class Config {
     public static final int P_NEW_PIN = 1;
     public static final int P_FOUND_PIN = 3;
     public static final int P_DELETE_PIN = 5;
+    public static final String API_KEY_AUTH_HEADER_NAME_ADMIN = "api_key_admin";
 
 }

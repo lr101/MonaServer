@@ -15,7 +15,7 @@ public class RestControllerVersion {
     @Autowired
     VersionRepo versionRepo;
 
-    @GetMapping(value = "/versions")
+    @GetMapping(value = "/api/versions")
     @ResponseBody
     public List<Versioning> getVersioning(@RequestParam(required = false) Long number) {
         if (number == null) {
@@ -24,7 +24,7 @@ public class RestControllerVersion {
         return versionRepo.getVersioning(number);
     }
 
-    @GetMapping(value = "/versions/last/")
+    @GetMapping(value = "/api/versions/last/")
     public Long getLastVersionID () {
         return versionRepo.getLastVersionId() - 1;
     }

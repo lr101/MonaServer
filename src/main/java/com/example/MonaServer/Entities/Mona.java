@@ -2,13 +2,16 @@ package com.example.MonaServer.Entities;
 
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.springframework.context.annotation.Lazy;
 
 import javax.persistence.*;
+import javax.transaction.Transactional;
 
 @Entity(name = "monas")
 public class Mona {
 
     @Column(name = "image", columnDefinition="bytea")
+    @Lazy
     private byte[] image = new byte[0];
 
     @OneToOne
