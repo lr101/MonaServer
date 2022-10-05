@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class ViewController {
 
-    @GetMapping("/privacy-policy")
+    @GetMapping("/public/privacy-policy")
     public String index() {
         return "privacy-policy";
     }
 
-    @GetMapping("/agb")
+    @GetMapping("/public/agb")
     public String agb() {
         return "agb";
     }

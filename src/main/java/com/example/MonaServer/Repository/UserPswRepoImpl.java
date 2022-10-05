@@ -25,11 +25,9 @@ public class UserPswRepoImpl implements UserPswRepoCustom {
     public UserPassword updateUserPassword(UserPassword userPassword) {
         UserPassword up = findUserById(userPassword.getUsername());
         if (userPassword.getPassword() != null) {
-            System.out.println("t2");
             up.setPassword(userPassword.getPassword());
         }
         if (userPassword.getEmail() != null) {
-            System.out.println("t1");
             up.setEmail(userPassword.getEmail());
         }
         userPswRepo.save(up);
@@ -39,5 +37,15 @@ public class UserPswRepoImpl implements UserPswRepoCustom {
     @Override
     public void deleteUser(String username) {
         userPswRepo.delete(findUserById(username));
+    }
+
+    @Override
+    public Optional<UserPassword> findByToken(String token) {
+        for (UserPassword up : userPswRepo.findAll()) {
+            if (up.getToken().equals(token)) {
+                return Optional.of(up);
+            }
+        }
+        return Optional.empty();
     }
 }

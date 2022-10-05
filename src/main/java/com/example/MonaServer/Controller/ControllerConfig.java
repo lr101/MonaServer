@@ -10,6 +10,7 @@ import com.example.MonaServer.Repository.UserRepo;
 import org.imgscalr.Scalr;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.imageio.IIOImage;
@@ -44,17 +45,16 @@ public class ControllerConfig {
     }
 
     @GetMapping(value = "/api/compress")
-    public void compressAllMonas(@RequestHeader Map<String, String> headers) {
-        if(headers.containsKey(Config.API_KEY_AUTH_HEADER_NAME_ADMIN) &&                                        //request header has admin API Key
-                headers.get(Config.API_KEY_AUTH_HEADER_NAME_ADMIN).equals(principalRequestValueAdmin) ) {        //check if admin API key is correct
-            List<Mona> monas = (List<Mona>) monaRepo.findAll();
-            int i = 0;
-            for (Mona mona : monas) {
-                i++;
-                int before = mona.getImage().length / 1000;
-                monaRepo.updateMona(compress(mona.getImage()), mona.getPin());
-                System.out.println(i + " " + before + "kB -> " + mona.getImage().length / 1000 + "kB");
-            }
+    public void compressAllMonas(@RequestHeader Map<String, String> headers) throws Exception {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if(!tokenUser.equals(principalRequestValueAdmin)) throw new Exception("Access denied for this token");
+        List<Mona> monas = (List<Mona>) monaRepo.findAll();
+        int i = 0;
+        for (Mona mona : monas) {
+            i++;
+            int before = mona.getImage().length / 1000;
+            monaRepo.updateMona(compress(mona.getImage()), mona.getPin());
+            System.out.println(i + " " + before + "kB -> " + mona.getImage().length / 1000 + "kB");
         }
     }
 

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -51,12 +52,15 @@ public class RestControllerMona {
         if (!json.has("username")) throw new Exception("Error: Field 'username' was not given in request");
         if (!json.has("typeId")) throw new Exception("Error: Field 'typeId' was not given in request");
         if (!json.has("creationDate")) throw new Exception("Error: Field 'creationDate' was not given in request");
+        String username = json.get("username").asText();
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if(!tokenUser.equals(username) && !tokenUser.equals(principalRequestValueAdmin)) throw new Exception("Access denied for this token");
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
         byte[] image = reader.readValue(json.get("image"));
         double latitude = json.get("latitude").asDouble();
         double longitude = json.get("longitude").asDouble();
-        String username = json.get("username").asText();
+
         Long typeId = json.get("typeId").asLong();
         Date date = new SimpleDateFormat("yyyy-MM-dd").parse(json.get("creationDate").asText());
         if (!addPin(image, latitude, longitude, username, typeId, date)) {
@@ -84,17 +88,11 @@ public class RestControllerMona {
     }
 
     @DeleteMapping(value = "/api/monas/{pinId}")
-    public void deleteMonaByPinId (@PathVariable("pinId") Long id, @RequestParam() String username, @RequestHeader Map<String, String> headers) throws Exception {
-        if(headers.containsKey(Config.API_KEY_AUTH_HEADER_NAME_ADMIN) &&                                        //request header has admin API Key
-                headers.get(Config.API_KEY_AUTH_HEADER_NAME_ADMIN).equals(principalRequestValueAdmin) ||        //check if admin API key is correct
-                userRepo.getMappedPins(username).contains(pinRepo.findByPinId(id))){                            //user is the creator of this pin
-
-            pinRepo.deleteById(id);
-            versionRepo.deletePin(id);
-        } else {
-            throw new Exception("Access denied. Only admins and the user, who created this pin are able to delete it");
-        }
-
+    public void deleteMonaByPinId (@PathVariable("pinId") Long id, @RequestParam() String username) throws Exception {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if(!tokenUser.equals(username) && !tokenUser.equals(principalRequestValueAdmin)) throw new Exception("Access denied for this token");
+        pinRepo.deleteById(id);
+        versionRepo.deletePin(id);
     }
 
     private boolean addPin(byte[] image, double latitude, double longitude, String username, Long typeId, Date date) {

@@ -5,6 +5,7 @@ import com.example.MonaServer.Helper.Config;
 import com.example.MonaServer.Repository.TypeRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,11 +26,9 @@ public class RestControllerType {
     }
 
     @PostMapping(value="/api/types/")
-    public StickerType postType(@RequestBody StickerType type, @RequestHeader Map<String, String> headers) throws Exception {
-        if(headers.containsKey(Config.API_KEY_AUTH_HEADER_NAME_ADMIN) &&                                        //request header has admin API Key
-                headers.get(Config.API_KEY_AUTH_HEADER_NAME_ADMIN).equals(principalRequestValueAdmin) ) {        //check if admin API key is correct
-            return typeRepo.save(type);
-        }
-        throw new Exception("Access denied. Admin API Key not accepted");
+    public StickerType postType(@RequestBody StickerType type) throws Exception {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if(!tokenUser.equals(principalRequestValueAdmin)) throw new Exception("Access denied for this token");
+        return typeRepo.save(type);
     }
 }

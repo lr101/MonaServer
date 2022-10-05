@@ -7,6 +7,7 @@ import com.example.MonaServer.Repository.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -70,24 +71,20 @@ public class RestControllerPin {
     }
 
     @PutMapping(value="pins/{id}/type")
-    public Pin changeTypeOfPin(@PathVariable("id") Long id,@RequestParam String username, @RequestBody ObjectNode json, @RequestHeader Map<String, String> headers) throws Exception {
-        if(headers.containsKey(Config.API_KEY_AUTH_HEADER_NAME_ADMIN) &&                                        //request header has admin API Key
-                headers.get(Config.API_KEY_AUTH_HEADER_NAME_ADMIN).equals(principalRequestValueAdmin) ||        //check if admin API key is correct
-                userRepo.getMappedPins(username).contains(pinRepo.findByPinId(id))) {                           //user is the creator of this pin
-            Pin pin = pinRepo.findByPinId(id);
-            Long typeId = null;
-            if (json.has("typeId")) typeId = json.get("typeId").asLong();
-            if (typeId == null) throw new Exception("Error: Field typeId was not given in request");
-            Optional<StickerType> type = typeRepo.findById(typeId);
-            if (type.isPresent() && pin != null) {
-                pin.setType(type.get());
-                pinRepo.save(pin);
-                return pin;
-            }
-            throw new Exception("Error: Pin or StickerType does not exist");
-        } else {
-            throw new Exception("Access denied. Only admins and the user, who created this pin are able to edit it");
+    public Pin changeTypeOfPin(@PathVariable("id") Long id,@RequestParam String username, @RequestBody ObjectNode json) throws Exception {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if(!tokenUser.equals(username) && !tokenUser.equals(principalRequestValueAdmin)) throw new Exception("Access denied for this token");
+        Pin pin = pinRepo.findByPinId(id);
+        Long typeId = null;
+        if (json.has("typeId")) typeId = json.get("typeId").asLong();
+        if (typeId == null) throw new Exception("Error: Field typeId was not given in request");
+        Optional<StickerType> type = typeRepo.findById(typeId);
+        if (type.isPresent() && pin != null) {
+            pin.setType(type.get());
+            pinRepo.save(pin);
+            return pin;
         }
+        throw new Exception("Error: Pin or StickerType does not exist");
     }
 
 }
