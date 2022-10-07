@@ -26,7 +26,7 @@ public class RestControllerVersion {
 
     @GetMapping(value = "/api/versions/last/")
     public Long getLastVersionID () {
-        return versionRepo.getLastVersionId() - 1;
+        return versionRepo.getLastVersionId().get(0).getId();
     }
 
 

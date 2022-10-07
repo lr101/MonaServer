@@ -1,17 +1,20 @@
 package com.example.MonaServer.Entities;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import javax.persistence.*;
+import java.util.Date;
 
 @Entity(name = "versions")
 public class Versioning {
     @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
     @Column(name = "id", nullable = false)
     private Long id;
 
     @Column(name = "pin_id", nullable = false)
     private Long pinId;
+
+    @Column(name = "date", nullable = false)
+    private Date date;
 
     /**
      * type: 0 -> Pin with {pinId} is newly added
@@ -23,10 +26,10 @@ public class Versioning {
 
     public Versioning() {}
 
-    public Versioning(Long id, Long pinId, int type) {
-        this.id = id;
+    public Versioning(Long pinId, int type, Date date) {
         this.pinId = pinId;
         this.type = type;
+        this.date = date;
     }
 
     public Long getId() {
@@ -51,6 +54,14 @@ public class Versioning {
 
     public void setPinId(Long pinId) {
         this.pinId = pinId;
+    }
+
+    public Date getDate() {
+        return date;
+    }
+
+    public void setDate(Date date) {
+        this.date = date;
     }
 }
 

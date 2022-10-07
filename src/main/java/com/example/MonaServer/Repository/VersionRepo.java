@@ -12,6 +12,9 @@ import java.util.List;
 @Transactional
 public interface VersionRepo extends CrudRepository<Versioning, Long>, VersionRepoCustom {
 
-    @Query(value="SELECT * FROM versions WHERE id > :id ORDER BY id", nativeQuery=true)
+    @Query(value="SELECT * FROM versions WHERE date > (SELECT date FROM versions WHERE id = :id) ORDER BY date DESC", nativeQuery=true)
     List<Versioning> getVersioning(@Param("id") Long id);
+
+    @Query(value="SELECT * FROM versions ORDER BY date DESC LIMIT 1", nativeQuery=true)
+    List<Versioning> getLastVersionId();
 }

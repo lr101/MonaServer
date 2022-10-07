@@ -3,6 +3,8 @@ package com.example.MonaServer.Repository;
 import com.example.MonaServer.Entities.Versioning;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+
+import java.util.Date;
 import java.util.List;
 
 
@@ -15,8 +17,8 @@ public class VersionRepoImpl implements VersionRepoCustom {
 
 
     @Override
-    public Long getLastVersionId() {
-        return versionRepo.count();
+    public List<Versioning> getLastVersionId() {
+        return null;
     }
 
     @Override
@@ -26,14 +28,14 @@ public class VersionRepoImpl implements VersionRepoCustom {
 
 
     @Override
-    public void addPin(Long pinId) {
-        Versioning version = new Versioning(getLastVersionId(), pinId, 0);
-        versionRepo.save(version);
+    public Long addPin(Long pinId, Date date) {
+        Versioning version = new Versioning(pinId, 0, date);
+        return versionRepo.save(version).getId();
     }
 
     @Override
-    public void deletePin(Long pinId) {
-        Versioning version = new Versioning(getLastVersionId(), pinId, 1);
-        versionRepo.save(version);
+    public Long deletePin(Long pinId, Date date) {
+        Versioning version = new Versioning(pinId, 1, date);
+        return versionRepo.save(version).getId();
     }
 }

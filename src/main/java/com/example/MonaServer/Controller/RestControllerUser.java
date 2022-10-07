@@ -113,7 +113,6 @@ public class RestControllerUser {
         if (json.has("email")) email = json.get("email").asText();
         if (json.has("password")) password = json.get("password").asText();
         if (json.has("username")) username = json.get("username").asText();
-        System.out.println(!checkForUser(username));
         if ((email != null && password != null && username != null) && !checkForUser(username)) {
             UserPassword userPassword = userPswRepo.save(new UserPassword(username, password, email));
             System.out.println(email+password+username);
