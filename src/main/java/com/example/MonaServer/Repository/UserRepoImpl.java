@@ -1,7 +1,7 @@
 package com.example.MonaServer.Repository;
 
 import com.example.MonaServer.Entities.Pin;
-import com.example.MonaServer.Entities.Users;
+import com.example.MonaServer.Entities.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
@@ -11,51 +11,26 @@ public class UserRepoImpl implements UserRepoCustom {
 
     @Autowired
     @Lazy
-    UserRepo userRepository;
+    UserRepo userRepo;
 
     @Override
-    public Users findByUsername(String username) {
-        ArrayList<Users> list = (ArrayList<Users>) userRepository.findAll();
-        for (Users User : list) {
-            if (Objects.equals(User.getUsername(), username)) {
-                return User;
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public void addPinToCreatedList(String username, Pin pin) {
-        Users u = findByUsername(username);
-        u.getCreatedPins().add(pin);
-        userRepository.save(u);
+    public User findByUsername(String username) {
+        Optional<User> user = userRepo.findById(username);
+        return user.orElseThrow();
     }
 
     @Override
     public void deleteUser(String username) {
-        userRepository.delete(findByUsername(username));
+        userRepo.delete(findByUsername(username));
     }
 
     @Override
-    public Set<Pin> getMappedPins(String username) {
-        Users user = this.findByUsername(username);
-        return user != null ? new HashSet<>(user.getCreatedPins()) : new HashSet<>();
-    }
-
-    @Override
-    public List<Object[]> getRanking() {
-        return null;
-    }
-
-    @Override
-    public Users findUserByPin(Pin pin) {
-        Users user = null;
-        for (Users u : userRepository.findAll()) {
-            if(u.getCreatedPins().contains(pin)) {
-                user = u;
-            }
-        }
-        return user;
+    public void updateUser(String username, String password, String email, String token) {
+        User user = findByUsername(username);
+        if (password != null) user.setPassword(password);
+        if (email != null) user.setEmail(email);
+        if (token != null) user.setToken(token);
+        userRepo.save(user);
     }
 
 }

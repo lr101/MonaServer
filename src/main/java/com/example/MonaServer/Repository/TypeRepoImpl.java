@@ -17,7 +17,7 @@ public class TypeRepoImpl implements TypeRepoCustom {
     @Override
     public StickerType getStickerTypeById(Long id) {
         Optional<StickerType> m = typeRepo.findById(id);
-        return m.orElse(null);
+        return m.orElseThrow();
     }
 
     @Override

@@ -1,8 +1,8 @@
 package com.example.MonaServer.Helper;
 
 
-import com.example.MonaServer.Entities.UserPassword;
-import com.example.MonaServer.Repository.UserPswRepo;
+import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Repository.UserRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,14 +16,14 @@ import java.util.Optional;
 @Component
 public class MyUserDetailsService implements UserDetailsService {
 
-    @Autowired private UserPswRepo userRepo;
+    @Autowired private UserRepo userRepo;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Optional<UserPassword> userRes = userRepo.findById(username);
+        Optional<User> userRes = userRepo.findById(username);
         if(userRes.isEmpty())
             throw new UsernameNotFoundException("Could not findUser with username = " + username);
-        UserPassword user = userRes.get();
+        User user = userRes.get();
         return new org.springframework.security.core.userdetails.User(
                 username,
                 user.getPassword(),

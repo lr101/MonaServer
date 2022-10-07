@@ -1,6 +1,5 @@
 package com.example.MonaServer.Helper;
 
-import com.example.MonaServer.Repository.UserPswRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,7 +37,6 @@ import javax.servlet.http.HttpServletResponse;
 public class ApiKeyAuthManager  {
 
 
-    @Autowired private UserPswRepo userRepo;
     @Autowired private JWTFilter filter;
     @Autowired private MyUserDetailsService uds;
 
@@ -50,6 +48,9 @@ public class ApiKeyAuthManager  {
                 .and()
                 .authorizeHttpRequests()
                 .antMatchers("/token/**").permitAll()
+                .antMatchers("/signup/**").permitAll()
+                .antMatchers("/login/**").permitAll()
+                .antMatchers("/recover/**").permitAll()
                 .antMatchers("/api/**").hasRole("USER")
                 .and()
                 .userDetailsService(uds)

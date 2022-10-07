@@ -1,47 +1,47 @@
 package com.example.MonaServer.Repository;
-
-import com.example.MonaServer.Entities.Pin;
-import com.example.MonaServer.Entities.Mona;
+import com.example.MonaServer.Entities.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 public class MonaRepoImpl implements MonaRepoCustom {
 
     @Autowired
     @Lazy
-    MonaRepo monaRepository;
+    MonaRepo monaRepo;
 
-    public Mona findMonaById(Long id) {
-        Optional<Mona> m = monaRepository.findById(id);
-        return m.orElse(null);
+    @Autowired
+    PinRepo pinRepo;
+
+
+    @Override
+    public Pin createMona(byte[] image, double latitude, double longitude, User user, StickerType type, Date date) {
+        Pin pin = new Pin(latitude, longitude, date, type, user);
+        Mona mona = new Mona(image, pin);
+        mona.setPin(pinRepo.save(mona.getPin()));
+        Mona monaSaved = monaRepo.save(mona);
+        return monaSaved.getPin();
     }
 
     @Override
-    public Mona findMonaByPin(Pin pin) {
-        for (Mona mona : monaRepository.findAll()) {
-            if (mona.getPin().equals(pin)) {
-                return mona;
-            }
-        }
-        return null;
+    public void deleteMona(Long id){
+        Mona mona = getMona(id);
+        monaRepo.delete(mona);
     }
 
     @Override
-    public Mona updateMona(byte[] image, Pin pin) {
-        Mona u = findMonaByPin(pin);
-        u.setImage(image);
-        monaRepository.save(u);
-        return u;
+    public Mona getMona(Long pinId) {
+        Mona mona = monaRepo.getMonaFromPinId(pinId);
+        if (mona == null) throw new NoSuchElementException("Mona with id: " + pinId + " cannot be found");
+        return mona;
     }
 
     @Override
-    public void deleteMona(Mona mona) {
-        monaRepository.delete(findMonaById(mona.getId()));
+    public void updateMona(byte[] image, Long id) {
+        Mona mona = getMona(id);
+        mona.setImage(image);
+        monaRepo.save(mona);
     }
 
 }

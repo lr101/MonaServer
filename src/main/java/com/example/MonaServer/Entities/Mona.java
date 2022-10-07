@@ -1,5 +1,7 @@
 package com.example.MonaServer.Entities;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.springframework.context.annotation.Lazy;
@@ -8,9 +10,11 @@ import javax.persistence.*;
 import javax.transaction.Transactional;
 
 @Entity(name = "monas")
+@Getter
+@Setter
 public class Mona {
 
-    @Column(name = "image", columnDefinition="bytea")
+    @Column(name = "image", columnDefinition="bytea", nullable = false)
     @Lazy
     private byte[] image = new byte[0];
 
@@ -24,34 +28,11 @@ public class Mona {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    public Mona (byte[] image, Pin pin) {
+    public Mona(byte[] image, Pin pin) {
         this.image = image;
         this.pin = pin;
     }
 
-    public Mona(){}
+    public Mona() {};
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public byte[] getImage() {
-        return image;
-    }
-
-    public void setImage(byte[] image) {
-        this.image = image;
-    }
-
-    public Pin getPin() {
-        return pin;
-    }
-
-    public void setPin(Pin pin) {
-        this.pin = pin;
-    }
 }

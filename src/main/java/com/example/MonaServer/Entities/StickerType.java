@@ -1,30 +1,26 @@
 package com.example.MonaServer.Entities;
 
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.context.annotation.Lazy;
+
 import javax.persistence.*;
 
 @Entity(name = "types")
+@Getter
+@Setter
 public class StickerType {
     @Id
     @Column(name = "id", nullable = false)
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
     @Column(name="name", nullable = false)
     private String name;
 
-    public Long getId() {
-        return id;
-    }
+    //TODO add nullable = false when possible
+    @Column(name = "icon", columnDefinition="bytea")
+    @Lazy
+    private byte[] icon = new byte[0];
 
-    public void setId(Long id) {
-        this.id = id;
-    }
 }
