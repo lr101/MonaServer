@@ -3,6 +3,7 @@ package com.example.MonaServer.Controller;
 import com.example.MonaServer.DTO.PinDTO;
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.StickerType;
+import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -34,7 +35,7 @@ public class RestControllerPin {
         if (username == null) {
             return PinDTO.toDTOList(pins);
         } else {
-            return PinDTO.toDTOList(pins.stream().filter(e -> e.getUser().getUsername().equals(username)).collect(Collectors.toList()));
+            return PinDTO.toDTOList(pins.stream().filter(e -> (e.getUser() != null && e.getUser().getUsername().equals(username))).collect(Collectors.toList()));
         }
 
     }
@@ -46,7 +47,8 @@ public class RestControllerPin {
 
     @GetMapping(value = "/api/pins/{id}/user")
     public String getUsernameOfPin(@PathVariable("id")Long id) {
-        return pinRepo.findByPinId(id).getUser().getUsername();
+        User user = pinRepo.findByPinId(id).getUser();
+        return user != null ? user.getUsername() : null;
     }
 
     @GetMapping(value = "/api/pins/{id}/type")
@@ -56,13 +58,14 @@ public class RestControllerPin {
     }
 
     @PutMapping(value="/api/pins/{id}/type")
-    public PinDTO changeTypeOfPin(@PathVariable("id") Long id,@RequestParam String username, @RequestBody ObjectNode json) {
-        securityFilter.checkUserThrowsException(username);
-        if (!json.has("typeId")) throw new IllegalArgumentException("Error: Field typeId was not given in request");
-        Long typeId = json.get("typeId").asLong();
+    public PinDTO changeTypeOfPin(@PathVariable("id") Long id, @RequestBody ObjectNode json) {
         Pin pin = pinRepo.findByPinId(id);
+        User user = pin.getUser();
+        securityFilter.checkUserThrowsException(user != null ? user.getUsername() : null);
+        securityFilter.checkJsonForValues(json, new String[] {"typeId"});
+        Long typeId = json.get("typeId").asLong();
         Optional<StickerType> type = typeRepo.findById(typeId);
-        if (type.isPresent() && pin != null) {
+        if (type.isPresent()) {
             pin.setType(type.get());
             return new PinDTO(pinRepo.save(pin));
         }
@@ -75,7 +78,7 @@ public class RestControllerPin {
         if (username == null) {
             return pins.stream().map(Pin::getId).collect(Collectors.toList());
         } else {
-            return pins.stream().filter(e -> e.getUser().getUsername().equals(username)).map(Pin::getId).collect(Collectors.toList());
+            return pins.stream().filter(e -> e.getUser() != null && e.getUser().getUsername().equals(username)).map(Pin::getId).collect(Collectors.toList());
         }
 
     }

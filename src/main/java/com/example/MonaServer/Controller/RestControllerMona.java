@@ -39,11 +39,7 @@ public class RestControllerMona {
 
     @RequestMapping(value = "/api/monas", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     public PinDTO addNewPinToUser(@RequestBody ObjectNode json) throws Exception {
-        if (!json.has("image")) throw new Exception("Error: Field 'image' was not given in request");
-        if (!json.has("latitude")) throw new Exception("Error: Field 'latitude' was not given in request");
-        if (!json.has("longitude")) throw new Exception("Error: Field 'longitude' was not given in request");
-        if (!json.has("username")) throw new Exception("Error: Field 'username' was not given in request");
-        if (!json.has("typeId")) throw new Exception("Error: Field 'typeId' was not given in request");
+        securityFilter.checkJsonForValues(json, new String[] {"image", "latitude", "longitude", "username", "typeId"});
         String username = json.get("username").asText();
         securityFilter.checkUserThrowsException(username);
         ObjectMapper mapper = new ObjectMapper();
@@ -63,7 +59,7 @@ public class RestControllerMona {
 
     @PutMapping(value = "/api/monas/{pinId}")
     public void updatePictureOfMona(@PathVariable("pinId") Long id, @RequestBody ObjectNode json) throws Exception {
-        if (!json.has("image")) throw new Exception("Error: Field 'image' was not given in request");
+        securityFilter.checkJsonForValues(json, new String[] {"image"});
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
         byte[] image = reader.readValue(json.get("image"));
@@ -75,9 +71,11 @@ public class RestControllerMona {
     }
 
     @DeleteMapping(value = "/api/monas/{pinId}")
-    public void deleteMonaByPinId (@PathVariable("pinId") Long id, @RequestParam() String username) {
-        securityFilter.checkUserThrowsException(username);
-        monaRepo.deleteMona(id);
+    public void deleteMonaByPinId (@PathVariable("pinId") Long id) {
+        User user = pinRepo.findByPinId(id).getUser();
+        securityFilter.checkUserThrowsException((user != null ? user.getUsername() : null));
+        System.out.println("/api/monas/"+id);
+        pinRepo.deleteById(id);
     }
 
     private PinDTO addPin(byte[] image, double latitude, double longitude, String username, Long typeId, Date date) {

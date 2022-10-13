@@ -13,7 +13,7 @@ import java.util.Set;
 @Repository
 @Transactional
 public interface UserRepo extends CrudRepository<User, String>, UserRepoCustom {
-    @Query(value = "SELECT a.username, COUNT(u.username) as points FROM created_pins u RIGHT JOIN users a on a.username = u.username GROUP BY a.username ORDER BY points DESC",nativeQuery = true)
+    @Query(value = "SELECT a.username, COUNT(u.creation_user) as points FROM pins u RIGHT JOIN users a on a.username = u.creation_user GROUP BY a.username ORDER BY points DESC",nativeQuery = true)
     public List<Object[]> getRanking();
 
     @Query(value = "SELECT COUNT(*) FROM pins WHERE creation_user = :username",nativeQuery = true)

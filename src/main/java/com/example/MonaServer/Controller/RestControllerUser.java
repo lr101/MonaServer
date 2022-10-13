@@ -32,16 +32,16 @@ public class RestControllerUser {
     @PutMapping("/api/users/{user}")
     public void putUser(@PathVariable("user") String username, @RequestBody ObjectNode json) {
         securityFilter.checkUserThrowsException(username);
-
-        String email = json.get("email").asText();
-        String password = json.get("password").asText();
+        String email = null;
+        String password = null;
+        if(json.has("email")) email = json.get("email").asText();
+        if(json.has("password")) password = json.get("password").asText();
         userRepo.updateUser(username, password, email, null);
     }
 
     @DeleteMapping("/api/users/{user}")
     public void deleteUser (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
-
         userRepo.deleteUser(username);
     }
 
@@ -59,10 +59,8 @@ public class RestControllerUser {
     //#################### Authentication routes ##########################
 
     @PostMapping("/signup")
-    public String postUser(@RequestBody ObjectNode json) throws Exception {
-        if (!json.has("email")) throw new Exception("Error: Field 'email' was not given in request");
-        if (!json.has("password")) throw new Exception("Error: Field 'password' was not given in request");
-        if (!json.has("username")) throw new Exception("Error: Field 'username' was not given in request");
+    public String postUser(@RequestBody ObjectNode json) {
+        securityFilter.checkJsonForValues(json, new String[] {"email", "password", "username"});
         String email = json.get("email").asText();
         String password = json.get("password").asText();
         String username = json.get("username").asText();
@@ -70,22 +68,21 @@ public class RestControllerUser {
             User user = userRepo.save(new User(username, password, email, new JWTUtil().generateToken(username)));
             return user.getToken();
         }
-        throw new Exception("User with username: " + username + " already exists");
+        throw new IllegalArgumentException("User with username: " + username + " already exists");
     }
 
     @GetMapping(value = "/login/{user}")
-    public String loginOld(@PathVariable("user") String username) throws Exception {
+    public String loginOld(@PathVariable("user") String username) {
         User user = userRepo.findByUsername(username);
         if (user.getToken() == null) {
             return user.getPassword();
         }
-        throw new Exception ("Wrong login format, because token already exists. Try using POST [IP]:[PORT]/login/");
+        throw new IllegalArgumentException ("Wrong login format, because token already exists. Try using POST [IP]:[PORT]/login/");
     }
 
     @PostMapping(value = "/login")
     public String login(@RequestBody ObjectNode json) throws Exception {
-        if (!json.has("password")) throw new Exception("Error: Field 'password' was not given in request");
-        if (!json.has("username")) throw new Exception("Error: Field 'username' was not given in request");
+        securityFilter.checkJsonForValues(json, new String[] {"password", "username"});
         String password = json.get("password").asText();
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
@@ -97,12 +94,12 @@ public class RestControllerUser {
             }
             return token;
         }
-        throw new Exception("ERROR: Wrong Password");
+        throw new IllegalArgumentException("ERROR: Wrong Password");
     }
 
     @GetMapping(value = "/recover")
     public boolean recover(@RequestBody ObjectNode json) throws Exception {
-        if (!json.has("username")) throw new Exception("Error: Field 'username' was not given in request");
+        securityFilter.checkJsonForValues(json, new String[] {"username"});
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
         //TODO send mail to recover email address
@@ -112,7 +109,7 @@ public class RestControllerUser {
     //TODO Delete if all users switched to new type of encoding
     @PutMapping("/token/{user}")
     public String putUserToken(@PathVariable("user") String username, @RequestBody ObjectNode json) throws Exception {
-        if (!json.has("password")) throw new Exception("Error: Field 'password' was not given in request");
+        securityFilter.checkJsonForValues(json, new String[] {"password"});
         String password = json.get("password").asText();
         String token = new JWTUtil().generateToken(username);
         userRepo.updateUser(username, password, null, token);
