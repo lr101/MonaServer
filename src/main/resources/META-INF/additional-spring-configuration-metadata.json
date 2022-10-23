@@ -4,5 +4,15 @@
       "name": "mona-server.http.auth-token",
       "type": "java.lang.String",
       "description": "Description for mona-server.http.auth-token."
+    },
+    {
+      "name": "email.psw",
+      "type": "java.lang.String",
+      "description": "Description for email.psw."
+    },
+    {
+      "name": "email.psw",
+      "type": "java.lang.String",
+      "description": "Description for email.psw."
     }
   ] }

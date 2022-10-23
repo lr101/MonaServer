@@ -2,6 +2,7 @@ package com.example.MonaServer.Controller;
 
 import com.example.MonaServer.DTO.UserDTO;
 import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Helper.EmailHelper;
 import com.example.MonaServer.Helper.JWTUtil;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.UserRepo;
@@ -81,7 +82,7 @@ public class RestControllerUser {
     }
 
     @PostMapping(value = "/login")
-    public String login(@RequestBody ObjectNode json) throws Exception {
+    public String login(@RequestBody ObjectNode json) {
         securityFilter.checkJsonForValues(json, new String[] {"password", "username"});
         String password = json.get("password").asText();
         String username = json.get("username").asText();
@@ -98,17 +99,21 @@ public class RestControllerUser {
     }
 
     @GetMapping(value = "/recover")
-    public boolean recover(@RequestBody ObjectNode json) throws Exception {
+    public boolean recover(@RequestBody ObjectNode json) {
         securityFilter.checkJsonForValues(json, new String[] {"username"});
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
-        //TODO send mail to recover email address
+
+        if (user.getEmail() != null) {
+            String url = userRepo.setResetUrl(username);
+            new EmailHelper().sendMail("You applied for recovering your password. You can do so by pressing the link below:\n\nhttps://localhost:8081/public/recover/" + url + "\n\nThis link will be active for 24h\n Thank you for using this STICKER MAP", user.getEmail());
+        }
         return user.getEmail() != null;
     }
 
     //TODO Delete if all users switched to new type of encoding
     @PutMapping("/token/{user}")
-    public String putUserToken(@PathVariable("user") String username, @RequestBody ObjectNode json) throws Exception {
+    public String putUserToken(@PathVariable("user") String username, @RequestBody ObjectNode json) {
         securityFilter.checkJsonForValues(json, new String[] {"password"});
         String password = json.get("password").asText();
         String token = new JWTUtil().generateToken(username);

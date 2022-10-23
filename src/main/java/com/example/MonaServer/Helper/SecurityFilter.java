@@ -1,20 +1,17 @@
 package com.example.MonaServer.Helper;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
 
 import java.util.NoSuchElementException;
+import java.util.Random;
 
-@Service
 public class SecurityFilter {
 
-    private @Value("${AUTH_TOKEN_ADMIN}") String principalRequestValueAdmin;
+    private final String principalRequestValueAdmin = System.getenv("AUTH_TOKEN_ADMIN");
 
     public boolean checkUser(String username) {
         String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        System.out.println(tokenUser + " " + username + " " + principalRequestValueAdmin);
         return tokenUser.equals(username) || tokenUser.equals(principalRequestValueAdmin);
     }
 
@@ -36,4 +33,17 @@ public class SecurityFilter {
             if (!json.has(value)) throw new NoSuchElementException("Error: Field " + value +" was not given in request");
         }
     }
+
+    public static String generateAlphabeticRandomString() {
+        int leftLimit = 97; // letter 'a'
+        int rightLimit = 122; // letter 'z'
+        int targetStringLength = 50;
+        Random random = new Random();
+
+        return random.ints(leftLimit, rightLimit + 1)
+                .limit(targetStringLength)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
+    }
+
 }
