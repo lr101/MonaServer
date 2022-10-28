@@ -99,7 +99,7 @@ public class RestControllerUser {
     }
 
     @GetMapping(value = "/recover")
-    public boolean recover(@RequestBody ObjectNode json) {
+    public void recover(@RequestBody ObjectNode json) {
         securityFilter.checkJsonForValues(json, new String[] {"username"});
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
@@ -108,7 +108,6 @@ public class RestControllerUser {
             String url = userRepo.setResetUrl(username);
             new EmailHelper().sendMail("You applied for recovering your password. You can do so by pressing the link below:\n\nhttps://localhost:8081/public/recover/" + url + "\n\nThis link will be active for 24h\n Thank you for using this STICKER MAP", user.getEmail());
         }
-        return user.getEmail() != null;
     }
 
     //TODO Delete if all users switched to new type of encoding
