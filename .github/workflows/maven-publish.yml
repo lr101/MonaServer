@@ -50,4 +50,4 @@ jobs:
         remote: ~/target/MonaServer-2.jar
         host: ${{ secrets.HOSTNAME }}
         username: ${{ secrets.USERNAME }}
-        privateKey: ${{ secret.SSH_PRIVATE_KEY }}
+        privateKey: ${{ secrets.SSH_PRIVATE_KEY }}
