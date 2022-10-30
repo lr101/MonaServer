@@ -3,9 +3,10 @@
 
 name: MonaServer
 
-on:
-  release:
-    types: [created]
+on: 
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -26,10 +27,7 @@ jobs:
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
     - name: Build with Maven
-      run: mvn -B package --file pom.xml
-
-    - name: Publish to GitHub Packages Apache Maven
-      run: mvn install
+      run: mvn -B package -DskipTests --file pom.xml
       env:
         GITHUB_TOKEN: ${{ github.token }}
         MAIL_PSW: ${{ secrets.MAIL_PSW }}
@@ -39,3 +37,8 @@ jobs:
         DB_USER: ${{ secrets.DB_USER }}
         PORT: ${{ secrets.PORT }}
         SECRET: ${{ secrets.SECRET }}
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3.1.1
+      with:
+        path: target/MonaServer-2.jar
