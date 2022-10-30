@@ -48,6 +48,14 @@ jobs:
       with:
         local: target/MonaServer-2.jar
         remote: target/MonaServer-2.jar
-        host: ${{ secrets.HOSTNAME }}
+        host: ${{ secrets.SERVER_IP }}
         username: ${{ secrets.USERNAME }}
         privateKey: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: multiple command
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }
+        script: sudo systemctl restart server
