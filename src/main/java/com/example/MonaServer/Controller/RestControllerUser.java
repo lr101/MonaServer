@@ -101,11 +101,8 @@ public class RestControllerUser {
     }
 
     @GetMapping(value = "/recover")
-    public void recover(@RequestBody ObjectNode json) throws UnknownHostException {
-        securityFilter.checkJsonForValues(json, new String[] {"username"});
-        String username = json.get("username").asText();
+    public void recover(@RequestParam String username) {
         User user = userRepo.findByUsername(username);
-
         if (user.getEmail() != null) {
             String ip = System.getenv("SERVER_IP");
             String port = System.getenv("PORT");
