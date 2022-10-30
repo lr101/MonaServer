@@ -58,4 +58,6 @@ jobs:
         host: ${{ secrets.SERVER_IP }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: sudo systemctl restart server
+        script: |
+          sudo systemctl daemon-reload
+          sudo systemctl restart server
