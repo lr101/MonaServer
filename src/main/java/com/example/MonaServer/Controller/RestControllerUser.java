@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 @RestController
@@ -99,14 +101,16 @@ public class RestControllerUser {
     }
 
     @GetMapping(value = "/recover")
-    public void recover(@RequestBody ObjectNode json) {
+    public void recover(@RequestBody ObjectNode json) throws UnknownHostException {
         securityFilter.checkJsonForValues(json, new String[] {"username"});
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
 
         if (user.getEmail() != null) {
-            String url = userRepo.setResetUrl(username);
-            new EmailHelper().sendMail("You applied for recovering your password. You can do so by pressing the link below:\n\nhttps://localhost:8081/public/recover/" + url + "\n\nThis link will be active for 24h\n Thank you for using this STICKER MAP", user.getEmail());
+            String ip = InetAddress.getLocalHost().getHostAddress();
+            String port = System.getenv("PORT");
+            String url = "https://" + ip + ":" + port + "/public/recover/" + userRepo.setResetUrl(username);
+            new EmailHelper().sendMail("Recover your password by pressing the link below:\n\n" + url +"\n\nThis link will be valid until midnight\n Thank you for using this STICKER MAP", user.getEmail());
         }
     }
 
