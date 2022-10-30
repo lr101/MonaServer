@@ -43,6 +43,9 @@ public class User {
     @Column(name = "token", unique = true)
     String token;
 
+    @Column(name = "reset_password_url", unique = true)
+    String resetPasswordUrl;
+
     public User() {}
 
     public User(String username, String password, String email, String token) {

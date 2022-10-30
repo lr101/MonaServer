@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="../../js/jquery-3.6.0.js"></script>
+    <script src="../../js/sha256.min.js"></script>
+</head>
+
+<body>
+<div id="body" >
+    <h1>Reset your Password:</h1>
+    <form id="form">
+        <label>password</label>
+        <input id="password" name="newPassword" type="password" value="" pattern=/>
+
+        <label>confirm</label>
+        <input id="matchPassword" type="password" value="" />
+
+        <input type="button" th:attr="onclick=|savePass('${username}' ,'${token}')|" value="submit">
+    </form>
+
+    <script type="text/javascript">
+
+        function savePass(username, token) {
+
+            const psw1 = document.getElementById("password").value;
+            const psw2 = document.getElementById("matchPassword").value;
+            console.log(psw1.match(new RegExp("^([a-zA-z])")));
+            console.log(sha256(psw1));
+            if (psw1 === psw2 && psw1.length >= 2 && psw1.match(new RegExp("^([a-zA-z])")) != null) {
+                $.ajax({
+                    url: '/api/users/'+username,
+                    type: 'PUT',
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+                    },
+                    contentType: 'application/json',
+                    data: '{"password": "' + sha256(psw1) + '"}',
+                    success: function () {
+                        const suc = document.createElement('label');
+                        suc.innerHTML = "Password has been successfully reset"
+                        document.getElementById("form").remove();
+                        document.getElementById("body").appendChild(suc);
+                    },
+                    error: function () { },
+                });
+            }
+        }
+
+    </script>
+</div>
+</body>
+</html>
