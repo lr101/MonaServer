@@ -42,3 +42,12 @@ jobs:
       uses: actions/upload-artifact@v3.1.1
       with:
         path: target/MonaServer-2.jar
+        
+    - name: Copy single file to remote
+      uses: garygrossgarten/github-action-scp@release
+      with:
+        local: target/MonaServer-2.jar
+        remote: ~/target/MonaServer-2.jar
+        host: ${{ secrets.HOSTNAME }}
+        username: ${{ secrets.USERNAME }}
+        privateKey: ${{ secret.SSH_PRIVATE_KEY }}
