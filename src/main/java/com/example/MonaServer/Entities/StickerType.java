@@ -23,4 +23,8 @@ public class StickerType {
     @Lazy
     private byte[] icon = new byte[0];
 
+    @ManyToOne
+    @JoinColumn(name = "id", nullable = false)
+    private Group group;
+
 }
