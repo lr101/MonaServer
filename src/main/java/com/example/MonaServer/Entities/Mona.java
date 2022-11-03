@@ -25,7 +25,8 @@ public class Mona {
 
     @Id
     @Column(name = "id", nullable = false)
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "mona_id_generator")
+    @SequenceGenerator(name="mona_id_generator", sequenceName = "mona_id_seq")
     private Long id;
 
     public Mona(byte[] image, Pin pin) {
