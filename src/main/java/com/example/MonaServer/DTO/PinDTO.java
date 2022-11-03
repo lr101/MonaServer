@@ -34,7 +34,7 @@ public class PinDTO {
         this.latitude = pin.getLatitude();
         this.longitude = pin.getLongitude();
         this.creationDate = pin.getCreationDate();
-        this.type = new StickerTypeDTO(pin.getType().getId(), pin.getType().getName());
+        this.type = new StickerTypeDTO(pin.getType());
         this.username = (pin.getUser() == null) ? null : pin.getUser().getUsername();
     }
 

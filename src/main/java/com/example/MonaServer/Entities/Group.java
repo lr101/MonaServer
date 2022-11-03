@@ -49,7 +49,11 @@ public class Group {
     private Set<StickerType> stickerTypes;
 
     public Group(Long id, String name, User groupAdmin, int visibility) {
-        //TODO fill
+        this.id = id;
+        this.name = name;
+        this.groupAdmin = groupAdmin;
+        this.visibility = visibility;
     }
 
+    public Group() {}
 }
