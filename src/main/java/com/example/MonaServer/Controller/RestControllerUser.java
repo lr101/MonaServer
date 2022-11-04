@@ -54,6 +54,12 @@ public class RestControllerUser {
         return userRepo.getUserPoints(username);
     }
 
+    @GetMapping(value = "/api/users/{user}/email")
+    public String getUserEmail (@PathVariable("user") String username) {
+        securityFilter.checkUserThrowsException(username);
+        return userRepo.findByUsername(username).getEmail();
+    }
+
     public boolean checkForUser(String username) {
         Optional<User> user = userRepo.findById(username);
         return user.isEmpty();

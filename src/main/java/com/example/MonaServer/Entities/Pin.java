@@ -15,7 +15,8 @@ public class Pin {
 
     @Column(name = "id", nullable = false)
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "pins_id_generator")
+    @SequenceGenerator(name="pins_id_generator", sequenceName = "pins_id_seq")
     private Long id;
 
     @Column(name = "latitude", nullable = false)
