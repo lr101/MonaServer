@@ -1,10 +1,13 @@
 package com.example.MonaServer.Helper;
 
+import com.example.MonaServer.Entities.Group;
+import com.example.MonaServer.Entities.User;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.NoSuchElementException;
 import java.util.Random;
+import java.util.Set;
 
 public class SecurityFilter {
 
@@ -18,6 +21,16 @@ public class SecurityFilter {
     public boolean checkAdminOnly() {
         String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return tokenUser.equals(principalRequestValueAdmin);
+    }
+
+    public void checkUserInGroupThrowsException(Group group) {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser)) || !tokenUser.equals(principalRequestValueAdmin)) throw new SecurityException("Access denied for this token. User ist not a member of group");
+    }
+
+
+    public void checkUserAdminInGroupThrowsException(Group group) {
+        if (!checkUser(group.getGroupAdmin().getUsername())) throw new SecurityException("Access denied for this token. User ist not a member of group");
     }
 
     public void checkUserThrowsException(String username) {
@@ -34,10 +47,9 @@ public class SecurityFilter {
         }
     }
 
-    public static String generateAlphabeticRandomString() {
+    public static String generateAlphabeticRandomString(int targetStringLength) {
         int leftLimit = 97; // letter 'a'
         int rightLimit = 122; // letter 'z'
-        int targetStringLength = 50;
         Random random = new Random();
 
         return random.ints(leftLimit, rightLimit + 1)

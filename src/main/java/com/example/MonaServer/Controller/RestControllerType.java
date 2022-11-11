@@ -20,9 +20,5 @@ public class RestControllerType {
         return (List<StickerType>) typeRepo.findAll();
     }
 
-    @PostMapping(value="/api/types")
-    public StickerType postType(@RequestBody StickerType type) {
-        securityFilter.checkAdminOnly();
-        return typeRepo.save(type);
-    }
+
 }

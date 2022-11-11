@@ -11,12 +11,14 @@ import javax.persistence.*;
 @Setter
 public class StickerTypeDTO {
     private Long id;
-
     private String name;
-
+    private byte[] icon;
+    private Long groupId;
 
     public StickerTypeDTO(StickerType stickerType) {
         this.id = stickerType.getId();
         this.name = stickerType.getName();
+        this.icon = stickerType.getIcon();
+        this.groupId = stickerType.getGroup().getId();
     }
 }

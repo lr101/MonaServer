@@ -42,7 +42,7 @@ public class UserRepoImpl implements UserRepoCustom {
         boolean flag = true;
         String random = "ERROR";
         while (flag) {
-            random = SecurityFilter.generateAlphabeticRandomString();
+            random = SecurityFilter.generateAlphabeticRandomString(50);
             if (userRepo.getUsersWithUrl(random).size() == 0) {
                 User user = userRepo.findByUsername(username);
                 user.setResetPasswordUrl(random);
