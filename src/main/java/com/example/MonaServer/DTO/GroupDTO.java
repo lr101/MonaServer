@@ -2,15 +2,10 @@ package com.example.MonaServer.DTO;
 
 
 import com.example.MonaServer.Entities.Group;
-import com.example.MonaServer.Entities.Pin;
-import com.example.MonaServer.Entities.StickerType;
 import com.example.MonaServer.Entities.User;
-import com.example.MonaServer.Repository.TypeRepo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
-
-import javax.persistence.*;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,11 +24,11 @@ public class GroupDTO {
 
     private byte[] profileImage;
 
+    private byte[] pinImage;
+
     private Integer visibility;
 
     private Set<String> members;
-
-    private Set<StickerTypeDTO> stickerTypes;
 
     private String inviteUrl;
 
@@ -48,29 +43,48 @@ public class GroupDTO {
         this.description = description;
         this.profileImage = profileImage;
         this.visibility = visibility;
-        this.members = null;
-        this.stickerTypes = null;
-        this.inviteUrl = null;
-        this.groupId = null;
     }
 
-    public GroupDTO(Group group, TypeRepo typeRepo) {
+    public GroupDTO(
+             String name,
+             byte[] profileImage,
+             int visibility,
+             Long groupId) {
+        this.name = name;
+        this.profileImage = profileImage;
+        this.visibility = visibility;
+        this.groupId = groupId;
+    }
+
+    public GroupDTO(Group group) {
         this.name = group.getName();
         this.groupAdmin = group.getGroupAdmin().getUsername();
         this.description = group.getDescription();
         this.profileImage = group.getProfileImage();
         this.visibility = group.getVisibility();
         this.members = group.getMembers().stream().map(User::getUsername).collect(Collectors.toSet());
-        this.stickerTypes = typeRepo.getTypesByGroup(group.getId()).stream().map(StickerTypeDTO::new).collect(Collectors.toSet());
         this.inviteUrl = group.getInviteUrl();
-        this.groupId = group.getId();
+        this.groupId = group.getGroupId();
+        this.pinImage = group.getPinImage();
     }
 
-    public static List<GroupDTO> toDTOList(List<Group> groups, TypeRepo typeRepo) {
-        return groups.stream().map(g -> new GroupDTO(g, typeRepo)).collect(Collectors.toList());
+    public static List<GroupDTO> toDTOList(List<Group> groups) {
+        return groups.stream().map(GroupDTO::new).collect(Collectors.toList());
     }
 
-    public static Set<GroupDTO> toDTOSet(Set<Group> groups, TypeRepo typeRepo) {
-        return groups.stream().map(g -> new GroupDTO(g, typeRepo)).collect(Collectors.toSet());
+    public static Set<GroupDTO> toDTOSet(Set<Group> groups) {
+        return groups.stream().map(GroupDTO::new).collect(Collectors.toSet());
+    }
+
+    public static Set<GroupDTO> toDTOSetPrivate(Set<Group> groups) {
+        return groups.stream().map(GroupDTO::getPrivateDTO).collect(Collectors.toSet());
+    }
+
+    private static GroupDTO getPrivateDTO(Group group) {
+        if (group.getVisibility() == 0) {
+            return new GroupDTO(group);
+        } else {
+            return new GroupDTO(group.getName(), group.getProfileImage(), group.getVisibility(), group.getGroupId());
+        }
     }
 }

@@ -16,8 +16,8 @@ public class MonaRepoImpl implements MonaRepoCustom {
 
 
     @Override
-    public Pin createMona(byte[] image, double latitude, double longitude, User user, StickerType type, Date date) {
-        Pin pin = new Pin(latitude, longitude, date, type, user);
+    public Pin createMona(byte[] image, double latitude, double longitude, User user, Date date) {
+        Pin pin = new Pin(latitude, longitude, date, user);
         Mona mona = new Mona(image, pin);
         mona.setPin(pinRepo.save(mona.getPin()));
         Mona monaSaved = monaRepo.save(mona);

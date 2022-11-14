@@ -1,10 +1,14 @@
 package com.example.MonaServer.Helper;
 
 import com.example.MonaServer.Entities.Group;
+import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Repository.GroupRepo;
+import com.example.MonaServer.Repository.PinRepo;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
@@ -23,9 +27,26 @@ public class SecurityFilter {
         return tokenUser.equals(principalRequestValueAdmin);
     }
 
-    public void checkUserInGroupThrowsException(Group group) {
+    public String checkUserInGroupThrowsException(Group group) {
         String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser)) || !tokenUser.equals(principalRequestValueAdmin)) throw new SecurityException("Access denied for this token. User ist not a member of group");
+        if (tokenUser.equals(principalRequestValueAdmin)) return tokenUser;
+        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser))) throw new SecurityException("Access denied for this token. User ist not a member of group");
+        return tokenUser;
+    }
+
+    public void checkPinIsInGroupOfUserThrowsException(GroupRepo groupRepo, Long pinId) {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<Long> groupIds = groupRepo.getGroupIdFromPinId(pinId);
+        if (groupIds == null || groupIds.isEmpty() || groupRepo.getGroup(groupIds.get(0)).getPins().stream().noneMatch(e -> e.getUser().getUsername().equals(tokenUser))) {
+            throw new SecurityException("Access denied for this token. The user is not a member of its group");
+        }
+    }
+
+    public void checkUserIsPinCreator(Pin pin) {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!pin.getUser().getUsername().equals(tokenUser) && !(tokenUser.equals(principalRequestValueAdmin))) {
+            throw new SecurityException("Access denied for this token. Username has no edit rights for this pin");
+        }
     }
 
 

@@ -1,10 +1,12 @@
 package com.example.MonaServer.Controller;
 
+import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.DTO.UserDTO;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.EmailHelper;
 import com.example.MonaServer.Helper.JWTUtil;
 import com.example.MonaServer.Helper.SecurityFilter;
+import com.example.MonaServer.Repository.GroupRepo;
 import com.example.MonaServer.Repository.UserRepo;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,9 @@ public class RestControllerUser {
 
     @Autowired
     UserRepo userRepo;
+
+    @Autowired
+    GroupRepo groupRepo;
 
     SecurityFilter securityFilter = new SecurityFilter();
 
@@ -58,6 +63,12 @@ public class RestControllerUser {
     public String getUserEmail (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
         return userRepo.findByUsername(username).getEmail();
+    }
+
+    @GetMapping(value = "/api/users/{user}/groups")
+    public Set<GroupDTO> getUserGroups (@PathVariable("user") String username) {
+        securityFilter.checkUserThrowsException(username);
+        return GroupDTO.toDTOSet(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
     }
 
     public boolean checkForUser(String username) {

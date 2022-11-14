@@ -1,13 +1,8 @@
 package com.example.MonaServer.DTO;
 
 import com.example.MonaServer.Entities.Pin;
-import com.example.MonaServer.Entities.StickerType;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-
-import javax.persistence.*;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -25,8 +20,6 @@ public class PinDTO {
 
     private Date creationDate;
 
-    private StickerTypeDTO type;
-
     private String username;
 
     public PinDTO(Pin pin) {
@@ -34,7 +27,6 @@ public class PinDTO {
         this.latitude = pin.getLatitude();
         this.longitude = pin.getLongitude();
         this.creationDate = pin.getCreationDate();
-        this.type = new StickerTypeDTO(pin.getType());
         this.username = (pin.getUser() == null) ? null : pin.getUser().getUsername();
     }
 

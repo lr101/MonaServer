@@ -16,7 +16,7 @@ public class Pin {
     @Column(name = "id", nullable = false)
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "pins_id_generator")
-    @SequenceGenerator(name="pins_id_generator", sequenceName = "pins_id_seq")
+    @SequenceGenerator(name="pins_id_generator", sequenceName = "pins_id_seq", allocationSize = 1)
     private Long id;
 
     @Column(name = "latitude", nullable = false)
@@ -28,20 +28,14 @@ public class Pin {
     @Column(name = "creation_date", nullable = false)
     private Date creationDate;
 
-    @ManyToOne
-    @JoinColumn(name="type", nullable = false, referencedColumnName = "id")
-    @OnDelete(action= OnDeleteAction.CASCADE)
-    private StickerType type;
-
     @OneToOne
     @JoinColumn(name="creation_user", referencedColumnName = "username")
     private User user;
 
-    public Pin (double latitude, double longitude, Date creationDate, StickerType type, User user) {
+    public Pin (double latitude, double longitude, Date creationDate, User user) {
         this.latitude = latitude;
         this.longitude = longitude;
         this.creationDate = creationDate;
-        this.type = type;
         this.user = user;
     }
 

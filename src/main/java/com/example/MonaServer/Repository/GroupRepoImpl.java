@@ -5,9 +5,7 @@ import com.example.MonaServer.Entities.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
-import java.util.Date;
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
 
 public class GroupRepoImpl implements GroupRepoCustom {
 
@@ -21,9 +19,6 @@ public class GroupRepoImpl implements GroupRepoCustom {
     @Autowired
     UserRepo userRepo;
 
-    @Autowired
-    TypeRepo typeRepo;
-
 
     @Override
     public Group addGroupMember(Long groupId, String username, String inviteUrl) {
@@ -36,9 +31,24 @@ public class GroupRepoImpl implements GroupRepoCustom {
     }
 
     @Override
+    public Group deleteGroupMember(Long groupId, String username) {
+        Group group = getGroup(groupId);
+        if (!username.equals(group.getGroupAdmin().getUsername())) {
+            group.removeGroupMember(username);
+            return groupRepo.save(group);
+        }
+        throw new IllegalArgumentException("ERROR: you are leaving the group as an admin. Try making another group member the admin first");
+    }
+
+    @Override
     public Group createGroup(GroupDTO groupDTO) {
-        Group group = new Group(groupDTO, userRepo.findByUsername(groupDTO.getGroupAdmin()));
-        return groupRepo.save(group);
+        if (groupDTO.getVisibility() != null &&
+            groupDTO.getProfileImage() != null &&
+            groupDTO.getName() != null) {
+            Group group = new Group(groupDTO, userRepo.findByUsername(groupDTO.getGroupAdmin()));
+            return groupRepo.save(group);
+        }
+        throw new IllegalArgumentException("The group has missing necessary params");
     }
 
     @Override
@@ -59,7 +69,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
         if (groupDTO.getDescription() != null)  group.setDescription(groupDTO.getDescription());
         if (groupDTO.getGroupAdmin() != null)   group.setGroupAdmin(userRepo.findByUsername(groupDTO.getGroupAdmin()));
         if (groupDTO.getName() != null)         group.setName(groupDTO.getName());
-        if (groupDTO.getProfileImage() != null) group.setProfileImage(groupDTO.getProfileImage());
+        if (groupDTO.getProfileImage() != null) group.updateGroupImage(groupDTO.getProfileImage());
         if (groupDTO.getVisibility() != null)   {
             group.setVisibility(groupDTO.getVisibility());
             group.setInvite();
@@ -68,10 +78,15 @@ public class GroupRepoImpl implements GroupRepoCustom {
     }
 
     @Override
-    public StickerType addTypeToGroup(Long groupId, String name, byte[] icon) {
-        Group group = getGroup(groupId);
-        StickerType type = new StickerType(name, icon, group);
-        return typeRepo.save(type);
+    public Set<Group> getGroupsOfUser(User user) {
+        List<Group> groups = (List<Group>) groupRepo.findAll();
+        Set<Group> userGroups = new HashSet<>();
+        for (Group group : groups) {
+            if (group.getMembers().contains(user)) {
+                userGroups.add(group);
+            }
+        }
+        return userGroups;
     }
 
 }
