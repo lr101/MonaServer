@@ -52,7 +52,7 @@ public class ImageHelper {
                     } else if (isNotTransparent(pinBorder, x, y)) {   //draw image if pixel in pin_border.png is not transparent
                         g.setColor(new Color(pinBorder.getRGB(x,y)));
                     } else {                                        //default transparent
-                        g.setColor(new Color(HEX_COLOR_TRANSPARENT));
+                        g.setColor(new Color(0,0,0,0));
                     }
                     g.drawLine(x,y,x,y);
                 }

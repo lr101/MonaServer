@@ -8,6 +8,7 @@ import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
