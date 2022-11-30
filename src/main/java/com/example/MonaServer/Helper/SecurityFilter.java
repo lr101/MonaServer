@@ -34,11 +34,17 @@ public class SecurityFilter {
         return tokenUser;
     }
 
-    public void checkPinIsInGroupOfUserThrowsException(GroupRepo groupRepo, Long pinId) {
+    public void checkPinIsInGroupOfUserThrowsException(Group group, Pin pin) {
         String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        List<Long> groupIds = groupRepo.getGroupIdFromPinId(pinId);
-        if (groupIds == null || groupIds.isEmpty() || groupRepo.getGroup(groupIds.get(0)).getPins().stream().noneMatch(e -> e.getUser().getUsername().equals(tokenUser))) {
+        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser)) && group.getPins().contains(pin)) {
             throw new SecurityException("Access denied for this token. The user is not a member of its group");
+        }
+    }
+
+    public void checkIfUserIsInPrivateGroup(Group group) {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (group.getVisibility() != 0 && group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser))) {
+            throw new SecurityException("Access denied for this token. The user is not a member of this private group");
         }
     }
 

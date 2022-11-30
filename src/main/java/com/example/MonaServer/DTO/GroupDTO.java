@@ -3,6 +3,8 @@ package com.example.MonaServer.DTO;
 
 import com.example.MonaServer.Entities.Group;
 import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Helper.UsernameXPoints;
+import com.example.MonaServer.Repository.GroupRepo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,8 +30,6 @@ public class GroupDTO {
 
     private Integer visibility;
 
-    private Set<String> members;
-
     private String inviteUrl;
 
     public GroupDTO(
@@ -47,11 +47,9 @@ public class GroupDTO {
 
     public GroupDTO(
              String name,
-             byte[] profileImage,
              int visibility,
              Long groupId) {
         this.name = name;
-        this.profileImage = profileImage;
         this.visibility = visibility;
         this.groupId = groupId;
     }
@@ -62,14 +60,13 @@ public class GroupDTO {
         this.description = group.getDescription();
         this.profileImage = group.getProfileImage();
         this.visibility = group.getVisibility();
-        this.members = group.getMembers().stream().map(User::getUsername).collect(Collectors.toSet());
         this.inviteUrl = group.getInviteUrl();
         this.groupId = group.getGroupId();
         this.pinImage = group.getPinImage();
     }
 
     public static List<GroupDTO> toDTOList(List<Group> groups) {
-        return groups.stream().map(GroupDTO::new).collect(Collectors.toList());
+        return groups.stream().map(GroupDTO::getPrivateDTO).collect(Collectors.toList());
     }
 
     public static Set<GroupDTO> toDTOSet(Set<Group> groups) {
@@ -81,10 +78,6 @@ public class GroupDTO {
     }
 
     private static GroupDTO getPrivateDTO(Group group) {
-        if (group.getVisibility() == 0) {
-            return new GroupDTO(group);
-        } else {
-            return new GroupDTO(group.getName(), group.getProfileImage(), group.getVisibility(), group.getGroupId());
-        }
+        return new GroupDTO(group.getName(),  group.getVisibility(), group.getGroupId());
     }
 }

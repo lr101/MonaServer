@@ -68,7 +68,7 @@ public class RestControllerUser {
     @GetMapping(value = "/api/users/{user}/groups")
     public Set<GroupDTO> getUserGroups (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
-        return GroupDTO.toDTOSet(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
+        return GroupDTO.toDTOSetPrivate(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
     }
 
     public boolean checkForUser(String username) {

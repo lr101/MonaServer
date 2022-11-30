@@ -2,6 +2,7 @@ package com.example.MonaServer.Repository;
 
 import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.Entities.*;
+import com.example.MonaServer.Helper.UsernameXPoints;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
@@ -87,6 +88,24 @@ public class GroupRepoImpl implements GroupRepoCustom {
             }
         }
         return userGroups;
+    }
+
+    @Override
+    public List<UsernameXPoints> getRankingOfGroup(Group group) {
+        List<UsernameXPoints> list = new ArrayList<>();
+        Map<User, UsernameXPoints> ranking = new HashMap<>();
+        group.getMembers().forEach(u -> {
+            UsernameXPoints i = new UsernameXPoints(u.getUsername(), 0);
+            list.add(i);
+            ranking.put(u, i);
+        });
+
+        for (Pin pin : group.getPins()) {
+            UsernameXPoints points = ranking.get(pin.getUser());
+            if (points != null) points.addOnePoint();
+        }
+        list.sort(Comparator.comparing(UsernameXPoints::getPoints).reversed());
+        return list;
     }
 
 }

@@ -3,7 +3,9 @@ package com.example.MonaServer.Repository;
 import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.Entities.Group;
 import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Helper.UsernameXPoints;
 
+import java.util.List;
 import java.util.Set;
 
 public interface GroupRepoCustom {
@@ -14,4 +16,5 @@ public interface GroupRepoCustom {
     public Group getGroup(Long id);
     public Group updateGroup(GroupDTO groupDTO);
     public Set<Group> getGroupsOfUser(User user);
+    public List<UsernameXPoints> getRankingOfGroup(Group group);
 }

@@ -12,7 +12,4 @@ import java.util.List;
 
 @Repository
 @Transactional
-public interface GroupRepo extends CrudRepository<Group, Long>, GroupRepoCustom {
-    @Query(value = "SELECT group_id FROM groups_pins WHERE id= :pinId", nativeQuery = true)
-    public List<Long> getGroupIdFromPinId(Long pinId);
-}
+public interface GroupRepo extends CrudRepository<Group, Long>, GroupRepoCustom {}

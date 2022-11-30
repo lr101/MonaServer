@@ -30,13 +30,6 @@ public class ControllerConfig {
 
     SecurityFilter securityFilter = new SecurityFilter();
 
-    @GetMapping(value = "/api/ranking")
-    public List<UsernameXPoints> getPointRanking () {
-        List<UsernameXPoints> list = new ArrayList<>();
-        userRepo.getRanking().forEach(e -> list.add(new UsernameXPoints((String) e[0], ((java.math.BigInteger) e[1]).longValue())));
-        return list;
-    }
-
     @GetMapping(value = "/api/compress")
     public void compressAllMonas() {
         securityFilter.checkAdminOnlyThrowsException();
