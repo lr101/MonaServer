@@ -123,7 +123,7 @@ public class RestControllerUser {
         if (user.getEmail() != null) {
             String ip = System.getenv("SERVER_IP");
             String port = System.getenv("PORT");
-            String url = "https://" + ip + ":" + port + "/public/recover/" + userRepo.setResetUrl(username);
+            String url = "https://" + ip + "/public/recover/" + userRepo.setResetUrl(username);
             new EmailHelper().sendMail("Recover your password by pressing the link below:\n\n" + url +"\n\nThis link will be valid until midnight\n Thank you for using this STICKER MAP", user.getEmail());
         }
     }
