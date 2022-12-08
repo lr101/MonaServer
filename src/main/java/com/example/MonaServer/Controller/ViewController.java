@@ -27,6 +27,11 @@ public class ViewController {
         return "agb";
     }
 
+    @GetMapping("/public/app")
+    public String app() {
+        return "index";
+    }
+
     @GetMapping("/public/recover/{url}")
     public String recoverPassword(@PathVariable("url") String url, Model model) {
         List<User> users = userRepo.getUsersWithUrl(url);

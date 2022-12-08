@@ -44,3 +44,4 @@ privateKey
 /.env
 /logs/
 /keystore.p12
+/src/main/resources/static/
