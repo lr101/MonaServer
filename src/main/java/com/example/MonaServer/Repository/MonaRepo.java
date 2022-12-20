@@ -14,4 +14,7 @@ public interface MonaRepo extends CrudRepository<Mona, Long>, MonaRepoCustom {
     @Query(value="SELECT * FROM monas WHERE pin = :id", nativeQuery=true)
     Mona getMonaFromPinId(@Param("id") Long id);
 
+    @Query(value="SELECT group_id FROM groups_pins WHERE id = :id", nativeQuery=true)
+    Long getGroupIdFromPinId(@Param("id") Long id);
+
 }
