@@ -110,6 +110,13 @@ public class RestControllerGroup {
         return groupRepo.getGroup(groupId).getGroupAdmin().getUsername();
     }
 
+    @GetMapping( "/api/groups/{groupId}/invite_url")
+    public String getInviteUrl(@PathVariable Long groupId)  {
+        Group group = groupRepo.getGroup(groupId);
+        securityFilter.checkIfUserIsInPrivateGroup(group);
+        return groupRepo.getGroup(groupId).getInviteUrl();
+    }
+
     @GetMapping( "/api/groups/{groupId}")
     public GroupDTO getGroup(@PathVariable Long groupId)  {
         Group group = groupRepo.getGroup(groupId);

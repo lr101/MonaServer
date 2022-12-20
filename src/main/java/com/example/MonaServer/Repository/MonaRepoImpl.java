@@ -38,6 +38,15 @@ public class MonaRepoImpl implements MonaRepoCustom {
     }
 
     @Override
+    public List<Mona> getMonasByUser(User user) {
+        List<Mona> monas = new ArrayList<>();
+        monaRepo.findAll().forEach(e -> {
+            if (e.getPin().getUser().equals(user)) {monas.add(e);}
+        });
+        return  monas;
+    }
+
+    @Override
     public void updateMona(byte[] image, Long id) {
         Mona mona = getMona(id);
         mona.setImage(image);

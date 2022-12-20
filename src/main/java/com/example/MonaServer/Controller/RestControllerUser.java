@@ -1,12 +1,15 @@
 package com.example.MonaServer.Controller;
 
 import com.example.MonaServer.DTO.GroupDTO;
+import com.example.MonaServer.DTO.MonaDTO;
 import com.example.MonaServer.DTO.UserDTO;
+import com.example.MonaServer.Entities.Mona;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.EmailHelper;
 import com.example.MonaServer.Helper.JWTUtil;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.GroupRepo;
+import com.example.MonaServer.Repository.MonaRepo;
 import com.example.MonaServer.Repository.UserRepo;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,9 @@ public class RestControllerUser {
 
     @Autowired
     GroupRepo groupRepo;
+
+    @Autowired
+    MonaRepo monaRepo;
 
     SecurityFilter securityFilter = new SecurityFilter();
 
@@ -69,6 +75,13 @@ public class RestControllerUser {
     public Set<GroupDTO> getUserGroups (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
         return GroupDTO.toDTOSetPrivate(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
+    }
+
+    @GetMapping(value = "/api/users/{user}/pins")
+    public List<MonaDTO> getUserPins (@PathVariable("user") String username) {
+        securityFilter.checkUserThrowsException(username);
+        User user = userRepo.findByUsername(username);
+        return MonaDTO.toDTOList(monaRepo.getMonasByUser(user)).stream().sorted(Comparator.comparing(a -> a.getPin().getCreationDate())).toList();
     }
 
     public boolean checkForUser(String username) {
