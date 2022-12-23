@@ -13,6 +13,8 @@ public class ImageHelper {
 
     public static final int SIZE = 500;
     public static final int SIZE_PIN = 100;
+
+    public static final int SIZE_SMALL = 50;
     public static final int X_OFFSET = 11;
     public static final int Y_OFFSET = 4;
     public static final int DIAMETER = 79;
@@ -20,8 +22,16 @@ public class ImageHelper {
 
 
     public static byte[] getProfileImage(byte[] image) {
+        return getBytes(image, SIZE);
+    }
+
+    public static byte[] getProfileImageSmall(byte[] image) {
+        return getBytes(image, SIZE_SMALL);
+    }
+
+    private static byte[] getBytes(byte[] image, int sizeSmall) {
         try {
-            BufferedImage imageBuff = resizeImage(image, SIZE);
+            BufferedImage imageBuff = resizeImage(image, sizeSmall);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             ImageIO.write(imageBuff, "png", buffer);
             imageBuff.flush();

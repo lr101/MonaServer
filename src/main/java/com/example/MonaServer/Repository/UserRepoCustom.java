@@ -12,4 +12,6 @@ public interface UserRepoCustom {
     public void deleteUser (String username);
     public void updateUser(String username, String password, String email, String token);
     public String setResetUrl(String username);
+
+    public byte[] updateProfilePicture(String username, byte[] image);
 }

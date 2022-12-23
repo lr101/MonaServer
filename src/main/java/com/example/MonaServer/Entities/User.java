@@ -1,5 +1,6 @@
 package com.example.MonaServer.Entities;
 
+import com.example.MonaServer.Helper.ImageHelper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,6 +8,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.validator.constraints.NotBlank;
 import org.hibernate.validator.constraints.NotEmpty;
+import org.springframework.context.annotation.Lazy;
 
 import javax.persistence.*;
 import javax.validation.Valid;
@@ -46,12 +48,24 @@ public class User {
     @Column(name = "reset_password_url", unique = true)
     String resetPasswordUrl;
 
+    @Column(name = "profile_picture", columnDefinition="bytea")
+    @Lazy
+    private byte[] profilePicture = new byte[0];
+
+    @Column(name = "profile_picture_small", columnDefinition="bytea")
+    @Lazy
+    private byte[] profilePictureSmall = new byte[0];
+
     public User() {}
 
-    public User(String username, String password, String email, String token) {
+    public User(String username, String password, String email, String token, byte[] profilePicture) {
         this.username = username;
         this.password = password;
         this.email = email;
         this.token = token;
+        if (profilePicture != null) {
+            this.profilePicture = ImageHelper.getProfileImage(profilePicture);
+            this.profilePictureSmall = ImageHelper.getProfileImageSmall(profilePicture);
+        }
     }
 }

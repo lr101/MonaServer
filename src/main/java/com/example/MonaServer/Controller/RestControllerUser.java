@@ -89,6 +89,20 @@ public class RestControllerUser {
                 .toList();
     }
 
+    @PutMapping(value = "/api/users/{user}/profile_picture")
+    public byte[] putUserProfilePicture (@PathVariable("user") String username, @RequestBody byte[] image) {
+        return userRepo.updateProfilePicture(username, image);
+    }
+
+    @GetMapping(value = "/api/users/{user}/profile_picture")
+    public byte[] getUserProfilePicture (@PathVariable("user") String username) {
+        return userRepo.findByUsername(username).getProfilePicture();
+    }
+
+    @GetMapping(value = "/api/users/{user}/profile_picture_small")
+    public byte[] getUserProfilePictureSmall (@PathVariable("user") String username) {
+        return userRepo.findByUsername(username).getProfilePictureSmall();
+    }
     public boolean checkForUser(String username) {
         Optional<User> user = userRepo.findById(username);
         return user.isEmpty();
@@ -103,7 +117,7 @@ public class RestControllerUser {
         String password = json.get("password").asText();
         String username = json.get("username").asText();
         if (checkForUser(username)) {
-            User user = userRepo.save(new User(username, password, email, new JWTUtil().generateToken(username)));
+            User user = userRepo.save(new User(username, password, email, new JWTUtil().generateToken(username), null));
             return user.getToken();
         }
         throw new IllegalArgumentException("User with username: " + username + " already exists");

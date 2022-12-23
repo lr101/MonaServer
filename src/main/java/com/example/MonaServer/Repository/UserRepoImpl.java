@@ -2,10 +2,15 @@ package com.example.MonaServer.Repository;
 
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
+import com.example.MonaServer.Helper.ImageHelper;
 import com.example.MonaServer.Helper.SecurityFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.*;
 
 public class UserRepoImpl implements UserRepoCustom {
@@ -51,6 +56,15 @@ public class UserRepoImpl implements UserRepoCustom {
             }
         }
         return random;
+    }
+
+    @Override
+    public byte[] updateProfilePicture(String username, byte[] image) {
+        User user = this.findByUsername(username);
+        user.setProfilePicture(ImageHelper.getProfileImage(image));
+        user.setProfilePictureSmall(ImageHelper.getProfileImageSmall(image));
+        userRepo.save(user);
+        return user.getProfilePicture();
     }
 
 }
