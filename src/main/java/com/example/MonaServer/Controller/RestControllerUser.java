@@ -78,10 +78,15 @@ public class RestControllerUser {
     }
 
     @GetMapping(value = "/api/users/{user}/pins")
-    public List<MonaDTO> getUserPins (@PathVariable("user") String username) {
+    public List<Long> getUserPins (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
         User user = userRepo.findByUsername(username);
-        return MonaDTO.toDTOList(monaRepo.getMonasByUser(user)).stream().sorted(Comparator.comparing(a -> a.getPin().getCreationDate())).toList();
+        return MonaDTO
+                .toDTOList(monaRepo.getMonasByUser(user))
+                .stream()
+                .sorted(Comparator.comparing(a -> a.getPin().getCreationDate(), Comparator.reverseOrder()))
+                .map(e -> e.getPin().getId())
+                .toList();
     }
 
     public boolean checkForUser(String username) {

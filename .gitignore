@@ -45,3 +45,4 @@ privateKey
 /logs/
 /keystore.p12
 /src/main/resources/static/
+/DB_Backup/

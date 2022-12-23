@@ -41,8 +41,8 @@ public class RestControllerMona {
         return PinDTO.toDTOSet(group.getPins());
     }
 
-    @RequestMapping(value = "/api/groups/{groupId}/pins", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
-    public PinDTO addNewPinToGroup(@RequestBody ObjectNode json, @PathVariable Long groupId) throws Exception {
+    @RequestMapping(value = "/api/pins", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public PinDTO addNewPinToGroup(@RequestBody ObjectNode json) throws Exception {
         securityFilter.checkJsonForValues(json, new String[] {"image", "latitude", "longitude", "username", "groupId"});
         String username = json.get("username").asText();
         securityFilter.checkUserThrowsException(username);
@@ -51,21 +51,22 @@ public class RestControllerMona {
         byte[] image = reader.readValue(json.get("image"));
         double latitude = json.get("latitude").asDouble();
         double longitude = json.get("longitude").asDouble();
+        Long groupId = json.get("groupId").asLong();
         Date date = new Date();
         return addPin(image, latitude, longitude, username, groupId, date);
     }
 
-    @GetMapping(value = "/api/groups/{groupId}/pins/{pinId}")
-    public PinDTO getPinByPinId(@PathVariable("pinId") Long id, @PathVariable Long groupId) {
+    @GetMapping(value = "/api/pins/{pinId}")
+    public PinDTO getPinByPinId(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(groupId), pin);
+        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
         return new PinDTO(pin);
     }
 
-    @PutMapping(value = "/api/groups/{groupId}/pins/{pinId}")
-    public void updatePin(@PathVariable("pinId") Long id, @RequestBody ObjectNode json, @PathVariable Long groupId) throws Exception {
+    @PutMapping(value = "/api/pins/{pinId}")
+    public void updatePin(@PathVariable("pinId") Long id, @RequestBody ObjectNode json) throws Exception {
         securityFilter.checkJsonForValues(json, new String[] {"image"});
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(groupId), pinRepo.findByPinId(id));
+        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pinRepo.findByPinId(id));
         securityFilter.checkUserIsPinCreator(pinRepo.findByPinId(id));
         ObjectMapper mapper = new ObjectMapper();
         ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
@@ -77,25 +78,25 @@ public class RestControllerMona {
         throw new IllegalArgumentException("Picture could not be updated");
     }
 
-    @DeleteMapping(value = "/api/groups/{groupId}/pins/{pinId}")
-    public void deletePin(@PathVariable("pinId") Long id, @PathVariable Long groupId) {
+    @DeleteMapping(value = "/api/pins/{pinId}")
+    public void deletePin(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(groupId), pin);
+        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
         securityFilter.checkUserIsPinCreator(pin);
         pinRepo.deleteById(id);
     }
 
-    @GetMapping(value = "/api/groups/{groupId}/pins/{pinId}/user")
-    public String getUserOfPin(@PathVariable("pinId") Long id, @PathVariable Long groupId) {
+    @GetMapping(value = "/api/pins/{pinId}/user")
+    public String getUserOfPin(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(groupId), pin);
+        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
         return (pin.getUser() != null ? pin.getUser().getUsername() : null);
     }
 
-    @GetMapping(value = "/api/groups/{groupId}/pins/{pinId}/image")
-    public byte[] getImageOfPin(@PathVariable("pinId") Long id, @PathVariable Long groupId) {
+    @GetMapping(value = "/api/pins/{pinId}/image")
+    public byte[] getImageOfPin(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(groupId), pin);
+        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
         return monaRepo.getMonaFromPinId(id).getImage();
     }
 

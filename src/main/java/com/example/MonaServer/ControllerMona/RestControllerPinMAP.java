@@ -55,19 +55,6 @@ public class RestControllerPinMAP {
         }
 
     }
-
-    @GetMapping("/api/pins/{id}")
-    public PinMAP getPinById(@PathVariable("id") Long id) {
-        Group group = groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id));
-        return new PinMAP(restControllerMona.getPinByPinId(id, group.getGroupId()), new GroupDTO(group));
-    }
-
-    @GetMapping(value = "/api/pins/{id}/user")
-    public String getUsernameOfPin(@PathVariable("id")Long id) {
-        Group group = groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id));
-        return restControllerMona.getUserOfPin(id, group.getGroupId());
-    }
-
     @GetMapping(value = "/api/pins/{id}/type")
     public StickerTypeMAP getTypeOfPin(@PathVariable("id")Long id) {
         Group group = groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id));

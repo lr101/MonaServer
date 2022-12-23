@@ -38,7 +38,7 @@ public class RestControllerMonaMAP {
         long typeId = json.get("typeId").asLong();
         long groupId =  typeId == 0 ? MONA_GROUP_ID : TORNADO_GROUP_ID;
         json.put("groupId",groupId);
-        PinDTO pinDTO = restControllerMona.addNewPinToGroup(json, groupId);
+        PinDTO pinDTO = restControllerMona.addNewPinToGroup(json);
         return new PinMAP(pinDTO, new GroupDTO(groupRepo.getGroup(groupId)));
     }
 
@@ -51,7 +51,7 @@ public class RestControllerMonaMAP {
 
     @DeleteMapping(value = "/api/monas/{pinId}")
     public void deleteMonaByPinId (@PathVariable("pinId") Long id) {
-        restControllerMona.deletePin(id, monaRepo.getGroupIdFromPinId(id));
+        restControllerMona.deletePin(id);
     }
 
 }
