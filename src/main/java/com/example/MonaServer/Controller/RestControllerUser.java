@@ -11,10 +11,14 @@ import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.GroupRepo;
 import com.example.MonaServer.Repository.MonaRepo;
 import com.example.MonaServer.Repository.UserRepo;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -90,8 +94,11 @@ public class RestControllerUser {
     }
 
     @PutMapping(value = "/api/users/{user}/profile_picture")
-    public byte[] putUserProfilePicture (@PathVariable("user") String username, @RequestBody byte[] image) {
-        return userRepo.updateProfilePicture(username, image);
+    public byte[] putUserProfilePicture (@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
+        securityFilter.checkJsonForValues(json, new String[] {"image"});
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectReader reader = mapper.readerFor(new TypeReference<byte[]>() {});
+        return userRepo.updateProfilePicture(username, reader.readValue(json.get("image")));
     }
 
     @GetMapping(value = "/api/users/{user}/profile_picture")
