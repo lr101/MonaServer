@@ -46,3 +46,4 @@ privateKey
 /keystore.p12
 /src/main/resources/static/
 /DB_Backup/
+buildDocker.sh
