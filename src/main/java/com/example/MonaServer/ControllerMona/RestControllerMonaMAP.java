@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class RestControllerMonaMAP {
 
-    public static final Long MONA_GROUP_ID = 3L;
+    public static final Long MONA_GROUP_ID = 0L;
     public static final Long MONA_APP_ID = 0L;
-    public static final Long TORNADO_GROUP_ID = 4L;
+    public static final Long TORNADO_GROUP_ID = 1L;
     public static final Long TORNADO_APP_ID = 1L;
 
     @Autowired

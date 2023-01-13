@@ -13,7 +13,7 @@ public class EmailHelper {
 
     private final String EMAIL = "TheGermanApp@gmail.com";
 
-    public void sendMail(String link, String to) {
+    public void sendMail(String text, String to, String subject ) {
 
         // Assuming you are sending email from through gmails smtp
         String host = "smtp.gmail.com";
@@ -53,10 +53,10 @@ public class EmailHelper {
             message.addRecipient(Message.RecipientType.TO, new InternetAddress(to));
 
             // Set Subject: header field
-            message.setSubject("Reset Password");
+            message.setSubject(subject);
 
             // Now set the actual message
-            message.setText("Click this Link to reset your Password: " + link);
+            message.setText(text);
 
             System.out.println("sending...");
             // Send message

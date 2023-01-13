@@ -47,3 +47,5 @@ privateKey
 /src/main/resources/static/
 /DB_Backup/
 buildDocker.sh
+/keystore-ubuntu.p12
+/ubuntuAWSOPENSSH

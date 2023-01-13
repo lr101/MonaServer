@@ -37,7 +37,7 @@ public class GroupDTO {
             @JsonProperty("groupAdmin") String groupAdmin,
             @JsonProperty("description") String description,
             @JsonProperty("profileImage") byte[] profileImage,
-            @JsonProperty("visibility") int visibility) {
+            @JsonProperty("visibility") Integer visibility) {
         this.name = name;
         this.groupAdmin = groupAdmin;
         this.description = description;
@@ -47,7 +47,7 @@ public class GroupDTO {
 
     public GroupDTO(
              String name,
-             int visibility,
+             Integer visibility,
              Long groupId) {
         this.name = name;
         this.visibility = visibility;
@@ -77,7 +77,7 @@ public class GroupDTO {
         return groups.stream().map(GroupDTO::getPrivateDTO).collect(Collectors.toSet());
     }
 
-    private static GroupDTO getPrivateDTO(Group group) {
+    public static GroupDTO getPrivateDTO(Group group) {
         return new GroupDTO(group.getName(),  group.getVisibility(), group.getGroupId());
     }
 }

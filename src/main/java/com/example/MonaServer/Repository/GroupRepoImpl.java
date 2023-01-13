@@ -91,6 +91,18 @@ public class GroupRepoImpl implements GroupRepoCustom {
     }
 
     @Override
+    public Set<Pin> getPinsOfUserInGroup(Long id, String username) {
+        Group group = getGroup(id);
+        Set<Pin> pins = new  HashSet<>();
+        for (Pin pin : group.getPins()) {
+            if (pin.getUser().getUsername().equals(username)) {
+                pins.add(pin);
+            }
+        }
+        return  pins;
+    }
+
+    @Override
     public List<UsernameXPoints> getRankingOfGroup(Group group) {
         List<UsernameXPoints> list = new ArrayList<>();
         Map<User, UsernameXPoints> ranking = new HashMap<>();

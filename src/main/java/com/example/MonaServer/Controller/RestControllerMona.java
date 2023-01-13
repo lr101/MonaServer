@@ -1,5 +1,6 @@
 package com.example.MonaServer.Controller;
 
+import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.DTO.MonaDTO;
 import com.example.MonaServer.DTO.PinDTO;
 import com.example.MonaServer.Entities.Group;
@@ -57,10 +58,14 @@ public class RestControllerMona {
     }
 
     @GetMapping(value = "/api/pins/{pinId}")
-    public PinDTO getPinByPinId(@PathVariable("pinId") Long id) {
+    public Map<String, Object> getPinByPinId(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
-        return new PinDTO(pin);
+        Group group = groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id));
+        securityFilter.checkPinIsInGroupOfUserThrowsException(group, pin);
+        Map<String, Object> json = new HashMap<>();
+        json.put("pin", new PinDTO(pin));
+        json.put("group", GroupDTO.getPrivateDTO(group));
+        return json;
     }
 
     @PutMapping(value = "/api/pins/{pinId}")

@@ -2,6 +2,7 @@ package com.example.MonaServer.Controller;
 
 import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.DTO.MonaDTO;
+import com.example.MonaServer.DTO.PinDTO;
 import com.example.MonaServer.DTO.UserDTO;
 import com.example.MonaServer.Entities.Mona;
 import com.example.MonaServer.Entities.User;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -93,6 +95,12 @@ public class RestControllerUser {
                 .toList();
     }
 
+    @GetMapping(value = "/api/users/{user}/pins/{groupId}")
+    public Set<PinDTO> getUserPinsByGroup (@PathVariable("user") String username, @PathVariable("groupId") Long groupId) {
+        securityFilter.checkUserInGroupThrowsException(groupRepo.getGroup(groupId));
+        return PinDTO.toDTOSet(groupRepo.getPinsOfUserInGroup(groupId, username));
+    }
+
     @PutMapping(value = "/api/users/{user}/profile_picture")
     public byte[] putUserProfilePicture (@PathVariable("user") String username, @RequestBody ObjectNode json) throws IOException {
         securityFilter.checkJsonForValues(json, new String[] {"image"});
@@ -161,9 +169,8 @@ public class RestControllerUser {
         User user = userRepo.findByUsername(username);
         if (user.getEmail() != null) {
             String ip = System.getenv("SERVER_IP");
-            String port = System.getenv("PORT");
             String url = "https://" + ip + "/public/recover/" + userRepo.setResetUrl(username);
-            new EmailHelper().sendMail("Recover your password by pressing the link below:\n\n" + url +"\n\nThis link will be valid until midnight\n Thank you for using this STICKER MAP", user.getEmail());
+            new EmailHelper().sendMail("Recover your password by pressing the link below:\n\n" + url +"\n\nThis link will be valid until midnight\n Thank you for using this StickIt", user.getEmail(), "Recover Password" );
         }
     }
 
@@ -175,6 +182,16 @@ public class RestControllerUser {
         String token = new JWTUtil().generateToken(username);
         userRepo.updateUser(username, password, null, token);
         return token;
+    }
+
+    @RequestMapping(value = "/api/report", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    public void addNewPinToUser(@RequestBody ObjectNode json) throws Exception {
+        securityFilter.checkJsonForValues(json, new String[] {"report", "username", "message"});
+        String username = json.get("username").asText();
+        securityFilter.checkUserThrowsException(username);
+        String report = json.get("report").asText();
+        String message = json.get("message").asText();
+        new EmailHelper().sendMail("REPORTED CONTENT/USER: " +  report + "\n\n REPORTED MESSAGE: " + message, "thegermanapp@gmail.com", "REPORT");
     }
 
 
