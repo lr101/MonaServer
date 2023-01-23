@@ -20,12 +20,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import javax.transaction.Transactional;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
 @RestController
+@Transactional
 public class RestControllerUser {
 
     @Autowired
@@ -191,7 +193,7 @@ public class RestControllerUser {
         securityFilter.checkUserThrowsException(username);
         String report = json.get("report").asText();
         String message = json.get("message").asText();
-        new EmailHelper().sendMail("REPORTED CONTENT/USER: " +  report + "\n\n REPORTED MESSAGE: " + message, "thegermanapp@gmail.com", "REPORT");
+        new EmailHelper().sendMail("REPORTED CONTENT/USER: " +  report + "\n\n REPORTED MESSAGE: " + message, "lukasr101@gmail.com", "REPORT");
     }
 
 

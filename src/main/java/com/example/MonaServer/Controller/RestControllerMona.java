@@ -17,9 +17,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+
+import javax.transaction.Transactional;
 import java.util.*;
 
 @RestController
+@Transactional
 public class RestControllerMona {
     @Autowired
     MonaRepo monaRepo;

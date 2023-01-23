@@ -11,7 +11,7 @@ import javax.mail.internet.MimeMessage;
 
 public class EmailHelper {
 
-    private final String EMAIL = "TheGermanApp@gmail.com";
+    private final String EMAIL = "lr.dev.projects@gmail.com";
 
     public void sendMail(String text, String to, String subject ) {
 

@@ -4,13 +4,13 @@ import com.example.MonaServer.Helper.ImageHelper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.*;
 import org.hibernate.validator.constraints.NotBlank;
 import org.hibernate.validator.constraints.NotEmpty;
 import org.springframework.context.annotation.Lazy;
 
 import javax.persistence.*;
+import javax.persistence.Entity;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Pattern;
@@ -33,11 +33,13 @@ public class User {
     @Column(name = "password")
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Min(1)
+    @Basic(fetch=FetchType.LAZY)
     String password;
 
     //TODO add nullable = false when possible
     @Column(name = "email")
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Basic(fetch=FetchType.LAZY)
     @Pattern(regexp="^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?)*$")
     String email;
 
@@ -46,14 +48,15 @@ public class User {
     String token;
 
     @Column(name = "reset_password_url", unique = true)
+    @Basic(fetch=FetchType.LAZY)
     String resetPasswordUrl;
 
-    @Column(name = "profile_picture", columnDefinition="bytea")
-    @Lazy
+    @Lob
+    @Column(name = "profile_picture")
     private byte[] profilePicture = new byte[0];
 
     @Column(name = "profile_picture_small", columnDefinition="bytea")
-    @Lazy
+    @Basic(fetch=FetchType.LAZY)
     private byte[] profilePictureSmall = new byte[0];
 
     public User() {}

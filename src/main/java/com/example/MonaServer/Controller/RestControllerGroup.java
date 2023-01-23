@@ -12,10 +12,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import javax.transaction.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
+@Transactional
 public class RestControllerGroup {
     @Autowired
     GroupRepo groupRepo;

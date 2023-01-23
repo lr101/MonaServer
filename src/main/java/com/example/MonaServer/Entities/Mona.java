@@ -2,11 +2,11 @@ package com.example.MonaServer.Entities;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.*;
 import org.springframework.context.annotation.Lazy;
 
 import javax.persistence.*;
+import javax.persistence.Entity;
 import javax.transaction.Transactional;
 
 @Entity(name = "monas")
@@ -14,8 +14,8 @@ import javax.transaction.Transactional;
 @Setter
 public class Mona {
 
-    @Column(name = "image", columnDefinition="bytea", nullable = false)
-    @Lazy
+    @Column(name = "image", nullable = false)
+    @Lob
     private byte[] image = new byte[0];
 
     @OneToOne

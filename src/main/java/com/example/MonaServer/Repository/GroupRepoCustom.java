@@ -6,9 +6,10 @@ import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.UsernameXPoints;
 
+import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Set;
-
+@Transactional
 public interface GroupRepoCustom {
     public Group addGroupMember(Long groupId, String username, String inviteUrl);
     public Group deleteGroupMember(Long groupId, String username);

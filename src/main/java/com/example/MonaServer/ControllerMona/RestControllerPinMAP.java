@@ -10,8 +10,11 @@ import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import javax.persistence.Persistence;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -47,7 +50,9 @@ public class RestControllerPinMAP {
             Group group = groupRepo.getGroup(RestControllerMonaMAP.MONA_GROUP_ID);
             securityFilter.checkIfUserIsInPrivateGroup(group);
             group.getPins().forEach(e -> list.add(new PinMAP(e, group)));
-        } catch (Exception ignored){};
+        } catch (Exception ignored){
+            System.out.println(ignored);
+        };
         if (username == null) {
             return list;
         } else {

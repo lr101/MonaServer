@@ -5,10 +5,12 @@ import com.example.MonaServer.Helper.ImageHelper;
 import com.example.MonaServer.Helper.SecurityFilter;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.annotations.*;
+import org.hibernate.validator.internal.util.stereotypes.Lazy;
 
 import javax.persistence.*;
+import javax.persistence.CascadeType;
+import javax.persistence.Entity;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -30,13 +32,17 @@ public class Group {
     private User groupAdmin;
 
     @Column(name = "description")
+    @Basic(fetch=FetchType.LAZY)
     private String description;
 
-    @Column(name = "profile_image", nullable = false)
+
+    @Lob
+    @Column(name = "profile_image",nullable = false)
     private byte[] profileImage;
 
 
     @Column(name = "pin_image", nullable = false)
+    @Basic(fetch=FetchType.LAZY)
     private byte[] pinImage;
 
     @Column(name = "invite_url", unique = true)

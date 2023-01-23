@@ -6,8 +6,10 @@ import com.example.MonaServer.Helper.UsernameXPoints;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
+import javax.transaction.Transactional;
 import java.util.*;
 
+@Transactional
 public class GroupRepoImpl implements GroupRepoCustom {
 
     @Autowired
@@ -119,5 +121,4 @@ public class GroupRepoImpl implements GroupRepoCustom {
         list.sort(Comparator.comparing(UsernameXPoints::getPoints).reversed());
         return list;
     }
-
 }

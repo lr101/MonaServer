@@ -44,8 +44,7 @@ privateKey
 /.env
 /logs/
 /keystore.p12
-/src/main/resources/static/
 /DB_Backup/
-buildDocker.sh
+buildDocker.bat
 /keystore-ubuntu.p12
 /ubuntuAWSOPENSSH

@@ -3,8 +3,9 @@ import com.example.MonaServer.Entities.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 
+import javax.transaction.Transactional;
 import java.util.*;
-
+@Transactional
 public class MonaRepoImpl implements MonaRepoCustom {
 
     @Autowired
