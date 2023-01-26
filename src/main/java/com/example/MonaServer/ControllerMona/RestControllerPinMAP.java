@@ -15,10 +15,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.persistence.Persistence;
+import javax.transaction.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
+@Transactional
 public class RestControllerPinMAP {
 
     @Autowired

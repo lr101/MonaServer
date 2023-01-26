@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.view.RedirectView;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,13 +24,39 @@ public class ViewController {
     UserRepo userRepo;
 
     @GetMapping("/public/privacy-policy")
-    public String index() {
+    public String privacyPolicy() {
         return "privacy-policy";
     }
 
     @GetMapping("/public/agb")
     public String agb() {
         return "agb";
+    }
+
+    @GetMapping("/public/projects")
+    public String website() {
+        return "website";
+    }
+
+    @GetMapping("/public/projects/contact")
+    public String contact() {
+        return "Kontakt";
+    }
+
+    @GetMapping("/public/projects/about")
+    public String about() {
+        return "About";
+    }
+
+    @GetMapping("/public/web-app")
+    public String webApp() {
+        return "index";
+    }
+
+    @GetMapping("/")
+    public RedirectView redirectWithUsingRedirectView(
+            RedirectAttributes attributes) {
+        return new RedirectView("public/web-app");
     }
 
     @GetMapping("/public/recover/{url}")
