@@ -8,7 +8,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class StaticResourceConfiguration implements WebMvcConfigurer {
 
     private static final String[] CLASSPATH_RESOURCE_LOCATIONS = {
-            "classpath:/static/web-app", "classpath:/META-INF/resources/", "classpath:/resources/",
+            "classpath:/static/app", "classpath:/META-INF/resources/", "classpath:/resources/",
             "classpath:/static/", "classpath:/public/" };
 
     @Override
@@ -16,6 +16,14 @@ public class StaticResourceConfiguration implements WebMvcConfigurer {
         if (!registry.hasMappingForPattern("/public/projects/**")) {
             registry.addResourceHandler("/public/projects/**").addResourceLocations(
                     "classpath:/static/projects/");
+        }
+        if (!registry.hasMappingForPattern("/static/recover/**")) {
+            registry.addResourceHandler("/static/recover/**").addResourceLocations(
+                    "classpath:/static/recover/");
+        }
+        if (!registry.hasMappingForPattern("/public/app/**")) {
+            registry.addResourceHandler("/public/app/**").addResourceLocations(
+                    "classpath:/static/app/");
         }
         registry.addResourceHandler("/**")
                 .addResourceLocations(CLASSPATH_RESOURCE_LOCATIONS);

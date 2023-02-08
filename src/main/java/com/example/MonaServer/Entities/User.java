@@ -44,7 +44,7 @@ public class User {
     String email;
 
     //TODO add nullable = false when possible
-    @Column(name = "token", unique = true)
+    @Column(name = "token", unique = true, length = 500)
     String token;
 
     @Column(name = "reset_password_url", unique = true)

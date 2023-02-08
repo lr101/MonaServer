@@ -52,13 +52,14 @@ public class RestControllerUser {
     }
 
     @PutMapping("/api/users/{user}")
-    public void putUser(@PathVariable("user") String username, @RequestBody ObjectNode json) {
+    public String putUser(@PathVariable("user") String username, @RequestBody ObjectNode json) {
         securityFilter.checkUserThrowsException(username);
         String email = null;
         String password = null;
         if(json.has("email")) email = json.get("email").asText();
         if(json.has("password")) password = json.get("password").asText();
         userRepo.updateUser(username, password, email, null);
+        return userRepo.findByUsername(username).getToken();
     }
 
     @DeleteMapping("/api/users/{user}")
@@ -134,21 +135,11 @@ public class RestControllerUser {
         String password = json.get("password").asText();
         String username = json.get("username").asText();
         if (checkForUser(username)) {
-            User user = userRepo.save(new User(username, password, email, new JWTUtil().generateToken(username), null));
+            User user = userRepo.save(new User(username, password, email, new JWTUtil().generateToken(username, password), null));
             return user.getToken();
         }
         throw new IllegalArgumentException("User with username: " + username + " already exists");
     }
-
-    @GetMapping(value = "/login/{user}")
-    public String loginOld(@PathVariable("user") String username) {
-        User user = userRepo.findByUsername(username);
-        if (user.getToken() == null) {
-            return user.getPassword();
-        }
-        throw new IllegalArgumentException ("Wrong login format, because token already exists. Try using POST [IP]:[PORT]/login/");
-    }
-
     @PostMapping(value = "/login")
     public String login(@RequestBody ObjectNode json) {
         securityFilter.checkJsonForValues(json, new String[] {"password", "username"});
@@ -156,11 +147,8 @@ public class RestControllerUser {
         String username = json.get("username").asText();
         User user = userRepo.findByUsername(username);
         if(user.getPassword().equals(password)) {
-            String token = user.getToken();
-            if (token == null) {
-                token = new JWTUtil().generateToken(username);
-                userRepo.updateUser(username, null, null, token);
-            }
+            String token = new JWTUtil().generateToken(username, user.getPassword());
+            userRepo.updateUser(username, null, null, token);
             return token;
         }
         throw new IllegalArgumentException("ERROR: Wrong Password");
@@ -175,17 +163,6 @@ public class RestControllerUser {
             new EmailHelper().sendMail("Recover your password by pressing the link below:\n\n" + url +"\n\nThis link will be valid until midnight\n Thank you for using this StickIt", user.getEmail(), "Recover Password" );
         }
     }
-
-    //TODO Delete if all users switched to new type of encoding
-    @PutMapping("/token/{user}")
-    public String putUserToken(@PathVariable("user") String username, @RequestBody ObjectNode json) {
-        securityFilter.checkJsonForValues(json, new String[] {"password"});
-        String password = json.get("password").asText();
-        String token = new JWTUtil().generateToken(username);
-        userRepo.updateUser(username, password, null, token);
-        return token;
-    }
-
     @RequestMapping(value = "/api/report", method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     public void addNewPinToUser(@RequestBody ObjectNode json) throws Exception {
         securityFilter.checkJsonForValues(json, new String[] {"report", "username", "message"});

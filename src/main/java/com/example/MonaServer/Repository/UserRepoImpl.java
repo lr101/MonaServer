@@ -3,6 +3,7 @@ package com.example.MonaServer.Repository;
 import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.ImageHelper;
+import com.example.MonaServer.Helper.JWTUtil;
 import com.example.MonaServer.Helper.SecurityFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -37,6 +38,8 @@ public class UserRepoImpl implements UserRepoCustom {
         if (password != null) {
             user.setPassword(password);
             user.setResetPasswordUrl(null);
+            String newToken = new JWTUtil().generateToken(username, password);
+            user.setToken(newToken);
         }
         if (email != null) user.setEmail(email);
         if (token != null) user.setToken(token);

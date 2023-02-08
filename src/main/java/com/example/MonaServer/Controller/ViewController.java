@@ -48,7 +48,7 @@ public class ViewController {
         return "About";
     }
 
-    @GetMapping("/public/web-app")
+    @GetMapping("/public/app")
     public String webApp() {
         return "index";
     }
@@ -56,7 +56,7 @@ public class ViewController {
     @GetMapping("/")
     public RedirectView redirectWithUsingRedirectView(
             RedirectAttributes attributes) {
-        return new RedirectView("public/web-app");
+        return new RedirectView("public/app");
     }
 
     @GetMapping("/public/recover/{url}")
