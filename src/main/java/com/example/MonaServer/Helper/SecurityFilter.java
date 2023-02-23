@@ -36,7 +36,10 @@ public class SecurityFilter {
 
     public void checkPinIsInGroupOfUserThrowsException(Group group, Pin pin) {
         String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser)) && group.getPins().contains(pin)) {
+        if (group.getMembers().stream().noneMatch(e -> e.getUsername().equals(tokenUser)) &&
+                group.getPins().contains(pin) &&
+                !pin.getUser().getUsername().equals(tokenUser))
+        {
             throw new SecurityException("Access denied for this token. The user is not a member of its group");
         }
     }

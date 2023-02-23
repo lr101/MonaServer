@@ -30,6 +30,10 @@ public class ControllerConfig {
 
     SecurityFilter securityFilter = new SecurityFilter();
 
+    /**
+     * Request to compress all images.
+     * The requesting user must be the admin
+     */
     @GetMapping(value = "/api/compress")
     public void compressAllMonas() {
         securityFilter.checkAdminOnlyThrowsException();
@@ -43,6 +47,11 @@ public class ControllerConfig {
         }
     }
 
+    /**
+     * Handle compressing of single image
+     * @param imageArray image as a byte array
+     * @return compressed image data as byte array
+     */
     private byte[] compress(byte[] imageArray) {
         try {
             InputStream is = new ByteArrayInputStream(imageArray);
@@ -78,6 +87,12 @@ public class ControllerConfig {
         }
     }
 
+    /**
+     * handle rotating image
+     * @param originalImageFile
+     * @param rotation
+     * @return
+     */
     public static Path rotateImage(File originalImageFile, Scalr.Rotation rotation) {
         try {
             BufferedImage originalImage = ImageIO.read(originalImageFile);
