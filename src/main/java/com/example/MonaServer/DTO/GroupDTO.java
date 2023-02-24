@@ -2,14 +2,17 @@ package com.example.MonaServer.DTO;
 
 
 import com.example.MonaServer.Entities.Group;
+import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.UsernameXPoints;
 import com.example.MonaServer.Repository.GroupRepo;
+import com.example.MonaServer.Repository.GroupRepoImpl;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
-import java.util.List;
-import java.util.Set;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Getter
@@ -31,6 +34,8 @@ public class GroupDTO {
     private Integer visibility;
 
     private String inviteUrl;
+
+    private List<UsernameXPoints> members;
 
     public GroupDTO(
             @JsonProperty("name") String name,
@@ -63,6 +68,7 @@ public class GroupDTO {
         this.inviteUrl = group.getInviteUrl();
         this.groupId = group.getGroupId();
         this.pinImage = group.getPinImage();
+        this.members = getRankingOfGroup(group);
     }
 
     public static List<GroupDTO> toDTOList(List<Group> groups) {
@@ -80,4 +86,10 @@ public class GroupDTO {
     public static GroupDTO getPrivateDTO(Group group) {
         return new GroupDTO(group.getName(),  group.getVisibility(), group.getGroupId());
     }
+
+    private List<UsernameXPoints> getRankingOfGroup(Group group) {
+        return GroupRepoImpl.getRankingOfGroups(group);
+    }
+
+
 }

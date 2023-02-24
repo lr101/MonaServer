@@ -104,8 +104,12 @@ public class GroupRepoImpl implements GroupRepoCustom {
         return  pins;
     }
 
+
     @Override
     public List<UsernameXPoints> getRankingOfGroup(Group group) {
+        return getRankingOfGroups(group);
+    }
+    public static List<UsernameXPoints> getRankingOfGroups(Group group) {
         List<UsernameXPoints> list = new ArrayList<>();
         Map<User, UsernameXPoints> ranking = new HashMap<>();
         group.getMembers().forEach(u -> {

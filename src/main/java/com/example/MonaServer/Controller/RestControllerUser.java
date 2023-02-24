@@ -117,12 +117,12 @@ public class RestControllerUser {
      * Request to get own groups.
      * Requesting user can only see its own groups.
      * @param username identifies user
-     * @return set of private groups
+     * @return set of user groups
      */
     @GetMapping(value = "/api/users/{user}/groups")
     public Set<GroupDTO> getUserGroups (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
-        return GroupDTO.toDTOSetPrivate(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
+        return GroupDTO.toDTOSet(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
     }
 
     /**

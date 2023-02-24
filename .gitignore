@@ -43,7 +43,7 @@ privateKey
 /~$REST_Routes.xlsx
 /.env
 /logs/
-/keystore.p12
+/keystore-ubuntu.p12
 /DB_Backup/
 buildDocker.bat
 /keystore-ubuntu.p12
