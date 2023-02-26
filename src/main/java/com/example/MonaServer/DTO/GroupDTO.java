@@ -10,6 +10,7 @@ import com.example.MonaServer.Repository.GroupRepoImpl;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.NamedNativeQuery;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 @SqlResultSetMapping(
         name = "map_complete_group",
         classes = @ConstructorResult(
-                targetClass = Group.class,
+                targetClass = GroupDTO.class,
                 columns = {
                         @ColumnResult(name = "groupId", type = Long.class),
                         @ColumnResult(name = "name", type = String.class),

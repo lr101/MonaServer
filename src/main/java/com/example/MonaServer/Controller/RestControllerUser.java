@@ -104,7 +104,7 @@ public class RestControllerUser {
      */
     @GetMapping(value = "/api/users/{user}/points")
     public Long getUserPoints (@PathVariable("user") String username) {
-        if (userRepo.existsById(username)) throw  new NoSuchElementException("ERROR: User with username: " + username + " does not exist");
+        if (!userRepo.existsById(username)) throw  new NoSuchElementException("ERROR: User with username: " + username + " does not exist");
         return userRepo.getUserPoints(username);
     }
 
@@ -172,9 +172,9 @@ public class RestControllerUser {
      * @return set of private pins
      */
     @GetMapping(value = "/api/users/{user}/pins/{groupId}")
-    public Set<PinDTO> getUserPinsByGroup (@PathVariable("user") String username, @PathVariable("groupId") Long groupId) {
+    public List<Map<String, Object>> getUserPinsByGroup (@PathVariable("user") String username, @PathVariable("groupId") Long groupId) {
         securityFilter.checkUserInGroupThrowsException(groupRepo.getGroup(groupId));
-        return PinDTO.toDTOSet(groupRepo.getPinsOfUserInGroup(groupId, username));
+        return groupRepo.getPinsOfUserInGroup(groupId, username);
     }
 
     /**

@@ -20,9 +20,10 @@ public class MonaRepoImpl implements MonaRepoCustom {
     public Pin createMona(byte[] image, double latitude, double longitude, User user, Date date) {
         Pin pin = new Pin(latitude, longitude, date, user);
         Mona mona = new Mona(image, pin);
-        mona.setPin(pinRepo.save(mona.getPin()));
-        Mona monaSaved = monaRepo.save(mona);
-        return monaSaved.getPin();
+        pin = pinRepo.save(mona.getPin());
+        mona.setPin(pin);
+        monaRepo.saveAndFlush(mona);
+        return pin;
     }
 
     @Override
@@ -36,7 +37,7 @@ public class MonaRepoImpl implements MonaRepoCustom {
     public void updateMona(byte[] image, Long id) {
         Mona mona = getMona(id);
         mona.setImage(image);
-        monaRepo.save(mona);
+        monaRepo.saveAndFlush(mona);
     }
 
 }

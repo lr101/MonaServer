@@ -43,7 +43,7 @@ public class UserRepoImpl implements UserRepoCustom {
         }
         if (email != null) user.setEmail(email);
         if (token != null) user.setToken(token);
-        userRepo.save(user);
+        userRepo.saveAndFlush(user);
     }
 
     @Override
@@ -55,7 +55,7 @@ public class UserRepoImpl implements UserRepoCustom {
             if (userRepo.getUsersWithUrl(random).size() == 0) {
                 User user = userRepo.findByUsername(username);
                 user.setResetPasswordUrl(random);
-                userRepo.save(user);
+                userRepo.saveAndFlush(user);
                 flag = false;
             }
         }

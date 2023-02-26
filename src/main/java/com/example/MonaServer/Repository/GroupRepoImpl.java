@@ -28,7 +28,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
         Group group = getGroup(groupId);
         if (group.getVisibility() == 0 || group.getInviteUrl().equals(inviteUrl)) {
             group.addGroupMember(userRepo.findByUsername(username));
-            return groupRepo.save(group);
+            return groupRepo.saveAndFlush(group);
         }
         throw new SecurityException("ERROR: joining group not possible with the current credentials");
     }
@@ -38,7 +38,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
         Group group = getGroup(groupId);
         if (!username.equals(group.getGroupAdmin().getUsername())) {
             group.removeGroupMember(username);
-            return groupRepo.save(group);
+            return groupRepo.saveAndFlush(group);
         }
         throw new IllegalArgumentException("ERROR: you are leaving the group as an admin. Try making another group member the admin first");
     }
@@ -56,8 +56,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
 
     @Override
     public void deleteGroup(Long id){
-        Group group = getGroup(id);
-        groupRepo.delete(group);
+        groupRepo.deleteById(id);
     }
 
     @Override
@@ -82,7 +81,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
 
     @Override
     public Set<Group> getGroupsOfUser(User user) {
-        List<Group> groups = (List<Group>) groupRepo.findAll();
+        List<Group> groups = groupRepo.findAll();
         Set<Group> userGroups = new HashSet<>();
         for (Group group : groups) {
             if (group.getMembers().contains(user)) {

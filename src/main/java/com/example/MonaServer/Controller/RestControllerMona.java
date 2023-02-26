@@ -149,7 +149,7 @@ public class RestControllerMona {
     public byte[] getImageOfPin(@PathVariable("pinId") Long id) {
         Pin pin = pinRepo.findByPinId(id);
         securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
-        return monaRepo.getMonaFromPinId(id).getImage();
+        return monaRepo.getImage(id);
     }
 
     /**
@@ -167,7 +167,7 @@ public class RestControllerMona {
         User user = userRepo.findByUsername(username);
         Pin pin = monaRepo.createMona(image, latitude, longitude, user, date);
         group.addPin(pin);
-        groupRepo.save(group);
+        groupRepo.saveAndFlush(group);
         return new PinDTO(pin);
     }
 
