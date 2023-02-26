@@ -18,7 +18,4 @@ public interface GroupRepoCustom {
     public Group getGroup(Long id);
     public Group updateGroup(GroupDTO groupDTO);
     public Set<Group> getGroupsOfUser(User user);
-
-    public Set<Pin> getPinsOfUserInGroup(Long id, String username);
-    public List<UsernameXPoints> getRankingOfGroup(Group group);
 }

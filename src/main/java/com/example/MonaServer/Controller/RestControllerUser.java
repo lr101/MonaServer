@@ -4,13 +4,16 @@ import com.example.MonaServer.DTO.GroupDTO;
 import com.example.MonaServer.DTO.MonaDTO;
 import com.example.MonaServer.DTO.PinDTO;
 import com.example.MonaServer.DTO.UserDTO;
+import com.example.MonaServer.Entities.Group;
 import com.example.MonaServer.Entities.Mona;
+import com.example.MonaServer.Entities.Pin;
 import com.example.MonaServer.Entities.User;
 import com.example.MonaServer.Helper.EmailHelper;
 import com.example.MonaServer.Helper.JWTUtil;
 import com.example.MonaServer.Helper.SecurityFilter;
 import com.example.MonaServer.Repository.GroupRepo;
 import com.example.MonaServer.Repository.MonaRepo;
+import com.example.MonaServer.Repository.PinRepo;
 import com.example.MonaServer.Repository.UserRepo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.transaction.Transactional;
@@ -38,6 +42,9 @@ public class RestControllerUser {
 
     @Autowired
     MonaRepo monaRepo;
+
+    @Autowired
+    PinRepo pinRepo;
 
     SecurityFilter securityFilter = new SecurityFilter();
 
@@ -122,25 +129,39 @@ public class RestControllerUser {
     @GetMapping(value = "/api/users/{user}/groups")
     public Set<GroupDTO> getUserGroups (@PathVariable("user") String username) {
         securityFilter.checkUserThrowsException(username);
-        return GroupDTO.toDTOSet(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)));
+        return GroupDTO.toDTOSet(groupRepo.getGroupsOfUser(userRepo.findByUsername(username)), groupRepo);
     }
 
     /**
-     * Request to get own pin ids.
-     * Requesting user can only see its own pins.
+     * Request to get all sets of pins of the requested groups.
+     * Requesting user can only access groups that are public or is a member of.
+     * @param ids is a string containing the requested group ids. Format: /api/groups?ids=0-1-2-3-4-5-6-...
+     * @return List of sets of pins in the order of the requested ids
+     */
+    @GetMapping(value = "/api/users/{user}/selected-pins")
+    public List<Set<PinDTO>> getPinsOfMultipleGroups(@RequestParam String ids, @PathVariable String user) {
+        List<Long> idList = Arrays.stream(ids.split("-")).map(Long::parseLong).toList();
+        List<Set<PinDTO>> list = new ArrayList<>();
+        for (Long groupId : idList) {
+            Group group = groupRepo.getGroup(groupId);
+            try {
+                securityFilter.checkIfUserIsInPrivateGroup(group);
+                list.add(PinDTO.toDTOSet(group.getPins()));
+            } catch (Exception ignored){}
+        }
+        return list;
+    }
+
+    /**
+     * Request to get pins of a specif user.
+     * Requesting user can only see the pins of the user of pins posted in a shared group.
      * @param username identifies user
      * @return list of pin ids
      */
     @GetMapping(value = "/api/users/{user}/pins")
-    public List<Long> getUserPins (@PathVariable("user") String username) {
-        securityFilter.checkUserThrowsException(username);
-        User user = userRepo.findByUsername(username);
-        return MonaDTO
-                .toDTOList(monaRepo.getMonasByUser(user))
-                .stream()
-                .sorted(Comparator.comparing(a -> a.getPin().getCreationDate(), Comparator.reverseOrder()))
-                .map(e -> e.getPin().getId())
-                .toList();
+    public List<Map<String, Object>> getUserPins (@PathVariable("user") String username) {
+        String tokenUser = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return pinRepo.getPinsOfUserInGroupsOfTokenUser(username, tokenUser);
     }
 
     /**

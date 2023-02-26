@@ -41,28 +41,14 @@ public class RestControllerGroup {
     @GetMapping(value = "/api/groupIds")
     public List<Long> getGroupIds (@RequestParam String withUser, @RequestParam(required = false) String search) {
         String username = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        search = search != null ? "%" + search + "%" : "%";
         if (withUser.equals("true")) {
-            return ((List<Group>) groupRepo.findAll())
-                    .stream()
-                    .filter(m -> search == null || m.getName().toLowerCase().contains(search.toLowerCase())) //search term filter
-                    .filter(m -> m.getMembers().contains(userRepo.findByUsername(username)))
-                    .sorted(Comparator.comparing(Group::getName))
-                    .map(Group::getGroupId)
-                    .collect(Collectors.toList());
+            return groupRepo.getGroupSearchInUserGroups(username, search);
         } else if (withUser.equals("false")) {
-            return ((List<Group>) groupRepo.findAll())
-                    .stream()
-                    .filter(m -> search == null || m.getName().toLowerCase().contains(search.toLowerCase())) //search term filter
-                    .filter(m -> !m.getMembers().contains(userRepo.findByUsername(username)))
-                    .sorted(Comparator.comparing(Group::getName))
-                    .map(Group::getGroupId)
-                    .collect(Collectors.toList());
-
+            return groupRepo.getGroupSearchNotInUserGroups(username, search);
         }
         return new ArrayList<>();
     }
-
-    /// Format: /api/groups?ids=0-1-2-3-4-5-6...
 
     /**
      * Request to get all publicly available information on groups from [ids] string.
@@ -87,7 +73,7 @@ public class RestControllerGroup {
         String groupAdminUsername = groupDTO.getGroupAdmin();
         securityFilter.checkUserThrowsException(groupAdminUsername);
         Group group = groupRepo.createGroup(groupDTO);
-        return new GroupDTO(group);
+        return new GroupDTO(group, groupRepo);
     }
 
     /**
@@ -101,7 +87,7 @@ public class RestControllerGroup {
     public GroupDTO addNewMember(@RequestBody GroupMemberJSON groupMemberJSON, @PathVariable Long groupId)  {
         securityFilter.checkUserThrowsException(groupMemberJSON.username());
         Group group = groupRepo.addGroupMember(groupId, groupMemberJSON.username(), groupMemberJSON.inviteUrl());
-        return new GroupDTO(group);
+        return new GroupDTO(group, groupRepo);
     }
 
     /**
@@ -112,12 +98,15 @@ public class RestControllerGroup {
      * The last member (with points of -1) is the group admin.
      */
     @GetMapping( "/api/groups/{groupId}/members")
-    public List<UsernameXPoints> getMembers(@PathVariable Long groupId)  {
+    public List<Map<String, Object>> getMembers(@PathVariable Long groupId)  {
         Group group = groupRepo.getGroup(groupId);
         securityFilter.checkIfUserIsInPrivateGroup(group);
-        List<UsernameXPoints> list =  groupRepo.getRankingOfGroup(group);
-        list.add(new UsernameXPoints(group.getGroupAdmin().getUsername(), -1));
-        return list;
+        List<Map<String, Object>> members = groupRepo.getRankingByQuery(groupId);
+        Map<String, Object> map = new HashMap<>();
+        map.put("points", -1);
+        map.put("username", group.getGroupAdmin().getUsername());
+        members.add(map);
+        return members;
     }
 
     /**
@@ -204,7 +193,7 @@ public class RestControllerGroup {
         securityFilter.checkUserAdminInGroupThrowsException(group);
         groupDTO.setGroupId(groupId);
         group = groupRepo.updateGroup(groupDTO);
-        return new GroupDTO(group);
+        return new GroupDTO(group, groupRepo);
     }
 
     /**

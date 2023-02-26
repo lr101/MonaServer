@@ -26,7 +26,7 @@ public class GroupRepoImpl implements GroupRepoCustom {
     @Override
     public Group addGroupMember(Long groupId, String username, String inviteUrl) {
         Group group = getGroup(groupId);
-        if (group.getVisibility() == 0 || (group.getVisibility() !=0 && group.getInviteUrl().equals(inviteUrl))) {
+        if (group.getVisibility() == 0 || group.getInviteUrl().equals(inviteUrl)) {
             group.addGroupMember(userRepo.findByUsername(username));
             return groupRepo.save(group);
         }
@@ -90,39 +90,5 @@ public class GroupRepoImpl implements GroupRepoCustom {
             }
         }
         return userGroups;
-    }
-
-    @Override
-    public Set<Pin> getPinsOfUserInGroup(Long id, String username) {
-        Group group = getGroup(id);
-        Set<Pin> pins = new  HashSet<>();
-        for (Pin pin : group.getPins()) {
-            if (pin.getUser().getUsername().equals(username)) {
-                pins.add(pin);
-            }
-        }
-        return  pins;
-    }
-
-
-    @Override
-    public List<UsernameXPoints> getRankingOfGroup(Group group) {
-        return getRankingOfGroups(group);
-    }
-    public static List<UsernameXPoints> getRankingOfGroups(Group group) {
-        List<UsernameXPoints> list = new ArrayList<>();
-        Map<User, UsernameXPoints> ranking = new HashMap<>();
-        group.getMembers().forEach(u -> {
-            UsernameXPoints i = new UsernameXPoints(u.getUsername(), 0);
-            list.add(i);
-            ranking.put(u, i);
-        });
-
-        for (Pin pin : group.getPins()) {
-            UsernameXPoints points = ranking.get(pin.getUser());
-            if (points != null) points.addOnePoint();
-        }
-        list.sort(Comparator.comparing(UsernameXPoints::getPoints).reversed());
-        return list;
     }
 }

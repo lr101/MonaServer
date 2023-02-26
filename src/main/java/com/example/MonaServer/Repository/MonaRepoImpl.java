@@ -26,25 +26,10 @@ public class MonaRepoImpl implements MonaRepoCustom {
     }
 
     @Override
-    public void deleteMona(Long id){
-        Mona mona = getMona(id);
-        monaRepo.delete(mona);
-    }
-
-    @Override
     public Mona getMona(Long pinId) {
         Mona mona = monaRepo.getMonaFromPinId(pinId);
         if (mona == null) throw new NoSuchElementException("Mona with id: " + pinId + " cannot be found");
         return mona;
-    }
-
-    @Override
-    public List<Mona> getMonasByUser(User user) {
-        List<Mona> monas = new ArrayList<>();
-        monaRepo.findAll().forEach(e -> {
-            if (e.getPin().getUser().equals(user)) {monas.add(e);}
-        });
-        return  monas;
     }
 
     @Override
