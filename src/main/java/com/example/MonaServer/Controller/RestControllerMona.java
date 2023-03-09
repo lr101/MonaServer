@@ -147,9 +147,25 @@ public class RestControllerMona {
      */
     @GetMapping(value = "/api/pins/{pinId}/image")
     public byte[] getImageOfPin(@PathVariable("pinId") Long id) {
-        Pin pin = pinRepo.findByPinId(id);
-        securityFilter.checkPinIsInGroupOfUserThrowsException(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)), pin);
+        securityFilter.checkIfUserIsInPrivateGroup(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(id)));
         return monaRepo.getImage(id);
+    }
+
+    /**
+     * Request to get all images of pins of the requested pins.
+     * Requesting user can only access pins in groups that are public or is a member of.
+     * @param ids is a string containing the requested pins ids. Format: /api/images?ids=0-1-2-3-4-5-6-...
+     * @return List of sets of images as byte arrays in the order of the requested ids
+     */
+    @GetMapping(value = "/api/images")
+    public List<byte[]> getPinsOfMultipleGroups(@RequestParam String ids) {
+        List<Long> idList = Arrays.stream(ids.split("-")).map(Long::parseLong).toList();
+        List<byte[]> list = new ArrayList<>();
+        for (Long pinId : idList) {
+            securityFilter.checkIfUserIsInPrivateGroup(groupRepo.getGroup(monaRepo.getGroupIdFromPinId(pinId)));
+            list.add(monaRepo.getImage(pinId));
+        }
+        return list;
     }
 
     /**
