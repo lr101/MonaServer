@@ -1,0 +1,1157 @@
+openapi: 3.0.3
+info:
+  title: Stick-It RESP API
+  version: 1.0.1
+servers:
+  - url: https://app.lr-projects.de
+  - url: http://localhost:3000
+tags:
+  - name: public
+    description: Everything about the public api
+  - name: auth
+    description: Everything about Authentication
+  - name: groups
+    description: Everything about Groups
+  - name: pins
+    description: Everything about Pins
+  - name: users
+    description: Everything about Users
+  - name: members
+    description: Everything about Memberships
+  - name: report
+
+paths:
+  /api/groupIds:
+    get:
+      operationId: getGroupIdsBySearchTerm
+      security:
+        - token: [ ]
+      tags:
+        - groups
+      parameters:
+        - name: search
+          description: "search term used to find a group name"
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: withUser
+          description: "use false if user groups should be included and true if user groups should be excluded from search"
+          required: true
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ID'
+  /api/groups:
+    get:
+      operationId: getGroupsByIds
+      security:
+        - token: [ ]
+      summary: Get groups by IDs
+      tags:
+        - groups
+      parameters:
+        - name: ids
+          in: query
+          description: Comma-separated list of group IDs
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ID'
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupSmall'
+    post:
+      operationId: addGroup
+      security:
+        - token: [ ]
+      summary: Create a new group
+      tags:
+        - groups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroup'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+  /api/groups/{groupId}:
+    get:
+      operationId: getGroup
+      security:
+        - token: [ ]
+      summary: Get a group by ID
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupSmall'
+    put:
+      operationId: updateGroup
+      security:
+        - token: [ ]
+      summary: Update a group by ID
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroup'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+    delete:
+      operationId: deleteGroup
+      security:
+        - token: [ ]
+      summary: Delete a group by ID
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        200:
+          description: Deleted
+        404:
+          description: Group does not exist
+  
+
+  /api/groups/{groupId}/profile_image:
+    get:
+      operationId: getGroupProfileImage
+      security:
+        - token: [ ]
+      summary: Get profile of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          required: true
+          in: path
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+  /api/groups/{groupId}/pin_image:
+    get:
+      operationId: getGroupPinImage
+      security:
+        - token: [ ]
+      summary: Get pin image of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          required: true
+          in: path
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+  /api/groups/{groupId}/description:
+    get:
+      operationId: getGroupDescription
+      security:
+        - token: [ ]
+      summary: Get description of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          required: true
+          in: path
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+  /api/groups/{groupId}/link:
+    get:
+      operationId: getGroupLink
+      security:
+        - token: [ ]
+      summary: Get link of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          required: true
+          in: path
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+  /api/groups/{groupId}/admin:
+    get:
+      operationId: getGroupAdmin
+      security:
+        - token: [ ]
+      summary: Get admin of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ID'
+  /api/groups/{groupId}/invite_url:
+    get:
+      operationId: getGroupInviteUrl
+      security:
+        - token: [ ]
+      summary: Get invite url of group
+      tags:
+        - groups
+      parameters:
+        - name: groupId
+          required: true
+          in: path
+          description: group id
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+  /api/groups/{groupId}/members:
+    get:
+      operationId: getGroupMembers
+      security:
+        - token: [ ]
+      summary: Get members of a group by ID
+      tags:
+        - members
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
+    delete:
+      operationId: deleteMemberFromGroup
+      security:
+        - token: [ ]
+      summary: leave group or delete group when the user is the last group member
+      tags:
+        - members
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+    post:
+      security:
+        - token: [ ]
+      summary: Add a member to a group by ID
+      tags:
+        - members
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                inviteUrl:
+                  $ref: '#/components/schemas/ShortString'
+              required:
+                - inviteUrl
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+  /api/delete-code/{username}:
+    get:
+      operationId: generateDeleteCode
+      security:
+        - token: [ ]
+      summary: Generate delete code
+      tags:
+        - auth
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '201':
+          description: Delete code generated and sent to the user
+        '400':
+          description: User does not exist or does not have an email address
+        '401':
+          description: Unauthorized
+  /recover:
+    get:
+      operationId: requestPasswordRecovery
+      summary: Request password recovery
+      tags:
+        - auth
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '201':
+          description: Recovery email sent
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+  /login:
+    post:
+      operationId: userLogin
+      summary: User login
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  $ref: '#/components/schemas/ShortString'
+                password:
+                  $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    $ref: '#/components/schemas/LongString'
+        '401':
+          description: Unauthorized
+  /signup:
+    post:
+      operationId: createUser
+      summary: User registration
+      tags:
+        - auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUser'
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+
+        '401':
+          description: Registration failed
+  /api/report:
+    post:
+      operationId: createReport
+      tags:
+        - report
+      security:
+        - token: [ ]
+      summary: Report content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Report'
+      responses:
+        '201':
+          description: Report submitted successfully
+        '401':
+          description: Report submission failed
+  /api/images:
+    get:
+      operationId: getPinImagesByIds
+      security:
+        - token: [ ]
+      summary: Get images by IDs
+      tags:
+        - pins
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated list of image IDs
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ID'
+        - name: compression
+          in: query
+          description: Compression level for images (optional)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+        - name: height
+          in: query
+          description: Height for images (optional)
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Image'
+  
+  
+  /api/pins:
+    post:
+      operationId: createPin
+      security:
+        - token: [ ]
+      summary: Create a new pin
+      tags:
+        - pins
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewPin'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pin'
+  /api/pins/{pinId}:
+    get:
+      operationId: getPin
+      security:
+        - token: [ ]
+      summary: Get pin information by ID
+      tags:
+        - pins
+      parameters:
+        - name: pinId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinInfo'
+    delete:
+      operationId: deletePin
+      security:
+        - token: [ ]
+      summary: Delete a pin by ID
+      tags:
+        - pins
+      parameters:
+        - name: pinId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '201':
+          description: successfully deleted
+  /api/pins/{pinId}/user:
+    get:
+      operationId: getPinCreationUsername
+      security:
+        - token: [ ]
+      summary: Get user information associated with a pin by ID
+      tags:
+        - pins
+      parameters:
+        - name: pinId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+  /api/pins/{pinId}/image:
+    get:
+      operationId: getPinImage
+      security:
+        - token: [ ]
+      summary: Get the image associated with a pin by ID
+      tags:
+        - pins
+      parameters:
+        - name: pinId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            image/jpeg:
+              schema:
+                $ref: '#/components/schemas/Image'
+  /:
+    get:
+      summary: Open lr-projects.de
+      tags:
+        - public
+      responses:
+        '301':
+          description: Open lr-projects.de
+  /public/agb:
+    get:
+      operationId: getAgb
+      summary: Open agb
+      tags:
+        - public
+      responses:
+        '200':
+          description: Open agb
+  /public/privacy-policy:
+    get:
+      operationId: getPrivacyPolicy
+      summary: Open privacy policy
+      tags:
+        - public
+      responses:
+        '200':
+          description: Open privacy policy
+  /public/api/infos:
+    get:
+      operationId: getServerInfo
+      summary: Get public server statistics
+      tags:
+        - public
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Info'
+  /api/users/{username}/groups:
+    get:
+      operationId: getGroupsByUsername
+      security:
+        - token: [ ]
+      summary: Get groups of a user by username
+      tags:
+        - groups
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupSmall'
+  /api/users/{username}/selected-pins:
+    get:
+      operationId: getPinsByIdsAndUsername
+      security:
+        - token: [ ]
+      summary: Get selected pins of a user by username
+      tags:
+        - pins
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated list of pin IDs
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pin'
+  /api/users/{username}/pins:
+    get:
+      operationId: getPinsByUsername
+      security:
+        - token: [ ]
+      summary: Get pins of a user by username
+      tags:
+        - pins
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pin'
+  /api/users/{username}/pins/{groupId}:
+    get:
+      operationId: getPinsByUsernameAndGroup
+      security:
+        - token: [ ]
+      summary: Get pins of a user in a specific group by username and group ID
+      tags:
+        - pins
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pin'
+  /api/groups/{groupId}/pins:
+    get:
+      operationId: getPinsByGroup
+      security:
+        - token: [ ]
+      summary: Get pins of a group by ID
+      tags:
+        - pins
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+        - name: date
+          in: query
+          description: Datetime of last local save. Only returns the pins if an update happened after this value
+          required: false
+          schema:
+            $ref: '#/components/schemas/Date'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pin'
+  
+  /api/users/{username}:
+    put:
+      operationId: updateUser
+      security:
+        - token: [ ]
+      summary: Update user information by username
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortString'
+    delete:
+      operationId: deleteUser
+      security:
+        - token: [ ]
+      summary: Delete a user by username
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: integer
+            minLength: 6
+            maxLength: 6
+      responses:
+        '200':
+          description: Deleted
+  /api/users/{username}/profile_picture_small:
+    get:
+      operationId: getUserProfileImageSmall
+      security:
+        - token: [ ]
+      summary: Get the small profile picture of a user by username
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            image/jpeg:
+              schema:
+                $ref: '#/components/schemas/Image'
+  /api/users/{username}/profile_picture:
+    get:
+      operationId: getUserProfileImage
+      security:
+        - token: [ ]
+      summary: Get the profile picture of a user by username
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            image/jpeg:
+              schema:
+                $ref: '#/components/schemas/Image'
+    put:
+      operationId: updateUserProfileImage
+      security:
+        - token: [ ]
+      summary: Update the profile picture of a user by username
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                image:
+                  $ref: '#/components/schemas/Image'
+              required:
+                - image
+      responses:
+        '200':
+          description: Successful response
+          content:
+            image/jpeg:
+              schema:
+                $ref: '#/components/schemas/Image'
+
+components:
+  securitySchemes:
+    token: # arbitrary name for the security scheme
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ID:
+      type: integer
+      minimum: 0
+    ShortString:
+      type: string
+      maxLength: 256
+    LongString:
+      type: string
+      maxLength: 500
+    Image:
+      type: string
+      format: byte
+      example: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    Visibility:
+      type: integer
+      enum:
+        - 0
+        - 1
+    Date:
+      type: string
+      format: date-time
+    Longitude:
+      type: number
+      minimum: -180
+      maximum: 180
+    Latitude:
+      type: number
+      minimum: -90
+      maximum: 90
+    Report:
+      type: object
+      required:
+        - username
+        - report
+        - message
+      properties:
+        username:
+          $ref: '#/components/schemas/ShortString'
+        report:
+          $ref: '#/components/schemas/ShortString'
+        message:
+          type: string
+          maximum: 5000
+    UpdateGroup:
+      type: object
+      properties:
+        description:
+          $ref: '#/components/schemas/ShortString'
+        name:
+          $ref: '#/components/schemas/ShortString'
+        profileImage:
+          $ref: '#/components/schemas/Image'
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        groupAdmin:
+          $ref: '#/components/schemas/ShortString'
+        link:
+          $ref: '#/components/schemas/ShortString'
+    CreateGroup:
+      type: object
+      required:
+        - description
+        - name
+        - groupAdmin
+        - link
+        - profileImage
+        - visibility
+      properties:
+        description:
+          $ref: '#/components/schemas/ShortString'
+        name:
+          $ref: '#/components/schemas/ShortString'
+        profileImage:
+          $ref: '#/components/schemas/Image'
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        groupAdmin:
+          $ref: '#/components/schemas/ShortString'
+        link:
+          $ref: '#/components/schemas/ShortString'
+    GroupSmall:
+      type: object
+      required:
+        - id
+        - visibility
+        - name
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          $ref: '#/components/schemas/ShortString'
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+    Group:
+      type: object
+      required:
+        - name
+        - visibility
+        - link
+        - description
+        - group_admin
+        - id
+        - invite_url
+        - lastUpdated
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        description:
+          $ref: '#/components/schemas/ShortString'
+        invite_url:
+          $ref: '#/components/schemas/ShortString'
+        name:
+          $ref: '#/components/schemas/ShortString'
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        group_admin:
+          $ref: '#/components/schemas/ShortString'
+        link:
+          $ref: '#/components/schemas/ShortString'
+        lastUpdated:
+          $ref: '#/components/schemas/Date'
+    Pin:
+      type: object
+      required:
+        - id
+        - creation_date
+        - creation_user
+        - latitude
+        - longitude
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        creation_date:
+          $ref: '#/components/schemas/Date'
+        latitude:
+          $ref: '#/components/schemas/Latitude'
+        longitude:
+          $ref: '#/components/schemas/Longitude'
+        creation_user:
+          $ref: '#/components/schemas/ShortString'
+    Member:
+      required:
+        - username
+      type: object
+      properties:
+        username:
+          $ref: '#/components/schemas/ShortString'
+    Info:
+      required:
+        - num-groups
+        - num-pins
+        - num-users
+      type: object
+      properties:
+        num-users:
+          $ref: '#/components/schemas/ID'
+        num-groups:
+          $ref: '#/components/schemas/ID'
+        num-pins:
+          $ref: '#/components/schemas/ID'
+    PinInfo:
+      required:
+        - group
+        - pin
+      type: object
+      properties:
+        pin:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              $ref: '#/components/schemas/ID'
+        group:
+          type: object
+          required:
+            - name
+            - visibility
+            - groupId
+          properties:
+            name:
+              $ref: '#/components/schemas/ShortString'
+            visibility:
+              $ref: '#/components/schemas/Visibility'
+            groupId:
+              $ref: '#/components/schemas/ID'
+    NewPin:
+      required:
+        - username
+        - longitude
+        - latitude
+        - groupId
+        - image
+      type: object
+      properties:
+        image:
+          $ref: '#/components/schemas/Image'
+        latitude:
+          $ref: '#/components/schemas/Latitude'
+        longitude:
+          $ref: '#/components/schemas/Longitude'
+        username:
+          $ref: '#/components/schemas/ShortString'
+        groupId:
+          $ref: '#/components/schemas/ID'
+        creationDate:
+          $ref: '#/components/schemas/Date'
+    Email:
+      type: string
+      format: email
+      maximum: 265
+    CreateUser:
+      required:
+        - email
+        - password
+        - name
+      type: object
+      properties:
+        name:
+          $ref: '#/components/schemas/ShortString'
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/ShortString'
+    User:
+      required:
+        - email
+        - password
+      type: object
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/ShortString'
