@@ -3,7 +3,11 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.service.api.UserService
 import org.openapitools.model.UpdateUserProfileImageRequest
 import org.openapitools.model.User
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
+@Service
+@Transactional
 class UserServiceImpl : UserService {
     override fun deleteUser(username: String?, code: Int?): Void {
         TODO("Not yet implemented")

@@ -1,7 +1,11 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.service.api.MonaService
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
+@Service
+@Transactional
 class MonaServiceImpl : MonaService {
     override fun getPinImage(pinId: Long): ByteArray {
         TODO("Not yet implemented")

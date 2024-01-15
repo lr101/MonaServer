@@ -8,6 +8,7 @@ import org.openapitools.model.Report
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.util.*
 import javax.mail.*
 
@@ -17,6 +18,7 @@ import javax.mail.internet.MimeMessage
 
 
 @Service
+@Transactional
 class EmailServiceImpl constructor(
     @Value("email.from") var from: String,
     @Value("email.psw") var password: String,

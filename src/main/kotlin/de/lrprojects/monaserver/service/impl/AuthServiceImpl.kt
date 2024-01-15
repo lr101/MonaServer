@@ -13,12 +13,13 @@ import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.optionals.getOrElse
 
 @Service
+@Transactional
 class AuthServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val tokenHelper: TokenHelper,
     @Autowired val emailService: EmailService
 ) : AuthService{
-    @Transactional
+
     @Throws(UserExistsException::class)
     override fun signup(username: String, password: String, email: String): String {
         val user = User()
@@ -36,7 +37,6 @@ class AuthServiceImpl constructor(
     }
 
     @Throws(WrongPasswordException::class)
-    @Transactional
     override fun login(username: String, password: String): String {
         val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
         if (user.password.equals(password)) {
@@ -51,7 +51,6 @@ class AuthServiceImpl constructor(
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)
-    @Transactional
     override fun recoverPassword(username: String) {
         val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
         var resetUrl: String
@@ -76,7 +75,6 @@ class AuthServiceImpl constructor(
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class)
-    @Transactional
     override fun requestDeleteCode(username: String) {
         val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
 

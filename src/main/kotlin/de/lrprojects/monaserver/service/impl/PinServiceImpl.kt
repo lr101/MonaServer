@@ -4,8 +4,12 @@ import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.service.api.PinService
 import org.openapitools.model.NewPin
 import org.openapitools.model.PinInfo
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
 
+@Service
+@Transactional
 class PinServiceImpl : PinService {
     override fun createPin(newPin: NewPin?): Pin {
         TODO("Not yet implemented")

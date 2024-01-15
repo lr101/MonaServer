@@ -14,9 +14,13 @@ import org.openapitools.model.GroupSmall
 import org.openapitools.model.UpdateGroup
 import org.openapitools.model.User
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.sql.SQLException
 import kotlin.jvm.optionals.getOrElse
 
+@Service
+@Transactional
 class GroupServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository,
