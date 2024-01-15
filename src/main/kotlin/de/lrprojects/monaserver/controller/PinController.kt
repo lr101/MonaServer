@@ -12,37 +12,37 @@ class PinController : PinsApi {
         return super.createPin(newPin)
     }
 
-    override fun deletePin(pinId: Int?): ResponseEntity<Void> {
+    override fun deletePin(pinId: Long?): ResponseEntity<Void> {
         return super.deletePin(pinId)
     }
 
-    override fun getPin(pinId: Int?): ResponseEntity<PinInfo> {
+    override fun getPin(pinId: Long?): ResponseEntity<PinInfo> {
         return super.getPin(pinId)
     }
 
-    override fun getPinCreationUsername(pinId: Int?): ResponseEntity<String> {
+    override fun getPinCreationUsername(pinId: Long?): ResponseEntity<String> {
         return super.getPinCreationUsername(pinId)
     }
 
-    override fun getPinImage(pinId: Int?): ResponseEntity<ByteArray> {
+    override fun getPinImage(pinId: Long?): ResponseEntity<ByteArray> {
         return super.getPinImage(pinId)
     }
 
     override fun getPinImagesByIds(
-        ids: MutableList<Int>?,
+        ids: MutableList<Long>?,
         compression: Int?,
         height: Int?
     ): ResponseEntity<MutableList<ByteArray>> {
         return super.getPinImagesByIds(ids, compression, height)
     }
 
-    override fun getPinsByGroup(groupId: Int?, date: OffsetDateTime?): ResponseEntity<MutableList<Pin>> {
+    override fun getPinsByGroup(groupId: Long?, date: OffsetDateTime?): ResponseEntity<MutableList<Pin>> {
         return super.getPinsByGroup(groupId, date)
     }
 
     override fun getPinsByIdsAndUsername(
         username: String?,
-        ids: MutableList<Int>?
+        ids: MutableList<Long>?
     ): ResponseEntity<MutableList<Pin>> {
         return super.getPinsByIdsAndUsername(username, ids)
     }
@@ -51,7 +51,7 @@ class PinController : PinsApi {
         return super.getPinsByUsername(username)
     }
 
-    override fun getPinsByUsernameAndGroup(username: String?, groupId: Int?): ResponseEntity<MutableList<Pin>> {
+    override fun getPinsByUsernameAndGroup(username: String?, groupId: Long?): ResponseEntity<MutableList<Pin>> {
         return super.getPinsByUsernameAndGroup(username, groupId)
     }
 

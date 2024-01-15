@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.helper
 
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.Resource
+import org.springframework.stereotype.Component
 import java.awt.Color
 import java.awt.Image
 import java.awt.image.BufferedImage
@@ -10,20 +11,20 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import javax.imageio.ImageIO
 
-object ImageHelper {
-    private const val SIZE = 500
-    private const val SIZE_PIN = 100
-    private const val SIZE_SMALL = 50
-    private const val X_OFFSET = 11
-    private const val Y_OFFSET = 4
-    private const val DIAMETER = 79
-    const val HEX_COLOR_TRANSPARENT = 0xFFFFFF
+@Component
+class ImageHelper() {
+    private val size = 500
+    private val sizePin = 100
+    private val sizeSmall = 50
+    private val xOffset = 11
+    private val yOffset = 4
+    private val diameter = 79
     fun getProfileImage(image: ByteArray): ByteArray {
-        return getBytes(image, SIZE)
+        return getBytes(image, size)
     }
 
     fun getProfileImageSmall(image: ByteArray): ByteArray {
-        return getBytes(image, SIZE_SMALL)
+        return getBytes(image, sizeSmall)
     }
 
     private fun getBytes(image: ByteArray, sizeSmall: Int): ByteArray {
@@ -43,19 +44,19 @@ object ImageHelper {
     fun getPinImage(image: ByteArray): ByteArray {
         return try {
             //scale to SIZE_PIN x SIZE_PIN
-            val imageBuff = resizeImage(image, DIAMETER)
+            val imageBuff = resizeImage(image, diameter)
             //get Resources
             val pinImage = getImageFromResources("pin_image.png")
             val pinBorder = getImageFromResources("pin_border.png")
             //create return image
-            val returnImage = BufferedImage(SIZE_PIN, SIZE_PIN, BufferedImage.TYPE_INT_ARGB)
+            val returnImage = BufferedImage(sizePin, sizePin, BufferedImage.TYPE_INT_ARGB)
             val g = returnImage.createGraphics()
-            for (x in 0 until SIZE_PIN) {
-                for (y in 0 until SIZE_PIN) {
-                    if (x >= X_OFFSET && x <= X_OFFSET + DIAMETER && y >= Y_OFFSET && y <= Y_OFFSET + DIAMETER &&
+            for (x in 0 until sizePin) {
+                for (y in 0 until sizePin) {
+                    if (x >= xOffset && x <= xOffset + diameter && y >= yOffset && y <= yOffset + diameter &&
                         isNotTransparent(pinImage, x, y)
                     ) {           //draw image if pixel in pin_image.png is not transparent
-                        g.color = Color(imageBuff.getRGB(x - X_OFFSET, y - Y_OFFSET))
+                        g.color = Color(imageBuff.getRGB(x - xOffset, y - yOffset))
                     } else if (isNotTransparent(
                             pinBorder,
                             x,

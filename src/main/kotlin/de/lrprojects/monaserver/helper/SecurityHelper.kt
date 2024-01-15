@@ -18,4 +18,11 @@ object SecurityHelper {
             }
             .toString()
     }
+
+
+    fun generateSixDigitNumber(): Int {
+        val random = Random()
+        return random.nextInt(100000, 999999)
+    }
+
 }

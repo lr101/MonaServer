@@ -923,6 +923,7 @@ components:
   schemas:
     ID:
       type: integer
+      format: int64
       minimum: 0
     ShortString:
       type: string

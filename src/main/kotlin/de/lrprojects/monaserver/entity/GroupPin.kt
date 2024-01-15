@@ -10,8 +10,8 @@ import jakarta.persistence.Table
 class GroupPin {
     @Id
     @Column(name = "group_id")
-    val groupId: Int? = null
+    var groupId: Long? = null
 
     @Id
-    val id: Int? = null
+    var id: Long? = null
 }

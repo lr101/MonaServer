@@ -11,43 +11,43 @@ class GroupController : GroupsApi {
         return super.addGroup(createGroup)
     }
 
-    override fun deleteGroup(groupId: Int?): ResponseEntity<Void> {
+    override fun deleteGroup(groupId: Long?): ResponseEntity<Void> {
         return super.deleteGroup(groupId)
     }
 
-    override fun getGroup(groupId: Int?): ResponseEntity<GroupSmall> {
+    override fun getGroup(groupId: Long?): ResponseEntity<GroupSmall> {
         return super.getGroup(groupId)
     }
 
-    override fun getGroupAdmin(groupId: Int?): ResponseEntity<Int> {
+    override fun getGroupAdmin(groupId: Long?): ResponseEntity<Long> {
         return super.getGroupAdmin(groupId)
     }
 
-    override fun getGroupDescription(groupId: Int?): ResponseEntity<String> {
+    override fun getGroupDescription(groupId: Long?): ResponseEntity<String> {
         return super.getGroupDescription(groupId)
     }
 
-    override fun getGroupIdsBySearchTerm(search: String?, withUser: Boolean?): ResponseEntity<MutableList<Int>> {
+    override fun getGroupIdsBySearchTerm(search: String?, withUser: Boolean?): ResponseEntity<MutableList<Long>> {
         return super.getGroupIdsBySearchTerm(search, withUser)
     }
 
-    override fun getGroupInviteUrl(groupId: Int?): ResponseEntity<String> {
+    override fun getGroupInviteUrl(groupId: Long?): ResponseEntity<String> {
         return super.getGroupInviteUrl(groupId)
     }
 
-    override fun getGroupLink(groupId: Int?): ResponseEntity<String> {
+    override fun getGroupLink(groupId: Long?): ResponseEntity<String> {
         return super.getGroupLink(groupId)
     }
 
-    override fun getGroupPinImage(groupId: Int?): ResponseEntity<ByteArray> {
+    override fun getGroupPinImage(groupId: Long?): ResponseEntity<ByteArray> {
         return super.getGroupPinImage(groupId)
     }
 
-    override fun getGroupProfileImage(groupId: Int?): ResponseEntity<ByteArray> {
+    override fun getGroupProfileImage(groupId: Long?): ResponseEntity<ByteArray> {
         return super.getGroupProfileImage(groupId)
     }
 
-    override fun getGroupsByIds(ids: MutableList<Int>?): ResponseEntity<MutableList<GroupSmall>> {
+    override fun getGroupsByIds(ids: MutableList<Long>?): ResponseEntity<MutableList<GroupSmall>> {
         return super.getGroupsByIds(ids)
     }
 
@@ -55,7 +55,7 @@ class GroupController : GroupsApi {
         return super.getGroupsByUsername(username)
     }
 
-    override fun updateGroup(groupId: Int?, updateGroup: UpdateGroup?): ResponseEntity<Group> {
+    override fun updateGroup(groupId: Long?, updateGroup: UpdateGroup?): ResponseEntity<Group> {
         return super.updateGroup(groupId, updateGroup)
     }
 

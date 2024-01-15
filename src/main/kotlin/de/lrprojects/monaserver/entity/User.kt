@@ -39,21 +39,23 @@ class User {
 
     @Lob
     @Column(name = "profile_picture")
-    var profilePicture = ByteArray(0)
+    var profilePicture: ByteArray? = null
 
     @Column(name = "profile_picture_small", columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
-    var profilePictureSmall = ByteArray(0)
+    var profilePictureSmall: ByteArray? = null
+
+    @Column(name = "code")
+    @Basic(fetch = FetchType.LAZY)
+    var code: Int? = null
 
     constructor()
-    constructor(username: String?, password: String?, email: String?, token: String?, profilePicture: ByteArray?) {
+    constructor(username: String?, password: String?, email: String?, token: String?, profilePicture: ByteArray?, profilePictureSmall: ByteArray?) {
         this.username = username
         this.password = password
         this.email = email
         this.token = token
-        if (profilePicture != null) {
-            this.profilePicture = ImageHelper.getProfileImage(profilePicture)
-            profilePictureSmall = ImageHelper.getProfileImageSmall(profilePicture)
-        }
+        this.profilePicture = profilePicture
+        this.profilePictureSmall = profilePictureSmall
     }
 }
