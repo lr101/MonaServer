@@ -7,6 +7,8 @@ import java.time.OffsetDateTime
 
 interface PinService {
 
+
+    fun getPinEntity(pinId: Long): Pin
     fun createPin(newPin: NewPin?): Pin
     fun deletePin(pinId: Long?): Void
     fun getPin(pinId: Long?): PinInfo

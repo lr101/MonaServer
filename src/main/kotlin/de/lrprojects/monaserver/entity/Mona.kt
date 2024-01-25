@@ -9,26 +9,22 @@ import org.hibernate.annotations.OnDeleteAction
 @Entity(name = "monas")
 @Getter
 @Setter
-class Mona {
-    @Column(name = "image", nullable = false)
+open class Mona {
+
     @Lob
-    private var image = ByteArray(0)
+    @Basic(fetch=FetchType.LAZY)
+    @Column(name = "image", nullable = false,  columnDefinition="BLOB")
+    var image = ByteArray(0)
 
     @OneToOne
     @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "pin", nullable = false, referencedColumnName = "id")
-    private var pin: Pin? = null
+    var pin: Pin? = null
 
     @Id
     @Column(name = "id", nullable = false)
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "mona_id_generator")
     @SequenceGenerator(name = "mona_id_generator", sequenceName = "mona_id_seq", allocationSize = 1)
-    private val id: Long? = null
+    val id: Long? = null
 
-    constructor(image: ByteArray, pin: Pin?) {
-        this.image = image
-        this.pin = pin
-    }
-
-    constructor()
 }
