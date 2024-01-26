@@ -30,29 +30,13 @@ class PinController : PinsApi {
 
     override fun getPinImagesByIds(
         ids: MutableList<Long>?,
+        groupId: Long?,
+        username: String?,
+        withImage: Boolean?,
         compression: Int?,
         height: Int?
-    ): ResponseEntity<MutableList<ByteArray>> {
-        return super.getPinImagesByIds(ids, compression, height)
-    }
-
-    override fun getPinsByGroup(groupId: Long?, date: OffsetDateTime?): ResponseEntity<MutableList<Pin>> {
-        return super.getPinsByGroup(groupId, date)
-    }
-
-    override fun getPinsByIdsAndUsername(
-        username: String?,
-        ids: MutableList<Long>?
     ): ResponseEntity<MutableList<Pin>> {
-        return super.getPinsByIdsAndUsername(username, ids)
-    }
-
-    override fun getPinsByUsername(username: String?): ResponseEntity<MutableList<Pin>> {
-        return super.getPinsByUsername(username)
-    }
-
-    override fun getPinsByUsernameAndGroup(username: String?, groupId: Long?): ResponseEntity<MutableList<Pin>> {
-        return super.getPinsByUsernameAndGroup(username, groupId)
+        return super.getPinImagesByIds(ids, groupId, username, withImage, compression, height)
     }
 
 

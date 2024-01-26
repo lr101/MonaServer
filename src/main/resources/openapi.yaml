@@ -21,35 +21,6 @@ tags:
   - name: report
 
 paths:
-  /api/groupIds:
-    get:
-      operationId: getGroupIdsBySearchTerm
-      security:
-        - token: [ ]
-      tags:
-        - groups
-      parameters:
-        - name: search
-          description: "search term used to find a group name"
-          in: query
-          required: true
-          schema:
-            $ref: '#/components/schemas/ShortString'
-        - name: withUser
-          description: "use false if user groups should be included and true if user groups should be excluded from search"
-          required: true
-          in: query
-          schema:
-            type: boolean
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ID'
   /api/groups:
     get:
       operationId: getGroupsByIds
@@ -66,7 +37,16 @@ paths:
             type: array
             items:
               $ref: '#/components/schemas/ID'
-
+        - name: search
+          description: "search term used to find a group name"
+          in: query
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: withUser
+          description: "use false if user groups should be included and true if user groups should be excluded from search"
+          in: query
+          schema:
+            type: boolean
       responses:
         '200':
           description: Successful response
@@ -473,7 +453,9 @@ paths:
           description: Report submitted successfully
         '401':
           description: Report submission failed
+  
   /api/pins:
+
     get:
       operationId: getPinImagesByIds
       security:
@@ -484,17 +466,27 @@ paths:
       parameters:
         - name: ids
           in: query
-          required: true
-          description: Comma-separated list pin ids
+          description: Comma-separated list of image IDs
           schema:
             type: array
             items:
               $ref: '#/components/schemas/ID'
-        - name: image
+        - name: groupId
+          description: Only pins of this group are returned
           in: query
-          description: "False: No image is returned, True: Image is returned"
+          schema:
+            $ref: '#/components/schemas/ID'
+        - name: username
+          in: query
+          description: Only pins of this user are returned
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: withImage
+          in: query
+          description: Describes if the images of the pins should be returned too
           schema:
             type: boolean
+            default: false
         - name: compression
           in: query
           description: Compression level for images (optional)
@@ -517,9 +509,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Image'
-
-
+                  $ref: '#/components/schemas/Pin'
     post:
       operationId: createPin
       security:
@@ -660,141 +650,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Info'
-  /api/users/{username}/groups:
-    get:
-      operationId: getGroupsByUsername
-      security:
-        - token: [ ]
-      summary: Get groups of a user by username
-      tags:
-        - groups
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ShortString'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/GroupSmall'
-  /api/users/{username}/selected-pins:
-    get:
-      operationId: getPinsByIdsAndUsername
-      security:
-        - token: [ ]
-      summary: Get selected pins of a user by username
-      tags:
-        - pins
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ShortString'
-        - name: ids
-          in: query
-          required: true
-          description: Comma-separated list of pin IDs
-          schema:
-            type: array
-            items:
-              $ref: '#/components/schemas/ID'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pin'
-  /api/users/{username}/pins:
-    get:
-      operationId: getPinsByUsername
-      security:
-        - token: [ ]
-      summary: Get pins of a user by username
-      tags:
-        - pins
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ShortString'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pin'
-  /api/users/{username}/pins/{groupId}:
-    get:
-      operationId: getPinsByUsernameAndGroup
-      security:
-        - token: [ ]
-      summary: Get pins of a user in a specific group by username and group ID
-      tags:
-        - pins
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ShortString'
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ID'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pin'
-  /api/groups/{groupId}/pins:
-    get:
-      operationId: getPinsByGroup
-      security:
-        - token: [ ]
-      summary: Get pins of a group by ID
-      tags:
-        - pins
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ID'
-        - name: date
-          in: query
-          description: Datetime of last local save. Only returns the pins if an update happened after this value
-          required: false
-          schema:
-            $ref: '#/components/schemas/Date'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pin'
-  
   /api/users/{username}:
     put:
       operationId: updateUser
@@ -949,12 +804,10 @@ components:
       format: date-time
     Longitude:
       type: number
-      format: double
       minimum: -180
       maximum: 180
     Latitude:
       type: number
-      format: double
       minimum: -90
       maximum: 90
     Report:
@@ -1054,7 +907,7 @@ components:
       required:
         - id
         - creation_date
-        - creation_user
+        - creationUser
         - latitude
         - longitude
       properties:
@@ -1066,8 +919,29 @@ components:
           $ref: '#/components/schemas/Latitude'
         longitude:
           $ref: '#/components/schemas/Longitude'
-        creation_user:
+        creationUser:
           $ref: '#/components/schemas/ShortString'
+    PinWithOptionalImage:
+      type: object
+      required:
+        - id
+        - creation_date
+        - creationUser
+        - latitude
+        - longitude
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        creation_date:
+          $ref: '#/components/schemas/Date'
+        latitude:
+          $ref: '#/components/schemas/Latitude'
+        longitude:
+          $ref: '#/components/schemas/Longitude'
+        creationUser:
+          $ref: '#/components/schemas/ShortString'
+        image:
+          $ref: '#/components/schemas/Image'
     Member:
       required:
         - username
@@ -1114,31 +988,6 @@ components:
               $ref: '#/components/schemas/Visibility'
             groupId:
               $ref: '#/components/schemas/ID'
-    PinFullInfo:
-      required:
-        - pinId
-        - groupId
-        - latitude
-        - longitude
-        - username
-        - creationDate
-      type: object
-      properties:
-        pinId:
-          $ref: '#/components/schemas/ID'
-        groupId:
-          $ref: '#/components/schemas/ID'
-        image:
-          $ref: '#/components/schemas/Image'
-        latitude:
-          $ref: '#/components/schemas/Latitude'
-        longitude:
-          $ref: '#/components/schemas/Longitude'
-        username:
-          $ref: '#/components/schemas/ShortString'
-        creationDate:
-          $ref: '#/components/schemas/Date'
-
     NewPin:
       required:
         - username

@@ -27,8 +27,12 @@ class GroupController : GroupsApi {
         return super.getGroupDescription(groupId)
     }
 
-    override fun getGroupIdsBySearchTerm(search: String?, withUser: Boolean?): ResponseEntity<MutableList<Long>> {
-        return super.getGroupIdsBySearchTerm(search, withUser)
+    override fun getGroupsByIds(
+        ids: MutableList<Long>?,
+        search: String?,
+        withUser: Boolean?
+    ): ResponseEntity<MutableList<GroupSmall>> {
+        return super.getGroupsByIds(ids, search, withUser)
     }
 
     override fun getGroupInviteUrl(groupId: Long?): ResponseEntity<String> {
@@ -45,14 +49,6 @@ class GroupController : GroupsApi {
 
     override fun getGroupProfileImage(groupId: Long?): ResponseEntity<ByteArray> {
         return super.getGroupProfileImage(groupId)
-    }
-
-    override fun getGroupsByIds(ids: MutableList<Long>?): ResponseEntity<MutableList<GroupSmall>> {
-        return super.getGroupsByIds(ids)
-    }
-
-    override fun getGroupsByUsername(username: String?): ResponseEntity<MutableList<GroupSmall>> {
-        return super.getGroupsByUsername(username)
     }
 
     override fun updateGroup(groupId: Long?, updateGroup: UpdateGroup?): ResponseEntity<Group> {

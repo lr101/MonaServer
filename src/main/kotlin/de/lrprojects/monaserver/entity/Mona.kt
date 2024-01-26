@@ -9,9 +9,10 @@ import org.hibernate.annotations.OnDeleteAction
 @Entity(name = "monas")
 @Getter
 @Setter
-open class Mona {
-    @Column(name = "image", nullable = false)
+class Mona {
     @Lob
+    @Basic(fetch=FetchType.LAZY)
+    @Column(name = "image", nullable = false,  columnDefinition="BLOB")
     var image = ByteArray(0)
 
     @OneToOne
@@ -24,4 +25,5 @@ open class Mona {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "mona_id_generator")
     @SequenceGenerator(name = "mona_id_generator", sequenceName = "mona_id_seq", allocationSize = 1)
     val id: Long? = null
+
 }

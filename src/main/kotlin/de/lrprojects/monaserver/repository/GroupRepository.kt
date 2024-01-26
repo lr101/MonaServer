@@ -20,4 +20,12 @@ interface GroupRepository : JpaRepository<Group, Long> {
             "  AND (g.name ILIKE ?2 OR g.description ILIKE ?2)", nativeQuery = true)
     fun searchInNotUserGroup(username: String, searchTerm: String) : List<Long>
 
+
+    @Query("SELECT username, count(creation_user)::int as points FROM members m" +
+            "              LEFT JOIN (SELECT pins.id, creation_user FROM pins JOIN public.groups_pins gp on pins.id = gp.id" +
+            "                         WHERE gp.group_id = ?1) as pg on pg.creation_user = m.username" +
+            "              WHERE group_id = ?1" +
+            "           GROUP BY username ORDER BY points DESC, username", nativeQuery = true)
+    fun getRanking(groupId: Long) : Pair<Long, String>
+
 }

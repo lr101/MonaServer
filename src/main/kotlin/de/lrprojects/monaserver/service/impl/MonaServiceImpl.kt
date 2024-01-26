@@ -1,37 +1,55 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.entity.Mona
+import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.MonaRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.service.api.MonaService
+import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
+import org.hibernate.SessionFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import kotlin.jvm.Throws
 
 @Service
 @Transactional
-class MonaServiceImpl constructor(@Autowired val monaRepository: MonaRepository): MonaService {
+class MonaServiceImpl(
+    @Autowired val monaRepository: MonaRepository,
+    @Autowired val pinService: PinService,
+    @Autowired val imageHelper: ImageHelper
+) : MonaService {
+
+    @Throws(EntityNotFoundException::class)
     override fun getPinImage(pinId: Long): ByteArray {
-        val mona = monaRepository.findByPinId(pinId).orElseThrow()
-        return mona.image
+        return getMonaFromPinId(pinId).image
     }
 
+    @Throws(EntityNotFoundException::class)
+    fun getMonaFromPinId(pinId: Long) : Mona {
+        val mona = monaRepository.findByPin(pinService.getPinEntity(pinId));
+        if (mona.isPresent) {
+            return mona.get()
+        } else {
+            throw EntityNotFoundException("Image not found")
+        }
+    }
+
+    @Throws(EntityNotFoundException::class)
     override fun addPinImage(pinId: Long, image: ByteArray): ByteArray {
-        val mona = monaRepository.findByPinId(pinId).orElseThrow()
-        mona.image = image
+        val mona = getMonaFromPinId(pinId)
+        mona.image = imageHelper.getPinImage(image)
         return monaRepository.save(mona).image
     }
 
-    override fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?): List<ByteArray?> {
-        val list = ArrayList<ByteArray?>()
-        for (id in ids) {
-            try {
-                list.add(getPinImage(id))
-            } catch (e: EntityNotFoundException) {
-                list.add(null)
-            }
-
+    override fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?, username: String): MutableList<ByteArray> {
+        var listOfIds = ""
+        for(id in ids) {
+            listOfIds += id
+            listOfIds += ","
         }
-        return list
+        listOfIds.removeSuffix(",")
+        return monaRepository.getImagesFromIds(listOfIds, username)
     }
 }
