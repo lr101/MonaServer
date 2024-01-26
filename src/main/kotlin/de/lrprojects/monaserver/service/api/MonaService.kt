@@ -7,5 +7,5 @@ interface MonaService {
 
     fun addPinImage(pinId: Long, image: ByteArray): ByteArray
 
-    fun getPinImagesByIds(ids: MutableList<Long>?, compression: Int?, height: Int?): MutableList<ByteArray>
+    fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?): List<ByteArray?>
 }

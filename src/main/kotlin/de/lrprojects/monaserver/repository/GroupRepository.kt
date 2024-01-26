@@ -3,7 +3,9 @@ package de.lrprojects.monaserver.repository
 import de.lrprojects.monaserver.entity.Group
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.stereotype.Repository
 
+@Repository
 interface GroupRepository : JpaRepository<Group, Long> {
 
     @Query( "SELECT g.group_id FROM groups g " +

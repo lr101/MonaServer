@@ -10,8 +10,8 @@ import jakarta.persistence.Table
 class Member {
     @Id
     @Column(name = "group_id")
-    val groupId: Long? = null
+    var groupId: Long? = null
 
     @Id
-    val username: String? = null
+    var username: String? = null
 }

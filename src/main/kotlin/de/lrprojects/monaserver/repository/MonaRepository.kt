@@ -1,9 +1,13 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Mona
+import de.lrprojects.monaserver.entity.Pin
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.stereotype.Repository
+import java.util.Optional
 
+@Repository
 interface MonaRepository : JpaRepository<Mona, Long> {
 
     @Query("SELECT m.pin, lo_get(m.image) as image FROM monas m" +
@@ -17,5 +21,9 @@ interface MonaRepository : JpaRepository<Mona, Long> {
             "                    )" +
             "            )" +
             "        AND m.pin IN ?1 ", nativeQuery = true)
-    fun getImagesFromIds(listOfIds: String, username: String)
+    fun getImagesFromIds(listOfIds: String, username: String) : List<ByteArray>
+
+    fun findByPinId(pinId: Long): Optional<Mona>
+
+    fun deleteByPinId(pinId: Long)
 }

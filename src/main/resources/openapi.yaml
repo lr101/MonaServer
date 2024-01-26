@@ -473,7 +473,7 @@ paths:
           description: Report submitted successfully
         '401':
           description: Report submission failed
-  /api/images:
+  /api/pins:
     get:
       operationId: getPinImagesByIds
       security:
@@ -485,11 +485,16 @@ paths:
         - name: ids
           in: query
           required: true
-          description: Comma-separated list of image IDs
+          description: Comma-separated list pin ids
           schema:
             type: array
             items:
               $ref: '#/components/schemas/ID'
+        - name: image
+          in: query
+          description: "False: No image is returned, True: Image is returned"
+          schema:
+            type: boolean
         - name: compression
           in: query
           description: Compression level for images (optional)
@@ -513,9 +518,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Image'
-  
-  
-  /api/pins:
+
+
     post:
       operationId: createPin
       security:
@@ -945,10 +949,12 @@ components:
       format: date-time
     Longitude:
       type: number
+      format: double
       minimum: -180
       maximum: 180
     Latitude:
       type: number
+      format: double
       minimum: -90
       maximum: 90
     Report:
@@ -1108,6 +1114,31 @@ components:
               $ref: '#/components/schemas/Visibility'
             groupId:
               $ref: '#/components/schemas/ID'
+    PinFullInfo:
+      required:
+        - pinId
+        - groupId
+        - latitude
+        - longitude
+        - username
+        - creationDate
+      type: object
+      properties:
+        pinId:
+          $ref: '#/components/schemas/ID'
+        groupId:
+          $ref: '#/components/schemas/ID'
+        image:
+          $ref: '#/components/schemas/Image'
+        latitude:
+          $ref: '#/components/schemas/Latitude'
+        longitude:
+          $ref: '#/components/schemas/Longitude'
+        username:
+          $ref: '#/components/schemas/ShortString'
+        creationDate:
+          $ref: '#/components/schemas/Date'
+
     NewPin:
       required:
         - username

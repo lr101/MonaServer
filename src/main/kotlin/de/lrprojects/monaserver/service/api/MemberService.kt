@@ -6,11 +6,11 @@ import org.openapitools.model.GroupSmall
 
 interface MemberService {
 
-    fun addMember(username: String): Group
+    fun addMember(username: String, groupId: Long): Group
 
-    fun getMembers(groupId: Long): List<Member>
+    fun getMembers(groupId: Long): List<String>
 
-    fun deleteMember(username: String)
+    fun deleteMember(username: String, groupId: Long)
 
     fun getGroupsOfUser(username: String): List<GroupSmall>
 
