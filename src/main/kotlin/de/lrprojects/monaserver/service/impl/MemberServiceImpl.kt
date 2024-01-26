@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver.entity.Member
+import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.repository.GroupRepository
-import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
 import org.openapitools.model.GroupSmall
@@ -12,13 +12,13 @@ import org.openapitools.model.Visibility
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import kotlin.collections.HashSet
 
 @Service
-@Transactional
+
 class MemberServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
-    @Autowired val groupRepository: GroupRepository,
-    @Autowired val memberRepository: MemberRepository
+    @Autowired val groupRepository: GroupRepository
 ): MemberService {
     override fun addMember(username: String, groupId: Long): Group {
         val group = groupRepository.findById(groupId)
@@ -50,8 +50,10 @@ class MemberServiceImpl constructor(
     }
 
     override fun getGroupsOfUser(username: String): List<GroupSmall> {
-        userRepository.findById(username).orElseThrow { IllegalArgumentException("User not found") }
-        return memberRepository.getGroupsOfUser(username).map { e -> GroupSmall(e.first, e.second, Visibility.fromValue(e.third)) }
+        val user = userRepository.findById(username).orElseThrow { IllegalArgumentException("User not found") }
+        val users = HashSet<User>()
+        users.add(user)
+        return groupRepository.findGroupsByMembers(users).map { group: Group -> group.convertToGroupSmall() }
     }
 
 

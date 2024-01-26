@@ -1,30 +1,31 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.entity.GroupPin
 import de.lrprojects.monaserver.entity.Pin
-import de.lrprojects.monaserver.repository.GroupPinRepository
-import de.lrprojects.monaserver.repository.PinRepository
+import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.service.api.GroupPinService
+import de.lrprojects.monaserver.service.api.PinService
+import jakarta.persistence.EntityNotFoundException
+import org.openapitools.model.NewPin
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.OffsetDateTime
+import kotlin.jvm.optionals.getOrElse
 
 @Service
-@Transactional
+
 class GroupPinServiceImpl constructor(
-    @Autowired val groupPinRepository: GroupPinRepository,
-    @Autowired val pinRepository: PinRepository
+    @Autowired val pinService: PinService,
+    @Autowired val groupRepository: GroupRepository
 ) : GroupPinService {
 
-    override fun addPinToGroup(pinId: Long, groupId: Long) {
-        val groupPin = GroupPin()
-        groupPin.groupId = groupId
-        groupPin.id = pinId
-        groupPinRepository.save(groupPin)
+    @Throws(EntityNotFoundException::class)
+    override fun addPinToGroup(newPin: NewPin) : Pin {
+        val pin = pinService.createPin(newPin)
+        val group = groupRepository.findById(newPin.groupId).getOrElse { throw EntityNotFoundException("group not found") }
+        group.pins.add(pin)
+        groupRepository.save(group)
+        return pin
     }
 
-    override fun getPinsByGroup(groupId: Long, date: OffsetDateTime): List<Pin> {
-        return groupPinRepository.findGroupPinsByGroupId(groupId).filter { e -> e.creationDate!!.toInstant() < date.toInstant() }
-    }
+
 }

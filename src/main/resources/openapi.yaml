@@ -141,7 +141,7 @@ paths:
           description: Deleted
         404:
           description: Group does not exist
-  
+
 
   /api/groups/{groupId}/profile_image:
     get:
@@ -343,27 +343,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
-  /api/delete-code/{username}:
+  /api/users/{username}/delete-code:
     get:
       operationId: generateDeleteCode
       security:
         - token: [ ]
       summary: Generate delete code
-      tags:
-        - auth
       parameters:
         - name: username
           in: path
-          required: true
+          description: username
           schema:
             $ref: '#/components/schemas/ShortString'
+      tags:
+        - auth
       responses:
         '201':
           description: Delete code generated and sent to the user
         '400':
-          description: User does not exist or does not have an email address
+          description: E-Mail could not be send
         '401':
           description: Unauthorized
+        '404':
+          description: User Not found
   /recover:
     get:
       operationId: requestPasswordRecovery
@@ -380,9 +382,11 @@ paths:
         '201':
           description: Recovery email sent
         '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
+          description: E-Mail could not be send
+        '404':
+          description: User Not found
+        '503':
+          description: Unique code could not be generated. Contact the developer under lr.dev.projects@gmail.com
   /login:
     post:
       operationId: userLogin
@@ -410,8 +414,10 @@ paths:
                 properties:
                   token:
                     $ref: '#/components/schemas/LongString'
-        '401':
-          description: Unauthorized
+        '400':
+          description: Wrong password
+        '404':
+          description: User does not exist
   /signup:
     post:
       operationId: createUser
@@ -453,7 +459,7 @@ paths:
           description: Report submitted successfully
         '401':
           description: Report submission failed
-  
+
   /api/pins:
 
     get:
@@ -760,18 +766,22 @@ paths:
         content:
           application/json:
             schema:
-              properties:
-                image:
-                  $ref: '#/components/schemas/Image'
-              required:
-                - image
+              $ref: '#/components/schemas/Image'
+
       responses:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Image'
+                required:
+                  - profilePicture
+                  - profilePictureSmall
+                properties:
+                  profilePicture:
+                    $ref: '#/components/schemas/Image'
+                  profilePictureSmall:
+                    $ref: '#/components/schemas/Image'
 
 components:
   securitySchemes:
@@ -969,25 +979,9 @@ components:
       type: object
       properties:
         pin:
-          type: object
-          required:
-            - id
-          properties:
-            id:
-              $ref: '#/components/schemas/ID'
+          $ref: '#/components/schemas/Pin'
         group:
-          type: object
-          required:
-            - name
-            - visibility
-            - groupId
-          properties:
-            name:
-              $ref: '#/components/schemas/ShortString'
-            visibility:
-              $ref: '#/components/schemas/Visibility'
-            groupId:
-              $ref: '#/components/schemas/ID'
+          $ref: '#/components/schemas/GroupSmall'
     NewPin:
       required:
         - username
@@ -1027,9 +1021,6 @@ components:
         password:
           $ref: '#/components/schemas/ShortString'
     User:
-      required:
-        - email
-        - password
       type: object
       properties:
         email:

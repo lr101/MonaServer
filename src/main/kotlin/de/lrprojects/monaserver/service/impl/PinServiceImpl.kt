@@ -1,11 +1,13 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.toPinInfo
 import de.lrprojects.monaserver.entity.Mona
 import de.lrprojects.monaserver.entity.Pin
+import de.lrprojects.monaserver.helper.StringHelper
+import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.MonaRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
-import de.lrprojects.monaserver.security.ModelMapper
 import de.lrprojects.monaserver.service.api.PinService
 import org.openapitools.model.NewPin
 import org.openapitools.model.PinInfo
@@ -17,18 +19,18 @@ import java.time.OffsetDateTime
 import java.util.*
 
 @Service
-@Transactional
+
 class PinServiceImpl constructor(
     @Autowired val pinRepository: PinRepository, 
     @Autowired val userRepository: UserRepository,
-    @Autowired val monaRepository: MonaRepository,
-    @Autowired val modelMapper: ModelMapper
+    @Autowired val monaRepository: MonaRepository
 ) : PinService {
+
     override fun createPin(newPin: NewPin): Pin {
         val pin = Pin()
         pin.user = userRepository.findById(newPin.username).orElseThrow()
-        pin.latitude = newPin.latitude
-        pin.longitude = newPin.longitude
+        pin.latitude = newPin.latitude.toDouble()
+        pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = Date() //TODO
         var mona = Mona()
         mona.pin = pin
@@ -38,12 +40,13 @@ class PinServiceImpl constructor(
     }
 
     override fun deletePin(pinId: Long) {
-        monaRepository.deleteByPinId(pinId)
+        pinRepository.deleteById(pinId)
     }
 
     override fun getPin(pinId: Long): PinInfo {
         val pin = pinRepository.findById(pinId).orElseThrow()
-        return modelMapper.modelMapper().map(pin, PinInfo::class.java)
+        val group = pinRepository.findGroupOfPin(pinId).orElseThrow()
+        return pin.toPinInfo(group)
     }
 
     override fun getPinCreationUsername(pinId: Long): String {
@@ -51,17 +54,19 @@ class PinServiceImpl constructor(
         return pin.user!!.username!!
     }
 
-
-
-    override fun getPinsByIdsAndUsername(username: String, ids: MutableList<Long>): MutableList<Pin> {
-        TODO("Not yet implemented")
+    override fun getPinsByGroup(currentUsername: String, groupId: Long, date: OffsetDateTime): MutableList<Pin> {
+        return pinRepository.findPinsByGroupAndDate(currentUsername, groupId, date);
     }
 
-    override fun getPinsByUsername(username: String): MutableList<Pin> {
-        TODO("Not yet implemented")
+    override fun getPinsByIdsAndUsername(currentUsername: String, username: String, ids: MutableList<Long>): MutableList<Pin> {
+        return pinRepository.findPinsOfUserInIds(username, currentUsername, StringHelper.listToString(ids))
     }
 
-    override fun getPinsByUsernameAndGroup(username: String, groupId: Long): MutableList<Pin> {
-        TODO("Not yet implemented")
+    override fun getPinsByUsername(currentUsername: String, username: String): MutableList<Pair<Pin, Long>> {
+        return pinRepository.findPinsWithGroupOfUser(username, currentUsername)
+    }
+
+    override fun getPinsByUsernameAndGroup(currentUsername: String, username: String, groupId: Long): MutableList<Pin> {
+        return pinRepository.findPinsOfUserAndGroup(username, currentUsername, groupId)
     }
 }

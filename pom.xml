@@ -33,14 +33,30 @@
 			<version>3.0.4</version>
 		</dependency>
 		<dependency>
+			<groupId>io.github.microutils</groupId>
+			<artifactId>kotlin-logging-jvm</artifactId>
+			<version>3.0.5</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.4.13</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-core</artifactId>
+			<version>1.4.13</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>5.9.2</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<version>2.2.224</version>
-		</dependency>
-		<dependency>
-			<groupId>org.modelmapper</groupId>
-			<artifactId>modelmapper</artifactId>
-			<version>3.2.0</version>
 		</dependency>
 		<dependency>
 			<groupId>uk.recurse</groupId>
@@ -157,8 +173,12 @@
 			<version>2.5</version>
 			<scope>provided</scope>
 		</dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+        </dependency>
 
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
@@ -221,7 +241,7 @@
 							<configOptions>
 								<useTags>true</useTags>
 								<openApiNullable>false</openApiNullable>
-								<interfaceOnly>true</interfaceOnly>
+								<delegatePattern>true</delegatePattern>
 							</configOptions>
 						</configuration>
 					</execution>

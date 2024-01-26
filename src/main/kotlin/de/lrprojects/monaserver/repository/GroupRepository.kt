@@ -1,11 +1,14 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Group
+import de.lrprojects.monaserver.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 
 @Repository
+@Transactional
 interface GroupRepository : JpaRepository<Group, Long> {
 
     @Query( "SELECT g.group_id FROM groups g " +
@@ -27,5 +30,10 @@ interface GroupRepository : JpaRepository<Group, Long> {
             "              WHERE group_id = ?1" +
             "           GROUP BY username ORDER BY points DESC, username", nativeQuery = true)
     fun getRanking(groupId: Long) : Pair<Long, String>
+
+    fun findGroupsByMembers(members: MutableSet<User>) : MutableList<Group>
+
+    fun findGroupsByGroupIdIsIn(groupId: List<Long>): MutableList<Group>
+
 
 }

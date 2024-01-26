@@ -8,13 +8,12 @@ import lombok.Setter
 import javax.validation.constraints.Min
 import javax.validation.constraints.Pattern
 
-@Entity(name = "users")
-@Getter
-@Setter
+@Entity
+@Table(name = "users")
 class User {
     @Id
     @Column(name = "username", nullable = false)
-    var username: @Min(1) String? = null
+    var username: @Min(1) String = ""
 
     //TODO add nullable = false when possible
     @Column(name = "password")
@@ -49,13 +48,4 @@ class User {
     @Basic(fetch = FetchType.LAZY)
     var code: Int? = null
 
-    constructor()
-    constructor(username: String?, password: String?, email: String?, token: String?, profilePicture: ByteArray?, profilePictureSmall: ByteArray?) {
-        this.username = username
-        this.password = password
-        this.email = email
-        this.token = token
-        this.profilePicture = profilePicture
-        this.profilePictureSmall = profilePictureSmall
-    }
 }

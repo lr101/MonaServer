@@ -1,11 +1,13 @@
 package de.lrprojects.monaserver.controller
 
 import org.openapitools.api.UsersApi
-import org.openapitools.model.UpdateUserProfileImageRequest
+import org.openapitools.model.UpdateUserProfileImage200Response
 import org.openapitools.model.User
 import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Controller
 
 
+@Controller
 class UserController () : UsersApi {
     override fun deleteUser(username: String?, code: Int?): ResponseEntity<Void> {
         return super.deleteUser(username, code)
@@ -25,10 +27,11 @@ class UserController () : UsersApi {
 
     override fun updateUserProfileImage(
         username: String?,
-        updateUserProfileImageRequest: UpdateUserProfileImageRequest?
-    ): ResponseEntity<ByteArray> {
-        return super.updateUserProfileImage(username, updateUserProfileImageRequest)
+        body: ByteArray?,
+    ): ResponseEntity<UpdateUserProfileImage200Response> {
+        return super.updateUserProfileImage(username, body)
     }
+
 
 
 }

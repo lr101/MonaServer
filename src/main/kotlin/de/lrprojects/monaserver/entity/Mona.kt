@@ -6,9 +6,8 @@ import lombok.Setter
 import org.hibernate.annotations.OnDelete
 import org.hibernate.annotations.OnDeleteAction
 
-@Entity(name = "monas")
-@Getter
-@Setter
+@Entity
+@Table(name = "monas")
 class Mona {
     @Lob
     @Basic(fetch=FetchType.LAZY)

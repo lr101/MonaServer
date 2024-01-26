@@ -1,18 +1,20 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
 import jakarta.persistence.*
 import lombok.Getter
 import lombok.Setter
+import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.OnDelete
 import org.hibernate.annotations.OnDeleteAction
-import java.util.function.Predicate
+import org.hibernate.annotations.UpdateTimestamp
+import java.util.*
+import kotlin.collections.HashSet
 
-@Entity(name = "groups")
-@Getter
-@Setter
-class Group() {
+
+@Entity
+@Table(name = "groups")
+open class Group() {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "group_id_generator")
     @SequenceGenerator(name = "group_id_generator", sequenceName = "group_id_seq", allocationSize = 1)
@@ -69,6 +71,17 @@ class Group() {
     )
     @OnDelete(action = OnDeleteAction.CASCADE)
     val pins: MutableSet<Pin> = HashSet()
+
+
+    @CreationTimestamp
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "creation_date")
+    val createDate: Date? = null
+
+    @UpdateTimestamp
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "update_date")
+    val updateDate: Date? = null
 
 
     fun setInvite() {

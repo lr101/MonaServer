@@ -18,7 +18,7 @@ import javax.mail.internet.MimeMessage
 
 
 @Service
-@Transactional
+
 class EmailServiceImpl constructor(
     @Value("email.from") var from: String,
     @Value("email.psw") var password: String,

@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.optionals.getOrElse
 
 @Service
-@Transactional
+
 class AuthServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val tokenHelper: TokenHelper,
@@ -36,7 +36,7 @@ class AuthServiceImpl constructor(
         return username
     }
 
-    @Throws(WrongPasswordException::class)
+    @Throws(WrongPasswordException::class, UserNotFoundException::class)
     override fun login(username: String, password: String): String {
         val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
         if (user.password.equals(password)) {

@@ -5,9 +5,8 @@ import lombok.Getter
 import lombok.Setter
 import java.util.*
 
-@Entity(name = "pins")
-@Getter
-@Setter
+@Entity
+@Table(name = "pins")
 open class Pin {
     @Column(name = "id", nullable = false)
     @Id

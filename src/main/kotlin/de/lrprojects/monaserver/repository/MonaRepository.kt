@@ -4,9 +4,11 @@ import de.lrprojects.monaserver.entity.Mona
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.util.Optional
 
 @Repository
+@Transactional
 interface MonaRepository : JpaRepository<Mona, Long> {
 
     @Query("SELECT m.pin, lo_get(m.image) as image FROM monas m" +
@@ -20,5 +22,7 @@ interface MonaRepository : JpaRepository<Mona, Long> {
             "                    )" +
             "            )" +
             "        AND m.pin IN ?1 ", nativeQuery = true)
-    fun getImagesFromIds(listOfIds: String, username: String)
+    fun getImagesFromIds(listOfIds: String, username: String) : MutableList<ByteArray>
+
+    fun findByPinId(pinId: Long) : Optional<Mona>
 }

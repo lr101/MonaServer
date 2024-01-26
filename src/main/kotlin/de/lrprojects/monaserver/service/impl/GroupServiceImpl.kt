@@ -1,18 +1,18 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.convertToGroupSmall
+import de.lrprojects.monaserver.converter.toGroupModel
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
-import de.lrprojects.monaserver.security.ModelMapper
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
 import org.openapitools.model.CreateGroup
 import org.openapitools.model.Group
 import org.openapitools.model.GroupSmall
 import org.openapitools.model.UpdateGroup
-import org.openapitools.model.User
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,15 +20,14 @@ import java.sql.SQLException
 import kotlin.jvm.optionals.getOrElse
 
 @Service
-@Transactional
+
 class GroupServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository,
-    @Autowired val imageHelper: ImageHelper,
-    @Autowired val modelMapper: ModelMapper
+    @Autowired val imageHelper: ImageHelper
 ) : GroupService {
     override fun addGroup(createGroup: CreateGroup): Group {
-        val group = de.lrprojects.monaserver.entity.Group()
+        var group = de.lrprojects.monaserver.entity.Group()
         group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse {throw UserNotFoundException("User as admin does not exist")}
         group.visibility = createGroup.visibility.value
         group.description = createGroup.description
@@ -39,8 +38,8 @@ class GroupServiceImpl constructor(
         if (group.visibility == 1) {
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
-        groupRepository.save(group)
-        return modelMapper.modelMapper().map(group, Group::class.java)
+        group = groupRepository.save(group)
+        return group.toGroupModel()
     }
 
     @Throws(SQLException::class)
@@ -52,7 +51,7 @@ class GroupServiceImpl constructor(
     override fun getGroup(groupId: Long): GroupSmall {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return modelMapper.modelMapper().map(group, GroupSmall::class.java)
+        return group.convertToGroupSmall()
     }
 
     @Throws(EntityNotFoundException::class)
@@ -103,18 +102,14 @@ class GroupServiceImpl constructor(
     }
 
     override fun getGroupsByIds(ids: List<Long>): List<GroupSmall> {
-        return ids.mapNotNull { id ->
-            groupRepository.findById(id).orElse(null)?.let {
-                modelMapper.modelMapper().map(it, GroupSmall::class.java)
-            }
-        }.toMutableList()
+        return groupRepository.findGroupsByGroupIdIsIn(ids).map { group: de.lrprojects.monaserver.entity.Group -> group.convertToGroupSmall() }
     }
 
 
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
     override fun updateGroup(groupId: Long, updateGroup: UpdateGroup): Group {
-        val group = groupRepository.findById(groupId)
+        var group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
 
         group.name = updateGroup.name ?: group.name
@@ -132,7 +127,7 @@ class GroupServiceImpl constructor(
         }
         updateGroup.profileImage?.let { group.profileImage = imageHelper.getProfileImage(it) }
         updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
-        groupRepository.save(group)
-        return modelMapper.modelMapper().map(group, Group::class.java)
+        group = groupRepository.save(group)
+        return group.toGroupModel()
     }
 }
