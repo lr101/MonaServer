@@ -6,5 +6,6 @@ COPY src /tmp/src
 RUN mvn clean install
 
 FROM eclipse-temurin:17
+WORKDIR /app
 COPY --from=build /tmp/target/*jar /app/app.jar
 ENTRYPOINT ["java","-jar","app.jar"]
