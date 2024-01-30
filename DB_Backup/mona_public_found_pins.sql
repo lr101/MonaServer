@@ -1,9 +1,0 @@
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 314);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 346);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 390);
-INSERT INTO public.found_pins (username, id) VALUES ('jan', 396);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 384);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 352);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 344);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 495);
-INSERT INTO public.found_pins (username, id) VALUES ('lr', 494);
