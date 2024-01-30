@@ -22,6 +22,8 @@ services:
       # SECRET
     depends_on:
       - db
+    networks:
+      - net
   db:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -32,3 +34,9 @@ services:
       - ./postgres-data:/var/lib/postgresql/data
     env_file:
       - ./.env
+    networks:
+      - net
+
+networks:
+  net:
+    name: "stick-it-network"
