@@ -48,4 +48,5 @@ privateKey
 buildDocker.bat
 /keystore-ubuntu.p12
 /ubuntuAWSOPENSSH
+/postgres-data/
 /src/main/resources/application-secrets.yml

@@ -1,5 +1,11 @@
-FROM openjdk:17-alpine
-ARG JAR_FILE=target/*.jar
-COPY target/MonaServer-2.jar MonaServer-2.jar
-COPY keystore-ubuntu.p12 /keystore-ubuntu.p12
-ENTRYPOINT exec java $JAVA_OPTS -jar /MonaServer-2.jar
+FROM maven:3.9.0-eclipse-temurin-17 AS build
+COPY pom.xml /tmp/pom.xml
+WORKDIR /tmp
+RUN mvn -B -f /tmp/pom.xml dependency:resolve
+COPY src /tmp/src
+RUN mvn clean install
+
+FROM eclipse-temurin:17
+WORKDIR /app
+COPY --from=build /tmp/target/*jar /app/app.jar
+ENTRYPOINT ["java","-jar","app.jar"]
