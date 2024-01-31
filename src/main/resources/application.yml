@@ -1,10 +1,11 @@
 email:
-  from: lr.dev.projects@gmail.com
+  from: ${EMAIL}
+  psw: ${EMAIL_PSW}
 logging:
   file:
     name: ./logs/server.log
 server:
-  port: 8081
+  port: ${PORT:8081}
   servlet:
     context-path: /
     session:
@@ -14,11 +15,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-  profiles:
-    active: secrets
   datasource:
-    url: jdbc:postgresql://localhost:5432/export_20_8
+    url: jdbc:postgresql://${DB_HOST}:5432/${POSTGRES_DB}
     driver-class-name: org.postgresql.Driver
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
   mvc:
     hiddenmethod:
       filter:
@@ -29,7 +30,3 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0.0.1
     clean-disabled: false
-
-springdoc:
-  swagger-ui:
-    path: /api-docs

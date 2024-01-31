@@ -9,10 +9,10 @@ import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
-import org.openapitools.model.CreateGroup
-import org.openapitools.model.Group
-import org.openapitools.model.GroupSmall
-import org.openapitools.model.UpdateGroup
+import de.lrprojects.monaserver.model.CreateGroup
+import de.lrprojects.monaserver.model.Group
+import de.lrprojects.monaserver.model.GroupSmall
+import de.lrprojects.monaserver.model.UpdateGroup
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.sql.SQLException

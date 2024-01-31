@@ -6,8 +6,8 @@ import de.lrprojects.monaserver.helper.StringHelper
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.PinService
-import org.openapitools.model.NewPin
-import org.openapitools.model.PinInfo
+import de.lrprojects.monaserver.model.NewPin
+import de.lrprojects.monaserver.model.PinInfo
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

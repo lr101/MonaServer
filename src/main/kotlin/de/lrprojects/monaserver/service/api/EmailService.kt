@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import org.openapitools.model.Report
+import de.lrprojects.monaserver.model.Report
 
 interface EmailService {
 

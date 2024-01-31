@@ -1,11 +1,11 @@
 package de.lrprojects.monaserver
 
-import io.swagger.v3.oas.annotations.OpenAPIDefinition
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
 import org.springframework.boot.runApplication
 
-@SpringBootApplication
-@OpenAPIDefinition
+
+@SpringBootApplication(exclude = [SecurityAutoConfiguration::class])
 class MonaserverApplication
 
 fun main(args: Array<String>) {

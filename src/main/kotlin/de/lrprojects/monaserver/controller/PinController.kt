@@ -1,9 +1,9 @@
 package de.lrprojects.monaserver.controller
 
-import org.openapitools.api.PinsApi
-import org.openapitools.model.NewPin
-import org.openapitools.model.Pin
-import org.openapitools.model.PinInfo
+import de.lrprojects.monaserver.api.PinsApi
+import de.lrprojects.monaserver.model.NewPin
+import de.lrprojects.monaserver.model.Pin
+import de.lrprojects.monaserver.model.PinInfo
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 

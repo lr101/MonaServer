@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Group
-import org.openapitools.model.GroupSmall
+import de.lrprojects.monaserver.model.GroupSmall
 
 interface MemberService {
 

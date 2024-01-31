@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.api
 
-import org.openapitools.model.UpdateUserProfileImage200Response
-import org.openapitools.model.User
+import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
+import de.lrprojects.monaserver.model.User
 
 
 interface UserService {

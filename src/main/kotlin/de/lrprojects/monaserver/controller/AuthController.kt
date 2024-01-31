@@ -1,12 +1,13 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.excepetion.*
-import de.lrprojects.monaserver.service.api.AuthService
 import mu.KotlinLogging
-import org.openapitools.api.AuthApi
-import org.openapitools.model.CreateUser
-import org.openapitools.model.UserLogin200Response
-import org.openapitools.model.UserLoginRequest
+import de.lrprojects.monaserver.api.AuthApi
+import de.lrprojects.monaserver.api.AuthApiDelegate
+import de.lrprojects.monaserver.model.CreateUser
+import de.lrprojects.monaserver.model.UserLogin200Response
+import de.lrprojects.monaserver.model.UserLoginRequest
+import de.lrprojects.monaserver.service.api.AuthService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -16,7 +17,7 @@ import java.sql.SQLException
 @Component
 class AuthController(
     @Autowired val authService: AuthService
-) : AuthApi {
+) : AuthApiDelegate {
 
     private val logger = KotlinLogging.logger {}
 

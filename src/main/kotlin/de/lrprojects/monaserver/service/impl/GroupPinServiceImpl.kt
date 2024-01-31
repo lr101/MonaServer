@@ -5,7 +5,7 @@ import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.service.api.GroupPinService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
-import org.openapitools.model.NewPin
+import de.lrprojects.monaserver.model.NewPin
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrElse

@@ -1,9 +1,9 @@
 package de.lrprojects.monaserver.service.api
 
-import org.openapitools.model.CreateGroup
-import org.openapitools.model.Group
-import org.openapitools.model.GroupSmall
-import org.openapitools.model.UpdateGroup
+import de.lrprojects.monaserver.model.CreateGroup
+import de.lrprojects.monaserver.model.Group
+import de.lrprojects.monaserver.model.GroupSmall
+import de.lrprojects.monaserver.model.UpdateGroup
 
 interface GroupService {
 

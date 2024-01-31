@@ -6,8 +6,8 @@ import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.TokenHelper
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.UserService
-import org.openapitools.model.UpdateUserProfileImage200Response
-import org.openapitools.model.User
+import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
+import de.lrprojects.monaserver.model.User
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrElse

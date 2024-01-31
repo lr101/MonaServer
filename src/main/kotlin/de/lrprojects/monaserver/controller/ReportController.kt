@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.controller
 
-import org.openapitools.api.ReportApi
+import de.lrprojects.monaserver.api.ReportApi
 
-import org.openapitools.model.Report
+import de.lrprojects.monaserver.model.Report
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 

@@ -4,7 +4,7 @@ import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.EmailService
-import org.openapitools.model.Report
+import de.lrprojects.monaserver.model.Report
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service

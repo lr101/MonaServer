@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Pin
-import org.openapitools.model.NewPin
-import org.openapitools.model.PinInfo
+import de.lrprojects.monaserver.model.NewPin
+import de.lrprojects.monaserver.model.PinInfo
 import java.time.OffsetDateTime
 
 interface PinService {

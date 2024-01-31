@@ -615,32 +615,6 @@ paths:
             image/jpeg:
               schema:
                 $ref: '#/components/schemas/Image'
-  /:
-    get:
-      summary: Open lr-projects.de
-      tags:
-        - public
-      responses:
-        '301':
-          description: Open lr-projects.de
-  /public/agb:
-    get:
-      operationId: getAgb
-      summary: Open agb
-      tags:
-        - public
-      responses:
-        '200':
-          description: Open agb
-  /public/privacy-policy:
-    get:
-      operationId: getPrivacyPolicy
-      summary: Open privacy policy
-      tags:
-        - public
-      responses:
-        '200':
-          description: Open privacy policy
   /public/api/infos:
     get:
       operationId: getServerInfo

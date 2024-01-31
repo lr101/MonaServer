@@ -1,9 +1,9 @@
 package de.lrprojects.monaserver.controller
 
-import org.openapitools.api.MembersApi
-import org.openapitools.model.ApiGroupsGroupIdMembersPostRequest
-import org.openapitools.model.Group
-import org.openapitools.model.Member
+import de.lrprojects.monaserver.api.MembersApi
+import de.lrprojects.monaserver.model.ApiGroupsGroupIdMembersPostRequest
+import de.lrprojects.monaserver.model.Group
+import de.lrprojects.monaserver.model.Member
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
