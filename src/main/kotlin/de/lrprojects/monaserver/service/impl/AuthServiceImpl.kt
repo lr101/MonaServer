@@ -9,11 +9,9 @@ import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.optionals.getOrElse
 
 @Service
-
 class AuthServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val tokenHelper: TokenHelper,
@@ -63,7 +61,7 @@ class AuthServiceImpl constructor(
         do {
             resetUrl = SecurityHelper.generateAlphabeticRandomString(25)
             attempts++
-        } while (userRepository.findByResetPasswordUrl(resetUrl).isEmpty && attempts < 10)
+        } while (userRepository.findByResetPasswordUrl(resetUrl).isEmpty() && attempts < 10)
 
         if (attempts >= 10) {
             throw UniqueResetUrlNotFoundException("Failed to generate a unique reset URL after 10 attempts.")
@@ -81,7 +79,7 @@ class AuthServiceImpl constructor(
         if (user.email.isNullOrEmpty()) {
             throw AttributeDoesNotExist("No email address exists")
         }
-        user.code = SecurityHelper.generateSixDigitNumber()
+        user.code = SecurityHelper.generateSixDigitNumber().toString()
         userRepository.save(user)
         emailService.sendMail("Reset url at " + user.code, user.email!!, "Delete Code")
     }

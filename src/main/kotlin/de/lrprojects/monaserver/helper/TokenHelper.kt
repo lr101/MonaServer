@@ -9,13 +9,10 @@ import com.auth0.jwt.interfaces.DecodedJWT
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.util.*
-import kotlin.collections.HashMap
 
 @Component
-class TokenHelper {
+class TokenHelper (@Value("secrets.token.value") val secret: String) {
 
-    @Value("\${SECRET}")
-    private val secret = "secret"
 
     @Throws(IllegalArgumentException::class, JWTCreationException::class)
     fun generateToken(username: String?, password: String?): String? {

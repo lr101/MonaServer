@@ -5,8 +5,10 @@ import org.openapitools.model.NewPin
 import org.openapitools.model.Pin
 import org.openapitools.model.PinInfo
 import org.springframework.http.ResponseEntity
-import java.time.OffsetDateTime
+import org.springframework.stereotype.Component
 
+
+@Component
 class PinController : PinsApi {
     override fun createPin(newPin: NewPin?): ResponseEntity<Pin> {
         return super.createPin(newPin)

@@ -2,21 +2,18 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.service.api.AuthService
-import jakarta.persistence.EntityNotFoundException
 import mu.KotlinLogging
 import org.openapitools.api.AuthApi
-import org.openapitools.api.AuthApiDelegate
-import org.openapitools.model.*
+import org.openapitools.model.CreateUser
+import org.openapitools.model.UserLogin200Response
+import org.openapitools.model.UserLoginRequest
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.stereotype.Controller
-import org.springframework.web.bind.annotation.PathVariable
-import java.net.URI
+import org.springframework.stereotype.Component
 import java.sql.SQLException
 
-@Controller
+@Component
 class AuthController(
     @Autowired val authService: AuthService
 ) : AuthApi {

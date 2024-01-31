@@ -1,11 +1,14 @@
 package de.lrprojects.monaserver.controller
 
 import org.openapitools.api.GroupsApi
-import org.openapitools.model.*
+import org.openapitools.model.CreateGroup
+import org.openapitools.model.Group
+import org.openapitools.model.GroupSmall
+import org.openapitools.model.UpdateGroup
 import org.springframework.http.ResponseEntity
-import org.springframework.web.context.request.NativeWebRequest
-import java.util.*
+import org.springframework.stereotype.Component
 
+@Component
 class GroupController : GroupsApi {
     override fun addGroup(createGroup: CreateGroup?): ResponseEntity<Group> {
         return super.addGroup(createGroup)

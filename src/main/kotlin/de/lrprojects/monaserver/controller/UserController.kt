@@ -4,10 +4,10 @@ import org.openapitools.api.UsersApi
 import org.openapitools.model.UpdateUserProfileImage200Response
 import org.openapitools.model.User
 import org.springframework.http.ResponseEntity
-import org.springframework.stereotype.Controller
+import org.springframework.stereotype.Component
 
 
-@Controller
+@Component
 class UserController () : UsersApi {
     override fun deleteUser(username: String?, code: Int?): ResponseEntity<Void> {
         return super.deleteUser(username, code)

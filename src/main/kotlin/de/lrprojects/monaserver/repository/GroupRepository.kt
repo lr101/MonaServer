@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 @Repository
 @Transactional
@@ -31,9 +32,16 @@ interface GroupRepository : JpaRepository<Group, Long> {
             "           GROUP BY username ORDER BY points DESC, username", nativeQuery = true)
     fun getRanking(groupId: Long) : Pair<Long, String>
 
-    fun findGroupsByMembers(members: MutableSet<User>) : MutableList<Group>
+    fun findAllByMembersIn(members: MutableCollection<MutableSet<User>>) : MutableList<Group>
 
-    fun findGroupsByGroupIdIsIn(groupId: List<Long>): MutableList<Group>
+    fun findAllByGroupIdIn(groupId: List<Long>): MutableList<Group>
+
+    @Query("SELECT lo_get(profile_image) FROM groups WHERE group_id = ?1", nativeQuery = true)
+    fun getProfileImage(groupId: Long): Optional<ByteArray>
+
+
+    @Query("UPDATE groups SET profile_image = lo_from_bytea(0, ?2) WHERE group_id = ?1", nativeQuery = true)
+    fun setProfileImage(groupId: Long, image: ByteArray)
 
 
 }

@@ -10,8 +10,8 @@ import org.openapitools.model.UpdateUserProfileImage200Response
 import org.openapitools.model.User
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.optionals.getOrElse
+import kotlin.jvm.optionals.getOrNull
 
 @Service
 
@@ -25,7 +25,7 @@ class UserServiceImpl constructor(
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {
-        return userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }.profilePicture
+        return userRepository.getProfileImage(username).getOrNull()
     }
 
     override fun getUserProfileImageSmall(username: String): ByteArray? {
@@ -49,8 +49,8 @@ class UserServiceImpl constructor(
         image: ByteArray
     ): UpdateUserProfileImage200Response {
         val userEntity =  userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }
-        userEntity.profilePicture = imageHelper.getProfileImage(image)
+        userRepository.setProfileImage(username, imageHelper.getProfileImage(image))
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
-        return userRepository.save(userEntity).toImages()
+        return userRepository.save(userEntity).toImages(userRepository)
     }
 }

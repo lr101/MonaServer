@@ -3,7 +3,10 @@ package de.lrprojects.monaserver.controller
 import org.openapitools.api.PublicApi
 import org.openapitools.model.Info
 import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Component
 
+
+@Component
 class PublicController : PublicApi {
     override fun getAgb(): ResponseEntity<Void> {
         return super.getAgb()

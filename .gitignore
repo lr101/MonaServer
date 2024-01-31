@@ -48,3 +48,4 @@ privateKey
 buildDocker.bat
 /keystore-ubuntu.p12
 /ubuntuAWSOPENSSH
+/src/main/resources/application-secrets.yml

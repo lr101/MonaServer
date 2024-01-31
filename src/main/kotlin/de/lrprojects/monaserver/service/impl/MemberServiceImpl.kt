@@ -8,11 +8,8 @@ import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
 import org.openapitools.model.GroupSmall
-import org.openapitools.model.Visibility
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
-import kotlin.collections.HashSet
 
 @Service
 
@@ -51,9 +48,8 @@ class MemberServiceImpl constructor(
 
     override fun getGroupsOfUser(username: String): List<GroupSmall> {
         val user = userRepository.findById(username).orElseThrow { IllegalArgumentException("User not found") }
-        val users = HashSet<User>()
-        users.add(user)
-        return groupRepository.findGroupsByMembers(users).map { group: Group -> group.convertToGroupSmall() }
+        val users = mutableSetOf(user)
+        return groupRepository.findAllByMembersIn(mutableSetOf(users)).map { group: Group -> group.convertToGroupSmall() }
     }
 
 

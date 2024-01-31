@@ -2,14 +2,11 @@ package de.lrprojects.monaserver.entity
 
 import de.lrprojects.monaserver.helper.SecurityHelper
 import jakarta.persistence.*
-import lombok.Getter
-import lombok.Setter
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.OnDelete
 import org.hibernate.annotations.OnDeleteAction
 import org.hibernate.annotations.UpdateTimestamp
 import java.util.*
-import kotlin.collections.HashSet
 
 
 @Entity
@@ -19,32 +16,31 @@ open class Group() {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "group_id_generator")
     @SequenceGenerator(name = "group_id_generator", sequenceName = "group_id_seq", allocationSize = 1)
     @Column(name = "group_id", nullable = false)
-    val groupId: Long? = null
+    open var groupId: Long? = null
 
     @Column(name = "name", nullable = false, unique = true)
-    var name: String? = null
+    open var name: String? = null
 
     @OneToOne
     @JoinColumn(name = "group_admin", nullable = false, referencedColumnName = "username")
-    var groupAdmin: User? = null
+    open var groupAdmin: User? = null
 
     @Column(name = "description")
     @Basic(fetch = FetchType.LAZY)
-    var description: String? = null
+    open var description: String? = null
 
-    @Lob
-    @Column(name = "profile_image", nullable = false)
-    lateinit var profileImage: ByteArray
+    @Column(name = "profile_image", nullable = false, columnDefinition = "OID")
+    open var profileImage: Long? = null
 
     @Column(name = "pin_image", nullable = false)
     @Basic(fetch = FetchType.LAZY)
-    lateinit var pinImage: ByteArray
+    open var pinImage: ByteArray? = null
 
     @Column(name = "invite_url", unique = true)
-    var inviteUrl: String? = null
+    open var inviteUrl: String? = null
 
     @Column(name = "link")
-    var link: String? = null
+    open var link: String? = null
 
 
     //TODO somthing like:
@@ -52,7 +48,7 @@ open class Group() {
     // 1 : visible
     // 2 : only invite
     @Column(name = "visibility", nullable = false)
-    var visibility = 0
+    open var visibility = 0
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = User::class)
     @JoinTable(
@@ -61,7 +57,7 @@ open class Group() {
         inverseJoinColumns = [JoinColumn(name = "username")]
     )
     @OnDelete(action = OnDeleteAction.CASCADE)
-    val members: MutableSet<User> = HashSet<User>()
+    open var members: MutableSet<User> = HashSet<User>()
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
     @JoinTable(
@@ -70,18 +66,18 @@ open class Group() {
         inverseJoinColumns = [JoinColumn(name = "id")]
     )
     @OnDelete(action = OnDeleteAction.CASCADE)
-    val pins: MutableSet<Pin> = HashSet()
+    open var pins: MutableSet<Pin> = HashSet()
 
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "creation_date")
-    val createDate: Date? = null
+    open var createDate: Date? = null
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "update_date")
-    val updateDate: Date? = null
+    open var updateDate: Date? = null
 
 
     fun setInvite() {

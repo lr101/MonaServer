@@ -8,12 +8,9 @@ import org.openapitools.model.Report
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.util.*
 import javax.mail.*
-
 import javax.mail.internet.InternetAddress
-
 import javax.mail.internet.MimeMessage
 
 

@@ -5,7 +5,10 @@ import org.openapitools.model.ApiGroupsGroupIdMembersPostRequest
 import org.openapitools.model.Group
 import org.openapitools.model.Member
 import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Component
 
+
+@Component
 class MemberController : MembersApi {
     override fun apiGroupsGroupIdMembersPost(
         groupId: Long?,

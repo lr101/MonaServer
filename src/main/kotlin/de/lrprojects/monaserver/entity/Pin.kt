@@ -1,8 +1,6 @@
 package de.lrprojects.monaserver.entity
 
 import jakarta.persistence.*
-import lombok.Getter
-import lombok.Setter
 import java.util.*
 
 @Entity
@@ -12,27 +10,24 @@ open class Pin {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "pins_id_generator")
     @SequenceGenerator(name = "pins_id_generator", sequenceName = "pins_id_seq", allocationSize = 1)
-    val id: Long? = null
+    open var id: Long? = null
 
     @Column(name = "latitude", nullable = false)
-    var latitude = 0.0
+    open var latitude = 0.0
 
     @Column(name = "longitude", nullable = false)
-    var longitude = 0.0
+    open var longitude = 0.0
 
     @Column(name = "creation_date", nullable = false)
-    var creationDate: Date? = null
+    open var creationDate: Date? = null
 
     @OneToOne
     @JoinColumn(name = "creation_user", referencedColumnName = "username")
-    var user: User? = null
+    open var user: User? = null
 
-    constructor(latitude: Double, longitude: Double, creationDate: Date?, user: User?) {
-        this.latitude = latitude
-        this.longitude = longitude
-        this.creationDate = creationDate
-        this.user = user
-    }
+    @Lob
+    @Basic(fetch=FetchType.LAZY)
+    @Column(name = "image", nullable = false,  columnDefinition="OID")
+    open var image : Long? = null
 
-    constructor()
 }

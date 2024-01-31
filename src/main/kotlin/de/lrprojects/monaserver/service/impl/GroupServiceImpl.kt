@@ -15,7 +15,6 @@ import org.openapitools.model.GroupSmall
 import org.openapitools.model.UpdateGroup
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.sql.SQLException
 import kotlin.jvm.optionals.getOrElse
 
@@ -33,12 +32,13 @@ class GroupServiceImpl constructor(
         group.description = createGroup.description
         group.name = createGroup.name
         group.members.add(group.groupAdmin!!)
-        group.profileImage = imageHelper.getProfileImage(createGroup.profileImage)
+
         group.pinImage = imageHelper.getPinImage(createGroup.profileImage)
         if (group.visibility == 1) {
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
         group = groupRepository.save(group)
+        groupRepository.setProfileImage(group.groupId!!, imageHelper.getProfileImage(createGroup.profileImage))
         return group.toGroupModel()
     }
 
@@ -92,17 +92,16 @@ class GroupServiceImpl constructor(
     override fun getGroupPinImage(groupId: Long): ByteArray {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.pinImage
+        return group.pinImage!!
     }
 
     override fun getGroupProfileImage(groupId: Long): ByteArray {
-        val group = groupRepository.findById(groupId)
+        return groupRepository.getProfileImage(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.profileImage
     }
 
     override fun getGroupsByIds(ids: List<Long>): List<GroupSmall> {
-        return groupRepository.findGroupsByGroupIdIsIn(ids).map { group: de.lrprojects.monaserver.entity.Group -> group.convertToGroupSmall() }
+        return groupRepository.findAllByGroupIdIn(ids).map { group: de.lrprojects.monaserver.entity.Group -> group.convertToGroupSmall() }
     }
 
 
@@ -125,8 +124,10 @@ class GroupServiceImpl constructor(
         updateGroup.groupAdmin?.let { adminId ->
             userRepository.findById(adminId).getOrElse { throw UserNotFoundException("Admin does not exist") }
         }
-        updateGroup.profileImage?.let { group.profileImage = imageHelper.getProfileImage(it) }
-        updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
+        if (updateGroup.profileImage != null) {
+            groupRepository.setProfileImage(groupId, imageHelper.getProfileImage(updateGroup.profileImage))
+            updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
+        }
         group = groupRepository.save(group)
         return group.toGroupModel()
     }

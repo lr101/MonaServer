@@ -1,11 +1,8 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.toPinInfo
-import de.lrprojects.monaserver.entity.Mona
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.helper.StringHelper
-import de.lrprojects.monaserver.repository.GroupRepository
-import de.lrprojects.monaserver.repository.MonaRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.PinService
@@ -14,7 +11,6 @@ import org.openapitools.model.PinInfo
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.sql.SQLException
 import java.time.OffsetDateTime
 import java.util.*
 
@@ -23,20 +19,18 @@ import java.util.*
 class PinServiceImpl constructor(
     @Autowired val pinRepository: PinRepository, 
     @Autowired val userRepository: UserRepository,
-    @Autowired val monaRepository: MonaRepository
 ) : PinService {
 
+    @Transactional
     override fun createPin(newPin: NewPin): Pin {
-        val pin = Pin()
+        var pin = Pin()
         pin.user = userRepository.findById(newPin.username).orElseThrow()
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = Date() //TODO
-        var mona = Mona()
-        mona.pin = pin
-        mona.image = newPin.image
-        mona = monaRepository.save(mona)
-        return mona.pin!!
+        pin = pinRepository.save(pin)
+        pinRepository.setImage(pin.id!!, newPin.image)
+        return pin
     }
 
     override fun deletePin(pinId: Long) {
