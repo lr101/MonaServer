@@ -38,7 +38,7 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
 
     }
 
-    @PreAuthorize("authentication.name.equals(#username) || @guard.checkGroupAdmin(authentication, #groupId)")
+    @PreAuthorize("authentication.name.equals(#username) || @guard.isGroupAdmin(authentication, #groupId)")
     override fun deleteMemberFromGroup(groupId: Long, username: String): ResponseEntity<Void> {
         return try {
             memberService.deleteMember(username, groupId)
@@ -51,7 +51,7 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
 
     }
 
-    @PreAuthorize("@guard.checkGroupId(authentication, #groupId)")
+    @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupMembers(groupId: Long): ResponseEntity<MutableList<Member>> {
         return try {
             val members = memberService.getMembers(groupId).toMutableList()

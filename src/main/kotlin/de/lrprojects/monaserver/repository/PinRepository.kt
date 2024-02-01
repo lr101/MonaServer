@@ -95,19 +95,19 @@ interface PinRepository : JpaRepository<Pin, Long> {
     fun findPinsOfUserInGroup(groupId: Long, username: String) : List<Pin>
 
 
-    @Query("SELECT " +
-            "    m.id, m.latitude, m.longitude, m.creation_user, " +
-            "    CASE " +
-            "        WHEN ?4 = TRUE THEN lo_get(m.image) " +
-            "        ELSE NULL " +
-            "    END as image " +
-            "FROM " +
-            "    pins m JOIN groups_pins gp on m.id = gp.id " +
-            "WHERE " +
-            "    m.id IN (?1)" +
-            "    AND ( ?2 IS NULL OR m.creation_user = ?2 )" +
+    @Query("SELECT p.* FROM pins p " +
+            "JOIN groups_pins gp on p.id = gp.id WHERE " +
+            "     ( ?1 IS NULL OR p.id IN (?1) )" +
+            "    AND ( ?2 IS NULL OR p.creation_user = ?2 )" +
             "    AND ( ?3 IS NULL OR gp.group_id = ?3)", nativeQuery = true)
-    fun getImagesFromIds(listOfIds: String, username: String?, groupId: Long?) : MutableList<Pin>
+    fun getPinsFromIds(listOfIds: String?, username: String?, groupId: Long?) : MutableList<Pin>
+
+    @Query("SELECT p.*, lo_get(p.image) FROM pins p " +
+            "JOIN groups_pins gp on p.id = gp.id WHERE " +
+            "    ( ?1 IS NULL OR p.id IN (?1) )" +
+            "    AND ( ?2 IS NULL OR p.creation_user = ?2 )" +
+            "    AND ( ?3 IS NULL OR gp.group_id = ?3)", nativeQuery = true)
+    fun getImagesFromIds(listOfIds: String?, username: String?, groupId: Long?) : MutableList<Pair<Pin, ByteArray>>
 
 
     @Query("SELECT lo_get(image) FROM pins WHERE id = ?1", nativeQuery = true)

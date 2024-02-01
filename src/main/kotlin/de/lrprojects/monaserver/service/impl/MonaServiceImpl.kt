@@ -1,7 +1,10 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.toPinWithOptionalImage
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.StringHelper
+import de.lrprojects.monaserver.model.Pin
+import de.lrprojects.monaserver.model.PinWithOptionalImage
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
@@ -30,8 +33,15 @@ class MonaServiceImpl(
         return processedImage
     }
 
-    override fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<ByteArray> {
-        pinRepository.getImagesFromIds()
-        return pinRepository.getImagesFromIds(StringHelper.listToString(ids), username)
+    override fun getPinImagesByIds(ids: MutableList<Long>?, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<PinWithOptionalImage> {
+        return if (withImages == null || !withImages) {
+            pinRepository.getPinsFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId).map {
+                it.toPinWithOptionalImage(null)
+            }.toMutableList()
+        } else {
+            pinRepository.getImagesFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId).map {
+                it.first.toPinWithOptionalImage(it.second)
+            }.toMutableList()
+        }
     }
 }

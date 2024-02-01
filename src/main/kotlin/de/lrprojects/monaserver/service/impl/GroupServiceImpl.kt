@@ -13,6 +13,8 @@ import de.lrprojects.monaserver.model.CreateGroup
 import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.GroupSmall
 import de.lrprojects.monaserver.model.UpdateGroup
+import de.lrprojects.monaserver.repository.PinRepository
+import de.lrprojects.monaserver.service.api.PinService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.sql.SQLException
@@ -23,7 +25,8 @@ import kotlin.jvm.optionals.getOrElse
 class GroupServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository,
-    @Autowired val imageHelper: ImageHelper
+    @Autowired val imageHelper: ImageHelper,
+    @Autowired val pinRepository: PinRepository
 ) : GroupService {
     override fun addGroup(createGroup: CreateGroup): Group {
         var group = de.lrprojects.monaserver.entity.Group()
@@ -130,5 +133,9 @@ class GroupServiceImpl constructor(
         }
         group = groupRepository.save(group)
         return group.toGroupModel()
+    }
+
+    override fun getGroupOfPin(pinId: Long): de.lrprojects.monaserver.entity.Group {
+        return groupRepository.findByPins(mutableSetOf(pinRepository.findById(pinId).orElseThrow()))
     }
 }

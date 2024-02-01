@@ -19,4 +19,5 @@ interface GroupService {
     fun getGroupProfileImage(groupId: Long): ByteArray
     fun getGroupsByIds(ids: List<Long>): List<GroupSmall>
     fun updateGroup(groupId: Long, updateGroup: UpdateGroup): Group
+    fun getGroupOfPin(pinId: Long):  de.lrprojects.monaserver.entity.Group
 }

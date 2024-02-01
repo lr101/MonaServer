@@ -2,13 +2,19 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.PinsApi
 import de.lrprojects.monaserver.api.PinsApiDelegate
+import de.lrprojects.monaserver.converter.toPinModel
 import de.lrprojects.monaserver.model.NewPin
 import de.lrprojects.monaserver.model.Pin
 import de.lrprojects.monaserver.model.PinInfo
+import de.lrprojects.monaserver.model.PinWithOptionalImage
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
+import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.core.Authentication
 import org.springframework.stereotype.Component
 
 
@@ -19,35 +25,80 @@ class PinController (
 ) : PinsApiDelegate {
 
 
+    @PreAuthorize("@guard.isGroupVisible(authentication, #newPin.groupId)")
     override fun createPin(newPin: NewPin): ResponseEntity<Pin> {
-        val pin = pinService.createPin(newPin)
+        return try {
+            val pin = pinService.createPin(newPin)
+            ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
+    @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authenticated, #pinId)")
     override fun deletePin(pinId: Long): ResponseEntity<Void> {
-        pinService.deletePin(pinId)
+        return try {
+            pinService.deletePin(pinId)
+            ResponseEntity.ok().build()
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
+    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
     override fun getPin(pinId: Long): ResponseEntity<PinInfo> {
-        val pin = pinService.getPin(pinId)
+        return try {
+            val pin = pinService.getPin(pinId)
+            ResponseEntity.ok(pin)
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
+    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
     override fun getPinCreationUsername(pinId: Long): ResponseEntity<String> {
-        val user = pinService.getPinCreationUsername(pinId)
+        return try {
+            val user = pinService.getPinCreationUsername(pinId)
+            ResponseEntity.ok(user)
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
+    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
     override fun getPinImage(pinId: Long): ResponseEntity<ByteArray> {
-        val image = monaService.getPinImage(pinId)
+        return try {
+            val image = monaService.getPinImage(pinId)
+            ResponseEntity.ok(image)
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
+
+    @PreAuthorize("@guard.isPinsPublicOrMember(authenticated, #ids) " +
+            "&& (#groupId == null || @guard.isGroupVisible(authenticated, #groupId))")
+    //TODO still missing username authentication
     override fun getPinImagesByIds(
-        ids: MutableList<Long>,
+        ids: MutableList<Long>?,
         groupId: Long?,
         username: String?,
         withImage: Boolean?,
         compression: Int?,
         height: Int?
-    ): ResponseEntity<MutableList<Pin>> {
-        val images = monaService.getPinImagesByIds(ids,compression, height, username, groupId, withImage)
+    ): ResponseEntity<MutableList<PinWithOptionalImage>> {
+        return try {
+            val images = monaService.getPinImagesByIds(ids,compression, height, username, groupId, withImage)
+            ResponseEntity.ok(images)
+        } catch (e: EntityNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
 

@@ -540,7 +540,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Pin'
+                  $ref: '#/components/schemas/PinWithOptionalImage'
     post:
       operationId: createPin
       security:

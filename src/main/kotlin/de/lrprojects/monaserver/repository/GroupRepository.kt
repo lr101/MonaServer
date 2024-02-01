@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Group
+import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -42,6 +43,13 @@ interface GroupRepository : JpaRepository<Group, Long> {
 
     @Query("UPDATE groups SET profile_image = lo_from_bytea(0, ?2) WHERE group_id = ?1", nativeQuery = true)
     fun setProfileImage(groupId: Long, image: ByteArray)
+
+    @Query("SELECT m.username FROM members m " +
+            "JOIN groups_pins gp on gp.group_id = m.group_id " +
+            "WHERE gp.id = ?1")
+    fun getGroupMembersByPinId(pinId: Long): MutableList<String>
+
+    fun findByPins(pins: MutableSet<Pin>): Group
 
 
 }
