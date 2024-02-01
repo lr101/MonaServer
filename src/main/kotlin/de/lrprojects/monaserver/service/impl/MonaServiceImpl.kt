@@ -30,7 +30,8 @@ class MonaServiceImpl(
         return processedImage
     }
 
-    override fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?, username: String): MutableList<ByteArray> {
+    override fun getPinImagesByIds(ids: MutableList<Long>, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<ByteArray> {
+        pinRepository.getImagesFromIds()
         return pinRepository.getImagesFromIds(StringHelper.listToString(ids), username)
     }
 }

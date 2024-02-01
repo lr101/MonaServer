@@ -2,35 +2,68 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.UsersApi
 import de.lrprojects.monaserver.api.UsersApiDelegate
+import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
+import de.lrprojects.monaserver.service.api.UserService
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
 
 @Component
-class UserController () : UsersApiDelegate {
-    override fun deleteUser(username: String?, code: Int?): ResponseEntity<Void> {
-        return super.deleteUser(username, code)
+class UserController (@Autowired val userService: UserService) : UsersApiDelegate {
+    override fun deleteUser(username: String, code: Int): ResponseEntity<Void> {
+        return try {
+            userService.deleteUser(username, code)
+            ResponseEntity.ok().build()
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
-    override fun getUserProfileImage(username: String?): ResponseEntity<ByteArray> {
-        return super.getUserProfileImage(username)
+    override fun getUserProfileImage(username: String): ResponseEntity<ByteArray> {
+        return try {
+            val image = userService.getUserProfileImage(username)
+            ResponseEntity.ok(image)
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
-    override fun getUserProfileImageSmall(username: String?): ResponseEntity<ByteArray> {
-        return super.getUserProfileImageSmall(username)
+    override fun getUserProfileImageSmall(username: String): ResponseEntity<ByteArray> {
+        return try {
+            val image = userService.getUserProfileImageSmall(username)
+            ResponseEntity.ok(image)
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
-    override fun updateUser(username: String?, user: User?): ResponseEntity<String> {
-        return super.updateUser(username, user)
+    override fun updateUser(username: String, user: User): ResponseEntity<String> {
+        return try {
+            val token = userService.updateUser(username, user)
+            ResponseEntity.ok(token)
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
     override fun updateUserProfileImage(
-        username: String?,
-        body: ByteArray?,
+        username: String,
+        body: ByteArray,
     ): ResponseEntity<UpdateUserProfileImage200Response> {
-        return super.updateUserProfileImage(username, body)
+        return try {
+            val images = userService.updateUserProfileImage(username, body)
+            return ResponseEntity.ok(images)
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
+
     }
 
 

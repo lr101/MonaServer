@@ -298,22 +298,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Member'
-    delete:
-      operationId: deleteMemberFromGroup
-      security:
-        - token: [ ]
-      summary: leave group or delete group when the user is the last group member
-      tags:
-        - members
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ID'
-      responses:
-        '200':
-          description: Successful response
+        '404':
+          description: Group not found
     post:
       security:
         - token: [ ]
@@ -326,6 +312,12 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/ID'
+        - name: username
+          in: query
+          required: true
+          description: username
+          schema:
+            $ref: '#/components/schemas/ShortString'
       requestBody:
         required: true
         content:
@@ -343,6 +335,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        '403':
+          description: inviteUrl does not match
+        '404':
+          description: Group or user do not exist
+  /api/groups/{groupId}/members/{username}:
+    delete:
+      operationId: deleteMemberFromGroup
+      security:
+        - token: [ ]
+      summary: leave group or delete group when the user is the last group member
+      tags:
+        - members
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+        - name: username
+          in: path
+          description: username
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Deleted
+        '404':
+          description: Group or User do not exist
+
+
   /api/users/{username}/delete-code:
     get:
       operationId: generateDeleteCode
@@ -457,8 +479,11 @@ paths:
       responses:
         '201':
           description: Report submitted successfully
-        '401':
-          description: Report submission failed
+        '400':
+          description: User not found
+        '503':
+          description: Mail service at the moment not reachable
+
 
   /api/pins:
 

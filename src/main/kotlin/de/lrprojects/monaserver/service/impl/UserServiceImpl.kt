@@ -10,6 +10,7 @@ import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import kotlin.jvm.Throws
 import kotlin.jvm.optionals.getOrElse
 import kotlin.jvm.optionals.getOrNull
 
@@ -44,6 +45,7 @@ class UserServiceImpl constructor(
         return userRepository.save(userEntity).token!!
     }
 
+    @Throws(UserNotFoundException::class, IllegalStateException::class)
     override fun updateUserProfileImage(
         username: String,
         image: ByteArray
