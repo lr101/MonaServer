@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.GroupsApi
+import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.model.CreateGroup
 import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.GroupSmall
@@ -9,7 +10,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
 @Component
-class GroupController : GroupsApi {
+class GroupController : GroupsApiDelegate {
     override fun addGroup(createGroup: CreateGroup?): ResponseEntity<Group> {
         return super.addGroup(createGroup)
     }

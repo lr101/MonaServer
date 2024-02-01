@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.PinsApi
+import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.model.NewPin
 import de.lrprojects.monaserver.model.Pin
 import de.lrprojects.monaserver.model.PinInfo
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component
 
 
 @Component
-class PinController : PinsApi {
+class PinController : PinsApiDelegate {
     override fun createPin(newPin: NewPin?): ResponseEntity<Pin> {
         return super.createPin(newPin)
     }

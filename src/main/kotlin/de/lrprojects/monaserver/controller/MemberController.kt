@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.MembersApi
+import de.lrprojects.monaserver.api.MembersApiDelegate
 import de.lrprojects.monaserver.model.ApiGroupsGroupIdMembersPostRequest
 import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.Member
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Component
 
 
 @Component
-class MemberController : MembersApi {
+class MemberController : MembersApiDelegate {
     override fun apiGroupsGroupIdMembersPost(
         groupId: Long?,
         apiGroupsGroupIdMembersPostRequest: ApiGroupsGroupIdMembersPostRequest?
