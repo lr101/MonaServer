@@ -67,5 +67,11 @@ class MemberServiceImpl constructor(
         return groupRepository.findAllByMembersIn(mutableSetOf(users)).map { group: Group -> group.convertToGroupSmall() }
     }
 
+    override fun getGroupOfUserOrPublic(username: String): List<GroupSmall> {
+        val user = userRepository.findById(username).orElseThrow { UserNotFoundException("User not found") }
+        val users = mutableSetOf(user)
+        return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0).map { group: Group -> group.convertToGroupSmall() }
+    }
+
 
 }

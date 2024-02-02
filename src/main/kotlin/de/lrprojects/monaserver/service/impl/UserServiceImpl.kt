@@ -22,7 +22,7 @@ class UserServiceImpl constructor(
     @Autowired val imageHelper: ImageHelper
     ): UserService {
     override fun deleteUser(username: String, code: Int) {
-        userRepository.deleteByUsernameAndCode(username, code)
+        userRepository.deleteByUsernameAndCode(username, code.toString())
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {

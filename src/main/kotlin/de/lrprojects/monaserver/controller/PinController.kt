@@ -1,12 +1,13 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.PinsApi
 import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModel
 import de.lrprojects.monaserver.model.NewPin
 import de.lrprojects.monaserver.model.Pin
 import de.lrprojects.monaserver.model.PinInfo
 import de.lrprojects.monaserver.model.PinWithOptionalImage
+import de.lrprojects.monaserver.service.api.GroupService
+import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
@@ -14,14 +15,15 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.security.core.Authentication
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 
 
 @Component
 class PinController (
     @Autowired val pinService: PinService,
-    @Autowired val monaService: MonaService
+    @Autowired val monaService: MonaService,
+    @Autowired val memberService: MemberService
 ) : PinsApiDelegate {
 
 
@@ -83,7 +85,6 @@ class PinController (
 
     @PreAuthorize("@guard.isPinsPublicOrMember(authenticated, #ids) " +
             "&& (#groupId == null || @guard.isGroupVisible(authenticated, #groupId))")
-    //TODO still missing username authentication
     override fun getPinImagesByIds(
         ids: MutableList<Long>?,
         groupId: Long?,

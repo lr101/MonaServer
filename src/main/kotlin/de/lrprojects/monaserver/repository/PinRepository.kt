@@ -97,17 +97,27 @@ interface PinRepository : JpaRepository<Pin, Long> {
 
     @Query("SELECT p.* FROM pins p " +
             "JOIN groups_pins gp on p.id = gp.id WHERE " +
-            "     ( ?1 IS NULL OR p.id IN (?1) )" +
+            "gp.group_id IN ( " +
+        "  SELECT m.group_id FROM members m " +
+                "  JOIN groups g on g.group_id = m.group_id " +
+                "  WHERE m.username = ?4 OR g.visibility = 0 " +
+                "  GROUP BY m.group_id) " +
+            "    AND ( ?1 IS NULL OR p.id IN (?1) )" +
             "    AND ( ?2 IS NULL OR p.creation_user = ?2 )" +
             "    AND ( ?3 IS NULL OR gp.group_id = ?3)", nativeQuery = true)
-    fun getPinsFromIds(listOfIds: String?, username: String?, groupId: Long?) : MutableList<Pin>
+    fun getPinsFromIds(listOfIds: String?, username: String?, groupId: Long?, currentUsername: String) : MutableList<Pin>
 
     @Query("SELECT p.*, lo_get(p.image) FROM pins p " +
             "JOIN groups_pins gp on p.id = gp.id WHERE " +
-            "    ( ?1 IS NULL OR p.id IN (?1) )" +
+            "gp.group_id IN ( " +
+            "  SELECT m.group_id FROM members m " +
+            "  JOIN groups g on g.group_id = m.group_id " +
+            "  WHERE m.username = ?4 OR g.visibility = 0 " +
+            "  GROUP BY m.group_id) " +
+            "    AND ( ?1 IS NULL OR p.id IN (?1) )" +
             "    AND ( ?2 IS NULL OR p.creation_user = ?2 )" +
             "    AND ( ?3 IS NULL OR gp.group_id = ?3)", nativeQuery = true)
-    fun getImagesFromIds(listOfIds: String?, username: String?, groupId: Long?) : MutableList<Pair<Pin, ByteArray>>
+    fun getImagesFromIds(listOfIds: String?, username: String?, groupId: Long?, currentUsername: String) : MutableList<Pair<Pin, ByteArray>>
 
 
     @Query("SELECT lo_get(image) FROM pins WHERE id = ?1", nativeQuery = true)

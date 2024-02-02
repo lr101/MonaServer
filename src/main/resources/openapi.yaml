@@ -4,7 +4,7 @@ info:
   version: 1.0.1
 servers:
   - url: https://app.lr-projects.de
-  - url: http://localhost:3000
+  - url: http://localhost:8081
 tags:
   - name: public
     description: Everything about the public api
@@ -39,6 +39,11 @@ paths:
               $ref: '#/components/schemas/ID'
         - name: search
           description: "search term used to find a group name"
+          in: query
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: username
+          description: "this is the username used when withUser is set to true or false"
           in: query
           schema:
             $ref: '#/components/schemas/ShortString'
@@ -252,7 +257,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ID'
+                $ref: '#/components/schemas/ShortString'
   /api/groups/{groupId}/invite_url:
     get:
       operationId: getGroupInviteUrl
@@ -788,6 +793,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
     ID:
       type: integer

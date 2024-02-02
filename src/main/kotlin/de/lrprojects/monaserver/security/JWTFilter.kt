@@ -10,6 +10,7 @@ import org.hibernate.query.sqm.tree.SqmNode.log
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.io.IOException
@@ -28,7 +29,7 @@ class JWTFilter (
         filterChain: FilterChain
     ) {
         val authHeader: String = request.getHeader("Authorization")
-        if (authHeader.isNotBlank() && authHeader.startsWith("Bearer ")) {
+        if (authHeader.isNotEmpty() && authHeader.isNotBlank() && authHeader.startsWith("Bearer ")) {
             val jwt = authHeader.substring(7)
             if (jwt.isBlank()) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No Token provided")
@@ -42,9 +43,8 @@ class JWTFilter (
                         if (m.second != null || m.first == "lr") m.second else userDetails.password,
                         userDetails.authorities
                     )
-                    if (SecurityContextHolder.getContext().authentication == null) {
-                        SecurityContextHolder.getContext().authentication = authToken
-                    }
+                    authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                    SecurityContextHolder.getContext().authentication = authToken
                     if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
                 } catch (exc: JWTVerificationException) {
                     response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JWT Token")

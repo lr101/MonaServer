@@ -88,3 +88,8 @@ create table if not exists monas
             references pins
             on update cascade on delete cascade
 );
+
+create sequence if not exists group_id_seq
+    increment by 1;
+create sequence if not exists pins_id_seq
+    increment by 1;

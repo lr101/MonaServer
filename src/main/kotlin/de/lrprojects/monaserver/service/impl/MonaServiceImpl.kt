@@ -10,6 +10,7 @@ import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import kotlin.jvm.optionals.getOrElse
 
@@ -34,12 +35,13 @@ class MonaServiceImpl(
     }
 
     override fun getPinImagesByIds(ids: MutableList<Long>?, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<PinWithOptionalImage> {
+        val authentication = SecurityContextHolder.getContext().authentication
         return if (withImages == null || !withImages) {
-            pinRepository.getPinsFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId).map {
+            pinRepository.getPinsFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId, authentication.name).map {
                 it.toPinWithOptionalImage(null)
             }.toMutableList()
         } else {
-            pinRepository.getImagesFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId).map {
+            pinRepository.getImagesFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId, authentication.name).map {
                 it.first.toPinWithOptionalImage(it.second)
             }.toMutableList()
         }

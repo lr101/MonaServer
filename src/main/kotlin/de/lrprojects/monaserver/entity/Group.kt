@@ -76,7 +76,7 @@ open class Group() {
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "update_date")
+    @Column(name = "last_updated")
     open var updateDate: Date? = null
 
 

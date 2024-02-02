@@ -10,7 +10,7 @@ import java.util.*
 @Repository
 interface UserRepository : JpaRepository<User, String> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
-    fun deleteByUsernameAndCode(username: String, code: Int)
+    fun deleteByUsernameAndCode(username: String, code: String)
 
     @Query("SELECT lo_get(profile_picture) FROM users WHERE username = ?1", nativeQuery = true)
     fun getProfileImage(username: String): Optional<ByteArray>

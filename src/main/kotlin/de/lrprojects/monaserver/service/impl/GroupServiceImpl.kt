@@ -5,6 +5,7 @@ import de.lrprojects.monaserver.converter.toGroupModel
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
+import de.lrprojects.monaserver.helper.StringHelper
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
@@ -14,7 +15,6 @@ import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.GroupSmall
 import de.lrprojects.monaserver.model.UpdateGroup
 import de.lrprojects.monaserver.repository.PinRepository
-import de.lrprojects.monaserver.service.api.PinService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import java.sql.SQLException
@@ -22,7 +22,7 @@ import kotlin.jvm.optionals.getOrElse
 
 @Service
 
-class GroupServiceImpl constructor(
+class GroupServiceImpl (
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository,
     @Autowired val imageHelper: ImageHelper,
@@ -71,15 +71,6 @@ class GroupServiceImpl constructor(
         return group.description.orEmpty()
     }
 
-    @Throws(SQLException::class)
-    override fun getGroupIdsBySearchTerm(search: String, withUser: Boolean): List<Long> {
-        return if (withUser) {
-            groupRepository.searchInUserGroup("username", search)
-        } else {
-            groupRepository.searchInNotUserGroup("username", search)
-        }
-    }
-
     override fun getGroupInviteUrl(groupId: Long): String? {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
@@ -103,8 +94,15 @@ class GroupServiceImpl constructor(
             .orElseThrow { EntityNotFoundException("Group not found") }
     }
 
-    override fun getGroupsByIds(ids: List<Long>): List<GroupSmall> {
-        return groupRepository.findAllByGroupIdIn(ids).map { group: de.lrprojects.monaserver.entity.Group -> group.convertToGroupSmall() }
+    override fun getGroupsByIds(ids: List<Long>?, search: String?, withUser: Boolean?, username: String?): List<GroupSmall> {
+        if (withUser != null && username == null) throw AssertionError("A username must be set when withUser is used")
+        return when (withUser) {
+            null -> groupRepository.searchGroups(ids?.let { StringHelper.listToString(it) }, search).map { group -> group.convertToGroupSmall() }
+            true -> groupRepository.searchInUserGroup(username!!, search,
+                ids?.let { StringHelper.listToString(it) }).map { group -> group.convertToGroupSmall() }
+            false -> groupRepository.searchInNotUserGroup(username!!, search,
+                ids?.let { StringHelper.listToString(it) }).map { group -> group.convertToGroupSmall() }
+        }
     }
 
 
@@ -136,6 +134,6 @@ class GroupServiceImpl constructor(
     }
 
     override fun getGroupOfPin(pinId: Long): de.lrprojects.monaserver.entity.Group {
-        return groupRepository.findByPins(mutableSetOf(pinRepository.findById(pinId).orElseThrow()))
+        return groupRepository.findByPin(pinId)
     }
 }

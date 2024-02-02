@@ -14,4 +14,6 @@ interface MemberService {
 
     fun getGroupsOfUser(username: String): List<GroupSmall>
 
+    fun getGroupOfUserOrPublic(username: String): List<GroupSmall>
+
 }
