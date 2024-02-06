@@ -14,24 +14,24 @@ import java.util.*
 @Transactional
 interface GroupRepository : JpaRepository<Group, Long> {
 
-    @Query( "SELECT g.* FROM groups g " +
+    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
             "    WHERE g.group_id IN " +
             "      (SELECT members.group_id FROM members WHERE username = ?1) " +
             "  AND ( ?3 IS NULL OR g.group_id IN (?3) )" +
             "  AND ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))", nativeQuery = true)
-    fun searchInUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<Group>
+    fun searchInUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<GroupSmall>
 
-    @Query( "SELECT g.* FROM groups g " +
+    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
             "    WHERE g.group_id NOT IN " +
             "      (SELECT members.group_id FROM members WHERE username = ?1) " +
             "  AND ( ?3 IS NULL OR p.id IN (?3) )" +
             "  AND ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))", nativeQuery = true)
-    fun searchInNotUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<Group>
+    fun searchInNotUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<GroupSmall>
 
-    @Query( "SELECT g.* FROM groups g " +
+    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
             "WHERE ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))" +
             "AND ( ?1 IS NULL OR g.group_id IN (?1) )", nativeQuery = true)
-    fun searchGroups(listOfIds: String?, searchTerm: String?) : List<Group>
+    fun searchGroups(listOfIds: String?, searchTerm: String?) : List<GroupSmall>
 
 
     @Query("SELECT username, count(creation_user)::int as points FROM members m" +
@@ -44,13 +44,6 @@ interface GroupRepository : JpaRepository<Group, Long> {
     fun findAllByMembersIn(members: MutableCollection<MutableSet<User>>) : MutableList<Group>
 
     fun findAllByMembersInOrVisibility(members: MutableCollection<MutableSet<User>>, visibility: Int) : MutableList<Group>
-
-    @Query("SELECT lo_get(profile_image) FROM groups WHERE group_id = ?1", nativeQuery = true)
-    fun getProfileImage(groupId: Long): Optional<ByteArray>
-
-
-    @Query("UPDATE groups SET profile_image = lo_from_bytea(0, ?2) WHERE group_id = ?1", nativeQuery = true)
-    fun setProfileImage(groupId: Long, image: ByteArray)
 
     @Query("SELECT m.username FROM members m " +
             "JOIN groups_pins gp on gp.group_id = m.group_id " +

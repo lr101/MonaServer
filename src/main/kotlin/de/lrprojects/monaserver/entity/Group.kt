@@ -29,8 +29,10 @@ open class Group() {
     @Basic(fetch = FetchType.LAZY)
     open var description: String? = null
 
-    @Column(name = "profile_image", nullable = false, columnDefinition = "OID")
-    open var profileImage: Long? = null
+    @Lob
+    @Column(name = "profile_image", nullable = false)
+    @Basic(fetch = FetchType.LAZY)
+    open var profileImage: ByteArray? = null
 
     @Column(name = "pin_image", nullable = false)
     @Basic(fetch = FetchType.LAZY)

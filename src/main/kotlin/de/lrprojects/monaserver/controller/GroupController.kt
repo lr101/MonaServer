@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.GroupsApi
 import de.lrprojects.monaserver.api.GroupsApiDelegate
+import de.lrprojects.monaserver.excepetion.ProfileImageException
 import de.lrprojects.monaserver.model.CreateGroup
 import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.GroupSmall
@@ -24,6 +25,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity(result, HttpStatus.CREATED)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: ProfileImageException) {
+            ResponseEntity(HttpStatus.BAD_REQUEST)
         }
     }
 

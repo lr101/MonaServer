@@ -27,7 +27,7 @@ open class Pin {
 
     @Lob
     @Basic(fetch=FetchType.LAZY)
-    @Column(name = "image", nullable = false,  columnDefinition="OID")
-    open var image : Long? = null
+    @Column(name = "image", nullable = false)
+    open var image : ByteArray? = null
 
 }

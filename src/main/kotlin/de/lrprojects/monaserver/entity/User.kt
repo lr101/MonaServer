@@ -34,8 +34,10 @@ open class User {
     @Basic(fetch = FetchType.LAZY)
     open var resetPasswordUrl: String? = null
 
-    @Column(name = "profile_picture", columnDefinition = "OID")
-    open var profilePicture: Long? = null
+    @Lob
+    @Basic(fetch=FetchType.LAZY)
+    @Column(name = "profile_picture")
+    open var profilePicture: ByteArray? = null
 
     @Column(name = "profile_picture_small", columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)

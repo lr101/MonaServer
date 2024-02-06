@@ -24,13 +24,15 @@ class MonaServiceImpl(
 
     @Throws(EntityNotFoundException::class)
     override fun getPinImage(pinId: Long): ByteArray {
-        return pinRepository.getImage(pinId).getOrElse { throw EntityNotFoundException("pin not found") }
+        return pinRepository.findById(pinId).getOrElse { throw EntityNotFoundException("pin not found") }.image!!
     }
 
     @Throws(EntityNotFoundException::class)
     override fun addPinImage(pinId: Long, image: ByteArray): ByteArray {
+        val pin = pinRepository.findById(pinId).getOrElse { throw EntityNotFoundException("pin not found") }
         val processedImage = imageHelper.getPinImage(image)
-        pinRepository.setImage(pinId, processedImage)
+        pin.image = processedImage
+        pinRepository.save(pin)
         return processedImage
     }
 

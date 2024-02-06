@@ -119,13 +119,4 @@ interface PinRepository : JpaRepository<Pin, Long> {
             "    AND ( ?3 IS NULL OR gp.group_id = ?3)", nativeQuery = true)
     fun getImagesFromIds(listOfIds: String?, username: String?, groupId: Long?, currentUsername: String) : MutableList<Pair<Pin, ByteArray>>
 
-
-    @Query("SELECT lo_get(image) FROM pins WHERE id = ?1", nativeQuery = true)
-    fun getImage(pinId: Long): Optional<ByteArray>
-
-
-    @Query("UPDATE pins SET image = lo_from_bytea(0, ?2) WHERE id = ?1", nativeQuery = true)
-    fun setImage(pinId: Long, image: ByteArray)
-
-
 }

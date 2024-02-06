@@ -28,8 +28,8 @@ class PinServiceImpl constructor(
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = Date() //TODO
+        pin.image = newPin.image
         pin = pinRepository.save(pin)
-        pinRepository.setImage(pin.id!!, newPin.image)
         return pin
     }
 

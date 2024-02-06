@@ -28,8 +28,8 @@ class JWTFilter (
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        val authHeader: String = request.getHeader("Authorization")
-        if (authHeader.isNotEmpty() && authHeader.isNotBlank() && authHeader.startsWith("Bearer ")) {
+        val authHeader: String? = request.getHeader("Authorization")
+        if (!authHeader.isNullOrEmpty() && authHeader.isNotBlank() && authHeader.startsWith("Bearer ")) {
             val jwt = authHeader.substring(7)
             if (jwt.isBlank()) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No Token provided")

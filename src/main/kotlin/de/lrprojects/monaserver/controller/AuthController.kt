@@ -29,8 +29,8 @@ class AuthController(
             logger.info { "Created user with username: ${createUser.name}" }
             ResponseEntity(token, HttpStatus.CREATED)
         } catch (e: UserExistsException) {
-            logger.warn { "User with username '${createUser.name}' could not be created: ${e.message}" }
-            ResponseEntity.badRequest().body(e.message)
+            logger.info { "User with username '${createUser.name}' could not be created: ${e.message}" }
+            ResponseEntity(e.message, HttpStatus.CONFLICT)
         }
     }
 

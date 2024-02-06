@@ -24,14 +24,14 @@ class AuthServiceImpl constructor(
         user.email = email
         user.username = username
         user.password = password
-        try {
+        if (userRepository.findById(username).isEmpty) {
             user.token = tokenHelper.generateToken(username, password)
             userRepository.save(user)
-        } catch (_: Error) {
+        } else {
             throw UserExistsException("user with username " + username + "already exists")
         }
 
-        return username
+        return user.token!!
     }
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
