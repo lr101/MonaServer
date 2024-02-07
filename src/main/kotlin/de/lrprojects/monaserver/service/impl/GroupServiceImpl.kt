@@ -2,18 +2,16 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.converter.toGroupModel
+import de.lrprojects.monaserver.dto.toSmallGroup
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.helper.StringHelper
+import de.lrprojects.monaserver.model.*
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
-import de.lrprojects.monaserver.model.CreateGroup
-import de.lrprojects.monaserver.model.Group
-import de.lrprojects.monaserver.model.GroupSmall
-import de.lrprojects.monaserver.model.UpdateGroup
 import de.lrprojects.monaserver.repository.PinRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
@@ -98,13 +96,14 @@ class GroupServiceImpl (
     }
 
     override fun getGroupsByIds(ids: List<Long>?, search: String?, withUser: Boolean?, username: String?): List<GroupSmall> {
-        if (withUser != null && username == null) throw AssertionError("A username must be set when withUser is used")
+        if ((withUser != null && username == null) || (withUser == null && username != null)) throw AssertionError("A username must be set when withUser is used")
         return when (withUser) {
-            null -> groupRepository.searchGroups(ids?.let { StringHelper.listToString(it) }, search)
+            null -> groupRepository.searchGroups(
+                ids?.toTypedArray(), search).map { r -> r.convertToGroupSmall() }
             true -> groupRepository.searchInUserGroup(username!!, search,
-                ids?.let { StringHelper.listToString(it) })
+                ids?.toTypedArray()).map { r -> r.convertToGroupSmall() }
             false -> groupRepository.searchInNotUserGroup(username!!, search,
-                ids?.let { StringHelper.listToString(it) })
+                ids?.toTypedArray()).map { r -> r.convertToGroupSmall() }
         }
     }
 
@@ -114,23 +113,19 @@ class GroupServiceImpl (
     override fun updateGroup(groupId: Long, updateGroup: UpdateGroup): Group {
         var group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-
-        group.name = updateGroup.name ?: group.name
-        group.description = updateGroup.description ?: group.description
-        if (updateGroup.visibility != null) {
-            group.visibility = updateGroup.visibility.value
-            if (updateGroup.visibility.value == 0) {
-                group.inviteUrl = null
-            } else {
-                group.setInvite()
-            }
+        updateGroup.name?.let { group.name = updateGroup.name }
+        updateGroup.description?.let { group.description = updateGroup.description }
+        updateGroup.link?.let { group.link = updateGroup.link }
+        updateGroup.profileImage?.let { group.profileImage = imageHelper.getProfileImage(it) }
+        updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
+        updateGroup.visibility?.let { group.visibility = updateGroup.visibility.value }
+        if (updateGroup.visibility.value == 0) {
+            group.inviteUrl = null
+        } else {
+            group.setInvite()
         }
         updateGroup.groupAdmin?.let { adminId ->
             userRepository.findById(adminId).getOrElse { throw UserNotFoundException("Admin does not exist") }
-        }
-        if (updateGroup.profileImage != null) {
-            updateGroup.profileImage?.let { group.profileImage = imageHelper.getProfileImage(it) }
-            updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
         }
         group = groupRepository.save(group)
         return group.toGroupModel()

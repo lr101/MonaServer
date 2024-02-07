@@ -1,11 +1,16 @@
 package de.lrprojects.monaserver.repository
 
+import de.lrprojects.monaserver.dto.SmallGroupDto
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.model.GroupSmall
+import jakarta.persistence.ColumnResult
+import jakarta.persistence.ConstructorResult
+import jakarta.persistence.SqlResultSetMapping
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -14,24 +19,24 @@ import java.util.*
 @Transactional
 interface GroupRepository : JpaRepository<Group, Long> {
 
-    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
+    @Query( "SELECT g.* FROM groups g " +
             "    WHERE g.group_id IN " +
-            "      (SELECT members.group_id FROM members WHERE username = ?1) " +
-            "  AND ( ?3 IS NULL OR g.group_id IN (?3) )" +
-            "  AND ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))", nativeQuery = true)
-    fun searchInUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<GroupSmall>
+            "      (SELECT members.group_id FROM members WHERE username = :username) " +
+            "AND ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+    fun searchInUserGroup(@Param("username") username: String, @Param("search") searchTerm: String?,@Param("ids") listOfIds: Array<Long>?) : List<Group>
 
-    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
+    @Query( "SELECT g.* FROM groups g " +
             "    WHERE g.group_id NOT IN " +
-            "      (SELECT members.group_id FROM members WHERE username = ?1) " +
-            "  AND ( ?3 IS NULL OR p.id IN (?3) )" +
-            "  AND ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))", nativeQuery = true)
-    fun searchInNotUserGroup(username: String, searchTerm: String?,listOfIds: String?) : List<GroupSmall>
+            "      (SELECT members.group_id FROM members WHERE username = :username) " +
+            "AND ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+    fun searchInNotUserGroup(@Param("username") username: String, @Param("search") searchTerm: String?, @Param("ids") listOfIds: Array<Long>?) : List<Group>
 
-    @Query( "SELECT g.group_id, g.name, g.visibility FROM groups g " +
-            "WHERE ( ?2 IS NULL OR (g.name ILIKE ?2 OR g.description ILIKE ?2))" +
-            "AND ( ?1 IS NULL OR g.group_id IN (?1) )", nativeQuery = true)
-    fun searchGroups(listOfIds: String?, searchTerm: String?) : List<GroupSmall>
+    @Query( "SELECT g.* FROM groups g " +
+            "WHERE ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+    fun searchGroups(@Param("ids") listOfIds: Array<Long>?, @Param("search") searchTerm: String?) : List<Group>
 
 
     @Query("SELECT username, count(creation_user)::int as points FROM members m" +
