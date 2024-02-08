@@ -47,14 +47,13 @@ class GroupServiceImpl (
 
     @Throws(SQLException::class)
     override fun deleteGroup(groupId: Long) {
-        groupRepository.deleteById(groupId)
+        groupRepository.deleteByGroupId(groupId)
     }
 
     @Throws(EntityNotFoundException::class)
-    override fun getGroup(groupId: Long): GroupSmall {
-        val group = groupRepository.findById(groupId)
+    override fun getGroup(groupId: Long): de.lrprojects.monaserver.entity.Group {
+        return  groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.convertToGroupSmall()
     }
 
     @Throws(EntityNotFoundException::class)

@@ -6,12 +6,10 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.AuthenticationProvider
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider
-import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
-import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -26,7 +24,10 @@ import java.util.*
 
 @EnableWebSecurity
 @Configuration
-@EnableMethodSecurity
+@EnableMethodSecurity(
+    prePostEnabled = true,
+    securedEnabled = true,
+    jsr250Enabled = true)
 class DefaultSecurityConfig internal constructor(
     @Autowired val userDetailsService: MyUserDetailsService,
     @Autowired val jwtFilter: JWTFilter
@@ -36,19 +37,14 @@ class DefaultSecurityConfig internal constructor(
     @Throws(Exception::class)
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .csrf { it.disable() }
+            .csrf{ it.disable() }
             .cors{ it.configurationSource(corsConfigurationSource())}
-            .authorizeHttpRequests{
-                    it
-                        .requestMatchers("/", "/public/*", "/login", "/signup", "/recover").permitAll()
-                        .anyRequest().authenticated()
-                }
-            .sessionManagement { session: SessionManagementConfigurer<HttpSecurity?> ->
-                session
-                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            }
+            .authorizeHttpRequests { it.requestMatchers("/signup").permitAll() }
+            .authorizeHttpRequests { it.requestMatchers("/api/**").authenticated() }
+            .sessionManagement { session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)
+
         return http.build()
     }
 

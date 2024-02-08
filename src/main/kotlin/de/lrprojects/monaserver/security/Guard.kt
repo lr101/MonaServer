@@ -22,7 +22,7 @@ class Guard (
         val name = authentication.name
         return try {
             val result = groupService.getGroup(groupId)
-            result.visibility == Visibility.NUMBER_0 || memberService.getMembers(groupId).any{ it.username.equals(name)}
+            result.visibility == Visibility.NUMBER_0.value || memberService.getMembers(groupId).any{ it.username.equals(name)}
         } catch (e: Exception) {
             false
         }

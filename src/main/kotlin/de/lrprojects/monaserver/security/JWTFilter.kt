@@ -29,26 +29,23 @@ class JWTFilter (
         filterChain: FilterChain
     ) {
         val authHeader: String? = request.getHeader("Authorization")
-        if (!authHeader.isNullOrEmpty() && authHeader.isNotBlank() && authHeader.startsWith("Bearer ")) {
-            val jwt = authHeader.substring(7)
-            if (jwt.isBlank()) {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No Token provided")
-            } else {
-                try {
-                    log.info(request.requestURI)
-                    val m: Pair<String, String?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
-                    val userDetails = userDetailsService.loadUserByUsername(m.first)
-                    val authToken = UsernamePasswordAuthenticationToken(
-                        m.first,
-                        if (m.second != null || m.first == "lr") m.second else userDetails.password,
-                        userDetails.authorities
-                    )
-                    authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-                    SecurityContextHolder.getContext().authentication = authToken
-                    if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
-                } catch (exc: JWTVerificationException) {
-                    response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JWT Token")
-                }
+        val jwt: String
+        if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7)
+            try {
+                log.info(request.requestURI)
+                val m: Pair<String, String?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
+                val userDetails = userDetailsService.loadUserByUsername(m.first)
+                val authToken = UsernamePasswordAuthenticationToken(
+                    m.first,
+                    if (m.second != null || m.first == "lr") m.second else userDetails.password,
+                    userDetails.authorities
+                )
+                authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                SecurityContextHolder.getContext().authentication = authToken
+                if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
+            } catch (exc: JWTVerificationException) {
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JWT Token")
             }
         }
         filterChain.doFilter(request, response)

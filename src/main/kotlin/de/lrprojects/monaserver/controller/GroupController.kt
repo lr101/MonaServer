@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.GroupsApi
 import de.lrprojects.monaserver.api.GroupsApiDelegate
+import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.excepetion.ProfileImageException
 import de.lrprojects.monaserver.model.CreateGroup
 import de.lrprojects.monaserver.model.Group
@@ -30,7 +31,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
         }
     }
 
-    @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
+   @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
     override fun deleteGroup(groupId: Long): ResponseEntity<Void> {
         return try {
             groupService.deleteGroup(groupId)
@@ -43,7 +44,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     override fun getGroup(groupId: Long): ResponseEntity<GroupSmall> {
         return try {
             val result = groupService.getGroup(groupId)
-            ResponseEntity.ok(result)
+            ResponseEntity.ok(result.convertToGroupSmall())
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
         }

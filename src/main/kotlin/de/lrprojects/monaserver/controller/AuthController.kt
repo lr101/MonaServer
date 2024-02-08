@@ -31,6 +31,8 @@ class AuthController(
         } catch (e: UserExistsException) {
             logger.info { "User with username '${createUser.name}' could not be created: ${e.message}" }
             ResponseEntity(e.message, HttpStatus.CONFLICT)
+        } catch (e: NullPointerException) {
+            ResponseEntity("One or more parameters are empty",HttpStatus.BAD_REQUEST)
         }
     }
 

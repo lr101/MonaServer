@@ -9,7 +9,7 @@ interface GroupService {
 
     fun addGroup(createGroup: CreateGroup): Group
     fun deleteGroup(groupId: Long)
-    fun getGroup(groupId: Long): GroupSmall
+    fun getGroup(groupId: Long): de.lrprojects.monaserver.entity.Group
     fun getGroupAdmin(groupId: Long): String
     fun getGroupDescription(groupId: Long): String
     fun getGroupInviteUrl(groupId: Long): String?

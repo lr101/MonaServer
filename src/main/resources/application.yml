@@ -12,6 +12,9 @@ server:
       persistent: false
   forward-headers-strategy: native
 spring:
+  security:
+   filter:
+     order: 10
   jpa:
     hibernate:
       ddl-auto: validate

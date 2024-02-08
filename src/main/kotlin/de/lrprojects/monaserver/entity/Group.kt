@@ -21,7 +21,7 @@ open class Group() {
     @Column(name = "name", nullable = false, unique = true)
     open var name: String? = null
 
-    @OneToOne
+    @OneToOne(cascade = [CascadeType.ALL])
     @JoinColumn(name = "group_admin", nullable = false, referencedColumnName = "username")
     open var groupAdmin: User? = null
 

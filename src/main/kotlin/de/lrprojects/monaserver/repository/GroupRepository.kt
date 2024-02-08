@@ -61,4 +61,7 @@ interface GroupRepository : JpaRepository<Group, Long> {
     fun findByPin(pinId: Long): Group
 
 
+    fun deleteByGroupId(groupId: Long)
+
+
 }

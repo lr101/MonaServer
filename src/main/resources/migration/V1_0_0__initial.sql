@@ -17,7 +17,7 @@ create table if not exists users
 
 create table if not exists groups
 (
-    group_id      integer      not null
+    group_id      bigint      not null
         primary key,
     description   varchar(255),
     invite_url    varchar(255)
@@ -31,14 +31,14 @@ create table if not exists groups
     visibility    integer      not null,
     group_admin   varchar(255) not null
         constraint fka9d16foh70dh031qaipyt53om
-            references users,
+            references users on delete cascade,
     link          varchar(255),
     last_updated timestamp with time zone default current_timestamp
 );
 
 create table if not exists members
 (
-    group_id integer      not null
+    group_id bigint      not null
         constraint fk1jmeir47b7qcn2sd5m4txgfuw
             references groups
             on delete cascade,
@@ -52,7 +52,7 @@ create table if not exists members
 
 create table if not exists pins
 (
-    id            integer          not null
+    id            bigint          not null
         primary key,
     creation_date timestamp        not null,
     latitude      double precision not null,
@@ -66,11 +66,11 @@ create table if not exists pins
 
 create table if not exists groups_pins
 (
-    group_id integer not null
+    group_id bigint not null
         constraint fk2konlwk65hd76jr0nhbxm0xef
             references groups
             on delete cascade,
-    id       integer not null
+    id       bigint not null
         constraint fkk30yjnc9woedfmvq8m30dk6n4
             references pins
             on delete cascade,
@@ -80,10 +80,10 @@ create table if not exists groups_pins
 
 create table if not exists monas
 (
-    id    integer not null
+    id    bigint not null
         primary key,
     image oid     not null,
-    pin   integer not null
+    pin   bigint not null
         constraint fkb7adbn9x8bxhfarvx3nxvcxbn
             references pins
             on update cascade on delete cascade
