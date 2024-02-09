@@ -33,6 +33,8 @@ class AuthController(
             ResponseEntity(e.message, HttpStatus.CONFLICT)
         } catch (e: NullPointerException) {
             ResponseEntity("One or more parameters are empty",HttpStatus.BAD_REQUEST)
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -52,6 +54,8 @@ class AuthController(
         } catch (e: SQLException) {
             logger.error { "Delete code for user '${username}' could not be saved to database: ${e.message}" }
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -72,6 +76,8 @@ class AuthController(
         } catch (e: SQLException) {
             logger.error { "recovery link for user '${username}' could not be saved to database: ${e.message}" }
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -88,6 +94,8 @@ class AuthController(
         } catch (e: WrongPasswordException) {
             logger.warn { "User with username '${userLoginRequest.username}' : ${e.message}" }
             ResponseEntity.badRequest().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 }

@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.security
 
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.config.annotation.web.invoke
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -30,21 +31,29 @@ import java.util.*
     jsr250Enabled = true)
 class DefaultSecurityConfig internal constructor(
     @Autowired val userDetailsService: MyUserDetailsService,
-    @Autowired val jwtFilter: JWTFilter
 ) {
 
     @Bean
-    @Throws(Exception::class)
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun securityFilterChain(http: HttpSecurity, jwtFilter: JWTFilter): SecurityFilterChain {
         http
-            .csrf{ it.disable() }
+            .csrf { it.disable() }
             .cors{ it.configurationSource(corsConfigurationSource())}
-            .authorizeHttpRequests { it.requestMatchers("/signup").permitAll() }
-            .authorizeHttpRequests { it.requestMatchers("/api/**").authenticated() }
-            .sessionManagement { session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .authorizeHttpRequests {
+                it
+                    .requestMatchers("/signup")
+                    .permitAll()
+                    .requestMatchers("/recover")
+                    .permitAll()
+                    .requestMatchers("/api/**")
+                    .hasAuthority("USER")
+                    .anyRequest()
+                    .authenticated()
+            }
+            .sessionManagement {
+                it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            }
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)
-
         return http.build()
     }
 

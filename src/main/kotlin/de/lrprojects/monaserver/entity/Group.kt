@@ -21,8 +21,8 @@ open class Group() {
     @Column(name = "name", nullable = false, unique = true)
     open var name: String? = null
 
-    @OneToOne(cascade = [CascadeType.ALL])
-    @JoinColumn(name = "group_admin", nullable = false, referencedColumnName = "username")
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "group_admin", referencedColumnName = "username")
     open var groupAdmin: User? = null
 
     @Column(name = "description")
@@ -52,14 +52,8 @@ open class Group() {
     @Column(name = "visibility", nullable = false)
     open var visibility = 0
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = User::class)
-    @JoinTable(
-        name = "members",
-        joinColumns = [JoinColumn(name = "group_id")],
-        inverseJoinColumns = [JoinColumn(name = "username")]
-    )
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    open var members: MutableSet<User> = HashSet<User>()
+    @ManyToMany(mappedBy = "groups")
+    open var members: MutableSet<User> = mutableSetOf()
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
     @JoinTable(

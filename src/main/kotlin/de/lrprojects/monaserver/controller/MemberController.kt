@@ -34,6 +34,8 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
             ResponseEntity.notFound().build()
         } catch (e: ComparisonException) {
             ResponseEntity(HttpStatus.FORBIDDEN)
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -47,6 +49,8 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
             ResponseEntity.notFound().build()
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -58,6 +62,8 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
             ResponseEntity.ok().body(members)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 

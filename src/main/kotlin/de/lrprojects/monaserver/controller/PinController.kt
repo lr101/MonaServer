@@ -34,6 +34,8 @@ class PinController (
             ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -45,6 +47,8 @@ class PinController (
             ResponseEntity.ok().build()
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -56,6 +60,8 @@ class PinController (
             ResponseEntity.ok(pin)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -67,6 +73,8 @@ class PinController (
             ResponseEntity.ok(user)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -78,6 +86,8 @@ class PinController (
             ResponseEntity.ok(image)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -98,6 +108,8 @@ class PinController (
             ResponseEntity.ok(images)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }

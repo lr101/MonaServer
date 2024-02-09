@@ -24,6 +24,8 @@ class ReportController (@Autowired val emailService: EmailService) : ReportApiDe
             ResponseEntity(HttpStatus.SERVICE_UNAVAILABLE)
         } catch (e: UserNotFoundException) {
             ResponseEntity.badRequest().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 

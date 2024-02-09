@@ -19,6 +19,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             ResponseEntity.ok().build()
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -29,6 +31,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             ResponseEntity.ok(image)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -39,6 +43,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             ResponseEntity.ok(image)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -49,6 +55,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             ResponseEntity.ok(token)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }
@@ -62,6 +70,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             return ResponseEntity.ok(images)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
 
     }

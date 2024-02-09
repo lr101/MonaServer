@@ -39,6 +39,14 @@ class Guard (
         }
     }
 
+    fun isSameUser(authentication: Authentication, username: String): Boolean {
+        return try {
+            return username == authentication.name
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun isPinGroupAdmin(authentication: Authentication, pinId: Long): Boolean {
         val name = authentication.name
         return try {

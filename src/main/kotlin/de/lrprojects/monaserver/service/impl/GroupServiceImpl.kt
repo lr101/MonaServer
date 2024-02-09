@@ -30,7 +30,7 @@ class GroupServiceImpl (
 
     override fun addGroup(createGroup: CreateGroup): Group {
         var group = de.lrprojects.monaserver.entity.Group()
-        group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse {throw UserNotFoundException("User as admin does not exist")}
+        group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
         group.visibility = createGroup.visibility.value
         group.description = createGroup.description
         group.name = createGroup.name

@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.api.GroupsApi
 import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.excepetion.ProfileImageException
+import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.CreateGroup
 import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.GroupSmall
@@ -20,6 +21,7 @@ import java.lang.AssertionError
 @Component
 class GroupController (@Autowired val groupService: GroupService) : GroupsApiDelegate {
 
+    @PreAuthorize("hasAuthority('ADMIN') || @guard.isSameUser(authentication, #createGroup.getGroupAdmin())")
     override fun addGroup(createGroup: CreateGroup): ResponseEntity<Group> {
         return try {
             val result = groupService.addGroup(createGroup)
@@ -28,6 +30,10 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.notFound().build()
         } catch (e: ProfileImageException) {
             ResponseEntity(HttpStatus.BAD_REQUEST)
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -38,6 +44,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok().build()
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -47,6 +55,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result.convertToGroupSmall())
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -57,6 +67,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -67,6 +79,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -83,6 +97,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.notFound().build()
         } catch (e: AssertionError) {
             ResponseEntity.badRequest().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -93,6 +109,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -103,6 +121,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -113,6 +133,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -122,6 +144,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 
@@ -132,6 +156,10 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: UserNotFoundException) {
+            ResponseEntity.badRequest().build()
+        } catch (e: Exception) {
+            ResponseEntity.internalServerError().build()
         }
     }
 

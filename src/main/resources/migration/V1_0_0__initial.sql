@@ -31,7 +31,7 @@ create table if not exists groups
     visibility    integer      not null,
     group_admin   varchar(255) not null
         constraint fka9d16foh70dh031qaipyt53om
-            references users on delete cascade,
+            references users(username),
     link          varchar(255),
     last_updated timestamp with time zone default current_timestamp
 );
