@@ -8,11 +8,14 @@ import de.lrprojects.monaserver.model.User
 import de.lrprojects.monaserver.service.api.UserService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
 
 
 @Component
 class UserController (@Autowired val userService: UserService) : UsersApiDelegate {
+
+    @PreAuthorize("@guard.isSameUser(authentication, #username)")
     override fun deleteUser(username: String, code: Int): ResponseEntity<Void> {
         return try {
             userService.deleteUser(username, code)
@@ -49,6 +52,7 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
+    @PreAuthorize("@guard.isSameUser(authentication, #username)")
     override fun updateUser(username: String, user: User): ResponseEntity<String> {
         return try {
             val token = userService.updateUser(username, user)
@@ -61,6 +65,7 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
+    @PreAuthorize("@guard.isSameUser(authentication, #username)")
     override fun updateUserProfileImage(
         username: String,
         body: ByteArray,

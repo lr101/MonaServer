@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.ComparisonException
+import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -27,7 +28,7 @@ class MemberServiceImpl constructor(
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
 
-        if (group.visibility != 0 && group.inviteUrl == inviteUrl) {
+        if (group.visibility == 0 || group.inviteUrl == inviteUrl) {
             val user = userRepository.findById(username)
                 .orElseThrow { UserNotFoundException("User not found") }
 
@@ -53,11 +54,22 @@ class MemberServiceImpl constructor(
     override fun deleteMember(username: String, groupId: Long) {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        val member = group.members.find { it.username == username }
+
+        val user = userRepository.findById(username)
+            .orElseThrow { UserNotFoundException("User does not exist") }
+
+        user.groups.find { it.groupId == groupId }
             ?: throw UserNotFoundException("Member not found in the group")
 
-        group.members.remove(member)
-        groupRepository.save(group)
+        if (user == group.groupAdmin && group.members.size == 1) {
+            groupRepository.delete(group)
+        } else if (user != group.groupAdmin) {
+            user.groups.remove(group)
+            userRepository.save(user)
+        } else {
+            throw UserIsAdminException("User can not leave group as an admin")
+        }
+
     }
 
     @Throws(UserNotFoundException::class)

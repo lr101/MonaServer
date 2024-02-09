@@ -83,11 +83,10 @@ interface PinRepository : CrudRepository<Pin, Long> {
     fun findGroupPinsByGroupId(groupId: Long): List<Pin>
 
 
-    @Query("SELECT g.* " +
-            "FROM groups_pins gp JOIN pins p on p.id = gp.id " +
-            "JOIN groups g on g.group_id = gp.group_id " +
-            "WHERE p.id = ?1", nativeQuery = true)
-    fun findGroupOfPin(pinId: Long): Optional<Group>
+    @Query("SELECT p.* " +
+            "FROM groups_pins gp JOIN groups p on p.group_id = gp.group_id " +
+            "WHERE gp.id = ?1", nativeQuery = true)
+    fun findGroupOfPin(pinId: Long): MutableList<Group>
 
     @Query("SELECT p.*" +
             " FROM groups_pins gp " +

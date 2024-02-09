@@ -64,5 +64,4 @@ interface GroupRepository : CrudRepository<Group, Long> {
 
     fun deleteByGroupId(groupId: Long)
 
-
 }

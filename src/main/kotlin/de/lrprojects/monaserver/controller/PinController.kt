@@ -52,16 +52,17 @@ class PinController (
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
         } catch (e: Exception) {
+            logger.error(e.message)
             ResponseEntity.internalServerError().build()
         }
 
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPin(pinId: Long): ResponseEntity<PinInfo> {
+    override fun getPin(pinId: Long): ResponseEntity<Pin> {
         return try {
             val pin = pinService.getPin(pinId)
-            ResponseEntity.ok(pin)
+            ResponseEntity.ok(pin.toPinModel())
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
         } catch (e: Exception) {

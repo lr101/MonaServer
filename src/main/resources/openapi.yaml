@@ -433,6 +433,8 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
+        409:
+          description: User cannot leave as group admin when the group is not empty
 
 
   /api/users/{username}/delete-code:
@@ -662,7 +664,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PinInfo'
+                $ref: '#/components/schemas/Pin'
         404:
           description: Pin does not exist
           content:
@@ -709,7 +711,7 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:
@@ -736,7 +738,7 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
         404:
@@ -782,9 +784,9 @@ paths:
               $ref: '#/components/schemas/User'
       responses:
         '200':
-          description: Successful response
+          description: Update successfull
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:
@@ -840,7 +842,7 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
         404:
@@ -867,7 +869,7 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
         404:
@@ -892,7 +894,7 @@ paths:
       requestBody:
         required: true
         content:
-          image/jpeg:
+          image/*:
             schema:
               $ref: '#/components/schemas/Image'
       responses:

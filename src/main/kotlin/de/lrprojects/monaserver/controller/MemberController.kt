@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.api.MembersApi
 import de.lrprojects.monaserver.api.MembersApiDelegate
 import de.lrprojects.monaserver.converter.toGroupModel
 import de.lrprojects.monaserver.excepetion.ComparisonException
+import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.ApiGroupsGroupIdMembersPostRequest
 import de.lrprojects.monaserver.model.Group
@@ -36,7 +37,7 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
         } catch (e: ComparisonException) {
-            ResponseEntity(HttpStatus.FORBIDDEN)
+            ResponseEntity(HttpStatus.BAD_REQUEST)
         } catch (e: Exception) {
             ResponseEntity.internalServerError().build()
         }
@@ -52,6 +53,8 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
             ResponseEntity.notFound().build()
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        }catch (e: UserIsAdminException) {
+            ResponseEntity(HttpStatus.CONFLICT)
         } catch (e: Exception) {
             ResponseEntity.internalServerError().build()
         }

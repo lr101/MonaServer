@@ -9,7 +9,7 @@ interface PinService {
 
     fun createPin(newPin: NewPin): Pin
     fun deletePin(pinId: Long)
-    fun getPin(pinId: Long): PinInfo
+    fun getPin(pinId: Long): Pin
     fun getPinCreationUsername(pinId: Long): String
     fun getPinsByGroup(currentUsername: String, groupId: Long, date: OffsetDateTime): MutableList<Pin>
     fun getPinsByIdsAndUsername(currentUsername: String, username: String, ids: MutableList<Long>): MutableList<Pin>

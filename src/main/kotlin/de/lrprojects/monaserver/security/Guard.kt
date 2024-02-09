@@ -96,7 +96,7 @@ class Guard (
         val name = authentication.name
         return try {
             val result = pinService.getPin(pinId)
-            return result.pin.creationUser == name
+            return result.user!!.username == name
         } catch (e: Exception) {
             false
         }
