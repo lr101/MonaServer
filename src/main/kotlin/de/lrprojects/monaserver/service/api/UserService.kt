@@ -10,4 +10,6 @@ interface UserService {
     fun getUserProfileImageSmall(username: String): ByteArray?
     fun updateUser(username: String, user: User): String
     fun updateUserProfileImage(username: String, image: ByteArray): UpdateUserProfileImage200Response
+
+    fun getUserByRecoverUrl(recoverUrl: String) : de.lrprojects.monaserver.entity.User
 }

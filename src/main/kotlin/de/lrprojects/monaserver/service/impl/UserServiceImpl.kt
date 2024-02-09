@@ -21,7 +21,7 @@ class UserServiceImpl constructor(
     @Autowired val imageHelper: ImageHelper
     ): UserService {
     override fun deleteUser(username: String, code: Int) {
-        userRepository.deleteByUsernameAndCode(username, code)
+        userRepository.deleteByUsernameAndCode(username, code.toString())
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {
@@ -52,5 +52,9 @@ class UserServiceImpl constructor(
         userRepository.setProfileImage(username, imageHelper.getProfileImage(image))
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
         return userRepository.save(userEntity).toImages(userRepository)
+    }
+
+    override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {
+        return userRepository.findByResetPasswordUrl(recoverUrl).orElseThrow{UserNotFoundException("this recovery url does not exist")}
     }
 }
