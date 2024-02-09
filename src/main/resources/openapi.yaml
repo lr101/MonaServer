@@ -184,7 +184,7 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
         404:
@@ -240,7 +240,7 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:
@@ -268,7 +268,7 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:
@@ -296,7 +296,7 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:
@@ -324,7 +324,7 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
         404:

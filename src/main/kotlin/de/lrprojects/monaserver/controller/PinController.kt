@@ -11,6 +11,7 @@ import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
+import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -26,8 +27,11 @@ class PinController (
     @Autowired val memberService: MemberService
 ) : PinsApiDelegate {
 
+    private val logger = KotlinLogging.logger {}
 
-    @PreAuthorize("@guard.isGroupVisible(authentication, #newPin.groupId)")
+    @PreAuthorize("hasAuthority('ADMIN') " +
+            "|| (@guard.isGroupMember(authentication, #newPin.groupId)" +
+            "&& @guard.isSameUser(authentication, #newPin.username))")
     override fun createPin(newPin: NewPin): ResponseEntity<Pin> {
         return try {
             val pin = pinService.createPin(newPin)
@@ -40,7 +44,7 @@ class PinController (
 
     }
 
-    @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authenticated, #pinId)")
+    @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
     override fun deletePin(pinId: Long): ResponseEntity<Void> {
         return try {
             pinService.deletePin(pinId)
@@ -53,7 +57,7 @@ class PinController (
 
     }
 
-    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
+    @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPin(pinId: Long): ResponseEntity<PinInfo> {
         return try {
             val pin = pinService.getPin(pinId)
@@ -66,7 +70,7 @@ class PinController (
 
     }
 
-    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
+    @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPinCreationUsername(pinId: Long): ResponseEntity<String> {
         return try {
             val user = pinService.getPinCreationUsername(pinId)
@@ -79,7 +83,7 @@ class PinController (
 
     }
 
-    @PreAuthorize("@guard.isPinPublicOrMember(authenticated, #pinId)")
+    @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPinImage(pinId: Long): ResponseEntity<ByteArray> {
         return try {
             val image = monaService.getPinImage(pinId)
@@ -93,8 +97,8 @@ class PinController (
     }
 
 
-    @PreAuthorize("@guard.isPinsPublicOrMember(authenticated, #ids) " +
-            "&& (#groupId == null || @guard.isGroupVisible(authenticated, #groupId))")
+    @PreAuthorize("@guard.isPinsPublicOrMember(authentication, #ids) " +
+            "&& (#groupId == null || @guard.isGroupVisible(authentication, #groupId))")
     override fun getPinImagesByIds(
         ids: MutableList<Long>?,
         groupId: Long?,

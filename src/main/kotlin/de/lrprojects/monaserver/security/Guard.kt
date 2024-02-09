@@ -39,6 +39,15 @@ class Guard (
         }
     }
 
+    fun isGroupMember(authentication: Authentication, groupId: Long): Boolean {
+        val name = authentication.name
+        return try {
+            return memberService.getMembers(groupId).any { e -> e.username == name }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun isSameUser(authentication: Authentication, username: String): Boolean {
         return try {
             return username == authentication.name
@@ -77,7 +86,7 @@ class Guard (
 
     fun isPinsPublicOrMember(authentication: Authentication, ids: MutableList<Long>?) : Boolean {
         return try {
-            ids?.all { isPinPublicOrMember(authentication, it)}.let { false }
+            ids?.all { isPinPublicOrMember(authentication, it)}.let { true }
         } catch (e: Exception) {
             false
         }

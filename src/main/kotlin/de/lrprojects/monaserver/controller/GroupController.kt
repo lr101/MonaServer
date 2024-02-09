@@ -11,6 +11,7 @@ import de.lrprojects.monaserver.model.GroupSmall
 import de.lrprojects.monaserver.model.UpdateGroup
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
+import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -20,6 +21,8 @@ import java.lang.AssertionError
 
 @Component
 class GroupController (@Autowired val groupService: GroupService) : GroupsApiDelegate {
+
+    private val logger = KotlinLogging.logger {}
 
     @PreAuthorize("hasAuthority('ADMIN') || @guard.isSameUser(authentication, #createGroup.getGroupAdmin())")
     override fun addGroup(createGroup: CreateGroup): ResponseEntity<Group> {

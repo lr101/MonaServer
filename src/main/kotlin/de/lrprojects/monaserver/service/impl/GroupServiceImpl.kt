@@ -35,6 +35,7 @@ class GroupServiceImpl (
         group.description = createGroup.description
         group.name = createGroup.name
         group.members.add(group.groupAdmin!!)
+        group.groupAdmin!!.groups.add(group)
         group.link = createGroup.link
         group.pinImage = imageHelper.getPinImage(createGroup.profileImage)
         group.profileImage = imageHelper.getProfileImage(createGroup.profileImage)

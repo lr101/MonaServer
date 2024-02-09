@@ -10,6 +10,7 @@ import de.lrprojects.monaserver.model.Group
 import de.lrprojects.monaserver.model.Member
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
+import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -19,6 +20,8 @@ import org.springframework.stereotype.Component
 
 @Component
 class MemberController (@Autowired val memberService: MemberService) : MembersApiDelegate {
+
+    private val logger = KotlinLogging.logger {}
 
     override fun apiGroupsGroupIdMembersPost(
         groupId: Long,
