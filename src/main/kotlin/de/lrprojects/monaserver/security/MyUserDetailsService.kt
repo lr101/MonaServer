@@ -20,7 +20,7 @@ class MyUserDetailsService(@Autowired var userRepository: UserRepository) : User
         val user: User = userRes.get()
         return org.springframework.security.core.userdetails.User(
             username,
-            user.password, listOf(SimpleGrantedAuthority("ROLE_USER"))
+            user.password, listOf(SimpleGrantedAuthority("USER"))
         )
     }
 }

@@ -4,7 +4,7 @@ info:
   version: 1.0.1
 servers:
   - url: https://app.lr-projects.de
-  - url: http://localhost:3000
+  - url: http://localhost:8081
 tags:
   - name: public
     description: Everything about the public api
@@ -39,6 +39,11 @@ paths:
               $ref: '#/components/schemas/ID'
         - name: search
           description: "search term used to find a group name"
+          in: query
+          schema:
+            $ref: '#/components/schemas/ShortString'
+        - name: username
+          description: "this is the username used when withUser is set to true or false"
           in: query
           schema:
             $ref: '#/components/schemas/ShortString'
@@ -97,6 +102,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GroupSmall'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
     put:
       operationId: updateGroup
       security:
@@ -123,6 +134,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
+
     delete:
       operationId: deleteGroup
       security:
@@ -141,6 +159,10 @@ paths:
           description: Deleted
         404:
           description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
 
 
   /api/groups/{groupId}/profile_image:
@@ -162,9 +184,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/pin_image:
     get:
       operationId: getGroupPinImage
@@ -184,9 +212,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            image/png:
               schema:
                 $ref: '#/components/schemas/Image'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/description:
     get:
       operationId: getGroupDescription
@@ -206,9 +240,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/link:
     get:
       operationId: getGroupLink
@@ -228,9 +268,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/admin:
     get:
       operationId: getGroupAdmin
@@ -250,9 +296,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
-                $ref: '#/components/schemas/ID'
+                $ref: '#/components/schemas/ShortString'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/invite_url:
     get:
       operationId: getGroupInviteUrl
@@ -272,9 +324,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/groups/{groupId}/members:
     get:
       operationId: getGroupMembers
@@ -298,22 +356,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Member'
-    delete:
-      operationId: deleteMemberFromGroup
-      security:
-        - token: [ ]
-      summary: leave group or delete group when the user is the last group member
-      tags:
-        - members
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ID'
-      responses:
-        '200':
-          description: Successful response
+        404:
+          description: Group does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
     post:
       security:
         - token: [ ]
@@ -326,6 +374,12 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/ID'
+        - name: username
+          in: query
+          required: true
+          description: username
+          schema:
+            $ref: '#/components/schemas/ShortString'
       requestBody:
         required: true
         content:
@@ -343,6 +397,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        '403':
+          description: inviteUrl does not match
+        404:
+          description: Group or user does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
+  /api/groups/{groupId}/members/{username}:
+    delete:
+      operationId: deleteMemberFromGroup
+      security:
+        - token: [ ]
+      summary: leave group or delete group when the user is the last group member
+      tags:
+        - members
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ID'
+        - name: username
+          in: path
+          description: username
+          schema:
+            $ref: '#/components/schemas/ShortString'
+      responses:
+        '200':
+          description: Deleted
+        404:
+          description: Group or user does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
+        409:
+          description: User cannot leave as group admin when the group is not empty
+
+
   /api/users/{username}/delete-code:
     get:
       operationId: generateDeleteCode
@@ -364,8 +458,12 @@ paths:
           description: E-Mail could not be send
         '401':
           description: Unauthorized
-        '404':
-          description: User Not found
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /recover:
     get:
       operationId: requestPasswordRecovery
@@ -383,8 +481,10 @@ paths:
           description: Recovery email sent
         '400':
           description: E-Mail could not be send
-        '404':
-          description: User Not found
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
         '503':
           description: Unique code could not be generated. Contact the developer under lr.dev.projects@gmail.com
   /login:
@@ -415,9 +515,11 @@ paths:
                   token:
                     $ref: '#/components/schemas/LongString'
         '400':
-          description: Wrong password
-        '404':
-          description: User does not exist
+          description: Wrong password or user does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /signup:
     post:
       operationId: createUser
@@ -431,15 +533,18 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateUser'
       responses:
-        '200':
+        '201':
           description: User registered successfully
           content:
-            application/json:
+            text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/ShortString'
 
-        '401':
+        '400':
           description: Registration failed
+        '409':
+          description: Username already exists
+
   /api/report:
     post:
       operationId: createReport
@@ -457,8 +562,11 @@ paths:
       responses:
         '201':
           description: Report submitted successfully
-        '401':
-          description: Report submission failed
+        '400':
+          description: User not found
+        '503':
+          description: Mail service at the moment not reachable
+
 
   /api/pins:
 
@@ -515,7 +623,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Pin'
+                  $ref: '#/components/schemas/PinWithOptionalImage'
     post:
       operationId: createPin
       security:
@@ -556,7 +664,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PinInfo'
+                $ref: '#/components/schemas/Pin'
+        404:
+          description: Pin does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
     delete:
       operationId: deletePin
       security:
@@ -571,8 +685,14 @@ paths:
           schema:
             $ref: '#/components/schemas/ID'
       responses:
-        '201':
+        '200':
           description: successfully deleted
+        404:
+          description: Pin does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/pins/{pinId}/user:
     get:
       operationId: getPinCreationUsername
@@ -591,9 +711,15 @@ paths:
         '200':
           description: Successful response
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ShortString'
+        404:
+          description: Pin does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/pins/{pinId}/image:
     get:
       operationId: getPinImage
@@ -612,9 +738,15 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
+        404:
+          description: Pin does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /public/api/infos:
     get:
       operationId: getServerInfo
@@ -652,11 +784,17 @@ paths:
               $ref: '#/components/schemas/User'
       responses:
         '200':
-          description: Successful response
+          description: Update successfull
           content:
-            application/json:
+            text/plain:
               schema:
                 $ref: '#/components/schemas/ShortString'
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
     delete:
       operationId: deleteUser
       security:
@@ -680,6 +818,12 @@ paths:
       responses:
         '200':
           description: Deleted
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/users/{username}/profile_picture_small:
     get:
       operationId: getUserProfileImageSmall
@@ -698,9 +842,15 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/users/{username}/profile_picture:
     get:
       operationId: getUserProfileImage
@@ -719,9 +869,15 @@ paths:
         '200':
           description: Successful response
           content:
-            image/jpeg:
+            image/*:
               schema:
                 $ref: '#/components/schemas/Image'
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
     put:
       operationId: updateUserProfileImage
       security:
@@ -738,10 +894,9 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          image/*:
             schema:
               $ref: '#/components/schemas/Image'
-
       responses:
         '200':
           description: Successful response
@@ -756,13 +911,19 @@ paths:
                     $ref: '#/components/schemas/Image'
                   profilePictureSmall:
                     $ref: '#/components/schemas/Image'
-
+        404:
+          description: User does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
 components:
   securitySchemes:
     token: # arbitrary name for the security scheme
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
     ID:
       type: integer

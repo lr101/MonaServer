@@ -21,16 +21,18 @@ open class Group() {
     @Column(name = "name", nullable = false, unique = true)
     open var name: String? = null
 
-    @OneToOne
-    @JoinColumn(name = "group_admin", nullable = false, referencedColumnName = "username")
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "group_admin", referencedColumnName = "username")
     open var groupAdmin: User? = null
 
     @Column(name = "description")
     @Basic(fetch = FetchType.LAZY)
     open var description: String? = null
 
-    @Column(name = "profile_image", nullable = false, columnDefinition = "OID")
-    open var profileImage: Long? = null
+    @Lob
+    @Column(name = "profile_image", nullable = false)
+    @Basic(fetch = FetchType.LAZY)
+    open var profileImage: ByteArray? = null
 
     @Column(name = "pin_image", nullable = false)
     @Basic(fetch = FetchType.LAZY)
@@ -50,14 +52,8 @@ open class Group() {
     @Column(name = "visibility", nullable = false)
     open var visibility = 0
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = User::class)
-    @JoinTable(
-        name = "members",
-        joinColumns = [JoinColumn(name = "group_id")],
-        inverseJoinColumns = [JoinColumn(name = "username")]
-    )
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    open var members: MutableSet<User> = HashSet<User>()
+    @ManyToMany(mappedBy = "groups")
+    open var members: MutableSet<User> = mutableSetOf()
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
     @JoinTable(
@@ -76,7 +72,7 @@ open class Group() {
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "update_date")
+    @Column(name = "last_updated")
     open var updateDate: Date? = null
 
 

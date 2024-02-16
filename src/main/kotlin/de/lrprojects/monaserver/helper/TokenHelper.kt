@@ -26,7 +26,7 @@ class TokenHelper (@Value("secrets.token.value") val secret: String) {
     }
 
     @Throws(JWTVerificationException::class)
-    fun validateTokenAndRetrieveSubject(token: String?): Pair<String, String?>? {
+    fun validateTokenAndRetrieveSubject(token: String?): Pair<String, String?> {
         val verifier: JWTVerifier = JWT.require(Algorithm.HMAC256(secret))
             .withSubject("User Details")
             .withIssuer("MONA_SERVER/LUKAS_REIM")

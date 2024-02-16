@@ -8,6 +8,8 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.model.NewPin
 import de.lrprojects.monaserver.model.PinInfo
+import de.lrprojects.monaserver.repository.GroupRepository
+import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -19,6 +21,7 @@ import java.util.*
 class PinServiceImpl constructor(
     @Autowired val pinRepository: PinRepository, 
     @Autowired val userRepository: UserRepository,
+    @Autowired val groupRepository: GroupRepository
 ) : PinService {
 
     @Transactional
@@ -28,8 +31,11 @@ class PinServiceImpl constructor(
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = Date() //TODO
+        pin.image = newPin.image
+        val group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
-        pinRepository.setImage(pin.id!!, newPin.image)
+        group.pins.add(pin)
+        groupRepository.save(group)
         return pin
     }
 
@@ -37,10 +43,8 @@ class PinServiceImpl constructor(
         pinRepository.deleteById(pinId)
     }
 
-    override fun getPin(pinId: Long): PinInfo {
-        val pin = pinRepository.findById(pinId).orElseThrow()
-        val group = pinRepository.findGroupOfPin(pinId).orElseThrow()
-        return pin.toPinInfo(group)
+    override fun getPin(pinId: Long): Pin {
+        return pinRepository.findById(pinId).orElseThrow{ EntityNotFoundException("pin not found") }
     }
 
     override fun getPinCreationUsername(pinId: Long): String {

@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.helper
 
+import de.lrprojects.monaserver.excepetion.ProfileImageException
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Component
@@ -8,17 +9,23 @@ import java.awt.Image
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.FileNotFoundException
 import java.io.IOException
 import javax.imageio.ImageIO
 
 @Component
-class ImageHelper() {
+class ImageHelper {
+
+    private val pinImage: BufferedImage = getImageFromResources("pin_image.png")
+    private val pinBorder: BufferedImage = getImageFromResources("pin_border.png")
     private val size = 500
     private val sizePin = 100
     private val sizeSmall = 50
     private val xOffset = 11
     private val yOffset = 4
     private val diameter = 79
+
+
     fun getProfileImage(image: ByteArray): ByteArray {
         return getBytes(image, size)
     }
@@ -46,8 +53,6 @@ class ImageHelper() {
             //scale to SIZE_PIN x SIZE_PIN
             val imageBuff = resizeImage(image, diameter)
             //get Resources
-            val pinImage = getImageFromResources("pin_image.png")
-            val pinBorder = getImageFromResources("pin_border.png")
             //create return image
             val returnImage = BufferedImage(sizePin, sizePin, BufferedImage.TYPE_INT_ARGB)
             val g = returnImage.createGraphics()
@@ -74,13 +79,12 @@ class ImageHelper() {
             ImageIO.write(returnImage, "png", buffer)
             g.dispose()
             imageBuff.flush()
-            pinImage.flush()
-            pinBorder.flush()
             returnImage.flush()
             buffer.toByteArray()
-        } catch (e: Exception) {
-            println(e)
-            throw IllegalStateException("image does not have the right size constrains")
+        } catch (e: IllegalStateException) {
+            throw ProfileImageException("image does not have the right size constrains")
+        } catch (e: FileNotFoundException) {
+            throw ProfileImageException("Static image template could not be accessed")
         }
     }
 
@@ -101,14 +105,15 @@ class ImageHelper() {
         return imageBuff
     }
 
-    @Throws(IOException::class)
-    private fun getImageFromResources(name: String): BufferedImage {
-        val resource: Resource = ClassPathResource("pin/$name")
-        val input = resource.inputStream
-        val `in` = ByteArrayInputStream(input.readAllBytes())
-        val img = ImageIO.read(`in`)
-        input.close()
-        `in`.close()
-        return img
+    companion object {
+        fun getImageFromResources(name: String): BufferedImage {
+            val resource: Resource = ClassPathResource("pin/$name")
+            val input = resource.inputStream
+            val `in` = ByteArrayInputStream(input.readAllBytes())
+            val img = ImageIO.read(`in`)
+            input.close()
+            `in`.close()
+            return img
+        }
     }
 }

@@ -10,11 +10,13 @@ import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import kotlin.jvm.Throws
 import kotlin.jvm.optionals.getOrElse
 import kotlin.jvm.optionals.getOrNull
 
 @Service
-
+@Transactional
 class UserServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val tokenHelper: TokenHelper,
@@ -25,7 +27,7 @@ class UserServiceImpl constructor(
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {
-        return userRepository.getProfileImage(username).getOrNull()
+        return userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }.profilePicture
     }
 
     override fun getUserProfileImageSmall(username: String): ByteArray? {
@@ -44,14 +46,15 @@ class UserServiceImpl constructor(
         return userRepository.save(userEntity).token!!
     }
 
+    @Throws(UserNotFoundException::class, IllegalStateException::class)
     override fun updateUserProfileImage(
         username: String,
         image: ByteArray
     ): UpdateUserProfileImage200Response {
         val userEntity =  userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }
-        userRepository.setProfileImage(username, imageHelper.getProfileImage(image))
+        userEntity.profilePicture = imageHelper.getProfileImage(image)
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
-        return userRepository.save(userEntity).toImages(userRepository)
+        return userRepository.save(userEntity).toImages()
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {

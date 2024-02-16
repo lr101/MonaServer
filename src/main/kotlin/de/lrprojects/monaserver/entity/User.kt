@@ -5,6 +5,7 @@ import jakarta.persistence.*
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Pattern
 import org.hibernate.validator.constraints.Length
+import java.util.HashSet
 
 @Entity
 @Table(name = "users")
@@ -34,8 +35,10 @@ open class User {
     @Basic(fetch = FetchType.LAZY)
     open var resetPasswordUrl: String? = null
 
-    @Column(name = "profile_picture", columnDefinition = "OID")
-    open var profilePicture: Long? = null
+    @Lob
+    @Basic(fetch=FetchType.LAZY)
+    @Column(name = "profile_picture")
+    open var profilePicture: ByteArray? = null
 
     @Column(name = "profile_picture_small", columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
@@ -45,5 +48,13 @@ open class User {
     @Basic(fetch = FetchType.LAZY)
     @Length(min = 6, max = 6)
     open var code: String? = null
+
+    @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
+    @JoinTable(
+        name = "members",
+        joinColumns = [JoinColumn(name = "username")],
+        inverseJoinColumns = [JoinColumn(name = "group_id")]
+    )
+    open var groups: MutableSet<Group> = mutableSetOf()
 
 }

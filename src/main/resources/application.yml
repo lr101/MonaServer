@@ -12,11 +12,21 @@ server:
       persistent: false
   forward-headers-strategy: native
 spring:
+  security:
+   filter:
+     order: 10
   jpa:
     hibernate:
       ddl-auto: validate
+    database: postgresql
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:5432/${POSTGRES_DB}
+    url: jdbc:postgresql://${DB_HOST}:5433/${POSTGRES_DB}
     driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}

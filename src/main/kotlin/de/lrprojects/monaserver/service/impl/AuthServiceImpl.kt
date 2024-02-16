@@ -9,9 +9,11 @@ import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.optionals.getOrElse
 
 @Service
+@Transactional
 class AuthServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val tokenHelper: TokenHelper,
@@ -24,14 +26,14 @@ class AuthServiceImpl constructor(
         user.email = email
         user.username = username
         user.password = password
-        try {
+        if (userRepository.findById(username).isEmpty) {
             user.token = tokenHelper.generateToken(username, password)
             userRepository.save(user)
-        } catch (_: Error) {
+        } else {
             throw UserExistsException("user with username " + username + "already exists")
         }
 
-        return username
+        return user.token!!
     }
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
