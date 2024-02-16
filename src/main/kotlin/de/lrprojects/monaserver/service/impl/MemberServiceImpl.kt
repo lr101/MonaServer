@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.ComparisonException
+import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.repository.GroupRepository
@@ -14,10 +15,11 @@ import de.lrprojects.monaserver.model.Member
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.Throws
 
 @Service
-
+@Transactional
 class MemberServiceImpl constructor(
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository
@@ -28,13 +30,15 @@ class MemberServiceImpl constructor(
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
 
+
         if (group.visibility == 0 || group.inviteUrl == inviteUrl) {
             val user = userRepository.findById(username)
                 .orElseThrow { UserNotFoundException("User not found") }
-
-            group.members.add(user)
-            groupRepository.save(group)
-
+            if (group.members.contains(user)) {
+                throw UserExistsException("User is already a member")
+            }
+            user.groups.add(group)
+            userRepository.save(user)
             return group
         } else {
             throw ComparisonException("inviteUrl does not match")

@@ -391,16 +391,28 @@ paths:
               required:
                 - inviteUrl
       responses:
-        '200':
+        '201':
           description: Successful response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        400:
+          description: Group or user does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
         '403':
           description: inviteUrl does not match
         404:
           description: Group or user does not exist
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
+        409:
+          description: User is already a member
           content:
             text/plain; charset=utf-8:
               schema:

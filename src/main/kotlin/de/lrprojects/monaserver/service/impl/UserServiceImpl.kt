@@ -58,6 +58,11 @@ class UserServiceImpl constructor(
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {
-        return userRepository.findByResetPasswordUrl(recoverUrl).orElseThrow{UserNotFoundException("this recovery url does not exist")}
+        val list = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull();
+        if (list == null) {
+            throw UserNotFoundException("user with this reset url does not exist")
+        } else {
+            return list
+        }
     }
 }
