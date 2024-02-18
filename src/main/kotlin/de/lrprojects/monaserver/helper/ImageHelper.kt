@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.helper
 
+import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.ProfileImageException
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.Resource
@@ -37,6 +38,9 @@ class ImageHelper {
     private fun getBytes(image: ByteArray, sizeSmall: Int): ByteArray {
         return try {
             val imageBuff = resizeImage(image, sizeSmall)
+            if (imageBuff.height != imageBuff.width) {
+                throw ImageNotSquareException("the input image is not a square")
+            }
             val buffer = ByteArrayOutputStream()
             ImageIO.write(imageBuff, "png", buffer)
             imageBuff.flush()
@@ -93,16 +97,31 @@ class ImageHelper {
         return pixel shr 24 != 0x00
     }
 
+
     @Throws(IOException::class)
-    private fun resizeImage(image: ByteArray, size: Int): BufferedImage {
+    fun resizeImage(image: ByteArray, width: Int): BufferedImage {
         val `in` = ByteArrayInputStream(image)
-        val img = ImageIO.read(`in`)
+        val originalImage = ImageIO.read(`in`)
         `in`.close()
-        val scaledImage = img.getScaledInstance(size, size, Image.SCALE_SMOOTH)
-        val imageBuff = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
-        imageBuff.graphics.drawImage(scaledImage, 0, 0, Color(0, 0, 0), null)
-        scaledImage.flush()
-        return imageBuff
+
+        val originalWidth = originalImage.width
+        val originalHeight = originalImage.height
+
+        // Calculate the proportional height based on the provided width
+        val height = (width.toDouble() / originalWidth.toDouble() * originalHeight.toDouble()).toInt()
+
+        // Create a scaled instance of the original image
+        val scaledImage = originalImage.getScaledInstance(width, height, BufferedImage.SCALE_SMOOTH)
+
+        // Create a new BufferedImage with the scaled dimensions
+        val resizedImage = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+
+        // Draw the scaled image onto the new BufferedImage
+        val graphics2D = resizedImage.createGraphics()
+        graphics2D.drawImage(scaledImage, 0, 0, Color(0, 0, 0), null)
+        graphics2D.dispose()
+
+        return resizedImage
     }
 
     companion object {

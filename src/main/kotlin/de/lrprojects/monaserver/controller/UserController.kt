@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.UsersApi
 import de.lrprojects.monaserver.api.UsersApiDelegate
+import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
@@ -75,6 +76,8 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
             return ResponseEntity.ok(images)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: ImageNotSquareException) {
+            ResponseEntity.badRequest().build()
         } catch (e: Exception) {
             ResponseEntity.internalServerError().build()
         }

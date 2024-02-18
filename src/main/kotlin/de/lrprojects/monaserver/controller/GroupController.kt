@@ -3,6 +3,7 @@ package de.lrprojects.monaserver.controller
 import de.lrprojects.monaserver.api.GroupsApi
 import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.convertToGroupSmall
+import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.ProfileImageException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.CreateGroup
@@ -33,6 +34,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.notFound().build()
         } catch (e: ProfileImageException) {
             ResponseEntity(HttpStatus.BAD_REQUEST)
+        } catch (e: ImageNotSquareException) {
+            ResponseEntity.badRequest().build()
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
         } catch (e: Exception) {
@@ -159,6 +162,8 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
+        } catch (e: ImageNotSquareException) {
+            ResponseEntity.badRequest().build()
         } catch (e: UserNotFoundException) {
             ResponseEntity.badRequest().build()
         } catch (e: Exception) {

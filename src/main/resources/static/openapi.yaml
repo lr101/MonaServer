@@ -81,6 +81,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        400:
+          description: Image can not be used or is not square
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
   /api/v2/groups/{groupId}:
     get:
       operationId: getGroup
@@ -134,6 +140,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
+        400:
+          description: Image can not be used or is not square
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
         404:
           description: Group does not exist
           content:
@@ -924,12 +936,19 @@ paths:
                     $ref: '#/components/schemas/Image'
                   profilePictureSmall:
                     $ref: '#/components/schemas/Image'
+        400:
+          description: The given image can not be used or is not square
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/LongString'
         404:
           description: User does not exist
           content:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
+
 components:
   securitySchemes:
     token: # arbitrary name for the security scheme
