@@ -7,8 +7,8 @@ import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.ApiGroupsGroupIdMembersPostRequest
 import de.lrprojects.monaserver.model.Group
+import de.lrprojects.monaserver.model.JoinGroupRequest
 import de.lrprojects.monaserver.model.Member
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
@@ -25,13 +25,13 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
 
     private val logger = KotlinLogging.logger {}
 
-    override fun apiGroupsGroupIdMembersPost(
+    override fun joinGroup(
         groupId: Long,
         username: String,
-        apiGroupsGroupIdMembersPostRequest: ApiGroupsGroupIdMembersPostRequest?
+        joinGroupRequest: JoinGroupRequest?
     ): ResponseEntity<Group> {
         return try {
-            val group = memberService.addMember(username, groupId, apiGroupsGroupIdMembersPostRequest?.inviteUrl)
+            val group = memberService.addMember(username, groupId, joinGroupRequest?.inviteUrl)
             ResponseEntity(group.toGroupModel(), HttpStatus.CREATED)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()

@@ -27,15 +27,15 @@ class UserServiceImpl constructor(
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {
-        return userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }.profilePicture
+        return getUser(username).profilePicture
     }
 
     override fun getUserProfileImageSmall(username: String): ByteArray? {
-        return userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }.profilePictureSmall
+        return getUser(username).profilePictureSmall
     }
 
     override fun updateUser(username: String, user: User): String {
-        val userEntity =  userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }
+        val userEntity =  getUser(username)
         if (user.email != null) {
             userEntity.email = user.email
         }
@@ -51,10 +51,14 @@ class UserServiceImpl constructor(
         username: String,
         image: ByteArray
     ): UpdateUserProfileImage200Response {
-        val userEntity =  userRepository.findById(username).getOrElse { throw UserNotFoundException("user not found") }
+        val userEntity =  getUser(username)
         userEntity.profilePicture = imageHelper.getProfileImage(image)
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
         return userRepository.save(userEntity).toImages()
+    }
+
+    override fun getUser(username: String): de.lrprojects.monaserver.entity.User {
+        return getUser(username)
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {

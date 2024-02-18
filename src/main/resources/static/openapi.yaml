@@ -21,7 +21,7 @@ tags:
   - name: report
 
 paths:
-  /api/groups:
+  /api/v2/groups:
     get:
       operationId: getGroupsByIds
       security:
@@ -81,7 +81,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
-  /api/groups/{groupId}:
+  /api/v2/groups/{groupId}:
     get:
       operationId: getGroup
       security:
@@ -165,7 +165,7 @@ paths:
                 $ref: '#/components/schemas/LongString'
 
 
-  /api/groups/{groupId}/profile_image:
+  /api/v2/groups/{groupId}/profile_image:
     get:
       operationId: getGroupProfileImage
       security:
@@ -193,7 +193,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/pin_image:
+  /api/v2/groups/{groupId}/pin_image:
     get:
       operationId: getGroupPinImage
       security:
@@ -221,7 +221,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/description:
+  /api/v2/groups/{groupId}/description:
     get:
       operationId: getGroupDescription
       security:
@@ -249,7 +249,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/link:
+  /api/v2/groups/{groupId}/link:
     get:
       operationId: getGroupLink
       security:
@@ -277,7 +277,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/admin:
+  /api/v2/groups/{groupId}/admin:
     get:
       operationId: getGroupAdmin
       security:
@@ -305,7 +305,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/invite_url:
+  /api/v2/groups/{groupId}/invite_url:
     get:
       operationId: getGroupInviteUrl
       security:
@@ -333,7 +333,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/members:
+  /api/v2/groups/{groupId}/members:
     get:
       operationId: getGroupMembers
       security:
@@ -363,6 +363,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/LongString'
     post:
+      operationId: joinGroup
       security:
         - token: [ ]
       summary: Add a member to a group by ID
@@ -417,7 +418,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/groups/{groupId}/members/{username}:
+  /api/v2/groups/{groupId}/members/{username}:
     delete:
       operationId: deleteMemberFromGroup
       security:
@@ -449,7 +450,7 @@ paths:
           description: User cannot leave as group admin when the group is not empty
 
 
-  /api/users/{username}/delete-code:
+  /api/v2/users/{username}/delete-code:
     get:
       operationId: generateDeleteCode
       security:
@@ -476,7 +477,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /recover:
+  /api/v2/public/recover:
     get:
       operationId: requestPasswordRecovery
       summary: Request password recovery
@@ -499,7 +500,7 @@ paths:
                 $ref: '#/components/schemas/LongString'
         '503':
           description: Unique code could not be generated. Contact the developer under lr.dev.projects@gmail.com
-  /login:
+  /api/v2/public/login:
     post:
       operationId: userLogin
       summary: User login
@@ -532,7 +533,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /signup:
+  /api/v2/public/signup:
     post:
       operationId: createUser
       summary: User registration
@@ -557,7 +558,7 @@ paths:
         '409':
           description: Username already exists
 
-  /api/report:
+  /api/v2/report:
     post:
       operationId: createReport
       tags:
@@ -580,7 +581,7 @@ paths:
           description: Mail service at the moment not reachable
 
 
-  /api/pins:
+  /api/v2/pins:
 
     get:
       operationId: getPinImagesByIds
@@ -656,7 +657,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Pin'
-  /api/pins/{pinId}:
+  /api/v2/pins/{pinId}:
     get:
       operationId: getPin
       security:
@@ -705,7 +706,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/pins/{pinId}/user:
+  /api/v2/pins/{pinId}/user:
     get:
       operationId: getPinCreationUsername
       security:
@@ -732,7 +733,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/pins/{pinId}/image:
+  /api/v2/pins/{pinId}/image:
     get:
       operationId: getPinImage
       security:
@@ -759,7 +760,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /public/api/infos:
+  /api/v2/public/infos:
     get:
       operationId: getServerInfo
       summary: Get public server statistics
@@ -774,7 +775,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Info'
-  /api/users/{username}:
+  /api/v2/users/{username}:
     put:
       operationId: updateUser
       security:
@@ -836,7 +837,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/users/{username}/profile_picture_small:
+  /api/v2/users/{username}/profile_picture_small:
     get:
       operationId: getUserProfileImageSmall
       security:
@@ -863,7 +864,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/users/{username}/profile_picture:
+  /api/v2/users/{username}/profile_picture:
     get:
       operationId: getUserProfileImage
       security:

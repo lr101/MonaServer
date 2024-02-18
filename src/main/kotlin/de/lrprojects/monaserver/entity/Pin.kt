@@ -21,13 +21,15 @@ open class Pin {
     @Column(name = "creation_date", nullable = false)
     open var creationDate: Date? = null
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creation_user", referencedColumnName = "username")
     open var user: User? = null
 
     @Lob
-    @Basic(fetch=FetchType.LAZY)
     @Column(name = "image", nullable = false)
     open var image : ByteArray? = null
 
+
+    @ManyToMany(mappedBy = "pins", fetch = FetchType.LAZY)
+    open var groups: MutableSet<Group> = mutableSetOf()
 }

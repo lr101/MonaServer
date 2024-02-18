@@ -40,3 +40,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0.0.1
     clean-disabled: false
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    path: /public/swagger-ui.html
+    url: /public/openapi.yaml

@@ -12,10 +12,15 @@ import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.Date
 import kotlin.jvm.optionals.getOrElse
 
 @Service
-
+@Transactional
 class MonaServiceImpl(
     @Autowired val pinRepository: PinRepository,
     @Autowired val pinService: PinService,
@@ -37,14 +42,28 @@ class MonaServiceImpl(
     }
 
     override fun getPinImagesByIds(ids: MutableList<Long>?, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<PinWithOptionalImage> {
-        val authentication = SecurityContextHolder.getContext().authentication
+        val authentication = SecurityContextHolder.getContext().authentication.name
         return if (withImages == null || !withImages) {
-            pinRepository.getPinsFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId, authentication.name).map {
-                it.toPinWithOptionalImage(null)
+            pinRepository.getPinsFromIds(ids?.toTypedArray(), username, groupId, authentication).map {
+                PinWithOptionalImage(
+                    it[0] as Long,
+                    (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC),
+                    (it[2] as Double).toBigDecimal(),
+                    (it[3] as Double).toBigDecimal(),
+                    (it[4] as String)
+                    )
             }.toMutableList()
         } else {
-            pinRepository.getImagesFromIds(ids?.let { StringHelper.listToString(it) }, username, groupId, authentication.name).map {
-                it.first.toPinWithOptionalImage(it.second)
+            pinRepository.getImagesFromIds(ids?.toTypedArray(), username, groupId, authentication).map {
+                val pin = PinWithOptionalImage(
+                    it[0] as Long,
+                    (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC),
+                    (it[2] as Double).toBigDecimal(),
+                    (it[3] as Double).toBigDecimal(),
+                    (it[4] as String)
+                )
+                pin.image = (it[5] as ByteArray?)
+                pin
             }.toMutableList()
         }
     }

@@ -52,7 +52,7 @@ open class Group() {
     @Column(name = "visibility", nullable = false)
     open var visibility = 0
 
-    @ManyToMany(mappedBy = "groups")
+    @ManyToMany(mappedBy = "groups", fetch = FetchType.LAZY)
     open var members: MutableSet<User> = mutableSetOf()
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
