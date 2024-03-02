@@ -11,5 +11,5 @@ import java.util.*
 @Repository
 interface UserRepository : CrudRepository<User, String> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
-    fun deleteByUsernameAndCode(username: String, code: String)
+    fun findByUsernameAndCode(username: String, code: String): Optional<User>
 }

@@ -1,10 +1,14 @@
 package de.lrprojects.monaserver.entity
 
 import jakarta.persistence.*
+import org.hibernate.annotations.SQLDelete
+import org.hibernate.annotations.SQLRestriction
 import java.util.*
 
 @Entity
 @Table(name = "pins")
+@SQLDelete(sql = "UPDATE pins SET is_deleted = true WHERE id=?")
+@SQLRestriction("is_deleted=false")
 open class Pin {
     @Column(name = "id", nullable = false)
     @Id
@@ -22,7 +26,7 @@ open class Pin {
     open var creationDate: Date? = null
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creation_user", referencedColumnName = "username")
+    @JoinColumn(name = "creator_id", referencedColumnName = "user_id")
     open var user: User? = null
 
     @Lob
@@ -32,4 +36,7 @@ open class Pin {
 
     @ManyToMany(mappedBy = "pins", fetch = FetchType.LAZY)
     open var groups: MutableSet<Group> = mutableSetOf()
+
+    @Column(name = "is_deleted", nullable = false)
+    open var isDeleted: Boolean = false
 }

@@ -8,6 +8,7 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
+import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +24,9 @@ class UserServiceImpl constructor(
     @Autowired val imageHelper: ImageHelper
     ): UserService {
     override fun deleteUser(username: String, code: Int) {
-        userRepository.deleteByUsernameAndCode(username, code.toString())
+        val user = userRepository.findByUsernameAndCode(username, code.toString())
+            .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
+        userRepository.delete(user)
     }
 
     override fun getUserProfileImage(username: String): ByteArray? {

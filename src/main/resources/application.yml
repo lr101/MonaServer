@@ -39,7 +39,7 @@ spring:
         enabled: true
   flyway:
     enabled: true
-    locations: classpath:migration
+    locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0.0.1
     clean-disabled: false

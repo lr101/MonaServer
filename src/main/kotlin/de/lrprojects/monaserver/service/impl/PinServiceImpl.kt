@@ -60,10 +60,6 @@ class PinServiceImpl constructor(
         return pinRepository.findPinsOfUserInIds(username, currentUsername, StringHelper.listToString(ids))
     }
 
-    override fun getPinsByUsername(currentUsername: String, username: String): MutableList<Pair<Pin, Long>> {
-        return pinRepository.findPinsWithGroupOfUser(username, currentUsername)
-    }
-
     override fun getPinsByUsernameAndGroup(currentUsername: String, username: String, groupId: Long): MutableList<Pin> {
         return pinRepository.findPinsOfUserAndGroup(username, currentUsername, groupId)
     }

@@ -24,8 +24,7 @@ import kotlin.jvm.optionals.getOrElse
 class GroupServiceImpl (
     @Autowired val userRepository: UserRepository,
     @Autowired val groupRepository: GroupRepository,
-    @Autowired val imageHelper: ImageHelper,
-    @Autowired val pinRepository: PinRepository
+    @Autowired val imageHelper: ImageHelper
 ) : GroupService {
 
     override fun addGroup(createGroup: CreateGroup): Group {
@@ -48,7 +47,7 @@ class GroupServiceImpl (
 
     @Throws(SQLException::class)
     override fun deleteGroup(groupId: Long) {
-        groupRepository.deleteByGroupId(groupId)
+        groupRepository.deleteById(groupId)
     }
 
     @Throws(EntityNotFoundException::class)

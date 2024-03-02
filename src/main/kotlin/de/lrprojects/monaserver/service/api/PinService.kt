@@ -13,7 +13,6 @@ interface PinService {
     fun getPinCreationUsername(pinId: Long): String
     fun getPinsByGroup(currentUsername: String, groupId: Long, date: OffsetDateTime): MutableList<Pin>
     fun getPinsByIdsAndUsername(currentUsername: String, username: String, ids: MutableList<Long>): MutableList<Pin>
-    fun getPinsByUsername(currentUsername: String, username: String): MutableList<Pair<Pin, Long>>
     fun getPinsByUsernameAndGroup(currentUsername: String, username: String, groupId: Long): MutableList<Pin>
 
 }

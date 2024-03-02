@@ -2,16 +2,17 @@ package de.lrprojects.monaserver.entity
 
 import de.lrprojects.monaserver.helper.SecurityHelper
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.OnDelete
-import org.hibernate.annotations.OnDeleteAction
-import org.hibernate.annotations.UpdateTimestamp
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Table
+import org.hibernate.annotations.*
 import java.util.*
 
 
 @Entity
 @Table(name = "groups")
-open class Group() {
+@SQLDelete(sql = "UPDATE groups SET is_deleted = true WHERE group_id=?")
+@SQLRestriction("is_deleted=false")
+open class Group {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "group_id_generator")
     @SequenceGenerator(name = "group_id_generator", sequenceName = "group_id_seq", allocationSize = 1)
@@ -22,7 +23,7 @@ open class Group() {
     open var name: String? = null
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "group_admin", referencedColumnName = "username")
+    @JoinColumn(name = "admin_id", referencedColumnName = "user_id")
     open var groupAdmin: User? = null
 
     @Column(name = "description")
@@ -74,6 +75,9 @@ open class Group() {
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "last_updated")
     open var updateDate: Date? = null
+
+    @Column(name = "is_deleted", nullable = false)
+    open var isDeleted: Boolean = false
 
 
     fun setInvite() {

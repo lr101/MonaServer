@@ -24,19 +24,22 @@ interface GroupRepository : CrudRepository<Group, Long> {
             "    WHERE g.group_id IN " +
             "      (SELECT members.group_id FROM members WHERE username = :username) " +
             "AND ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
-            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )" +
+            "AND g.is_deleted = false", nativeQuery = true)
     fun searchInUserGroup(@Param("username") username: String, @Param("search") searchTerm: String?,@Param("ids") listOfIds: Array<Long>?) : List<Group>
 
     @Query( "SELECT g.* FROM groups g " +
             "    WHERE g.group_id NOT IN " +
             "      (SELECT members.group_id FROM members WHERE username = :username) " +
             "AND ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
-            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )" +
+            "AND g.is_deleted = false", nativeQuery = true)
     fun searchInNotUserGroup(@Param("username") username: String, @Param("search") searchTerm: String?, @Param("ids") listOfIds: Array<Long>?) : List<Group>
 
     @Query( "SELECT g.* FROM groups g " +
             "WHERE ( :search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%')))" +
-            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )", nativeQuery = true)
+            "AND ( cast(:ids as bigint[]) IS NULL OR g.group_id IN (:ids) )" +
+            "AND g.is_deleted = false", nativeQuery = true)
     fun searchGroups(@Param("ids") listOfIds: Array<Long>?, @Param("search") searchTerm: String?) : List<Group>
 
 
@@ -58,10 +61,8 @@ interface GroupRepository : CrudRepository<Group, Long> {
 
     @Query("SELECT g.* FROM groups_pins gp " +
             "JOIN groups g ON gp.group_id = g.group_id " +
-            "WHERE gp.id = ?1", nativeQuery = true)
+            "WHERE gp.id = ?1 " +
+            "AND g.is_deleted = false", nativeQuery = true)
     fun findByPin(pinId: Long): Group
-
-
-    fun deleteByGroupId(groupId: Long)
 
 }
