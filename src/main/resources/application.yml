@@ -11,6 +11,9 @@ server:
     session:
       persistent: false
   forward-headers-strategy: native
+  error:
+    whitelabel:
+      enabled: false
 spring:
   security:
    filter:
