@@ -14,6 +14,7 @@ import de.lrprojects.monaserver.model.GroupSmall
 import de.lrprojects.monaserver.model.Member
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import kotlin.jvm.Throws
@@ -87,6 +88,11 @@ class MemberServiceImpl constructor(
         val user = userRepository.findById(username).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
         return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0).map { group: Group -> group.convertToGroupSmall() }
+    }
+
+    override fun isInGroup(group: Group): Boolean {
+        val user = userRepository.findById(SecurityContextHolder.getContext().authentication.name).orElseThrow { UserNotFoundException("User not found") }
+        return group.members.contains(user);
     }
 
 

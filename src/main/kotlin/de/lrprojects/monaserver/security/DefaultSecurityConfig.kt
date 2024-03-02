@@ -40,7 +40,7 @@ class DefaultSecurityConfig internal constructor(
             .cors{ it.configurationSource(corsConfigurationSource())}
             .authorizeHttpRequests {
                 it
-                    .requestMatchers("/api/v2/public/**", "/static/**")
+                    .requestMatchers("/api/v2/public/**", "/static/**","/public/**")
                     .permitAll()
                     .requestMatchers("/api/v2/**")
                     .hasAuthority("USER")

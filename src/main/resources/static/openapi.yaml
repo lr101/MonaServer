@@ -7,7 +7,7 @@ servers:
   - url: http://localhost:8081
 tags:
   - name: public
-    description: Everything about the public api
+    description: Everything about the public apiF
   - name: auth
     description: Everything about Authentication
   - name: groups
@@ -446,6 +446,7 @@ paths:
             $ref: '#/components/schemas/ID'
         - name: username
           in: path
+          required: true
           description: username
           schema:
             $ref: '#/components/schemas/ShortString'
@@ -471,6 +472,7 @@ paths:
       parameters:
         - name: username
           in: path
+          required: true
           description: username
           schema:
             $ref: '#/components/schemas/ShortString'
@@ -1047,10 +1049,20 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/ID'
+        description:
+          $ref: '#/components/schemas/ShortString'
+        invite_url:
+          $ref: '#/components/schemas/ShortString'
         name:
           $ref: '#/components/schemas/ShortString'
         visibility:
           $ref: '#/components/schemas/Visibility'
+        group_admin:
+          $ref: '#/components/schemas/ShortString'
+        link:
+          $ref: '#/components/schemas/ShortString'
+        lastUpdated:
+          $ref: '#/components/schemas/Date'
     Group:
       type: object
       required:

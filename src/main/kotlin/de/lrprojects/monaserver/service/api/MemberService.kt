@@ -16,4 +16,6 @@ interface MemberService {
 
     fun getGroupOfUserOrPublic(username: String): List<GroupSmall>
 
+    fun isInGroup(group: Group): Boolean;
+
 }

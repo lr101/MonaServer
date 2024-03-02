@@ -42,7 +42,7 @@ spring:
     clean-disabled: false
 springdoc:
   api-docs:
-    enabled: false
+    path: /public/api-docs
   swagger-ui:
     path: /public/swagger-ui.html
-    url: /public/openapi.yaml
+  enable-kotlin: false
