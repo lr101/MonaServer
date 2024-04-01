@@ -15,10 +15,11 @@ class TokenHelper (@Value("secrets.token.value") val secret: String) {
 
 
     @Throws(IllegalArgumentException::class, JWTCreationException::class)
-    fun generateToken(username: String?, password: String?): String? {
+    fun generateToken(username: String?, password: String?, userId: UUID?): String? {
         return JWT.create()
             .withSubject("User Details")
             .withClaim("username", username)
+            .withClaim("id", userId.toString())
             .withClaim("password", password)
             .withIssuedAt(Date())
             .withIssuer("MONA_SERVER/LUKAS_REIM")
@@ -26,12 +27,13 @@ class TokenHelper (@Value("secrets.token.value") val secret: String) {
     }
 
     @Throws(JWTVerificationException::class)
-    fun validateTokenAndRetrieveSubject(token: String?): Pair<String, String?> {
+    fun validateTokenAndRetrieveSubject(token: String?): Triple<String, String?, UUID?> {
         val verifier: JWTVerifier = JWT.require(Algorithm.HMAC256(secret))
             .withSubject("User Details")
             .withIssuer("MONA_SERVER/LUKAS_REIM")
             .build()
         val jwt: DecodedJWT = verifier.verify(token)
-        return Pair(jwt.getClaim("username").asString(),jwt.getClaim("password")?.asString() )
+        val uuid = jwt.getClaim("id")?.asString()
+        return Triple(jwt.getClaim("username").asString(),jwt.getClaim("password")?.asString(), if (uuid != null) UUID.fromString(uuid) else null )
     }
 }

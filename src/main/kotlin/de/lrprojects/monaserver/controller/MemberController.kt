@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.util.*
 
 
 @Component
@@ -26,12 +27,12 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
     private val logger = KotlinLogging.logger {}
 
     override fun joinGroup(
-        groupId: Long,
-        username: String,
+        groupId: UUID,
+        userId: UUID,
         joinGroupRequest: JoinGroupRequest?
     ): ResponseEntity<Group> {
         return try {
-            val group = memberService.addMember(username, groupId, joinGroupRequest?.inviteUrl)
+            val group = memberService.addMember(userId, groupId, joinGroupRequest?.inviteUrl)
             ResponseEntity(group.toGroupModel(), HttpStatus.CREATED)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -47,10 +48,10 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
 
     }
 
-    @PreAuthorize("authentication.name.equals(#username) || @guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteMemberFromGroup(groupId: Long, username: String): ResponseEntity<Void> {
+    @PreAuthorize("authentication.name.equals(#userId) || @guard.isGroupAdmin(authentication, #groupId)")
+    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void> {
         return try {
-            memberService.deleteMember(username, groupId)
+            memberService.deleteMember(userId, groupId)
             ResponseEntity.ok().build()
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -65,7 +66,7 @@ class MemberController (@Autowired val memberService: MemberService) : MembersAp
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupMembers(groupId: Long): ResponseEntity<MutableList<Member>> {
+    override fun getGroupMembers(groupId: UUID): ResponseEntity<MutableList<Member>> {
         return try {
             val members = memberService.getMembers(groupId).toMutableList()
             ResponseEntity.ok().body(members)

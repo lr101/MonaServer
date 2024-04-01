@@ -2,10 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModel
-import de.lrprojects.monaserver.model.NewPin
-import de.lrprojects.monaserver.model.Pin
-import de.lrprojects.monaserver.model.PinInfo
-import de.lrprojects.monaserver.model.PinWithOptionalImage
+import de.lrprojects.monaserver.model.*
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.MonaService
@@ -18,6 +15,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
+import java.util.*
 
 
 @Component
@@ -45,7 +43,7 @@ class PinController (
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
-    override fun deletePin(pinId: Long): ResponseEntity<Void> {
+    override fun deletePin(pinId: UUID): ResponseEntity<Void> {
         return try {
             pinService.deletePin(pinId)
             ResponseEntity.ok().build()
@@ -59,7 +57,7 @@ class PinController (
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPin(pinId: Long): ResponseEntity<Pin> {
+    override fun getPin(pinId: UUID): ResponseEntity<Pin> {
         return try {
             val pin = pinService.getPin(pinId)
             ResponseEntity.ok(pin.toPinModel())
@@ -72,7 +70,7 @@ class PinController (
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPinCreationUsername(pinId: Long): ResponseEntity<String> {
+    override fun getPinCreationUsername(pinId: UUID): ResponseEntity<UserInfo>? {
         return try {
             val user = pinService.getPinCreationUsername(pinId)
             ResponseEntity.ok(user)
@@ -85,7 +83,7 @@ class PinController (
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPinImage(pinId: Long): ResponseEntity<ByteArray> {
+    override fun getPinImage(pinId: UUID): ResponseEntity<ByteArray> {
         return try {
             val image = monaService.getPinImage(pinId)
             ResponseEntity.ok(image)
@@ -101,15 +99,15 @@ class PinController (
     @PreAuthorize("@guard.isPinsPublicOrMember(authentication, #ids) " +
             "&& (#groupId == null || @guard.isGroupVisible(authentication, #groupId))")
     override fun getPinImagesByIds(
-        ids: MutableList<Long>?,
-        groupId: Long?,
-        username: String?,
+        ids: MutableList<UUID>?,
+        groupId: UUID?,
+        userId: UUID?,
         withImage: Boolean?,
         compression: Int?,
         height: Int?
     ): ResponseEntity<MutableList<PinWithOptionalImage>> {
         return try {
-            val images = monaService.getPinImagesByIds(ids,compression, height, username, groupId, withImage)
+            val images = monaService.getPinImagesByIds(ids,compression, height, userId, groupId, withImage)
             ResponseEntity.ok(images)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()

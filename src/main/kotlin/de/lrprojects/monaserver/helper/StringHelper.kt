@@ -1,12 +1,14 @@
 package de.lrprojects.monaserver.helper
 
+import java.util.UUID
+
 class StringHelper {
 
     companion object {
-        fun listToString(ids: List<Long>): String {
+        fun listToString(ids: List<UUID>): String {
             var listOfIds = ""
             for(id in ids) {
-                listOfIds += id
+                listOfIds += id.toString()
                 listOfIds += ","
             }
             listOfIds.removeSuffix(",")

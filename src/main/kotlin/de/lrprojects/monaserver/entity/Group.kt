@@ -10,20 +10,20 @@ import java.util.*
 
 @Entity
 @Table(name = "groups")
-@SQLDelete(sql = "UPDATE groups SET is_deleted = true WHERE group_id=?")
+@SQLDelete(sql = "UPDATE groups SET is_deleted = true WHERE id=?")
 @SQLRestriction("is_deleted=false")
 open class Group {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "group_id_generator")
-    @SequenceGenerator(name = "group_id_generator", sequenceName = "group_id_seq", allocationSize = 1)
-    @Column(name = "group_id", nullable = false)
-    open var groupId: Long? = null
+    @GeneratedValue
+    @Column(name = "id", nullable = false)
+    open var id: UUID? = null
 
     @Column(name = "name", nullable = false, unique = true)
     open var name: String? = null
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "admin_id", referencedColumnName = "user_id")
+    @JoinColumn(name = "admin_id", referencedColumnName = "id")
     open var groupAdmin: User? = null
 
     @Column(name = "description")
@@ -45,11 +45,6 @@ open class Group {
     @Column(name = "link")
     open var link: String? = null
 
-
-    //TODO somthing like:
-    // 0: public
-    // 1 : visible
-    // 2 : only invite
     @Column(name = "visibility", nullable = false)
     open var visibility = 0
 
@@ -60,7 +55,7 @@ open class Group {
     @JoinTable(
         name = "groups_pins",
         joinColumns = [JoinColumn(name = "group_id")],
-        inverseJoinColumns = [JoinColumn(name = "id")]
+        inverseJoinColumns = [JoinColumn(name = "pin_id")]
     )
     @OnDelete(action = OnDeleteAction.CASCADE)
     open var pins: MutableSet<Pin> = HashSet()
@@ -73,7 +68,7 @@ open class Group {
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "last_updated")
+    @Column(name = "update_date")
     open var updateDate: Date? = null
 
     @Column(name = "is_deleted", nullable = false)

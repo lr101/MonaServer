@@ -2,13 +2,14 @@ package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.model.Pin
 import de.lrprojects.monaserver.model.PinWithOptionalImage
+import java.util.*
 
 interface MonaService {
 
 
-    fun getPinImage(pinId: Long): ByteArray
+    fun getPinImage(pinId: UUID): ByteArray
 
-    fun addPinImage(pinId: Long, image: ByteArray): ByteArray
+    fun addPinImage(pinId: UUID, image: ByteArray): ByteArray
 
-    fun getPinImagesByIds(ids: MutableList<Long>?, compression: Int?, height: Int?, username: String?, groupId: Long?, withImages: Boolean?): MutableList<PinWithOptionalImage>
+    fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?): MutableList<PinWithOptionalImage>
 }

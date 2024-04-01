@@ -11,15 +11,16 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.util.*
 
 
 @Component
 class UserController (@Autowired val userService: UserService) : UsersApiDelegate {
 
-    @PreAuthorize("@guard.isSameUser(authentication, #username)")
-    override fun deleteUser(username: String, code: Int): ResponseEntity<Void> {
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
+    override fun deleteUser(userId: UUID, code: Int): ResponseEntity<Void> {
         return try {
-            userService.deleteUser(username, code)
+            userService.deleteUser(userId, code)
             ResponseEntity.ok().build()
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -29,9 +30,9 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
-    override fun getUserProfileImage(username: String): ResponseEntity<ByteArray> {
+    override fun getUserProfileImage(userId: UUID): ResponseEntity<ByteArray> {
         return try {
-            val image = userService.getUserProfileImage(username)
+            val image = userService.getUserProfileImage(userId)
             ResponseEntity.ok(image)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -41,9 +42,9 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
-    override fun getUserProfileImageSmall(username: String): ResponseEntity<ByteArray> {
+    override fun getUserProfileImageSmall(userId: UUID): ResponseEntity<ByteArray> {
         return try {
-            val image = userService.getUserProfileImageSmall(username)
+            val image = userService.getUserProfileImageSmall(userId)
             ResponseEntity.ok(image)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -53,10 +54,10 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
-    @PreAuthorize("@guard.isSameUser(authentication, #username)")
-    override fun updateUser(username: String, user: User): ResponseEntity<String> {
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
+    override fun updateUser(userId: UUID, user: User): ResponseEntity<String> {
         return try {
-            val token = userService.updateUser(username, user)
+            val token = userService.updateUser(userId, user)
             ResponseEntity.ok(token)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()
@@ -66,13 +67,13 @@ class UserController (@Autowired val userService: UserService) : UsersApiDelegat
 
     }
 
-    @PreAuthorize("@guard.isSameUser(authentication, #username)")
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
     override fun updateUserProfileImage(
-        username: String,
+        userId: UUID,
         body: ByteArray,
     ): ResponseEntity<UpdateUserProfileImage200Response> {
         return try {
-            val images = userService.updateUserProfileImage(username, body)
+            val images = userService.updateUserProfileImage(userId, body)
             return ResponseEntity.ok(images)
         } catch (e: UserNotFoundException) {
             ResponseEntity.notFound().build()

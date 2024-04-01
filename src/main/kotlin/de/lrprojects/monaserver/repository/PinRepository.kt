@@ -14,7 +14,7 @@ import java.util.*
 
 @Repository
 @Transactional
-interface PinRepository : CrudRepository<Pin, Long> {
+interface PinRepository : CrudRepository<Pin, UUID> {
 
     @Query(
         value = "SELECT p.*" +
@@ -30,7 +30,7 @@ interface PinRepository : CrudRepository<Pin, Long> {
                 "AND p.is_deleted = false",
         nativeQuery = true
     )
-    fun findPinsOfUserInIds(username: String, currentUsername: String, ids: String): MutableList<Pin>
+    fun findPinsOfUserInIds(userId: UUID, currentUserId: UUID, ids: String): MutableList<Pin>
 
     @Query(
         value = "SELECT p.*" +
@@ -46,7 +46,7 @@ interface PinRepository : CrudRepository<Pin, Long> {
                 "AND p.is_deleted = false",
         nativeQuery = true
     )
-    fun findPinsOfUserAndGroup(username: String, currentUsername: String, groupId: Long): MutableList<Pin>
+    fun findPinsOfUserAndGroup(userId: UUID, currentUserId: UUID, groupId: UUID): MutableList<Pin>
 
     @Query(
         value = "SELECT p.*" +
@@ -63,7 +63,7 @@ interface PinRepository : CrudRepository<Pin, Long> {
                 "ORDER BY p.creation_date DESC",
         nativeQuery = true
     )
-    fun findPinsByGroupAndDate(currentUsername: String, groupId: Long, date: OffsetDateTime): MutableList<Pin>
+    fun findPinsByGroupAndDate(currentUserId: UUID, groupId: UUID, date: OffsetDateTime): MutableList<Pin>
 
 
     @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creation_user FROM pins p " +
@@ -78,9 +78,9 @@ interface PinRepository : CrudRepository<Pin, Long> {
             " AND ( cast(:groupId as bigint) IS NULL OR gp.group_id = :groupId)" +
             " AND p.is_deleted = false", nativeQuery = true)
     fun getPinsFromIds(
-        @Param("ids") listOfIds: Array<Long>?,
-        @Param("username") username: String?,
-        @Param("groupId") groupId: Long?,
+        @Param("ids") listOfIds: Array<UUID>?,
+        @Param("username") userId: UUID?,
+        @Param("groupId") groupId: UUID?,
         @Param("currentUsername") currentUsername: String
     ) : List<Array<Any>>
 
@@ -95,9 +95,9 @@ interface PinRepository : CrudRepository<Pin, Long> {
             " AND ( cast(:username as text) IS NULL OR p.creation_user = :username )" +
             " AND ( cast(:groupId as bigint) IS NULL OR gp.group_id = :groupId)" +
             " AND p.is_deleted = false", nativeQuery = true)
-    fun getImagesFromIds(@Param("ids") listOfIds: Array<Long>?,
-                         @Param("username") username: String?,
-                         @Param("groupId") groupId: Long?,
+    fun getImagesFromIds(@Param("ids") listOfIds: Array<UUID>?,
+                         @Param("username") userId: UUID?,
+                         @Param("groupId") groupId: UUID?,
                          @Param("currentUsername") currentUsername: String
     ) :  List<Array<Any>>
 

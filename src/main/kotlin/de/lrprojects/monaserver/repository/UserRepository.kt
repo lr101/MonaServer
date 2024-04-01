@@ -5,11 +5,13 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.stereotype.Repository
+import java.io.ObjectOutput
 import java.util.*
 
 
 @Repository
-interface UserRepository : CrudRepository<User, String> {
+interface UserRepository : CrudRepository<User, UUID> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
-    fun findByUsernameAndCode(username: String, code: String): Optional<User>
+    fun findByIdAndCode(id: UUID, code: String): Optional<User>
+    fun findByUsername(username: String): Optional<User>
 }

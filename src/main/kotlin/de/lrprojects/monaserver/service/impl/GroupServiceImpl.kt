@@ -2,21 +2,19 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.converter.toGroupModel
-import de.lrprojects.monaserver.dto.toSmallGroup
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
-import de.lrprojects.monaserver.helper.StringHelper
 import de.lrprojects.monaserver.model.*
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
-import de.lrprojects.monaserver.repository.PinRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.sql.SQLException
+import java.util.*
 import kotlin.jvm.optionals.getOrElse
 
 @Service
@@ -46,62 +44,62 @@ class GroupServiceImpl (
     }
 
     @Throws(SQLException::class)
-    override fun deleteGroup(groupId: Long) {
+    override fun deleteGroup(groupId: UUID) {
         groupRepository.deleteById(groupId)
     }
 
     @Throws(EntityNotFoundException::class)
-    override fun getGroup(groupId: Long): de.lrprojects.monaserver.entity.Group {
+    override fun getGroup(groupId: UUID): de.lrprojects.monaserver.entity.Group {
         return  groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
     }
 
     @Throws(EntityNotFoundException::class)
-    override fun getGroupAdmin(groupId: Long): String {
+    override fun getGroupAdmin(groupId: UUID): String {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.groupAdmin?.username ?: throw EntityNotFoundException("Admin not found")
     }
 
     @Throws(EntityNotFoundException::class)
-    override fun getGroupDescription(groupId: Long): String {
+    override fun getGroupDescription(groupId: UUID): String {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.description.orEmpty()
     }
 
-    override fun getGroupInviteUrl(groupId: Long): String? {
+    override fun getGroupInviteUrl(groupId: UUID): String? {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.inviteUrl
     }
 
-    override fun getGroupLink(groupId: Long): String? {
+    override fun getGroupLink(groupId: UUID): String? {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.link
     }
 
-    override fun getGroupPinImage(groupId: Long): ByteArray {
+    override fun getGroupPinImage(groupId: UUID): ByteArray {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.pinImage!!
     }
 
-    override fun getGroupProfileImage(groupId: Long): ByteArray {
+    override fun getGroupProfileImage(groupId: UUID): ByteArray {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         return group.profileImage!!
     }
 
-    override fun getGroupsByIds(ids: List<Long>?, search: String?, withUser: Boolean?, username: String?): List<GroupSmall> {
-        if ((withUser != null && username == null) || (withUser == null && username != null)) throw AssertionError("A username must be set when withUser is used")
+    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?): List<GroupSmall> {
+        if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertionError("A username must be set when withUser is used")
         return when (withUser) {
             null -> groupRepository.searchGroups(
                 ids?.toTypedArray(), search).map { r -> r.convertToGroupSmall() }
-            true -> groupRepository.searchInUserGroup(username!!, search,
+            true -> groupRepository.searchInUserGroup(userId!!, search,
                 ids?.toTypedArray()).map { r -> r.convertToGroupSmall() }
-            false -> groupRepository.searchInNotUserGroup(username!!, search,
+            false -> groupRepository.searchInNotUserGroup(userId!!, search,
                 ids?.toTypedArray()).map { r -> r.convertToGroupSmall() }
         }
     }
@@ -109,7 +107,7 @@ class GroupServiceImpl (
 
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
-    override fun updateGroup(groupId: Long, updateGroup: UpdateGroup): Group {
+    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroup): Group {
         var group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         updateGroup.name?.let { group.name = updateGroup.name }
@@ -130,7 +128,7 @@ class GroupServiceImpl (
         return group.toGroupModel()
     }
 
-    override fun getGroupOfPin(pinId: Long): de.lrprojects.monaserver.entity.Group {
+    override fun getGroupOfPin(pinId: UUID): de.lrprojects.monaserver.entity.Group {
         return groupRepository.findByPin(pinId)
     }
 }

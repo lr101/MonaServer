@@ -15,7 +15,7 @@ class MyUserDetailsService(@Autowired var userRepository: UserRepository) : User
 
     @Throws(UsernameNotFoundException::class)
     override fun loadUserByUsername(username: String): UserDetails {
-        val userRes: Optional<User> = userRepository.findById(username)
+        val userRes: Optional<User> = userRepository.findByUsername(username)
         if (userRes.isEmpty) throw UsernameNotFoundException("Could not findUser with username = $username")
         val user: User = userRes.get()
         return org.springframework.security.core.userdetails.User(

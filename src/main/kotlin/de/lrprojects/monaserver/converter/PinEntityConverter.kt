@@ -17,7 +17,7 @@ fun Pin.toPinModel() = de.lrprojects.monaserver.model.Pin(
     this.creationDate?.toInstant()?.atOffset(ZoneOffset.UTC),
     this.latitude.toBigDecimal(),
     this.longitude.toBigDecimal(),
-    this.user?.username
+    this.user?.id
 )
 
 fun Pin.toPinWithOptionalImage(image: ByteArray?) : PinWithOptionalImage{
@@ -26,7 +26,7 @@ fun Pin.toPinWithOptionalImage(image: ByteArray?) : PinWithOptionalImage{
         this.creationDate?.toInstant()?.atOffset(ZoneOffset.UTC),
         this.latitude.toBigDecimal(),
         this.longitude.toBigDecimal(),
-        this.user?.username,
+        this.user?.id,
     )
     pinWithOptionalImage.image = image
     return pinWithOptionalImage

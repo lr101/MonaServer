@@ -2,12 +2,15 @@ package de.lrprojects.monaserver.security
 
 import de.lrprojects.monaserver.model.Visibility
 import de.lrprojects.monaserver.repository.GroupRepository
+import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver.service.api.UserService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.core.Authentication
 import org.springframework.stereotype.Component
+import java.util.*
 
 
 @Component
@@ -15,21 +18,23 @@ class Guard (
     @Autowired val memberService: MemberService,
     @Autowired val groupService: GroupService,
     @Autowired val groupRepository: GroupRepository,
-    @Autowired val pinService: PinService
+    @Autowired val pinService: PinService,
+    @Autowired val userRepository: UserRepository
 ){
 
-    fun isGroupVisible(authentication: Authentication, groupId: Long): Boolean {
+    fun isGroupVisible(authentication: Authentication, groupId: UUID): Boolean {
         val name = authentication.name
         return try {
             val result = groupService.getGroup(groupId)
-            result.visibility == Visibility.NUMBER_0.value || memberService.getMembers(groupId).any{ it.username.equals(name)}
+            val user = userRepository.findByUsername(name)
+            result.visibility == Visibility.NUMBER_0.value || memberService.getMembers(groupId).any{ user.get().id == it.userId}
         } catch (e: Exception) {
             false
         }
     }
 
 
-    fun isGroupAdmin(authentication: Authentication, groupId: Long): Boolean {
+    fun isGroupAdmin(authentication: Authentication, groupId: UUID): Boolean {
         val name = authentication.name
         return try {
             val result = groupService.getGroupAdmin(groupId)
@@ -39,10 +44,11 @@ class Guard (
         }
     }
 
-    fun isGroupMember(authentication: Authentication, groupId: Long): Boolean {
+    fun isGroupMember(authentication: Authentication, groupId: UUID): Boolean {
         val name = authentication.name
         return try {
-            return memberService.getMembers(groupId).any { e -> e.username == name }
+            val user = userRepository.findByUsername(name)
+            return memberService.getMembers(groupId).any { e -> e.userId == user.get().id }
         } catch (e: Exception) {
             false
         }
@@ -56,7 +62,7 @@ class Guard (
         }
     }
 
-    fun isPinGroupAdmin(authentication: Authentication, pinId: Long): Boolean {
+    fun isPinGroupAdmin(authentication: Authentication, pinId: UUID): Boolean {
         val name = authentication.name
         return try {
             val result = groupService.getGroupOfPin(pinId)
@@ -66,7 +72,7 @@ class Guard (
         }
     }
 
-    fun isPinGroupMember(authentication: Authentication, pinId: Long): Boolean {
+    fun isPinGroupMember(authentication: Authentication, pinId: UUID): Boolean {
         val name = authentication.name
         return try {
             val result = groupRepository.getGroupMembersByPinId(pinId)
@@ -76,7 +82,7 @@ class Guard (
         }
     }
 
-    fun isPinPublicOrMember(authentication: Authentication, pinId: Long) : Boolean {
+    fun isPinPublicOrMember(authentication: Authentication, pinId: UUID) : Boolean {
         return try {
             return isPinGroupMember(authentication, pinId) || groupService.getGroupOfPin(pinId).visibility == 0
         } catch (e: Exception) {
@@ -84,7 +90,7 @@ class Guard (
         }
     }
 
-    fun isPinsPublicOrMember(authentication: Authentication, ids: MutableList<Long>?) : Boolean {
+    fun isPinsPublicOrMember(authentication: Authentication, ids: MutableList<UUID>?) : Boolean {
         return try {
             ids?.all { isPinPublicOrMember(authentication, it)}.let { true }
         } catch (e: Exception) {
@@ -92,7 +98,7 @@ class Guard (
         }
     }
 
-    fun isPinCreator(authentication: Authentication, pinId: Long): Boolean {
+    fun isPinCreator(authentication: Authentication, pinId: UUID): Boolean {
         val name = authentication.name
         return try {
             val result = pinService.getPin(pinId)

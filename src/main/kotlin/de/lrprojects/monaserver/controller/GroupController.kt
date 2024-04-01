@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
 import java.lang.AssertionError
+import java.util.*
 
 @Component
 class GroupController (@Autowired val groupService: GroupService) : GroupsApiDelegate {
@@ -44,7 +45,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
    @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteGroup(groupId: Long): ResponseEntity<Void> {
+    override fun deleteGroup(groupId: UUID): ResponseEntity<Void> {
         return try {
             groupService.deleteGroup(groupId)
             ResponseEntity.ok().build()
@@ -55,7 +56,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
         }
     }
 
-    override fun getGroup(groupId: Long): ResponseEntity<GroupSmall> {
+    override fun getGroup(groupId: UUID): ResponseEntity<GroupSmall> {
         return try {
             val result = groupService.getGroup(groupId)
             ResponseEntity.ok(result.convertToGroupSmall())
@@ -67,7 +68,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupAdmin(groupId: Long): ResponseEntity<String> {
+    override fun getGroupAdmin(groupId: UUID): ResponseEntity<String> {
         return try {
             val result = groupService.getGroupAdmin(groupId)
             ResponseEntity.ok(result)
@@ -79,7 +80,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupDescription(groupId: Long): ResponseEntity<String> {
+    override fun getGroupDescription(groupId: UUID): ResponseEntity<String> {
         return try {
             val result = groupService.getGroupDescription(groupId)
             ResponseEntity.ok(result)
@@ -91,13 +92,13 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     override fun getGroupsByIds(
-        ids: MutableList<Long>?,
+        ids: MutableList<UUID>?,
         search: String?,
-        username: String?,
+        userId: UUID?,
         withUser: Boolean?
     ): ResponseEntity<MutableList<GroupSmall>>? {
         return try {
-            val result = groupService.getGroupsByIds(ids, search, withUser, username).toMutableList()
+            val result = groupService.getGroupsByIds(ids, search, withUser, userId).toMutableList()
             ResponseEntity.ok(result)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
@@ -109,7 +110,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupInviteUrl(groupId: Long): ResponseEntity<String> {
+    override fun getGroupInviteUrl(groupId: UUID): ResponseEntity<String> {
         return try {
             val result = groupService.getGroupInviteUrl(groupId)
             ResponseEntity.ok(result)
@@ -121,7 +122,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupLink(groupId: Long): ResponseEntity<String> {
+    override fun getGroupLink(groupId: UUID): ResponseEntity<String> {
         return try {
             val result = groupService.getGroupLink(groupId)
             ResponseEntity.ok(result)
@@ -133,7 +134,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupPinImage(groupId: Long): ResponseEntity<ByteArray> {
+    override fun getGroupPinImage(groupId: UUID): ResponseEntity<ByteArray> {
         return try {
             val result = groupService.getGroupPinImage(groupId)
             ResponseEntity.ok(result)
@@ -144,7 +145,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
         }
     }
 
-    override fun getGroupProfileImage(groupId: Long): ResponseEntity<ByteArray> {
+    override fun getGroupProfileImage(groupId: UUID): ResponseEntity<ByteArray> {
         return try {
             val result = groupService.getGroupProfileImage(groupId)
             ResponseEntity.ok(result)
@@ -156,7 +157,7 @@ class GroupController (@Autowired val groupService: GroupService) : GroupsApiDel
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun updateGroup(groupId: Long, updateGroup: UpdateGroup): ResponseEntity<Group> {
+    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroup): ResponseEntity<Group> {
         return try {
             val result = groupService.updateGroup(groupId, updateGroup)
             ResponseEntity.ok(result)

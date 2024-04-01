@@ -2,7 +2,6 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
@@ -17,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 import kotlin.jvm.Throws
 
 @Service
@@ -27,13 +27,13 @@ class MemberServiceImpl constructor(
 ): MemberService {
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class, ComparisonException::class)
-    override fun addMember(username: String, groupId: Long, inviteUrl: String?): Group {
+    override fun addMember(userId: UUID, groupId: UUID, inviteUrl: String?): Group {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
 
 
         if (group.visibility == 0 || group.inviteUrl == inviteUrl) {
-            val user = userRepository.findById(username)
+            val user = userRepository.findById(userId)
                 .orElseThrow { UserNotFoundException("User not found") }
             if (group.members.contains(user)) {
                 throw UserExistsException("User is already a member")
@@ -49,21 +49,21 @@ class MemberServiceImpl constructor(
     }
 
     @Throws(EntityNotFoundException::class)
-    override fun getMembers(groupId: Long): List<Member> {
+    override fun getMembers(groupId: UUID): List<Member> {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.members.map { e -> Member(e.username!!) }
+        return group.members.map { e -> Member(e.id) }
     }
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
-    override fun deleteMember(username: String, groupId: Long) {
+    override fun deleteMember(userId: UUID, groupId: UUID) {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
 
-        val user = userRepository.findById(username)
+        val user = userRepository.findById(userId)
             .orElseThrow { UserNotFoundException("User does not exist") }
 
-        user.groups.find { it.groupId == groupId }
+        user.groups.find { it.id == groupId }
             ?: throw UserNotFoundException("Member not found in the group")
 
         if (user == group.groupAdmin && group.members.size == 1) {
@@ -78,20 +78,20 @@ class MemberServiceImpl constructor(
     }
 
     @Throws(UserNotFoundException::class)
-    override fun getGroupsOfUser(username: String): List<GroupSmall> {
-        val user = userRepository.findById(username).orElseThrow { UserNotFoundException("User not found") }
+    override fun getGroupsOfUser(userId: UUID): List<GroupSmall> {
+        val user = userRepository.findById(userId).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
         return groupRepository.findAllByMembersIn(mutableSetOf(users)).map { group: Group -> group.convertToGroupSmall() }
     }
 
-    override fun getGroupOfUserOrPublic(username: String): List<GroupSmall> {
-        val user = userRepository.findById(username).orElseThrow { UserNotFoundException("User not found") }
+    override fun getGroupOfUserOrPublic(userId: UUID): List<GroupSmall> {
+        val user = userRepository.findById(userId).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
         return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0).map { group: Group -> group.convertToGroupSmall() }
     }
 
     override fun isInGroup(group: Group): Boolean {
-        val user = userRepository.findById(SecurityContextHolder.getContext().authentication.name).orElseThrow { UserNotFoundException("User not found") }
+        val user = userRepository.findByUsername(SecurityContextHolder.getContext().authentication.name).orElseThrow { UserNotFoundException("User not found") }
         return group.members.contains(user);
     }
 

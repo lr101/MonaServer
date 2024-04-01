@@ -22,13 +22,13 @@ class AuthServiceImpl constructor(
 
     @Throws(UserExistsException::class)
     override fun signup(username: String, password: String, email: String): String {
-        val user = User()
+        var user = User()
         user.email = email
         user.username = username
         user.password = password
-        if (userRepository.findById(username).isEmpty) {
-            user.token = tokenHelper.generateToken(username, password)
-            userRepository.save(user)
+        if (userRepository.findByUsername(username).isEmpty) {
+            user = userRepository.save(user)
+            user.token = tokenHelper.generateToken(username, password, user.id)
         } else {
             throw UserExistsException("user with username " + username + "already exists")
         }
@@ -38,11 +38,10 @@ class AuthServiceImpl constructor(
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
     override fun login(username: String, password: String): String {
-        val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
         if (user.password.equals(password)) {
-            if (user.token.isNullOrEmpty()) {
-                user.token = tokenHelper.generateToken(user.username, user.password)
-            }
+            user.token = tokenHelper.generateToken(user.username, user.password, user.id)
+            userRepository.save(user)
             return user.token!!
         } else {
             throw WrongPasswordException("password don not match")
@@ -52,7 +51,7 @@ class AuthServiceImpl constructor(
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)
     override fun recoverPassword(username: String) {
-        val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
         var resetUrl: String
         var attempts = 0
 
@@ -76,7 +75,7 @@ class AuthServiceImpl constructor(
 
     @Throws(AttributeDoesNotExist::class, MailException::class)
     override fun requestDeleteCode(username: String) {
-        val user = userRepository.findById(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
 
         if (user.email.isNullOrEmpty()) {
             throw AttributeDoesNotExist("No email address exists")

@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.io.IOException
+import java.util.*
 
 
 @Component
@@ -33,7 +34,7 @@ class JWTFilter (
         if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7)
             log.info(request.requestURI)
-            val m: Pair<String, String?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
+            val m: Triple<String, String?, UUID?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
             val userDetails = userDetailsService.loadUserByUsername(m.first)
             val authToken = UsernamePasswordAuthenticationToken(
                 m.first,
@@ -42,6 +43,7 @@ class JWTFilter (
             )
             authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
             SecurityContextHolder.getContext().authentication = authToken
+
             if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
         }
         filterChain.doFilter(request, response)

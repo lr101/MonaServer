@@ -2,39 +2,36 @@ package de.lrprojects.monaserver.entity
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import jakarta.persistence.*
+import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Pattern
+import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.SQLDelete
 import org.hibernate.annotations.SQLRestriction
+import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.validator.constraints.Length
-import java.util.HashSet
+import java.util.*
 
 @Entity
 @Table(name = "users")
-@SQLDelete(sql = "UPDATE pins SET is_deleted = true, username = null WHERE user_id=?")
+@SQLDelete(sql = "UPDATE pins SET is_deleted = true, username = null WHERE id=?")
 @SQLRestriction("is_deleted=false")
 open class User {
 
     @Id
-    @Column(name = "user_id", nullable = false)
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    open var id: Long? = null
+    @GeneratedValue
+    @Column(name = "id", nullable = false)
+    open var id: UUID? = null
 
     @Column(name = "username", unique = true)
     open var username: @Min(1) String? = null
 
-    //TODO add nullable = false when possible
     @Column(name = "password")
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    @Basic(fetch = FetchType.LAZY)
     open var password: @Min(1) String? = null
 
-    //TODO add nullable = false when possible
+    @Email
     @Column(name = "email")
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    @Basic(fetch = FetchType.LAZY)
-    open var email: @Pattern(regexp = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?)*$") String? =
-        null
+    open var email: String? = null
 
     //TODO add nullable = false when possible
     @Column(name = "token", unique = true, length = 500)
@@ -58,10 +55,20 @@ open class User {
     @Length(min = 6, max = 6)
     open var code: String? = null
 
+    @CreationTimestamp
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "creation_date")
+    open var createDate: Date? = null
+
+    @UpdateTimestamp
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "update_date")
+    open var updateDate: Date? = null
+
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
     @JoinTable(
         name = "members",
-        joinColumns = [JoinColumn(name = "member_id")],
+        joinColumns = [JoinColumn(name = "user_id")],
         inverseJoinColumns = [JoinColumn(name = "group_id")]
     )
     open var groups: MutableSet<Group> = mutableSetOf()

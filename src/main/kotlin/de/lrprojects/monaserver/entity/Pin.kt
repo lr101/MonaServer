@@ -1,8 +1,10 @@
 package de.lrprojects.monaserver.entity
 
 import jakarta.persistence.*
+import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.SQLDelete
 import org.hibernate.annotations.SQLRestriction
+import org.hibernate.annotations.UpdateTimestamp
 import java.util.*
 
 @Entity
@@ -10,11 +12,11 @@ import java.util.*
 @SQLDelete(sql = "UPDATE pins SET is_deleted = true WHERE id=?")
 @SQLRestriction("is_deleted=false")
 open class Pin {
-    @Column(name = "id", nullable = false)
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "pins_id_generator")
-    @SequenceGenerator(name = "pins_id_generator", sequenceName = "pins_id_seq", allocationSize = 1)
-    open var id: Long? = null
+    @GeneratedValue
+    @Column(name = "id", nullable = false)
+    open var id: UUID? = null
 
     @Column(name = "latitude", nullable = false)
     open var latitude = 0.0
@@ -23,10 +25,16 @@ open class Pin {
     open var longitude = 0.0
 
     @Column(name = "creation_date", nullable = false)
+    @Temporal(TemporalType.TIMESTAMP)
     open var creationDate: Date? = null
 
+    @UpdateTimestamp
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "update_date")
+    open var updateDate: Date? = null
+
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", referencedColumnName = "user_id")
+    @JoinColumn(name = "creator_id", referencedColumnName = "id")
     open var user: User? = null
 
     @Lob

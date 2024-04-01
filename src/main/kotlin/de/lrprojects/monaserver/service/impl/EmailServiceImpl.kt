@@ -72,9 +72,9 @@ class EmailServiceImpl constructor(
     override fun sendReportEmail(report: Report) {
         val to: String
         try {
-            to = userRepository.findById(report.username).get().email!!
+            to = userRepository.findById(report.userId).get().email!!
         } catch (_: Error) {
-            throw UserNotFoundException("User with username" + report.username + " could not be found")
+            throw UserNotFoundException("User with userId " + report.userId + " could not be found")
         }
         sendMail(report.message, to, report.report)
     }

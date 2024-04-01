@@ -42,11 +42,11 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ShortString'
-        - name: username
-          description: "this is the username used when withUser is set to true or false"
+        - name: userId
+          description: "this is the userId used when withUser is set to true or false"
           in: query
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
         - name: withUser
           description: "use false if user groups should be included and true if user groups should be excluded from search"
           in: query
@@ -387,12 +387,12 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/ID'
-        - name: username
+        - name: userId
           in: query
           required: true
-          description: username
+          description: id of user
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       requestBody:
         required: true
         content:
@@ -430,7 +430,7 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/v2/groups/{groupId}/members/{username}:
+  /api/v2/groups/{groupId}/members/{userId}:
     delete:
       operationId: deleteMemberFromGroup
       security:
@@ -444,12 +444,12 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/ID'
-        - name: username
+        - name: userId
           in: path
           required: true
-          description: username
+          description: userId
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       responses:
         '200':
           description: Deleted
@@ -473,7 +473,7 @@ paths:
         - name: username
           in: path
           required: true
-          description: username
+          description: userId
           schema:
             $ref: '#/components/schemas/ShortString'
       tags:
@@ -617,11 +617,11 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ID'
-        - name: username
+        - name: userId
           in: query
           description: Only pins of this user are returned
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
         - name: withImage
           in: query
           description: Describes if the images of the pins should be returned too
@@ -738,9 +738,9 @@ paths:
         '200':
           description: Successful response
           content:
-            text/plain:
+            application/json:
               schema:
-                $ref: '#/components/schemas/ShortString'
+                $ref: '#/components/schemas/UserInfo'
         404:
           description: Pin does not exist
           content:
@@ -789,20 +789,20 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Info'
-  /api/v2/users/{username}:
+  /api/v2/users/{userId}:
     put:
       operationId: updateUser
       security:
         - token: [ ]
-      summary: Update user information by username
+      summary: Update user information by userId
       tags:
         - users
       parameters:
-        - name: username
+        - name: userId
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       requestBody:
         required: true
         content:
@@ -826,15 +826,15 @@ paths:
       operationId: deleteUser
       security:
         - token: [ ]
-      summary: Delete a user by username
+      summary: Delete a user by userId
       tags:
         - users
       parameters:
-        - name: username
+        - name: userId
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
         - name: code
           in: query
           required: true
@@ -851,20 +851,20 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/v2/users/{username}/profile_picture_small:
+  /api/v2/users/{userId}/profile_picture_small:
     get:
       operationId: getUserProfileImageSmall
       security:
         - token: [ ]
-      summary: Get the small profile picture of a user by username
+      summary: Get the small profile picture of a user by userId
       tags:
         - users
       parameters:
-        - name: username
+        - name: userId
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       responses:
         '200':
           description: Successful response
@@ -878,20 +878,20 @@ paths:
             text/plain; charset=utf-8:
               schema:
                 $ref: '#/components/schemas/LongString'
-  /api/v2/users/{username}/profile_picture:
+  /api/v2/users/{userId}/profile_picture:
     get:
       operationId: getUserProfileImage
       security:
         - token: [ ]
-      summary: Get the profile picture of a user by username
+      summary: Get the profile picture of a user by userId
       tags:
         - users
       parameters:
-        - name: username
+        - name: userId
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       responses:
         '200':
           description: Successful response
@@ -909,15 +909,15 @@ paths:
       operationId: updateUserProfileImage
       security:
         - token: [ ]
-      summary: Update the profile picture of a user by username
+      summary: Update the profile picture of a user by userId
       tags:
         - users
       parameters:
-        - name: username
+        - name: userId
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ShortString'
+            $ref: '#/components/schemas/ID'
       requestBody:
         required: true
         content:
@@ -960,9 +960,8 @@ components:
 
   schemas:
     ID:
-      type: integer
-      format: int64
-      minimum: 0
+      type: string
+      format: uuid
     ShortString:
       type: string
       maxLength: 256
@@ -992,12 +991,12 @@ components:
     Report:
       type: object
       required:
-        - username
+        - userId
         - report
         - message
       properties:
-        username:
-          $ref: '#/components/schemas/ShortString'
+        userId:
+          $ref: '#/components/schemas/ID'
         report:
           $ref: '#/components/schemas/ShortString'
         message:
@@ -1015,7 +1014,7 @@ components:
         visibility:
           $ref: '#/components/schemas/Visibility'
         groupAdmin:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
         link:
           $ref: '#/components/schemas/ShortString'
     CreateGroup:
@@ -1037,7 +1036,7 @@ components:
         visibility:
           $ref: '#/components/schemas/Visibility'
         groupAdmin:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
         link:
           $ref: '#/components/schemas/ShortString'
     GroupSmall:
@@ -1058,7 +1057,7 @@ components:
         visibility:
           $ref: '#/components/schemas/Visibility'
         group_admin:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
         link:
           $ref: '#/components/schemas/ShortString'
         lastUpdated:
@@ -1086,7 +1085,7 @@ components:
         visibility:
           $ref: '#/components/schemas/Visibility'
         group_admin:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
         link:
           $ref: '#/components/schemas/ShortString'
         lastUpdated:
@@ -1109,7 +1108,7 @@ components:
         longitude:
           $ref: '#/components/schemas/Longitude'
         creationUser:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
     PinWithOptionalImage:
       type: object
       required:
@@ -1128,16 +1127,16 @@ components:
         longitude:
           $ref: '#/components/schemas/Longitude'
         creationUser:
-          $ref: '#/components/schemas/ShortString'
+          $ref: '#/components/schemas/ID'
         image:
           $ref: '#/components/schemas/Image'
     Member:
       required:
-        - username
+        - userId
       type: object
       properties:
-        username:
-          $ref: '#/components/schemas/ShortString'
+        userId:
+          $ref: '#/components/schemas/ID'
     Info:
       required:
         - num-groups
@@ -1146,11 +1145,11 @@ components:
       type: object
       properties:
         num-users:
-          $ref: '#/components/schemas/ID'
+          type: number
         num-groups:
-          $ref: '#/components/schemas/ID'
+          type: number
         num-pins:
-          $ref: '#/components/schemas/ID'
+          type: number
     PinInfo:
       required:
         - group
@@ -1163,7 +1162,7 @@ components:
           $ref: '#/components/schemas/GroupSmall'
     NewPin:
       required:
-        - username
+        - userId
         - longitude
         - latitude
         - groupId
@@ -1176,8 +1175,8 @@ components:
           $ref: '#/components/schemas/Latitude'
         longitude:
           $ref: '#/components/schemas/Longitude'
-        username:
-          $ref: '#/components/schemas/ShortString'
+        userId:
+          $ref: '#/components/schemas/ID'
         groupId:
           $ref: '#/components/schemas/ID'
         creationDate:
@@ -1199,6 +1198,13 @@ components:
           $ref: '#/components/schemas/Email'
         password:
           $ref: '#/components/schemas/ShortString'
+    UserInfo:
+      type: object
+      properties:
+        username:
+          $ref: '#/components/schemas/ShortString'
+        userId:
+          $ref: '#/components/schemas/ID'
     User:
       type: object
       properties:

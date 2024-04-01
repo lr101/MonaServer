@@ -1,95 +1,90 @@
-create table if not exists users
+create table if not exists  users
 (
-    username              varchar(255) not null
-        primary key,
+    id                    uuid                  not null
+        constraint t_users_pkey
+            primary key,
+    username              varchar(255)
+        constraint unique_username_constraint
+            unique,
     email                 varchar(255),
     password              varchar(255),
     profile_picture       oid,
     profile_picture_small bytea,
+    update_date           timestamp(6),
+    creation_date         timestamp(6),
     reset_password_url    varchar(255)
-        constraint uk_kaanplsqmebuhfs8tlv07hf0r
+        constraint unique_reset_url_constraint
             unique,
     token                 varchar(500)
-        constraint uk_af44yue4uh61eqwe6jjyqwvla
+        constraint unique_token_constraint
             unique,
-    code                  varchar(6)
+    code                  varchar(6),
+    is_deleted            boolean default false not null
 );
 
-create table if not exists groups
+create table if not exists  groups
 (
-    group_id      bigint      not null
-        primary key,
+    id            uuid                  not null
+        constraint t_groups_pkey
+            primary key,
     description   varchar(255),
     invite_url    varchar(255)
-        constraint uk_1a5xrytbgj6o6lknck6fmfuwh
+        constraint invite_constraint
             unique,
-    name          varchar(255) not null
-        constraint uk_8mf0is8024pqmwjxgldfe54l7
+    name          varchar(255)          not null
+        constraint name_constraint
             unique,
-    pin_image     bytea        not null,
-    profile_image oid          not null,
-    visibility    integer      not null,
-    group_admin   varchar(255) not null
-        constraint fka9d16foh70dh031qaipyt53om
-            references users(username),
+    pin_image     bytea                 not null,
+    profile_image oid                   not null,
+    visibility    integer               not null,
     link          varchar(255),
-    last_updated timestamp with time zone default current_timestamp
-);
-
-create table if not exists members
-(
-    group_id bigint      not null
-        constraint fk1jmeir47b7qcn2sd5m4txgfuw
-            references groups
-            on delete cascade,
-    username varchar(255) not null
-        constraint fkn0wccjg5nnc1fpme0tbskrqyk
+    creation_date timestamp(6),
+    update_date   timestamp(6),
+    is_deleted    boolean default false not null,
+    admin_id      uuid
+        constraint fk_groups_group_admin
             references users
-            on update cascade on delete cascade,
-    primary key (group_id, username)
-);
-
-
-create table if not exists pins
-(
-    id            bigint          not null
-        primary key,
-    creation_date timestamp        not null,
-    latitude      double precision not null,
-    longitude     double precision not null,
-    creation_user varchar(255)
-        constraint fkcmfp4avd369iporoc0wul4wvf
-            references users
-            on update cascade on delete cascade,
-    last_updated timestamp with time zone default current_timestamp
-);
-
-create table if not exists groups_pins
-(
-    group_id bigint not null
-        constraint fk2konlwk65hd76jr0nhbxm0xef
-            references groups
-            on delete cascade,
-    id       bigint not null
-        constraint fkk30yjnc9woedfmvq8m30dk6n4
-            references pins
-            on delete cascade,
-    primary key (group_id, id)
-);
-
-
-create table if not exists monas
-(
-    id    bigint not null
-        primary key,
-    image oid     not null,
-    pin   bigint not null
-        constraint fkb7adbn9x8bxhfarvx3nxvcxbn
-            references pins
             on update cascade on delete cascade
 );
 
-create sequence if not exists group_id_seq
-    increment by 1;
-create sequence if not exists pins_id_seq
-    increment by 1;
+create table if not exists  members
+(
+    group_id uuid not null
+        constraint fk_members_group_id
+            references groups
+            on delete cascade,
+    user_id  uuid
+        constraint fk_members_username
+            references users
+            on update cascade on delete cascade
+);
+
+create table if not exists  pins
+(
+    id            uuid                  not null
+        constraint t_pins_pkey
+            primary key,
+    creation_date timestamp(6)          not null,
+    latitude      double precision      not null,
+    longitude     double precision      not null,
+    update_date   timestamp(6),
+    image         oid,
+    is_deleted    boolean default false not null,
+    creator_id    uuid
+        constraint fk_pins_creation_user
+            references users
+            on update cascade on delete cascade
+);
+
+create table if not exists  groups_pins
+(
+    group_id uuid not null
+        constraint fk_group_pin_group_id
+            references groups
+            on delete cascade,
+    pin_id   uuid not null
+        constraint fk_group_in_pin_id
+            references pins
+            on delete cascade
+);
+
