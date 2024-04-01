@@ -14,7 +14,7 @@ import java.util.*
 
 @Entity
 @Table(name = "users")
-@SQLDelete(sql = "UPDATE pins SET is_deleted = true, username = null WHERE id=?")
+@SQLDelete(sql = "UPDATE pins SET is_deleted = true, username = null, password = null, email = null, token = null, reset_password_url = null, profile_picture = null, profile_picture_small = null, code = null WHERE id=?")
 @SQLRestriction("is_deleted=false")
 open class User {
 

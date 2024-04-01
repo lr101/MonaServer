@@ -31,12 +31,12 @@ create table if not exists  groups
     invite_url    varchar(255)
         constraint invite_constraint
             unique,
-    name          varchar(255)          not null
+    name          varchar(255)
         constraint name_constraint
             unique,
-    pin_image     bytea                 not null,
-    profile_image oid                   not null,
-    visibility    integer               not null,
+    pin_image     bytea                 ,
+    profile_image oid                   ,
+    visibility    integer               ,
     link          varchar(255),
     creation_date timestamp(6),
     update_date   timestamp(6),
@@ -64,9 +64,9 @@ create table if not exists  pins
     id            uuid                  not null
         constraint t_pins_pkey
             primary key,
-    creation_date timestamp(6)          not null,
-    latitude      double precision      not null,
-    longitude     double precision      not null,
+    creation_date timestamp(6)          ,
+    latitude      double precision      ,
+    longitude     double precision      ,
     update_date   timestamp(6),
     image         oid,
     is_deleted    boolean default false not null,

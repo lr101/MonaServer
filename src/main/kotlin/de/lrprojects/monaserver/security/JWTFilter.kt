@@ -31,20 +31,25 @@ class JWTFilter (
     ) {
         val authHeader: String? = request.getHeader("Authorization")
         val jwt: String
-        if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7)
-            log.info(request.requestURI)
-            val m: Triple<String, String?, UUID?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
-            val userDetails = userDetailsService.loadUserByUsername(m.first)
-            val authToken = UsernamePasswordAuthenticationToken(
-                m.first,
-                if (m.second != null || m.first == "lr") m.second else userDetails.password,
-                userDetails.authorities
-            )
-            authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-            SecurityContextHolder.getContext().authentication = authToken
+        try {
+            if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
+                jwt = authHeader.substring(7)
+                log.info(request.requestURI)
 
-            if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
+                    val m: Triple<String, String?, UUID?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
+                val userDetails = userDetailsService.loadUserByUsername(m.first)
+                val authToken = UsernamePasswordAuthenticationToken(
+                    m.first,
+                    if (m.second != null || m.first == "lr") m.second else userDetails.password,
+                    userDetails.authorities
+                )
+                authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                SecurityContextHolder.getContext().authentication = authToken
+
+                if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
+            }
+        } catch (e: Exception) {
+            log.warn("Unauthorized user token")
         }
         filterChain.doFilter(request, response)
     }

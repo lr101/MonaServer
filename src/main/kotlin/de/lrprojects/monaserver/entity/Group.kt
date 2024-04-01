@@ -10,7 +10,7 @@ import java.util.*
 
 @Entity
 @Table(name = "groups")
-@SQLDelete(sql = "UPDATE groups SET is_deleted = true WHERE id=?")
+@SQLDelete(sql = "UPDATE groups SET is_deleted = true, name = null, invite_url = null, updated_date = current_timestamp WHERE id=?")
 @SQLRestriction("is_deleted=false")
 open class Group {
 

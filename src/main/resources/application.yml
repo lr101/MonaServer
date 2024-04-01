@@ -48,4 +48,3 @@ springdoc:
     path: /public/api-docs
   swagger-ui:
     path: /public/swagger-ui.html
-  enable-kotlin: false
