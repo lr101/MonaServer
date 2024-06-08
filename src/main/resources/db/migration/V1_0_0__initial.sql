@@ -49,6 +49,7 @@ create table if not exists  groups
 
 create table if not exists  members
 (
+    id            UUID NOT NULL PRIMARY KEY,
     group_id uuid not null
         constraint fk_members_group_id
             references groups
@@ -56,7 +57,10 @@ create table if not exists  members
     user_id  uuid
         constraint fk_members_username
             references users
-            on update cascade on delete cascade
+            on update cascade on delete cascade,
+    creation_date timestamp(6),
+    update_date   timestamp(6),
+    is_deleted    boolean default false not null
 );
 
 create table if not exists  pins

@@ -1,14 +1,13 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.service.api.UserService
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Controller
-import org.springframework.ui.Model;
+import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 
 @Controller
-class ViewController (@Autowired val userService: UserService) {
+class ViewController (private val userService: UserService) {
 
 
     @GetMapping("/public/recover/{url}")

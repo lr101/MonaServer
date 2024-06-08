@@ -1,6 +1,5 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.GroupsApi
 import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.excepetion.ImageNotSquareException
@@ -12,19 +11,14 @@ import de.lrprojects.monaserver.model.GroupSmall
 import de.lrprojects.monaserver.model.UpdateGroup
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
-import mu.KotlinLogging
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
-import java.lang.AssertionError
 import java.util.*
 
 @Component
-class GroupController (@Autowired val groupService: GroupService) : GroupsApiDelegate {
-
-    private val logger = KotlinLogging.logger {}
+class GroupController (private val groupService: GroupService) : GroupsApiDelegate {
 
     @PreAuthorize("hasAuthority('ADMIN') || @guard.isSameUser(authentication, #createGroup.getGroupAdmin())")
     override fun addGroup(createGroup: CreateGroup): ResponseEntity<Group> {

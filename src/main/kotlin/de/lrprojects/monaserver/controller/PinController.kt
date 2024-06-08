@@ -3,29 +3,26 @@ package de.lrprojects.monaserver.controller
 import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModel
 import de.lrprojects.monaserver.model.*
-import de.lrprojects.monaserver.service.api.GroupService
-import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
-import mu.KotlinLogging
-import org.springframework.beans.factory.annotation.Autowired
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import java.util.*
 
 
 @Component
 class PinController (
-    @Autowired val pinService: PinService,
-    @Autowired val monaService: MonaService,
-    @Autowired val memberService: MemberService
+    private val pinService: PinService,
+    private val monaService: MonaService,
 ) : PinsApiDelegate {
 
-    private val logger = KotlinLogging.logger {}
+    companion object {
+        private val logger = LoggerFactory.getLogger(this::class.java)
+    }
 
     @PreAuthorize("hasAuthority('ADMIN') " +
             "|| (@guard.isGroupMember(authentication, #newPin.groupId)" +

@@ -1,13 +1,11 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.UsersApi
 import de.lrprojects.monaserver.api.UsersApiDelegate
 import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
 import de.lrprojects.monaserver.model.User
 import de.lrprojects.monaserver.service.api.UserService
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
@@ -15,7 +13,7 @@ import java.util.*
 
 
 @Component
-class UserController (@Autowired val userService: UserService) : UsersApiDelegate {
+class UserController (private val userService: UserService) : UsersApiDelegate {
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
     override fun deleteUser(userId: UUID, code: Int): ResponseEntity<Void> {

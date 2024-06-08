@@ -1,6 +1,5 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.MembersApi
 import de.lrprojects.monaserver.api.MembersApiDelegate
 import de.lrprojects.monaserver.converter.toGroupModel
 import de.lrprojects.monaserver.excepetion.ComparisonException
@@ -12,8 +11,6 @@ import de.lrprojects.monaserver.model.JoinGroupRequest
 import de.lrprojects.monaserver.model.Member
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
-import mu.KotlinLogging
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -22,9 +19,7 @@ import java.util.*
 
 
 @Component
-class MemberController (@Autowired val memberService: MemberService) : MembersApiDelegate {
-
-    private val logger = KotlinLogging.logger {}
+class MemberController (private val memberService: MemberService) : MembersApiDelegate {
 
     override fun joinGroup(
         groupId: UUID,

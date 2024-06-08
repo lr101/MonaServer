@@ -1,21 +1,15 @@
 package de.lrprojects.monaserver.entity
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import jakarta.persistence.*
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
-import jakarta.validation.constraints.Pattern
 import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.SQLDelete
-import org.hibernate.annotations.SQLRestriction
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.validator.constraints.Length
 import java.util.*
 
 @Entity
 @Table(name = "users")
-@SQLDelete(sql = "UPDATE pins SET is_deleted = true, username = null, password = null, email = null, token = null, reset_password_url = null, profile_picture = null, profile_picture_small = null, code = null WHERE id=?")
-@SQLRestriction("is_deleted=false")
 open class User {
 
     @Id

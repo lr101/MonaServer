@@ -1,16 +1,11 @@
 package de.lrprojects.monaserver.entity
 
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.SQLDelete
-import org.hibernate.annotations.SQLRestriction
 import org.hibernate.annotations.UpdateTimestamp
 import java.util.*
 
 @Entity
 @Table(name = "pins")
-@SQLDelete(sql = "UPDATE pins SET is_deleted = true, update_date = current_timestamp, longitude = null, latitude = null, image = null  WHERE id=?")
-@SQLRestriction("is_deleted=false")
 open class Pin {
 
     @Id
