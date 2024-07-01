@@ -16,7 +16,7 @@ put:
     content:
       application/json:
         schema:
-          $ref: '../schemas/userRequestDto.yaml'
+          $ref: '../schemas/userUpdateDto.yaml'
   responses:
     '200':
       description: Update successfull
@@ -43,13 +43,12 @@ delete:
       required: true
       schema:
         $ref: '../parameters/id.yaml'
-    - name: code
-      in: query
-      required: true
-      schema:
-        type: integer
-        minLength: 6
-        maxLength: 6
+  requestBody:
+    content:
+      application/json:
+        schema:
+          $ref: '../parameters/code.yaml'
+
   responses:
     '200':
       description: Deleted

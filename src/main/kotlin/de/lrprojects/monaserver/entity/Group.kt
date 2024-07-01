@@ -29,7 +29,6 @@ open class Group {
     @Basic(fetch = FetchType.LAZY)
     open var description: String? = null
 
-    @Lob
     @Column(name = "group_profile", nullable = false, columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
     open var profileImage: ByteArray? = null

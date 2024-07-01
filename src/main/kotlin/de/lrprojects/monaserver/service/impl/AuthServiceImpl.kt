@@ -14,7 +14,6 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
-import kotlin.jvm.optionals.getOrElse
 
 @Service
 @Transactional
@@ -23,7 +22,7 @@ class AuthServiceImpl(
     private val tokenHelper: TokenHelper,
     private val emailService: EmailService,
     private val refreshTokenService: RefreshTokenService,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
 ) : AuthService{
 
     @Throws(UserExistsException::class)
@@ -45,7 +44,7 @@ class AuthServiceImpl(
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
     override fun login(username: String, password: String): TokenResponseDto {
-        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).orElseThrow { UserNotFoundException("user does not exist") }
         if (passwordEncoder.matches(password, user.password)) {
             throw WrongPasswordException("password is wrong")
         }
@@ -56,7 +55,7 @@ class AuthServiceImpl(
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)
     override fun recoverPassword(username: String) {
-        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).orElseThrow { UserNotFoundException("user does not exist") }
 
         if (user.email.isNullOrEmpty()) {
             throw AttributeDoesNotExist("No email address exists")
@@ -64,19 +63,20 @@ class AuthServiceImpl(
 
         user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(25)
         userRepository.save(user)
-        emailService.sendMail("Reset url at " + user.resetPasswordUrl, user.email!!, "Reset Password")
+        emailService.sendRecoveryMail(user.resetPasswordUrl!!, user.email!!)
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class)
     override fun requestDeleteCode(username: String) {
-        val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
+        val user = userRepository.findByUsername(username).orElseThrow { UserNotFoundException("user does not exist") }
 
         if (user.email.isNullOrEmpty()) {
             throw AttributeDoesNotExist("No email address exists")
         }
         user.code = SecurityHelper.generateSixDigitNumber().toString()
+        user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(25)
         userRepository.save(user)
-        emailService.sendMail("Reset url at " + user.code, user.email!!, "Delete Code")
+        emailService.sendDeleteCodeMail(user.username, user.code!!, user.email!!, user.resetPasswordUrl!!)
     }
 
     override fun refreshToken(token: UUID): TokenResponseDto {

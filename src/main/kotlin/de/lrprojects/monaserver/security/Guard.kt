@@ -6,7 +6,6 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.PinService
-import de.lrprojects.monaserver.service.api.UserService
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.core.Authentication
 import org.springframework.stereotype.Component
@@ -54,9 +53,10 @@ class Guard (
         }
     }
 
-    fun isSameUser(authentication: Authentication, username: String): Boolean {
+    fun isSameUser(authentication: Authentication, username: UUID): Boolean {
         return try {
-            return username == authentication.name
+            val user = userRepository.findById(username).get()
+            return user.username == authentication.name
         } catch (e: Exception) {
             false
         }

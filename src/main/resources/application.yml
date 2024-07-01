@@ -1,6 +1,9 @@
-email:
-  from: ${EMAIL}
-  psw: ${EMAIL_PSW}
+mail:
+  from: ${MAIL_FROM}
+  host: ${MAIL_HOST}
+  password: ${MAIL_PASSWORD}
+  port: ${MAIL_PORT}
+  protocol: ${MAIL_PROTOCOL}
 
 
 server:
@@ -13,6 +16,7 @@ server:
   error:
     whitelabel:
       enabled: false
+    include-stacktrace: never
 spring:
   config:
     import: optional:file:.env[.properties]
@@ -25,9 +29,6 @@ spring:
     database: postgresql
     properties:
       hibernate:
-        jdbc:
-          lob:
-            non_contextual_creation: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
   datasource:
     url: ${DB_URL}
@@ -51,6 +52,8 @@ springdoc:
   swagger-ui:
     path: /public/swagger-ui.html
 token:
-  access-token-exploration: 600000
-  refresh-token-exploration: 86400000
+  access-token-exploration: 900         # 15 min
+  refresh-token-exploration: 31556952   # 1 year
   secret: ${SECRET}
+app:
+  url: ${APP_URL}

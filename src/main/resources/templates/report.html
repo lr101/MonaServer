@@ -155,10 +155,10 @@ table, td { color: #000000; } #u_body a { color: #0000ee; text-decoration: under
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px 10px 50px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-text-align v-font-size" style="font-size: 14px; line-height: 140%; text-align: center; word-wrap: break-word;">
-    <p style="line-height: 140%;">Send by: <%=username%></p>
-    <p style="line-height: 140%;">Email of user: <%=email%></p>
-    <p style="line-height: 140%;">Reported content/user: <%=content%></p>
-    <p style="line-height: 140%;">Message: <%=message%></p>
+    <p style="line-height: 140%;" th:text="'Send by: ' + ${username}"></p>
+    <p style="line-height: 140%;" th:text="'Email of user: ' + ${email}"></p>
+    <p style="line-height: 140%;" th:text="'Reported content/user: ' + ${content}"></p>
+    <p style="line-height: 140%;" th:text="'Message: ' + ${message}"></p>
   </div>
 
       </td>

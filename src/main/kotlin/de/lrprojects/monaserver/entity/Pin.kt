@@ -32,7 +32,6 @@ open class Pin {
     @JoinColumn(name = "creator_id", referencedColumnName = "id")
     open var user: User? = null
 
-    @Lob
     @Column(name = "pin_image", nullable = false, columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
     open var image : ByteArray? = null

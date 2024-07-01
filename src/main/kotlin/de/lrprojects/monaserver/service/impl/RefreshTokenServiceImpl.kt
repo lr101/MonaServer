@@ -5,12 +5,14 @@ import de.lrprojects.monaserver.entity.RefreshToken
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.repository.RefreshTokenRepository
 import de.lrprojects.monaserver.service.api.RefreshTokenService
+import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.*
 
 
 @Service
+@Transactional
 class RefreshTokenServiceImpl(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val tokenProperties: TokenProperties
@@ -20,7 +22,7 @@ class RefreshTokenServiceImpl(
         val refreshToken = RefreshToken(
             token = UUID.randomUUID(),
             user = user,
-            expiryDate = Date(Instant.now().plusMillis(tokenProperties.refreshTokenExploration).toEpochMilli())
+            expiryDate = Date(Instant.now().plusSeconds(tokenProperties.refreshTokenExploration).toEpochMilli())
         )
         return refreshTokenRepository.save(refreshToken)
     }

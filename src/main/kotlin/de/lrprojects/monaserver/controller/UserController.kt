@@ -5,7 +5,7 @@ import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.ProfileImageResponseDto
 import de.lrprojects.monaserver.model.TokenResponseDto
-import de.lrprojects.monaserver.model.UserRequestDto
+import de.lrprojects.monaserver.model.UserUpdateDto
 import de.lrprojects.monaserver.service.api.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -54,7 +54,7 @@ class UserController (private val userService: UserService) : UsersApiDelegate {
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
-    override fun updateUser(userId: UUID, user: UserRequestDto): ResponseEntity<TokenResponseDto?> {
+    override fun updateUser(userId: UUID, user: UserUpdateDto): ResponseEntity<TokenResponseDto?> {
         return try {
             val token = userService.updateUser(userId, user)
             ResponseEntity.ok(token)

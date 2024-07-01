@@ -5,7 +5,7 @@ import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.model.ProfileImageResponseDto
 import de.lrprojects.monaserver.model.TokenResponseDto
-import de.lrprojects.monaserver.model.UserRequestDto
+import de.lrprojects.monaserver.model.UserUpdateDto
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.RefreshTokenService
@@ -37,14 +37,16 @@ class UserServiceImpl(
         return getUser(userId).profilePictureSmall
     }
 
-    override fun updateUser(userId: UUID, user: UserRequestDto): TokenResponseDto? {
+    override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
         var responseDto: TokenResponseDto? = null
         if (user.email != null) {
             userEntity.email = user.email
+            userEntity.code = null
         }
         if (user.password != null) {
             userEntity.password = user.password
+            userEntity.resetPasswordUrl = null
             refreshTokenService.invalidateTokens(userEntity)
             val accessToken = tokenHelper.generateToken(userEntity.username)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
@@ -66,7 +68,7 @@ class UserServiceImpl(
     }
 
     override fun getUser(userId: UUID): de.lrprojects.monaserver.entity.User {
-        return getUser(userId)
+        return userRepository.findById(userId).orElseThrow { UserNotFoundException("user $userId does not exist") }
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {

@@ -31,12 +31,11 @@ data class User (
     @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
 
-    @Lob
+
     @Basic(fetch=FetchType.LAZY)
     @Column(name = "profile_picture", columnDefinition = "bytea")
     var profilePicture: ByteArray? = null,
 
-    @Lob
     @Column(name = "profile_picture_small", columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
     var profilePictureSmall: ByteArray? = null,
@@ -56,7 +55,7 @@ data class User (
     @Column(name = "update_date")
     var updateDate: Date? = null,
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JoinColumn(name = "user_id")
     var refreshTokens: List<RefreshToken> = emptyList(),
 

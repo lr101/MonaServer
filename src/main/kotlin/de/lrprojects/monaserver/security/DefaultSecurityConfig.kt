@@ -41,7 +41,7 @@ class DefaultSecurityConfig internal constructor(
                 it
                     .requestMatchers("/api/v2/public/**", "/static/**","/public/**", "/error").permitAll()
                     .requestMatchers("/api/v2/**").hasAuthority("USER")
-                    .anyRequest().authenticated()
+                    .anyRequest().permitAll()
             }
             .sessionManagement {
                 it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
