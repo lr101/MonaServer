@@ -1,7 +1,5 @@
 package de.lrprojects.monaserver.security
 
-import com.auth0.jwt.exceptions.JWTVerificationException
-import de.lrprojects.monaserver.helper.TokenHelper
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletException
 import jakarta.servlet.http.HttpServletRequest
@@ -14,7 +12,6 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.io.IOException
-import java.util.*
 
 
 @Component
@@ -35,18 +32,13 @@ class JWTFilter (
             if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
                 jwt = authHeader.substring(7)
                 log.info(request.requestURI)
-
-                    val m: Triple<String, String?, UUID?> = tokenHelper.validateTokenAndRetrieveSubject(jwt)
-                val userDetails = userDetailsService.loadUserByUsername(m.first)
-                val authToken = UsernamePasswordAuthenticationToken(
-                    m.first,
-                    if (m.second != null || m.first == "lr") m.second else userDetails.password,
-                    userDetails.authorities
-                )
-                authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-                SecurityContextHolder.getContext().authentication = authToken
-
-                if (authToken.credentials == null || authToken.credentials != userDetails.password) throw JWTVerificationException("Token invalid")
+                val username = tokenHelper.extractUsername(jwt)
+                val userDetails = userDetailsService.loadUserByUsername(username)
+                if(tokenHelper.validateToken(jwt, userDetails)) {
+                    val authToken = UsernamePasswordAuthenticationToken(username, null, userDetails.authorities)
+                    authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                    SecurityContextHolder.getContext().authentication = authToken
+                }
             }
         } catch (e: Exception) {
             log.warn("Unauthorized user token")

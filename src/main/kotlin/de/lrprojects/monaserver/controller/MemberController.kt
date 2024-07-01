@@ -6,9 +6,9 @@ import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.Group
+import de.lrprojects.monaserver.model.GroupDto
 import de.lrprojects.monaserver.model.JoinGroupRequest
-import de.lrprojects.monaserver.model.Member
+import de.lrprojects.monaserver.model.MemberResponseDto
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.http.HttpStatus
@@ -25,7 +25,7 @@ class MemberController (private val memberService: MemberService) : MembersApiDe
         groupId: UUID,
         userId: UUID,
         joinGroupRequest: JoinGroupRequest?
-    ): ResponseEntity<Group> {
+    ): ResponseEntity<GroupDto> {
         return try {
             val group = memberService.addMember(userId, groupId, joinGroupRequest?.inviteUrl)
             ResponseEntity(group.toGroupModel(), HttpStatus.CREATED)
@@ -61,7 +61,7 @@ class MemberController (private val memberService: MemberService) : MembersApiDe
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupMembers(groupId: UUID): ResponseEntity<MutableList<Member>> {
+    override fun getGroupMembers(groupId: UUID): ResponseEntity<MutableList<MemberResponseDto>> {
         return try {
             val members = memberService.getMembers(groupId).toMutableList()
             ResponseEntity.ok().body(members)

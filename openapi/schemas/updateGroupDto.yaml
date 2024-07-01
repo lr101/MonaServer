@@ -1,0 +1,14 @@
+type: object
+properties:
+  description:
+    $ref: '../parameters/shortString.yaml'
+  name:
+    $ref: '../parameters/shortString.yaml'
+  profileImage:
+    $ref: '../parameters/image.yaml'
+  visibility:
+    $ref: '../parameters/visibility.yaml'
+  groupAdmin:
+    $ref: '../parameters/id.yaml'
+  link:
+    $ref: '../parameters/shortString.yaml'

@@ -1,7 +1,6 @@
 package de.lrprojects.monaserver.service.api
 
-import de.lrprojects.monaserver.model.Pin
-import de.lrprojects.monaserver.model.PinWithOptionalImage
+import de.lrprojects.monaserver.model.PinWithOptionalImageDto
 import java.util.*
 
 interface MonaService {
@@ -11,5 +10,5 @@ interface MonaService {
 
     fun addPinImage(pinId: UUID, image: ByteArray): ByteArray
 
-    fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?): MutableList<PinWithOptionalImage>
+    fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?): MutableList<PinWithOptionalImageDto>
 }

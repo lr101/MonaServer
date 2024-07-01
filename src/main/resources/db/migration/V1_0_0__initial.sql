@@ -8,7 +8,7 @@ create table if not exists  users
             unique,
     email                 varchar(255),
     password              varchar(255),
-    profile_picture       oid,
+    profile_picture       bytea,
     profile_picture_small bytea,
     update_date           timestamp(6),
     creation_date         timestamp(6),

@@ -2,14 +2,12 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.helper.StringHelper
+import de.lrprojects.monaserver.model.PinRequestDto
+import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.PinService
-import de.lrprojects.monaserver.model.NewPin
-import de.lrprojects.monaserver.model.UserInfo
-import de.lrprojects.monaserver.repository.GroupRepository
 import jakarta.persistence.EntityNotFoundException
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
@@ -17,14 +15,14 @@ import java.util.*
 
 @Service
 
-class PinServiceImpl constructor(
-    @Autowired val pinRepository: PinRepository, 
-    @Autowired val userRepository: UserRepository,
-    @Autowired val groupRepository: GroupRepository
+class PinServiceImpl(
+    val pinRepository: PinRepository,
+    val userRepository: UserRepository,
+    val groupRepository: GroupRepository
 ) : PinService {
 
     @Transactional
-    override fun createPin(newPin: NewPin): Pin {
+    override fun createPin(newPin: PinRequestDto): Pin {
         var pin = Pin()
         pin.user = userRepository.findById(newPin.userId).orElseThrow()
         pin.latitude = newPin.latitude.toDouble()
@@ -43,15 +41,7 @@ class PinServiceImpl constructor(
     }
 
     override fun getPin(pinId: UUID): Pin {
-        return pinRepository.findById(pinId).orElseThrow{ EntityNotFoundException("pin not found") }
-    }
-
-    override fun getPinCreationUsername(pinId: UUID): UserInfo {
-        val pin = pinRepository.findById(pinId).orElseThrow()
-        return UserInfo().apply {
-            username = pin.user!!.username
-            userId = pin.user!!.id
-        }
+        return pinRepository.findById(pinId).orElseThrow { EntityNotFoundException("pin not found") }
     }
 
     override fun getPinsByGroup(currentUserId: UUID, groupId: UUID, date: OffsetDateTime): MutableList<Pin> {

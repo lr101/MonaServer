@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Stick-It RESP API
+  version: 1.0.1
+servers:
+  - url: https://app.lr-projects.de
+  - url: http://localhost:8081
+tags:
+  - name: public
+    description: Everything about the public apiF
+  - name: auth
+    description: Everything about Authentication
+  - name: groups
+    description: Everything about Groups
+  - name: pins
+    description: Everything about Pins
+  - name: users
+    description: Everything about Users
+  - name: members
+    description: Everything about Memberships
+  - name: report
+
+paths:
+  /api/v2/groups:
+    $ref: './methods/groups.yaml'
+
+  /api/v2/groups/{groupId}:
+    $ref: './methods/groupById.yaml'
+
+  /api/v2/groups/{groupId}/profile_image:
+    $ref: './methods/groupProfileImage.yaml'
+
+  /api/v2/groups/{groupId}/pin_image:
+    $ref: './methods/groupPinImage.yaml'
+
+  /api/v2/groups/{groupId}/description:
+    $ref: './methods/groupDescription.yaml'
+
+  /api/v2/groups/{groupId}/link:
+    $ref: './methods/groupLink.yaml'
+
+  /api/v2/groups/{groupId}/admin:
+    $ref: './methods/groupAdmin.yaml'
+
+  /api/v2/groups/{groupId}/invite_url:
+    $ref: './methods/groupInviteUrl.yaml'
+
+  /api/v2/groups/{groupId}/members:
+    $ref: './methods/groupMembers.yaml'
+
+  /api/v2/users/{username}/delete-code:
+    $ref: './methods/userDeleteCode.yaml'
+
+  /api/v2/public/recover:
+    $ref: './methods/publicRecover.yaml'
+
+  /api/v2/public/login:
+    $ref: './methods/publicLogin.yaml'
+
+  /api/v2/public/signup:
+    $ref: './methods/publicSignup.yaml'
+
+  /api/v2/public/refresh:
+    $ref: './methods/publicRefresh.yaml'
+
+  /api/v2/report:
+    $ref: './methods/report.yaml'
+
+  /api/v2/pins:
+    $ref: './methods/pins.yaml'
+
+  /api/v2/pins/{pinId}:
+    $ref: './methods/pinsById.yaml'
+
+  /api/v2/pins/{pinId}/image:
+    $ref: './methods/pinsImage.yaml'
+
+  /api/v2/public/infos:
+    $ref: './methods/publicInfos.yaml'
+
+  /api/v2/users/{userId}:
+    $ref: './methods/userById.yaml'
+
+  /api/v2/users/{userId}/profile_picture_small:
+    $ref: './methods/userProfileImageSmall.yaml'
+
+  /api/v2/users/{userId}/profile_picture:
+    $ref: './methods/userProfileImage.yaml'

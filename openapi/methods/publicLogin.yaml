@@ -1,0 +1,30 @@
+post:
+  operationId: userLogin
+  summary: User login
+  tags:
+    - auth
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            username:
+              $ref: '../parameters/shortString.yaml'
+            password:
+              $ref: '../parameters/shortString.yaml'
+  responses:
+    '200':
+      description: Successful login
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tokenResponseDto.yaml'
+
+    '400':
+      description: Wrong password or user does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

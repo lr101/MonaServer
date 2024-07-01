@@ -3,27 +3,26 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.converter.toImages
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
-import de.lrprojects.monaserver.helper.TokenHelper
+import de.lrprojects.monaserver.model.ProfileImageResponseDto
+import de.lrprojects.monaserver.model.TokenResponseDto
+import de.lrprojects.monaserver.model.UserRequestDto
 import de.lrprojects.monaserver.repository.UserRepository
+import de.lrprojects.monaserver.security.TokenHelper
+import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
-import de.lrprojects.monaserver.model.UpdateUserProfileImage200Response
-import de.lrprojects.monaserver.model.User
 import jakarta.persistence.EntityNotFoundException
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
-import kotlin.jvm.Throws
-import kotlin.jvm.optionals.getOrElse
-import kotlin.jvm.optionals.getOrNull
 
 @Service
 @Transactional
-class UserServiceImpl constructor(
-    @Autowired val userRepository: UserRepository,
-    @Autowired val tokenHelper: TokenHelper,
-    @Autowired val imageHelper: ImageHelper
-    ): UserService {
+class UserServiceImpl(
+    val userRepository: UserRepository,
+    val refreshTokenService: RefreshTokenService,
+    val imageHelper: ImageHelper,
+    val tokenHelper: TokenHelper
+): UserService {
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
@@ -38,23 +37,28 @@ class UserServiceImpl constructor(
         return getUser(userId).profilePictureSmall
     }
 
-    override fun updateUser(userId: UUID, user: User): String {
+    override fun updateUser(userId: UUID, user: UserRequestDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
+        var responseDto: TokenResponseDto? = null
         if (user.email != null) {
             userEntity.email = user.email
         }
         if (user.password != null) {
             userEntity.password = user.password
-            userEntity.token = tokenHelper.generateToken(userEntity.username, user.password, userId)
+            refreshTokenService.invalidateTokens(userEntity)
+            val accessToken = tokenHelper.generateToken(userEntity.username)
+            val refreshToken = refreshTokenService.createRefreshToken(userEntity)
+            responseDto = TokenResponseDto(refreshToken.token, accessToken)
         }
-        return userRepository.save(userEntity).token!!
+        userRepository.save(userEntity)
+        return responseDto
     }
 
     @Throws(UserNotFoundException::class, IllegalStateException::class)
     override fun updateUserProfileImage(
         userId: UUID,
         image: ByteArray
-    ): UpdateUserProfileImage200Response {
+    ): ProfileImageResponseDto {
         val userEntity =  getUser(userId)
         userEntity.profilePicture = imageHelper.getProfileImage(image)
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)

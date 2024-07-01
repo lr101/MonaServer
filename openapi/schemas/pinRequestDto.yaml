@@ -1,0 +1,20 @@
+required:
+  - userId
+  - longitude
+  - latitude
+  - groupId
+  - image
+type: object
+properties:
+  image:
+    $ref: '../parameters/image.yaml'
+  latitude:
+    $ref: '../parameters/latitude.yaml'
+  longitude:
+    $ref: '../parameters/longitude.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'
+  groupId:
+    $ref: '../parameters/id.yaml'
+  creationDate:
+    $ref: '../parameters/date.yaml'

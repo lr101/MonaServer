@@ -2,7 +2,9 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModel
-import de.lrprojects.monaserver.model.*
+import de.lrprojects.monaserver.model.PinRequestDto
+import de.lrprojects.monaserver.model.PinWithOptionalImageDto
+import de.lrprojects.monaserver.model.PinWithoutImageDto
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import jakarta.persistence.EntityNotFoundException
@@ -26,8 +28,8 @@ class PinController (
 
     @PreAuthorize("hasAuthority('ADMIN') " +
             "|| (@guard.isGroupMember(authentication, #newPin.groupId)" +
-            "&& @guard.isSameUser(authentication, #newPin.username))")
-    override fun createPin(newPin: NewPin): ResponseEntity<Pin> {
+            "&& @guard.isSameUser(authentication, #newPin.userId))")
+    override fun createPin(newPin: PinRequestDto): ResponseEntity<PinWithoutImageDto> {
         return try {
             val pin = pinService.createPin(newPin)
             ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
@@ -54,23 +56,10 @@ class PinController (
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPin(pinId: UUID): ResponseEntity<Pin> {
+    override fun getPin(pinId: UUID): ResponseEntity<PinWithoutImageDto> {
         return try {
             val pin = pinService.getPin(pinId)
             ResponseEntity.ok(pin.toPinModel())
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
-
-    }
-
-    @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPinCreationUsername(pinId: UUID): ResponseEntity<UserInfo>? {
-        return try {
-            val user = pinService.getPinCreationUsername(pinId)
-            ResponseEntity.ok(user)
         } catch (e: EntityNotFoundException) {
             ResponseEntity.notFound().build()
         } catch (e: Exception) {
@@ -102,7 +91,7 @@ class PinController (
         withImage: Boolean?,
         compression: Int?,
         height: Int?
-    ): ResponseEntity<MutableList<PinWithOptionalImage>> {
+    ): ResponseEntity<MutableList<PinWithOptionalImageDto>> {
         return try {
             val images = monaService.getPinImagesByIds(ids,compression, height, userId, groupId, withImage)
             ResponseEntity.ok(images)

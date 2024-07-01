@@ -10,7 +10,6 @@ import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.sql.SQLException
@@ -20,12 +19,12 @@ import kotlin.jvm.optionals.getOrElse
 @Service
 @Transactional
 class GroupServiceImpl (
-    @Autowired val userRepository: UserRepository,
-    @Autowired val groupRepository: GroupRepository,
-    @Autowired val imageHelper: ImageHelper
+    val userRepository: UserRepository,
+    val groupRepository: GroupRepository,
+    val imageHelper: ImageHelper
 ) : GroupService {
 
-    override fun addGroup(createGroup: CreateGroup): Group {
+    override fun addGroup(createGroup: CreateGroupDto): GroupDto {
         var group = de.lrprojects.monaserver.entity.Group()
         group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
         group.visibility = createGroup.visibility.value
@@ -92,7 +91,7 @@ class GroupServiceImpl (
         return group.profileImage!!
     }
 
-    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?): List<GroupSmall> {
+    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?): List<GroupSmallDto> {
         if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertionError("A username must be set when withUser is used")
         return when (withUser) {
             null -> groupRepository.searchGroups(
@@ -107,7 +106,7 @@ class GroupServiceImpl (
 
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
-    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroup): Group {
+    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): GroupDto {
         var group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         updateGroup.name?.let { group.name = updateGroup.name }

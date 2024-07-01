@@ -1,0 +1,20 @@
+type: object
+required:
+  - id
+  - creation_date
+  - creationUser
+  - latitude
+  - longitude
+properties:
+  id:
+    $ref: '../parameters/id.yaml'
+  creationDate:
+    $ref: '../parameters/date.yaml'
+  latitude:
+    $ref: '../parameters/latitude.yaml'
+  longitude:
+    $ref: '../parameters/longitude.yaml'
+  creationUser:
+    $ref: '../parameters/id.yaml'
+  image:
+    $ref: '../parameters/image.yaml'

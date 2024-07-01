@@ -1,0 +1,20 @@
+post:
+  operationId: refreshToken
+  summary: Request a new access token
+  description: Request a new access token with a refresh token
+  tags:
+    - auth
+  requestBody:
+    content:
+      application/json:
+        schema:
+          $ref: '../parameters/id.yaml'
+  responses:
+    '201':
+      description: Successfully applied new access token
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tokenResponseDto.yaml'
+    '403':
+      description: Invalid refresh token try logging in again

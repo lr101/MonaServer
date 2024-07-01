@@ -1,0 +1,6 @@
+type: object
+properties:
+  username:
+    $ref: '../parameters/shortString.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'

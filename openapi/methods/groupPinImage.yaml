@@ -1,0 +1,27 @@
+get:
+  operationId: getGroupPinImage
+  security:
+    - token: [ ]
+  summary: Get pin image of group
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      required: true
+      in: path
+      description: group id
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        image/png:
+          schema:
+            $ref: '../parameters/image.yaml'
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

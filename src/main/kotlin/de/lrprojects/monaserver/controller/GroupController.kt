@@ -5,10 +5,10 @@ import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.ProfileImageException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.CreateGroup
-import de.lrprojects.monaserver.model.Group
-import de.lrprojects.monaserver.model.GroupSmall
-import de.lrprojects.monaserver.model.UpdateGroup
+import de.lrprojects.monaserver.model.CreateGroupDto
+import de.lrprojects.monaserver.model.GroupDto
+import de.lrprojects.monaserver.model.GroupSmallDto
+import de.lrprojects.monaserver.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.http.HttpStatus
@@ -21,7 +21,7 @@ import java.util.*
 class GroupController (private val groupService: GroupService) : GroupsApiDelegate {
 
     @PreAuthorize("hasAuthority('ADMIN') || @guard.isSameUser(authentication, #createGroup.getGroupAdmin())")
-    override fun addGroup(createGroup: CreateGroup): ResponseEntity<Group> {
+    override fun addGroup(createGroup: CreateGroupDto): ResponseEntity<GroupDto> {
         return try {
             val result = groupService.addGroup(createGroup)
             ResponseEntity(result, HttpStatus.CREATED)
@@ -50,7 +50,7 @@ class GroupController (private val groupService: GroupService) : GroupsApiDelega
         }
     }
 
-    override fun getGroup(groupId: UUID): ResponseEntity<GroupSmall> {
+    override fun getGroup(groupId: UUID): ResponseEntity<GroupSmallDto> {
         return try {
             val result = groupService.getGroup(groupId)
             ResponseEntity.ok(result.convertToGroupSmall())
@@ -90,7 +90,7 @@ class GroupController (private val groupService: GroupService) : GroupsApiDelega
         search: String?,
         userId: UUID?,
         withUser: Boolean?
-    ): ResponseEntity<MutableList<GroupSmall>>? {
+    ): ResponseEntity<MutableList<GroupSmallDto>>? {
         return try {
             val result = groupService.getGroupsByIds(ids, search, withUser, userId).toMutableList()
             ResponseEntity.ok(result)
@@ -151,7 +151,7 @@ class GroupController (private val groupService: GroupService) : GroupsApiDelega
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroup): ResponseEntity<Group> {
+    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): ResponseEntity<GroupDto> {
         return try {
             val result = groupService.updateGroup(groupId, updateGroup)
             ResponseEntity.ok(result)

@@ -1,0 +1,27 @@
+type: object
+required:
+  - name
+  - visibility
+  - link
+  - description
+  - group_admin
+  - id
+  - invite_url
+  - lastUpdated
+properties:
+  id:
+    $ref: '../parameters/id.yaml'
+  description:
+    $ref: '../parameters/shortString.yaml'
+  invite_url:
+    $ref: '../parameters/shortString.yaml'
+  name:
+    $ref: '../parameters/shortString.yaml'
+  visibility:
+    $ref: '../parameters/visibility.yaml'
+  group_admin:
+    $ref: '../parameters/id.yaml'
+  link:
+    $ref: '../parameters/shortString.yaml'
+  lastUpdated:
+    $ref: '../parameters/date.yaml'

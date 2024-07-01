@@ -1,0 +1,6 @@
+type: object
+properties:
+  email:
+    $ref: '#/components/schemas/Email'
+  password:
+    $ref: '../parameters/shortString.yaml'

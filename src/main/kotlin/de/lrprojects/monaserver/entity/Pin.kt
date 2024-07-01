@@ -33,7 +33,8 @@ open class Pin {
     open var user: User? = null
 
     @Lob
-    @Column(name = "image", nullable = false)
+    @Column(name = "pin_image", nullable = false, columnDefinition = "bytea")
+    @Basic(fetch = FetchType.LAZY)
     open var image : ByteArray? = null
 
 

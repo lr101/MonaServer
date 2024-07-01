@@ -1,0 +1,26 @@
+get:
+  operationId: getPinImage
+  security:
+    - token: [ ]
+  summary: Get the image associated with a pin by ID
+  tags:
+    - pins
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        image/*:
+          schema:
+            $ref: '../parameters/image.yaml'
+    404:
+      description: Pin does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

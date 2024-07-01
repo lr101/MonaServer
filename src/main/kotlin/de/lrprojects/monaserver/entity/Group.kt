@@ -2,9 +2,10 @@ package de.lrprojects.monaserver.entity
 
 import de.lrprojects.monaserver.helper.SecurityHelper
 import jakarta.persistence.*
-import jakarta.persistence.CascadeType
-import jakarta.persistence.Table
-import org.hibernate.annotations.*
+import org.hibernate.annotations.CreationTimestamp
+import org.hibernate.annotations.OnDelete
+import org.hibernate.annotations.OnDeleteAction
+import org.hibernate.annotations.UpdateTimestamp
 import java.util.*
 
 
@@ -29,11 +30,11 @@ open class Group {
     open var description: String? = null
 
     @Lob
-    @Column(name = "profile_image", nullable = false)
+    @Column(name = "group_profile", nullable = false, columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
     open var profileImage: ByteArray? = null
 
-    @Column(name = "pin_image", nullable = false)
+    @Column(name = "pin_image", nullable = false, columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
     open var pinImage: ByteArray? = null
 

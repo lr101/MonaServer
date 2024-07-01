@@ -1,7 +1,6 @@
 package de.lrprojects.monaserver.security
 
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.security.config.annotation.web.invoke
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
@@ -40,12 +39,9 @@ class DefaultSecurityConfig internal constructor(
             .cors{ it.configurationSource(corsConfigurationSource())}
             .authorizeHttpRequests {
                 it
-                    .requestMatchers("/api/v2/public/**", "/static/**","/public/**", "/error")
-                    .permitAll()
-                    .requestMatchers("/api/v2/**")
-                    .hasAuthority("USER")
-                    .anyRequest()
-                    .authenticated()
+                    .requestMatchers("/api/v2/public/**", "/static/**","/public/**", "/error").permitAll()
+                    .requestMatchers("/api/v2/**").hasAuthority("USER")
+                    .anyRequest().authenticated()
             }
             .sessionManagement {
                 it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)

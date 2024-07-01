@@ -10,54 +10,55 @@ import java.util.*
 
 @Entity
 @Table(name = "users")
-open class User {
+data class User (
 
     @Id
     @GeneratedValue
     @Column(name = "id", nullable = false)
-    open var id: UUID? = null
+    var id: UUID? = null,
 
     @Column(name = "username", unique = true)
-    open var username: @Min(1) String? = null
+    var username: @Min(1) String,
 
     @Column(name = "password")
-    open var password: @Min(1) String? = null
+    var password: @Min(1) String,
 
     @Email
     @Column(name = "email")
-    open var email: String? = null
-
-    //TODO add nullable = false when possible
-    @Column(name = "token", unique = true, length = 500)
-    open var token: String? = null
+    var email: String? = null,
 
     @Column(name = "reset_password_url", unique = true)
     @Basic(fetch = FetchType.LAZY)
-    open var resetPasswordUrl: String? = null
+    var resetPasswordUrl: String? = null,
 
     @Lob
     @Basic(fetch=FetchType.LAZY)
-    @Column(name = "profile_picture")
-    open var profilePicture: ByteArray? = null
+    @Column(name = "profile_picture", columnDefinition = "bytea")
+    var profilePicture: ByteArray? = null,
 
+    @Lob
     @Column(name = "profile_picture_small", columnDefinition = "bytea")
     @Basic(fetch = FetchType.LAZY)
-    open var profilePictureSmall: ByteArray? = null
+    var profilePictureSmall: ByteArray? = null,
 
     @Column(name = "code")
     @Basic(fetch = FetchType.LAZY)
     @Length(min = 6, max = 6)
-    open var code: String? = null
+    var code: String? = null,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "creation_date")
-    open var createDate: Date? = null
+    var createDate: Date? = null,
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "update_date")
-    open var updateDate: Date? = null
+    var updateDate: Date? = null,
+
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
+    @JoinColumn(name = "user_id")
+    var refreshTokens: List<RefreshToken> = emptyList(),
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
     @JoinTable(
@@ -65,6 +66,48 @@ open class User {
         joinColumns = [JoinColumn(name = "user_id")],
         inverseJoinColumns = [JoinColumn(name = "group_id")]
     )
-    open var groups: MutableSet<Group> = mutableSetOf()
+    var groups: MutableSet<Group> = mutableSetOf()
 
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as User
+
+        if (id != other.id) return false
+        if (username != other.username) return false
+        if (password != other.password) return false
+        if (email != other.email) return false
+        if (resetPasswordUrl != other.resetPasswordUrl) return false
+        if (profilePicture != null) {
+            if (other.profilePicture == null) return false
+            if (!profilePicture.contentEquals(other.profilePicture)) return false
+        } else if (other.profilePicture != null) return false
+        if (profilePictureSmall != null) {
+            if (other.profilePictureSmall == null) return false
+            if (!profilePictureSmall.contentEquals(other.profilePictureSmall)) return false
+        } else if (other.profilePictureSmall != null) return false
+        if (code != other.code) return false
+        if (createDate != other.createDate) return false
+        if (updateDate != other.updateDate) return false
+        if (groups != other.groups) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = id?.hashCode() ?: 0
+        result = 31 * result + (username.hashCode() ?: 0)
+        result = 31 * result + (password.hashCode() ?: 0)
+        result = 31 * result + (email?.hashCode() ?: 0)
+        result = 31 * result + (resetPasswordUrl?.hashCode() ?: 0)
+        result = 31 * result + (profilePicture?.contentHashCode() ?: 0)
+        result = 31 * result + (profilePictureSmall?.contentHashCode() ?: 0)
+        result = 31 * result + (code?.hashCode() ?: 0)
+        result = 31 * result + (createDate?.hashCode() ?: 0)
+        result = 31 * result + (updateDate?.hashCode() ?: 0)
+        result = 31 * result + groups.hashCode()
+        return result
+    }
 }

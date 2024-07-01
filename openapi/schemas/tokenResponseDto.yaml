@@ -1,0 +1,9 @@
+type: object
+required:
+    - accessToken
+    - refreshToken
+properties:
+  refreshToken:
+    $ref: '../parameters/id.yaml'
+  accessToken:
+    $ref: '../parameters/longString.yaml'

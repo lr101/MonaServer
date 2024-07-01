@@ -3,74 +3,68 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.helper.SecurityHelper
-import de.lrprojects.monaserver.helper.TokenHelper
+import de.lrprojects.monaserver.model.TokenResponseDto
 import de.lrprojects.monaserver.repository.UserRepository
+import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
-import org.springframework.beans.factory.annotation.Autowired
+import de.lrprojects.monaserver.service.api.RefreshTokenService
+import jakarta.persistence.EntityNotFoundException
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 import kotlin.jvm.optionals.getOrElse
 
 @Service
 @Transactional
-class AuthServiceImpl constructor(
-    @Autowired val userRepository: UserRepository,
-    @Autowired val tokenHelper: TokenHelper,
-    @Autowired val emailService: EmailService
+class AuthServiceImpl(
+    private val userRepository: UserRepository,
+    private val tokenHelper: TokenHelper,
+    private val emailService: EmailService,
+    private val refreshTokenService: RefreshTokenService,
+    private val passwordEncoder: PasswordEncoder
 ) : AuthService{
 
     @Throws(UserExistsException::class)
-    override fun signup(username: String, password: String, email: String): String {
-        var user = User()
-        user.email = email
-        user.username = username
-        user.password = password
-        if (userRepository.findByUsername(username).isEmpty) {
-            user = userRepository.save(user)
-            user.token = tokenHelper.generateToken(username, password, user.id)
-        } else {
+    override fun signup(username: String, password: String, email: String): TokenResponseDto {
+        if (userRepository.existsByUsername(username)) {
             throw UserExistsException("user with username " + username + "already exists")
         }
+        var user = User(
+            username = username,
+            password = passwordEncoder.encode(password),
+            email = email
+        )
+        user = userRepository.save(user)
+        val accessToken = tokenHelper.generateToken(username)
+        val refreshToken = refreshTokenService.createRefreshToken(user)
 
-        return user.token!!
+        return TokenResponseDto(refreshToken.token, accessToken)
     }
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
-    override fun login(username: String, password: String): String {
+    override fun login(username: String, password: String): TokenResponseDto {
         val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
-        if (user.password.equals(password)) {
-            user.token = tokenHelper.generateToken(user.username, user.password, user.id)
-            userRepository.save(user)
-            return user.token!!
-        } else {
-            throw WrongPasswordException("password don not match")
+        if (passwordEncoder.matches(password, user.password)) {
+            throw WrongPasswordException("password is wrong")
         }
-
+        val accessToken = tokenHelper.generateToken(username)
+        val refreshToken = refreshTokenService.createRefreshToken(user)
+        return TokenResponseDto(refreshToken.token, accessToken)
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)
     override fun recoverPassword(username: String) {
         val user = userRepository.findByUsername(username).getOrElse { throw UserNotFoundException("user does not exist") }
-        var resetUrl: String
-        var attempts = 0
 
         if (user.email.isNullOrEmpty()) {
             throw AttributeDoesNotExist("No email address exists")
         }
 
-        do {
-            resetUrl = SecurityHelper.generateAlphabeticRandomString(25)
-            attempts++
-        } while (userRepository.findByResetPasswordUrl(resetUrl).isEmpty() && attempts < 10)
-
-        if (attempts >= 10) {
-            throw UniqueResetUrlNotFoundException("Failed to generate a unique reset URL after 10 attempts.")
-        } else {
-            user.resetPasswordUrl = resetUrl
-            userRepository.save(user)
-            emailService.sendMail("Reset url at " + user.resetPasswordUrl, user.email!!, "Reset Password")
-        }
+        user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(25)
+        userRepository.save(user)
+        emailService.sendMail("Reset url at " + user.resetPasswordUrl, user.email!!, "Reset Password")
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class)
@@ -83,5 +77,12 @@ class AuthServiceImpl constructor(
         user.code = SecurityHelper.generateSixDigitNumber().toString()
         userRepository.save(user)
         emailService.sendMail("Reset url at " + user.code, user.email!!, "Delete Code")
+    }
+
+    override fun refreshToken(token: UUID): TokenResponseDto {
+        val refreshToken = refreshTokenService.findByToken(token)
+            .orElseThrow { EntityNotFoundException("refresh token not found") }
+        refreshTokenService.verifyExpiration(refreshToken)
+        return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.username))
     }
 }

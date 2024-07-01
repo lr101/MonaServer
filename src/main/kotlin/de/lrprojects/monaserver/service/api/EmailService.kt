@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.Report
+import de.lrprojects.monaserver.model.ReportDto
 
 interface EmailService {
 
@@ -11,6 +11,6 @@ interface EmailService {
     fun sendMail(text: String, to: String, subject: String)
 
     @Throws(MailException::class, UserNotFoundException::class)
-    fun sendReportEmail(report: Report)
+    fun sendReportEmail(report: ReportDto)
 
 }

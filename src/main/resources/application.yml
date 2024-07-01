@@ -1,9 +1,8 @@
 email:
   from: ${EMAIL}
   psw: ${EMAIL_PSW}
-logging:
-  file:
-    name: ./logs/server.log
+
+
 server:
   port: ${PORT:8081}
   servlet:
@@ -51,3 +50,7 @@ springdoc:
     path: /public/api-docs
   swagger-ui:
     path: /public/swagger-ui.html
+token:
+  access-token-exploration: 600000
+  refresh-token-exploration: 86400000
+  secret: ${SECRET}

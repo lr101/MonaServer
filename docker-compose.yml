@@ -25,13 +25,14 @@ services:
     networks:
       - net
   db:
-    image: postgres:15-alpine
+    image: postgres:16
     restart: unless-stopped
     container_name: stick-it-db
     ports:
       - 5433:5432
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
+      - ./backup:/backup
     env_file:
       - ./.env
     networks:

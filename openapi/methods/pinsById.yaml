@@ -1,0 +1,48 @@
+get:
+  operationId: getPin
+  security:
+    - token: [ ]
+  summary: Get pin information by ID
+  tags:
+    - pins
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/pinWithoutImageDto.yaml'
+    404:
+      description: Pin does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+delete:
+  operationId: deletePin
+  security:
+    - token: [ ]
+  summary: Delete a pin by ID
+  tags:
+    - pins
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: successfully deleted
+    404:
+      description: Pin does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
