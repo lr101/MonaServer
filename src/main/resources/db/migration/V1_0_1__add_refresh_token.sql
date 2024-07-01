@@ -7,7 +7,7 @@ create table if not exists  refresh_token
     creation_date         timestamp(6),
     expiry_date            timestamp(6) not null ,
     token                 uuid constraint unique_token_constraint_refresh unique not null,
-    user_id               uuid not null
+    user_id               uuid null
         constraint fk_refresh_token_user_id
             references users on update cascade on delete cascade
 );

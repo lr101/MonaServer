@@ -49,6 +49,7 @@
 <script type="text/javascript">
 
     function savePass() {
+        clicked = true;
         const username = document.getElementById("username").value;
         if (username != null && username !== "") {
             $.ajax({
@@ -56,10 +57,14 @@
                 type: 'GET',
                 contentType: 'application/json',
                 success: function () {
-                    alert('Use the link in the mail or open the app to delete your account');
+                    const suc = document.createElement('label');
+                    suc.innerHTML = "Code has been sent. Check your email";
+                    document.getElementById("row").remove();
+                    document.getElementById("body").appendChild(suc);
                 },
                 error: function () {
-                    alert('Account does not exist');
+                    alert('Account does not exist or email not valid');
+                    clicked = false;
                 },
             });
         }
@@ -69,6 +74,8 @@
         .querySelector('#togglePassword');
 
     const password = document.querySelector('#password');
+
+    let clicked = false;
 
     togglePassword.addEventListener('click', () => {
 

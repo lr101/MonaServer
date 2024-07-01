@@ -16,16 +16,18 @@ import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
 @Service
-@Transactional
 class UserServiceImpl(
     val userRepository: UserRepository,
     val refreshTokenService: RefreshTokenService,
     val imageHelper: ImageHelper,
     val tokenHelper: TokenHelper
 ): UserService {
+
+    @Transactional
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
+        refreshTokenService.invalidateTokens(user)
         userRepository.delete(user)
     }
 

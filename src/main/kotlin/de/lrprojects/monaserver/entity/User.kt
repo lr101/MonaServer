@@ -55,7 +55,7 @@ data class User (
     @Column(name = "update_date")
     var updateDate: Date? = null,
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JoinColumn(name = "user_id")
     var refreshTokens: List<RefreshToken> = emptyList(),
 

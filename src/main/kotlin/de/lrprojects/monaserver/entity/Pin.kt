@@ -29,7 +29,7 @@ open class Pin {
     open var updateDate: Date? = null
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", referencedColumnName = "id")
+    @JoinColumn(name = "creator_id", referencedColumnName = "id", nullable = false)
     open var user: User? = null
 
     @Column(name = "pin_image", nullable = false, columnDefinition = "bytea")
