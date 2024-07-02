@@ -33,4 +33,3 @@ jobs:
           push: true
           tags:
             - lrprojects/stick-it-server:${{ steps.pom-version.outputs.version }}
-            - lrprojects/stick-it-server:latest
