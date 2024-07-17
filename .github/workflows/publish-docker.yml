@@ -31,5 +31,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags:
-            - lrprojects/stick-it-server:${{ steps.pom-version.outputs.version }}
+          tags: lrprojects/stick-it-server:${{ steps.pom-version.outputs.version }}
