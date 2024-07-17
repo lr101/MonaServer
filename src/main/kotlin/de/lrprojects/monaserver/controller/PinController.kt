@@ -7,7 +7,6 @@ import de.lrprojects.monaserver.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.model.PinWithoutImageDto
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
-import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -15,72 +14,49 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
 import java.util.*
 
-
 @Component
-class PinController (
+class PinController(
     private val pinService: PinService,
     private val monaService: MonaService,
 ) : PinsApiDelegate {
 
     companion object {
-        private val logger = LoggerFactory.getLogger(this::class.java)
+        private val log = LoggerFactory.getLogger(this::class.java)
     }
 
     @PreAuthorize("hasAuthority('ADMIN') " +
             "|| (@guard.isGroupMember(authentication, #newPin.groupId)" +
             "&& @guard.isSameUser(authentication, #newPin.userId))")
     override fun createPin(newPin: PinRequestDto): ResponseEntity<PinWithoutImageDto> {
-        return try {
-            val pin = pinService.createPin(newPin)
-            ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
-
+        log.info("Attempting to create pin for groupId: ${newPin.groupId}, userId: ${newPin.userId}")
+        val pin = pinService.createPin(newPin)
+        log.info("Pin created for groupId: ${newPin.groupId}, userId: ${newPin.userId}")
+        return ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
     override fun deletePin(pinId: UUID): ResponseEntity<Void> {
-        return try {
-            pinService.deletePin(pinId)
-            ResponseEntity.ok().build()
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            logger.error(e.message)
-            ResponseEntity.internalServerError().build()
-        }
-
+        log.info("Attempting to delete pin with ID: $pinId")
+        pinService.deletePin(pinId)
+        log.info("Pin deleted with ID: $pinId")
+        return ResponseEntity.ok().build()
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPin(pinId: UUID): ResponseEntity<PinWithoutImageDto> {
-        return try {
-            val pin = pinService.getPin(pinId)
-            ResponseEntity.ok(pin.toPinModel())
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
-
+        log.info("Attempting to get pin with ID: $pinId")
+        val pin = pinService.getPin(pinId)
+        log.info("Retrieved pin with ID: $pinId")
+        return ResponseEntity.ok(pin.toPinModel())
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPinImage(pinId: UUID): ResponseEntity<ByteArray> {
-        return try {
-            val image = monaService.getPinImage(pinId)
-            ResponseEntity.ok(image)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
-
+        log.info("Attempting to get pin image for pin with ID: $pinId")
+        val image = monaService.getPinImage(pinId)
+        log.info("Retrieved pin image for pin with ID: $pinId")
+        return ResponseEntity.ok(image)
     }
-
 
     @PreAuthorize("@guard.isPinsPublicOrMember(authentication, #ids) " +
             "&& (#groupId == null || @guard.isGroupVisible(authentication, #groupId))")
@@ -92,16 +68,9 @@ class PinController (
         compression: Int?,
         height: Int?
     ): ResponseEntity<MutableList<PinWithOptionalImageDto>> {
-        return try {
-            val images = monaService.getPinImagesByIds(ids,compression, height, userId, groupId, withImage)
-            ResponseEntity.ok(images)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
-
+        log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height")
+        val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage)
+        log.info("Retrieved pin images by IDs: $ids")
+        return ResponseEntity.ok(images)
     }
-
-
 }

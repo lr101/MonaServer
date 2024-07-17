@@ -1,28 +1,24 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.ReportApiDelegate
-import de.lrprojects.monaserver.excepetion.MailException
-import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.ReportDto
 import de.lrprojects.monaserver.service.api.EmailService
-import org.springframework.http.HttpStatus
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
 
 @Component
 class ReportController (private val emailService: EmailService) : ReportApiDelegate {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(this::class.java)
+    }
+
     override fun createReport(report: ReportDto): ResponseEntity<Void> {
-        return try {
-            emailService.sendReportEmail(report)
-            ResponseEntity.ok().build()
-        } catch (e: MailException) {
-            ResponseEntity(HttpStatus.SERVICE_UNAVAILABLE)
-        } catch (e: UserNotFoundException) {
-            ResponseEntity.badRequest().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting send report from user with id: ${report.userId}")
+        emailService.sendReportEmail(report)
+        return ResponseEntity.ok().build()
     }
 
 }

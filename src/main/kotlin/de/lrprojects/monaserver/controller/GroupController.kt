@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.convertToGroupSmall
+import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.ImageNotSquareException
 import de.lrprojects.monaserver.excepetion.ProfileImageException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
@@ -11,6 +12,7 @@ import de.lrprojects.monaserver.model.GroupSmallDto
 import de.lrprojects.monaserver.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.GroupService
 import jakarta.persistence.EntityNotFoundException
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -18,71 +20,49 @@ import org.springframework.stereotype.Component
 import java.util.*
 
 @Component
-class GroupController (private val groupService: GroupService) : GroupsApiDelegate {
+class GroupController(private val groupService: GroupService) : GroupsApiDelegate {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(this::class.java)
+    }
 
     @PreAuthorize("hasAuthority('ADMIN') || @guard.isSameUser(authentication, #createGroup.getGroupAdmin())")
     override fun addGroup(createGroup: CreateGroupDto): ResponseEntity<GroupDto> {
-        return try {
-            val result = groupService.addGroup(createGroup)
-            ResponseEntity(result, HttpStatus.CREATED)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: ProfileImageException) {
-            ResponseEntity(HttpStatus.BAD_REQUEST)
-        } catch (e: ImageNotSquareException) {
-            ResponseEntity.badRequest().build()
-        } catch (e: UserNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to add group with admin: ${createGroup.groupAdmin}")
+        val result = groupService.addGroup(createGroup)
+        log.info("Group added with admin: ${createGroup.groupAdmin}")
+        return ResponseEntity(result, HttpStatus.CREATED)
     }
 
-   @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
+    @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
     override fun deleteGroup(groupId: UUID): ResponseEntity<Void> {
-        return try {
-            groupService.deleteGroup(groupId)
-            ResponseEntity.ok().build()
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to delete group with ID: $groupId")
+        groupService.deleteGroup(groupId)
+        log.info("Group deleted with ID: $groupId")
+        return ResponseEntity.ok().build()
     }
 
     override fun getGroup(groupId: UUID): ResponseEntity<GroupSmallDto> {
-        return try {
-            val result = groupService.getGroup(groupId)
-            ResponseEntity.ok(result.convertToGroupSmall())
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group with ID: $groupId")
+        val result = groupService.getGroup(groupId)
+        log.info("Retrieved group with ID: $groupId")
+        return ResponseEntity.ok(result.convertToGroupSmall())
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupAdmin(groupId: UUID): ResponseEntity<String> {
-        return try {
-            val result = groupService.getGroupAdmin(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group admin for group with ID: $groupId")
+        val result = groupService.getGroupAdmin(groupId)
+        log.info("Retrieved group admin for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupDescription(groupId: UUID): ResponseEntity<String> {
-        return try {
-            val result = groupService.getGroupDescription(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group description for group with ID: $groupId")
+        val result = groupService.getGroupDescription(groupId)
+        log.info("Retrieved group description for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     override fun getGroupsByIds(
@@ -91,80 +71,48 @@ class GroupController (private val groupService: GroupService) : GroupsApiDelega
         userId: UUID?,
         withUser: Boolean?
     ): ResponseEntity<MutableList<GroupSmallDto>>? {
-        return try {
-            val result = groupService.getGroupsByIds(ids, search, withUser, userId).toMutableList()
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: AssertionError) {
-            ResponseEntity.badRequest().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get groups by IDs: $ids, search: $search, userId: $userId, withUser: $withUser")
+        val result = groupService.getGroupsByIds(ids, search, withUser, userId).toMutableList()
+        log.info("Retrieved groups by IDs")
+        return ResponseEntity.ok(result)
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupInviteUrl(groupId: UUID): ResponseEntity<String> {
-        return try {
-            val result = groupService.getGroupInviteUrl(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group invite URL for group with ID: $groupId")
+        val result = groupService.getGroupInviteUrl(groupId)
+        log.info("Retrieved group invite URL for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupLink(groupId: UUID): ResponseEntity<String> {
-        return try {
-            val result = groupService.getGroupLink(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group link for group with ID: $groupId")
+        val result = groupService.getGroupLink(groupId)
+        log.info("Retrieved group link for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupPinImage(groupId: UUID): ResponseEntity<ByteArray> {
-        return try {
-            val result = groupService.getGroupPinImage(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group pin image for group with ID: $groupId")
+        val result = groupService.getGroupPinImage(groupId)
+        log.info("Retrieved group pin image for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     override fun getGroupProfileImage(groupId: UUID): ResponseEntity<ByteArray> {
-        return try {
-            val result = groupService.getGroupProfileImage(groupId)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to get group profile image for group with ID: $groupId")
+        val result = groupService.getGroupProfileImage(groupId)
+        log.info("Retrieved group profile image for group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
     override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): ResponseEntity<GroupDto> {
-        return try {
-            val result = groupService.updateGroup(groupId, updateGroup)
-            ResponseEntity.ok(result)
-        } catch (e: EntityNotFoundException) {
-            ResponseEntity.notFound().build()
-        } catch (e: ImageNotSquareException) {
-            ResponseEntity.badRequest().build()
-        } catch (e: UserNotFoundException) {
-            ResponseEntity.badRequest().build()
-        } catch (e: Exception) {
-            ResponseEntity.internalServerError().build()
-        }
+        log.info("Attempting to update group with ID: $groupId")
+        val result = groupService.updateGroup(groupId, updateGroup)
+        log.info("Updated group with ID: $groupId")
+        return ResponseEntity.ok(result)
     }
-
-
 }
