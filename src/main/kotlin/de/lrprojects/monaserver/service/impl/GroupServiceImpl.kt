@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.convertToGroupSmall
 import de.lrprojects.monaserver.converter.toGroupModel
+import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
@@ -92,7 +93,7 @@ class GroupServiceImpl (
     }
 
     override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?): List<GroupSmallDto> {
-        if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertionError("A username must be set when withUser is used")
+        if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertException("A username must be set when withUser is used")
         return when (withUser) {
             null -> groupRepository.searchGroups(
                 ids?.toTypedArray(), search).map { r -> r.convertToGroupSmall() }
