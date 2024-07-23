@@ -49,12 +49,7 @@ open class Group {
     @ManyToMany(mappedBy = "groups", fetch = FetchType.LAZY)
     open var members: MutableSet<User> = mutableSetOf()
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
-    @JoinTable(
-        name = "groups_pins",
-        joinColumns = [JoinColumn(name = "group_id")],
-        inverseJoinColumns = [JoinColumn(name = "pin_id")]
-    )
+    @OneToMany(mappedBy = "group", fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], targetEntity = Pin::class)
     @OnDelete(action = OnDeleteAction.CASCADE)
     open var pins: MutableSet<Pin> = HashSet()
 

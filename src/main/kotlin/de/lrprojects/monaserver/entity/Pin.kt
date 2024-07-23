@@ -37,8 +37,8 @@ open class Pin {
     open var image : ByteArray? = null
 
 
-    @ManyToMany(mappedBy = "pins", fetch = FetchType.LAZY)
-    open var groups: MutableSet<Group> = mutableSetOf()
+    @ManyToOne
+    open var group: Group? = null
 
     @Column(name = "is_deleted", nullable = false)
     open var isDeleted: Boolean = false

@@ -41,7 +41,8 @@ class MonaServiceImpl(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
                     (it[3] as Double).toBigDecimal(),
-                    (it[4] as UUID)).also { t ->
+                    (it[4] as UUID),
+                    it[5] as UUID).also { t ->
                         t.creationDate = (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC)
                 }
             }.toMutableList()
@@ -51,7 +52,8 @@ class MonaServiceImpl(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
                     (it[3] as Double).toBigDecimal(),
-                    (it[4] as UUID)
+                    (it[4] as UUID),
+                    (it[6] as UUID)
                 ).also { t ->
                     t.creationDate = (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC)
                     t.image = (it[5] as ByteArray?)

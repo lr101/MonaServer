@@ -18,6 +18,7 @@ fun Pin.toPinWithOptionalImage(image: ByteArray?) = PinWithOptionalImageDto(
         this.latitude.toBigDecimal(),
         this.longitude.toBigDecimal(),
         this.user?.id,
+        this.group?.id
     ).also {
         it.creationDate = this.creationDate?.toInstant()?.atOffset(ZoneOffset.UTC)
         it.image = this.image

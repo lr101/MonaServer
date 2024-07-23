@@ -60,7 +60,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     fun findPinsByGroupAndDate(currentUserId: UUID, groupId: UUID, date: OffsetDateTime): MutableList<Pin>
 
 
-    @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creator_id FROM pins p " +
+    @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, gp.group_id FROM pins p " +
             "JOIN groups_pins gp on p.id = gp.id WHERE " +
             "gp.group_id IN ( " +
             "  SELECT m.group_id FROM members m " +
@@ -77,7 +77,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
         @Param("currentUsername") currentUsername: String
     ) : List<Array<Any>>
 
-    @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, lo_get(p.image) FROM pins p " +
+    @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, lo_get(p.image), gp.group_id FROM pins p " +
             "JOIN groups_pins gp on p.id = gp.id WHERE " +
             "gp.group_id IN ( " +
             "  SELECT m.group_id FROM members m " +
