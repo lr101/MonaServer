@@ -4,3 +4,5 @@ properties:
     $ref: '../parameters/shortString.yaml'
   userId:
     $ref: '../parameters/id.yaml'
+  tokens:
+    $ref: '../schemas/tokenResponseDto.yaml'

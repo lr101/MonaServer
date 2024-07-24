@@ -20,6 +20,9 @@ tags:
     description: Everything about Memberships
   - name: report
 
+security:
+  - token: []
+
 paths:
   /api/v2/groups:
     $ref: './methods/groups.yaml'
@@ -86,3 +89,10 @@ paths:
 
   /api/v2/users/{userId}/profile_picture:
     $ref: './methods/userProfileImage.yaml'
+
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

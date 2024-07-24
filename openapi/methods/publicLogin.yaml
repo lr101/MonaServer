@@ -20,7 +20,7 @@ post:
       content:
         application/json:
           schema:
-            $ref: '../schemas/tokenResponseDto.yaml'
+            $ref: '../schemas/userInfoDto.yaml'
 
     '400':
       description: Wrong password or user does not exist
