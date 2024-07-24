@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.model.TokenResponseDto
+import de.lrprojects.monaserver.model.UserInfoDto
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService
@@ -26,7 +27,7 @@ class AuthServiceImpl(
 ) : AuthService{
 
     @Throws(UserExistsException::class)
-    override fun signup(username: String, password: String, email: String): TokenResponseDto {
+    override fun signup(username: String, password: String, email: String): UserInfoDto {
         if (userRepository.existsByUsername(username)) {
             throw UserExistsException("user with username " + username + "already exists")
         }
@@ -39,18 +40,18 @@ class AuthServiceImpl(
         val accessToken = tokenHelper.generateToken(username)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
-        return TokenResponseDto(refreshToken.token, accessToken)
+        return UserInfoDto(user.username, user.id, TokenResponseDto(refreshToken.token, accessToken))
     }
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
-    override fun login(username: String, password: String): TokenResponseDto {
+    override fun login(username: String, password: String): UserInfoDto {
         val user = userRepository.findByUsername(username).orElseThrow { UserNotFoundException("user does not exist") }
         if (passwordEncoder.matches(password, user.password)) {
             throw WrongPasswordException("password is wrong")
         }
         val accessToken = tokenHelper.generateToken(username)
         val refreshToken = refreshTokenService.createRefreshToken(user)
-        return TokenResponseDto(refreshToken.token, accessToken)
+        return UserInfoDto(user.username, user.id, TokenResponseDto(refreshToken.token, accessToken))
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)

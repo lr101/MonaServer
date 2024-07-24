@@ -1,4 +1,8 @@
 type: object
+required:
+    - username
+    - userId
+    - tokens
 properties:
   username:
     $ref: '../parameters/shortString.yaml'

@@ -3,6 +3,7 @@ package de.lrprojects.monaserver.controller
 import de.lrprojects.monaserver.api.AuthApiDelegate
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.model.TokenResponseDto
+import de.lrprojects.monaserver.model.UserInfoDto
 import de.lrprojects.monaserver.model.UserLoginRequest
 import de.lrprojects.monaserver.model.UserRequestDto
 import de.lrprojects.monaserver.service.api.AuthService
@@ -21,7 +22,7 @@ class AuthController(
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun createUser(createUser: UserRequestDto): ResponseEntity<TokenResponseDto>? {
+    override fun createUser(createUser: UserRequestDto): ResponseEntity<UserInfoDto> {
         log.info("Attempting to create user with username: ${createUser.name}")
         val token = authService.signup(createUser.name, createUser.password, createUser.email)
         log.info("Created user with username: ${createUser.name}")
@@ -47,7 +48,7 @@ class AuthController(
         }
     }
 
-    override fun userLogin(userLoginRequest: UserLoginRequest): ResponseEntity<TokenResponseDto?> {
+    override fun userLogin(userLoginRequest: UserLoginRequest): ResponseEntity<UserInfoDto> {
         log.info("Attempting login for user: ${userLoginRequest.username}")
         return try {
             val token = authService.login(userLoginRequest.username, userLoginRequest.password)
