@@ -52,7 +52,7 @@ class UserServiceImpl(
             refreshTokenService.invalidateTokens(userEntity)
             val accessToken = tokenHelper.generateToken(userEntity.username)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
-            responseDto = TokenResponseDto(refreshToken.token, accessToken)
+            responseDto = TokenResponseDto(refreshToken.token, accessToken, userEntity.id)
         }
         userRepository.save(userEntity)
         return responseDto

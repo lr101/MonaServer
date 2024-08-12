@@ -43,7 +43,7 @@ class TokenHelper(
 
     fun validateToken(token: String?, userDetails: UserDetails): Boolean {
         val username = extractUsername(token)
-        return (username == userDetails.username && !isTokenExpired(token))
+        return (username == userDetails.password && !isTokenExpired(token))
     }
 
 

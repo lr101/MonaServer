@@ -17,7 +17,7 @@ get:
       content:
         application/json:
           schema:
-            $ref: '../schemas/groupSmallDto.yaml'
+            $ref: '../schemas/groupDto.yaml'
     404:
       description: Group does not exist
       content:

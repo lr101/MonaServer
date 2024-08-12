@@ -92,12 +92,12 @@ delete:
     - members
   parameters:
     - name: groupId
-      in: query
+      in: path
       required: true
       schema:
         $ref: '../parameters/id.yaml'
     - name: userId
-      in: path
+      in: query
       required: true
       description: userId
       schema:

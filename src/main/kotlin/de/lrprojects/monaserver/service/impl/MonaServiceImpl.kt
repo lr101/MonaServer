@@ -8,7 +8,6 @@ import jakarta.persistence.EntityNotFoundException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.ZoneOffset
 import java.util.*
 import kotlin.jvm.optionals.getOrElse
 
@@ -21,29 +20,29 @@ class MonaServiceImpl(
 
     @Throws(EntityNotFoundException::class)
     override fun getPinImage(pinId: UUID): ByteArray {
-        return pinRepository.findById(pinId).getOrElse { throw EntityNotFoundException("pin not found") }.image!!
+        return pinRepository.findById(pinId).getOrElse { throw EntityNotFoundException("pin not found") }.pinImage!!
     }
 
     @Throws(EntityNotFoundException::class)
     override fun addPinImage(pinId: UUID, image: ByteArray): ByteArray {
         val pin = pinRepository.findById(pinId).getOrElse { throw EntityNotFoundException("pin not found") }
         val processedImage = imageHelper.getPinImage(image)
-        pin.image = processedImage
+        pin.pinImage = processedImage
         pinRepository.save(pin)
         return processedImage
     }
 
     override fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?): MutableList<PinWithOptionalImageDto> {
-        val authentication = SecurityContextHolder.getContext().authentication.name
+        val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication.name)
         return if (withImages == null || !withImages) {
             pinRepository.getPinsFromIds(ids?.toTypedArray(), userId, groupId, authentication).map {
                 PinWithOptionalImageDto(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
                     (it[3] as Double).toBigDecimal(),
-                    (it[4] as UUID)).also { t ->
-                        t.creationDate = (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC)
-                }
+                    (it[4] as UUID),
+                    (it[5] as UUID)
+                ).also { t -> t.creationDate = (it[1] as Date) }
             }.toMutableList()
         } else {
             pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication).map {
@@ -51,9 +50,10 @@ class MonaServiceImpl(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
                     (it[3] as Double).toBigDecimal(),
-                    (it[4] as UUID)
+                    (it[4] as UUID),
+                    (it[6] as UUID)
                 ).also { t ->
-                    t.creationDate = (it[1] as Date).toInstant()?.atOffset(ZoneOffset.UTC)
+                    t.creationDate = (it[1] as Date)
                     t.image = (it[5] as ByteArray?)
                 }
             }.toMutableList()

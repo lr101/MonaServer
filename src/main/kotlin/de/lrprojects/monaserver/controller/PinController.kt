@@ -58,8 +58,7 @@ class PinController(
         return ResponseEntity.ok(image)
     }
 
-    @PreAuthorize("@guard.isPinsPublicOrMember(authentication, #ids) " +
-            "&& (#groupId == null || @guard.isGroupVisible(authentication, #groupId))")
+    @PreAuthorize("@guard.isPinsCreator(authentication, #ids) || @guard.isPinsPublicOrMember(authentication, #ids) ")
     override fun getPinImagesByIds(
         ids: MutableList<UUID>?,
         groupId: UUID?,
@@ -70,7 +69,7 @@ class PinController(
     ): ResponseEntity<MutableList<PinWithOptionalImageDto>> {
         log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height")
         val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage)
-        log.info("Retrieved pin images by IDs: $ids")
+        log.info("Retrieved pin images")
         return ResponseEntity.ok(images)
     }
 }

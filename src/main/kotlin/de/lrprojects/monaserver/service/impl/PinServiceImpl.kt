@@ -27,12 +27,10 @@ class PinServiceImpl(
         pin.user = userRepository.findById(newPin.userId).orElseThrow()
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
-        pin.creationDate = Date() //TODO
-        pin.image = newPin.image
-        val group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
+        pin.creationDate = newPin.creationDate
+        pin.pinImage = newPin.image
+        pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
-        group.pins.add(pin)
-        groupRepository.save(group)
         return pin
     }
 

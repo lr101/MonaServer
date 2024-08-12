@@ -236,7 +236,14 @@
 								<openApiNullable>false</openApiNullable>
 								<delegatePattern>true</delegatePattern>
 								<useSpringBoot3>true</useSpringBoot3>
+								<dateLibrary>custom</dateLibrary>
 							</configOptions>
+							<typeMappings>
+								<typeMapping>OffsetDateTime=Instant</typeMapping>
+							</typeMappings>
+							<importMappings>
+								<importMapping>java.time.OffsetDateTime=java.time.Instant</importMapping>
+							</importMappings>
 						</configuration>
 					</execution>
 				</executions>

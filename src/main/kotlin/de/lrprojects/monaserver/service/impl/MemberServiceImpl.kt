@@ -1,13 +1,14 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.converter.convertToGroupSmall
+import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.GroupSmallDto
+import de.lrprojects.monaserver.model.GroupDto
 import de.lrprojects.monaserver.model.MemberResponseDto
+import de.lrprojects.monaserver.model.RankingResponseDto
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
@@ -53,6 +54,12 @@ class MemberServiceImpl(
         return group.members.map { e -> MemberResponseDto(e.id) }
     }
 
+    override fun getRanking(groupId: UUID): MutableList<RankingResponseDto> {
+        return groupRepository.getRanking(groupId).map {
+            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int)
+        }.toMutableList()
+    }
+
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
     override fun deleteMember(userId: UUID, groupId: UUID) {
         val group = groupRepository.findById(groupId)
@@ -76,20 +83,21 @@ class MemberServiceImpl(
     }
 
     @Throws(UserNotFoundException::class)
-    override fun getGroupsOfUser(userId: UUID): List<GroupSmallDto> {
+    override fun getGroupsOfUser(userId: UUID): List<GroupDto> {
         val user = userRepository.findById(userId).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
-        return groupRepository.findAllByMembersIn(mutableSetOf(users)).map { group: Group -> group.convertToGroupSmall() }
+        return groupRepository.findAllByMembersIn(mutableSetOf(users)).map { group: Group -> group.toGroupDto() }
     }
 
-    override fun getGroupOfUserOrPublic(userId: UUID): List<GroupSmallDto> {
+    override fun getGroupOfUserOrPublic(userId: UUID): List<GroupDto> {
         val user = userRepository.findById(userId).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
-        return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0).map { group: Group -> group.convertToGroupSmall() }
+        return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0).map { group: Group -> group.toGroupDto() }
     }
 
     override fun isInGroup(group: Group): Boolean {
-        val user = userRepository.findByUsername(SecurityContextHolder.getContext().authentication.name).orElseThrow { UserNotFoundException("User not found") }
+        val user = userRepository.findById(UUID.fromString(SecurityContextHolder.getContext().authentication.name))
+            .orElseThrow { UserNotFoundException("User not found") }
         return group.members.contains(user);
     }
 

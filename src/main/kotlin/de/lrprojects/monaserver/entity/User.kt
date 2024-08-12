@@ -1,5 +1,7 @@
 package de.lrprojects.monaserver.entity
 
+import de.lrprojects.monaserver.config.DbConstants.BYTEA
+import de.lrprojects.monaserver.config.DbConstants.USERS
 import jakarta.persistence.*
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
@@ -9,50 +11,49 @@ import org.hibernate.validator.constraints.Length
 import java.util.*
 
 @Entity
-@Table(name = "users")
+@Table(name = USERS)
 data class User (
 
     @Id
     @GeneratedValue
-    @Column(name = "id", nullable = false)
+    @Column(nullable = false)
     var id: UUID? = null,
 
-    @Column(name = "username", unique = true)
+    @Column(unique = true)
     var username: @Min(1) String,
 
-    @Column(name = "password")
+    @Column(nullable = false)
     var password: @Min(1) String,
 
     @Email
-    @Column(name = "email")
+    @Column
     var email: String? = null,
 
-    @Column(name = "reset_password_url", unique = true)
+    @Column(unique = true)
     @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
 
-
     @Basic(fetch=FetchType.LAZY)
-    @Column(name = "profile_picture", columnDefinition = "bytea")
+    @Column(columnDefinition = BYTEA)
     var profilePicture: ByteArray? = null,
 
-    @Column(name = "profile_picture_small", columnDefinition = "bytea")
+    @Column(columnDefinition = BYTEA)
     @Basic(fetch = FetchType.LAZY)
     var profilePictureSmall: ByteArray? = null,
 
-    @Column(name = "code")
+    @Column
     @Basic(fetch = FetchType.LAZY)
     @Length(min = 6, max = 6)
     var code: String? = null,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "creation_date")
-    var createDate: Date? = null,
+    @Column(nullable = false)
+    var creationDate: Date? = null,
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "update_date")
+    @Column
     var updateDate: Date? = null,
 
     @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
@@ -88,7 +89,7 @@ data class User (
             if (!profilePictureSmall.contentEquals(other.profilePictureSmall)) return false
         } else if (other.profilePictureSmall != null) return false
         if (code != other.code) return false
-        if (createDate != other.createDate) return false
+        if (creationDate != other.creationDate) return false
         if (updateDate != other.updateDate) return false
         if (groups != other.groups) return false
 
@@ -97,14 +98,14 @@ data class User (
 
     override fun hashCode(): Int {
         var result = id?.hashCode() ?: 0
-        result = 31 * result + (username.hashCode() ?: 0)
-        result = 31 * result + (password.hashCode() ?: 0)
+        result = 31 * result + username.hashCode()
+        result = 31 * result + password.hashCode()
         result = 31 * result + (email?.hashCode() ?: 0)
         result = 31 * result + (resetPasswordUrl?.hashCode() ?: 0)
         result = 31 * result + (profilePicture?.contentHashCode() ?: 0)
         result = 31 * result + (profilePictureSmall?.contentHashCode() ?: 0)
         result = 31 * result + (code?.hashCode() ?: 0)
-        result = 31 * result + (createDate?.hashCode() ?: 0)
+        result = 31 * result + (creationDate?.hashCode() ?: 0)
         result = 31 * result + (updateDate?.hashCode() ?: 0)
         result = 31 * result + groups.hashCode()
         return result

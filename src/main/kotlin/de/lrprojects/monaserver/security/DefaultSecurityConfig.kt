@@ -1,12 +1,8 @@
 package de.lrprojects.monaserver.security
 
-import org.springframework.beans.factory.annotation.Autowired
+import de.lrprojects.monaserver.config.RoleConstants.USER_ROLE
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.security.authentication.AuthenticationManager
-import org.springframework.security.authentication.AuthenticationProvider
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
@@ -19,7 +15,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
-import java.util.*
 
 
 @EnableWebSecurity
@@ -28,8 +23,8 @@ import java.util.*
     prePostEnabled = true,
     securedEnabled = true,
     jsr250Enabled = true)
-class DefaultSecurityConfig internal constructor(
-    @Autowired val userDetailsService: MyUserDetailsService,
+class DefaultSecurityConfig (
+    private val userDetailsService: MyUserDetailsService,
 ) {
 
     @Bean
@@ -39,31 +34,15 @@ class DefaultSecurityConfig internal constructor(
             .cors{ it.configurationSource(corsConfigurationSource())}
             .authorizeHttpRequests {
                 it
-                    .requestMatchers("/api/v2/public/**", "/static/**","/public/**", "/error").permitAll()
-                    .requestMatchers("/api/v2/**").hasAuthority("USER")
-                    .anyRequest().permitAll()
+                    .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
+                    .requestMatchers(API_PATH).hasAuthority(USER_ROLE)
+                    .anyRequest().authenticated()
             }
             .sessionManagement {
                 it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             }
-            .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)
         return http.build()
-    }
-
-    @Bean
-    @Throws(Exception::class)
-    fun authenticationManager(config: AuthenticationConfiguration): AuthenticationManager {
-        return config.authenticationManager
-    }
-
-
-    @Bean
-    fun authenticationProvider(): AuthenticationProvider {
-        val authenticationProvider = DaoAuthenticationProvider()
-        authenticationProvider.setUserDetailsService(userDetailsService())
-        authenticationProvider.setPasswordEncoder(passwordEncoder())
-        return authenticationProvider
     }
 
     @Bean
@@ -86,6 +65,14 @@ class DefaultSecurityConfig internal constructor(
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
         return source
+    }
+
+    companion object {
+        const val PUBLIC_API_PATH = "/api/v2/public/**"
+        const val PUBLIC_PATH = "/public/**"
+        const val STATIC_PATH = "/static/**"
+        const val ERROR_PATH = "/error"
+        const val API_PATH = "/api/v2/**"
     }
 
 }

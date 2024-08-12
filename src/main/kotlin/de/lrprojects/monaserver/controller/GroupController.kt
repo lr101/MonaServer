@@ -1,18 +1,14 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.GroupsApiDelegate
-import de.lrprojects.monaserver.converter.convertToGroupSmall
-import de.lrprojects.monaserver.excepetion.AssertException
-import de.lrprojects.monaserver.excepetion.ImageNotSquareException
-import de.lrprojects.monaserver.excepetion.ProfileImageException
-import de.lrprojects.monaserver.excepetion.UserNotFoundException
+import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.model.CreateGroupDto
 import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.GroupSmallDto
 import de.lrprojects.monaserver.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.GroupService
-import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -42,11 +38,11 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
         return ResponseEntity.ok().build()
     }
 
-    override fun getGroup(groupId: UUID): ResponseEntity<GroupSmallDto> {
+    override fun getGroup(groupId: UUID): ResponseEntity<GroupDto> {
         log.info("Attempting to get group with ID: $groupId")
         val result = groupService.getGroup(groupId)
         log.info("Retrieved group with ID: $groupId")
-        return ResponseEntity.ok(result.convertToGroupSmall())
+        return ResponseEntity.ok(result.toGroupDto())
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
@@ -69,10 +65,21 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
         ids: MutableList<UUID>?,
         search: String?,
         userId: UUID?,
-        withUser: Boolean?
-    ): ResponseEntity<MutableList<GroupSmallDto>>? {
+        withUser: Boolean?,
+        withImages: Boolean?,
+        page: Int?,
+        size: Int
+    ): ResponseEntity<MutableList<GroupDto>>? {
         log.info("Attempting to get groups by IDs: $ids, search: $search, userId: $userId, withUser: $withUser")
-        val result = groupService.getGroupsByIds(ids, search, withUser, userId).toMutableList()
+        val pageable: Pageable = if (page != null) {
+            PageRequest.of(page, size)
+        } else {
+            Pageable.unpaged()
+        }
+        val result = groupService
+            .getGroupsByIds(ids, search, withUser, userId, pageable)
+            .map { it.toGroupDto(withImages) }
+            .toMutableList()
         log.info("Retrieved groups by IDs")
         return ResponseEntity.ok(result)
     }
@@ -93,7 +100,6 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
         return ResponseEntity.ok(result)
     }
 
-    @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
     override fun getGroupPinImage(groupId: UUID): ResponseEntity<ByteArray> {
         log.info("Attempting to get group pin image for group with ID: $groupId")
         val result = groupService.getGroupPinImage(groupId)

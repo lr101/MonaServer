@@ -5,6 +5,7 @@ required:
   - creationUser
   - latitude
   - longitude
+  - groupId
 properties:
   id:
     $ref: '../parameters/id.yaml'
@@ -18,3 +19,5 @@ properties:
     $ref: '../parameters/id.yaml'
   image:
     $ref: '../parameters/image.yaml'
+  groupId:
+    $ref: '../parameters/id.yaml'

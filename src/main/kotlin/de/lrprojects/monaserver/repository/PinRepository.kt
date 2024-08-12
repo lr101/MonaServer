@@ -16,8 +16,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     @Query(
         value = "SELECT p.*" +
                 "FROM pins p " +
-                "JOIN groups_pins gp on p.id = gp.id " +
-                "WHERE gp.group_id IN ( " +
+                "WHERE p.group_id IN ( " +
                 "  SELECT m.group_id FROM members m " +
                 "  JOIN groups g on g.id = m.group_id " +
                 "  WHERE m.user_id = ?2 OR g.visibility = 0 " +
@@ -31,13 +30,12 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     @Query(
         value = "SELECT p.*" +
                 "FROM pins p " +
-                "JOIN groups_pins gp on p.id = gp.id " +
-                "WHERE gp.group_id IN ( " +
+                "WHERE p.group_id IN ( " +
                 "  SELECT m.group_id FROM members m " +
                 "  JOIN groups g on g.id = m.group_id " +
                 "  WHERE m.user_id = ?2 OR g.visibility = 0 " +
                 "  GROUP BY m.group_id) " +
-                "AND gp.group_id = ?3 " +
+                "AND p.group_id = ?3 " +
                 "AND p.creator_id = ?1 ",
         nativeQuery = true
     )
@@ -46,13 +44,12 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     @Query(
         value = "SELECT p.*" +
                 "FROM pins p " +
-                "JOIN groups_pins gp on p.id = gp.id " +
-                "WHERE gp.group_id IN ( " +
+                "WHERE p.group_id IN ( " +
                 "  SELECT m.group_id FROM members m " +
                 "  JOIN groups g on g.id = m.group_id " +
                 "  WHERE m.user_id = ?1 OR g.visibility = 0 " +
                 "  GROUP BY m.group_id) " +
-                "AND gp.group_id = ?2 " +
+                "AND p.group_id = ?2 " +
                 "AND p.creation_date > ?3 " +
                 "ORDER BY p.creation_date DESC",
         nativeQuery = true
@@ -60,37 +57,37 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     fun findPinsByGroupAndDate(currentUserId: UUID, groupId: UUID, date: OffsetDateTime): MutableList<Pin>
 
 
-    @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creator_id FROM pins p " +
-            "JOIN groups_pins gp on p.id = gp.id WHERE " +
-            "gp.group_id IN ( " +
+    @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, p.group_id FROM pins p " +
+            "WHERE " +
+            "p.group_id IN ( " +
             "  SELECT m.group_id FROM members m " +
                 "  JOIN groups g on g.id = m.group_id " +
-                "  WHERE m.user_id = cast (:currentUsername as text) OR g.visibility = 0 " +
+                "  WHERE m.user_id = cast (:currentUserId as uuid) OR g.visibility = 0 " +
                 "  GROUP BY m.group_id) " +
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
-            " AND ( cast(:username as text) IS NULL OR p.creator_id = :username )" +
-            " AND ( cast(:groupId as uuid) IS NULL OR gp.group_id = :groupId)", nativeQuery = true)
+            " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
+            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)", nativeQuery = true)
     fun getPinsFromIds(
         @Param("ids") listOfIds: Array<UUID>?,
-        @Param("username") userId: UUID?,
+        @Param("userId") userId: UUID?,
         @Param("groupId") groupId: UUID?,
-        @Param("currentUsername") currentUsername: String
+        @Param("currentUserId") currentUsername: UUID
     ) : List<Array<Any>>
 
-    @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, lo_get(p.image) FROM pins p " +
-            "JOIN groups_pins gp on p.id = gp.id WHERE " +
-            "gp.group_id IN ( " +
+    @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, p.pin_image, p.group_id FROM pins p " +
+            " WHERE " +
+            "p.group_id IN ( " +
             "  SELECT m.group_id FROM members m " +
             "  JOIN groups g on g.id = m.group_id " +
-            "  WHERE m.user_id = cast (:currentUsername as text) OR g.visibility = 0 " +
+            "  WHERE m.user_id = cast (:currentUserId as uuid) OR g.visibility = 0 " +
             "  GROUP BY m.group_id) " +
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
-            " AND ( cast(:username as text) IS NULL OR p.creator_id = :username )" +
-            " AND ( cast(:groupId as uuid) IS NULL OR gp.group_id = :groupId)", nativeQuery = true)
+            " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
+            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)", nativeQuery = true)
     fun getImagesFromIds(@Param("ids") listOfIds: Array<UUID>?,
-                         @Param("username") userId: UUID?,
+                         @Param("userId") userId: UUID?,
                          @Param("groupId") groupId: UUID?,
-                         @Param("currentUsername") currentUsername: String
+                         @Param("currentUserId") currentUsername: UUID
     ) :  List<Array<Any>>
 
 }

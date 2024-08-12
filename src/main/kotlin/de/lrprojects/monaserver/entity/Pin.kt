@@ -1,45 +1,50 @@
 package de.lrprojects.monaserver.entity
 
+import de.lrprojects.monaserver.config.DbConstants.BYTEA
+import de.lrprojects.monaserver.config.DbConstants.CREATOR_ID
+import de.lrprojects.monaserver.config.DbConstants.GROUP_ID
+import de.lrprojects.monaserver.config.DbConstants.ID
+import de.lrprojects.monaserver.config.DbConstants.PINS
 import jakarta.persistence.*
 import org.hibernate.annotations.UpdateTimestamp
 import java.util.*
 
 @Entity
-@Table(name = "pins")
-open class Pin {
+@Table(name = PINS)
+class Pin {
 
     @Id
     @GeneratedValue
-    @Column(name = "id", nullable = false)
-    open var id: UUID? = null
+    @Column(name = ID, nullable = false)
+    var id: UUID? = null
 
-    @Column(name = "latitude", nullable = false)
-    open var latitude = 0.0
+    @Column(nullable = false)
+    var latitude = 0.0
 
-    @Column(name = "longitude", nullable = false)
-    open var longitude = 0.0
+    @Column(nullable = false)
+    var longitude = 0.0
 
-    @Column(name = "creation_date", nullable = false)
+    @Column(nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
-    open var creationDate: Date? = null
+    var creationDate: Date? = null
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "update_date")
-    open var updateDate: Date? = null
+    @Column
+    var updateDate: Date? = null
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", referencedColumnName = "id", nullable = false)
-    open var user: User? = null
+    @JoinColumn(name = CREATOR_ID, referencedColumnName = ID, nullable = false)
+    var user: User? = null
 
-    @Column(name = "pin_image", nullable = false, columnDefinition = "bytea")
+    @Column(nullable = false, columnDefinition = BYTEA)
     @Basic(fetch = FetchType.LAZY)
-    open var image : ByteArray? = null
+    var pinImage : ByteArray? = null
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = GROUP_ID)
+    var group: Group? = null
 
-    @ManyToMany(mappedBy = "pins", fetch = FetchType.LAZY)
-    open var groups: MutableSet<Group> = mutableSetOf()
-
-    @Column(name = "is_deleted", nullable = false)
-    open var isDeleted: Boolean = false
+    @Column(nullable = false)
+    var isDeleted: Boolean = false
 }

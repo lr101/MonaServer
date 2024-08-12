@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.entity
 
+import de.lrprojects.monaserver.config.DbConstants.USER_ID
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
@@ -18,7 +19,7 @@ data class RefreshToken(
     val expiryDate: Date,
 
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = USER_ID, nullable = false)
     val user: User,
 
     @CreationTimestamp
