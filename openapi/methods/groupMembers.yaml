@@ -45,16 +45,11 @@ post:
       description: id of user
       schema:
         $ref: '../parameters/id.yaml'
-  requestBody:
-    required: true
-    content:
-      application/json:
-        schema:
-          properties:
-            inviteUrl:
-              $ref: '../parameters/shortString.yaml'
-          required:
-            - inviteUrl
+    - name: inviteUrl
+      in: query
+      description: inviteUrl to authorize a user to join a private group
+      schema:
+        $ref: '../parameters/shortString.yaml'
   responses:
     '201':
       description: Successful response

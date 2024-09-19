@@ -45,6 +45,11 @@ get:
       schema:
         type: integer
         default: 20
+    - name: updatedAfter
+      description: "only include groups that have been updated after this date"
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
   responses:
     '200':
       description: Successful response

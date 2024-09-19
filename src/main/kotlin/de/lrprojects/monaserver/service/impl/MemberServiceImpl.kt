@@ -13,6 +13,7 @@ import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
+import org.slf4j.LoggerFactory
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -56,7 +57,9 @@ class MemberServiceImpl(
 
     override fun getRanking(groupId: UUID): MutableList<RankingResponseDto> {
         return groupRepository.getRanking(groupId).map {
-            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int)
+            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also { t ->
+                t.profileImageSmall = it[3] as ByteArray?
+            }
         }.toMutableList()
     }
 
@@ -73,6 +76,7 @@ class MemberServiceImpl(
 
         if (user == group.groupAdmin && group.members.size == 1) {
             groupRepository.delete(group)
+            log.info("Deleted group $groupId")
         } else if (user != group.groupAdmin) {
             user.groups.remove(group)
             userRepository.save(user)
@@ -101,5 +105,8 @@ class MemberServiceImpl(
         return group.members.contains(user);
     }
 
+    companion object {
+        private val log = LoggerFactory.getLogger(this::class.java)
+    }
 
 }

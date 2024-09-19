@@ -1,0 +1,8 @@
+type: object
+properties:
+  userTokenDto:
+    $ref: '../schemas/tokenResponseDto.yaml'
+  profileImageSmall:
+    $ref: '../parameters/image.yaml'
+  profileImage:
+    $ref: '../parameters/image.yaml'

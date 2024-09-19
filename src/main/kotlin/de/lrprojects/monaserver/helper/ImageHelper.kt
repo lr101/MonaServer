@@ -6,13 +6,10 @@ import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Component
 import java.awt.Color
-import java.awt.Image
 import java.awt.image.BufferedImage
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.FileNotFoundException
-import java.io.IOException
+import java.io.*
 import javax.imageio.ImageIO
+
 
 @Component
 class ImageHelper {

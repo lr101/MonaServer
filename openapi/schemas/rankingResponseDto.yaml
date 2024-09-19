@@ -10,3 +10,5 @@ properties:
     $ref: '../parameters/shortString.yaml'
   ranking:
     type: integer
+  profile_image_small:
+    $ref: '../parameters/image.yaml'

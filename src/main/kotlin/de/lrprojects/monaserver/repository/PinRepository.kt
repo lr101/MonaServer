@@ -1,6 +1,8 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Pin
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
@@ -66,13 +68,15 @@ interface PinRepository : CrudRepository<Pin, UUID> {
                 "  GROUP BY m.group_id) " +
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
             " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
-            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)", nativeQuery = true)
+            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)" +
+            " ORDER BY p.creation_date DESC", nativeQuery = true)
     fun getPinsFromIds(
         @Param("ids") listOfIds: Array<UUID>?,
         @Param("userId") userId: UUID?,
         @Param("groupId") groupId: UUID?,
-        @Param("currentUserId") currentUsername: UUID
-    ) : List<Array<Any>>
+        @Param("currentUserId") currentUsername: UUID,
+        pageable: Pageable
+    ) : Page<Array<Any>>
 
     @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, p.pin_image, p.group_id FROM pins p " +
             " WHERE " +
@@ -83,11 +87,13 @@ interface PinRepository : CrudRepository<Pin, UUID> {
             "  GROUP BY m.group_id) " +
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
             " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
-            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)", nativeQuery = true)
+            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)" +
+            " ORDER BY p.creation_date DESC", nativeQuery = true)
     fun getImagesFromIds(@Param("ids") listOfIds: Array<UUID>?,
                          @Param("userId") userId: UUID?,
                          @Param("groupId") groupId: UUID?,
-                         @Param("currentUserId") currentUsername: UUID
-    ) :  List<Array<Any>>
+                         @Param("currentUserId") currentUsername: UUID,
+                         pageable: Pageable
+    ) :  Page<Array<Any>>
 
 }

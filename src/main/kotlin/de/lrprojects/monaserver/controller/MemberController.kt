@@ -4,7 +4,6 @@ import de.lrprojects.monaserver.api.MembersApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.JoinGroupRequest
 import de.lrprojects.monaserver.model.MemberResponseDto
 import de.lrprojects.monaserver.model.RankingResponseDto
 import de.lrprojects.monaserver.service.api.MemberService
@@ -25,10 +24,10 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     override fun joinGroup(
         groupId: UUID,
         userId: UUID,
-        joinGroupRequest: JoinGroupRequest?
+        inviteUrl: String?
     ): ResponseEntity<GroupDto> {
-        log.info("User $userId attempting to join group $groupId with inviteUrl: ${joinGroupRequest?.inviteUrl}")
-        val group = memberService.addMember(userId, groupId, joinGroupRequest?.inviteUrl)
+        log.info("User $userId attempting to join group $groupId with inviteUrl: $inviteUrl")
+        val group = memberService.addMember(userId, groupId, inviteUrl)
         log.info("User $userId joined group $groupId")
         return ResponseEntity(group.toGroupDto(), HttpStatus.CREATED)
     }

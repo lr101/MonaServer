@@ -5,6 +5,8 @@ import de.lrprojects.monaserver.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.service.api.MonaService
 import jakarta.persistence.EntityNotFoundException
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -32,10 +34,10 @@ class MonaServiceImpl(
         return processedImage
     }
 
-    override fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?): MutableList<PinWithOptionalImageDto> {
+    override fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?, pageable: Pageable): Page<PinWithOptionalImageDto> {
         val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication.name)
         return if (withImages == null || !withImages) {
-            pinRepository.getPinsFromIds(ids?.toTypedArray(), userId, groupId, authentication).map {
+            pinRepository.getPinsFromIds(ids?.toTypedArray(), userId, groupId, authentication, pageable).map {
                 PinWithOptionalImageDto(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
@@ -43,9 +45,9 @@ class MonaServiceImpl(
                     (it[4] as UUID),
                     (it[5] as UUID)
                 ).also { t -> t.creationDate = (it[1] as Date) }
-            }.toMutableList()
+            }
         } else {
-            pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication).map {
+            pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, pageable).map {
                 PinWithOptionalImageDto(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
@@ -56,7 +58,7 @@ class MonaServiceImpl(
                     t.creationDate = (it[1] as Date)
                     t.image = (it[5] as ByteArray?)
                 }
-            }.toMutableList()
+            }
         }
     }
 }

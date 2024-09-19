@@ -8,6 +8,8 @@ import de.lrprojects.monaserver.model.PinWithoutImageDto
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -65,11 +67,18 @@ class PinController(
         userId: UUID?,
         withImage: Boolean?,
         compression: Int?,
-        height: Int?
+        height: Int?,
+        page: Int?,
+        size: Int
     ): ResponseEntity<MutableList<PinWithOptionalImageDto>> {
-        log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height")
-        val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage)
+        log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height, page: $page, size: $size")
+        val pageable: Pageable = if (page != null) {
+            PageRequest.of(page, size)
+        } else {
+            Pageable.unpaged()
+        }
+        val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage, pageable)
         log.info("Retrieved pin images")
-        return ResponseEntity.ok(images)
+        return ResponseEntity.ok(images.toList())
     }
 }

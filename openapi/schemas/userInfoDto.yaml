@@ -7,3 +7,5 @@ properties:
     $ref: '../parameters/shortString.yaml'
   userId:
     $ref: '../parameters/id.yaml'
+  profileImageSmall:
+    $ref: '../parameters/image.yaml'

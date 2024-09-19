@@ -50,7 +50,7 @@ put:
       content:
         application/json:
           schema:
-            $ref: '../schemas/tokenResponseDto.yaml'
+            $ref: '../schemas/userUpdateResponseDto.yaml'
     404:
       description: User does not exist
       content:

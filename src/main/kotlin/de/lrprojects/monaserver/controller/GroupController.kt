@@ -68,7 +68,8 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
         withUser: Boolean?,
         withImages: Boolean?,
         page: Int?,
-        size: Int
+        size: Int,
+        updatedAfter: Date?
     ): ResponseEntity<MutableList<GroupDto>>? {
         log.info("Attempting to get groups by IDs: $ids, search: $search, userId: $userId, withUser: $withUser")
         val pageable: Pageable = if (page != null) {

@@ -43,6 +43,8 @@ class JWTFilter (
             }
         } catch (e: Exception) {
             log.warn("Unauthorized user token ${e.message}")
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+            return
         }
         filterChain.doFilter(request, response)
     }
