@@ -57,6 +57,7 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     override fun getGroupRanking(groupId: UUID): ResponseEntity<MutableList<RankingResponseDto>> {
         log.info("Attempting to get ranking for group $groupId")
         val members = memberService.getRanking(groupId)
+        log.info("Successfully retrieved ranking for group $groupId")
         return ResponseEntity.ok().body(members)
     }
 }

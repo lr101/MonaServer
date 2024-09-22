@@ -44,20 +44,20 @@ class UserController(private val userService: UserService) : UsersApiDelegate {
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
     override fun updateUser(userId: UUID, user: UserUpdateDto): ResponseEntity<UserUpdateResponseDto> {
         log.info("Attempting to update user with ID: $userId")
-        var imageSmall: ByteArray?  = null
-        var image: ByteArray?  = null
+        var profilePictureSmall: ByteArray?  = null
+        var profilePicture: ByteArray?  = null
         if (user.image != null) {
             log.info("Attempting to update profile image for user with ID: $userId")
-            val user = userService.updateUserProfileImage(userId, user.image)
-            image = user.profilePicture
-            imageSmall = user.profilePictureSmall
+            val userEntity = userService.updateUserProfileImage(userId, user.image)
+            profilePicture = userEntity.profilePicture
+            profilePictureSmall = userEntity.profilePictureSmall
         }
         val token = userService.updateUser(userId, user)
         log.info("User updated with ID: $userId")
         return ResponseEntity.ok(UserUpdateResponseDto().also {
             it.userTokenDto = token
-            it.profileImageSmall = imageSmall
-            it.profileImage = image
+            it.profileImageSmall = profilePictureSmall
+            it.profileImage = profilePicture
         })
     }
 
