@@ -69,12 +69,14 @@ interface PinRepository : CrudRepository<Pin, UUID> {
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
             " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
             " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)" +
+            " AND ( cast(:updatedAfter as timestamp) IS NULL OR p.update_date > :updatedAfter)" +
             " ORDER BY p.creation_date DESC", nativeQuery = true)
     fun getPinsFromIds(
         @Param("ids") listOfIds: Array<UUID>?,
         @Param("userId") userId: UUID?,
         @Param("groupId") groupId: UUID?,
         @Param("currentUserId") currentUsername: UUID,
+        @Param("updatedAfter") updatedAfter: Date?,
         pageable: Pageable
     ) : Page<Array<Any>>
 
@@ -88,11 +90,13 @@ interface PinRepository : CrudRepository<Pin, UUID> {
             " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
             " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
             " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)" +
+            " AND ( cast(:updatedAfter as timestamp) IS NULL OR p.update_date > :updatedAfter)" +
             " ORDER BY p.creation_date DESC", nativeQuery = true)
     fun getImagesFromIds(@Param("ids") listOfIds: Array<UUID>?,
                          @Param("userId") userId: UUID?,
                          @Param("groupId") groupId: UUID?,
                          @Param("currentUserId") currentUsername: UUID,
+                         @Param("updatedAfter") updatedAfter: Date?,
                          pageable: Pageable
     ) :  Page<Array<Any>>
 

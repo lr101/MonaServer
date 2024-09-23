@@ -16,9 +16,9 @@ import java.util.*
 @Service
 
 class PinServiceImpl(
-    val pinRepository: PinRepository,
-    val userRepository: UserRepository,
-    val groupRepository: GroupRepository
+    private val pinRepository: PinRepository,
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository
 ) : PinService {
 
     @Transactional
@@ -34,6 +34,7 @@ class PinServiceImpl(
         return pin
     }
 
+    @Transactional
     override fun deletePin(pinId: UUID) {
         pinRepository.deleteById(pinId)
     }

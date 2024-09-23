@@ -4,7 +4,9 @@ import de.lrprojects.monaserver.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.model.CreateGroupDto
 import de.lrprojects.monaserver.model.GroupDto
+import de.lrprojects.monaserver.model.GroupsSyncDto
 import de.lrprojects.monaserver.model.UpdateGroupDto
+import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
@@ -16,7 +18,10 @@ import org.springframework.stereotype.Component
 import java.util.*
 
 @Component
-class GroupController(private val groupService: GroupService) : GroupsApiDelegate {
+class GroupController(
+    private val groupService: GroupService,
+    private val deleteLogService: DeleteLogService
+) : GroupsApiDelegate {
 
     companion object {
         private val log = LoggerFactory.getLogger(this::class.java)
@@ -70,7 +75,7 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
         page: Int?,
         size: Int,
         updatedAfter: Date?
-    ): ResponseEntity<MutableList<GroupDto>>? {
+    ): ResponseEntity<GroupsSyncDto>? {
         log.info("Attempting to get groups by IDs: $ids, search: $search, userId: $userId, withUser: $withUser")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
@@ -78,11 +83,15 @@ class GroupController(private val groupService: GroupService) : GroupsApiDelegat
             Pageable.unpaged()
         }
         val result = groupService
-            .getGroupsByIds(ids, search, withUser, userId, pageable)
+            .getGroupsByIds(ids, search, withUser, userId, updatedAfter, pageable)
             .map { it.toGroupDto(withImages) }
             .toMutableList()
+        var deletedGroups = emptyList<UUID>();
+        if (updatedAfter != null) {
+            deletedGroups = deleteLogService.getDeletedGroups(updatedAfter)
+        }
         log.info("Retrieved groups by IDs")
-        return ResponseEntity.ok(result)
+        return ResponseEntity.ok(GroupsSyncDto(result, deletedGroups))
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")

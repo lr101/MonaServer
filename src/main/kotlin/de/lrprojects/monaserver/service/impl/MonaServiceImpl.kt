@@ -34,10 +34,10 @@ class MonaServiceImpl(
         return processedImage
     }
 
-    override fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?, pageable: Pageable): Page<PinWithOptionalImageDto> {
+    override fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?, updatedAfter: Date?, pageable: Pageable): Page<PinWithOptionalImageDto> {
         val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication.name)
         return if (withImages == null || !withImages) {
-            pinRepository.getPinsFromIds(ids?.toTypedArray(), userId, groupId, authentication, pageable).map {
+            pinRepository.getPinsFromIds(ids?.toTypedArray(), userId, groupId, authentication, updatedAfter, pageable).map {
                 PinWithOptionalImageDto(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),
@@ -47,7 +47,7 @@ class MonaServiceImpl(
                 ).also { t -> t.creationDate = (it[1] as Date) }
             }
         } else {
-            pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, pageable).map {
+            pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, updatedAfter, pageable).map {
                 PinWithOptionalImageDto(
                     it[0] as UUID,
                     (it[2] as Double).toBigDecimal(),

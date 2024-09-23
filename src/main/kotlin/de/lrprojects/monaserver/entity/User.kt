@@ -2,6 +2,8 @@ package de.lrprojects.monaserver.entity
 
 import de.lrprojects.monaserver.config.DbConstants.BYTEA
 import de.lrprojects.monaserver.config.DbConstants.USERS
+import de.lrprojects.monaserver.helper.DeletedEntityType
+import de.lrprojects.monaserver.helper.PreDeleteEntity
 import jakarta.persistence.*
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
@@ -9,15 +11,11 @@ import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.validator.constraints.Length
 import java.util.*
+import javax.sql.DataSource
 
 @Entity
 @Table(name = USERS)
 data class User (
-
-    @Id
-    @GeneratedValue
-    @Column(nullable = false)
-    var id: UUID? = null,
 
     @Column(unique = true)
     var username: @Min(1) String,
@@ -66,9 +64,12 @@ data class User (
         joinColumns = [JoinColumn(name = "user_id")],
         inverseJoinColumns = [JoinColumn(name = "group_id")]
     )
-    var groups: MutableSet<Group> = mutableSetOf()
+    var groups: MutableSet<Group> = mutableSetOf(),
 
-) {
+    @Transient
+    private var dataSource: DataSource? = null
+
+): PreDeleteEntity() {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -110,4 +111,6 @@ data class User (
         result = 31 * result + groups.hashCode()
         return result
     }
+
+    override fun getDeletedEntityType() = DeletedEntityType.USER
 }

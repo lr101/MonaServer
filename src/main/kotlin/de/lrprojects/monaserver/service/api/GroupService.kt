@@ -19,7 +19,7 @@ interface GroupService {
     fun getGroupLink(groupId: UUID): String?
     fun getGroupPinImage(groupId: UUID): ByteArray
     fun getGroupProfileImage(groupId: UUID): ByteArray
-    fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, pageable: Pageable): Page<Group>
+    fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: Date?, pageable: Pageable): Page<Group>
     fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): GroupDto
     fun getGroupOfPin(pinId: UUID):  Group
 }

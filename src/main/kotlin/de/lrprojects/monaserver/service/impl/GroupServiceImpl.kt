@@ -22,9 +22,9 @@ import kotlin.jvm.optionals.getOrElse
 @Service
 @Transactional
 class GroupServiceImpl (
-    val userRepository: UserRepository,
-    val groupRepository: GroupRepository,
-    val imageHelper: ImageHelper
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
+    private val imageHelper: ImageHelper
 ) : GroupService {
 
     override fun addGroup(createGroup: CreateGroupDto): GroupDto {
@@ -46,6 +46,7 @@ class GroupServiceImpl (
     }
 
     @Throws(SQLException::class)
+    @Transactional
     override fun deleteGroup(groupId: UUID) {
         groupRepository.deleteById(groupId)
     }
@@ -94,12 +95,12 @@ class GroupServiceImpl (
         return group.groupProfile!!
     }
 
-    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, pageable: Pageable): Page<Group> {
+    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: Date?, pageable: Pageable): Page<Group> {
         if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertException("A username must be set when withUser is used")
         return when (withUser) {
-            null -> groupRepository.searchGroups(ids?.toTypedArray(), search, pageable)
-            true -> groupRepository.searchInUserGroup(userId!!, search, ids?.toTypedArray(), pageable)
-            false -> groupRepository.searchInNotUserGroup(userId!!, search, ids?.toTypedArray(), pageable)
+            null -> groupRepository.searchGroups(ids?.toTypedArray(), search, updatedAfter, pageable)
+            true -> groupRepository.searchInUserGroup(userId!!, search, ids?.toTypedArray(), updatedAfter, pageable)
+            false -> groupRepository.searchInNotUserGroup(userId!!, search, ids?.toTypedArray(), updatedAfter, pageable)
         }
     }
 

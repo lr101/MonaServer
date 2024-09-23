@@ -12,5 +12,5 @@ interface MonaService {
 
     fun addPinImage(pinId: UUID, image: ByteArray): ByteArray
 
-    fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?, pageable: Pageable) : Page<PinWithOptionalImageDto>
+    fun getPinImagesByIds(ids: MutableList<UUID>?, compression: Int?, height: Int?, userId: UUID?, groupId: UUID?, withImages: Boolean?, updatedAfter: Date?, pageable: Pageable) : Page<PinWithOptionalImageDto>
 }

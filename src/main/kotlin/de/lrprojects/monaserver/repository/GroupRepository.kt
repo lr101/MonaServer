@@ -21,13 +21,15 @@ interface GroupRepository : CrudRepository<Group, UUID> {
                 "WHERE g.id IN " +
                 "(SELECT m.group_id FROM members m WHERE m.user_id = :username) " +
                 "AND (:search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%'))) " +
-                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids))",
+                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids)) " +
+                "AND ( cast(:updatedAfter as timestamp) IS NULL OR g.update_date > :updatedAfter)",
         nativeQuery = true
     )
     fun searchInUserGroup(
         @Param("username") userId: UUID,
         @Param("search") searchTerm: String?,
         @Param("ids") listOfIds: Array<UUID>?,
+        @Param("updatedAfter") updatedAfter: Date?,
         pageable: Pageable
     ): Page<Group>
 
@@ -36,25 +38,29 @@ interface GroupRepository : CrudRepository<Group, UUID> {
                 "WHERE g.id NOT IN " +
                 "(SELECT m.group_id FROM members m WHERE m.user_id = :username) " +
                 "AND (:search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%'))) " +
-                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids))",
+                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids)) " +
+                "AND ( cast(:updatedAfter as timestamp) IS NULL OR g.update_date > :updatedAfter)",
         nativeQuery = true
     )
     fun searchInNotUserGroup(
         @Param("username") userId: UUID,
         @Param("search") searchTerm: String?,
         @Param("ids") listOfIds: Array<UUID>?,
+        @Param("updatedAfter") updatedAfter: Date?,
         pageable: Pageable
     ): Page<Group>
 
     @Query(
         "SELECT g.* FROM groups g " +
                 "WHERE (:search IS NULL OR (g.name ILIKE CONCAT('%', :search, '%') OR g.description ILIKE CONCAT('%', :search, '%'))) " +
-                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids))",
+                "AND (cast(:ids as uuid[]) IS NULL OR g.id IN (:ids)) " +
+                "AND ( cast(:updatedAfter as timestamp) IS NULL OR g.update_date > :updatedAfter)",
         nativeQuery = true
     )
     fun searchGroups(
         @Param("ids") listOfIds: Array<UUID>?,
         @Param("search") searchTerm: String?,
+        @Param("updatedAfter") updatedAfter: Date?,
         pageable: Pageable
     ): Page<Group>
 

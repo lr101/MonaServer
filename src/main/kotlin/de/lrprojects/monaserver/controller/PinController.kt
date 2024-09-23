@@ -3,8 +3,9 @@ package de.lrprojects.monaserver.controller
 import de.lrprojects.monaserver.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModel
 import de.lrprojects.monaserver.model.PinRequestDto
-import de.lrprojects.monaserver.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.model.PinWithoutImageDto
+import de.lrprojects.monaserver.model.PinsSyncDto
+import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService
 import org.slf4j.LoggerFactory
@@ -20,6 +21,7 @@ import java.util.*
 class PinController(
     private val pinService: PinService,
     private val monaService: MonaService,
+    private val deletedLogService: DeleteLogService
 ) : PinsApiDelegate {
 
     companion object {
@@ -69,16 +71,21 @@ class PinController(
         compression: Int?,
         height: Int?,
         page: Int?,
-        size: Int
-    ): ResponseEntity<MutableList<PinWithOptionalImageDto>> {
+        size: Int,
+        updatedAfter: Date?
+    ): ResponseEntity<PinsSyncDto>? {
         log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height, page: $page, size: $size")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
         } else {
             Pageable.unpaged()
         }
-        val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage, pageable)
+        val images = monaService.getPinImagesByIds(ids, compression, height, userId, groupId, withImage, updatedAfter, pageable)
+        var deletedPins = emptyList<UUID>()
+        if (updatedAfter != null) {
+            deletedPins = deletedLogService.getDeletedPins(updatedAfter)
+        }
         log.info("Retrieved pin images")
-        return ResponseEntity.ok(images.toList())
+        return ResponseEntity.ok(PinsSyncDto(images.toList(), deletedPins))
     }
 }

@@ -54,15 +54,18 @@ get:
       schema:
         type: integer
         default: 20
+    - name: updatedAfter
+      description: "only include pins that have been updated after this date.If set all deleted pins after this time are returned."
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
   responses:
     '200':
       description: Successful response
       content:
         application/json:
           schema:
-            type: array
-            items:
-              $ref: '../schemas/pinWithOptionalImageDto.yaml'
+            $ref: '../schemas/pinsSyncDto.yaml'
 post:
   operationId: createPin
   security:
