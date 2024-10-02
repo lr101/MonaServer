@@ -20,9 +20,9 @@ class UserController(private val userService: UserService) : UsersApiDelegate {
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
-    override fun deleteUser(userId: UUID, code: Int): ResponseEntity<Void> {
-        log.info("Attempting to delete user with ID: $userId using code: $code")
-        userService.deleteUser(userId, code)
+    override fun deleteUser(userId: UUID, body: Int?): ResponseEntity<Unit> {
+        log.info("Attempting to delete user with ID: $userId using code: $body")
+        userService.deleteUser(userId, body!!)
         log.info("User deleted with ID: $userId")
         return ResponseEntity.ok().build()
     }
@@ -44,8 +44,8 @@ class UserController(private val userService: UserService) : UsersApiDelegate {
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
     override fun updateUser(userId: UUID, user: UserUpdateDto): ResponseEntity<UserUpdateResponseDto> {
         log.info("Attempting to update user with ID: $userId")
-        var profilePictureSmall: ByteArray?  = null
-        var profilePicture: ByteArray?  = null
+        var profilePictureSmall: ByteArray? = null
+        var profilePicture: ByteArray? = null
         if (user.image != null) {
             log.info("Attempting to update profile image for user with ID: $userId")
             val userEntity = userService.updateUserProfileImage(userId, user.image)
@@ -54,11 +54,13 @@ class UserController(private val userService: UserService) : UsersApiDelegate {
         }
         val token = userService.updateUser(userId, user)
         log.info("User updated with ID: $userId")
-        return ResponseEntity.ok(UserUpdateResponseDto().also {
-            it.userTokenDto = token
-            it.profileImageSmall = profilePictureSmall
-            it.profileImage = profilePicture
-        })
+        return ResponseEntity.ok(
+            UserUpdateResponseDto(
+                token,
+                profilePictureSmall,
+                profilePicture
+            )
+        )
     }
 
     override fun getUser(userId: UUID): ResponseEntity<UserInfoDto> {

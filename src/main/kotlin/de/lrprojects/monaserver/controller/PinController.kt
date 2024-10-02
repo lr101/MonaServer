@@ -1,9 +1,9 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.PinsApiDelegate
-import de.lrprojects.monaserver.converter.toPinModel
+import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.model.PinRequestDto
-import de.lrprojects.monaserver.model.PinWithoutImageDto
+import de.lrprojects.monaserver.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.model.PinsSyncDto
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.MonaService
@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.time.OffsetDateTime
 import java.util.*
 
 @Component
@@ -29,17 +30,18 @@ class PinController(
     }
 
     @PreAuthorize("hasAuthority('ADMIN') " +
-            "|| (@guard.isGroupMember(authentication, #newPin.groupId)" +
-            "&& @guard.isSameUser(authentication, #newPin.userId))")
-    override fun createPin(newPin: PinRequestDto): ResponseEntity<PinWithoutImageDto> {
-        log.info("Attempting to create pin for groupId: ${newPin.groupId}, userId: ${newPin.userId}")
-        val pin = pinService.createPin(newPin)
-        log.info("Pin created for groupId: ${newPin.groupId}, userId: ${newPin.userId}")
-        return ResponseEntity(pin.toPinModel(), HttpStatus.CREATED)
+            "|| (@guard.isGroupMember(authentication, #pinRequestDto.groupId)" +
+            "&& @guard.isSameUser(authentication, #pinRequestDto.userId))"
+    )
+    override fun createPin(pinRequestDto: PinRequestDto): ResponseEntity<PinWithOptionalImageDto> {
+        log.info("Attempting to create pin for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
+        val pin = pinService.createPin(pinRequestDto)
+        log.info("Pin created for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
+        return ResponseEntity(pin.toPinModelWithImage(true), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
-    override fun deletePin(pinId: UUID): ResponseEntity<Void> {
+    override fun deletePin(pinId: UUID): ResponseEntity<Unit> {
         log.info("Attempting to delete pin with ID: $pinId")
         pinService.deletePin(pinId)
         log.info("Pin deleted with ID: $pinId")
@@ -47,11 +49,11 @@ class PinController(
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPin(pinId: UUID): ResponseEntity<PinWithoutImageDto> {
+    override fun getPin(pinId: UUID, withImage: Boolean): ResponseEntity<PinWithOptionalImageDto> {
         log.info("Attempting to get pin with ID: $pinId")
         val pin = pinService.getPin(pinId)
         log.info("Retrieved pin with ID: $pinId")
-        return ResponseEntity.ok(pin.toPinModel())
+        return ResponseEntity.ok(pin.toPinModelWithImage(withImage))
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
@@ -64,16 +66,16 @@ class PinController(
 
     @PreAuthorize("@guard.isPinsCreator(authentication, #ids) || @guard.isPinsPublicOrMember(authentication, #ids) ")
     override fun getPinImagesByIds(
-        ids: MutableList<UUID>?,
+        ids: List<UUID>?,
         groupId: UUID?,
         userId: UUID?,
-        withImage: Boolean?,
+        withImage: Boolean,
         compression: Int?,
         height: Int?,
         page: Int?,
         size: Int,
-        updatedAfter: Date?
-    ): ResponseEntity<PinsSyncDto>? {
+        updatedAfter: OffsetDateTime?
+    ): ResponseEntity<PinsSyncDto> {
         log.info("Attempting to get pin images by IDs: $ids, groupId: $groupId, userId: $userId, withImage: $withImage, compression: $compression, height: $height, page: $page, size: $size")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)

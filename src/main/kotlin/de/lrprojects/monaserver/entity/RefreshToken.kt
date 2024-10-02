@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.config.DbConstants.USER_ID
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import java.time.OffsetDateTime
 import java.util.*
 
 @Entity
@@ -23,8 +24,8 @@ data class RefreshToken(
     val user: User,
 
     @CreationTimestamp
-    val creationDate: Date? = null,
+    val creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
-    val updateDate: Date? = null
+    val updateDate: OffsetDateTime? = null
 )

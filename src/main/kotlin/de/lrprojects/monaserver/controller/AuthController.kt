@@ -1,7 +1,8 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.AuthApiDelegate
-import de.lrprojects.monaserver.excepetion.*
+import de.lrprojects.monaserver.excepetion.UniqueResetUrlNotFoundException
+import de.lrprojects.monaserver.excepetion.WrongPasswordException
 import de.lrprojects.monaserver.model.TokenResponseDto
 import de.lrprojects.monaserver.model.UserLoginRequest
 import de.lrprojects.monaserver.model.UserRequestDto
@@ -21,21 +22,21 @@ class AuthController(
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun createUser(createUser: UserRequestDto): ResponseEntity<TokenResponseDto>? {
+    override fun createUser(createUser: UserRequestDto): ResponseEntity<TokenResponseDto> {
         log.info("Attempting to create user with username: ${createUser.name}")
         val token = authService.signup(createUser.name, createUser.password, createUser.email)
         log.info("Created user with username: ${createUser.name}")
         return ResponseEntity(token, HttpStatus.CREATED)
     }
 
-    override fun generateDeleteCode(username: String): ResponseEntity<Void>? {
+    override fun generateDeleteCode(username: String): ResponseEntity<Unit> {
         log.info("Generating delete code for user: $username")
         authService.requestDeleteCode(username)
         log.info("Created delete code for user: $username")
         return ResponseEntity.ok().build()
     }
 
-    override fun requestPasswordRecovery(username: String): ResponseEntity<Void> {
+    override fun requestPasswordRecovery(username: String): ResponseEntity<Unit> {
         log.info("Attempting password recovery for user: $username")
         return try {
             authService.recoverPassword(username)
@@ -47,10 +48,10 @@ class AuthController(
         }
     }
 
-    override fun userLogin(userLoginRequest: UserLoginRequest): ResponseEntity<TokenResponseDto?> {
+    override fun userLogin(userLoginRequest: UserLoginRequest): ResponseEntity<TokenResponseDto> {
         log.info("Attempting login for user: ${userLoginRequest.username}")
         return try {
-            val token = authService.login(userLoginRequest.username, userLoginRequest.password)
+            val token = authService.login(userLoginRequest.username!!, userLoginRequest.password!!)
             log.info("User '${userLoginRequest.username}' has successfully logged in")
             ResponseEntity.ok().body(token)
         } catch (e: WrongPasswordException) {
@@ -59,10 +60,10 @@ class AuthController(
         }
     }
 
-    override fun refreshToken(body: UUID): ResponseEntity<TokenResponseDto> {
+    override fun refreshToken(body: UUID?): ResponseEntity<TokenResponseDto> {
         log.info("Attempting token refresh")
         return try {
-            val token = authService.refreshToken(body)
+            val token = authService.refreshToken(body!!)
             log.info("New access token has been generated")
             ResponseEntity.ok().body(token)
         } catch (e: RuntimeException) {

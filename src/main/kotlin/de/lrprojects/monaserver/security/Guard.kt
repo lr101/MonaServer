@@ -1,6 +1,5 @@
 package de.lrprojects.monaserver.security
 
-import de.lrprojects.monaserver.model.Visibility
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
@@ -26,8 +25,7 @@ class Guard(
         val name = UUID.fromString(authentication.name)
         return try {
             val result = groupService.getGroup(groupId)
-            val user = userRepository.findById(name)
-            result.visibility == Visibility.NUMBER_0.value || memberService.getMembers(groupId).any{ user.get().id == it.userId}
+            result.visibility == 0 || memberService.getMembers(groupId).any{ name == it.userId}
         } catch (e: Exception) {
             log.warn("Failed to authenticate group is visible")
             false

@@ -109,6 +109,11 @@
 			<version>2.17.2</version>
 		</dependency>
 		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.17.2</version>
+		</dependency>
+		<dependency>
 			<groupId>org.jetbrains.kotlin</groupId>
 			<artifactId>kotlin-jps-plugin</artifactId>
 			<version>1.9.24</version>
@@ -144,8 +149,12 @@
 			<version>0.12.6</version>
 			<scope>runtime</scope>
 		</dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
 
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
@@ -225,25 +234,15 @@
 							<inputSpec>
 								${project.basedir}/openapi/openapi.yaml
 							</inputSpec>
-							<generatorName>spring</generatorName>
+							<generatorName>kotlin-spring</generatorName>
 							<apiPackage>de.lrprojects.monaserver.api</apiPackage>
 							<modelPackage>de.lrprojects.monaserver.model</modelPackage>
-							<supportingFilesToGenerate>
-								ApiUtil.java
-							</supportingFilesToGenerate>
 							<configOptions>
 								<useTags>true</useTags>
 								<openApiNullable>false</openApiNullable>
 								<delegatePattern>true</delegatePattern>
 								<useSpringBoot3>true</useSpringBoot3>
-								<dateLibrary>custom</dateLibrary>
 							</configOptions>
-							<typeMappings>
-								<typeMapping>OffsetDateTime=Instant</typeMapping>
-							</typeMappings>
-							<importMappings>
-								<importMapping>java.time.OffsetDateTime=java.time.Instant</importMapping>
-							</importMappings>
 						</configuration>
 					</execution>
 				</executions>

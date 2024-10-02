@@ -1,7 +1,6 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver.model.GroupDto
 import de.lrprojects.monaserver.model.MemberResponseDto
 import de.lrprojects.monaserver.model.RankingResponseDto
 import java.util.*
@@ -16,9 +15,9 @@ interface MemberService {
 
     fun deleteMember(userId: UUID, groupId: UUID)
 
-    fun getGroupsOfUser(userId: UUID): List<GroupDto>
+    fun getGroupsOfUser(userId: UUID): List<Group>
 
-    fun getGroupOfUserOrPublic(userId: UUID): List<GroupDto>
+    fun getGroupOfUserOrPublic(userId: UUID): List<Group>
 
     fun isInGroup(group: Group): Boolean;
 

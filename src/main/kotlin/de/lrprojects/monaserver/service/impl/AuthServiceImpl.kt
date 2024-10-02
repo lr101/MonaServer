@@ -39,7 +39,7 @@ class AuthServiceImpl(
         val accessToken = tokenHelper.generateToken(username)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
-        return TokenResponseDto(refreshToken.token, accessToken, user.id)
+        return TokenResponseDto(refreshToken.token, accessToken, user.id!!)
     }
 
     @Throws(WrongPasswordException::class, UserNotFoundException::class)
@@ -50,7 +50,7 @@ class AuthServiceImpl(
         }
         val accessToken = tokenHelper.generateToken(username)
         val refreshToken = refreshTokenService.createRefreshToken(user)
-        return TokenResponseDto(refreshToken.token, accessToken, user.id)
+        return TokenResponseDto(refreshToken.token, accessToken, user.id!!)
     }
 
     @Throws(AttributeDoesNotExist::class, MailException::class, UniqueResetUrlNotFoundException::class)
@@ -83,6 +83,6 @@ class AuthServiceImpl(
         val refreshToken = refreshTokenService.findByToken(token)
             .orElseThrow { EntityNotFoundException("refresh token not found") }
         refreshTokenService.verifyExpiration(refreshToken)
-        return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.username), refreshToken.user.id)
+        return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.username), refreshToken.user.id!!)
     }
 }

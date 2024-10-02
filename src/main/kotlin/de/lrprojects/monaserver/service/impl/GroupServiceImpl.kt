@@ -1,6 +1,5 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
@@ -10,12 +9,14 @@ import de.lrprojects.monaserver.model.*
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
+import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.sql.SQLException
+import java.time.OffsetDateTime
 import java.util.*
 import kotlin.jvm.optionals.getOrElse
 
@@ -24,25 +25,25 @@ import kotlin.jvm.optionals.getOrElse
 class GroupServiceImpl (
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
-    private val imageHelper: ImageHelper
+    private val imageHelper: ImageHelper,
+    private val memberService: MemberService
 ) : GroupService {
 
-    override fun addGroup(createGroup: CreateGroupDto): GroupDto {
-        var group = Group()
+    override fun addGroup(createGroup: CreateGroupDto): Group {
+        val group = Group()
         group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
-        group.visibility = createGroup.visibility.value
+        group.visibility = createGroup.visibility
         group.description = createGroup.description
         group.name = createGroup.name
-        group.members.add(group.groupAdmin!!)
-        group.groupAdmin!!.groups.add(group)
         group.link = createGroup.link
         group.pinImage = imageHelper.getPinImage(createGroup.profileImage)
         group.groupProfile = imageHelper.getProfileImage(createGroup.profileImage)
         if (group.visibility == 1) {
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
-        group = groupRepository.save(group)
-        return group.toGroupDto()
+        val g =  groupRepository.save(group)
+        memberService.addMember(userId = g.groupAdmin!!.id!!, groupId = g.id!!, inviteUrl = g.inviteUrl)
+        return g
     }
 
     @Throws(SQLException::class)
@@ -95,7 +96,7 @@ class GroupServiceImpl (
         return group.groupProfile!!
     }
 
-    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: Date?, pageable: Pageable): Page<Group> {
+    override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: OffsetDateTime?, pageable: Pageable): Page<Group> {
         if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertException("A username must be set when withUser is used")
         return when (withUser) {
             null -> groupRepository.searchGroups(ids?.toTypedArray(), search, updatedAfter, pageable)
@@ -107,7 +108,7 @@ class GroupServiceImpl (
 
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
-    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): GroupDto {
+    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): Group {
         var group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         updateGroup.name?.let { group.name = updateGroup.name }
@@ -115,8 +116,8 @@ class GroupServiceImpl (
         updateGroup.link?.let { group.link = updateGroup.link }
         updateGroup.profileImage?.let { group.groupProfile = imageHelper.getProfileImage(it) }
         updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
-        updateGroup.visibility?.let { group.visibility = updateGroup.visibility.value }
-        if (updateGroup.visibility.value == 0) {
+        updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
+        if (updateGroup.visibility!! == 0) {
             group.inviteUrl = null
         } else {
             group.setInvite()
@@ -124,8 +125,7 @@ class GroupServiceImpl (
         updateGroup.groupAdmin?.let { adminId ->
             group.groupAdmin =userRepository.findById(adminId).getOrElse { throw UserNotFoundException("Admin does not exist") }
         }
-        group = groupRepository.save(group)
-        return group.toGroupDto()
+        return groupRepository.save(group)
     }
 
     override fun getGroupOfPin(pinId: UUID): Group {

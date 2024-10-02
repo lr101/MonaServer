@@ -29,11 +29,11 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
         log.info("User $userId attempting to join group $groupId with inviteUrl: $inviteUrl")
         val group = memberService.addMember(userId, groupId, inviteUrl)
         log.info("User $userId joined group $groupId")
-        return ResponseEntity(group.toGroupDto(), HttpStatus.CREATED)
+        return ResponseEntity(group.toGroupDto(memberService), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void> {
+    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Unit> {
         log.info("Attempting to delete user $userId from group $groupId")
         return try {
             memberService.deleteMember(userId, groupId)
@@ -46,15 +46,15 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupMembers(groupId: UUID): ResponseEntity<MutableList<MemberResponseDto>> {
+    override fun getGroupMembers(groupId: UUID): ResponseEntity<List<MemberResponseDto>> {
         log.info("Attempting to get members for group $groupId")
-        val members = memberService.getMembers(groupId).toMutableList()
+        val members = memberService.getMembers(groupId)
         log.info("Retrieved members for group $groupId")
         return ResponseEntity.ok().body(members)
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupRanking(groupId: UUID): ResponseEntity<MutableList<RankingResponseDto>> {
+    override fun getGroupRanking(groupId: UUID): ResponseEntity<List<RankingResponseDto>> {
         log.info("Attempting to get ranking for group $groupId")
         val members = memberService.getRanking(groupId)
         log.info("Successfully retrieved ranking for group $groupId")

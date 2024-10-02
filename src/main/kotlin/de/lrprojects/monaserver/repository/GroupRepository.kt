@@ -9,6 +9,7 @@ import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 import java.util.*
 
 @Repository
@@ -29,7 +30,7 @@ interface GroupRepository : CrudRepository<Group, UUID> {
         @Param("username") userId: UUID,
         @Param("search") searchTerm: String?,
         @Param("ids") listOfIds: Array<UUID>?,
-        @Param("updatedAfter") updatedAfter: Date?,
+        @Param("updatedAfter") updatedAfter: OffsetDateTime?,
         pageable: Pageable
     ): Page<Group>
 
@@ -46,7 +47,7 @@ interface GroupRepository : CrudRepository<Group, UUID> {
         @Param("username") userId: UUID,
         @Param("search") searchTerm: String?,
         @Param("ids") listOfIds: Array<UUID>?,
-        @Param("updatedAfter") updatedAfter: Date?,
+        @Param("updatedAfter") updatedAfter: OffsetDateTime?,
         pageable: Pageable
     ): Page<Group>
 
@@ -60,7 +61,7 @@ interface GroupRepository : CrudRepository<Group, UUID> {
     fun searchGroups(
         @Param("ids") listOfIds: Array<UUID>?,
         @Param("search") searchTerm: String?,
-        @Param("updatedAfter") updatedAfter: Date?,
+        @Param("updatedAfter") updatedAfter: OffsetDateTime?,
         pageable: Pageable
     ): Page<Group>
 
@@ -84,4 +85,9 @@ interface GroupRepository : CrudRepository<Group, UUID> {
         WHERE p.id = ?1
         """, nativeQuery = true)
     fun findByPinId(pinId: UUID): Group
+
+    @Query("""
+        SELECT m.user_id FROM members m WHERE group_id = :groupId
+    """, nativeQuery = true)
+    fun findMembersByGroupId(@Param("groupId") groupId: UUID): List<UUID>
 }

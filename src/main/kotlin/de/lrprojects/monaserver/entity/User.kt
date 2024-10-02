@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Min
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.validator.constraints.Length
-import java.util.*
+import java.time.OffsetDateTime
 import javax.sql.DataSource
 
 @Entity
@@ -47,24 +47,20 @@ data class User (
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)
-    var creationDate: Date? = null,
+    var creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column
-    var updateDate: Date? = null,
+    var updateDate: OffsetDateTime? = null,
 
     @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JoinColumn(name = "user_id")
     var refreshTokens: List<RefreshToken> = emptyList(),
 
-    @ManyToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE])
-    @JoinTable(
-        name = "members",
-        joinColumns = [JoinColumn(name = "user_id")],
-        inverseJoinColumns = [JoinColumn(name = "group_id")]
-    )
-    var groups: MutableSet<Group> = mutableSetOf(),
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @JoinColumn(name = "user_id")
+    var groups: MutableSet<Member> = mutableSetOf(),
 
     @Transient
     private var dataSource: DataSource? = null

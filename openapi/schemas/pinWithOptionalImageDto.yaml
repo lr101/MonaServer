@@ -1,7 +1,7 @@
 type: object
 required:
   - id
-  - creation_date
+  - creationDate
   - creationUser
   - latitude
   - longitude

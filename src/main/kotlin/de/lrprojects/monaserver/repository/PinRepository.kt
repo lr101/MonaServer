@@ -58,29 +58,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
     )
     fun findPinsByGroupAndDate(currentUserId: UUID, groupId: UUID, date: OffsetDateTime): MutableList<Pin>
 
-
-    @Query("SELECT p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, p.group_id FROM pins p " +
-            "WHERE " +
-            "p.group_id IN ( " +
-            "  SELECT m.group_id FROM members m " +
-                "  JOIN groups g on g.id = m.group_id " +
-                "  WHERE m.user_id = cast (:currentUserId as uuid) OR g.visibility = 0 " +
-                "  GROUP BY m.group_id) " +
-            " AND ( cast(:ids as uuid[]) IS NULL OR p.id IN (:ids) ) " +
-            " AND ( cast(:userId as uuid) IS NULL OR p.creator_id = :userId )" +
-            " AND ( cast(:groupId as uuid) IS NULL OR p.group_id = :groupId)" +
-            " AND ( cast(:updatedAfter as timestamp) IS NULL OR p.update_date > :updatedAfter)" +
-            " ORDER BY p.creation_date DESC", nativeQuery = true)
-    fun getPinsFromIds(
-        @Param("ids") listOfIds: Array<UUID>?,
-        @Param("userId") userId: UUID?,
-        @Param("groupId") groupId: UUID?,
-        @Param("currentUserId") currentUsername: UUID,
-        @Param("updatedAfter") updatedAfter: Date?,
-        pageable: Pageable
-    ) : Page<Array<Any>>
-
-    @Query("SELECT  p.id, p.creation_date, p.latitude, p.longitude, p.creator_id, p.pin_image, p.group_id FROM pins p " +
+    @Query("SELECT  p.* FROM pins p " +
             " WHERE " +
             "p.group_id IN ( " +
             "  SELECT m.group_id FROM members m " +
@@ -96,8 +74,8 @@ interface PinRepository : CrudRepository<Pin, UUID> {
                          @Param("userId") userId: UUID?,
                          @Param("groupId") groupId: UUID?,
                          @Param("currentUserId") currentUsername: UUID,
-                         @Param("updatedAfter") updatedAfter: Date?,
+                         @Param("updatedAfter") updatedAfter: OffsetDateTime?,
                          pageable: Pageable
-    ) :  Page<Array<Any>>
+    ) :  Page<Pin>
 
 }

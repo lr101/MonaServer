@@ -159,6 +159,19 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
         )
     }
 
+    @ExceptionHandler(RuntimeException::class)
+    protected fun handleNRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.message)
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.BAD_REQUEST,
+            request
+        )
+    }
+
     companion object {
         private val log by lazy { LoggerFactory.getLogger(this::class.java.declaringClass) }
     }

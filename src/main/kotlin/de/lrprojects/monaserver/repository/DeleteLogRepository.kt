@@ -5,9 +5,9 @@ import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.EmbeddedDeletedEntityKey
 import org.springframework.data.repository.CrudRepository
 import org.springframework.stereotype.Repository
-import java.util.*
+import java.time.OffsetDateTime
 
 @Repository
 interface DeleteLogRepository : CrudRepository<DeleteLog, EmbeddedDeletedEntityKey> {
-    fun findByCreationDateAfterAndKey_DeletedEntityType(creationDate: Date, deletedEntityType: DeletedEntityType): List<DeleteLog>
+    fun findByCreationDateAfterAndKey_DeletedEntityType(creationDate: OffsetDateTime, deletedEntityType: DeletedEntityType): List<DeleteLog>
 }

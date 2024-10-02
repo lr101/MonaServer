@@ -1,18 +1,20 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.helper.EmbeddedDeletedEntityKey
+import de.lrprojects.monaserver.helper.EmbeddedMemberKey
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import java.time.OffsetDateTime
 
 @Entity
-@Table(name = "delete_log")
-data class DeleteLog (
-    @EmbeddedId
-    val key: EmbeddedDeletedEntityKey,
+@Table(name = "members")
+data class Member (
+    @Id
+    var id: EmbeddedMemberKey,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column
-    var creationDate: OffsetDateTime? = null
+    var creationDate: OffsetDateTime? = null,
+
+    var active: Boolean = true
 )

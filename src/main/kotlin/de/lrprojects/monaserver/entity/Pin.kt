@@ -9,7 +9,7 @@ import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import jakarta.persistence.*
 import org.hibernate.annotations.UpdateTimestamp
-import java.util.*
+import java.time.OffsetDateTime
 import javax.sql.DataSource
 
 @Entity
@@ -24,12 +24,12 @@ class Pin (
 
     @Column(nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
-    var creationDate: Date? = null,
+    var creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column
-    var updateDate: Date? = null,
+    var updateDate: OffsetDateTime? = null,
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = CREATOR_ID, referencedColumnName = ID, nullable = false)

@@ -41,6 +41,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0.0.1
     clean-disabled: false
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
 
 springdoc:
   api-docs:
