@@ -15,7 +15,7 @@ class ReportController (private val emailService: EmailService) : ReportApiDeleg
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun createReport(report: ReportDto): ResponseEntity<Void> {
+    override fun createReport(report: ReportDto): ResponseEntity<Void>? {
         log.info("Attempting send report from user with id: ${report.userId}")
         emailService.sendReportEmail(report)
         return ResponseEntity.ok().build()

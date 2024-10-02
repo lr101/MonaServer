@@ -11,13 +11,19 @@ get:
       required: true
       schema:
         $ref: '../parameters/id.yaml'
+    - name: withImage
+      in: query
+      description: Describes if the image of the pin should be returned too
+      schema:
+        type: boolean
+        default: false
   responses:
     '200':
       description: Successful response
       content:
         application/json:
           schema:
-            $ref: '../schemas/pinWithoutImageDto.yaml'
+            $ref: '../schemas/pinWithOptionalImageDto.yaml'
     404:
       description: Pin does not exist
       content:

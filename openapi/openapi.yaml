@@ -48,6 +48,9 @@ paths:
   /api/v2/groups/{groupId}/members:
     $ref: './methods/groupMembers.yaml'
 
+  /api/v2/groups/{groupId}/members/ranking:
+    $ref: './methods/groupRanking.yaml'
+
   /api/v2/public/delete-code/{username}:
     $ref: './methods/userDeleteCode.yaml'
 

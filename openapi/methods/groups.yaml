@@ -28,15 +28,35 @@ get:
       in: query
       schema:
         type: boolean
+    - name: withImages
+      description: "use false if profile picture should not be returned and true if it should. Defaults to false"
+      in: query
+      schema:
+        default: false
+        type: boolean
+    - name: page
+      description: "page number"
+      in: query
+      schema:
+        type: integer
+    - name: size
+      description: "page size. Defaults to 20"
+      in: query
+      schema:
+        type: integer
+        default: 20
+    - name: updatedAfter
+      description: "only include groups that have been updated after this date. If set all deleted groups after this time are returned."
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
   responses:
     '200':
       description: Successful response
       content:
         application/json:
           schema:
-            type: array
-            items:
-              $ref: '../schemas/groupSmallDto.yaml'
+            $ref: '../schemas/groupsSyncDto.yaml'
 post:
   operationId: addGroup
   security:

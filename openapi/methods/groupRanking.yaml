@@ -1,0 +1,28 @@
+get:
+  operationId: getGroupRanking
+  security:
+    - token: [ ]
+  summary: Get ranking of a group by ID
+  tags:
+    - members
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/rankingResponseDto.yaml'
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

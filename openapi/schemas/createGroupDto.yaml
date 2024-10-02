@@ -3,7 +3,6 @@ required:
   - description
   - name
   - groupAdmin
-  - link
   - profileImage
   - visibility
 properties:

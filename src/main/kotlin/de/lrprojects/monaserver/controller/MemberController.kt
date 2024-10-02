@@ -1,16 +1,12 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.api.MembersApiDelegate
-import de.lrprojects.monaserver.converter.toGroupModel
-import de.lrprojects.monaserver.excepetion.ComparisonException
-import de.lrprojects.monaserver.excepetion.UserExistsException
+import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
-import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.JoinGroupRequest
 import de.lrprojects.monaserver.model.MemberResponseDto
+import de.lrprojects.monaserver.model.RankingResponseDto
 import de.lrprojects.monaserver.service.api.MemberService
-import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -28,16 +24,16 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     override fun joinGroup(
         groupId: UUID,
         userId: UUID,
-        joinGroupRequest: JoinGroupRequest?
+        inviteUrl: String?
     ): ResponseEntity<GroupDto> {
-        log.info("User $userId attempting to join group $groupId with inviteUrl: ${joinGroupRequest?.inviteUrl}")
-        val group = memberService.addMember(userId, groupId, joinGroupRequest?.inviteUrl)
+        log.info("User $userId attempting to join group $groupId with inviteUrl: $inviteUrl")
+        val group = memberService.addMember(userId, groupId, inviteUrl)
         log.info("User $userId joined group $groupId")
-        return ResponseEntity(group.toGroupModel(), HttpStatus.CREATED)
+        return ResponseEntity(group.toGroupDto(memberService), HttpStatus.CREATED)
     }
 
-    @PreAuthorize("authentication.name.equals(#userId) || @guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void> {
+    @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")
+    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void>? {
         log.info("Attempting to delete user $userId from group $groupId")
         return try {
             memberService.deleteMember(userId, groupId)
@@ -50,10 +46,18 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
-    override fun getGroupMembers(groupId: UUID): ResponseEntity<MutableList<MemberResponseDto>> {
+    override fun getGroupMembers(groupId: UUID): ResponseEntity<List<MemberResponseDto>> {
         log.info("Attempting to get members for group $groupId")
-        val members = memberService.getMembers(groupId).toMutableList()
+        val members = memberService.getMembers(groupId)
         log.info("Retrieved members for group $groupId")
+        return ResponseEntity.ok().body(members)
+    }
+
+    @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
+    override fun getGroupRanking(groupId: UUID): ResponseEntity<List<RankingResponseDto>> {
+        log.info("Attempting to get ranking for group $groupId")
+        val members = memberService.getRanking(groupId)
+        log.info("Successfully retrieved ranking for group $groupId")
         return ResponseEntity.ok().body(members)
     }
 }

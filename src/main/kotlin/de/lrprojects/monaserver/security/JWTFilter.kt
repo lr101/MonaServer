@@ -5,7 +5,6 @@ import jakarta.servlet.ServletException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.hibernate.query.sqm.tree.SqmNode.log
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
@@ -16,8 +15,8 @@ import java.io.IOException
 
 @Component
 class JWTFilter (
-    @Autowired val userDetailsService: MyUserDetailsService,
-    @Autowired val tokenHelper: TokenHelper
+    private val userDetailsService: MyUserDetailsService,
+    private val tokenHelper: TokenHelper
 ) : OncePerRequestFilter() {
 
     @Throws(ServletException::class, IOException::class)
@@ -26,22 +25,26 @@ class JWTFilter (
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
+        log.info("Checking authentication for " + request.requestURI)
         val authHeader: String? = request.getHeader("Authorization")
         val jwt: String
         try {
             if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
                 jwt = authHeader.substring(7)
-                log.info(request.requestURI)
                 val username = tokenHelper.extractUsername(jwt)
                 val userDetails = userDetailsService.loadUserByUsername(username)
                 if(tokenHelper.validateToken(jwt, userDetails)) {
-                    val authToken = UsernamePasswordAuthenticationToken(username, null, userDetails.authorities)
+                    val authToken = UsernamePasswordAuthenticationToken(userDetails.username, username, userDetails.authorities)
                     authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                     SecurityContextHolder.getContext().authentication = authToken
+                } else {
+                    log.warn("Unauthorized user token")
                 }
             }
         } catch (e: Exception) {
-            log.warn("Unauthorized user token")
+            log.warn("Unauthorized user token ${e.message}")
+            //response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+            //return
         }
         filterChain.doFilter(request, response)
     }

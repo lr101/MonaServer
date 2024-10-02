@@ -16,9 +16,9 @@ import java.util.*
 @Service
 
 class PinServiceImpl(
-    val pinRepository: PinRepository,
-    val userRepository: UserRepository,
-    val groupRepository: GroupRepository
+    private val pinRepository: PinRepository,
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository
 ) : PinService {
 
     @Transactional
@@ -27,15 +27,14 @@ class PinServiceImpl(
         pin.user = userRepository.findById(newPin.userId).orElseThrow()
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
-        pin.creationDate = Date() //TODO
-        pin.image = newPin.image
-        val group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
+        pin.creationDate = newPin.creationDate
+        pin.pinImage = newPin.image
+        pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
-        group.pins.add(pin)
-        groupRepository.save(group)
         return pin
     }
 
+    @Transactional
     override fun deletePin(pinId: UUID) {
         pinRepository.deleteById(pinId)
     }

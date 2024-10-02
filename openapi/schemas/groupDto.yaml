@@ -2,12 +2,7 @@ type: object
 required:
   - name
   - visibility
-  - link
-  - description
-  - group_admin
   - id
-  - invite_url
-  - lastUpdated
 properties:
   id:
     $ref: '../parameters/id.yaml'
@@ -25,3 +20,7 @@ properties:
     $ref: '../parameters/shortString.yaml'
   lastUpdated:
     $ref: '../parameters/date.yaml'
+  profileImage:
+    $ref: '../parameters/image.yaml'
+  pinImage:
+    $ref: '../parameters/image.yaml'

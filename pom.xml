@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.1</version>
+		<version>3.3.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>de.lr-projects</groupId>
@@ -15,7 +15,7 @@
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>17</java.version>
-		<kotlin.version>1.9.24</kotlin.version>
+		<kotlin.version>2.0.20</kotlin.version>
 		<spring-security.version>6.2.1</spring-security.version>
 	</properties>
 	<dependencies>
@@ -27,12 +27,12 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-core</artifactId>
-			<version>6.1.11</version>
+			<version>6.1.13</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-thymeleaf</artifactId>
-			<version>3.3.1</version>
+			<version>3.3.4</version>
 		</dependency>
 		<dependency>
 			<groupId>org.thymeleaf</groupId>
@@ -42,12 +42,12 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
-			<version>10.15.2</version>
+			<version>10.18.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
-			<version>10.15.2</version>
+			<version>10.18.2</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
@@ -61,7 +61,7 @@
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
-			<version>5.10.3</version>
+			<version>5.11.1</version>
 		</dependency>
 		<dependency>
 			<groupId>com.auth0</groupId>
@@ -80,7 +80,7 @@
 		<dependency>
 			<groupId>org.jetbrains</groupId>
 			<artifactId>annotations</artifactId>
-			<version>24.1.0</version>
+			<version>25.0.0</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
@@ -106,12 +106,17 @@
 		<dependency>
 			<groupId>com.fasterxml.jackson.module</groupId>
 			<artifactId>jackson-module-kotlin</artifactId>
-			<version>2.17.2</version>
+			<version>2.18.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.18.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jetbrains.kotlin</groupId>
 			<artifactId>kotlin-jps-plugin</artifactId>
-			<version>1.9.24</version>
+			<version>2.0.20</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -144,8 +149,12 @@
 			<version>0.12.6</version>
 			<scope>runtime</scope>
 		</dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
 
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
@@ -214,7 +223,7 @@
 			<plugin>
 				<groupId>org.openapitools</groupId>
 				<artifactId>openapi-generator-maven-plugin</artifactId>
-				<version>7.7.0</version>
+				<version>7.8.0</version>
 				<executions>
 					<execution>
 						<goals>
@@ -228,9 +237,6 @@
 							<generatorName>spring</generatorName>
 							<apiPackage>de.lrprojects.monaserver.api</apiPackage>
 							<modelPackage>de.lrprojects.monaserver.model</modelPackage>
-							<supportingFilesToGenerate>
-								ApiUtil.java
-							</supportingFilesToGenerate>
 							<configOptions>
 								<useTags>true</useTags>
 								<openApiNullable>false</openApiNullable>
@@ -242,26 +248,9 @@
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.flywaydb</groupId>
-				<artifactId>flyway-maven-plugin</artifactId>
-				<configuration>
-					<url>jdbc:postgresql://localhost:5432/export_20_8</url>
-					<user>postgres</user>
-					<password>root</password>
-				</configuration>
-			</plugin>
-			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<executions>
-					<execution>
-						<id>default-compile</id>
-						<phase>none</phase>
-					</execution>
-					<execution>
-						<id>default-testCompile</id>
-						<phase>none</phase>
-					</execution>
 					<execution>
 						<id>compile</id>
 						<phase>compile</phase>

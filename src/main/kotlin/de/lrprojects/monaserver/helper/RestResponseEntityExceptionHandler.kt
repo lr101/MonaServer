@@ -1,16 +1,9 @@
 package de.lrprojects.monaserver.helper
 
-import de.lrprojects.monaserver.excepetion.AssertException
-import de.lrprojects.monaserver.excepetion.AttributeDoesNotExist
-import de.lrprojects.monaserver.excepetion.ComparisonException
-import de.lrprojects.monaserver.excepetion.ImageNotSquareException
-import de.lrprojects.monaserver.excepetion.MailException
-import de.lrprojects.monaserver.excepetion.ProfileImageException
-import de.lrprojects.monaserver.excepetion.UserExistsException
-import de.lrprojects.monaserver.excepetion.UserNotFoundException
+import de.lrprojects.monaserver.excepetion.*
 import jakarta.persistence.EntityNotFoundException
-import org.hibernate.query.sqm.tree.SqmNode.log
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -140,8 +133,34 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
         )
     }
 
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    protected fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.message)
+
+        return handleExceptionInternal(
+            ex,
+            "This name does already exist",
+            HttpHeaders(),
+            HttpStatus.BAD_REQUEST,
+            request
+        )
+    }
+
     @ExceptionHandler(NullPointerException::class)
     protected fun handleNullPointerException(ex: NullPointerException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.message)
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.BAD_REQUEST,
+            request
+        )
+    }
+
+    @ExceptionHandler(RuntimeException::class)
+    protected fun handleNRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(

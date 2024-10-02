@@ -2,30 +2,26 @@ package de.lrprojects.monaserver.converter
 
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.GroupSmallDto
-import de.lrprojects.monaserver.model.Visibility
+import de.lrprojects.monaserver.service.api.MemberService
 import org.springframework.security.core.context.SecurityContextHolder
-import java.time.ZoneOffset
+import java.util.*
 
-fun Group.convertToGroupSmall(): GroupSmallDto {
-    val groupSmall = GroupSmallDto(this.id, this.name, Visibility.fromValue(this.visibility))
-    if (this.visibility == 0 || this.members.any { it.username == SecurityContextHolder.getContext().authentication.name }) {
-        groupSmall.description = this.description
-        groupSmall.inviteUrl = this.inviteUrl
-        groupSmall.groupAdmin = this.groupAdmin?.id
-        groupSmall.link = this.link
-        groupSmall.lastUpdated = this.updateDate?.toInstant()?.atOffset(ZoneOffset.UTC)
+
+fun Group.toGroupDto(memberService: MemberService, withImages: Boolean? = true): GroupDto {
+    val withImage = withImages != null && withImages
+    val visibleToUser = this.visibility == 0 || memberService.getMembers(this.id!!).any { it.userId == UUID.fromString(SecurityContextHolder.getContext().authentication.name) }
+    val groupDto = GroupDto(
+        this.id!!,
+        this.name!!,
+        this.visibility,
+    ).also {
+        it.profileImage = if (withImage) this.groupProfile else null
+        it.pinImage = if (withImage) this.pinImage else null
+        it.description = if (visibleToUser) this.description else null
+        it.groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null
+        it.link = if (visibleToUser) this.link else null
+        it.lastUpdated = if (visibleToUser) this.updateDate else null
+        it.inviteUrl = if (visibleToUser) this.inviteUrl else null
     }
-    return groupSmall
+    return groupDto
 }
-
-fun Group.toGroupModel() = GroupDto(
-    this.id,
-    this.description,
-    this.inviteUrl,
-    this.name,
-    Visibility.fromValue(this.visibility),
-    this.groupAdmin?.id,
-    this.link,
-    this.updateDate?.toInstant()?.atOffset(ZoneOffset.UTC)
-)

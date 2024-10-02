@@ -1,0 +1,14 @@
+required:
+  - userId
+  - username
+  - ranking
+type: object
+properties:
+  userId:
+    $ref: '../parameters/id.yaml'
+  username:
+    $ref: '../parameters/shortString.yaml'
+  ranking:
+    type: integer
+  profile_image_small:
+    $ref: '../parameters/image.yaml'

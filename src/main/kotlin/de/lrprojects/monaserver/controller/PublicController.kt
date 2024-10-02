@@ -14,10 +14,10 @@ class PublicController : PublicApiDelegate {
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun getServerInfo(): ResponseEntity<MutableList<InfoDto>> {
+    override fun getServerInfo(): ResponseEntity<List<InfoDto>> {
         log.info("Attempting to get public server info")
         // TODO unimplemented
-        return ResponseEntity.ok(mutableListOf())
+        return ResponseEntity.ok(listOf())
     }
 
 

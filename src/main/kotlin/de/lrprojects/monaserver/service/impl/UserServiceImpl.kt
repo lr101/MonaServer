@@ -1,9 +1,8 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.converter.toImages
+import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
-import de.lrprojects.monaserver.model.ProfileImageResponseDto
 import de.lrprojects.monaserver.model.TokenResponseDto
 import de.lrprojects.monaserver.model.UserUpdateDto
 import de.lrprojects.monaserver.repository.UserRepository
@@ -52,7 +51,7 @@ class UserServiceImpl(
             refreshTokenService.invalidateTokens(userEntity)
             val accessToken = tokenHelper.generateToken(userEntity.username)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
-            responseDto = TokenResponseDto(refreshToken.token, accessToken)
+            responseDto = TokenResponseDto(refreshToken.token, accessToken, userEntity.id!!)
         }
         userRepository.save(userEntity)
         return responseDto
@@ -62,18 +61,18 @@ class UserServiceImpl(
     override fun updateUserProfileImage(
         userId: UUID,
         image: ByteArray
-    ): ProfileImageResponseDto {
+    ): User {
         val userEntity =  getUser(userId)
         userEntity.profilePicture = imageHelper.getProfileImage(image)
         userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
-        return userRepository.save(userEntity).toImages()
+        return userRepository.save(userEntity)
     }
 
-    override fun getUser(userId: UUID): de.lrprojects.monaserver.entity.User {
+    override fun getUser(userId: UUID): User {
         return userRepository.findById(userId).orElseThrow { UserNotFoundException("user $userId does not exist") }
     }
 
-    override fun getUserByRecoverUrl(recoverUrl: String): de.lrprojects.monaserver.entity.User {
+    override fun getUserByRecoverUrl(recoverUrl: String): User {
         val list = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull();
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")

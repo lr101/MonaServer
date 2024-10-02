@@ -50,3 +50,4 @@ buildDocker.bat
 /ubuntuAWSOPENSSH
 /postgres-data/
 /src/main/resources/application-secrets.yml
+/backup/

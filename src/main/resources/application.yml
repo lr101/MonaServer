@@ -26,15 +26,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    database: postgresql
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
   datasource:
     url: ${DB_URL}
-    driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   mvc:
     hiddenmethod:
       filter:
@@ -45,6 +41,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0.0.1
     clean-disabled: false
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
 
 springdoc:
   api-docs:
