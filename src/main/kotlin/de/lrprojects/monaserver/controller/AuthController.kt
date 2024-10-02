@@ -29,14 +29,14 @@ class AuthController(
         return ResponseEntity(token, HttpStatus.CREATED)
     }
 
-    override fun generateDeleteCode(username: String): ResponseEntity<Unit> {
+    override fun generateDeleteCode(username: String): ResponseEntity<Void>? {
         log.info("Generating delete code for user: $username")
         authService.requestDeleteCode(username)
         log.info("Created delete code for user: $username")
         return ResponseEntity.ok().build()
     }
 
-    override fun requestPasswordRecovery(username: String): ResponseEntity<Unit> {
+    override fun requestPasswordRecovery(username: String): ResponseEntity<Void> {
         log.info("Attempting password recovery for user: $username")
         return try {
             authService.recoverPassword(username)

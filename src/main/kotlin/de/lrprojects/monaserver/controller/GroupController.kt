@@ -39,7 +39,7 @@ class GroupController(
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteGroup(groupId: UUID): ResponseEntity<Unit> {
+    override fun deleteGroup(groupId: UUID): ResponseEntity<Void>? {
         log.info("Attempting to delete group with ID: $groupId")
         groupService.deleteGroup(groupId)
         log.info("Group deleted with ID: $groupId")

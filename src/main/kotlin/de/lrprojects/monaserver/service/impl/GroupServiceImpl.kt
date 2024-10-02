@@ -21,7 +21,6 @@ import java.util.*
 import kotlin.jvm.optionals.getOrElse
 
 @Service
-@Transactional
 class GroupServiceImpl (
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
@@ -29,6 +28,7 @@ class GroupServiceImpl (
     private val memberService: MemberService
 ) : GroupService {
 
+    @Transactional
     override fun addGroup(createGroup: CreateGroupDto): Group {
         val group = Group()
         group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
@@ -42,6 +42,7 @@ class GroupServiceImpl (
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
         val g =  groupRepository.save(group)
+
         memberService.addMember(userId = g.groupAdmin!!.id!!, groupId = g.id!!, inviteUrl = g.inviteUrl)
         return g
     }

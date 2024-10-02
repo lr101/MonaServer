@@ -16,4 +16,6 @@ interface MemberRepository : CrudRepository<Member, EmbeddedMemberKey> {
         INSERT INTO members (user_id, group_id) values (:userId, :groupId)
     """, nativeQuery = true)
     fun addMemberGroup(@Param("userId") userId: UUID, @Param("groupId") groupId: UUID)
+
+    fun existsById_Group_IdAndId_User_Id(groupId: UUID, userId: UUID): Boolean
 }

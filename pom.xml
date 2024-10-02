@@ -234,7 +234,7 @@
 							<inputSpec>
 								${project.basedir}/openapi/openapi.yaml
 							</inputSpec>
-							<generatorName>kotlin-spring</generatorName>
+							<generatorName>spring</generatorName>
 							<apiPackage>de.lrprojects.monaserver.api</apiPackage>
 							<modelPackage>de.lrprojects.monaserver.model</modelPackage>
 							<configOptions>
@@ -251,14 +251,6 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<executions>
-					<execution>
-						<id>default-compile</id>
-						<phase>none</phase>
-					</execution>
-					<execution>
-						<id>default-testCompile</id>
-						<phase>none</phase>
-					</execution>
 					<execution>
 						<id>compile</id>
 						<phase>compile</phase>

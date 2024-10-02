@@ -33,7 +33,7 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Unit> {
+    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void>? {
         log.info("Attempting to delete user $userId from group $groupId")
         return try {
             memberService.deleteMember(userId, groupId)

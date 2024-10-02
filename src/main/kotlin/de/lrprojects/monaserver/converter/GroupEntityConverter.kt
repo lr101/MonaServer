@@ -14,13 +14,14 @@ fun Group.toGroupDto(memberService: MemberService, withImages: Boolean? = true):
         this.id!!,
         this.name!!,
         this.visibility,
-        profileImage = if (withImage) this.groupProfile else null,
-        pinImage = if (withImage) this.pinImage else null,
-        description = if (visibleToUser) this.description else null,
-        groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null,
-        link = if (visibleToUser) this.link else null,
-        lastUpdated = if (visibleToUser) this.updateDate else null,
-        inviteUrl = if (visibleToUser) this.inviteUrl else null,
-    )
+    ).also {
+        it.profileImage = if (withImage) this.groupProfile else null
+        it.pinImage = if (withImage) this.pinImage else null
+        it.description = if (visibleToUser) this.description else null
+        it.groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null
+        it.link = if (visibleToUser) this.link else null
+        it.lastUpdated = if (visibleToUser) this.updateDate else null
+        it.inviteUrl = if (visibleToUser) this.inviteUrl else null
+    }
     return groupDto
 }

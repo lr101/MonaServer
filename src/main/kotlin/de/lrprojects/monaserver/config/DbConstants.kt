@@ -8,6 +8,8 @@ object DbConstants {
     const val GROUPS = "groups"
     const val PINS = "pins"
     const val USERS = "users"
+    const val MEMBERS = "members"
+    const val DELETE_LOG = "delete_log"
 
     // columns
     const val ID = "id"

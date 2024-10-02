@@ -41,7 +41,7 @@ class PinController(
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
-    override fun deletePin(pinId: UUID): ResponseEntity<Unit> {
+    override fun deletePin(pinId: UUID): ResponseEntity<Void>? {
         log.info("Attempting to delete pin with ID: $pinId")
         pinService.deletePin(pinId)
         log.info("Pin deleted with ID: $pinId")

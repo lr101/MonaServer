@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.Group
+import de.lrprojects.monaserver.entity.Member
 import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
@@ -13,7 +14,6 @@ import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
 import jakarta.persistence.EntityNotFoundException
-import org.jetbrains.kotlin.utils.addToStdlib.ifFalse
 import org.slf4j.LoggerFactory
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
@@ -35,11 +35,11 @@ class MemberServiceImpl(
 
 
         if (group.visibility == 0 || group.inviteUrl == inviteUrl) {
-            userRepository.existsById(userId).ifFalse { throw UserNotFoundException("User not found") }
-            if (memberRepository.existsById(EmbeddedMemberKey(groupId, userId))) {
+            val user = userRepository.findById(userId).orElseThrow { throw UserNotFoundException("User not found") }
+            if (memberRepository.existsById(EmbeddedMemberKey(group, user))) {
                 throw UserExistsException("User is already a member")
             }
-            memberRepository.addMemberGroup(groupId, userId)
+            memberRepository.save(Member(EmbeddedMemberKey(group, user)))
             return group
         } else {
             throw ComparisonException("inviteUrl does not match")
@@ -55,7 +55,7 @@ class MemberServiceImpl(
 
     override fun getRanking(groupId: UUID): MutableList<RankingResponseDto> {
         return groupRepository.getRanking(groupId).map {
-            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int, it[3] as ByteArray?)
+            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also { e -> e.profileImageSmall = it[3] as ByteArray? }
         }.toMutableList()
     }
 
@@ -67,7 +67,7 @@ class MemberServiceImpl(
         val user = userRepository.findById(userId)
             .orElseThrow { UserNotFoundException("User does not exist") }
 
-        val member = memberRepository.findById(EmbeddedMemberKey(groupId, userId)).orElseThrow { throw UserNotFoundException("Member not found in the group") }
+        val member = memberRepository.findById(EmbeddedMemberKey(group, user)).orElseThrow { throw UserNotFoundException("Member not found in the group") }
 
         if (user == group.groupAdmin && group.members.size == 1) {
             groupRepository.delete(group)
@@ -96,7 +96,7 @@ class MemberServiceImpl(
     }
 
     override fun isInGroup(group: Group): Boolean {
-        return memberRepository.existsById(EmbeddedMemberKey(group.id!!, UUID.fromString(SecurityContextHolder.getContext().authentication.name)))
+        return memberRepository.existsById_Group_IdAndId_User_Id(group.id!!, UUID.fromString(SecurityContextHolder.getContext().authentication.name))
     }
 
     companion object {
