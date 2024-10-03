@@ -1,25 +1,13 @@
 services:
   stick-it-server:
-    container_name: stick-it-server
-    build: .
+    container_name: lrprojects/stick-it-server:<VERSION>
     restart: unless-stopped
     ports:
       - 8081:8081
     env_file:
       - ./.env
     environment:
-      DB_HOST: db
-      EMAIL: lr.dev.projects@gmail.com
-
-      # ---- Edit to change default: ----
-      # PORT: 8081
-
-      # ---- From .env file: -------
-      # POSTGRES_PASSWORD
-      # POSTGRES_USER
-      # POSTGRES_DB
-      # EMAIL_PASSWORD
-      # SECRET
+      DB_URL: jdbc:postgresql://db:5432/sticker
     depends_on:
       - db
     networks:
@@ -28,8 +16,6 @@ services:
     image: postgres:16
     restart: unless-stopped
     container_name: stick-it-db
-    ports:
-      - 5433:5432
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
       - ./backup:/backup
