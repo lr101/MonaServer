@@ -1,0 +1,14 @@
+get:
+  operationId: getStatus
+  security:
+    - token: [ ]
+  summary: Gets the status of the server and user specific information
+  tags:
+    - auth
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/status.yaml'

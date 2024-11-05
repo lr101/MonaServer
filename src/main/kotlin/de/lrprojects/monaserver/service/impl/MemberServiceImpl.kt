@@ -69,7 +69,7 @@ class MemberServiceImpl(
 
         val member = memberRepository.findById(EmbeddedMemberKey(group, user)).orElseThrow { throw UserNotFoundException("Member not found in the group") }
 
-        if (user == group.groupAdmin && group.members.size == 1) {
+        if (user == group.groupAdmin && memberRepository.countByGroup(groupId) == 1L) {
             groupRepository.delete(group)
             log.info("Deleted group $groupId")
         } else if (user != group.groupAdmin) {

@@ -53,6 +53,5 @@ springdoc:
 token:
   access-token-exploration: 900         # 15 min
   refresh-token-exploration: 31556952   # 1 year
-  secret: ${SECRET}
 app:
   url: ${APP_URL}

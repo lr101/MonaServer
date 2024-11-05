@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.security
 
+import com.sun.org.apache.xml.internal.security.algorithms.SignatureAlgorithm
 import de.lrprojects.monaserver.config.TokenProperties
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
@@ -62,10 +63,6 @@ class TokenHelper(
             .signWith(signKey).compact()
     }
 
-    private val signKey: SecretKey
-        get() {
-            val keyBytes: ByteArray = Decoders.BASE64.decode(tokenProperties.secret)
-            return Keys.hmacShaKeyFor(keyBytes)
-        }
+    private val signKey: SecretKey = Jwts.SIG.HS256.key().build()
 
 }

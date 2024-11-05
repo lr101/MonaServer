@@ -89,3 +89,6 @@ paths:
 
   /api/v2/users/{userId}/profile_picture:
     $ref: './methods/userProfileImage.yaml'
+
+  /api/v2/status:
+    $ref: './methods/status.yaml'
