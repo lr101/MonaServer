@@ -1,0 +1,12 @@
+type: object
+required:
+  - notifications
+  - token-validity
+properties:
+  notifications:
+    type: array
+    items:
+      type: string
+      description: "A notification message list to be shown to the user"
+  token-validity:
+    $ref: "../parameters/date.yaml"

@@ -43,3 +43,5 @@ APP_URL=http://localhost:8081 # Set to public facing domain
 
 1. How do I use my gmail address when using TFA? - *See this [link](https://support.google.com/accounts/answer/185833?hl=en#zippy=) for how to generate an app password*
 2. What gmail smtp server protocol should I use? - See [this](https://developers.google.com/gmail/imap/imap-smtp?hl=de) Google developer page for mail protocol information*
+3. How do I backup the database? `docker exec -it <DB DOCKER ID> /bin/bash -c 'pg_dump -U postgres -Fc mona > /backup/db.dump'`
+4. How do I restore a database? `docker exec -it <DB DOCKER ID> /bin/bash -c 'pg_restore -d sticker /backup/db.dump`
