@@ -1,0 +1,22 @@
+type: object
+required:
+    - like
+    - likeLocation
+    - likePhotography
+    - likeArt
+    - userId
+properties:
+  like:
+    type: boolean
+    default: true
+  likeLocation:
+    type: boolean
+    default: false
+  likePhotography:
+    type: boolean
+    default: false
+  likeArt:
+    type: boolean
+    default: false
+  userId:
+    $ref: '../parameters/id.yaml'

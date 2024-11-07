@@ -6,6 +6,8 @@ required:
   - latitude
   - longitude
   - groupId
+  - likeCount
+  - likedByUser
 properties:
   id:
     $ref: '../parameters/id.yaml'
@@ -21,3 +23,5 @@ properties:
     $ref: '../parameters/image.yaml'
   groupId:
     $ref: '../parameters/id.yaml'
+  likes:
+    $ref: '../schemas/pinLikeDto.yaml'
