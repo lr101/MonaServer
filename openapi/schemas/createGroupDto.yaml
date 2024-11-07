@@ -18,3 +18,5 @@ properties:
     $ref: '../parameters/id.yaml'
   link:
     $ref: '../parameters/shortString.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'
