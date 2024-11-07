@@ -37,14 +37,14 @@ data class Like(
     val updateDate: OffsetDateTime? = null,
 
     @Column(name = "like_all", nullable = false)
-    val like: Boolean = true,
+    var like: Boolean = false,
 
     @Column(name = "like_location", nullable = false)
-    val likeLocation: Boolean = false,
+    var likeLocation: Boolean = false,
 
     @Column(name = "like_photography", nullable = false)
-    val likePhotography: Boolean = false,
+    var likePhotography: Boolean = false,
 
     @Column(name = "like_art", nullable = false)
-    val likeArt: Boolean = false
+    var likeArt: Boolean = false
 )

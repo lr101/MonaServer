@@ -6,10 +6,10 @@ import java.util.*
 
 
 fun CreateLikeDto.toEntity(pinId: UUID) = Like(
-    like = this.like,
-    likePhotography =  this.likePhotography,
-    likeLocation = this.likeLocation,
-    likeArt = this.likeArt,
+    like = if(this.like != null) this.like!! else false,
+    likePhotography =  if(this.likePhotography != null) this.likePhotography!! else false,
+    likeLocation = if(this.likeLocation != null) this.likeLocation!! else false,
+    likeArt = if(this.likeArt != null) this.likeArt!! else false,
     pinId = pinId,
     userId =  this.userId
 )

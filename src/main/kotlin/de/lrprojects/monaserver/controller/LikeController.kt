@@ -17,10 +17,10 @@ class LikeController(
 ): LikesApiDelegate {
 
 
-    @PreAuthorize("@guard.isGroupVisible(authentication, #pinId)")
+    @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId) && @guard.isSameUser(authentication, #createLikeDto.userId)")
     override fun createOrUpdateLike(pinId: UUID, createLikeDto: CreateLikeDto): ResponseEntity<PinLikeDto> {
         likeService.createOrUpdateLike(createLikeDto, pinId)
-        return ResponseEntity(likeService.likeCountByPin(pinId, UUID.fromString(SecurityContextHolder.getContext().authentication.name)), HttpStatus.CREATED)
+        return ResponseEntity(likeService.likeCountByPin(pinId, createLikeDto.userId), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
