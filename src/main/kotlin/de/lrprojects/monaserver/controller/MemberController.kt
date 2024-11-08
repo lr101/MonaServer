@@ -1,11 +1,11 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.MembersApiDelegate
+import de.lrprojects.monaserver_api.api.MembersApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
-import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.MemberResponseDto
-import de.lrprojects.monaserver.model.RankingResponseDto
+import de.lrprojects.monaserver_api.model.GroupDto
+import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserver_api.model.RankingResponseDto
 import de.lrprojects.monaserver.service.api.MemberService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus

@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.converter
 
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver.model.GroupDto
+import de.lrprojects.monaserver_api.model.GroupDto
 import de.lrprojects.monaserver.service.api.MemberService
 import org.springframework.security.core.context.SecurityContextHolder
 import java.util.*

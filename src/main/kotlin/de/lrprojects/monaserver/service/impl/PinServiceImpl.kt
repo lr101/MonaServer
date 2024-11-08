@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.helper.StringHelper
-import de.lrprojects.monaserver.model.PinRequestDto
+import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository

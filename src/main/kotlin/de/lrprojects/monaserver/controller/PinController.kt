@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.PinsApiDelegate
+import de.lrprojects.monaserver_api.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModelWithImage
-import de.lrprojects.monaserver.model.PinRequestDto
-import de.lrprojects.monaserver.model.PinWithOptionalImageDto
-import de.lrprojects.monaserver.model.PinsSyncDto
+import de.lrprojects.monaserver_api.model.PinRequestDto
+import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
+import de.lrprojects.monaserver_api.model.PinsSyncDto
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.PinService

@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.UsersApiDelegate
+import de.lrprojects.monaserver_api.api.UsersApiDelegate
 import de.lrprojects.monaserver.converter.toUserUpdateDto
-import de.lrprojects.monaserver.model.UserInfoDto
-import de.lrprojects.monaserver.model.UserUpdateDto
-import de.lrprojects.monaserver.model.UserUpdateResponseDto
+import de.lrprojects.monaserver_api.model.UserInfoDto
+import de.lrprojects.monaserver_api.model.UserUpdateDto
+import de.lrprojects.monaserver_api.model.UserUpdateResponseDto
 import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity

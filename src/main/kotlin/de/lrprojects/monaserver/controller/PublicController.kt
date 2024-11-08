@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.PublicApiDelegate
-import de.lrprojects.monaserver.model.InfoDto
+import de.lrprojects.monaserver_api.api.PublicApiDelegate
+import de.lrprojects.monaserver_api.model.InfoDto
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component

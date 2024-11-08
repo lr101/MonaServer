@@ -7,8 +7,8 @@ import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.EmbeddedMemberKey
-import de.lrprojects.monaserver.model.MemberResponseDto
-import de.lrprojects.monaserver.model.RankingResponseDto
+import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserver_api.model.RankingResponseDto
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository

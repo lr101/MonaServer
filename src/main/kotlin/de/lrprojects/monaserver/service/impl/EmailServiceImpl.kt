@@ -4,7 +4,7 @@ import de.lrprojects.monaserver.config.AppProperties
 import de.lrprojects.monaserver.config.MailProperties
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.model.ReportDto
+import de.lrprojects.monaserver_api.model.ReportDto
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.EmailService
 import jakarta.mail.MessagingException

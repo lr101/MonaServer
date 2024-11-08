@@ -15,7 +15,7 @@
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>17</java.version>
-		<kotlin.version>2.0.20</kotlin.version>
+		<kotlin.version>1.9.22</kotlin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -157,8 +157,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+		<dependency>
+			<groupId>de.lr-projects</groupId>
+			<artifactId>monaserverapi</artifactId>
+			<version>1.0.0</version>
+		</dependency>
 
-    </dependencies>
+	</dependencies>
 
 	<build>
 		<sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
@@ -171,36 +176,6 @@
 			<plugin>
 				<groupId>org.jetbrains.kotlin</groupId>
 				<artifactId>kotlin-maven-plugin</artifactId>
-				<version>${kotlin.version}</version>
-				<executions>
-					<execution>
-						<id>compile</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<sourceDirs>
-								<source>src/main/kotlin</source>
-								<source>target/generated-sources/annotations</source>
-								<source>target/generated-sources/openapi/src/main/java</source>
-							</sourceDirs>
-						</configuration>
-					</execution>
-					<execution>
-						<id>test-compile</id>
-						<phase>test-compile</phase>
-						<goals>
-							<goal>test-compile</goal>
-						</goals>
-						<configuration>
-							<sourceDirs>
-								<source>src/test/kotlin</source>
-								<source>target/generated-test-sources/test-annotations</source>
-							</sourceDirs>
-						</configuration>
-					</execution>
-				</executions>
 				<configuration>
 					<args>
 						<arg>-Xjsr305=strict</arg>
@@ -214,42 +189,15 @@
 				<dependencies>
 					<dependency>
 						<groupId>org.jetbrains.kotlin</groupId>
-						<artifactId>kotlin-maven-allopen</artifactId>
+						<artifactId>kotlin-maven-noarg</artifactId>
 						<version>${kotlin.version}</version>
 					</dependency>
 					<dependency>
 						<groupId>org.jetbrains.kotlin</groupId>
-						<artifactId>kotlin-maven-noarg</artifactId>
+						<artifactId>kotlin-maven-allopen</artifactId>
 						<version>${kotlin.version}</version>
 					</dependency>
 				</dependencies>
-			</plugin>
-			<plugin>
-				<groupId>org.openapitools</groupId>
-				<artifactId>openapi-generator-maven-plugin</artifactId>
-				<version>7.8.0</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>generate</goal>
-						</goals>
-						<configuration>
-							<skipValidateSpec>true</skipValidateSpec>
-							<inputSpec>
-								${project.basedir}/openapi/openapi.yaml
-							</inputSpec>
-							<generatorName>spring</generatorName>
-							<apiPackage>de.lrprojects.monaserver.api</apiPackage>
-							<modelPackage>de.lrprojects.monaserver.model</modelPackage>
-							<configOptions>
-								<useTags>true</useTags>
-								<openApiNullable>false</openApiNullable>
-								<delegatePattern>true</delegatePattern>
-								<useSpringBoot3>true</useSpringBoot3>
-							</configOptions>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 		</plugins>
 	</build>

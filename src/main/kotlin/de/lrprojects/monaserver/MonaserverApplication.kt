@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.runApplication
 
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = ["de.lrprojects"])
 @ConfigurationPropertiesScan
 class MonaserverApplication
 fun main(args: Array<String>) {

@@ -1,11 +1,11 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.GroupsApiDelegate
+import de.lrprojects.monaserver_api.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
-import de.lrprojects.monaserver.model.CreateGroupDto
-import de.lrprojects.monaserver.model.GroupDto
-import de.lrprojects.monaserver.model.GroupsSyncDto
-import de.lrprojects.monaserver.model.UpdateGroupDto
+import de.lrprojects.monaserver_api.model.CreateGroupDto
+import de.lrprojects.monaserver_api.model.GroupDto
+import de.lrprojects.monaserver_api.model.GroupsSyncDto
+import de.lrprojects.monaserver_api.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService

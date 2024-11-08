@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.helper.ImageHelper
-import de.lrprojects.monaserver.model.PinWithOptionalImageDto
+import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.service.api.MonaService
 import jakarta.persistence.EntityNotFoundException
