@@ -8,6 +8,7 @@
 		<version>3.3.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
+
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
 	<version>0.0.4</version>
@@ -17,6 +18,12 @@
 		<java.version>17</java.version>
 		<kotlin.version>1.9.22</kotlin.version>
 	</properties>
+	<repositories>
+		<repository>
+			<id>github</id>
+			<url>https://maven.pkg.github.com/lr101/MonaServerApi</url>
+		</repository>
+	</repositories>
 	<dependencies>
 		<dependency>
 			<groupId>org.springdoc</groupId>
