@@ -1,6 +1,5 @@
 package de.lrprojects.monaserver.security
 
-import com.sun.org.apache.xml.internal.security.algorithms.SignatureAlgorithm
 import de.lrprojects.monaserver.config.TokenProperties
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
