@@ -51,6 +51,7 @@ class GroupServiceImpl (
     @Transactional
     override fun deleteGroup(groupId: UUID) {
         groupRepository.deleteById(groupId)
+
     }
 
     @Throws(EntityNotFoundException::class)

@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver.repository.PinRepository
+import de.lrprojects.monaserver.service.api.LikeService
 import de.lrprojects.monaserver.service.api.MonaService
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
@@ -18,8 +19,9 @@ import kotlin.jvm.optionals.getOrElse
 @Service
 @Transactional
 class MonaServiceImpl(
-    val pinRepository: PinRepository,
-    val imageHelper: ImageHelper,
+    private val pinRepository: PinRepository,
+    private val imageHelper: ImageHelper,
+    private val likeService: LikeService
 ) : MonaService {
 
     @Throws(EntityNotFoundException::class)
@@ -47,6 +49,13 @@ class MonaServiceImpl(
         pageable: Pageable,
     ): Page<PinWithOptionalImageDto> {
         val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication.name)
-        return pinRepository.getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, updatedAfter, pageable).map { it.toPinModelWithImage(withImages != null && withImages) }
+        return pinRepository
+            .getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, updatedAfter, pageable)
+            .map {
+                it.toPinModelWithImage(
+                    withImages != null && withImages,
+                    likeService.likeCountByPin(it.id!!, authentication)
+                )
+            }
     }
 }
