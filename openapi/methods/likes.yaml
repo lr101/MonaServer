@@ -1,0 +1,65 @@
+post:
+  operationId: createOrUpdateLike
+  summary: Create or update a like
+  description: Create or update a like
+  security:
+    - token: [ ]
+  tags:
+    - likes
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/createLikeDto.yaml'
+  responses:
+    '201':
+      description: Created or updated
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/pinLikeDto.yaml'
+    '401':
+      description: Unauthorized
+    '403':
+      description: Forbidden
+    '400':
+      description: Bad request
+    404:
+      description: Pin not found
+
+get:
+  operationId: getPinLikes
+  summary: Get pin likes
+  description: Get pin likes
+  security:
+    - token: [ ]
+  tags:
+    - likes
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/pinLikeDto.yaml'
+    '401':
+      description: Unauthorized
+    '403':
+      description: Forbidden
+    '400':
+      description: Bad request
+    404:
+      description: Pin not found

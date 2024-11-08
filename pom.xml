@@ -10,9 +10,9 @@
 	</parent>
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
-	<version>0.0.3-SNAPSHOT</version>
+	<version>0.0.4-SNAPSHOT</version>
 	<name>monaserver</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Backend server for the Stick-It app</description>
 	<properties>
 		<java.version>17</java.version>
 		<kotlin.version>2.0.20</kotlin.version>

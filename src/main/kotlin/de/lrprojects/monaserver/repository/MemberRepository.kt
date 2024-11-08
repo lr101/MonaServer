@@ -18,4 +18,7 @@ interface MemberRepository : CrudRepository<Member, EmbeddedMemberKey> {
     fun addMemberGroup(@Param("userId") userId: UUID, @Param("groupId") groupId: UUID)
 
     fun existsById_Group_IdAndId_User_Id(groupId: UUID, userId: UUID): Boolean
+
+    @Query("SELECT COUNT(*) FROM members WHERE group_id = :groupId", nativeQuery = true)
+    fun countByGroup(groupId: UUID): Long
 }

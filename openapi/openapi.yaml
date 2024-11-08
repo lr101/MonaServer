@@ -19,7 +19,9 @@ tags:
   - name: members
     description: Everything about Memberships
   - name: report
-
+    description: Everything about Reports
+  - name: likes
+    description: Everything about Likes
 paths:
   /api/v2/groups:
     $ref: './methods/groups.yaml'
@@ -78,6 +80,9 @@ paths:
   /api/v2/pins/{pinId}/image:
     $ref: './methods/pinsImage.yaml'
 
+  /api/v2/likes/{pinId}:
+    $ref: './methods/likes.yaml'
+
   /api/v2/public/infos:
     $ref: './methods/publicInfos.yaml'
 
@@ -89,3 +94,6 @@ paths:
 
   /api/v2/users/{userId}/profile_picture:
     $ref: './methods/userProfileImage.yaml'
+
+  /api/v2/status:
+    $ref: './methods/status.yaml'
