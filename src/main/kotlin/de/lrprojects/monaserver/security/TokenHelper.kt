@@ -1,11 +1,8 @@
 package de.lrprojects.monaserver.security
 
-import com.sun.org.apache.xml.internal.security.algorithms.SignatureAlgorithm
 import de.lrprojects.monaserver.config.TokenProperties
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.io.Decoders
-import io.jsonwebtoken.security.Keys
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
 import java.time.Instant

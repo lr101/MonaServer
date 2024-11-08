@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.LikesApiDelegate
-import de.lrprojects.monaserver.model.CreateLikeDto
-import de.lrprojects.monaserver.model.PinLikeDto
+import de.lrprojects.monaserver_api.api.LikesApiDelegate
+import de.lrprojects.monaserver_api.model.CreateLikeDto
+import de.lrprojects.monaserver_api.model.PinLikeDto
 import de.lrprojects.monaserver.service.api.LikeService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity

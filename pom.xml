@@ -160,8 +160,14 @@
 		<dependency>
 			<groupId>de.lr-projects</groupId>
 			<artifactId>monaserverapi</artifactId>
-			<version>1.0.0</version>
+			<version>1.0.1</version>
 		</dependency>
+		<dependency>
+			<groupId>xalan</groupId>
+			<artifactId>xalan</artifactId>
+			<version>2.7.3</version>
+		</dependency>
+
 
 	</dependencies>
 

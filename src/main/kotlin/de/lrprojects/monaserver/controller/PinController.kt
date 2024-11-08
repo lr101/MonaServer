@@ -1,19 +1,22 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver_api.api.PinsApiDelegate
 import de.lrprojects.monaserver.converter.toPinModelWithImage
+import de.lrprojects.monaserver.service.api.DeleteLogService
+import de.lrprojects.monaserver.service.api.LikeService
+import de.lrprojects.monaserver.service.api.MonaService
+import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver_api.api.PinsApiDelegate
+import de.lrprojects.monaserver_api.model.PinLikeDto
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver_api.model.PinsSyncDto
-import de.lrprojects.monaserver.service.api.DeleteLogService
-import de.lrprojects.monaserver.service.api.MonaService
-import de.lrprojects.monaserver.service.api.PinService
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import java.time.OffsetDateTime
 import java.util.*
@@ -22,7 +25,8 @@ import java.util.*
 class PinController(
     private val pinService: PinService,
     private val monaService: MonaService,
-    private val deletedLogService: DeleteLogService
+    private val deletedLogService: DeleteLogService,
+    private val likeService: LikeService
 ) : PinsApiDelegate {
 
     companion object {
@@ -37,7 +41,7 @@ class PinController(
         log.info("Attempting to create pin for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
         val pin = pinService.createPin(pinRequestDto)
         log.info("Pin created for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
-        return ResponseEntity(pin.toPinModelWithImage(true), HttpStatus.CREATED)
+        return ResponseEntity(pin.toPinModelWithImage(true, PinLikeDto()), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
@@ -53,7 +57,12 @@ class PinController(
         log.info("Attempting to get pin with ID: $pinId")
         val pin = pinService.getPin(pinId)
         log.info("Retrieved pin with ID: $pinId")
-        return ResponseEntity.ok(pin.toPinModelWithImage(withImage))
+        return ResponseEntity.ok(pin
+            .toPinModelWithImage(
+                withImage,
+                likeService.likeCountByPin(pinId, UUID.fromString(SecurityContextHolder.getContext().authentication.name)),
+            )
+        )
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
