@@ -23,5 +23,6 @@ properties:
     $ref: '../parameters/image.yaml'
   groupId:
     $ref: '../parameters/id.yaml'
+    $ref: '../parameters/id.yaml'
   likes:
     $ref: '../schemas/pinLikeDto.yaml'
