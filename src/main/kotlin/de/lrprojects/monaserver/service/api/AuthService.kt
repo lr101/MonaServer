@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.excepetion.UserExistsException
-import de.lrprojects.monaserver.model.TokenResponseDto
+import de.lrprojects.monaserver_api.model.TokenResponseDto
 import java.util.*
 
 interface AuthService {

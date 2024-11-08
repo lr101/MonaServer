@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.ReportApiDelegate
-import de.lrprojects.monaserver.model.ReportDto
+import de.lrprojects.monaserver_api.api.ReportApiDelegate
+import de.lrprojects.monaserver_api.model.ReportDto
 import de.lrprojects.monaserver.service.api.EmailService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity

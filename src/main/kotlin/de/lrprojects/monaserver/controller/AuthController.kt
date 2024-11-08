@@ -1,12 +1,11 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.api.AuthApiDelegate
+import de.lrprojects.monaserver_api.api.AuthApiDelegate
 import de.lrprojects.monaserver.excepetion.UniqueResetUrlNotFoundException
 import de.lrprojects.monaserver.excepetion.WrongPasswordException
-import de.lrprojects.monaserver.model.Status
-import de.lrprojects.monaserver.model.TokenResponseDto
-import de.lrprojects.monaserver.model.UserLoginRequest
-import de.lrprojects.monaserver.model.UserRequestDto
+import de.lrprojects.monaserver_api.model.TokenResponseDto
+import de.lrprojects.monaserver_api.model.UserLoginRequest
+import de.lrprojects.monaserver_api.model.UserRequestDto
 import de.lrprojects.monaserver.service.api.AuthService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -71,10 +70,6 @@ class AuthController(
             log.warn("Refresh token failed: ${e.message}")
             ResponseEntity.badRequest().build()
         }
-    }
-
-    override fun getStatus(): ResponseEntity<Status> {
-        return ResponseEntity.ok(Status().apply { }) // TODO Implement validly
     }
 
 }

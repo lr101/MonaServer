@@ -5,7 +5,7 @@ import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
-import de.lrprojects.monaserver.model.*
+import de.lrprojects.monaserver_api.model.*
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService

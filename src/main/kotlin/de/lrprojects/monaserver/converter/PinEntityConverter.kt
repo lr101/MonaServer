@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.converter
 
 import de.lrprojects.monaserver.entity.Pin
-import de.lrprojects.monaserver.model.PinLikeDto
-import de.lrprojects.monaserver.model.PinWithOptionalImageDto
+import de.lrprojects.monaserver_api.model.PinLikeDto
+import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 
 fun Pin.toPinModelWithImage(withImage: Boolean, likes: PinLikeDto) = PinWithOptionalImageDto().also {
     it.id = this.id!!

@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.User
-import de.lrprojects.monaserver.model.TokenResponseDto
-import de.lrprojects.monaserver.model.UserUpdateDto
+import de.lrprojects.monaserver_api.model.TokenResponseDto
+import de.lrprojects.monaserver_api.model.UserUpdateDto
 import java.util.*
 
 

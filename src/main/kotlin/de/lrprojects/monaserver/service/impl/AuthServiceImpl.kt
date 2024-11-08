@@ -3,7 +3,7 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.helper.SecurityHelper
-import de.lrprojects.monaserver.model.TokenResponseDto
+import de.lrprojects.monaserver_api.model.TokenResponseDto
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService

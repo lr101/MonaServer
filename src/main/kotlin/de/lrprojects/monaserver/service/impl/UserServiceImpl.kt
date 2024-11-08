@@ -3,12 +3,12 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
-import de.lrprojects.monaserver.model.TokenResponseDto
-import de.lrprojects.monaserver.model.UserUpdateDto
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
+import de.lrprojects.monaserver_api.model.TokenResponseDto
+import de.lrprojects.monaserver_api.model.UserUpdateDto
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

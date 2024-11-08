@@ -20,9 +20,6 @@ server:
 spring:
   config:
     import: optional:file:.env[.properties]
-  security:
-   filter:
-     order: 10
   jpa:
     hibernate:
       ddl-auto: validate

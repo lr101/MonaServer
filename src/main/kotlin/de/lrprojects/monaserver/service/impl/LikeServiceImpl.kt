@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.toEntity
-import de.lrprojects.monaserver.model.CreateLikeDto
-import de.lrprojects.monaserver.model.PinLikeDto
 import de.lrprojects.monaserver.repository.LikeRepository
 import de.lrprojects.monaserver.service.api.LikeService
+import de.lrprojects.monaserver_api.model.CreateLikeDto
+import de.lrprojects.monaserver_api.model.PinLikeDto
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 import java.util.*

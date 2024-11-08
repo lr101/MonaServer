@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.converter
 
 import de.lrprojects.monaserver.entity.Like
-import de.lrprojects.monaserver.model.CreateLikeDto
+import de.lrprojects.monaserver_api.model.CreateLikeDto
 import java.util.*
 
 
