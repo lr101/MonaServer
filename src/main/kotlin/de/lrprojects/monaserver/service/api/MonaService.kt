@@ -9,9 +9,9 @@ import java.util.*
 interface MonaService {
 
 
-    fun getPinImage(pinId: UUID): ByteArray
+    fun getPinImage(pinId: UUID): String
 
-    fun addPinImage(pinId: UUID, image: ByteArray): ByteArray
+    fun addPinImage(pinId: UUID, image: ByteArray): String
 
     fun getPinImagesByIds(
         ids: List<UUID>?,

@@ -8,8 +8,8 @@ import java.util.*
 
 interface UserService {
     fun deleteUser(userId: UUID, code: Int)
-    fun getUserProfileImage(userId: UUID): ByteArray?
-    fun getUserProfileImageSmall(userId: UUID): ByteArray?
+    fun getUserProfileImage(userId: UUID): String?
+    fun getUserProfileImageSmall(userId: UUID): String?
     fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto?
     fun updateUserProfileImage(userId: UUID, image: ByteArray): User
     fun getUser(userId: UUID): User

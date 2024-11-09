@@ -1,10 +1,19 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.BYTEA
 import de.lrprojects.monaserver.config.DbConstants.USERS
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
-import jakarta.persistence.*
+import jakarta.persistence.Basic
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.OneToMany
+import jakarta.persistence.Table
+import jakarta.persistence.Temporal
+import jakarta.persistence.TemporalType
+import jakarta.persistence.Transient
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
 import org.hibernate.annotations.CreationTimestamp
@@ -31,13 +40,8 @@ data class User (
     @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
 
-    @Basic(fetch=FetchType.LAZY)
-    @Column(columnDefinition = BYTEA)
-    var profilePicture: ByteArray? = null,
-
-    @Column(columnDefinition = BYTEA)
-    @Basic(fetch = FetchType.LAZY)
-    var profilePictureSmall: ByteArray? = null,
+    @Column
+    var profilePictureExists: Boolean = false,
 
     @Column
     @Basic(fetch = FetchType.LAZY)
@@ -77,14 +81,7 @@ data class User (
         if (password != other.password) return false
         if (email != other.email) return false
         if (resetPasswordUrl != other.resetPasswordUrl) return false
-        if (profilePicture != null) {
-            if (other.profilePicture == null) return false
-            if (!profilePicture.contentEquals(other.profilePicture)) return false
-        } else if (other.profilePicture != null) return false
-        if (profilePictureSmall != null) {
-            if (other.profilePictureSmall == null) return false
-            if (!profilePictureSmall.contentEquals(other.profilePictureSmall)) return false
-        } else if (other.profilePictureSmall != null) return false
+        if (profilePictureExists != other.profilePictureExists) return false
         if (code != other.code) return false
         if (creationDate != other.creationDate) return false
         if (updateDate != other.updateDate) return false
@@ -99,8 +96,7 @@ data class User (
         result = 31 * result + password.hashCode()
         result = 31 * result + (email?.hashCode() ?: 0)
         result = 31 * result + (resetPasswordUrl?.hashCode() ?: 0)
-        result = 31 * result + (profilePicture?.contentHashCode() ?: 0)
-        result = 31 * result + (profilePictureSmall?.contentHashCode() ?: 0)
+        result = 31 * result + (profilePictureExists.hashCode())
         result = 31 * result + (code?.hashCode() ?: 0)
         result = 31 * result + (creationDate?.hashCode() ?: 0)
         result = 31 * result + (updateDate?.hashCode() ?: 0)

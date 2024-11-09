@@ -66,12 +66,12 @@ interface GroupRepository : CrudRepository<Group, UUID> {
     ): Page<Group>
 
 
-    @Query("SELECT m.user_id, u.username, count(pg.creator_id)::int as points, u.profile_picture_small FROM members m" +
+    @Query("SELECT m.user_id, u.username, count(pg.creator_id)::int as points FROM members m" +
             "              LEFT JOIN (SELECT p.id, p.creator_id FROM pins p" +
             "                         WHERE p.group_id = ?1) as pg on pg.creator_id = m.user_id" +
             "              JOIN users u on u.id = m.user_id" +
             "              WHERE group_id = ?1" +
-            "           GROUP BY m.user_id, u.username, u.profile_picture_small ORDER BY points DESC, m.user_id", nativeQuery = true)
+            "           GROUP BY m.user_id, u.username ORDER BY points DESC, m.user_id", nativeQuery = true)
     fun getRanking(groupId: UUID) : List<Array<Any>>
 
     fun findAllByMembersIn(members: MutableCollection<MutableSet<User>>) : MutableList<Group>

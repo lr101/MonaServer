@@ -78,4 +78,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
                          pageable: Pageable
     ) :  Page<Pin>
 
+
+    @Query("SELECT p FROM Pin p WHERE p.pinImage IS NOT NULL")
+    fun findPinsWithImages(pageable: Pageable): List<Pin>
 }

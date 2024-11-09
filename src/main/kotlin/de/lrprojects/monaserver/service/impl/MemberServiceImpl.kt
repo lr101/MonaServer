@@ -7,12 +7,14 @@ import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.EmbeddedMemberKey
-import de.lrprojects.monaserver_api.model.MemberResponseDto
-import de.lrprojects.monaserver_api.model.RankingResponseDto
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
+import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
+import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserver_api.model.RankingResponseDto
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.security.core.context.SecurityContextHolder
@@ -25,7 +27,8 @@ import java.util.*
 class MemberServiceImpl(
     val userRepository: UserRepository,
     val groupRepository: GroupRepository,
-    private val memberRepository: MemberRepository
+    private val memberRepository: MemberRepository,
+    private val objectService: ObjectService
 ): MemberService {
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class, ComparisonException::class)
@@ -55,7 +58,7 @@ class MemberServiceImpl(
 
     override fun getRanking(groupId: UUID): MutableList<RankingResponseDto> {
         return groupRepository.getRanking(groupId).map {
-            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also { e -> e.profileImageSmall = it[3] as ByteArray? }
+            RankingResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also { e -> e.profileImageSmall = objectService.getObject(getUserFileProfileSmall(e.userId)) }
         }.toMutableList()
     }
 

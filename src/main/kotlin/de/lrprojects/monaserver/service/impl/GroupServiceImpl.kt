@@ -5,11 +5,14 @@ import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.helper.SecurityHelper
-import de.lrprojects.monaserver_api.model.*
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
+import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
+import de.lrprojects.monaserver_api.model.*
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -25,7 +28,8 @@ class GroupServiceImpl (
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
     private val imageHelper: ImageHelper,
-    private val memberService: MemberService
+    private val memberService: MemberService,
+    private val objectService: ObjectService
 ) : GroupService {
 
     @Transactional
@@ -86,16 +90,16 @@ class GroupServiceImpl (
         return group.link
     }
 
-    override fun getGroupPinImage(groupId: UUID): ByteArray {
+    override fun getGroupPinImage(groupId: UUID): String {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.pinImage!!
+        return objectService.getObject(getGroupFilePin(group))
     }
 
-    override fun getGroupProfileImage(groupId: UUID): ByteArray {
+    override fun getGroupProfileImage(groupId: UUID): String {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
-        return group.groupProfile!!
+        return objectService.getObject(getGroupFileProfile(group))
     }
 
     override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: OffsetDateTime?, pageable: Pageable): Page<Group> {
@@ -111,7 +115,7 @@ class GroupServiceImpl (
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
     override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): Group {
-        var group = groupRepository.findById(groupId)
+        val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
         updateGroup.name?.let { group.name = updateGroup.name }
         updateGroup.description?.let { group.description = updateGroup.description }

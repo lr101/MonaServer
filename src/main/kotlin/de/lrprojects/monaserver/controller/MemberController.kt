@@ -1,12 +1,13 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver_api.api.MembersApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
+import de.lrprojects.monaserver.service.api.MemberService
+import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver_api.api.MembersApiDelegate
 import de.lrprojects.monaserver_api.model.GroupDto
 import de.lrprojects.monaserver_api.model.MemberResponseDto
 import de.lrprojects.monaserver_api.model.RankingResponseDto
-import de.lrprojects.monaserver.service.api.MemberService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -15,7 +16,10 @@ import org.springframework.stereotype.Component
 import java.util.*
 
 @Component
-class MemberController(private val memberService: MemberService) : MembersApiDelegate {
+class MemberController(
+    private val memberService: MemberService,
+    private val objectService: ObjectService
+) : MembersApiDelegate {
 
     companion object {
         private val log = LoggerFactory.getLogger(this::class.java)
@@ -29,7 +33,7 @@ class MemberController(private val memberService: MemberService) : MembersApiDel
         log.info("User $userId attempting to join group $groupId with inviteUrl: $inviteUrl")
         val group = memberService.addMember(userId, groupId, inviteUrl)
         log.info("User $userId joined group $groupId")
-        return ResponseEntity(group.toGroupDto(memberService), HttpStatus.CREATED)
+        return ResponseEntity(group.toGroupDto(memberService, true, objectService), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")

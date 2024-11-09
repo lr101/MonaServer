@@ -9,17 +9,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'  # Use Eclipse Temurin distribution of OpenJDK
-          java-version: '17'       # Set to your Java version, e.g., '11', '17'
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Build Spring Boot Docker image
         run: mvn spring-boot:build-image
 
-      - name: Verify Docker image
-        run: docker images | grep my-spring-boot-app  # Replace with your app's name

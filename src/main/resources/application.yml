@@ -50,5 +50,11 @@ springdoc:
 token:
   access-token-exploration: 900         # 15 min
   refresh-token-exploration: 31556952   # 1 year
+  admin-account-name: ${ADMIN_ACCOUNT_NAME}
 app:
   url: ${APP_URL}
+minio:
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  endpoint: ${MINIO_ENDPOINT}
+  bucket-name: ${MINIO_BUCKET}
