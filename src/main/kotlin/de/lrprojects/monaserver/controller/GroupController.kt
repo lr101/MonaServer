@@ -9,6 +9,7 @@ import de.lrprojects.monaserver_api.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
+import de.lrprojects.monaserver.service.api.ObjectService
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -23,7 +24,8 @@ import java.util.*
 class GroupController(
     private val groupService: GroupService,
     private val deleteLogService: DeleteLogService,
-    private val memberService: MemberService
+    private val memberService: MemberService,
+    private val objectService: ObjectService
 ) : GroupsApiDelegate {
 
     companion object {
@@ -35,7 +37,7 @@ class GroupController(
         log.info("Attempting to add group with admin: ${createGroupDto.groupAdmin}")
         val result = groupService.addGroup(createGroupDto)
         log.info("Group added with admin: ${createGroupDto.groupAdmin}")
-        return ResponseEntity(result.toGroupDto(memberService), HttpStatus.CREATED)
+        return ResponseEntity(result.toGroupDto(memberService, true, objectService), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
@@ -50,7 +52,7 @@ class GroupController(
         log.info("Attempting to get group with ID: $groupId")
         val result = groupService.getGroup(groupId)
         log.info("Retrieved group with ID: $groupId")
-        return ResponseEntity.ok(result.toGroupDto(memberService))
+        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService))
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
@@ -87,7 +89,7 @@ class GroupController(
         }
         val result = groupService
             .getGroupsByIds(ids, search, withUser, userId, updatedAfter, pageable)
-            .map { it.toGroupDto(memberService, withImages) }
+            .map { it.toGroupDto(memberService, withImages, objectService) }
             .toMutableList()
         var deletedGroups = emptyList<UUID>();
         if (updatedAfter != null) {
@@ -113,14 +115,14 @@ class GroupController(
         return ResponseEntity.ok(result)
     }
 
-    override fun getGroupPinImage(groupId: UUID): ResponseEntity<ByteArray> {
+    override fun getGroupPinImage(groupId: UUID): ResponseEntity<String> {
         log.info("Attempting to get group pin image for group with ID: $groupId")
         val result = groupService.getGroupPinImage(groupId)
         log.info("Retrieved group pin image for group with ID: $groupId")
         return ResponseEntity.ok(result)
     }
 
-    override fun getGroupProfileImage(groupId: UUID): ResponseEntity<ByteArray> {
+    override fun getGroupProfileImage(groupId: UUID): ResponseEntity<String> {
         log.info("Attempting to get group profile image for group with ID: $groupId")
         val result = groupService.getGroupProfileImage(groupId)
         log.info("Retrieved group profile image for group with ID: $groupId")
@@ -132,6 +134,6 @@ class GroupController(
         log.info("Attempting to update group with ID: $groupId")
         val result = groupService.updateGroup(groupId, updateGroup)
         log.info("Updated group with ID: $groupId")
-        return ResponseEntity.ok(result.toGroupDto(memberService))
+        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService))
     }
 }

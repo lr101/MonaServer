@@ -1,13 +1,22 @@
 package de.lrprojects.monaserver.entity
 
 import de.lrprojects.monaserver.config.DbConstants.ADMIN_ID
-import de.lrprojects.monaserver.config.DbConstants.BYTEA
 import de.lrprojects.monaserver.config.DbConstants.GROUPS
 import de.lrprojects.monaserver.config.DbConstants.ID
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import de.lrprojects.monaserver.helper.SecurityHelper
-import jakarta.persistence.*
+import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.OneToMany
+import jakarta.persistence.Table
+import jakarta.persistence.Temporal
+import jakarta.persistence.TemporalType
+import jakarta.persistence.Transient
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
@@ -27,14 +36,6 @@ data class Group (
 
     @Column
     var description: String? = null,
-
-    @Column(nullable = false, columnDefinition = BYTEA)
-    @Basic(fetch = FetchType.LAZY)
-    var groupProfile: ByteArray? = null,
-
-    @Column(nullable = false, columnDefinition = BYTEA)
-    @Basic(fetch = FetchType.LAZY)
-    var pinImage: ByteArray? = null,
 
     @Column(unique = true)
     var inviteUrl: String? = null,
@@ -87,14 +88,6 @@ data class Group (
         if (name != other.name) return false
         if (groupAdmin != other.groupAdmin) return false
         if (description != other.description) return false
-        if (groupProfile != null) {
-            if (other.groupProfile == null) return false
-            if (!groupProfile.contentEquals(other.groupProfile)) return false
-        } else if (other.groupProfile != null) return false
-        if (pinImage != null) {
-            if (other.pinImage == null) return false
-            if (!pinImage.contentEquals(other.pinImage)) return false
-        } else if (other.pinImage != null) return false
         if (inviteUrl != other.inviteUrl) return false
         if (link != other.link) return false
         if (visibility != other.visibility) return false
@@ -112,8 +105,6 @@ data class Group (
         var result = name?.hashCode() ?: 0
         result = 31 * result + (groupAdmin?.hashCode() ?: 0)
         result = 31 * result + (description?.hashCode() ?: 0)
-        result = 31 * result + (groupProfile?.contentHashCode() ?: 0)
-        result = 31 * result + (pinImage?.contentHashCode() ?: 0)
         result = 31 * result + (inviteUrl?.hashCode() ?: 0)
         result = 31 * result + (link?.hashCode() ?: 0)
         result = 31 * result + visibility
