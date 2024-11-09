@@ -53,6 +53,12 @@ data class User (
     @Column(nullable = false)
     var creationDate: OffsetDateTime? = null,
 
+    @Column
+    var profilePicture: ByteArray? = null,
+
+    @Column
+    var profilePictureSmall: ByteArray? = null,
+
     @UpdateTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column

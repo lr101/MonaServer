@@ -46,6 +46,12 @@ data class Group (
     @Column(nullable = false)
     var visibility: Int = 0,
 
+    @Column
+    var pinImage: ByteArray? = null,
+
+    @Column
+    val groupProfile: ByteArray? = null,
+
     @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JoinColumn(name = "group_id")
     var members: MutableSet<Member> = mutableSetOf(),

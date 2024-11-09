@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Pin
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
@@ -77,5 +78,7 @@ interface PinRepository : CrudRepository<Pin, UUID> {
                          @Param("updatedAfter") updatedAfter: OffsetDateTime?,
                          pageable: Pageable
     ) :  Page<Pin>
+
+    fun findPinsByPinImageNotNull(pageable: PageRequest): List<Pin>
 
 }

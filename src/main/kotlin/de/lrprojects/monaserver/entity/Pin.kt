@@ -50,6 +50,9 @@ class Pin (
     @Column(nullable = false)
     var isDeleted: Boolean = false,
 
+    @Column
+    val pinImage: ByteArray? = null,
+
     @Transient
     private var dataSource: DataSource? = null
 ): PreDeleteEntity() {

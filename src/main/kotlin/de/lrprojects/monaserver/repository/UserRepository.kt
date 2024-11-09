@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.User
+import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.CrudRepository
 import org.springframework.stereotype.Repository
 import java.util.*
@@ -12,4 +13,6 @@ interface UserRepository : CrudRepository<User, UUID> {
     fun findByIdAndCode(id: UUID, code: String): Optional<User>
     fun findByUsername(username: String): Optional<User>
     fun existsByUsername(username: String): Boolean
+
+    fun findUserByProfilePictureNotNull(pageable: PageRequest): List<User>
 }
