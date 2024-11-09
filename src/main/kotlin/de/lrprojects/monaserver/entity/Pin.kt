@@ -1,13 +1,21 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.BYTEA
 import de.lrprojects.monaserver.config.DbConstants.CREATOR_ID
 import de.lrprojects.monaserver.config.DbConstants.GROUP_ID
 import de.lrprojects.monaserver.config.DbConstants.ID
 import de.lrprojects.monaserver.config.DbConstants.PINS
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
-import jakarta.persistence.*
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
+import jakarta.persistence.OneToOne
+import jakarta.persistence.Table
+import jakarta.persistence.Temporal
+import jakarta.persistence.TemporalType
+import jakarta.persistence.Transient
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
 import javax.sql.DataSource
@@ -34,10 +42,6 @@ class Pin (
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = CREATOR_ID, referencedColumnName = ID, nullable = false)
     var user: User? = null,
-
-    @Column(nullable = false, columnDefinition = BYTEA)
-    @Basic(fetch = FetchType.LAZY)
-    var pinImage : ByteArray? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = GROUP_ID)

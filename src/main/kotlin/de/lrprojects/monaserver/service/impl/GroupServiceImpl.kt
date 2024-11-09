@@ -40,12 +40,11 @@ class GroupServiceImpl (
         group.description = createGroup.description
         group.name = createGroup.name
         group.link = createGroup.link
-        group.pinImage = imageHelper.getPinImage(createGroup.profileImage)
-        group.groupProfile = imageHelper.getProfileImage(createGroup.profileImage)
         if (group.visibility == 1) {
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
         val g =  groupRepository.save(group)
+        objectService.createObject(group,  imageHelper.getPinImage(createGroup.profileImage), imageHelper.getProfileImage(createGroup.profileImage))
 
         memberService.addMember(userId = g.groupAdmin!!.id!!, groupId = g.id!!, inviteUrl = g.inviteUrl)
         return g
@@ -120,8 +119,7 @@ class GroupServiceImpl (
         updateGroup.name?.let { group.name = updateGroup.name }
         updateGroup.description?.let { group.description = updateGroup.description }
         updateGroup.link?.let { group.link = updateGroup.link }
-        updateGroup.profileImage?.let { group.groupProfile = imageHelper.getProfileImage(it) }
-        updateGroup.profileImage?.let { group.pinImage = imageHelper.getPinImage(it) }
+        updateGroup.profileImage?.let { objectService.createObject(group,  imageHelper.getPinImage(it), imageHelper.getProfileImage(it)) }
         updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
         if (updateGroup.visibility!! == 0) {
             group.inviteUrl = null

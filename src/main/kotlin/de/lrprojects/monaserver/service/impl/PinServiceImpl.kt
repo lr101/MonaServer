@@ -2,11 +2,12 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.helper.StringHelper
-import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
+import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver_api.model.PinRequestDto
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,7 +19,8 @@ import java.util.*
 class PinServiceImpl(
     private val pinRepository: PinRepository,
     private val userRepository: UserRepository,
-    private val groupRepository: GroupRepository
+    private val groupRepository: GroupRepository,
+    private val objectService: ObjectService
 ) : PinService {
 
     @Transactional
@@ -28,9 +30,9 @@ class PinServiceImpl(
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = newPin.creationDate
-        pin.pinImage = newPin.image
         pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
+        objectService.createObject(pin, newPin.image)
         return pin
     }
 
