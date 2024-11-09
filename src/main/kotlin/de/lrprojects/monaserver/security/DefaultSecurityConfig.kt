@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.security
 
+import de.lrprojects.monaserver.config.RoleConstants.ADMIN_ROLE
 import de.lrprojects.monaserver.config.RoleConstants.USER_ROLE
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -36,6 +37,7 @@ class DefaultSecurityConfig (
                 it
                     .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
                     .requestMatchers(API_PATH).hasAuthority(USER_ROLE)
+                    .requestMatchers(ADMIN_PATH).hasAuthority(ADMIN_ROLE)
                     .anyRequest().authenticated()
             }
             .sessionManagement {
@@ -73,6 +75,7 @@ class DefaultSecurityConfig (
         const val STATIC_PATH = "/static/**"
         const val ERROR_PATH = "/error"
         const val API_PATH = "/api/v2/**"
+        const val ADMIN_PATH = "/api/v2/admin/**"
     }
 
 }

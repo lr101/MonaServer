@@ -9,17 +9,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'  # Use Eclipse Temurin distribution of OpenJDK
-          java-version: '17'       # Set to your Java version, e.g., '11', '17'
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Create settings.xml for GitHub Packages authentication
+        run: |
+          echo "<settings xmlns='http://maven.apache.org/SETTINGS/1.0.0' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:schemaLocation='http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd'>" > ~/.m2/settings.xml
+          echo "<servers><server><id>github</id><username>lr101</username><password>${{ secrets.GH_TOKEN }}</password></server></servers>" >> ~/.m2/settings.xml
+          echo "</settings>" >> ~/.m2/settings.xml
 
       - name: Build Spring Boot Docker image
         run: mvn spring-boot:build-image
 
-      - name: Verify Docker image
-        run: docker images | grep my-spring-boot-app  # Replace with your app's name

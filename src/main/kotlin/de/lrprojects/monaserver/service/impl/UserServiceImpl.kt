@@ -5,10 +5,14 @@ import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
+import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import de.lrprojects.monaserver_api.model.UserUpdateDto
+import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -19,7 +23,8 @@ class UserServiceImpl(
     val userRepository: UserRepository,
     val refreshTokenService: RefreshTokenService,
     val imageHelper: ImageHelper,
-    val tokenHelper: TokenHelper
+    val tokenHelper: TokenHelper,
+    private val objectService: ObjectService
 ): UserService {
 
     @Transactional
@@ -30,12 +35,26 @@ class UserServiceImpl(
         userRepository.delete(user)
     }
 
-    override fun getUserProfileImage(userId: UUID): ByteArray? {
-        return getUser(userId).profilePicture
+    override fun getUserProfileImage(userId: UUID): String? {
+        try {
+            val user = getUser(userId)
+            if (user.profilePictureExists) {
+                return objectService.getObject(getUserFileProfile(user))
+            }
+        } catch (_: MinioException) {
+
+        }
+        return  null
     }
 
-    override fun getUserProfileImageSmall(userId: UUID): ByteArray? {
-        return getUser(userId).profilePictureSmall
+    override fun getUserProfileImageSmall(userId: UUID): String? {
+        try {
+            val user = getUser(userId)
+            if (user.profilePictureExists) {
+                return objectService.getObject(getUserFileProfileSmall(user))
+            }
+        } catch (_: MinioException) { }
+        return  null
     }
 
     override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
@@ -63,8 +82,10 @@ class UserServiceImpl(
         image: ByteArray
     ): User {
         val userEntity =  getUser(userId)
-        userEntity.profilePicture = imageHelper.getProfileImage(image)
-        userEntity.profilePictureSmall = imageHelper.getProfileImageSmall(image)
+        val processedImage = imageHelper.getProfileImage(image)
+        val processedImageSmall = imageHelper.getProfileImageSmall(image)
+        objectService.createObject(userEntity, processedImage, processedImageSmall)
+        userEntity.profilePictureExists = true
         return userRepository.save(userEntity)
     }
 
