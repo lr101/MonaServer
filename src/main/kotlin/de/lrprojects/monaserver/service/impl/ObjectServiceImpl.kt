@@ -12,7 +12,7 @@ import io.minio.RemoveObjectArgs
 import io.minio.http.Method
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.io.FileInputStream
+import java.io.ByteArrayInputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -29,7 +29,7 @@ class ObjectServiceImpl(
                 .builder()
                 .bucket(minioProperties.bucketName)
                 .`object`(file)
-                .stream(FileInputStream("/tmp/${file}"), image.size.toLong(), -1).build())
+                .stream(ByteArrayInputStream(image), image.size.toLong(), -1).build())
     }
 
     override fun createObject(pin: Pin, image: ByteArray): String {
@@ -74,7 +74,7 @@ class ObjectServiceImpl(
             GetPresignedObjectUrlArgs
                 .builder()
                 .method(Method.GET)
-                .expiry(1, TimeUnit.DAYS)
+                .expiry(30, TimeUnit.MINUTES)
                 .bucket(minioProperties.bucketName)
                 .`object`(file)
                 .build()

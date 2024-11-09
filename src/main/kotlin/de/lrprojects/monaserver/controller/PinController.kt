@@ -2,12 +2,10 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.service.api.DeleteLogService
-import de.lrprojects.monaserver.service.api.LikeService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver_api.api.PinsApiDelegate
-import de.lrprojects.monaserver_api.model.PinLikeDto
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver_api.model.PinsSyncDto
@@ -17,7 +15,6 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import java.time.OffsetDateTime
 import java.util.*
@@ -42,7 +39,7 @@ class PinController(
         log.info("Attempting to create pin for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
         val pin = pinService.createPin(pinRequestDto)
         log.info("Pin created for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
-        return ResponseEntity(pin.toPinModelWithImage(null), HttpStatus.CREATED)
+        return ResponseEntity(pin.toPinModelWithImage(objectService.getObject(pin)), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
