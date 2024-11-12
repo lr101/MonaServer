@@ -10,11 +10,17 @@ class AdminController(
     private val imageMigrationService: ImageMigrationService
 ) {
 
-    @GetMapping("/public/migration")
+    @GetMapping("/public/migration/1")
     fun runImageMigration(): ResponseEntity<Void> {
         imageMigrationService.migratePinImagesToMinio(100)
         imageMigrationService.migrateGroupImagesToMinio()
         imageMigrationService.migrateUserProfileToMinio(100)
+        return ResponseEntity.ok().build()
+    }
+
+    @GetMapping("/public/migration/2")
+    fun runGroupImageSmallMigration(): ResponseEntity<Void> {
+        imageMigrationService.createSmallGroupImages()
         return ResponseEntity.ok().build()
     }
 
