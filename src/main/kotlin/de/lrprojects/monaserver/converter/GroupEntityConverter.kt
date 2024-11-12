@@ -5,6 +5,7 @@ import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
 import de.lrprojects.monaserver_api.model.GroupDto
 import org.springframework.security.core.context.SecurityContextHolder
 import java.util.*
@@ -20,6 +21,7 @@ fun Group.toGroupDto(memberService: MemberService, withImages: Boolean? = true, 
     ).also {
         it.profileImage = if (withImage) objectService.getObject(getGroupFileProfile(it.id)) else null
         it.pinImage = if (withImage) objectService.getObject(getGroupFilePin(it.id)) else null
+        it.profileImageSmall = if (withImage) objectService.getObject(getGroupFileProfileSmall(it.id)) else null
         it.description = if (visibleToUser) this.description else null
         it.groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null
         it.link = if (visibleToUser) this.link else null

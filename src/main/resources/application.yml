@@ -32,6 +32,7 @@ spring:
     hiddenmethod:
       filter:
         enabled: true
+    static-path-pattern: /public/**
   flyway:
     enabled: true
     locations: classpath:db/migration

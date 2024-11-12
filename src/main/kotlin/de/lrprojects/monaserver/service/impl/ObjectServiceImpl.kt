@@ -37,9 +37,10 @@ class ObjectServiceImpl(
         return getObject(pin)
     }
 
-    override fun createObject(group: Group, imagePin: ByteArray, imageProfile: ByteArray) {
+    override fun createObject(group: Group, imagePin: ByteArray, imageProfile: ByteArray, imageProfileSmall: ByteArray) {
         createObject(getGroupFilePin(group), imagePin)
         createObject(getGroupFileProfile(group), imageProfile)
+        createObject(getGroupFileProfileSmall(group), imageProfile)
     }
 
     override fun createObject(user: User, profileImage: ByteArray, profileImageSmall: ByteArray) {
@@ -62,6 +63,7 @@ class ObjectServiceImpl(
     override fun deleteObject(group: Group) {
         deleteObject(getGroupFilePin(group))
         deleteObject(getGroupFileProfile(group))
+        deleteObject(getGroupFileProfileSmall(group))
     }
 
     override fun deleteObject(user: User) {
@@ -90,7 +92,9 @@ class ObjectServiceImpl(
         fun getGroupFilePin(group: Group) = "groups/${group.id}/group_pin.png"
         fun getGroupFilePin(uuid: UUID) = "groups/${uuid}/group_pin.png"
         fun getGroupFileProfile(group: Group) = "groups/${group.id}/group_profile.png"
+        fun getGroupFileProfileSmall(group: Group) = "groups/${group.id}/group_profile_small.png"
         fun getGroupFileProfile(uuid: UUID) = "groups/${uuid}/group_profile.png"
+        fun getGroupFileProfileSmall(uuid: UUID) = "groups/${uuid}/group_profile_small.png"
         fun getUserFileProfile(user: User) = "users/${user.id}/profile.png"
         fun getUserFileProfile(uuid: UUID) = "users/${uuid}/profile.png"
         fun getUserFileProfileSmall(user: User) = "users/${user.id}/profile_small.png"

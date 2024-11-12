@@ -8,7 +8,7 @@ interface ObjectService {
 
     fun createObject(pin: Pin, image: ByteArray): String
 
-    fun createObject(group: Group, imagePin: ByteArray, imageProfile: ByteArray)
+    fun createObject(group: Group, imagePin: ByteArray, imageProfile: ByteArray, imageProfileSmall: ByteArray)
 
     fun createObject(user: User, profileImage: ByteArray, profileImageSmall: ByteArray)
 
