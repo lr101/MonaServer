@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.config.TokenProperties
+import de.lrprojects.monaserver.properties.TokenProperties
 import de.lrprojects.monaserver.entity.RefreshToken
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.repository.RefreshTokenRepository

@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.ADMIN_ID
-import de.lrprojects.monaserver.config.DbConstants.GROUPS
-import de.lrprojects.monaserver.config.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.ADMIN_ID
+import de.lrprojects.monaserver.properties.DbConstants.GROUPS
+import de.lrprojects.monaserver.properties.DbConstants.ID
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import de.lrprojects.monaserver.helper.SecurityHelper

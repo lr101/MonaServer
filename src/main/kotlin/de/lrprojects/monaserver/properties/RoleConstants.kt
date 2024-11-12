@@ -1,4 +1,4 @@
-package de.lrprojects.monaserver.config
+package de.lrprojects.monaserver.properties
 
 object RoleConstants {
     const val USER_ROLE = "USER"

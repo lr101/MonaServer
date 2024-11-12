@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.config.AppProperties
-import de.lrprojects.monaserver.config.MailProperties
+import de.lrprojects.monaserver.properties.AppProperties
+import de.lrprojects.monaserver.properties.MailProperties
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver_api.model.ReportDto

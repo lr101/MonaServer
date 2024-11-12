@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.USERS
+import de.lrprojects.monaserver.properties.DbConstants.USERS
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import jakarta.persistence.Basic

@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.DELETE_LOG
+import de.lrprojects.monaserver.properties.DbConstants.DELETE_LOG
 import de.lrprojects.monaserver.helper.EmbeddedDeletedEntityKey
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp

@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.config.MinioProperties
+import de.lrprojects.monaserver.properties.MinioProperties
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User

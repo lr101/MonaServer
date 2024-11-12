@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.helper
 
-import de.lrprojects.monaserver.config.MailProperties
+import de.lrprojects.monaserver.properties.MailProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.mail.javamail.JavaMailSender

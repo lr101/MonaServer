@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.config
 
+import de.lrprojects.monaserver.properties.MinioProperties
 import io.minio.MinioClient
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

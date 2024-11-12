@@ -1,4 +1,4 @@
-package de.lrprojects.monaserver.config
+package de.lrprojects.monaserver.properties
 
 object DbConstants {
     // column definitions

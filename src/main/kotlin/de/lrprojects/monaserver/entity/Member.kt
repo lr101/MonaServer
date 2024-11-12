@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.MEMBERS
+import de.lrprojects.monaserver.properties.DbConstants.MEMBERS
 import de.lrprojects.monaserver.helper.EmbeddedMemberKey
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
