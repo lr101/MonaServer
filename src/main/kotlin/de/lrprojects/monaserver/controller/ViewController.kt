@@ -39,6 +39,18 @@ class ViewController (
         return "request-delete-view"
     }
 
+    @GetMapping("/public/agb")
+    fun requestAgb(): String {
+        log.info("Displaying agb")
+        return "agb"
+    }
+
+    @GetMapping("/public/privacy-policy")
+    fun requestPrivacyPolicy(): String {
+        log.info("Displaying privacy policy")
+        return "privacy-policy"
+    }
+
     @GetMapping("/public/delete-account/{url}")
     fun deleteAccountView(@PathVariable("url") url: String, model: Model): String {
         log.info("Displaying delete account view")

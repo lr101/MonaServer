@@ -62,8 +62,10 @@
                     document.getElementById("row").remove();
                     document.getElementById("body").appendChild(suc);
                 },
-                error: function () {
-                    alert('Account does not exist or email not valid');
+                error: function (jqXHR) {
+                    // Display the server-provided error message or a fallback
+                    const errorMessage = jqXHR.responseText || 'Account does not exist or email not valid';
+                    alert(errorMessage);
                     clicked = false;
                 },
             });
