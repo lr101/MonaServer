@@ -1,5 +1,8 @@
 # Mona Server
 
+*THIS **MIGRATION** BRANCH IS FOR DEVELOPMENT AND MIGRATION PURPOSES ONLY. NEVER EXPOSE IT TO THE PUBLIC!!*
+
+
 ## What is it for?
 
 This spring boot application is the communicating backend server for the app [Stick-It: Geomap](https://lr-projects.de/en/index.html) which can be found in the following [repo](https://github.com/lr101/buff_lisa).
