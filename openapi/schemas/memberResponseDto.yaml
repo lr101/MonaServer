@@ -1,6 +1,0 @@
-required:
-  - userId
-type: object
-properties:
-  userId:
-    $ref: '../parameters/id.yaml'

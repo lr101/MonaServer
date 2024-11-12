@@ -1,8 +1,0 @@
-type: object
-properties:
-  email:
-    $ref: '../parameters/email.yaml'
-  password:
-    $ref: '../parameters/shortString.yaml'
-  image:
-    $ref: '../parameters/image.yaml'

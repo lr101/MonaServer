@@ -12,6 +12,7 @@ import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
+import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
 import de.lrprojects.monaserver_api.model.*
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
@@ -44,7 +45,12 @@ class GroupServiceImpl (
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
         val g =  groupRepository.save(group)
-        objectService.createObject(group,  imageHelper.getPinImage(createGroup.profileImage), imageHelper.getProfileImage(createGroup.profileImage))
+        objectService.createObject(
+            group,
+            imageHelper.getPinImage(createGroup.profileImage),
+            imageHelper.getProfileImage(createGroup.profileImage),
+            imageHelper.getProfileImageSmall(createGroup.profileImage)
+        )
 
         memberService.addMember(userId = g.groupAdmin!!.id!!, groupId = g.id!!, inviteUrl = g.inviteUrl)
         return g
@@ -101,6 +107,12 @@ class GroupServiceImpl (
         return objectService.getObject(getGroupFileProfile(group))
     }
 
+    override fun getGroupProfileImageSmall(groupId: UUID): String {
+        val group = groupRepository.findById(groupId)
+            .orElseThrow { EntityNotFoundException("Group not found") }
+        return objectService.getObject(getGroupFileProfileSmall(group))
+    }
+
     override fun getGroupsByIds(ids: List<UUID>?, search: String?, withUser: Boolean?, userId: UUID?, updatedAfter: OffsetDateTime?, pageable: Pageable): Page<Group> {
         if ((withUser != null && userId == null) || (withUser == null && userId != null)) throw AssertException("A username must be set when withUser is used")
         return when (withUser) {
@@ -119,7 +131,14 @@ class GroupServiceImpl (
         updateGroup.name?.let { group.name = updateGroup.name }
         updateGroup.description?.let { group.description = updateGroup.description }
         updateGroup.link?.let { group.link = updateGroup.link }
-        updateGroup.profileImage?.let { objectService.createObject(group,  imageHelper.getPinImage(it), imageHelper.getProfileImage(it)) }
+        updateGroup.profileImage?.let {
+            objectService.createObject(
+                group,
+                imageHelper.getPinImage(it),
+                imageHelper.getProfileImage(it),
+                imageHelper.getProfileImageSmall(it)
+            )
+        }
         updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
         if (updateGroup.visibility!! == 0) {
             group.inviteUrl = null
