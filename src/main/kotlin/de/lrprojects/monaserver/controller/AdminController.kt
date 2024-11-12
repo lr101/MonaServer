@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.service.ImageMigrationService
+import de.lrprojects.monaserver.helper.ImageMigrationService
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping

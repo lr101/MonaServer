@@ -1,9 +1,8 @@
-package de.lrprojects.monaserver.service
+package de.lrprojects.monaserver.helper
 
 import de.lrprojects.monaserver.config.MinioProperties
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
-import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -19,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.getForEntity
 import java.io.ByteArrayInputStream
+import java.net.URI
 
 
 @Service
@@ -163,7 +163,7 @@ class ImageMigrationService(
             try {
                 val groupProfile = objectService.getObject(getGroupFileProfile(group))
                 val restTemplate = RestTemplate()
-                val result = restTemplate.getForEntity<ByteArray>(groupProfile)
+                val result = restTemplate.getForEntity<ByteArray>(URI.create(groupProfile))
                 // Check if the group has a profile image to generate a smaller version
                 if (result.statusCode == HttpStatus.OK) {
                     val smallImageData = imageHelper.getProfileImageSmall(result.body!!)
