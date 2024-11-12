@@ -1,9 +1,0 @@
-required:
-  - group
-  - pin
-type: object
-properties:
-  pin:
-    $ref: '#/components/schemas/Pin'
-  group:
-    $ref: '#/components/schemas/GroupSmall'

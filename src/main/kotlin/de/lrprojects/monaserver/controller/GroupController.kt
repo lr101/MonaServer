@@ -1,15 +1,15 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver_api.api.GroupsApiDelegate
 import de.lrprojects.monaserver.converter.toGroupDto
-import de.lrprojects.monaserver_api.model.CreateGroupDto
-import de.lrprojects.monaserver_api.model.GroupDto
-import de.lrprojects.monaserver_api.model.GroupsSyncDto
-import de.lrprojects.monaserver_api.model.UpdateGroupDto
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver_api.api.GroupsApiDelegate
+import de.lrprojects.monaserver_api.model.CreateGroupDto
+import de.lrprojects.monaserver_api.model.GroupDto
+import de.lrprojects.monaserver_api.model.GroupsSyncDto
+import de.lrprojects.monaserver_api.model.UpdateGroupDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -119,6 +119,13 @@ class GroupController(
         log.info("Attempting to get group pin image for group with ID: $groupId")
         val result = groupService.getGroupPinImage(groupId)
         log.info("Retrieved group pin image for group with ID: $groupId")
+        return ResponseEntity.ok(result)
+    }
+
+    override fun getGroupProfileImageSmall(groupId: UUID): ResponseEntity<String> {
+        log.info("Attempting to get group profile image small for group with ID: $groupId")
+        val result = groupService.getGroupProfileImageSmall(groupId)
+        log.info("Retrieved group profile image small for group with ID: $groupId")
         return ResponseEntity.ok(result)
     }
 

@@ -1,8 +1,0 @@
-required:
-  - profilePicture
-  - profilePictureSmall
-properties:
-  profilePicture:
-    $ref: '../parameters/image.yaml'
-  profilePictureSmall:
-    $ref: '../parameters/image.yaml'
