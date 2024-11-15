@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.security
 
-import de.lrprojects.monaserver.config.RoleConstants.ADMIN_ROLE
-import de.lrprojects.monaserver.config.RoleConstants.USER_ROLE
+import de.lrprojects.monaserver.properties.RoleConstants.ADMIN_ROLE
+import de.lrprojects.monaserver.properties.RoleConstants.USER_ROLE
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity

@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.security
 
-import de.lrprojects.monaserver.config.TokenProperties
+import de.lrprojects.monaserver.properties.TokenProperties
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import org.springframework.security.core.userdetails.UserDetails

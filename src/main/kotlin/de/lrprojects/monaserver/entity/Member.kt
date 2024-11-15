@@ -1,8 +1,14 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.MEMBERS
+import com.fasterxml.jackson.annotation.JsonIgnore
 import de.lrprojects.monaserver.helper.EmbeddedMemberKey
-import jakarta.persistence.*
+import de.lrprojects.monaserver.properties.DbConstants.MEMBERS
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Id
+import jakarta.persistence.Table
+import jakarta.persistence.Temporal
+import jakarta.persistence.TemporalType
 import org.hibernate.annotations.CreationTimestamp
 import java.time.OffsetDateTime
 
@@ -10,6 +16,7 @@ import java.time.OffsetDateTime
 @Table(name = MEMBERS)
 data class Member (
     @Id
+    @JsonIgnore
     var id: EmbeddedMemberKey,
 
     @CreationTimestamp

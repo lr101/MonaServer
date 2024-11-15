@@ -51,3 +51,4 @@ buildDocker.bat
 /postgres-data/
 /src/main/resources/application-secrets.yml
 /backup/
+/docker-compose-local.yml

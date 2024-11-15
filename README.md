@@ -19,15 +19,25 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=root
 POSTGRES_DB=sticker
 PORT=8081
-SECRET=<A RANDOM STRING>
-AUTH_TOKEN_ADMIN=admin
-DB_URL=jdbc:postgresql://localhost:5432/sticker
+ADMIN_ACCOUNT_NAME=admin
+DB_URL=jdbc:postgresql://db:5432/sticker
 MAIL_PASSWORD=<YOUR MAIL PASSWORD>
 MAIL_HOST=<YOUR EMAIL SERVER HOST>
 MAIL_PORT=<YOUR EMAIL SERVER PORT>
 MAIL_FROM=<YOUR EMAIL>
 MAIL_PROTOCOL=smtp
-APP_URL=http://localhost:8081 # Set to public facing domain
+APP_URL=https://stick-it.example.com # Set to public facing domain
+MINIO_ACCESS_KEY=<MINIO_ACCESS_KEY>
+MINIO_SECRET_KEY=<MINIO_SECRET_KEY>
+MINIO_ENDPOINT=https://minio.example.com # Set to public facing minio domain
+MINIO_BUCKET=<MINIO_BUCKET_NAME>
+MINIO_ROOT_USER: admin
+MINIO_ROOT_PASSWORD: <MINIO_CONSOLE_ADMIN_PASSWORD>
+MINIO_PORT=9000
+MINIO_CONSOLE_PORT=9001
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=<REDIS_PASSWORD>
 ```
 5. Create a database in an already running instance or start the db in the [docker-compose](docker-compose.yml) file
 6. Run ``mvn clean install`` to generate the openapi model and api files

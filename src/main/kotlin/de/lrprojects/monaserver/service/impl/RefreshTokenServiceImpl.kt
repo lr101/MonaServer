@@ -1,10 +1,12 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.config.TokenProperties
 import de.lrprojects.monaserver.entity.RefreshToken
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.properties.TokenProperties
 import de.lrprojects.monaserver.repository.RefreshTokenRepository
 import de.lrprojects.monaserver.service.api.RefreshTokenService
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.*
@@ -26,6 +28,7 @@ class RefreshTokenServiceImpl(
     }
 
 
+    @Cacheable(value = ["refreshToken"], key = "#token")
     override fun findByToken(token: UUID): Optional<RefreshToken> {
         return refreshTokenRepository.findByToken(token)
     }
@@ -38,6 +41,7 @@ class RefreshTokenServiceImpl(
         return token
     }
 
+    @CacheEvict(value = ["refreshToken"], allEntries = true)
     override fun invalidateTokens(user: User) {
         refreshTokenRepository.deleteAll(user.refreshTokens)
     }

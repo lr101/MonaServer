@@ -1,11 +1,11 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.CREATOR_ID
-import de.lrprojects.monaserver.config.DbConstants.GROUP_ID
-import de.lrprojects.monaserver.config.DbConstants.ID
-import de.lrprojects.monaserver.config.DbConstants.PINS
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
+import de.lrprojects.monaserver.properties.DbConstants.CREATOR_ID
+import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
+import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.PINS
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType

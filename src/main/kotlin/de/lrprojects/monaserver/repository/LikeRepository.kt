@@ -1,12 +1,12 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Like
-import org.springframework.data.repository.CrudRepository
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import java.util.*
 
 @Repository
-interface LikeRepository : CrudRepository<Like, UUID> {
+interface LikeRepository : JpaRepository<Like, UUID> {
 
     fun countLikeByPinId(pinId: UUID): Long
 

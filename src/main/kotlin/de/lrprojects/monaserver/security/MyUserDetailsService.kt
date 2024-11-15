@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.security
 
-import de.lrprojects.monaserver.config.RoleConstants.ADMIN_ROLE
-import de.lrprojects.monaserver.config.RoleConstants.USER_ROLE
-import de.lrprojects.monaserver.config.TokenProperties
+import de.lrprojects.monaserver.properties.RoleConstants.ADMIN_ROLE
+import de.lrprojects.monaserver.properties.RoleConstants.USER_ROLE
+import de.lrprojects.monaserver.properties.TokenProperties
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.repository.UserRepository
 import org.springframework.security.core.authority.SimpleGrantedAuthority

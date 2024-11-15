@@ -1,4 +1,4 @@
-package de.lrprojects.monaserver.config
+package de.lrprojects.monaserver.properties
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 

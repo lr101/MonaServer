@@ -2,20 +2,16 @@ package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Member
 import de.lrprojects.monaserver.helper.EmbeddedMemberKey
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.CrudRepository
-import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.util.*
 
 @Repository
-interface MemberRepository : CrudRepository<Member, EmbeddedMemberKey> {
+interface MemberRepository : JpaRepository<Member, EmbeddedMemberKey> {
     @Modifying
-    @Query("""
-        INSERT INTO members (user_id, group_id) values (:userId, :groupId)
-    """, nativeQuery = true)
-    fun addMemberGroup(@Param("userId") userId: UUID, @Param("groupId") groupId: UUID)
+    fun deleteById_Group_IdAndId_User_Id(groupId: UUID, userId: UUID)
 
     fun existsById_Group_IdAndId_User_Id(groupId: UUID, userId: UUID): Boolean
 

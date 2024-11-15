@@ -1,8 +1,9 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.config.DbConstants.USERS
+import com.fasterxml.jackson.annotation.JsonIgnore
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
+import de.lrprojects.monaserver.properties.DbConstants.USERS
 import jakarta.persistence.Basic
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
@@ -60,10 +61,12 @@ data class User (
 
     @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JoinColumn(name = "user_id")
+    @JsonIgnore
     var refreshTokens: List<RefreshToken> = emptyList(),
 
     @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JoinColumn(name = "user_id")
+    @JsonIgnore
     var groups: MutableSet<Member> = mutableSetOf(),
 
     @Transient

@@ -15,6 +15,10 @@ import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGrou
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
 import de.lrprojects.monaserver_api.model.*
 import jakarta.persistence.EntityNotFoundException
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.CachePut
+import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -34,6 +38,9 @@ class GroupServiceImpl (
 ) : GroupService {
 
     @Transactional
+    @Caching(
+        evict = [CacheEvict(value = ["userGroups"], key = "#createGroup.groupAdmin", condition = "#createGroup.groupAdmin.toString() == #authentication.name"),],
+    )
     override fun addGroup(createGroup: CreateGroupDto): Group {
         val group = Group()
         group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
@@ -58,12 +65,14 @@ class GroupServiceImpl (
 
     @Throws(SQLException::class)
     @Transactional
+    @CacheEvict(value = ["groups"], key = "#groupId")
     override fun deleteGroup(groupId: UUID) {
         groupRepository.deleteById(groupId)
 
     }
 
     @Throws(EntityNotFoundException::class)
+    @Cacheable(value = ["groups"], key = "#groupId")
     override fun getGroup(groupId: UUID): Group {
         return  groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
@@ -125,6 +134,7 @@ class GroupServiceImpl (
 
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
+    @CachePut(value = ["groups"], key = "#groupId")
     override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): Group {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
@@ -151,6 +161,7 @@ class GroupServiceImpl (
         return groupRepository.save(group)
     }
 
+    @Cacheable(value = ["groupsByPin"], key = "#pinId")
     override fun getGroupOfPin(pinId: UUID): Group {
         return groupRepository.findByPinId(pinId)
     }
