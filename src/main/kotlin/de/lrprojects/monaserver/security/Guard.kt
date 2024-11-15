@@ -1,10 +1,9 @@
 package de.lrprojects.monaserver.security
 
-import de.lrprojects.monaserver.repository.GroupRepository
-import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.security.core.Authentication
 import org.springframework.stereotype.Component
@@ -15,9 +14,8 @@ import java.util.*
 class Guard(
     private val memberService: MemberService,
     private val groupService: GroupService,
-    private val groupRepository: GroupRepository,
     private val pinService: PinService,
-    private val userRepository: UserRepository
+    private val userService: UserService
 ){
 
     fun isGroupVisible(authentication: Authentication, groupId: UUID): Boolean {
@@ -49,8 +47,8 @@ class Guard(
         log.info("""Checking if group with ID: $groupId is member for user: ${authentication.name}""")
         val name = UUID.fromString(authentication.name)
         return try {
-            val user = userRepository.findById(name)
-            return memberService.getMembers(groupId).any { e -> e.userId == user.get().id }
+            val user = userService.getUser(name)
+            return memberService.getMembers(groupId).any { e -> e.userId == user.id }
         } catch (e: Exception) {
             log.warn("Failed to authenticate group is member")
             false
@@ -83,7 +81,7 @@ class Guard(
         log.info("Checking if pin with ID: $pinId is member for user: ${authentication.name}")
         val name = UUID.fromString(authentication.name)
         return try {
-            val result = groupRepository.findByPinId(pinId)
+            val result = groupService.getGroupOfPin(pinId)
             return result.groupAdmin?.id == name
         } catch (e: Exception) {
             log.warn("Failed to authenticate pin is member")

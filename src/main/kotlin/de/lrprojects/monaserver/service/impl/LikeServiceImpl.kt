@@ -6,6 +6,8 @@ import de.lrprojects.monaserver.service.api.LikeService
 import de.lrprojects.monaserver_api.model.CreateLikeDto
 import de.lrprojects.monaserver_api.model.PinLikeDto
 import jakarta.transaction.Transactional
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -13,6 +15,8 @@ import java.util.*
 class LikeServiceImpl(
     private val likeRepository: LikeRepository
 ): LikeService {
+
+    @Cacheable(value = ["pinLikes"], key = "{#pinId, #userId}")
     override fun likeCountByPin(pinId: UUID, userId: UUID): PinLikeDto {
         val likeEntity = likeRepository.findLikeByUserIdAndPinId(userId, pinId)
         if (likeEntity.isEmpty) return PinLikeDto().apply {
@@ -39,6 +43,7 @@ class LikeServiceImpl(
     }
 
     @Transactional
+    @CacheEvict(value = ["pinLikes"], key = "{#pinId, #createLikeDto.userId}")
     override fun createOrUpdateLike(createLikeDto: CreateLikeDto, pinId: UUID) {
         val likeOptional = likeRepository.findLikeByUserIdAndPinId(createLikeDto.userId, pinId)
         if (likeOptional.isEmpty) {

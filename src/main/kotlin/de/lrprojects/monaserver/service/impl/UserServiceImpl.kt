@@ -14,6 +14,9 @@ import de.lrprojects.monaserver_api.model.TokenResponseDto
 import de.lrprojects.monaserver_api.model.UserUpdateDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -28,6 +31,18 @@ class UserServiceImpl(
 ): UserService {
 
     @Transactional
+    @Caching(
+        evict = [
+            CacheEvict(value = ["pinsByUser"], key = "#userId"),
+            CacheEvict(value = ["pinsByGroup"], allEntries = true),
+            CacheEvict(value = ["refreshToken"], allEntries = true),
+            CacheEvict(value = ["userGroups"], key = "#userId"),
+            CacheEvict(value = ["groupMembers"], allEntries = true),
+            CacheEvict(value = ["isInGroup"], allEntries = true),
+            CacheEvict(value = ["groupsByPin"], allEntries = true),
+            CacheEvict(value = ["users"], key = "#userId"),
+        ]
+    )
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
@@ -57,6 +72,7 @@ class UserServiceImpl(
         return  null
     }
 
+    @CacheEvict(value = ["users"], key = "#userId")
     override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
         var responseDto: TokenResponseDto? = null
@@ -89,6 +105,7 @@ class UserServiceImpl(
         return userRepository.save(userEntity)
     }
 
+    @Cacheable(value = ["users"], key = "#userId")
     override fun getUser(userId: UUID): User {
         return userRepository.findById(userId).orElseThrow { UserNotFoundException("user $userId does not exist") }
     }

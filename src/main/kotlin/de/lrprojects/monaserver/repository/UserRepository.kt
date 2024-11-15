@@ -1,13 +1,13 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.User
-import org.springframework.data.repository.CrudRepository
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import java.util.*
 
 
 @Repository
-interface UserRepository : CrudRepository<User, UUID> {
+interface UserRepository : JpaRepository<User, UUID> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
     fun findByIdAndCode(id: UUID, code: String): Optional<User>
     fun findByUsername(username: String): Optional<User>

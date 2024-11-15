@@ -1,8 +1,13 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.properties.DbConstants.DELETE_LOG
 import de.lrprojects.monaserver.helper.EmbeddedDeletedEntityKey
-import jakarta.persistence.*
+import de.lrprojects.monaserver.properties.DbConstants.DELETE_LOG
+import jakarta.persistence.Column
+import jakarta.persistence.EmbeddedId
+import jakarta.persistence.Entity
+import jakarta.persistence.Table
+import jakarta.persistence.Temporal
+import jakarta.persistence.TemporalType
 import org.hibernate.annotations.CreationTimestamp
 import java.time.OffsetDateTime
 
