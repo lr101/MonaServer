@@ -37,6 +37,8 @@ class DefaultSecurityConfig (
         http
             .csrf { it.disable() }
             .cors{ it.configurationSource(corsConfigurationSource())}
+            .httpBasic { it.disable() }
+            .formLogin { it.disable() }
             .authorizeHttpRequests {
                 it
                     .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
