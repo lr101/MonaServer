@@ -2,6 +2,8 @@ package de.lrprojects.monaserver.security
 
 import de.lrprojects.monaserver.properties.RoleConstants.ADMIN_ROLE
 import de.lrprojects.monaserver.properties.RoleConstants.USER_ROLE
+import de.lrprojects.monaserver.properties.TokenProperties
+import de.lrprojects.monaserver.repository.UserRepository
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -10,6 +12,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.security.crypto.password.DelegatingPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
@@ -25,7 +28,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
     securedEnabled = true,
     jsr250Enabled = true)
 class DefaultSecurityConfig (
-    private val userDetailsService: MyUserDetailsService,
+    private val userRepository: UserRepository,
+    private val tokenProperties: TokenProperties
 ) {
 
     @Bean
@@ -49,12 +53,17 @@ class DefaultSecurityConfig (
 
     @Bean
     fun userDetailsService(): UserDetailsService {
-        return userDetailsService
+        return MyUserDetailsService(userRepository, tokenProperties)
     }
 
     @Bean
-    fun passwordEncoder(): PasswordEncoder {
-        return BCryptPasswordEncoder()
+    fun delegatingPasswordEncoder(): PasswordEncoder {
+        val defaultEncoder: PasswordEncoder = NoSaltPasswordEncoder()
+        val encoders: MutableMap<String, PasswordEncoder> = HashMap()
+        encoders["bcrypt"] = BCryptPasswordEncoder()
+        val passwordEncoder = DelegatingPasswordEncoder("bcrypt", encoders)
+        passwordEncoder.setDefaultPasswordEncoderForMatches(defaultEncoder)
+        return passwordEncoder
     }
 
 

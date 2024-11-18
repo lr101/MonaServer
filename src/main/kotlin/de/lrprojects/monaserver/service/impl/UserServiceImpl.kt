@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.UserRepository
@@ -17,8 +18,10 @@ import jakarta.persistence.EntityNotFoundException
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 import java.util.*
 
 @Service
@@ -27,7 +30,8 @@ class UserServiceImpl(
     val refreshTokenService: RefreshTokenService,
     val imageHelper: ImageHelper,
     val tokenHelper: TokenHelper,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val passwordEncoder: PasswordEncoder
 ): UserService {
 
     @Transactional
@@ -81,8 +85,10 @@ class UserServiceImpl(
             userEntity.code = null
         }
         if (user.password != null) {
-            userEntity.password = user.password
+            userEntity.password = passwordEncoder.encode(user.password)
             userEntity.resetPasswordUrl = null
+            userEntity.resetPasswordExpiration = null
+            userEntity.failedLoginAttempts = 0
             refreshTokenService.invalidateTokens(userEntity)
             val accessToken = tokenHelper.generateToken(userEntity.username)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
@@ -115,6 +121,9 @@ class UserServiceImpl(
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
+            if (list.resetPasswordExpiration!!.isAfter(OffsetDateTime.now())) {
+                throw TimeExpiredException("reset url is expired")
+            }
             return list
         }
     }

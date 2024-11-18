@@ -42,6 +42,14 @@ data class User (
     var resetPasswordUrl: String? = null,
 
     @Column
+    @CreationTimestamp
+    @Basic(fetch = FetchType.LAZY)
+    var resetPasswordExpiration: OffsetDateTime? = null,
+
+    @Column
+    var failedLoginAttempts: Int = 0,
+
+    @Column
     var profilePictureExists: Boolean = false,
 
     @Column

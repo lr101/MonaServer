@@ -1,22 +1,20 @@
 package de.lrprojects.monaserver.security
 
+import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.properties.RoleConstants.ADMIN_ROLE
 import de.lrprojects.monaserver.properties.RoleConstants.USER_ROLE
 import de.lrprojects.monaserver.properties.TokenProperties
-import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.repository.UserRepository
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
-import org.springframework.stereotype.Component
 import java.util.*
 
-@Component
+
 class MyUserDetailsService(
     private val userRepository: UserRepository,
     private val tokenProperties: TokenProperties
-
 ) : UserDetailsService {
 
     @Throws(UsernameNotFoundException::class)
@@ -29,7 +27,7 @@ class MyUserDetailsService(
             roles.add(SimpleGrantedAuthority(ADMIN_ROLE))
         }
         return org.springframework.security.core.userdetails.User(
-            user.id.toString(), user.username, roles
+            user.id.toString(), user.password, roles
         )
     }
 }

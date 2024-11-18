@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.controller
 
+import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
@@ -28,6 +29,8 @@ class ViewController (
             model.addAttribute("userId", user.id)
             model.addAttribute("token", tokenHelper.generateToken(user.username))
             "recover-view"
+        } catch (e: TimeExpiredException) {
+            return "time-expired"
         } catch (e: Exception) {
             "404"
         }
