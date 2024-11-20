@@ -50,6 +50,9 @@ class UserServiceImpl(
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
+        if (OffsetDateTime.now().isAfter(user.codeExpiration!!)) {
+            throw TimeExpiredException("code is expired")
+        }
         refreshTokenService.invalidateTokens(user)
         userRepository.delete(user)
     }
@@ -121,10 +124,22 @@ class UserServiceImpl(
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
-            if (list.resetPasswordExpiration!!.isAfter(OffsetDateTime.now())) {
-                throw TimeExpiredException("reset url is expired")
+            if (OffsetDateTime.now().isBefore(list.resetPasswordExpiration!!)) {
+                return list
             }
-            return list
+            throw TimeExpiredException("reset url is expired")
+        }
+    }
+
+    override fun getUserByDeletionUrl(deletionUrl: String): User {
+        val list = userRepository.findByDeletionUrl(deletionUrl).firstOrNull();
+        if (list == null) {
+            throw UserNotFoundException("user with this reset url does not exist")
+        } else {
+            if (OffsetDateTime.now().isBefore(list.codeExpiration!!)) {
+                return list
+            }
+            throw TimeExpiredException("deletion url is expired")
         }
     }
 }

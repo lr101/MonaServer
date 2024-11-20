@@ -57,6 +57,13 @@ data class User (
     @Length(min = 6, max = 6)
     var code: String? = null,
 
+    @Column
+    @Basic(fetch = FetchType.LAZY)
+    var codeExpiration: OffsetDateTime? = null,
+
+    @Column
+    var deletionUrl: String? = null,
+
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)

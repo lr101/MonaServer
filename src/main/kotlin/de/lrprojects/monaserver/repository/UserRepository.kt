@@ -3,13 +3,13 @@ package de.lrprojects.monaserver.repository
 import de.lrprojects.monaserver.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
-import java.time.OffsetDateTime
 import java.util.*
 
 
 @Repository
 interface UserRepository : JpaRepository<User, UUID> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
+    fun findByDeletionUrl(resetPasswordUrl: String): List<User>
     fun findByIdAndCode(id: UUID, code: String): Optional<User>
     fun findByUsername(username: String): Optional<User>
     fun existsByUsername(username: String): Boolean

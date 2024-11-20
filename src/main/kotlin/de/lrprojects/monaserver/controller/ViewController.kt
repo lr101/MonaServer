@@ -58,13 +58,15 @@ class ViewController (
     fun deleteAccountView(@PathVariable("url") url: String, model: Model): String {
         log.info("Displaying delete account view")
         return try {
-            val user = userService.getUserByRecoverUrl(url)
+            val user = userService.getUserByDeletionUrl(url)
             model.addAttribute("userId", user.id)
             model.addAttribute("username", user.username)
             model.addAttribute("token", tokenHelper.generateToken(user.username))
             "delete-view"
+        } catch (e: TimeExpiredException) {
+            "time-expired"
         } catch (e: Exception) {
-            "404"
+                "404"
         }
     }
 

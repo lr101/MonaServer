@@ -1,12 +1,12 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.properties.AppProperties
-import de.lrprojects.monaserver.properties.MailProperties
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver_api.model.ReportDto
+import de.lrprojects.monaserver.properties.AppProperties
+import de.lrprojects.monaserver.properties.MailProperties
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.EmailService
+import de.lrprojects.monaserver_api.model.ReportDto
 import jakarta.mail.MessagingException
 import org.slf4j.LoggerFactory
 import org.springframework.mail.javamail.JavaMailSender
@@ -63,6 +63,8 @@ class EmailServiceImpl(
         ctx.setVariable(USERNAME_VARIABLE_NAME, username)
         ctx.setVariable(CODE_VARIABLE_NAME, code)
         ctx.setVariable(LINK_VARIABLE_NAME, url)
+        ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+        ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(DELETE_MAIL_TEMPLATE, ctx)
         sendMail(content, to, DELETE_CODE_SUBJECT, true)
     }
@@ -71,6 +73,8 @@ class EmailServiceImpl(
         val url = appProperties.url + RECOVER_PATH + urlPart
         val ctx = Context()
         ctx.setVariable(LINK_VARIABLE_NAME, url);
+        ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+        ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(RECOVER_MAIL_TEMPLATE,ctx)
         sendMail(content, to, RECOVER_SUBJECT, true)
     }
@@ -85,6 +89,8 @@ class EmailServiceImpl(
         private const val DELETE_MAIL_TEMPLATE = "delete.html"
         private const val LINK_VARIABLE_NAME = "link"
         private const val USERNAME_VARIABLE_NAME = "username"
+        private const val MAIL_VARIABLE = "mail"
+        private const val APP_DOMAIN_VARIABLE_NAME = "appdomain"
         private const val CODE_VARIABLE_NAME = "code"
 
     }

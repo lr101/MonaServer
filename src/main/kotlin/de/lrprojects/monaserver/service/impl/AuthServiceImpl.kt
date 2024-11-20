@@ -94,9 +94,10 @@ class AuthServiceImpl(
             throw AttributeDoesNotExist("No email address exists")
         }
         user.code = SecurityHelper.generateSixDigitNumber().toString()
-        user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(25)
+        user.deletionUrl = SecurityHelper.generateAlphabeticRandomString(25)
+        user.codeExpiration = OffsetDateTime.now().plusMinutes(10)
         userRepository.save(user)
-        emailService.sendDeleteCodeMail(user.username, user.code!!, user.email!!, user.resetPasswordUrl!!)
+        emailService.sendDeleteCodeMail(user.username, user.code!!, user.email!!, user.deletionUrl!!)
     }
 
     @Transactional
