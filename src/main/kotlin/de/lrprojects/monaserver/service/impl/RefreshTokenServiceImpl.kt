@@ -29,8 +29,8 @@ class RefreshTokenServiceImpl(
 
 
     @Cacheable(value = ["refreshToken"], key = "#token")
-    override fun findByToken(token: UUID): Optional<RefreshToken> {
-        return refreshTokenRepository.findByToken(token)
+    override fun findByToken(token: UUID, userId: UUID): Optional<RefreshToken> {
+        return refreshTokenRepository.findByTokenAndUser_Id(token, userId)
     }
 
     override fun verifyExpiration(token: RefreshToken): RefreshToken {

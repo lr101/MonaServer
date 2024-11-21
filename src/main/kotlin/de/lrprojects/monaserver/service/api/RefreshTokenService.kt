@@ -8,7 +8,7 @@ interface RefreshTokenService {
 
     fun createRefreshToken(user: User): RefreshToken
 
-    fun findByToken(token: UUID): Optional<RefreshToken>
+    fun findByToken(token: UUID, userId: UUID): Optional<RefreshToken>
 
     fun verifyExpiration(token: RefreshToken): RefreshToken
 

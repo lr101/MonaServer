@@ -9,6 +9,7 @@ import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
+import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
@@ -101,8 +102,8 @@ class AuthServiceImpl(
     }
 
     @Transactional
-    override fun refreshToken(token: UUID): TokenResponseDto {
-        val refreshToken = refreshTokenService.findByToken(token)
+    override fun refreshToken(token: RefreshTokenRequestDto): TokenResponseDto {
+        val refreshToken = refreshTokenService.findByToken(token.refreshToken, token.userId)
             .orElseThrow { EntityNotFoundException("refresh token not found") }
         refreshTokenService.verifyExpiration(refreshToken)
         return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.id!!), refreshToken.user.id!!)
