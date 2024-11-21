@@ -148,6 +148,7 @@ class GroupServiceImpl (
                 imageHelper.getProfileImage(it),
                 imageHelper.getProfileImageSmall(it)
             )
+            group.updateDate = OffsetDateTime.now()
         }
         updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
         if (updateGroup.visibility!! == 0) {

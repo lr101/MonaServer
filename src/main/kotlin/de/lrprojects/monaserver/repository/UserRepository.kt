@@ -9,6 +9,7 @@ import java.util.*
 @Repository
 interface UserRepository : JpaRepository<User, UUID> {
     fun findByResetPasswordUrl(resetPasswordUrl: String): List<User>
+    fun findByDeletionUrl(resetPasswordUrl: String): List<User>
     fun findByIdAndCode(id: UUID, code: String): Optional<User>
     fun findByUsername(username: String): Optional<User>
     fun existsByUsername(username: String): Boolean

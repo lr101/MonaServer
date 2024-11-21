@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.hibernate.query.sqm.tree.SqmNode.log
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
@@ -15,7 +16,7 @@ import java.io.IOException
 
 @Component
 class JWTFilter (
-    private val userDetailsService: MyUserDetailsService,
+    private val userDetailsService: UserDetailsService,
     private val tokenHelper: TokenHelper
 ) : OncePerRequestFilter() {
 
@@ -31,10 +32,10 @@ class JWTFilter (
         try {
             if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
                 jwt = authHeader.substring(7)
-                val username = tokenHelper.extractUsername(jwt)
-                val userDetails = userDetailsService.loadUserByUsername(username)
-                if(tokenHelper.validateToken(jwt, userDetails)) {
-                    val authToken = UsernamePasswordAuthenticationToken(userDetails.username, username, userDetails.authorities)
+                val userId = tokenHelper.extractUserId(jwt)
+                if(tokenHelper.validateToken(jwt, userId)) {
+                    val userDetails = userDetailsService.loadUserByUsername(userId)
+                    val authToken = UsernamePasswordAuthenticationToken(userDetails.username, userId, userDetails.authorities)
                     authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                     SecurityContextHolder.getContext().authentication = authToken
                 } else {

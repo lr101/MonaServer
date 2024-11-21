@@ -14,4 +14,5 @@ interface UserService {
     fun updateUserProfileImage(userId: UUID, image: ByteArray): User
     fun getUser(userId: UUID): User
     fun getUserByRecoverUrl(recoverUrl: String) : User
+    fun getUserByDeletionUrl(deletionUrl: String) : User
 }

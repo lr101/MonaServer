@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.UserRepository
@@ -17,8 +18,10 @@ import jakarta.persistence.EntityNotFoundException
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 import java.util.*
 
 @Service
@@ -27,7 +30,8 @@ class UserServiceImpl(
     val refreshTokenService: RefreshTokenService,
     val imageHelper: ImageHelper,
     val tokenHelper: TokenHelper,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val passwordEncoder: PasswordEncoder
 ): UserService {
 
     @Transactional
@@ -46,6 +50,9 @@ class UserServiceImpl(
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
+        if (OffsetDateTime.now().isAfter(user.codeExpiration!!)) {
+            throw TimeExpiredException("code is expired")
+        }
         refreshTokenService.invalidateTokens(user)
         userRepository.delete(user)
     }
@@ -73,6 +80,7 @@ class UserServiceImpl(
     }
 
     @CacheEvict(value = ["users"], key = "#userId")
+    @Transactional
     override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
         var responseDto: TokenResponseDto? = null
@@ -81,10 +89,12 @@ class UserServiceImpl(
             userEntity.code = null
         }
         if (user.password != null) {
-            userEntity.password = user.password
+            userEntity.password = passwordEncoder.encode(user.password)
             userEntity.resetPasswordUrl = null
+            userEntity.resetPasswordExpiration = null
+            userEntity.failedLoginAttempts = 0
             refreshTokenService.invalidateTokens(userEntity)
-            val accessToken = tokenHelper.generateToken(userEntity.username)
+            val accessToken = tokenHelper.generateToken(userEntity.id!!)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
             responseDto = TokenResponseDto(refreshToken.token, accessToken, userEntity.id!!)
         }
@@ -115,7 +125,22 @@ class UserServiceImpl(
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
-            return list
+            if (OffsetDateTime.now().isBefore(list.resetPasswordExpiration!!)) {
+                return list
+            }
+            throw TimeExpiredException("reset url is expired")
+        }
+    }
+
+    override fun getUserByDeletionUrl(deletionUrl: String): User {
+        val list = userRepository.findByDeletionUrl(deletionUrl).firstOrNull();
+        if (list == null) {
+            throw UserNotFoundException("user with this reset url does not exist")
+        } else {
+            if (OffsetDateTime.now().isBefore(list.codeExpiration!!)) {
+                return list
+            }
+            throw TimeExpiredException("deletion url is expired")
         }
     }
 }
