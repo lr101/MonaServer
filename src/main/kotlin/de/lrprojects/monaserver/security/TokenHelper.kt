@@ -3,7 +3,6 @@ package de.lrprojects.monaserver.security
 import de.lrprojects.monaserver.properties.TokenProperties
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
-import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.*
@@ -14,7 +13,7 @@ import javax.crypto.SecretKey
 class TokenHelper(
     private val tokenProperties: TokenProperties
 ) {
-    fun extractUsername(token: String?): String {
+    fun extractUserId(token: String?): String {
         return extractClaim(token, Claims::getSubject)
     }
 
@@ -39,22 +38,22 @@ class TokenHelper(
         return extractExpiration(token).before(Date())
     }
 
-    fun validateToken(token: String?, userDetails: UserDetails): Boolean {
-        val username = extractUsername(token)
-        return (username == userDetails.password && !isTokenExpired(token))
+    fun validateToken(token: String?, userId: String): Boolean {
+        val extractedUserId = extractUserId(token)
+        return (extractedUserId == userId && !isTokenExpired(token))
     }
 
 
-    fun generateToken(username: String): String {
+    fun generateToken(userId: UUID): String {
         val claims: Map<String, Any> = HashMap()
-        return createToken(claims, username)
+        return createToken(claims, userId)
     }
 
 
-    private fun createToken(claims: Map<String, Any>, username: String): String {
+    private fun createToken(claims: Map<String, Any>, userId: UUID): String {
         return Jwts.builder()
             .claims(claims)
-            .subject(username)
+            .subject(userId.toString())
             .issuedAt(Date(System.currentTimeMillis()))
             .expiration(Date(Instant.now().plusSeconds(tokenProperties.accessTokenExploration).toEpochMilli()))
             .signWith(signKey).compact()

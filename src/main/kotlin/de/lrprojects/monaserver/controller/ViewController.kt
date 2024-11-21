@@ -27,7 +27,7 @@ class ViewController (
             val user = userService.getUserByRecoverUrl(url!!)
             log.info("Displaying password recovery view for user ${user.username}'")
             model.addAttribute("userId", user.id)
-            model.addAttribute("token", tokenHelper.generateToken(user.username))
+            model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "recover-view"
         } catch (e: TimeExpiredException) {
             return "time-expired"
@@ -61,7 +61,7 @@ class ViewController (
             val user = userService.getUserByDeletionUrl(url)
             model.addAttribute("userId", user.id)
             model.addAttribute("username", user.username)
-            model.addAttribute("token", tokenHelper.generateToken(user.username))
+            model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "delete-view"
         } catch (e: TimeExpiredException) {
             "time-expired"

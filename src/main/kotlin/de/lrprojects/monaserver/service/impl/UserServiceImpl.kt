@@ -80,6 +80,7 @@ class UserServiceImpl(
     }
 
     @CacheEvict(value = ["users"], key = "#userId")
+    @Transactional
     override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
         var responseDto: TokenResponseDto? = null
@@ -93,7 +94,7 @@ class UserServiceImpl(
             userEntity.resetPasswordExpiration = null
             userEntity.failedLoginAttempts = 0
             refreshTokenService.invalidateTokens(userEntity)
-            val accessToken = tokenHelper.generateToken(userEntity.username)
+            val accessToken = tokenHelper.generateToken(userEntity.id!!)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
             responseDto = TokenResponseDto(refreshToken.token, accessToken, userEntity.id!!)
         }

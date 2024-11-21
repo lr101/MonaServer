@@ -13,6 +13,14 @@
       padding: 0;
       background-color: #f9f9f9;
     }
+    u + #body a {
+      color: inherit;
+      text-decoration: none;
+      font-size: inherit;
+      font-family: inherit;
+      font-weight: inherit;
+      line-height: inherit;
+    }
     .container {
       max-width: 600px;
       margin: 20px auto;
@@ -44,23 +52,24 @@
     }
   </style>
 </head>
-<body>
+<body id="body">
 <div class="container">
   <h1>Recover your Password</span></h1>
   <p>Recover your password by clicking the button below or copying the following link into the browser of your choice:</p>
   <p>If you did not request a password reset, please ignore this email.</p>
+
   <a href="#" class="button" th:href="${link}">Click here</a>
   <p th:text="${link}"></p>
   <p>See also our website and download the app now:</p>
-  <a href="#" class="button" href="https://lr-projects.de">Open Homepage</a>
+  <a class="button" href="https://lr-projects.de">Open Homepage</a>
   <p>Thanks for the support! 😍</p>
   <p>Stick-It is a project created by students to see the progress of sticker distribution through Germany and abroad. Support us with new ideas by replying to this email or contacting us through the app.</p>
-  <p>Support and donations can be made via PayPal <a href="#" href="https://paypal.me/lukasr101">here</a>.</p>
+  <p>Support and donations can be made via PayPal <a href="https://paypal.me/lukasr101">here</a>.</p>
   <div class="footer">
     <p>&copy; 2024 Stick-It Project. All rights reserved.</p>
     <p>
-      <a href="#" th:href="${appdomain}/public/privacy-policy">Privacy Policy</a> |
-      <a href="#" th:href="${appdomain}/public/agb">Terms of Service</a> |
+      <a href="#" th:href="${appdomain} + '/public/privacy-policy'">Privacy Policy</a> |
+      <a href="#" th:href="${appdomain} + '/public/agb'">Terms of Service</a> |
       <a href="#" th:href="'mailto:' + ${mail}">Contact us</a>
     </p>
   </div>

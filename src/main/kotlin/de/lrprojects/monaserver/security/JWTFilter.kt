@@ -32,10 +32,10 @@ class JWTFilter (
         try {
             if (!authHeader.isNullOrEmpty() && authHeader.startsWith("Bearer ")) {
                 jwt = authHeader.substring(7)
-                val username = tokenHelper.extractUsername(jwt)
-                val userDetails = userDetailsService.loadUserByUsername(username)
-                if(tokenHelper.validateToken(jwt, userDetails)) {
-                    val authToken = UsernamePasswordAuthenticationToken(userDetails.username, username, userDetails.authorities)
+                val userId = tokenHelper.extractUserId(jwt)
+                if(tokenHelper.validateToken(jwt, userId)) {
+                    val userDetails = userDetailsService.loadUserByUsername(userId)
+                    val authToken = UsernamePasswordAuthenticationToken(userDetails.username, userId, userDetails.authorities)
                     authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
                     SecurityContextHolder.getContext().authentication = authToken
                 } else {

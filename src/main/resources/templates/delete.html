@@ -22,17 +22,25 @@
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     h1 {
-      color: #FF9800;
+      color: #e68a00;
     }
     .button {
       display: inline-block;
       margin: 20px 0;
       padding: 10px 20px;
       color: #ffffff;
-      background-color: #FF9800;
+      background-color: #e68a00;
       text-decoration: none;
       border-radius: 5px;
       font-size: 16px;
+    }
+    u + #body a {
+      color: inherit;
+      text-decoration: none;
+      font-size: inherit;
+      font-family: inherit;
+      font-weight: inherit;
+      line-height: inherit;
     }
     .button:hover {
       background-color: #e68a00;
@@ -44,7 +52,7 @@
       text-align: center;
     }
     .footer a {
-      color: #FF9800;
+      color: #e68a00;
       text-decoration: none;
     }
     .footer a:hover {
@@ -62,15 +70,15 @@
   <p>Copy and paste the above code into the app to delete your account, or use this link to do so in the browser:</p>
   <a href="#" class="button" th:href="${link}">Delete Account</a>
   <p>See also our website and download the app now:</p>
-  <a href="#" class="button" href="https://lr-projects.de">Open Homepage</a>
+  <a class="button" href="https://lr-projects.de">Open Homepage</a>
   <p>Thanks for the support! 😍</p>
   <p>Stick-It is a project created by students to see the progress of sticker distribution through Germany and abroad. Support us with new ideas by replying to this email or contacting us through the app.</p>
-  <p>Support and donations can be made via PayPal <a href="#" href="https://paypal.me/lukasr101">here</a>.</p>
+  <p>Support and donations can be made via PayPal <a href="https://paypal.me/lukasr101">here</a>.</p>
   <div class="footer">
     <p>&copy; 2024 Stick-It Project. All rights reserved.</p>
     <p>
-      <a href="#" th:href="${appdomain}/public/privacy-policy">Privacy Policy</a> |
-      <a href="#" th:href="${appdomain}/public/agb">Terms of Service</a> |
+      <a href="#" th:href="${appdomain} + '/public/privacy-policy'">Privacy Policy</a> |
+      <a href="#" th:href="${appdomain} + '/public/agb'">Terms of Service</a> |
       <a href="#" th:href="'mailto:' + ${mail}">Contact us</a>
     </p>
   </div>

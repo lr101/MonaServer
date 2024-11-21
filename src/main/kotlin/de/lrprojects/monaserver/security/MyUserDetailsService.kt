@@ -19,7 +19,7 @@ class MyUserDetailsService(
 
     @Throws(UsernameNotFoundException::class)
     override fun loadUserByUsername(username: String): UserDetails {
-        val userRes: Optional<User> = userRepository.findByUsername(username)
+        val userRes: Optional<User> = userRepository.findById(UUID.fromString(username))
         if (userRes.isEmpty) throw UsernameNotFoundException("Could not findUser with username = $username")
         val user: User = userRes.get()
         val roles = mutableListOf(SimpleGrantedAuthority(USER_ROLE))

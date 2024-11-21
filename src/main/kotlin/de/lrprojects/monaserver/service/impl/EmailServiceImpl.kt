@@ -48,13 +48,16 @@ class EmailServiceImpl(
 
     @Throws(MailException::class, UserNotFoundException::class)
     override fun sendReportEmail(report: ReportDto) {
-        val to: String
-        try {
-            to = userRepository.findById(report.userId).get().email!!
-        } catch (_: Error) {
-            throw UserNotFoundException("User with userId " + report.userId + " could not be found")
-        }
-        sendMail(report.message, to, report.report, false)
+        val user = userRepository.findById(report.userId).orElseThrow { UserNotFoundException("User not found") }
+        val ctx = Context()
+        ctx.setVariable(USERNAME_VARIABLE_NAME, user.username)
+        ctx.setVariable(CONTENT_VARIABLE_NAME, report.report)
+        ctx.setVariable(EMAIL_VARIABLE_NAME, user.email)
+        ctx.setVariable(MESSAGE_VARIABLE_NAME, report.message)
+        ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+        ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
+        val content = templateEngine.process(REPORT_MAIL_TEMPLATE, ctx)
+        sendMail(content, mailProperties.from, report.report, true)
     }
 
     override fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String) {
@@ -86,9 +89,13 @@ class EmailServiceImpl(
         private const val RECOVER_SUBJECT = "Password Recovery"
         private const val DELETE_CODE_SUBJECT = "[Stick-It] Sad to see you go"
         private const val RECOVER_MAIL_TEMPLATE = "recover.html"
+        private const val REPORT_MAIL_TEMPLATE = "report.html"
         private const val DELETE_MAIL_TEMPLATE = "delete.html"
         private const val LINK_VARIABLE_NAME = "link"
         private const val USERNAME_VARIABLE_NAME = "username"
+        private const val EMAIL_VARIABLE_NAME = "email"
+        private const val CONTENT_VARIABLE_NAME = "content"
+        private const val MESSAGE_VARIABLE_NAME = "message"
         private const val MAIL_VARIABLE = "mail"
         private const val APP_DOMAIN_VARIABLE_NAME = "appdomain"
         private const val CODE_VARIABLE_NAME = "code"

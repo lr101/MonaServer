@@ -41,7 +41,7 @@ class AuthServiceImpl(
             email = email
         )
         user = userRepository.save(user)
-        val accessToken = tokenHelper.generateToken(username)
+        val accessToken = tokenHelper.generateToken(user.id!!)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
         return TokenResponseDto(refreshToken.token, accessToken, user.id!!)
@@ -65,7 +65,7 @@ class AuthServiceImpl(
         }
         user.failedLoginAttempts = 0
         userRepository.save(user)
-        val accessToken = tokenHelper.generateToken(username)
+        val accessToken = tokenHelper.generateToken(user.id!!)
         val refreshToken = refreshTokenService.createRefreshToken(user)
         return TokenResponseDto(refreshToken.token, accessToken, user.id!!)
     }
@@ -105,7 +105,7 @@ class AuthServiceImpl(
         val refreshToken = refreshTokenService.findByToken(token)
             .orElseThrow { EntityNotFoundException("refresh token not found") }
         refreshTokenService.verifyExpiration(refreshToken)
-        return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.username), refreshToken.user.id!!)
+        return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.id!!), refreshToken.user.id!!)
     }
 
     companion object {
