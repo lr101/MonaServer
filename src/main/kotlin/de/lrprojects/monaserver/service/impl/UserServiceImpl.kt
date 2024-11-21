@@ -104,7 +104,7 @@ class UserServiceImpl(
             userEntity.description = user.description
         }
         if (user.username != null) {
-            if (OffsetDateTime.now().isBefore(userEntity.lastUsernameUpdate!!.plusDays(USERNAME_CHANGE_TIMEOUT))) { throw TimeExpiredException("username can only be changed once every 14 days") }
+            if (userEntity.lastUsernameUpdate != null && OffsetDateTime.now().isBefore(userEntity.lastUsernameUpdate!!.plusDays(USERNAME_CHANGE_TIMEOUT))) { throw TimeExpiredException("username can only be changed once every 14 days") }
             userRepository.findByUsername(user.username).ifPresent { throw UserExistsException("user with this username already exists") }
             userEntity.username = user.username
             userEntity.lastUsernameUpdate = OffsetDateTime.now()

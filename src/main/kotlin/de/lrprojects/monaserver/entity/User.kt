@@ -41,16 +41,13 @@ data class User (
     var description: String? = null,
 
     @Column
-    @Basic(fetch = FetchType.LAZY)
     var lastUsernameUpdate: OffsetDateTime? = null,
 
     @Column(unique = true)
-    @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
 
     @Column
     @CreationTimestamp
-    @Basic(fetch = FetchType.LAZY)
     var resetPasswordExpiration: OffsetDateTime? = null,
 
     @Column
@@ -60,7 +57,6 @@ data class User (
     var profilePictureExists: Boolean = false,
 
     @Column
-    @Basic(fetch = FetchType.LAZY)
     @Length(min = 6, max = 6)
     var code: String? = null,
 
