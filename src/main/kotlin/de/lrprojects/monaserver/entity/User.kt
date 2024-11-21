@@ -37,6 +37,13 @@ data class User (
     @Column
     var email: String? = null,
 
+    @Column
+    var description: String? = null,
+
+    @Column
+    @Basic(fetch = FetchType.LAZY)
+    var lastUsernameUpdate: OffsetDateTime? = null,
+
     @Column(unique = true)
     @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
