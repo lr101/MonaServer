@@ -1,3 +1,3 @@
 package de.lrprojects.monaserver.excepetion
 
-class ComparisonException(message: String?) : Exception(message) {}
+class ComparisonException(message: String?) : RuntimeException(message) {}

@@ -1,4 +1,4 @@
 package de.lrprojects.monaserver.excepetion
 
-class UserExistsException(message: String?) : Exception(message) {
+class UserExistsException(message: String?) : RuntimeException(message) {
 }
