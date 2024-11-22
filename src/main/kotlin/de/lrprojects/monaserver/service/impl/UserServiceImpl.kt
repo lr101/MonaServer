@@ -8,6 +8,7 @@ import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
@@ -27,12 +28,13 @@ import java.util.*
 
 @Service
 class UserServiceImpl(
-    val userRepository: UserRepository,
-    val refreshTokenService: RefreshTokenService,
-    val imageHelper: ImageHelper,
-    val tokenHelper: TokenHelper,
+    private val userRepository: UserRepository,
+    private val refreshTokenService: RefreshTokenService,
+    private val imageHelper: ImageHelper,
+    private val tokenHelper: TokenHelper,
     private val objectService: ObjectService,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val pinService: PinService
 ): UserService {
 
     @Transactional
@@ -54,8 +56,10 @@ class UserServiceImpl(
         if (OffsetDateTime.now().isAfter(user.codeExpiration!!)) {
             throw TimeExpiredException("code is expired")
         }
+        val ids = pinService.getUserPins(user)
         refreshTokenService.invalidateTokens(user)
         userRepository.delete(user)
+        pinService.deleteObjectsByList(ids)
     }
 
     override fun getUserProfileImage(userId: UUID): String? {

@@ -1,9 +1,9 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.properties.MinioProperties
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.properties.MinioProperties
 import de.lrprojects.monaserver.service.api.ObjectService
 import io.minio.GetPresignedObjectUrlArgs
 import io.minio.MinioClient
@@ -56,19 +56,19 @@ class ObjectServiceImpl(
         )
     }
 
-    override fun deleteObject(pin: Pin) {
-        deleteObject("pins/${pin.id}.png")
+    override fun deletePinObject(pinId: UUID) {
+        deleteObject("pins/${pinId}.png")
     }
 
-    override fun deleteObject(group: Group) {
-        deleteObject(getGroupFilePin(group))
-        deleteObject(getGroupFileProfile(group))
-        deleteObject(getGroupFileProfileSmall(group))
+    override fun deleteGroupObject(groupId: UUID) {
+        deleteObject(getGroupFilePin(groupId))
+        deleteObject(getGroupFileProfile(groupId))
+        deleteObject(getGroupFileProfileSmall(groupId))
     }
 
-    override fun deleteObject(user: User) {
-        deleteObject(getUserFileProfile(user))
-        deleteObject(getUserFileProfileSmall(user))
+    override fun deleteUserObject(userId: UUID) {
+        deleteObject(getUserFileProfile(userId))
+        deleteObject(getUserFileProfileSmall(userId))
     }
 
     override fun getObject(file: String): String {

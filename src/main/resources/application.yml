@@ -23,6 +23,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    open-in-view: false
   datasource:
     url: ${DB_URL}
     username: ${POSTGRES_USER}
