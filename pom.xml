@@ -170,7 +170,7 @@
 		<dependency>
 			<groupId>de.lr-projects</groupId>
 			<artifactId>monaserverapi</artifactId>
-			<version>1.0.6-SNAPSHOT</version>
+			<version>1.0.6</version>
 		</dependency>
 		<dependency>
 			<groupId>xalan</groupId>
