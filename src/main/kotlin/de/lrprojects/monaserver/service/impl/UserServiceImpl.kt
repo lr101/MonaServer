@@ -2,11 +2,13 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
+import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
@@ -26,12 +28,13 @@ import java.util.*
 
 @Service
 class UserServiceImpl(
-    val userRepository: UserRepository,
-    val refreshTokenService: RefreshTokenService,
-    val imageHelper: ImageHelper,
-    val tokenHelper: TokenHelper,
+    private val userRepository: UserRepository,
+    private val refreshTokenService: RefreshTokenService,
+    private val imageHelper: ImageHelper,
+    private val tokenHelper: TokenHelper,
     private val objectService: ObjectService,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val pinService: PinService
 ): UserService {
 
     @Transactional
@@ -53,8 +56,10 @@ class UserServiceImpl(
         if (OffsetDateTime.now().isAfter(user.codeExpiration!!)) {
             throw TimeExpiredException("code is expired")
         }
+        val ids = pinService.getUserPins(user)
         refreshTokenService.invalidateTokens(user)
         userRepository.delete(user)
+        pinService.deleteObjectsByList(ids)
     }
 
     override fun getUserProfileImage(userId: UUID): String? {
@@ -87,6 +92,7 @@ class UserServiceImpl(
         if (user.email != null) {
             userEntity.email = user.email
             userEntity.code = null
+            userEntity.codeExpiration = null
         }
         if (user.password != null) {
             userEntity.password = passwordEncoder.encode(user.password)
@@ -97,6 +103,15 @@ class UserServiceImpl(
             val accessToken = tokenHelper.generateToken(userEntity.id!!)
             val refreshToken = refreshTokenService.createRefreshToken(userEntity)
             responseDto = TokenResponseDto(refreshToken.token, accessToken, userEntity.id!!)
+        }
+        if (user.description != null) {
+            userEntity.description = user.description
+        }
+        if (user.username != null) {
+            if (userEntity.lastUsernameUpdate != null && OffsetDateTime.now().isBefore(userEntity.lastUsernameUpdate!!.plusDays(USERNAME_CHANGE_TIMEOUT))) { throw TimeExpiredException("username can only be changed once every 14 days") }
+            userRepository.findByUsername(user.username).ifPresent { throw UserExistsException("user with this username already exists") }
+            userEntity.username = user.username
+            userEntity.lastUsernameUpdate = OffsetDateTime.now()
         }
         userRepository.save(userEntity)
         return responseDto
@@ -142,5 +157,9 @@ class UserServiceImpl(
             }
             throw TimeExpiredException("deletion url is expired")
         }
+    }
+
+    companion object {
+        private const val USERNAME_CHANGE_TIMEOUT: Long = 14
     }
 }

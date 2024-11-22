@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.excepetion.UniqueResetUrlNotFoundException
 import de.lrprojects.monaserver.excepetion.WrongPasswordException
 import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver_api.api.AuthApiDelegate
+import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import de.lrprojects.monaserver_api.model.UserLoginRequest
 import de.lrprojects.monaserver_api.model.UserRequestDto
@@ -11,7 +12,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
-import java.util.*
 
 @Component
 class AuthController(
@@ -60,10 +60,10 @@ class AuthController(
         }
     }
 
-    override fun refreshToken(body: UUID?): ResponseEntity<TokenResponseDto> {
+    override fun refreshToken(refreshTokenRequestDto: RefreshTokenRequestDto): ResponseEntity<TokenResponseDto>? {
         log.info("Attempting token refresh")
         return try {
-            val token = authService.refreshToken(body!!)
+            val token = authService.refreshToken(refreshTokenRequestDto)
             log.info("New access token has been generated")
             ResponseEntity.ok().body(token)
         } catch (e: RuntimeException) {

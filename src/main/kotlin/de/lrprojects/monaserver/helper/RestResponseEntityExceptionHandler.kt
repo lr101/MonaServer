@@ -156,7 +156,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(NullPointerException::class)
     protected fun handleNullPointerException(ex: NullPointerException, request: WebRequest): ResponseEntity<Any>? {
-        if (log.isInfoEnabled) log.info(ex.message)
+        if (log.isInfoEnabled) log.info(ex.stackTraceToString())
 
         return handleExceptionInternal(
             ex,
@@ -181,8 +181,8 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(RuntimeException::class)
-    protected fun handleNRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
-        if (log.isInfoEnabled) log.info(ex.message)
+    protected fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.stackTraceToString())
 
         return handleExceptionInternal(
             ex,

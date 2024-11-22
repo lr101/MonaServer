@@ -1,6 +1,8 @@
 package de.lrprojects.monaserver.repository
 
+import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
+import de.lrprojects.monaserver.entity.User
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -34,5 +36,11 @@ interface PinRepository : JpaRepository<Pin, UUID> {
                          @Param("updatedAfter") updatedAfter: OffsetDateTime?,
                          pageable: Pageable
     ) :  Page<Pin>
+
+    @Query("SELECT p.id FROM Pin p WHERE p.group = :group")
+    fun findAllByGroup(group: Group): List<UUID>
+
+    @Query("SELECT p.id FROM Pin p WHERE p.user = :user")
+    fun findAllByUser(user: User): List<UUID>
 
 }

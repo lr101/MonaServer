@@ -3,6 +3,7 @@ package de.lrprojects.monaserver.service.api
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
+import java.util.*
 
 interface ObjectService {
 
@@ -12,11 +13,11 @@ interface ObjectService {
 
     fun createObject(user: User, profileImage: ByteArray, profileImageSmall: ByteArray)
 
-    fun deleteObject(pin: Pin)
+    fun deletePinObject(pinId: UUID)
 
-    fun deleteObject(group: Group)
+    fun deleteGroupObject(groupId: UUID)
 
-    fun deleteObject(user: User)
+    fun deleteUserObject(userId: UUID)
 
     fun getObject(pin: Pin): String
 
