@@ -1,9 +1,16 @@
 package de.lrprojects.monaserver.entity
 
+import com.fasterxml.jackson.annotation.JsonIgnore
+import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.PIN_ID
+import de.lrprojects.monaserver.properties.DbConstants.USER_ID
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
 import jakarta.persistence.Temporal
 import jakarta.persistence.TemporalType
@@ -20,11 +27,15 @@ data class Like(
     @GeneratedValue(generator = "UUID")
     val id: UUID? = null,
 
-    @Column(name = "pin_id", nullable = false)
-    val pinId: UUID,
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = PIN_ID, referencedColumnName = ID, nullable = false)
+    @JsonIgnore
+    var pin: Pin? = null,
 
-    @Column(name = "user_id", nullable = false)
-    val userId: UUID,
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = USER_ID, referencedColumnName = ID, nullable = false)
+    @JsonIgnore
+    var user: User? = null,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
