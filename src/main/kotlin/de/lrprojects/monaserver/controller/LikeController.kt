@@ -1,9 +1,10 @@
 package de.lrprojects.monaserver.controller
 
+import de.lrprojects.monaserver.service.api.LikeService
 import de.lrprojects.monaserver_api.api.LikesApiDelegate
 import de.lrprojects.monaserver_api.model.CreateLikeDto
 import de.lrprojects.monaserver_api.model.PinLikeDto
-import de.lrprojects.monaserver.service.api.LikeService
+import de.lrprojects.monaserver_api.model.UserLikesDto
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -26,5 +27,9 @@ class LikeController(
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPinLikes(pinId: UUID): ResponseEntity<PinLikeDto> {
         return ResponseEntity.ok(likeService.likeCountByPin(pinId, UUID.fromString(SecurityContextHolder.getContext().authentication.name)))
+    }
+
+    override fun getUserLikes(userId: UUID): ResponseEntity<UserLikesDto> {
+        return ResponseEntity.ok(likeService.getUserLikes(userId))
     }
 }

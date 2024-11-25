@@ -20,4 +20,12 @@ interface LikeRepository : JpaRepository<Like, UUID> {
 
     fun countLikeByPinIdAndLikeLocationIsTrue(pinId: UUID): Int
 
+    fun countLikeByUserIdAndLikeIsTrue(userId: UUID): Int
+
+    fun countLikeByUserIdAndLikeLocationIsTrue(userId: UUID): Int
+
+    fun countLikeByUserIdAndLikeArtIsTrue(userId: UUID): Int
+
+    fun countLikeByUserIdAndLikePhotographyIsTrue(userId: UUID): Int
+
 }

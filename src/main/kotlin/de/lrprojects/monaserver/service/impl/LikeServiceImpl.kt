@@ -5,9 +5,11 @@ import de.lrprojects.monaserver.repository.LikeRepository
 import de.lrprojects.monaserver.service.api.LikeService
 import de.lrprojects.monaserver_api.model.CreateLikeDto
 import de.lrprojects.monaserver_api.model.PinLikeDto
+import de.lrprojects.monaserver_api.model.UserLikesDto
 import jakarta.transaction.Transactional
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -43,7 +45,9 @@ class LikeServiceImpl(
     }
 
     @Transactional
-    @CacheEvict(value = ["pinLikes"], key = "{#pinId, #createLikeDto.userId}")
+    @Caching( evict = [
+        CacheEvict(value = ["pinLikes"], key = "{#pinId, #createLikeDto.userId}"),
+        CacheEvict(value = ["userLikes"], key = "#createLikeDto.userId")])
     override fun createOrUpdateLike(createLikeDto: CreateLikeDto, pinId: UUID) {
         val likeOptional = likeRepository.findLikeByUserIdAndPinId(createLikeDto.userId, pinId)
         if (likeOptional.isEmpty) {
@@ -56,6 +60,17 @@ class LikeServiceImpl(
             if (createLikeDto.likePhotography != null) likeEntity.likePhotography = createLikeDto.likePhotography
             if (createLikeDto.likeArt != null) likeEntity.likeArt = createLikeDto.likeArt
             likeRepository.save(likeEntity)
+        }
+    }
+
+    @Transactional
+    @Cacheable(value = ["userLikes"], key = "#userId")
+    override fun getUserLikes(userId: UUID): UserLikesDto {
+        return UserLikesDto().also {
+            it.likeCount = likeRepository.countLikeByUserIdAndLikeIsTrue(userId)
+            it.likeArtCount = likeRepository.countLikeByUserIdAndLikeArtIsTrue(userId)
+            it.likeLocationCount = likeRepository.countLikeByUserIdAndLikeLocationIsTrue(userId)
+            it.likePhotographyCount = likeRepository.countLikeByUserIdAndLikePhotographyIsTrue(userId)
         }
     }
 
