@@ -17,4 +17,6 @@ object DbConstants {
     const val CREATOR_ID = "creator_id"
     const val GROUP_ID = "group_id"
     const val USER_ID = "user_id"
+    const val PIN_ID = "pin_id"
+
 }
