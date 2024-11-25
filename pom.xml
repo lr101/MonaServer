@@ -18,6 +18,7 @@
 		<java.version>17</java.version>
 		<kotlin.version>1.9.22</kotlin.version>
 		<jackson.version>2.18.1</jackson.version>
+		<monaserverapi.version>1.0.7</monaserverapi.version>
 	</properties>
 	<repositories>
 		<repository>
@@ -170,7 +171,7 @@
 		<dependency>
 			<groupId>de.lr-projects</groupId>
 			<artifactId>monaserverapi</artifactId>
-			<version>1.0.7-SNAPSHOT</version>
+			<version>${monaserverapi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>xalan</groupId>
