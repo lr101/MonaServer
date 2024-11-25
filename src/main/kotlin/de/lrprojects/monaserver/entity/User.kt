@@ -37,17 +37,35 @@ data class User (
     @Column
     var email: String? = null,
 
+    @Column
+    var description: String? = null,
+
+    @Column
+    var lastUsernameUpdate: OffsetDateTime? = null,
+
     @Column(unique = true)
-    @Basic(fetch = FetchType.LAZY)
     var resetPasswordUrl: String? = null,
+
+    @Column
+    @CreationTimestamp
+    var resetPasswordExpiration: OffsetDateTime? = null,
+
+    @Column
+    var failedLoginAttempts: Int = 0,
 
     @Column
     var profilePictureExists: Boolean = false,
 
     @Column
-    @Basic(fetch = FetchType.LAZY)
     @Length(min = 6, max = 6)
     var code: String? = null,
+
+    @Column
+    @Basic(fetch = FetchType.LAZY)
+    var codeExpiration: OffsetDateTime? = null,
+
+    @Column
+    var deletionUrl: String? = null,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)

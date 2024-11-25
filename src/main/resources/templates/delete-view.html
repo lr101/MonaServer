@@ -1,60 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sha256/0.11.0/sha256.min.js" integrity="sha512-ILKpRqba412W8PeOVNfPfJ95lNQ5iOOqTqZNHPbpKjHaYmaxsKme/XILmAamM8qnXnYQt+fM0jI5woK2ikbh7Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <link rel="stylesheet" href="/public/base.css" media="screen">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Delete Account</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .delete-account-box {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .delete-account-box .fa-trash {
+            color: #dc3545;
+            font-size: 2rem;
+        }
+        .delete-account-box button {
+            width: 100%;
+        }
+    </style>
 </head>
-
 <body>
-<div id = "body" class="container">
-    <div class="row">
-        <div class="mt-4"></div>
-    </div>
-    <div class="row" id = "row">
-        <div class="col-lg-3 col-md-2"></div>
-        <div class="col-lg-6 col-md-8 login-box">
-            <div class="col-lg-12 login-key">
-                <i class="fa fa-trash" aria-hidden="true"></i>
-            </div>
-            <div class="col-lg-12 login-title">
-                DELETE ACCOUNT
-            </div>
-
-            <div class="col-lg-12 login-form">
-                <div class="col-lg-12 login-form">
-                    <form>
-                        <div class="form-group input-group password-container">
-                            <label for="username" class="form-control-label">Username</label>
-                            <input id="username" type="text" class="form-control" readonly th:value="${username}">
-                        </div>
-                        <div class="form-group input-group password-container">
-                            <label for="code" class="form-control-label">Code</label>
-                            <input id="code" type="number" class="form-control" minlength="6" maxlength="6">
-                        </div>
-
-
-                        <div class="col-lg-12 loginbttm">
-                            <div class="col-lg-6 login-btm login-text">
-                                <!-- Error Message -->
-                            </div>
-                            <div class="col-lg-6 login-btm login-button">
-                                <button type="button" th:attr="onclick=|savePass('${userId}','${token}')|" class="btn btn-outline-primary">SUBMIT</button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-2"></div>
+<div class="delete-account-box">
+    <i class="fa fa-trash mb-3"></i>
+    <h3 class="text-danger">Delete Account</h3>
+    <form id="form">
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" id="username" class="form-control" readonly th:value="${username}">
         </div>
+        <div class="mb-3">
+            <label for="code" class="form-label">Code</label>
+            <input type="number" id="code" class="form-control" minlength="6" maxlength="6" placeholder="Enter your code">
+        </div>
+        <button type="button" th:attr="onclick=|savePass('${userId}','${token}')|" class="btn btn-danger">Submit</button>
+    </form>
+    <div id="successMessage" class="mt-3 text-success" style="display: none;">
+        Account has been successfully deleted.
+    </div>
+    <div id="errorMessage" class="mt-3 text-danger" style="display: none;">
+        Invalid code.
+    </div>
+    <div id="passwordNotMatchMessage" class="mt-3 text-danger" style="display: none;">
+        Enter your 6-digit code.
     </div>
 </div>
-<script type="text/javascript">
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
     function savePass(userId, token) {
+        document.getElementById("successMessage").style.display = "none";
+        document.getElementById("errorMessage").style.display = "none";
+        document.getElementById("passwordNotMatchMessage").style.display = "none";
         const code = document.getElementById("code").value;
         if (code && code.length === 6) {
             $.ajax({
@@ -66,57 +74,17 @@
                     xhr.setRequestHeader('Authorization', 'Bearer ' + token);
                 },
                 success: function () {
-                    const suc = document.createElement('label');
-                    suc.innerHTML = "Account has been successfully deleted"
-                    document.getElementById("row").remove();
-                    document.getElementById("body").appendChild(suc);
+                    document.getElementById("successMessage").style.display = "block";
+                    document.getElementById("form").remove()
                 },
                 error: function () {
-                    alert('Data does not match');
+                    document.getElementById("errorMessage").style.display = "block";
                 },
             });
+        } else {
+            document.getElementById("passwordNotMatchMessage").style.display = "block";
         }
     }
-
-    const togglePassword = document
-        .querySelector('#togglePassword');
-
-    const password = document.querySelector('#password');
-
-    togglePassword.addEventListener('click', () => {
-
-        // Toggle the type attribute using
-        // getAttribure() method
-        const type = password
-            .getAttribute('type') === 'password' ?
-            'text' : 'password';
-
-        password.setAttribute('type', type);
-
-        // Toggle the eye and bi-eye icon
-        this.classList.toggle('bi-eye');
-    });
-
-    const togglePassword2 = document
-        .querySelector('#togglePassword2');
-
-    const password2 = document.querySelector('#matchPassword');
-
-    togglePassword2.addEventListener('click', () => {
-
-        // Toggle the type attribute using
-        // getAttribure() method
-        const type = password2
-            .getAttribute('type') === 'password' ?
-            'text' : 'password';
-
-        password2.setAttribute('type', type);
-
-        // Toggle the eye and bi-eye icon
-        this.classList.toggle('bi-eye');
-    });
-
-
 </script>
 </body>
 </html>

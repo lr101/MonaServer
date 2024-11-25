@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.controller
 
+import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
@@ -26,8 +27,10 @@ class ViewController (
             val user = userService.getUserByRecoverUrl(url!!)
             log.info("Displaying password recovery view for user ${user.username}'")
             model.addAttribute("userId", user.id)
-            model.addAttribute("token", tokenHelper.generateToken(user.username))
+            model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "recover-view"
+        } catch (e: TimeExpiredException) {
+            return "time-expired"
         } catch (e: Exception) {
             "404"
         }
@@ -55,13 +58,15 @@ class ViewController (
     fun deleteAccountView(@PathVariable("url") url: String, model: Model): String {
         log.info("Displaying delete account view")
         return try {
-            val user = userService.getUserByRecoverUrl(url)
+            val user = userService.getUserByDeletionUrl(url)
             model.addAttribute("userId", user.id)
             model.addAttribute("username", user.username)
-            model.addAttribute("token", tokenHelper.generateToken(user.username))
+            model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "delete-view"
+        } catch (e: TimeExpiredException) {
+            "time-expired"
         } catch (e: Exception) {
-            "404"
+                "404"
         }
     }
 

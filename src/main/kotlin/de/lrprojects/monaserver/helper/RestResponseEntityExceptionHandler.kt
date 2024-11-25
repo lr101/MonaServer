@@ -1,6 +1,14 @@
 package de.lrprojects.monaserver.helper
 
-import de.lrprojects.monaserver.excepetion.*
+import de.lrprojects.monaserver.excepetion.AssertException
+import de.lrprojects.monaserver.excepetion.AttributeDoesNotExist
+import de.lrprojects.monaserver.excepetion.ComparisonException
+import de.lrprojects.monaserver.excepetion.ImageNotSquareException
+import de.lrprojects.monaserver.excepetion.MailException
+import de.lrprojects.monaserver.excepetion.ProfileImageException
+import de.lrprojects.monaserver.excepetion.TimeExpiredException
+import de.lrprojects.monaserver.excepetion.UserExistsException
+import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
@@ -148,6 +156,19 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(NullPointerException::class)
     protected fun handleNullPointerException(ex: NullPointerException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.stackTraceToString())
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.BAD_REQUEST,
+            request
+        )
+    }
+
+    @ExceptionHandler(TimeExpiredException::class)
+    protected fun handleTimeExpiredException(ex: TimeExpiredException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -160,8 +181,8 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(RuntimeException::class)
-    protected fun handleNRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
-        if (log.isInfoEnabled) log.info(ex.message)
+    protected fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.stackTraceToString())
 
         return handleExceptionInternal(
             ex,

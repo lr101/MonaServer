@@ -1,3 +1,3 @@
 package de.lrprojects.monaserver.excepetion
 
-class UserIsAdminException(message: String?) : Exception(message) {}
+class UserIsAdminException(message: String?) : RuntimeException(message) {}

@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.excepetion.UserExistsException
+import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import java.util.*
 
@@ -15,6 +16,6 @@ interface AuthService {
 
     fun requestDeleteCode(username: String)
 
-    fun refreshToken(token: UUID): TokenResponseDto
+    fun refreshToken(token: RefreshTokenRequestDto): TokenResponseDto
 
 }

@@ -10,6 +10,7 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
@@ -34,7 +35,8 @@ class GroupServiceImpl (
     private val groupRepository: GroupRepository,
     private val imageHelper: ImageHelper,
     private val memberService: MemberService,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val pinService: PinService
 ) : GroupService {
 
     @Transactional
@@ -67,8 +69,10 @@ class GroupServiceImpl (
     @Transactional
     @CacheEvict(value = ["groups"], key = "#groupId")
     override fun deleteGroup(groupId: UUID) {
-        groupRepository.deleteById(groupId)
-
+        val group = getGroup(groupId)
+        val ids = pinService.getGroupPins(group)
+        groupRepository.delete(group)
+        pinService.deleteObjectsByList(ids)
     }
 
     @Throws(EntityNotFoundException::class)
@@ -148,6 +152,7 @@ class GroupServiceImpl (
                 imageHelper.getProfileImage(it),
                 imageHelper.getProfileImageSmall(it)
             )
+            group.updateDate = OffsetDateTime.now()
         }
         updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
         if (updateGroup.visibility!! == 0) {

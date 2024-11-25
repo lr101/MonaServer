@@ -1,7 +1,6 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toUserUpdateDto
-import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.api.UsersApiDelegate
 import de.lrprojects.monaserver_api.model.UserInfoDto
@@ -15,8 +14,7 @@ import java.util.*
 
 @Component
 class UserController(
-    private val userService: UserService,
-    private val objectService: ObjectService
+    private val userService: UserService
 ) : UsersApiDelegate {
 
     companion object {
@@ -52,7 +50,7 @@ class UserController(
         var profilePicture: String? = null
         if (user.image != null) {
             log.info("Attempting to update profile image for user with ID: $userId")
-            val userEntity = userService.updateUserProfileImage(userId, user.image)
+            userService.updateUserProfileImage(userId, user.image)
             profilePicture = userService.getUserProfileImage(userId)
             profilePictureSmall = userService.getUserProfileImageSmall(userId)
         }
@@ -63,6 +61,8 @@ class UserController(
                 it.userTokenDto = token
                 it.profileImageSmall = profilePictureSmall
                 it.profileImage = profilePicture
+                it.username = user.username
+                it.description = user.description
             }
         )
     }
@@ -71,6 +71,6 @@ class UserController(
         log.info("Attempting to get user with ID: $userId")
         val user = userService.getUser(userId)
         log.info("Retrieved user with ID: $userId")
-        return ResponseEntity.ok(user.toUserUpdateDto(objectService))
+        return ResponseEntity.ok(user.toUserUpdateDto())
     }
 }

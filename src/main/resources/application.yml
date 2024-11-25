@@ -23,6 +23,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    open-in-view: false
   datasource:
     url: ${DB_URL}
     username: ${POSTGRES_USER}
@@ -57,10 +58,11 @@ springdoc:
     path: /public/swagger-ui.html
 token:
   access-token-exploration: 900         # 15 min
-  refresh-token-exploration: 31556952   # 1 year
+  refresh-token-exploration: 91556952   # 3 year
   admin-account-name: ${ADMIN_ACCOUNT_NAME}
 app:
   url: ${APP_URL}
+  maxLoginAttempts: 10
 minio:
   access-key: ${MINIO_ACCESS_KEY}
   secret-key: ${MINIO_SECRET_KEY}
