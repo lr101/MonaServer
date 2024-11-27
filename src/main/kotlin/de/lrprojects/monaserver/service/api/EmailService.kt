@@ -6,15 +6,13 @@ import de.lrprojects.monaserver_api.model.ReportDto
 
 interface EmailService {
 
-
-    @Throws(MailException::class)
-    fun sendMail(text: String, to: String, subject: String, html: Boolean)
-
     @Throws(MailException::class, UserNotFoundException::class)
     fun sendReportEmail(report: ReportDto)
 
     fun sendRecoveryMail(urlPart: String, to: String, )
 
     fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String)
+
+    fun sendRoundMail(emails: List<String>?, subject: String, text: String, html: String?)
 
 }
