@@ -85,7 +85,10 @@ class EmailServiceImpl(
 
     override fun sendRoundMail(emails: List<String>?, subject: String, text: String, html: String?) {
         val mails: List<String> = if(!emails.isNullOrEmpty()) emails else userRepository.findAllEmails()
-        sendMail(html ?: text, mailProperties.from, subject, html != null, mails)
+        val batchSize = 400
+        mails.chunked(batchSize).forEach { batch ->
+            sendMail(html ?: text, mailProperties.from, subject, html != null, batch)
+        }
     }
 
     companion object {
