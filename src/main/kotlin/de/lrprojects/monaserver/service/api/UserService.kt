@@ -15,4 +15,6 @@ interface UserService {
     fun getUser(userId: UUID): User
     fun getUserByRecoverUrl(recoverUrl: String) : User
     fun getUserByDeletionUrl(deletionUrl: String) : User
+    fun verifyEmail(emailVerificationUrl: String)
+    fun requestEmailVerification(userId: UUID)
 }

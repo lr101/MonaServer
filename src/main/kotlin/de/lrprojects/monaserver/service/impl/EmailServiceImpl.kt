@@ -73,6 +73,17 @@ class EmailServiceImpl(
         sendMail(content, to, DELETE_CODE_SUBJECT, true, null)
     }
 
+    override fun sendEmailVerificationMail(username: String, to: String, urlPart: String) {
+        val url = appProperties.url + VERIFY_MAIL_PATH + urlPart
+        val ctx = Context()
+        ctx.setVariable(USERNAME_VARIABLE_NAME, username)
+        ctx.setVariable(LINK_VARIABLE_NAME, url)
+        ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+        ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
+        val content = templateEngine.process(VERIFY_MAIL_TEMPLATE, ctx)
+        sendMail(content, to, VERIFY_MAIL_SUBJECT, true, null)
+    }
+
     override fun sendRecoveryMail(urlPart: String, to: String) {
         val url = appProperties.url + RECOVER_PATH + urlPart
         val ctx = Context()
@@ -95,11 +106,14 @@ class EmailServiceImpl(
         private val logger = LoggerFactory.getLogger(this::class.java)
         private const val RECOVER_PATH = "/public/recover/"
         private const val DELETE_ACCOUNT_PATH = "/public/delete-account/"
-        private const val RECOVER_SUBJECT = "Password Recovery"
+        private const val VERIFY_MAIL_PATH = "/public/verify-mail/"
+        private const val RECOVER_SUBJECT = "[Stick-it] Password Recovery"
+        private const val VERIFY_MAIL_SUBJECT = "[Stick-It] Verify your email"
         private const val DELETE_CODE_SUBJECT = "[Stick-It] Sad to see you go"
-        private const val RECOVER_MAIL_TEMPLATE = "recover.html"
-        private const val REPORT_MAIL_TEMPLATE = "report.html"
-        private const val DELETE_MAIL_TEMPLATE = "delete.html"
+        private const val RECOVER_MAIL_TEMPLATE = "recover-mail.html"
+        private const val REPORT_MAIL_TEMPLATE = "report-mail.html"
+        private const val DELETE_MAIL_TEMPLATE = "delete-mail.html"
+        private const val VERIFY_MAIL_TEMPLATE = "verify-mail.html"
         private const val LINK_VARIABLE_NAME = "link"
         private const val USERNAME_VARIABLE_NAME = "username"
         private const val EMAIL_VARIABLE_NAME = "email"

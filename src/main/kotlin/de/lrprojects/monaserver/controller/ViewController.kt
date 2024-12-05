@@ -70,4 +70,18 @@ class ViewController (
         }
     }
 
+    @GetMapping("/public/verify-mail/{url}")
+    fun verifyMail(@PathVariable("url") url: String, model: Model): String {
+        log.info("Displaying verify mail view")
+        return try {
+            userService.verifyEmail(url)
+            log.info("Successfully verified email")
+            "email-verified"
+        } catch (e: TimeExpiredException) {
+            "time-expired"
+        } catch (e: Exception) {
+            "404"
+        }
+    }
+
 }

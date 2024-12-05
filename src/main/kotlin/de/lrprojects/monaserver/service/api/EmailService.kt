@@ -13,6 +13,8 @@ interface EmailService {
 
     fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String)
 
+    fun sendEmailVerificationMail(username: String, to: String, urlPart: String)
+
     fun sendRoundMail(emails: List<String>?, subject: String, text: String, html: String?)
 
 }

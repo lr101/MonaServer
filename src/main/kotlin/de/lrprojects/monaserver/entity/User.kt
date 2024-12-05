@@ -67,6 +67,16 @@ data class User (
     @Column
     var deletionUrl: String? = null,
 
+    @Column
+    var emailVerificationUrl: String? = null,
+
+    @Column
+    @Basic(fetch = FetchType.LAZY)
+    var emailVerificationExpiration: OffsetDateTime? = null,
+
+    @Column
+    var emailVerified: Boolean = false,
+
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Delete Your Account</title>
+  <title>Verify Your Email</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -60,15 +60,13 @@
     }
   </style>
 </head>
-<body>
+<body id="body">
 <div class="container">
-  <h1>Delete Account <span th:text="${username}">[Username]</span></h1>
-  <p>The following code was requested for deleting your account:</p>
-  <p><strong th:text="${code}">[Deletion Code]</strong></p>
-  <p><strong>Be careful:</strong> once your account is deleted, you cannot restore it or your posts.</p>
-  <p>This link will be valid for 10 minutes.</p>
-  <p>Copy and paste the above code into the app to delete your account, or use this link to do so in the browser:</p>
-  <a href="#" class="button" th:href="${link}">Delete Account</a>
+  <h1>Verify Your Email <span th:text="${username}">[Username]</span></h1>
+  <p>This link will be valid for 7 days</p>
+  <p>Clink the link to verify your email:</p>
+  <a href="#" class="button" th:href="${link}">Verify Email</a>
+  <p th:text="${link}"></p>
   <p>See also our website and download the app now:</p>
   <a class="button" href="https://lr-projects.de">Open Homepage</a>
   <p>Thanks for the support! 😍</p>

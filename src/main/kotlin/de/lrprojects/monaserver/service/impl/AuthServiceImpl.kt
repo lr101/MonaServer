@@ -9,6 +9,7 @@ import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
+import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import jakarta.persistence.EntityNotFoundException
@@ -27,7 +28,8 @@ class AuthServiceImpl(
     private val emailService: EmailService,
     private val refreshTokenService: RefreshTokenService,
     private val passwordEncoder: PasswordEncoder,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val userService: UserService
 ) : AuthService{
 
     @Throws(UserExistsException::class)
@@ -42,6 +44,7 @@ class AuthServiceImpl(
             email = email
         )
         user = userRepository.save(user)
+        userService.requestEmailVerification(user.id!!)
         val accessToken = tokenHelper.generateToken(user.id!!)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 

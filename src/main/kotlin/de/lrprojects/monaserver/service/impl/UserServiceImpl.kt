@@ -5,8 +5,10 @@ import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
+import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
+import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
@@ -34,7 +36,8 @@ class UserServiceImpl(
     private val tokenHelper: TokenHelper,
     private val objectService: ObjectService,
     private val passwordEncoder: PasswordEncoder,
-    private val pinService: PinService
+    private val pinService: PinService,
+    private val emailService: EmailService
 ): UserService {
 
     @Transactional
@@ -93,6 +96,7 @@ class UserServiceImpl(
             userEntity.email = user.email
             userEntity.code = null
             userEntity.codeExpiration = null
+            requestEmailVerification(userId)
         }
         if (user.password != null) {
             userEntity.password = passwordEncoder.encode(user.password)
@@ -136,27 +140,52 @@ class UserServiceImpl(
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): User {
-        val list = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull();
-        if (list == null) {
+        val user = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull();
+        if (user == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
-            if (OffsetDateTime.now().isBefore(list.resetPasswordExpiration!!)) {
-                return list
+            if (OffsetDateTime.now().isBefore(user.resetPasswordExpiration!!)) {
+                return user
             }
             throw TimeExpiredException("reset url is expired")
         }
     }
 
     override fun getUserByDeletionUrl(deletionUrl: String): User {
-        val list = userRepository.findByDeletionUrl(deletionUrl).firstOrNull();
-        if (list == null) {
+        val user = userRepository.findByDeletionUrl(deletionUrl).firstOrNull();
+        if (user == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
-            if (OffsetDateTime.now().isBefore(list.codeExpiration!!)) {
-                return list
+            if (OffsetDateTime.now().isBefore(user.codeExpiration!!)) {
+                return user
             }
             throw TimeExpiredException("deletion url is expired")
         }
+    }
+
+    override fun verifyEmail(emailVerificationUrl: String) {
+        val user = userRepository.findByEmailVerificationUrl(emailVerificationUrl).firstOrNull();
+        if (user == null) {
+            throw UserNotFoundException("user with this reset url does not exist")
+        } else {
+            if (OffsetDateTime.now().isBefore(user.emailVerificationExpiration!!)) {
+                user.emailVerified = true
+                user.emailVerificationUrl = null
+                user.emailVerificationExpiration = null
+                userRepository.save(user)
+                return
+            }
+            throw TimeExpiredException("deletion url is expired")
+        }
+    }
+
+    override fun requestEmailVerification(userId: UUID) {
+        val user = getUser(userId)
+        user.emailVerificationUrl = SecurityHelper.generateAlphabeticRandomString(60)
+        user.emailVerificationExpiration = OffsetDateTime.now().plusDays(7)
+        user.emailVerified = false
+        userRepository.save(user)
+        emailService.sendEmailVerificationMail(user.username, user.email!!, user.emailVerificationUrl!!)
     }
 
     companion object {
