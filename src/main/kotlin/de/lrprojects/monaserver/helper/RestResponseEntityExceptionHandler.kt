@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.helper
 
+import de.lrprojects.monaserver.excepetion.AlreadyExistException
 import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.AttributeDoesNotExist
 import de.lrprojects.monaserver.excepetion.ComparisonException
@@ -176,6 +177,19 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
             ex.message,
             HttpHeaders(),
             HttpStatus.BAD_REQUEST,
+            request
+        )
+    }
+
+    @ExceptionHandler(AlreadyExistException::class)
+    protected fun handleAlreadyExistsException(ex: AlreadyExistException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.message)
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.CONFLICT,
             request
         )
     }
