@@ -18,7 +18,7 @@
 		<java.version>17</java.version>
 		<kotlin.version>1.9.22</kotlin.version>
 		<jackson.version>2.18.1</jackson.version>
-		<monaserverapi.version>1.0.8-SNAPSHOT</monaserverapi.version>
+		<monaserverapi.version>1.0.9-SNAPSHOT</monaserverapi.version>
 	</properties>
 	<repositories>
 		<repository>

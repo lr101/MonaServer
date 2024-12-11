@@ -5,6 +5,7 @@ import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.helper.ImageHelper
+import de.lrprojects.monaserver.repository.AchievementRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.ObjectService
@@ -13,6 +14,7 @@ import de.lrprojects.monaserver.service.api.RefreshTokenService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
+import de.lrprojects.monaserver.types.XpType
 import de.lrprojects.monaserver_api.model.TokenResponseDto
 import de.lrprojects.monaserver_api.model.UserUpdateDto
 import io.minio.errors.MinioException
@@ -34,7 +36,8 @@ class UserServiceImpl(
     private val tokenHelper: TokenHelper,
     private val objectService: ObjectService,
     private val passwordEncoder: PasswordEncoder,
-    private val pinService: PinService
+    private val pinService: PinService,
+    private val achievementRepository: AchievementRepository
 ): UserService {
 
     @Transactional
@@ -107,6 +110,10 @@ class UserServiceImpl(
         if (user.description != null) {
             userEntity.description = user.description
         }
+        if (user.selectedBatch != null) {
+            val batch = achievementRepository.findByUser_IdAndAchievementId(userId, user.selectedBatch).orElseThrow { EntityNotFoundException("Achievement not found") }
+            if (batch.claimed) userEntity.selectedBatch = batch
+        }
         if (user.username != null) {
             if (userEntity.lastUsernameUpdate != null && OffsetDateTime.now().isBefore(userEntity.lastUsernameUpdate!!.plusDays(USERNAME_CHANGE_TIMEOUT))) { throw TimeExpiredException("username can only be changed once every 14 days") }
             userRepository.findByUsername(user.username).ifPresent { throw UserExistsException("user with this username already exists") }
@@ -157,6 +164,12 @@ class UserServiceImpl(
             }
             throw TimeExpiredException("deletion url is expired")
         }
+    }
+
+    override fun addXp(userId: UUID, xpType: XpType) {
+        val user = getUser(userId)
+        user.xp += xpType.xpValue
+        userRepository.save(user)
     }
 
     companion object {
