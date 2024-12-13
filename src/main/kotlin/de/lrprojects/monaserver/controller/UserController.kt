@@ -1,11 +1,15 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toUserUpdateDto
+import de.lrprojects.monaserver.converter.toXpDto
+import de.lrprojects.monaserver.service.api.AchievementService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.api.UsersApiDelegate
+import de.lrprojects.monaserver_api.model.UserAchievementsDtoInner
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserUpdateDto
 import de.lrprojects.monaserver_api.model.UserUpdateResponseDto
+import de.lrprojects.monaserver_api.model.UserXpDto
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
@@ -14,7 +18,8 @@ import java.util.*
 
 @Component
 class UserController(
-    private val userService: UserService
+    private val userService: UserService,
+    private val achievementService: AchievementService
 ) : UsersApiDelegate {
 
     companion object {
@@ -72,5 +77,26 @@ class UserController(
         val user = userService.getUser(userId)
         log.info("Retrieved user with ID: $userId")
         return ResponseEntity.ok(user.toUserUpdateDto())
+    }
+
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
+    override fun getUserXp(userId: UUID): ResponseEntity<UserXpDto> {
+        log.info("Attempting to get user xp with id: $userId")
+        val user = userService.getUser(userId)
+        log.info("Retrieved user xp with ID: $userId")
+        return ResponseEntity.ok(user.toXpDto())
+    }
+
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
+    override fun getUserAchievements(userId: UUID): ResponseEntity<MutableList<UserAchievementsDtoInner>> {
+        log.info("Attempting to get user achievement with user id: $userId")
+        return ResponseEntity.ok(achievementService.getAchievement(userId))
+    }
+
+    @PreAuthorize("@guard.isSameUser(authentication, #userId)")
+    override fun claimUserAchievement(userId: UUID, achievementId: Int): ResponseEntity<Void> {
+        log.info("Attempting to claim achievement $achievementId of user $userId")
+        achievementService.claimAchievement(userId, achievementId)
+        return ResponseEntity.ok().build()
     }
 }

@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.properties
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties(prefix = "app")
+@ConfigurationProperties(prefix = "app.config")
 data class AppProperties(
     val url: String,
     val maxLoginAttempts: Int

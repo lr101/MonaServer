@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.properties
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties(prefix = "mail")
+@ConfigurationProperties(prefix = "app.mail")
 data class MailProperties(
     val from: String,
     val password: String,

@@ -2,7 +2,7 @@ package de.lrprojects.monaserver.properties
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties(prefix = "minio")
+@ConfigurationProperties(prefix = "app.minio")
 class MinioProperties {
 
     lateinit var endpoint: String

@@ -34,7 +34,7 @@ class AuthServiceImpl(
     @Transactional
     override fun signup(username: String, password: String, email: String): TokenResponseDto {
         if (userRepository.existsByUsername(username)) {
-            throw UserExistsException("user with username " + username + "already exists")
+            throw UserExistsException("user with username $username already exists")
         }
         var user = User(
             username = username,

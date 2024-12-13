@@ -3,6 +3,8 @@ package de.lrprojects.monaserver.entity
 import com.fasterxml.jackson.annotation.JsonIgnore
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
+import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.SELECTED_BATCH
 import de.lrprojects.monaserver.properties.DbConstants.USERS
 import jakarta.persistence.Basic
 import jakarta.persistence.CascadeType
@@ -10,6 +12,7 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
 import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import jakarta.persistence.Temporal
@@ -66,6 +69,13 @@ data class User (
 
     @Column
     var deletionUrl: String? = null,
+
+    @Column
+    var xp: Int = 0,
+
+    @JoinColumn(name = SELECTED_BATCH, referencedColumnName = ID)
+    @ManyToOne(fetch = FetchType.EAGER)
+    var selectedBatch: UserAchievement? = null,
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
