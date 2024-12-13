@@ -58,4 +58,28 @@ data class Like(
 
     @Column(name = "like_art", nullable = false)
     var likeArt: Boolean = false
-)
+) {
+
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Like
+
+        if (id != other.id) return false
+        if (pin != other.pin) return false
+        if (user != other.user) return false
+        if (creationDate != other.creationDate) return false
+        if (updateDate != other.updateDate) return false
+        if (like != other.like) return false
+        if (likeLocation != other.likeLocation) return false
+        if (likePhotography != other.likePhotography) return false
+        if (likeArt != other.likeArt) return false
+
+        return true
+    }
+}

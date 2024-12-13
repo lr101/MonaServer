@@ -66,12 +66,13 @@ interface GroupRepository : JpaRepository<Group, UUID> {
     ): Page<Group>
 
 
-    @Query("SELECT m.user_id, u.username, count(pg.creator_id)::int as points, u.selected_batch FROM members m" +
+    @Query("SELECT m.user_id, u.username, count(pg.creator_id)::int as points, ua.achievement_id FROM members m" +
             "              LEFT JOIN (SELECT p.id, p.creator_id FROM pins p" +
             "                         WHERE p.group_id = ?1) as pg on pg.creator_id = m.user_id" +
             "              JOIN users u on u.id = m.user_id" +
+            "              LEFT JOIN user_achievement ua on u.selected_batch = ua.id" +
             "              WHERE group_id = ?1" +
-            "           GROUP BY m.user_id, u.username, u.selected_batch ORDER BY points DESC, m.user_id", nativeQuery = true)
+            "           GROUP BY m.user_id, u.username, ua.achievement_id ORDER BY points DESC, m.user_id", nativeQuery = true)
     fun getRanking(groupId: UUID) : List<Array<Any>>
 
     fun findAllByMembersIn(members: MutableCollection<MutableSet<User>>) : MutableList<Group>

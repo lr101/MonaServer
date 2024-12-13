@@ -74,7 +74,7 @@ data class User (
     var xp: Int = 0,
 
     @JoinColumn(name = SELECTED_BATCH, referencedColumnName = ID)
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, cascade = [CascadeType.ALL])
     var selectedBatch: UserAchievement? = null,
 
     @CreationTimestamp
@@ -87,12 +87,12 @@ data class User (
     @Column
     var updateDate: OffsetDateTime? = null,
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JoinColumn(name = "user_id")
     @JsonIgnore
     var refreshTokens: List<RefreshToken> = emptyList(),
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JoinColumn(name = "user_id")
     @JsonIgnore
     var groups: MutableSet<Member> = mutableSetOf(),
@@ -101,39 +101,39 @@ data class User (
     private var dataSource: DataSource? = null
 
 ): PreDeleteEntity() {
+
+
+    override fun getDeletedEntityType() = DeletedEntityType.USER
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as User
 
-        if (id != other.id) return false
         if (username != other.username) return false
         if (password != other.password) return false
         if (email != other.email) return false
+        if (description != other.description) return false
+        if (lastUsernameUpdate != other.lastUsernameUpdate) return false
         if (resetPasswordUrl != other.resetPasswordUrl) return false
+        if (resetPasswordExpiration != other.resetPasswordExpiration) return false
+        if (failedLoginAttempts != other.failedLoginAttempts) return false
         if (profilePictureExists != other.profilePictureExists) return false
         if (code != other.code) return false
+        if (codeExpiration != other.codeExpiration) return false
+        if (deletionUrl != other.deletionUrl) return false
+        if (xp != other.xp) return false
+        if (selectedBatch != other.selectedBatch) return false
         if (creationDate != other.creationDate) return false
         if (updateDate != other.updateDate) return false
+        if (refreshTokens != other.refreshTokens) return false
         if (groups != other.groups) return false
+        if (dataSource != other.dataSource) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = id?.hashCode() ?: 0
-        result = 31 * result + username.hashCode()
-        result = 31 * result + password.hashCode()
-        result = 31 * result + (email?.hashCode() ?: 0)
-        result = 31 * result + (resetPasswordUrl?.hashCode() ?: 0)
-        result = 31 * result + (profilePictureExists.hashCode())
-        result = 31 * result + (code?.hashCode() ?: 0)
-        result = 31 * result + (creationDate?.hashCode() ?: 0)
-        result = 31 * result + (updateDate?.hashCode() ?: 0)
-        result = 31 * result + groups.hashCode()
-        return result
+        return id.hashCode()
     }
-
-    override fun getDeletedEntityType() = DeletedEntityType.USER
 }

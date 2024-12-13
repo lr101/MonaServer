@@ -20,7 +20,6 @@ import de.lrprojects.monaserver_api.model.UserUpdateDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -50,7 +49,6 @@ class UserServiceImpl(
             CacheEvict(value = ["groupMembers"], allEntries = true),
             CacheEvict(value = ["isInGroup"], allEntries = true),
             CacheEvict(value = ["groupsByPin"], allEntries = true),
-            CacheEvict(value = ["users"], key = "#userId"),
         ]
     )
     override fun deleteUser(userId: UUID, code: Int) {
@@ -60,8 +58,8 @@ class UserServiceImpl(
             throw TimeExpiredException("code is expired")
         }
         val ids = pinService.getUserPins(user)
-        refreshTokenService.invalidateTokens(user)
-        userRepository.delete(user)
+        userRepository.saveAndFlush(user)
+        userRepository.deleteById(userId)
         pinService.deleteObjectsByList(ids)
     }
 
@@ -87,7 +85,6 @@ class UserServiceImpl(
         return  null
     }
 
-    @CacheEvict(value = ["users"], key = "#userId")
     @Transactional
     override fun updateUser(userId: UUID, user: UserUpdateDto): TokenResponseDto? {
         val userEntity =  getUser(userId)
@@ -137,7 +134,6 @@ class UserServiceImpl(
         return userRepository.save(userEntity)
     }
 
-    @Cacheable(value = ["users"], key = "#userId")
     override fun getUser(userId: UUID): User {
         return userRepository.findById(userId).orElseThrow { UserNotFoundException("user $userId does not exist") }
     }
