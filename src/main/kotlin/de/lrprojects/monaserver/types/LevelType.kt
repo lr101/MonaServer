@@ -11,15 +11,15 @@ enum class LevelType(val level: Int, val levelXp: Int) {
     
     companion object {
         fun  getLevel(xp: Int): LevelType {
-            return if (xp < NEWBIE.levelXp) {
+            return  if (xp < BASIC.levelXp) {
                 NEWBIE
-            } else if (xp < BASIC.levelXp) {
-                BASIC
             } else if (xp < NORMIE.levelXp) {
-                NORMIE
+                BASIC
             } else if (xp < STICKER_LOVER.levelXp) {
-                STICKER_LOVER
+                NORMIE
             }else if (xp < EXPERT.levelXp) {
+                STICKER_LOVER
+            } else if (xp < BUFF_LISA.levelXp){
                 EXPERT
             } else {
                 BUFF_LISA
@@ -29,19 +29,19 @@ enum class LevelType(val level: Int, val levelXp: Int) {
         fun getNextLevel(level: Int): LevelType {
             return when (level) {
                 NEWBIE.level -> {
-                    NEWBIE
-                }
-                BASIC.level -> {
                     BASIC
                 }
-                NORMIE.level -> {
+                BASIC.level -> {
                     NORMIE
                 }
-                STICKER_LOVER.level -> {
+                NORMIE.level -> {
                     STICKER_LOVER
                 }
-                EXPERT.level -> {
+                STICKER_LOVER.level -> {
                     EXPERT
+                }
+                EXPERT.level -> {
+                    BUFF_LISA
                 }
                 else -> {
                     BUFF_LISA
