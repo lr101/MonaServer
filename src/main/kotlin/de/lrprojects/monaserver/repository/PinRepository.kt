@@ -43,4 +43,6 @@ interface PinRepository : JpaRepository<Pin, UUID> {
     @Query("SELECT p.id FROM Pin p WHERE p.user = :user")
     fun findAllByUser(user: User): List<UUID>
 
+    fun findByCreationDateAndUserAndLatitudeAndLongitude(creationDate: OffsetDateTime, user: User,latitude: Double, longitude: Double): Optional<Pin>
+
 }

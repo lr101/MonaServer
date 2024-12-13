@@ -29,17 +29,18 @@ class EmailServiceImpl(
 
 
     @Throws(MailException::class)
-    override fun sendMail(text: String, to: String, subject: String, html: Boolean) {
+    private fun sendMail(text: String, to: String, subject: String,  html: Boolean, bcc: List<String>?) {
         try {
             if (logger.isInfoEnabled) logger.info("Trying to send mail to: $to")
             val message = mailSender.createMimeMessage()
             val helper = MimeMessageHelper(message, true);
             helper.setText(text, html)
             helper.setTo(to)
+            bcc?.let {  helper.setBcc(bcc.toTypedArray()) }
             helper.setFrom(mailProperties.from)
             helper.setSubject(subject)
             mailSender.send(message)
-            if (logger.isInfoEnabled) logger.info("Send mail successfully to: $to")
+            if (logger.isInfoEnabled) logger.info("Send mail successfully to: $to and ${bcc?.size ?: 0} bcc")
         } catch (mex: MessagingException) {
             throw MailException(mex.message)
         }
@@ -57,7 +58,7 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(REPORT_MAIL_TEMPLATE, ctx)
-        sendMail(content, mailProperties.from, report.report, true)
+        sendMail(content, mailProperties.from, report.report, true, null)
     }
 
     override fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String) {
@@ -69,7 +70,7 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(DELETE_MAIL_TEMPLATE, ctx)
-        sendMail(content, to, DELETE_CODE_SUBJECT, true)
+        sendMail(content, to, DELETE_CODE_SUBJECT, true, null)
     }
 
     override fun sendRecoveryMail(urlPart: String, to: String) {
@@ -79,7 +80,15 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(RECOVER_MAIL_TEMPLATE,ctx)
-        sendMail(content, to, RECOVER_SUBJECT, true)
+        sendMail(content, to, RECOVER_SUBJECT, true, null)
+    }
+
+    override fun sendRoundMail(emails: List<String>?, subject: String, text: String, html: String?) {
+        val mails: List<String> = if(!emails.isNullOrEmpty()) emails else userRepository.findAllEmails()
+        val batchSize = 400
+        mails.chunked(batchSize).forEach { batch ->
+            sendMail(html ?: text, mailProperties.from, subject, html != null, batch)
+        }
     }
 
     companion object {

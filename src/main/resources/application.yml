@@ -1,11 +1,3 @@
-mail:
-  from: ${MAIL_FROM}
-  host: ${MAIL_HOST}
-  password: ${MAIL_PASSWORD}
-  port: ${MAIL_PORT}
-  protocol: ${MAIL_PROTOCOL}
-
-
 server:
   port: ${PORT:8081}
   servlet:
@@ -17,6 +9,7 @@ server:
     whitelabel:
       enabled: false
     include-stacktrace: never
+
 spring:
   config:
     import: optional:file:.env[.properties]
@@ -56,15 +49,26 @@ springdoc:
     path: /public/api-docs
   swagger-ui:
     path: /public/swagger-ui.html
-token:
-  access-token-exploration: 900         # 15 min
-  refresh-token-exploration: 91556952   # 3 year
-  admin-account-name: ${ADMIN_ACCOUNT_NAME}
+
 app:
-  url: ${APP_URL}
-  maxLoginAttempts: 10
-minio:
-  access-key: ${MINIO_ACCESS_KEY}
-  secret-key: ${MINIO_SECRET_KEY}
-  endpoint: ${MINIO_ENDPOINT}
-  bucket-name: ${MINIO_BUCKET}
+  mail:
+    from: ${MAIL_FROM}
+    host: ${MAIL_HOST}
+    password: ${MAIL_PASSWORD}
+    port: ${MAIL_PORT}
+    protocol: ${MAIL_PROTOCOL}
+  config:
+    url: ${APP_URL}
+    maxLoginAttempts: 10
+  token:
+    access-token-exploration: 900         # 15 min
+    refresh-token-exploration: 91556952   # 3 year
+    admin-account-name: ${ADMIN_ACCOUNT_NAME}
+  minio:
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+    endpoint: ${MINIO_ENDPOINT}
+    bucket-name: ${MINIO_BUCKET}
+  achievements:
+    mona-group-id: d9631336-5c32-4f64-83a7-7a4fcdae4dd6
+    created-before: "2023-12-10T02:43:44.402768+00:00"

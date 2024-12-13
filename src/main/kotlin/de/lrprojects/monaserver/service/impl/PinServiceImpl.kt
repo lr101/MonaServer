@@ -3,6 +3,8 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.excepetion.AlreadyExistException
+import de.lrprojects.monaserver.excepetion.UserNotFoundException
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -29,8 +31,15 @@ class PinServiceImpl(
 
     @Transactional
     override fun createPin(newPin: PinRequestDto): Pin {
+        val user = userRepository.findById(newPin.userId).orElseThrow{ UserNotFoundException("user does not exist") }
+        pinRepository.findByCreationDateAndUserAndLatitudeAndLongitude(
+            newPin.creationDate,
+            user,
+            newPin.latitude.toDouble(),
+            newPin.longitude.toDouble()
+        ).ifPresent { throw AlreadyExistException("pin already exists") }
         var pin = Pin()
-        pin.user = userRepository.findById(newPin.userId).orElseThrow()
+        pin.user = user
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = newPin.creationDate

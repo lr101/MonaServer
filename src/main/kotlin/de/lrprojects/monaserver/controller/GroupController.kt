@@ -5,6 +5,8 @@ import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.UserService
+import de.lrprojects.monaserver.types.XpType
 import de.lrprojects.monaserver_api.api.GroupsApiDelegate
 import de.lrprojects.monaserver_api.model.CreateGroupDto
 import de.lrprojects.monaserver_api.model.GroupDto
@@ -25,7 +27,8 @@ class GroupController(
     private val groupService: GroupService,
     private val deleteLogService: DeleteLogService,
     private val memberService: MemberService,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val userService: UserService
 ) : GroupsApiDelegate {
 
     companion object {
@@ -36,6 +39,7 @@ class GroupController(
     override fun addGroup(createGroupDto: CreateGroupDto): ResponseEntity<GroupDto> {
         log.info("Attempting to add group with admin: ${createGroupDto.groupAdmin}")
         val result = groupService.addGroup(createGroupDto)
+        userService.addXp(createGroupDto.groupAdmin, XpType.CREATE_GROUP_XP)
         log.info("Group added with admin: ${createGroupDto.groupAdmin}")
         return ResponseEntity(result.toGroupDto(memberService, true, objectService), HttpStatus.CREATED)
     }

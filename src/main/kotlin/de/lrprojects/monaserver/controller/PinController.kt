@@ -5,6 +5,8 @@ import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver.service.api.UserService
+import de.lrprojects.monaserver.types.XpType
 import de.lrprojects.monaserver_api.api.PinsApiDelegate
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
@@ -24,7 +26,8 @@ class PinController(
     private val pinService: PinService,
     private val monaService: MonaService,
     private val deletedLogService: DeleteLogService,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val userService: UserService
 ) : PinsApiDelegate {
 
     companion object {
@@ -38,6 +41,7 @@ class PinController(
     override fun createPin(pinRequestDto: PinRequestDto): ResponseEntity<PinWithOptionalImageDto> {
         log.info("Attempting to create pin for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
         val pin = pinService.createPin(pinRequestDto)
+        userService.addXp(pinRequestDto.userId, XpType.PIN_XP)
         log.info("Pin created for groupId: ${pinRequestDto.groupId}, userId: ${pinRequestDto.userId}")
         return ResponseEntity(pin.toPinModelWithImage(objectService.getObject(pin)), HttpStatus.CREATED)
     }
