@@ -105,19 +105,8 @@ data class Group (
     }
 
     override fun hashCode(): Int {
-        var result = name?.hashCode() ?: 0
-        result = 31 * result + (groupAdmin?.hashCode() ?: 0)
-        result = 31 * result + (description?.hashCode() ?: 0)
-        result = 31 * result + (inviteUrl?.hashCode() ?: 0)
-        result = 31 * result + (link?.hashCode() ?: 0)
-        result = 31 * result + visibility
-        result = 31 * result + members.hashCode()
-        result = 31 * result + pins.hashCode()
-        result = 31 * result + (creationDate?.hashCode() ?: 0)
-        result = 31 * result + (updateDate?.hashCode() ?: 0)
-        result = 31 * result + isDeleted.hashCode()
-        result = 31 * result + (dataSource?.hashCode() ?: 0)
-        return result
+        return id.hashCode()
     }
+
 
 }

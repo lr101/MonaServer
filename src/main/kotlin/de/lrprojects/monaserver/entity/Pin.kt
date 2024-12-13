@@ -54,4 +54,26 @@ class Pin (
     private var dataSource: DataSource? = null
 ): PreDeleteEntity() {
     override fun getDeletedEntityType() = DeletedEntityType.PIN
+
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Pin
+
+        if (latitude != other.latitude) return false
+        if (longitude != other.longitude) return false
+        if (creationDate != other.creationDate) return false
+        if (updateDate != other.updateDate) return false
+        if (user != other.user) return false
+        if (group != other.group) return false
+        if (isDeleted != other.isDeleted) return false
+        if (dataSource != other.dataSource) return false
+
+        return true
+    }
 }
