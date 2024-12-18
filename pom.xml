@@ -11,7 +11,7 @@
 
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
-	<version>0.0.7</version>
+	<version>0.0.8-SNAPSHOT</version>
 	<name>monaserver</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
