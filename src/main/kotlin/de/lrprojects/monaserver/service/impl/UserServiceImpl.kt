@@ -46,7 +46,6 @@ class UserServiceImpl(
             CacheEvict(value = ["pinsByGroup"], allEntries = true),
             CacheEvict(value = ["refreshToken"], allEntries = true),
             CacheEvict(value = ["userGroups"], key = "#userId"),
-            CacheEvict(value = ["groupMembers"], allEntries = true),
             CacheEvict(value = ["isInGroup"], allEntries = true),
             CacheEvict(value = ["groupsByPin"], allEntries = true),
         ]
