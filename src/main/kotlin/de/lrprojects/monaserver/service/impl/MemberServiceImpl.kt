@@ -61,7 +61,10 @@ class MemberServiceImpl(
     @Cacheable(value = ["groupRanking"], key = "#groupId")
     override fun getRanking(groupId: UUID): MutableList<MemberResponseDto> {
         return groupRepository.getRanking(groupId).map {
-            MemberResponseDto(it[0] as UUID, it[1] as String, it[2] as Int, it[3] as Int?).also { e -> e.profileImageSmall = objectService.getObject(getUserFileProfileSmall(e.userId)) }
+            MemberResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also {
+                e -> e.profileImageSmall = objectService.getObject(getUserFileProfileSmall(e.userId))
+                e.selectedBatch = it[3] as Int?
+            }
         }.toMutableList()
     }
 
