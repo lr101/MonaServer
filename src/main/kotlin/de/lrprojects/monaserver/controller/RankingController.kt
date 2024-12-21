@@ -17,8 +17,8 @@ class RankingController(
     private val rankingService: RankingService
 ) : RankingApiDelegate{
 
-    override fun getGeoJson(gid0: String): ResponseEntity<Any> {
-        val result = rankingService.getGeoJson(gid0)
+    override fun getGeoJson(gid2: String): ResponseEntity<Any> {
+        val result = rankingService.getGeoJson(gid2)
         return ResponseEntity.ok(result)
     }
 

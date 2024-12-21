@@ -18,8 +18,8 @@ import java.util.*
 class RankingServiceImpl(
     private val boundaryRepository: BoundaryRepository
 ): RankingService {
-    override fun getGeoJson(gid0: String): List<String> {
-            return boundaryRepository.getGeoJsonFromGid(gid0)
+    override fun getGeoJson(gid2: String): List<String> {
+            return boundaryRepository.getGeoJsonFromGid(gid2)
     }
 
     override fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto> {
@@ -42,8 +42,10 @@ class RankingServiceImpl(
             rank += 1
             GroupRankingDtoInner().also {
                 it.rankNr = rank
-                it.points = r[3] as Int
-                it.groupInfoDto = GroupDto(r[0] as UUID, r[1] as String, r[2] as Int)
+                it.points = r[4] as Int
+                it.groupInfoDto = GroupDto(r[0] as UUID, r[1] as String, r[2] as Int).also {
+                    g -> g.description = if(r[2] == 0) r[3] as String? else null
+                }
             }
         }.toMutableList()
     }

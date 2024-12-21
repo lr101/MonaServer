@@ -105,7 +105,6 @@ class MemberServiceImpl(
         return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0)
     }
 
-    @Cacheable(value = ["isInGroup"], key = "{#group.id, #authentication.name}")
     override fun isInGroup(group: Group): Boolean {
         return memberRepository.existsById_Group_IdAndId_User_Id(group.id!!, UUID.fromString(SecurityContextHolder.getContext().authentication.name))
     }

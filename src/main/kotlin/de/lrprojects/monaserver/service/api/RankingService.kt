@@ -7,7 +7,7 @@ import org.springframework.data.domain.Pageable
 
 interface RankingService {
 
-    fun getGeoJson(gid0: String): List<String>
+    fun getGeoJson(gid2: String): List<String>
 
     fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto>
 
