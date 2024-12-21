@@ -6,6 +6,7 @@ import de.lrprojects.monaserver.properties.DbConstants.CREATOR_ID
 import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
 import de.lrprojects.monaserver.properties.DbConstants.ID
 import de.lrprojects.monaserver.properties.DbConstants.PINS
+import de.lrprojects.monaserver.properties.DbConstants.STATE_PROVINCE_ID
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -46,6 +47,10 @@ class Pin (
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = GROUP_ID)
     var group: Group? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = STATE_PROVINCE_ID)
+    var location: Boundary? = null,
 
     @Column(nullable = false)
     var isDeleted: Boolean = false,
