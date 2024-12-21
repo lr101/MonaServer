@@ -19,5 +19,6 @@ object DbConstants {
     const val USER_ID = "user_id"
     const val PIN_ID = "pin_id"
     const val SELECTED_BATCH = "selected_batch"
+    const val STATE_PROVINCE_ID = "state_province_id"
 
 }
