@@ -10,6 +10,7 @@ import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
+import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
@@ -26,7 +27,8 @@ class PinServiceImpl(
     private val pinRepository: PinRepository,
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val rankingService: RankingService
 ) : PinService {
 
     @Transactional
@@ -43,6 +45,7 @@ class PinServiceImpl(
         pin.latitude = newPin.latitude.toDouble()
         pin.longitude = newPin.longitude.toDouble()
         pin.creationDate = newPin.creationDate
+        pin.location = rankingService.getBoundaryEntity(pin.latitude, pin.longitude)
         pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
         objectService.createObject(pin, newPin.image)

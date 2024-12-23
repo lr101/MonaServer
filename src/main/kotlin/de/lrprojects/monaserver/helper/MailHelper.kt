@@ -16,7 +16,7 @@ class MailHelper(
         val mailSender = JavaMailSenderImpl()
         mailSender.host = mailProperties.host
         mailSender.port = mailProperties.port
-        mailSender.username = mailProperties.from
+        mailSender.username = mailProperties.username
         mailSender.password = mailProperties.password
         val properties = mailSender.javaMailProperties
         properties["mail.transport.protocol"] = mailProperties.protocol

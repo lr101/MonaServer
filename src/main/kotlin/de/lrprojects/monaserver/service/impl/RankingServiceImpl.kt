@@ -1,6 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.toMapInfoDto
+import de.lrprojects.monaserver.entity.Boundary
 import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.repository.BoundaryRepository
 import de.lrprojects.monaserver.service.api.RankingService
@@ -9,6 +10,7 @@ import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
 import de.lrprojects.monaserver_api.model.MapInfoDto
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import java.util.*
@@ -18,19 +20,26 @@ import java.util.*
 class RankingServiceImpl(
     private val boundaryRepository: BoundaryRepository
 ): RankingService {
+
+    @Cacheable(value = ["geojson"], key = "#gid2")
     override fun getGeoJson(gid2: String): List<String> {
             return boundaryRepository.getGeoJsonFromGid(gid2)
     }
 
     override fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto> {
         if (latitude != null && longitude != null) {
-            val boundary = boundaryRepository.getBoundaryByLatLong(latitude, longitude)
+            val boundary = boundaryRepository.getBoundaryOrClosest(latitude, longitude)
             return boundary?.let {  mutableListOf(boundary.toMapInfoDto()) } ?: mutableListOf()
         } else {
             throw AssertException("Both latitude and longitude must be set")
         }
     }
 
+    override fun getBoundaryEntity(latitude: Double, longitude: Double): Boundary? {
+        return boundaryRepository.getBoundaryOrClosest(latitude, longitude)
+    }
+
+    @Cacheable(value = ["groupRanking"], key = "{#gid0, #gid1, #gid2, #pageable.pageNumber, #pageable.pageSize}")
     override fun groupRanking(
         gid0: String?,
         gid1: String?,
@@ -50,6 +59,7 @@ class RankingServiceImpl(
         }.toMutableList()
     }
 
+    @Cacheable(value = ["userRanking"], key = "{#gid0, #gid1, #gid2, #pageable.pageNumber, #pageable.pageSize}")
     override fun userRanking(
         gid0: String?,
         gid1: String?,
