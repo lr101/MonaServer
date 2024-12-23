@@ -55,6 +55,7 @@ app:
     from: ${MAIL_FROM}
     host: ${MAIL_HOST}
     password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME}
     port: ${MAIL_PORT}
     protocol: ${MAIL_PROTOCOL}
   config:

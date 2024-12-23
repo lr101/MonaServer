@@ -49,11 +49,23 @@ interface BoundaryRepository : CrudRepository<Boundary, UUID> {
 
 
     @Query("""
-        SELECT * FROM admin2_boundaries
-        WHERE ST_Contains(
-            admin2_boundaries.geom,
-            ST_SetSRID(ST_Point(:longitude, :latitude), 4326))
-    """, nativeQuery = true)
-    fun getBoundaryByLatLong(@Param("latitude") latitude: Double, @Param("longitude") longitude: Double): Boundary?
+    SELECT * FROM admin2_boundaries
+    WHERE ST_Contains(
+        admin2_boundaries.geom,
+        ST_SetSRID(ST_Point(:longitude, :latitude), 4326)
+    )
+    OR id = (
+        SELECT a.id 
+        FROM admin2_boundaries a
+        ORDER BY 
+            ST_Distance(
+                a.geom,
+                ST_SetSRID(ST_Point(:longitude, :latitude), 4326)
+            )
+        LIMIT 1
+    )
+    LIMIT 1
+""", nativeQuery = true)
+    fun getBoundaryOrClosest(@Param("latitude") latitude: Double, @Param("longitude") longitude: Double): Boundary?
 
 }
