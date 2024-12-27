@@ -41,11 +41,13 @@ class GroupServiceImpl (
 
     @Transactional
     @Caching(
-        evict = [CacheEvict(value = ["userGroups"], key = "#createGroup.groupAdmin", condition = "#createGroup.groupAdmin.toString() == #authentication.name"),],
+        evict = [CacheEvict(value = ["userGroups"], key = "#createGroup.groupAdmin")],
     )
     override fun addGroup(createGroup: CreateGroupDto): Group {
+        if(groupRepository.existsByName(createGroup.name))  throw AssertException("Group name already exists")
         val group = Group()
-        group.groupAdmin = userRepository.findById(createGroup.groupAdmin).getOrElse { throw UserNotFoundException("Admin not found") }
+        group.groupAdmin = userRepository.findById(createGroup.groupAdmin)
+            .getOrElse { throw UserNotFoundException("Admin not found") }
         group.visibility = createGroup.visibility
         group.description = createGroup.description
         group.name = createGroup.name
@@ -53,7 +55,7 @@ class GroupServiceImpl (
         if (group.visibility == 1) {
             group.inviteUrl = SecurityHelper.generateAlphabeticRandomString(6)
         }
-        val g =  groupRepository.save(group)
+        val g = groupRepository.save(group)
         objectService.createObject(
             group,
             imageHelper.getPinImage(createGroup.profileImage),

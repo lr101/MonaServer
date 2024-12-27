@@ -148,7 +148,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
 
         return handleExceptionInternal(
             ex,
-            "This name does already exist",
+            "One or more fields are invalid",
             HttpHeaders(),
             HttpStatus.BAD_REQUEST,
             request

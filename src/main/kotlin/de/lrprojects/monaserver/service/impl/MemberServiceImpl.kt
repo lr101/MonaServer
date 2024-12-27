@@ -84,7 +84,7 @@ class MemberServiceImpl(
             .orElseThrow { UserNotFoundException("User does not exist") }
 
         if (user == group.groupAdmin && memberRepository.countByGroup(groupId) == 1L) {
-            groupRepository.delete(group)
+            groupRepository.deleteById(groupId)
             log.info("Deleted group $groupId")
         } else if (user != group.groupAdmin) {
             memberRepository.deleteById_Group_IdAndId_User_Id(groupId, userId)
