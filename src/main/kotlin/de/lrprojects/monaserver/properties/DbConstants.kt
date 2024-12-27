@@ -21,4 +21,8 @@ object DbConstants {
     const val SELECTED_BATCH = "selected_batch"
     const val STATE_PROVINCE_ID = "state_province_id"
 
+    //fk
+    const val FK_MEMBERS_USERNAME = "fk_members_username"
+    const val FK_MEMBERS_GROUP_ID = "fk_members_group_id"
+
 }

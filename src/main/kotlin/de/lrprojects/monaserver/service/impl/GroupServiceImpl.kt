@@ -71,7 +71,7 @@ class GroupServiceImpl (
     override fun deleteGroup(groupId: UUID) {
         val group = getGroup(groupId)
         val ids = pinService.getGroupPins(group)
-        groupRepository.delete(group)
+        groupRepository.deleteById(groupId)
         pinService.deleteObjectsByList(ids)
     }
 

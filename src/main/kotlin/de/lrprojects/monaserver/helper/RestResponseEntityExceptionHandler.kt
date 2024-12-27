@@ -196,7 +196,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
 
     @ExceptionHandler(RuntimeException::class)
     protected fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
-        if (log.isInfoEnabled) log.info(ex.stackTraceToString())
+        if (log.isInfoEnabled) log.info("${ex.message} with cause: ${ex.cause?.message}")
 
         return handleExceptionInternal(
             ex,
