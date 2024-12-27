@@ -5,6 +5,7 @@ import de.lrprojects.monaserver.entity.User
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -15,6 +16,8 @@ import java.util.*
 @Repository
 @Transactional
 interface GroupRepository : JpaRepository<Group, UUID> {
+
+    fun existsByName(name: String): Boolean
 
 
     @Query(
@@ -89,6 +92,7 @@ interface GroupRepository : JpaRepository<Group, UUID> {
         """, nativeQuery = true)
     fun findByPinId(pinId: UUID): Group
 
+    @Modifying
     @Query("DELETE FROM groups WHERE id = :id", nativeQuery = true)
     override fun deleteById(@Param("id") id: UUID)
 }
