@@ -58,7 +58,7 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(REPORT_MAIL_TEMPLATE, ctx)
-        sendMail(content, mailProperties.from, report.report, true, null)
+        sendMail(content, mailProperties.username, report.report, true, null)
     }
 
     override fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String) {
