@@ -89,8 +89,6 @@ interface GroupRepository : JpaRepository<Group, UUID> {
         """, nativeQuery = true)
     fun findByPinId(pinId: UUID): Group
 
-    @Query("""
-        SELECT m.user_id FROM members m WHERE group_id = :groupId
-    """, nativeQuery = true)
-    fun findMembersByGroupId(@Param("groupId") groupId: UUID): List<UUID>
+    @Query("DELETE FROM groups WHERE id = :id", nativeQuery = true)
+    override fun deleteById(@Param("id") id: UUID)
 }
