@@ -86,6 +86,8 @@ class ImageHelper {
             throw ProfileImageException("image does not have the right size constrains")
         } catch (e: FileNotFoundException) {
             throw ProfileImageException("Static image template could not be accessed")
+        } catch (e: NullPointerException) {
+            throw ProfileImageException("Image could not be processed, try a different format.")
         }
     }
 
