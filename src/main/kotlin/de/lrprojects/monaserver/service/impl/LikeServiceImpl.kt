@@ -38,11 +38,11 @@ class LikeServiceImpl(
         }
         val like = likeEntity.get()
         return PinLikeDto().apply {
-            this.likeCount = likeRepository.countLikeByPinIdAndLikeIsTrue(pinId)
+            this.likeCount = likeRepository.countLikeByPinIdAndLikeAllIsTrue(pinId)
             this.likeArtCount = likeRepository.countLikeByPinIdAndLikeArtIsTrue(pinId)
             this.likePhotographyCount = likeRepository.countLikeByPinIdAndLikePhotographyIsTrue(pinId)
             this.likeLocationCount = likeRepository.countLikeByPinIdAndLikeLocationIsTrue(pinId)
-            this.likedByUser = like.like
+            this.likedByUser = like.likeAll
             this.likedPhotographyByUser = like.likePhotography
             this.likedArtByUser = like.likeArt
             this.likedLocationByUser = like.likeLocation
@@ -60,7 +60,7 @@ class LikeServiceImpl(
             likeRepository.save(newLike)
         } else {
             val likeEntity = likeOptional.get()
-            if (createLikeDto.like != null) likeEntity.like = createLikeDto.like
+            if (createLikeDto.like != null) likeEntity.likeAll = createLikeDto.like
             if (createLikeDto.likeLocation != null) likeEntity.likeLocation = createLikeDto.likeLocation
             if (createLikeDto.likePhotography != null) likeEntity.likePhotography = createLikeDto.likePhotography
             if (createLikeDto.likeArt != null) likeEntity.likeArt = createLikeDto.likeArt

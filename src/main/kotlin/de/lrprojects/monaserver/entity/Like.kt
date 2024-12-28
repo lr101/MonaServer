@@ -47,16 +47,16 @@ data class Like(
     @Column
     val updateDate: OffsetDateTime? = null,
 
-    @Column(name = "like_all", nullable = false)
-    var like: Boolean = false,
+    @Column
+    var likeAll: Boolean = false,
 
-    @Column(name = "like_location", nullable = false)
+    @Column
     var likeLocation: Boolean = false,
 
-    @Column(name = "like_photography", nullable = false)
+    @Column
     var likePhotography: Boolean = false,
 
-    @Column(name = "like_art", nullable = false)
+    @Column
     var likeArt: Boolean = false
 ) {
 
@@ -75,7 +75,7 @@ data class Like(
         if (user != other.user) return false
         if (creationDate != other.creationDate) return false
         if (updateDate != other.updateDate) return false
-        if (like != other.like) return false
+        if (likeAll != other.likeAll) return false
         if (likeLocation != other.likeLocation) return false
         if (likePhotography != other.likePhotography) return false
         if (likeArt != other.likeArt) return false

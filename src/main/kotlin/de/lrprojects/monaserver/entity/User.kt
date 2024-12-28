@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.MEMBER_USER
 import de.lrprojects.monaserver.properties.DbConstants.SELECTED_BATCH
+import de.lrprojects.monaserver.properties.DbConstants.USER
 import de.lrprojects.monaserver.properties.DbConstants.USERS
 import jakarta.persistence.Basic
 import jakarta.persistence.CascadeType
@@ -87,13 +89,11 @@ data class User (
     @Column
     var updateDate: OffsetDateTime? = null,
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
-    @JoinColumn(name = "user_id")
+    @OneToMany(mappedBy = USER, fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JsonIgnore
     var refreshTokens: List<RefreshToken> = emptyList(),
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
-    @JoinColumn(name = "user_id")
+    @OneToMany(mappedBy = MEMBER_USER, fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JsonIgnore
     var groups: MutableSet<Member> = mutableSetOf(),
 

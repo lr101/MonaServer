@@ -11,7 +11,7 @@ interface LikeRepository : JpaRepository<Like, UUID> {
 
     fun findLikeByUserIdAndPinId(userId: UUID, pinId: UUID): Optional<Like>
 
-    fun countLikeByPinIdAndLikeIsTrue(pinId: UUID): Int
+    fun countLikeByPinIdAndLikeAllIsTrue(pinId: UUID): Int
 
     fun countLikeByPinIdAndLikeArtIsTrue(pinId: UUID): Int
 
@@ -19,10 +19,12 @@ interface LikeRepository : JpaRepository<Like, UUID> {
 
     fun countLikeByPinIdAndLikeLocationIsTrue(pinId: UUID): Int
 
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(l) FROM Like l
-        WHERE l.pin.user.id = :userId AND l.like = true
-        """)
+        WHERE l.pin.user.id = :userId AND l.likeAll = true
+        """
+    )
     fun countLikeByPinCreator(userId: UUID): Int
 
     @Query("""

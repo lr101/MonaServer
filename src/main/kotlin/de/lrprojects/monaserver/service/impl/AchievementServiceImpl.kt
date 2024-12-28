@@ -72,6 +72,7 @@ class AchievementServiceImpl(
         it.claimed = claimed.any { ach -> ach.achievementId == achievementType.id }
         it.currentValue = currentValue
         it.thresholdValue = achievementType.threshold
+        it.thresholdUp = achievementType.thresholdUp
     }
 
     private fun getSqlParamMap(params: List<String>, userId: UUID): Map<String, Any> {
