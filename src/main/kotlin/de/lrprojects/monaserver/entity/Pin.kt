@@ -1,12 +1,15 @@
 package de.lrprojects.monaserver.entity
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import de.lrprojects.monaserver.helper.DeletedEntityType
 import de.lrprojects.monaserver.helper.PreDeleteEntity
 import de.lrprojects.monaserver.properties.DbConstants.CREATOR_ID
 import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
 import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.PIN
 import de.lrprojects.monaserver.properties.DbConstants.PINS
 import de.lrprojects.monaserver.properties.DbConstants.STATE_PROVINCE_ID
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -54,6 +57,10 @@ class Pin (
 
     @Column(nullable = false)
     var isDeleted: Boolean = false,
+
+    @OneToOne(mappedBy = PIN, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @JsonIgnore
+    var like: Like? = null,
 
     @Transient
     private var dataSource: DataSource? = null
