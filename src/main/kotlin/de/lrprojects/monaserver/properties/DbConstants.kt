@@ -25,4 +25,10 @@ object DbConstants {
     const val FK_MEMBERS_USERNAME = "fk_members_username"
     const val FK_MEMBERS_GROUP_ID = "fk_members_group_id"
 
+    //mapped by
+    const val PIN = "pin"
+    const val MEMBER_GROUP = "id.group"
+    const val MEMBER_USER = "id.user"
+    const val USER = "user"
+
 }

@@ -7,6 +7,7 @@ import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.properties.DbConstants.ADMIN_ID
 import de.lrprojects.monaserver.properties.DbConstants.GROUPS
 import de.lrprojects.monaserver.properties.DbConstants.ID
+import de.lrprojects.monaserver.properties.DbConstants.MEMBER_GROUP
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -47,12 +48,11 @@ data class Group (
     @Column(nullable = false)
     var visibility: Int = 0,
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
-    @JoinColumn(name = "group_id")
+    @OneToMany(mappedBy = MEMBER_GROUP, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JsonIgnore
     var members: MutableSet<Member> = mutableSetOf(),
 
-    @OneToMany(mappedBy = ID, fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
+    @OneToMany(mappedBy = ID, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JsonIgnore
     var pins: MutableSet<Pin> = HashSet(),
 
