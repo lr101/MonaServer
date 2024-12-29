@@ -1,16 +1,31 @@
 # Mona Server
 
+[![Docker Publish](https://github.com/lr101/MonaServer/actions/workflows/publish-docker.yml/badge.svg)](https://github.com/lr101/MonaServer/actions/workflows/publish-docker.yml)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/lr101/stick-it/issues)
+[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white&style=flat)](https://discord.gg/ReMZ8j6S8X)
+[![Play Store](https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white&style=flat)](https://play.google.com/store/apps/details?id=com.TheGermanApps.buff_lisa)
+[![App Store](https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white&style=flat)](https://apps.apple.com/de/app/stick-it-geomap/id6446781455)
+
+
 ## What is it for?
 
-This spring boot application is the communicating backend server for the app [Stick-It: Geomap](https://lr-projects.de/en/index.html) which can be found in the following [repo](https://github.com/lr101/buff_lisa).
-It uses a postgresql database as its storage medium and implements refresh and jwt-auth tokens for login and authentication purposes. The openapi files can be found under the [openapi](./openapi) folder or when starting the server.
+This **spring boot** application is the communicating backend server for the app [Stick-It: Geomap](https://lr-projects.de/en/index.html) which can be found in the following [repo](https://github.com/lr101/stick-it).
+The app allows sharing stickers in groups by geotagging images. 
+
+## TestStack
+
+It uses a **postgres** (with postgis extension for localization of different boundaries up to administrative 2 zones) database as its storage medium and implements refresh and jwt-auth tokens for login and authentication purposes. The **openapi** definition can be found in this [repo](https://github.com/lr101/MonaServerApi) or when starting the server under `/public/swagger-ui/index.html`
 Using GitHub actions a docker image is always available at Docker Hub [here](https://hub.docker.com/repository/docker/lrprojects/stick-it-server/general).
+
+For image storage a **minio** bucket is used. Everything can be hosted locally and set up with this repo.
+
+For fun (and maybe a teeny bit of performance improvement) the fast in memory cache **redis** is used.
 
 ## How to run
 
 ### Production setup in docker
 
-1. Clone the repo or copy [docker-compose.yml](./docker-compose.yml) file
+1. Clone the repo (or copy [docker-compose.yml](./docker-compose.yml) file and `init/` folder)
 2. Create a `.env` file in the root of the project:
 
 ```dotenv
@@ -21,6 +36,7 @@ PORT=8081
 ADMIN_ACCOUNT_NAME=admin
 DB_URL=jdbc:postgresql://db:5432/sticker
 MAIL_PASSWORD=<YOUR MAIL PASSWORD>
+MAIL_USERNAME=<YOUR MAIL USERNAME>
 MAIL_HOST=<YOUR EMAIL SERVER HOST>
 MAIL_PORT=<YOUR EMAIL SERVER PORT>
 MAIL_FROM=<YOUR EMAIL>
@@ -57,6 +73,7 @@ PORT=8081
 ADMIN_ACCOUNT_NAME=admin
 DB_URL=jdbc:postgresql://db:5432/sticker
 MAIL_PASSWORD=<YOUR MAIL PASSWORD>
+MAIL_USERNAME=<YOUR MAIL USERNAME>
 MAIL_HOST=<YOUR EMAIL SERVER HOST>
 MAIL_PORT=<YOUR EMAIL SERVER PORT>
 MAIL_FROM=<YOUR EMAIL>
