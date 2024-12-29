@@ -43,7 +43,7 @@ class DefaultSecurityConfig (
                 it
                     .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
                     .requestMatchers(API_PATH).hasAuthority(USER_ROLE)
-                    .requestMatchers(ADMIN_PATH).hasAuthority(ADMIN_ROLE)
+                    .requestMatchers(ADMIN_PATH, ACTUATOR_PATH).hasAuthority(ADMIN_ROLE)
                     .anyRequest().authenticated()
             }
             .sessionManagement {
@@ -87,6 +87,7 @@ class DefaultSecurityConfig (
         const val ERROR_PATH = "/error"
         const val API_PATH = "/api/v2/**"
         const val ADMIN_PATH = "/api/v2/admin/**"
+        const val ACTUATOR_PATH = "/actuator/**"
     }
 
 }

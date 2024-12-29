@@ -44,6 +44,18 @@ spring:
       repositories:
         enabled: false
 
+management:
+  influx:
+    metrics:
+      export:
+        bucket: ${INFLUX_BUCKET}
+        org: ${INFLUX_ORG}
+        token: ${INFLUX_TOKEN}
+        uri: ${INFLUX_URL}
+
+
+
+
 springdoc:
   api-docs:
     path: /public/api-docs
