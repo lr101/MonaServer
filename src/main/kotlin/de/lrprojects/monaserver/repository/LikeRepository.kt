@@ -3,13 +3,15 @@ package de.lrprojects.monaserver.repository
 import de.lrprojects.monaserver.entity.Like
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.util.*
 
 @Repository
 interface LikeRepository : JpaRepository<Like, UUID> {
 
-    fun findLikeByUserIdAndPinId(userId: UUID, pinId: UUID): Optional<Like>
+    @Query("SELECT * FROM likes l WHERE l.user_id = :userId AND l.pin_id = :pinId", nativeQuery = true)
+    fun findLikeByUserIdAndPinId(@Param("userId") userId: UUID,@Param("pinId") pinId: UUID): Optional<Like>
 
     fun countLikeByPinIdAndLikeAllIsTrue(pinId: UUID): Int
 
