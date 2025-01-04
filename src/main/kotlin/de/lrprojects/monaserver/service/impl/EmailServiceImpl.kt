@@ -11,36 +11,43 @@ import jakarta.mail.MessagingException
 import org.slf4j.LoggerFactory
 import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.mail.javamail.MimeMessageHelper
+import org.springframework.scheduling.annotation.Async
+import org.springframework.scheduling.annotation.EnableAsync
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
+import org.thymeleaf.templatemode.TemplateMode
+import org.thymeleaf.templateresolver.StringTemplateResolver
+import java.time.Duration
+import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 
 @Service
-
+@EnableAsync
 class EmailServiceImpl(
     private val mailProperties: MailProperties,
     private val userRepository: UserRepository,
     private val mailSender: JavaMailSender,
     private val appProperties: AppProperties,
-    private val templateEngine: SpringTemplateEngine
+    private val templateEngine: SpringTemplateEngine,
 ) : EmailService {
 
 
 
     @Throws(MailException::class)
-    private fun sendMail(text: String, to: String, subject: String,  html: Boolean, bcc: List<String>?) {
+    private fun sendMail(text: String, to: String, subject: String,  html: Boolean) {
         try {
             if (logger.isInfoEnabled) logger.info("Trying to send mail to: $to")
             val message = mailSender.createMimeMessage()
             val helper = MimeMessageHelper(message, true);
             helper.setText(text, html)
             helper.setTo(to)
-            bcc?.let {  helper.setBcc(bcc.toTypedArray()) }
             helper.setFrom(mailProperties.from)
             helper.setSubject(subject)
             mailSender.send(message)
-            if (logger.isInfoEnabled) logger.info("Send mail successfully to: $to and ${bcc?.size ?: 0} bcc")
+            if (logger.isInfoEnabled) logger.info("Send mail successfully to: $to")
         } catch (mex: MessagingException) {
             throw MailException(mex.message)
         }
@@ -58,7 +65,7 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(REPORT_MAIL_TEMPLATE, ctx)
-        sendMail(content, mailProperties.username, report.report, true, null)
+        sendMail(content, mailProperties.username, report.report, true)
     }
 
     override fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String) {
@@ -70,7 +77,7 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(DELETE_MAIL_TEMPLATE, ctx)
-        sendMail(content, to, DELETE_CODE_SUBJECT, true, null)
+        sendMail(content, to, DELETE_CODE_SUBJECT, true)
     }
 
     override fun sendRecoveryMail(urlPart: String, to: String) {
@@ -80,15 +87,39 @@ class EmailServiceImpl(
         ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
         ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
         val content = templateEngine.process(RECOVER_MAIL_TEMPLATE,ctx)
-        sendMail(content, to, RECOVER_SUBJECT, true, null)
+        sendMail(content, to, RECOVER_SUBJECT, true)
     }
 
+    @Async
     override fun sendRoundMail(emails: List<String>?, subject: String, text: String, html: String?) {
-        val mails: List<String> = if(!emails.isNullOrEmpty()) emails else userRepository.findAllEmails()
-        val batchSize = 400
-        mails.chunked(batchSize).forEach { batch ->
-            sendMail(html ?: text, mailProperties.from, subject, html != null, batch)
+        val mails: List<Array<String>> = if(!emails.isNullOrEmpty()) emails.map { e -> arrayOf(e, e) }.toList() else userRepository.findAllEmails()
+        val scheduler = Executors.newScheduledThreadPool(1)
+        val duration = Duration.ofMinutes(mailProperties.batchDuration / mailProperties.batchSize).toMillis()
+        var content: String = text
+
+        val stringTemplateResolver = StringTemplateResolver().apply {
+            templateMode = TemplateMode.HTML
+            checkExistence = false
         }
+
+        val stringTemplateEngine = SpringTemplateEngine().apply {
+            setTemplateResolver(stringTemplateResolver)
+        }
+
+        mails.forEachIndexed { index, mail ->
+            if (html != null) {
+                val ctx = Context()
+                ctx.setVariable(USERNAME_VARIABLE_NAME, mail[1])
+                ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+                ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
+                content = stringTemplateEngine.process(content, ctx)
+            }
+            scheduler.schedule({ sendMail(content, mail[0], subject, html != null) },
+                duration * index,
+                TimeUnit.MILLISECONDS
+            )
+        }
+        scheduler.shutdown()
     }
 
     companion object {

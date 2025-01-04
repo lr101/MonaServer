@@ -90,7 +90,7 @@ class Guard(
     fun isPinPublicOrMember(authentication: Authentication, pinId: UUID) : Boolean {
         log.info("Checking if pin with ID: $pinId is public or member for user: ${authentication.name}")
         return try {
-            return isPinGroupMember(authentication, pinId) || groupService.getGroupOfPin(pinId).visibility == 0
+            return groupService.getGroupOfPin(pinId).visibility == 0 || isPinGroupMember(authentication, pinId)
         } catch (e: Exception) {
             log.warn("Failed to authenticate pin is public or user is member")
             false

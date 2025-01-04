@@ -70,6 +70,8 @@ app:
     username: ${MAIL_USERNAME}
     port: ${MAIL_PORT}
     protocol: ${MAIL_PROTOCOL}
+    batchSize: ${MAIL_BATCH_SIZE}
+    batchDuration: ${MAIL_BATCH_DURATION}
   config:
     url: ${APP_URL}
     maxLoginAttempts: 10

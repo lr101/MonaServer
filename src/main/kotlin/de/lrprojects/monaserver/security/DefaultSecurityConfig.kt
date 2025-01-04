@@ -41,9 +41,9 @@ class DefaultSecurityConfig (
             .formLogin { it.disable() }
             .authorizeHttpRequests {
                 it
+                    .requestMatchers(ADMIN_PATH, ACTUATOR_PATH).hasAuthority(ADMIN_ROLE)
                     .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
                     .requestMatchers(API_PATH).hasAuthority(USER_ROLE)
-                    .requestMatchers(ADMIN_PATH, ACTUATOR_PATH).hasAuthority(ADMIN_ROLE)
                     .anyRequest().authenticated()
             }
             .sessionManagement {
