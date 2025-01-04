@@ -3,7 +3,6 @@ package de.lrprojects.monaserver.security
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.PinService
-import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.security.core.Authentication
 import org.springframework.stereotype.Component
@@ -14,8 +13,7 @@ import java.util.*
 class Guard(
     private val memberService: MemberService,
     private val groupService: GroupService,
-    private val pinService: PinService,
-    private val userService: UserService
+    private val pinService: PinService
 ){
 
     fun isGroupVisible(authentication: Authentication, groupId: UUID): Boolean {

@@ -22,7 +22,7 @@ data class RefreshToken(
     val token: UUID,
 
     @Column(nullable = false)
-    val expiryDate: Date,
+    var lastActiveDate: OffsetDateTime,
 
     @ManyToOne
     @JoinColumn(name = USER_ID, nullable = false)
@@ -42,7 +42,7 @@ data class RefreshToken(
 
         if (id != other.id) return false
         if (token != other.token) return false
-        if (expiryDate != other.expiryDate) return false
+        if (lastActiveDate != other.lastActiveDate) return false
         if (user != other.user) return false
         if (creationDate != other.creationDate) return false
         if (updateDate != other.updateDate) return false
