@@ -12,7 +12,7 @@
 This **spring boot** application is the communicating backend server for the app [Stick-It: Geomap](https://lr-projects.de/en/index.html) which can be found in the following [repo](https://github.com/lr101/stick-it).
 The app allows sharing stickers in groups by geotagging images. 
 
-## TestStack
+## TechStack
 
 It uses a **postgres** (with postgis extension for localization of different boundaries up to administrative 2 zones) database as its storage medium and implements refresh and jwt-auth tokens for login and authentication purposes. The **openapi** definition can be found in this [repo](https://github.com/lr101/MonaServerApi) or when starting the server under `/public/swagger-ui/index.html`
 Using GitHub actions a docker image is always available at Docker Hub [here](https://hub.docker.com/repository/docker/lrprojects/stick-it-server/general).
@@ -57,7 +57,7 @@ REDIS_PORT=6379
 REDIS_PASSWORD=<REDIS_PASSWORD>
 ```
 3. Add your mail login data, public facing app url and minio information and a redis password
-    - You might need to start the minio container to create your access key through the admin console
+    - You might need to start the minio container to create your access key through the admin console: `docker compose up minio`
 4. Run `docker-compose up` to  start all services
 
 
