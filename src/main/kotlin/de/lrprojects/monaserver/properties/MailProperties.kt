@@ -9,5 +9,7 @@ data class MailProperties(
     val password: String,
     val host: String,
     val port: Int,
-    val protocol: String
+    val protocol: String,
+    val batchSize: Int = 400,
+    val batchDuration: Long = 60
 )

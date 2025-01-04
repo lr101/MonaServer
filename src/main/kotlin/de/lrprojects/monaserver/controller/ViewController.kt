@@ -4,6 +4,8 @@ import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
+import org.springframework.core.io.ClassPathResource
+import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
@@ -68,6 +70,14 @@ class ViewController (
         } catch (e: Exception) {
                 "404"
         }
+    }
+
+    @GetMapping("/favicon.ico")
+    fun getFavicon(): ResponseEntity<*> {
+        val favicon = ClassPathResource("static/favicon.ico")
+        return ResponseEntity.ok()
+            .header("Content-Type", "image/x-icon")
+            .body(favicon)
     }
 
 }
