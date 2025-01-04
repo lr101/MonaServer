@@ -70,14 +70,14 @@ app:
     username: ${MAIL_USERNAME}
     port: ${MAIL_PORT}
     protocol: ${MAIL_PROTOCOL}
-    batchSize: ${MAIL_BATCH_SIZE}
-    batchDuration: ${MAIL_BATCH_DURATION}
+    batchSize: ${MAIL_BATCH_SIZE:25}
+    batchDuration: ${MAIL_BATCH_DURATION:60}
   config:
     url: ${APP_URL}
-    maxLoginAttempts: 10
+    maxLoginAttempts: ${MAX_LOGIN_ATTEMPTS:10}
   token:
-    access-token-exploration: 900         # 15 min
-    refresh-token-exploration: 91556952   # 3 year
+    access-token-exploration: ${ACCESS_TOKEN_EXPIRATION:900}  # 15 min
+    refresh-token-exploration: ${REFRESH_TOKEN_EXPIRATION:31556952}   # 1 year
     admin-account-name: ${ADMIN_ACCOUNT_NAME}
   minio:
     access-key: ${MINIO_ACCESS_KEY}
@@ -85,5 +85,5 @@ app:
     endpoint: ${MINIO_ENDPOINT}
     bucket-name: ${MINIO_BUCKET}
   achievements:
-    mona-group-id: d9631336-5c32-4f64-83a7-7a4fcdae4dd6
-    created-before: "2023-12-10T02:43:44.402768+00:00"
+    mona-group-id: ${ACHIEVEMENT_MONA_GROUP_ID:d9631336-5c32-4f64-83a7-7a4fcdae4dd6}
+    created-before: ${ACHIEVEMENT_CREATED_BEFORE:2023-12-10T02:43:44.402768+00:00}
