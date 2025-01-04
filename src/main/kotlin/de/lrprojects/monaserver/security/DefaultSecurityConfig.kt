@@ -42,7 +42,7 @@ class DefaultSecurityConfig (
             .authorizeHttpRequests {
                 it
                     .requestMatchers(ADMIN_PATH, ACTUATOR_PATH).hasAuthority(ADMIN_ROLE)
-                    .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH).permitAll()
+                    .requestMatchers(PUBLIC_API_PATH, STATIC_PATH, PUBLIC_PATH, ERROR_PATH, FAVICON_PATH).permitAll()
                     .requestMatchers(API_PATH).hasAuthority(USER_ROLE)
                     .anyRequest().authenticated()
             }
@@ -85,6 +85,7 @@ class DefaultSecurityConfig (
         const val PUBLIC_PATH = "/public/**"
         const val STATIC_PATH = "/static/**"
         const val ERROR_PATH = "/error"
+        const val FAVICON_PATH = "/favicon.ico"
         const val API_PATH = "/api/v2/**"
         const val ADMIN_PATH = "/api/v2/admin/**"
         const val ACTUATOR_PATH = "/actuator/**"
