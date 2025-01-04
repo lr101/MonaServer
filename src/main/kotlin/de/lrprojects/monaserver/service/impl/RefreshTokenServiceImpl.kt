@@ -5,10 +5,10 @@ import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.properties.TokenProperties
 import de.lrprojects.monaserver.repository.RefreshTokenRepository
 import de.lrprojects.monaserver.service.api.RefreshTokenService
-import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Cacheable
+import jakarta.persistence.EntityNotFoundException
+import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
-import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.*
 
 
@@ -22,26 +22,28 @@ class RefreshTokenServiceImpl(
         val refreshToken = RefreshToken(
             token = UUID.randomUUID(),
             user = user,
-            expiryDate = Date(Instant.now().plusSeconds(tokenProperties.refreshTokenExploration).toEpochMilli())
+            lastActiveDate = OffsetDateTime.now()
         )
         return refreshTokenRepository.save(refreshToken)
     }
 
-
-    @Cacheable(value = ["refreshToken"], key = "{#token, #userId}")
-    override fun findByToken(token: UUID, userId: UUID): Optional<RefreshToken> {
-        return refreshTokenRepository.findByTokenAndUser_Id(token, userId)
+    @Transactional
+    override fun findByToken(token: UUID, userId: UUID): RefreshToken {
+        val refreshToken = refreshTokenRepository.findByTokenAndUser_Id(token, userId)
+            .orElseThrow { EntityNotFoundException("refresh token not found") }
+        return verifyExpiration(refreshToken)
     }
 
     override fun verifyExpiration(token: RefreshToken): RefreshToken {
-        if (token.expiryDate < Date(Instant.now().toEpochMilli())) {
+        if (token.lastActiveDate.plusSeconds(tokenProperties.refreshTokenExploration).isBefore(OffsetDateTime.now())) {
             refreshTokenRepository.delete(token)
             throw RuntimeException("Refresh token is expired. Please make a new login..!")
         }
-        return token
+        token.lastActiveDate = OffsetDateTime.now()
+        val updatedToken = refreshTokenRepository.save(token)
+        return updatedToken
     }
 
-    @CacheEvict(value = ["refreshToken"], allEntries = true)
     override fun invalidateTokens(user: User) {
         refreshTokenRepository.deleteAll(user.refreshTokens)
     }
