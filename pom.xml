@@ -11,14 +11,14 @@
 
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
-	<version>0.0.9-SNAPSHOT</version>
+	<version>0.0.9</version>
 	<name>monaserver</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>17</java.version>
 		<kotlin.version>2.1.0</kotlin.version>
 		<jackson.version>2.18.2</jackson.version>
-		<monaserverapi.version>1.0.12-SNAPSHOT</monaserverapi.version>
+		<monaserverapi.version>1.0.12</monaserverapi.version>
 	</properties>
 	<repositories>
 		<repository>
