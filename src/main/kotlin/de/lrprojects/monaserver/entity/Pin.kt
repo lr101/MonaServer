@@ -44,6 +44,9 @@ class Pin (
     @Column
     var updateDate: OffsetDateTime? = null,
 
+    @Column
+    var description: String? = null,
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = CREATOR_ID, referencedColumnName = ID, nullable = false)
     var user: User? = null,

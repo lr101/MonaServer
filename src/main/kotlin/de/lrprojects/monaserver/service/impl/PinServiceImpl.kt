@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.toEntity
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
@@ -40,11 +41,8 @@ class PinServiceImpl(
             newPin.latitude.toDouble(),
             newPin.longitude.toDouble()
         ).ifPresent { throw AlreadyExistException("pin already exists") }
-        var pin = Pin()
+        var pin = newPin.toEntity()
         pin.user = user
-        pin.latitude = newPin.latitude.toDouble()
-        pin.longitude = newPin.longitude.toDouble()
-        pin.creationDate = newPin.creationDate
         pin.location = rankingService.getBoundaryEntity(pin.latitude, pin.longitude)
         pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
