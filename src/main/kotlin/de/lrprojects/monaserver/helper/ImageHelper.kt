@@ -18,7 +18,7 @@ class ImageHelper {
     private val pinBorder: BufferedImage = getImageFromResources("pin_border.png")
     private val size = 500
     private val sizePin = 100
-    private val sizeSmall = 50
+    private val sizeSmall = 100
     private val xOffset = 11
     private val yOffset = 4
     private val diameter = 79
