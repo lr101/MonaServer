@@ -48,6 +48,7 @@ class UserServiceImpl(
             CacheEvict(value = ["userGroups"], key = "#userId"),
             CacheEvict(value = ["isInGroup"], allEntries = true),
             CacheEvict(value = ["groupsByPin"], allEntries = true),
+            CacheEvict(value = ["pinImage"], allEntries = true),
         ]
     )
     override fun deleteUser(userId: UUID, code: Int) {
