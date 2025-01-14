@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -108,8 +107,9 @@ class MemberServiceImpl(
         return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0)
     }
 
-    override fun isInGroup(group: Group): Boolean {
-        return memberRepository.existsById_Group_IdAndId_User_Id(group.id!!, UUID.fromString(SecurityContextHolder.getContext().authentication.name))
+    @Cacheable(value = ["isInGroup"], key = "{#group.id, #userId}")
+    override fun isInGroup(group: Group, userId: UUID): Boolean {
+        return memberRepository.existsById_Group_IdAndId_User_Id(group.id!!, userId)
     }
 
     companion object {

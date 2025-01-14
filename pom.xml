@@ -11,7 +11,7 @@
 
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
-	<version>0.0.9</version>
+	<version>0.0.10</version>
 	<name>monaserver</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
@@ -199,6 +199,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>net.coobird</groupId>
+			<artifactId>thumbnailator</artifactId>
+			<version>0.4.19</version>
+		</dependency>
+
 
 
 	</dependencies>
