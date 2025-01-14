@@ -11,6 +11,7 @@ import io.minio.PutObjectArgs
 import io.minio.RemoveObjectArgs
 import io.minio.http.Method
 import org.slf4j.LoggerFactory
+import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
@@ -57,6 +58,7 @@ class ObjectServiceImpl(
         )
     }
 
+    @CacheEvict(value =["pinImage"], key = "{#pinId}")
     override fun deletePinObject(pinId: UUID) {
         deleteObject("pins/${pinId}.png")
     }
@@ -77,7 +79,7 @@ class ObjectServiceImpl(
             GetPresignedObjectUrlArgs
                 .builder()
                 .method(Method.GET)
-                .expiry(30, TimeUnit.MINUTES)
+                .expiry(minioProperties.urlExpiry, TimeUnit.MINUTES)
                 .bucket(minioProperties.bucketName)
                 .`object`(file)
                 .build()

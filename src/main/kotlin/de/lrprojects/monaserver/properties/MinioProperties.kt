@@ -9,4 +9,5 @@ class MinioProperties {
     lateinit var accessKey: String
     lateinit var secretKey: String
     lateinit var bucketName: String
+    val urlExpiry: Int = 60
 }

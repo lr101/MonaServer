@@ -19,7 +19,6 @@ import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
-import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -56,11 +55,7 @@ class PinServiceImpl(
     }
 
     @Transactional
-    @Caching(
-        evict = [
-            CacheEvict(value = ["pinById"], key = "{#pinId}")
-        ]
-    )
+    @CacheEvict(value = ["pinById"], key = "{#pinId}")
     override fun deletePin(pinId: UUID) {
         pinRepository.deleteById(pinId)
         objectService.deletePinObject(pinId)
