@@ -20,7 +20,8 @@ class Guard(
         log.info("Checking if group with ID: $groupId is visible for user: ${authentication.name}")
         return try {
             val result = groupService.getGroup(groupId)
-            result.visibility == 0 || memberService.isInGroup(result)
+            val userId = UUID.fromString(authentication.name)
+            result.visibility == 0 || memberService.isInGroup(result, userId)
         } catch (e: Exception) {
             log.warn("Failed to authenticate group is visible")
             false
@@ -44,7 +45,8 @@ class Guard(
         log.info("""Checking if group with ID: $groupId is member for user: ${authentication.name}""")
         return try {
             val group = groupService.getGroup(groupId)
-            return memberService.isInGroup(group)
+            val userId = UUID.fromString(authentication.name)
+            return memberService.isInGroup(group, userId)
         } catch (e: Exception) {
             log.warn("Failed to authenticate group is member")
             false

@@ -5,7 +5,9 @@ import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.AlreadyExistException
+import de.lrprojects.monaserver.excepetion.ImageProcessingException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
+import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -29,10 +31,12 @@ class PinServiceImpl(
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
     private val objectService: ObjectService,
-    private val rankingService: RankingService
+    private val rankingService: RankingService,
+    private val imageHelper: ImageHelper
 ) : PinService {
 
     @Transactional
+    @Throws(ImageProcessingException::class, EntityNotFoundException::class, UserNotFoundException::class)
     override fun createPin(newPin: PinRequestDto): Pin {
         val user = userRepository.findById(newPin.userId).orElseThrow{ UserNotFoundException("user does not exist") }
         pinRepository.findByCreationDateAndUserAndLatitudeAndLongitude(
@@ -46,7 +50,8 @@ class PinServiceImpl(
         pin.location = rankingService.getBoundaryEntity(pin.latitude, pin.longitude)
         pin.group =  groupRepository.findById(newPin.groupId).orElseThrow{ EntityNotFoundException("group does not exist")}
         pin = pinRepository.save(pin)
-        objectService.createObject(pin, newPin.image)
+        val compressedImage = imageHelper.compressPinImage(newPin.image)
+        objectService.createObject(pin, compressedImage)
         return pin
     }
 

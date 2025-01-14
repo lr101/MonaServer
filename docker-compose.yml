@@ -1,6 +1,6 @@
 services:
   stick-it-server:
-    container_name: lrprojects/stick-it-server:<VERSION>
+    image: lrprojects/stick-it-server:latest
     restart: unless-stopped
     ports:
       - ${PORT}:8081
