@@ -52,3 +52,4 @@ buildDocker.bat
 /src/main/resources/application-secrets.yml
 /backup/
 /docker-compose-local.yml
+/batch-mail-templates/

@@ -15,7 +15,7 @@ interface UserRepository : JpaRepository<User, UUID> {
     fun findByUsername(username: String): Optional<User>
     fun existsByUsername(username: String): Boolean
 
-    @Query("SELECT u.email, u.username FROM User u WHERE u.email IS NOT NULL")
+    @Query("SELECT u.email, u.username FROM users u WHERE u.email IS NOT NULL", nativeQuery = true)
     fun findAllEmails(): List<Array<String>>
 
 }
