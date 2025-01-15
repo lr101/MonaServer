@@ -95,7 +95,7 @@ class EmailServiceImpl(
         val mails: List<Array<String>> = if(!emails.isNullOrEmpty()) emails.map { e -> arrayOf(e, e) }.toList() else userRepository.findAllEmails()
         val scheduler = Executors.newScheduledThreadPool(1)
         val duration = Duration.ofMinutes(mailProperties.batchDuration / mailProperties.batchSize).toMillis()
-        var content: String = text
+
 
         val stringTemplateResolver = StringTemplateResolver().apply {
             templateMode = TemplateMode.HTML
@@ -107,6 +107,7 @@ class EmailServiceImpl(
         }
 
         mails.forEachIndexed { index, mail ->
+            var content: String = text
             if (html != null) {
                 val ctx = Context()
                 ctx.setVariable(USERNAME_VARIABLE_NAME, mail[1])
