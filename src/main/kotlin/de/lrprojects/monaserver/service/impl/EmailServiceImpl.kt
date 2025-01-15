@@ -112,7 +112,7 @@ class EmailServiceImpl(
                 ctx.setVariable(USERNAME_VARIABLE_NAME, mail[1])
                 ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
                 ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
-                content = stringTemplateEngine.process(content, ctx)
+                content = stringTemplateEngine.process(html, ctx)
             }
             scheduler.schedule({ sendMail(content, mail[0], subject, html != null) },
                 duration * index,
