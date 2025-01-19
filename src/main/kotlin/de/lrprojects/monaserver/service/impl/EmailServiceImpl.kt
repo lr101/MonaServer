@@ -55,6 +55,18 @@ class EmailServiceImpl(
     }
 
     @Throws(MailException::class, UserNotFoundException::class)
+    override fun sendEmailConfirmation(username: String, to: String, urlPart: String) {
+        val url = appProperties.url + EMAIL_CONFIRMATION_PATH + urlPart
+        val ctx = Context()
+        ctx.setVariable(USERNAME_VARIABLE_NAME, username)
+        ctx.setVariable(LINK_VARIABLE_NAME, url)
+        ctx.setVariable(APP_DOMAIN_VARIABLE_NAME, appProperties.url)
+        ctx.setVariable(MAIL_VARIABLE, mailProperties.from)
+        val content = templateEngine.process(EMAIL_CONFIRMATION_TEMPLATE, ctx)
+        sendMail(content, to, EMAIL_CONFIRMATION_SUBJECT, true)
+    }
+
+    @Throws(MailException::class, UserNotFoundException::class)
     override fun sendReportEmail(report: ReportDto) {
         val user = userRepository.findById(report.userId).orElseThrow { UserNotFoundException("User not found") }
         val ctx = Context()
@@ -127,11 +139,14 @@ class EmailServiceImpl(
         private val logger = LoggerFactory.getLogger(this::class.java)
         private const val RECOVER_PATH = "/public/recover/"
         private const val DELETE_ACCOUNT_PATH = "/public/delete-account/"
+        private const val EMAIL_CONFIRMATION_PATH = "/public/email-confirmation/"
         private const val RECOVER_SUBJECT = "Password Recovery"
         private const val DELETE_CODE_SUBJECT = "[Stick-It] Sad to see you go"
+        private const val EMAIL_CONFIRMATION_SUBJECT = "[Stick-It] Confirm your email address"
         private const val RECOVER_MAIL_TEMPLATE = "recover.html"
         private const val REPORT_MAIL_TEMPLATE = "report.html"
         private const val DELETE_MAIL_TEMPLATE = "delete.html"
+        private const val EMAIL_CONFIRMATION_TEMPLATE = "email-confirmation.html"
         private const val LINK_VARIABLE_NAME = "link"
         private const val USERNAME_VARIABLE_NAME = "username"
         private const val EMAIL_VARIABLE_NAME = "email"

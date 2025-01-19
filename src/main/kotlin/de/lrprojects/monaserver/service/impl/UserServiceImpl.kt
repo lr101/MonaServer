@@ -1,6 +1,8 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.converter.setEmailConfirmationUrl
 import de.lrprojects.monaserver.entity.User
+import de.lrprojects.monaserver.excepetion.EmailNotConfirmedException
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
@@ -8,6 +10,7 @@ import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.AchievementRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
+import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
@@ -36,7 +39,8 @@ class UserServiceImpl(
     private val objectService: ObjectService,
     private val passwordEncoder: PasswordEncoder,
     private val pinService: PinService,
-    private val achievementRepository: AchievementRepository
+    private val achievementRepository: AchievementRepository,
+    private val emailService: EmailService
 ): UserService {
 
     @Transactional
@@ -90,9 +94,11 @@ class UserServiceImpl(
         val userEntity =  getUser(userId)
         var responseDto: TokenResponseDto? = null
         if (user.email != null) {
+            if (!userEntity.emailConfirmed) throw EmailNotConfirmedException("email is not confirmed")
             userEntity.email = user.email
             userEntity.code = null
             userEntity.codeExpiration = null
+            userEntity.setEmailConfirmationUrl()
         }
         if (user.password != null) {
             userEntity.password = passwordEncoder.encode(user.password)
@@ -118,8 +124,13 @@ class UserServiceImpl(
             userEntity.lastUsernameUpdate = OffsetDateTime.now()
         }
         userRepository.save(userEntity)
+        if (user.email != null) {
+            emailService.sendEmailConfirmation(userEntity.username, userEntity.email!!, userEntity.emailConfirmationUrl!!)
+        }
         return responseDto
     }
+
+
 
     @Throws(UserNotFoundException::class, IllegalStateException::class)
     override fun updateUserProfileImage(
@@ -159,6 +170,17 @@ class UserServiceImpl(
                 return list
             }
             throw TimeExpiredException("deletion url is expired")
+        }
+    }
+
+    override fun getUserByEmailConfirmationUrl(deletionUrl: String): User {
+        val user = userRepository.findByEmailConfirmationUrl(deletionUrl).firstOrNull();
+        if (user == null) {
+            throw UserNotFoundException("user with this reset url does not exist")
+        } else {
+            user.emailConfirmed = true
+            user.emailConfirmationUrl = null
+           return userRepository.save(user)
         }
     }
 
