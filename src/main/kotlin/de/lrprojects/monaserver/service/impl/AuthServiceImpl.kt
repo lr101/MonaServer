@@ -1,5 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.config.ConstConfig
+import de.lrprojects.monaserver.converter.setEmailConfirmationUrl
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.*
 import de.lrprojects.monaserver.helper.SecurityHelper
@@ -40,7 +42,9 @@ class AuthServiceImpl(
             password = passwordEncoder.encode(password),
             email = email
         )
+        user.setEmailConfirmationUrl()
         user = userRepository.save(user)
+        emailService.sendEmailConfirmation(user.username, user.email!!, user.emailConfirmationUrl!!)
         val accessToken = tokenHelper.generateToken(user.id!!)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
@@ -79,8 +83,8 @@ class AuthServiceImpl(
             throw AttributeDoesNotExist("No email address exists")
         }
 
-        user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(25)
-        user.resetPasswordExpiration = OffsetDateTime.now().plusMinutes(10)
+        user.resetPasswordUrl = SecurityHelper.generateAlphabeticRandomString(ConstConfig.URL_VIW_LENGTH)
+        user.resetPasswordExpiration = OffsetDateTime.now().plusMinutes(ConstConfig.URL_VIEW_EXPIRATION)
         userRepository.save(user)
         emailService.sendRecoveryMail(user.resetPasswordUrl!!, user.email!!)
     }
@@ -94,8 +98,8 @@ class AuthServiceImpl(
             throw AttributeDoesNotExist("No email address exists")
         }
         user.code = SecurityHelper.generateSixDigitNumber().toString()
-        user.deletionUrl = SecurityHelper.generateAlphabeticRandomString(25)
-        user.codeExpiration = OffsetDateTime.now().plusMinutes(10)
+        user.deletionUrl = SecurityHelper.generateAlphabeticRandomString(ConstConfig.URL_VIW_LENGTH)
+        user.codeExpiration = OffsetDateTime.now().plusMinutes(ConstConfig.URL_VIEW_EXPIRATION)
         userRepository.save(user)
         emailService.sendDeleteCodeMail(user.username, user.code!!, user.email!!, user.deletionUrl!!)
     }

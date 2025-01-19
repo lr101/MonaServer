@@ -56,6 +56,18 @@ class ViewController (
         return "privacy-policy"
     }
 
+    @GetMapping("/public/email-confirmation/{url}")
+    fun emailConfirmationView(@PathVariable("url") url: String, model: Model): String {
+        log.info("Displaying email confirmation view")
+        return try {
+            val user = userService.getUserByEmailConfirmationUrl(url)
+            model.addAttribute("username", user.username)
+            "email-confirmation-view"
+        } catch (e: Exception) {
+            "404"
+        }
+    }
+
     @GetMapping("/public/delete-account/{url}")
     fun deleteAccountView(@PathVariable("url") url: String, model: Model): String {
         log.info("Displaying delete account view")

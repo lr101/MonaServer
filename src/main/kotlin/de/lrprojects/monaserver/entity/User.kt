@@ -62,6 +62,12 @@ data class User (
     var profilePictureExists: Boolean = false,
 
     @Column
+    var emailConfirmed: Boolean = false,
+
+    @Column
+    var emailConfirmationUrl: String? = null,
+
+    @Column
     @Length(min = 6, max = 6)
     var code: String? = null,
 

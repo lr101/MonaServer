@@ -9,6 +9,8 @@ interface EmailService {
     @Throws(MailException::class, UserNotFoundException::class)
     fun sendReportEmail(report: ReportDto)
 
+    fun sendEmailConfirmation(username: String, to: String, urlPart: String)
+
     fun sendRecoveryMail(urlPart: String, to: String, )
 
     fun sendDeleteCodeMail(username: String, code: String, to: String, urlPart: String)
