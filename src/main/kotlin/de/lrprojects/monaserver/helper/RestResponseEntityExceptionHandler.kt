@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.excepetion.AlreadyExistException
 import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.excepetion.AttributeDoesNotExist
 import de.lrprojects.monaserver.excepetion.ComparisonException
+import de.lrprojects.monaserver.excepetion.EmailNotConfirmedException
 import de.lrprojects.monaserver.excepetion.ImageProcessingException
 import de.lrprojects.monaserver.excepetion.MailException
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
@@ -33,6 +34,19 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
             ex.message,
             HttpHeaders(),
             HttpStatus.NOT_FOUND,
+            request
+        )
+    }
+
+    @ExceptionHandler(EmailNotConfirmedException::class)
+    protected fun handleEmailNotConfirmedException(ex: EmailNotConfirmedException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isInfoEnabled) log.info(ex.message)
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.FORBIDDEN,
             request
         )
     }

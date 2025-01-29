@@ -59,15 +59,13 @@ class UserController(
             profilePicture = userService.getUserProfileImage(userId)
             profilePictureSmall = userService.getUserProfileImageSmall(userId)
         }
-        val token = userService.updateUser(userId, user)
+        val userUpdateDto = userService.updateUser(userId, user)
+
         log.info("User updated with ID: $userId")
         return ResponseEntity.ok(
-            UserUpdateResponseDto().also {
-                it.userTokenDto = token
+            userUpdateDto.also {
                 it.profileImageSmall = profilePictureSmall
                 it.profileImage = profilePicture
-                it.username = user.username
-                it.description = user.description
             }
         )
     }
