@@ -52,6 +52,7 @@ management:
         org: ${INFLUX_ORG}
         token: ${INFLUX_TOKEN}
         uri: ${INFLUX_URL}
+        enabled: ${INFLUX_ENABLED:false}
 
 
 

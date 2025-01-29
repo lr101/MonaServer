@@ -8,11 +8,13 @@ import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver_api.model.GroupDto
 import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
 import de.lrprojects.monaserver_api.model.MapInfoDto
+import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserRankingDtoInner
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
+import java.time.OffsetDateTime
 import java.util.*
 
 
@@ -39,15 +41,15 @@ class RankingServiceImpl(
         return boundaryRepository.getBoundaryOrClosest(latitude, longitude)
     }
 
-    @Cacheable(value = ["groupRanking"], key = "{#gid0, #gid1, #gid2, #pageable.pageNumber, #pageable.pageSize}")
     override fun groupRanking(
         gid0: String?,
         gid1: String?,
         gid2: String?,
+        since: OffsetDateTime?,
         pageable: Pageable
     ): MutableList<GroupRankingDtoInner> {
         var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
-        return boundaryRepository.getGroupRanking(gid0, gid1, gid2, pageable).map { r ->
+        return boundaryRepository.getGroupRanking(gid0, gid1, gid2, since, pageable).map { r ->
             rank += 1
             GroupRankingDtoInner().also {
                 it.rankNr = rank
@@ -59,15 +61,15 @@ class RankingServiceImpl(
         }.toMutableList()
     }
 
-    @Cacheable(value = ["userRanking"], key = "{#gid0, #gid1, #gid2, #pageable.pageNumber, #pageable.pageSize}")
     override fun userRanking(
         gid0: String?,
         gid1: String?,
         gid2: String?,
+        since: OffsetDateTime?,
         pageable: Pageable
     ): MutableList<UserRankingDtoInner> {
         var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
-        return boundaryRepository.getUserRanking(gid0, gid1, gid2, pageable).map { r ->
+        return boundaryRepository.getUserRanking(gid0, gid1, gid2, since, pageable).map { r ->
             rank += 1
             UserRankingDtoInner().also {
                 it.rankNr = rank
@@ -77,6 +79,12 @@ class RankingServiceImpl(
                     user.selectedBatch = r[4] as Int?
                 }
             }
+        }.toMutableList()
+    }
+
+    override fun searchRanking(search: String?, pageable: Pageable): MutableList<RankingSearchDtoInner> {
+        return boundaryRepository.searchBoundaries(search, pageable).map { r ->
+            RankingSearchDtoInner(r[0] as Int, r[2] as String?, r[1] as String?)
         }.toMutableList()
     }
 }
