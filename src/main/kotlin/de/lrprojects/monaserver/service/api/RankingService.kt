@@ -3,8 +3,10 @@ package de.lrprojects.monaserver.service.api
 import de.lrprojects.monaserver.entity.Boundary
 import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
 import de.lrprojects.monaserver_api.model.MapInfoDto
+import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
 import de.lrprojects.monaserver_api.model.UserRankingDtoInner
 import org.springframework.data.domain.Pageable
+import java.time.OffsetDateTime
 
 interface RankingService {
 
@@ -18,6 +20,7 @@ interface RankingService {
         gid0: String?,
         gid1: String?,
         gid2: String?,
+        since: OffsetDateTime?,
         pageable: Pageable
     ): MutableList<GroupRankingDtoInner>
 
@@ -26,6 +29,9 @@ interface RankingService {
         gid0: String?,
         gid1: String?,
         gid2: String?,
+        since: OffsetDateTime?,
         pageable: Pageable
     ): MutableList<UserRankingDtoInner>
+
+    fun searchRanking(search: String?, pageable: Pageable): MutableList<RankingSearchDtoInner>
 }
