@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.entity
 
 import com.fasterxml.jackson.annotation.JsonIgnore
-import de.lrprojects.monaserver.helper.EmbeddedMemberKey
+import de.lrprojects.monaserver.entity.keys.EmbeddedMemberKey
 import de.lrprojects.monaserver.properties.DbConstants.MEMBERS
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

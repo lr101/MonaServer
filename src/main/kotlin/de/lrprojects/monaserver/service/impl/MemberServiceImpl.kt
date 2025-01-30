@@ -6,7 +6,7 @@ import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.helper.EmbeddedMemberKey
+import de.lrprojects.monaserver.entity.keys.EmbeddedMemberKey
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository

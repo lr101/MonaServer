@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.repository
 
 import de.lrprojects.monaserver.entity.Member
-import de.lrprojects.monaserver.helper.EmbeddedMemberKey
+import de.lrprojects.monaserver.entity.keys.EmbeddedMemberKey
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query

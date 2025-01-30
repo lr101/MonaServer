@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.helper
 
+import de.lrprojects.monaserver.entity.keys.PreDeleteEntity
 import jakarta.persistence.PostRemove
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component

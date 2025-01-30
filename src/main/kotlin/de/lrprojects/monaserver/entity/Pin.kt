@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.entity
 
 import com.fasterxml.jackson.annotation.JsonIgnore
-import de.lrprojects.monaserver.helper.DeletedEntityType
-import de.lrprojects.monaserver.helper.PreDeleteEntity
+import de.lrprojects.monaserver.types.DeletedEntityType
+import de.lrprojects.monaserver.entity.keys.PreDeleteEntity
 import de.lrprojects.monaserver.properties.DbConstants.CREATOR_ID
 import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
 import de.lrprojects.monaserver.properties.DbConstants.ID

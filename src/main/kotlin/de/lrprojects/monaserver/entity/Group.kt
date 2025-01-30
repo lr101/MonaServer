@@ -1,11 +1,12 @@
 package de.lrprojects.monaserver.entity
 
 import com.fasterxml.jackson.annotation.JsonIgnore
-import de.lrprojects.monaserver.helper.DeletedEntityType
-import de.lrprojects.monaserver.helper.PreDeleteEntity
+import de.lrprojects.monaserver.types.DeletedEntityType
+import de.lrprojects.monaserver.entity.keys.PreDeleteEntity
 import de.lrprojects.monaserver.helper.SecurityHelper
 import de.lrprojects.monaserver.properties.DbConstants.ADMIN_ID
 import de.lrprojects.monaserver.properties.DbConstants.GROUPS
+import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
 import de.lrprojects.monaserver.properties.DbConstants.ID
 import de.lrprojects.monaserver.properties.DbConstants.MEMBER_GROUP
 import jakarta.persistence.CascadeType
@@ -55,6 +56,10 @@ data class Group (
     @OneToMany(mappedBy = ID, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JsonIgnore
     var pins: MutableSet<Pin> = HashSet(),
+
+    @OneToMany(mappedBy = GROUP_ID, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @JsonIgnore
+    var seasons: MutableSet<GroupSeason> = HashSet(),
 
     @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
