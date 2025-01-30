@@ -7,11 +7,17 @@ import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGrou
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
 import de.lrprojects.monaserver_api.model.GroupDto
+import de.lrprojects.monaserver_api.model.SeasonItemDto
 import org.springframework.security.core.context.SecurityContextHolder
 import java.util.*
 
 
-fun Group.toGroupDto(memberService: MemberService, withImages: Boolean? = true, objectService: ObjectService): GroupDto {
+fun Group.toGroupDto(
+    memberService: MemberService,
+    withImages: Boolean? = true,
+    objectService: ObjectService,
+    seasonItemDto: SeasonItemDto?
+): GroupDto {
     val withImage = withImages != null && withImages
     val visibleToUser = this.visibility == 0 || memberService.isInGroup(this, UUID.fromString(SecurityContextHolder.getContext().authentication.name))
     val groupDto = GroupDto(
@@ -27,6 +33,7 @@ fun Group.toGroupDto(memberService: MemberService, withImages: Boolean? = true, 
         it.link = if (visibleToUser) this.link else null
         it.lastUpdated = if (visibleToUser) this.updateDate else null
         it.inviteUrl = if (visibleToUser) this.inviteUrl else null
+        it.bestSeason = seasonItemDto
     }
     return groupDto
 }

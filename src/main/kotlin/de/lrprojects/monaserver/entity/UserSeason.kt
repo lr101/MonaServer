@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.entity
 
+import de.lrprojects.monaserver.properties.DbConstants.ID
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -17,10 +18,10 @@ data class UserSeason(
     @GeneratedValue
     val id: UUID = UUID.randomUUID(),
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", referencedColumnName = ID, nullable = false)
     val user: User,
     @ManyToOne
-    @JoinColumn(name = "season_id", nullable = false)
+    @JoinColumn(name = "season_id", referencedColumnName = ID, nullable = false)
     val season: Season,
     @Column(nullable = false)
     val rank: Int,

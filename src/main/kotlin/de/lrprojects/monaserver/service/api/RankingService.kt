@@ -21,6 +21,7 @@ interface RankingService {
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         pageable: Pageable
     ): MutableList<GroupRankingDtoInner>
 
@@ -30,6 +31,7 @@ interface RankingService {
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         pageable: Pageable
     ): MutableList<UserRankingDtoInner>
 

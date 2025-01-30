@@ -46,10 +46,11 @@ class RankingServiceImpl(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         pageable: Pageable
     ): MutableList<GroupRankingDtoInner> {
         var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
-        return boundaryRepository.getGroupRanking(gid0, gid1, gid2, since, pageable).map { r ->
+        return boundaryRepository.getGroupRanking(gid0, gid1, gid2, getSinceValue(since, season), pageable).map { r ->
             rank += 1
             GroupRankingDtoInner().also {
                 it.rankNr = rank
@@ -66,10 +67,11 @@ class RankingServiceImpl(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         pageable: Pageable
     ): MutableList<UserRankingDtoInner> {
         var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
-        return boundaryRepository.getUserRanking(gid0, gid1, gid2, since, pageable).map { r ->
+        return boundaryRepository.getUserRanking(gid0, gid1, gid2, getSinceValue(since, season), pageable).map { r ->
             rank += 1
             UserRankingDtoInner().also {
                 it.rankNr = rank
@@ -80,6 +82,16 @@ class RankingServiceImpl(
                 }
             }
         }.toMutableList()
+    }
+
+    private fun getSinceValue(since: OffsetDateTime?, season: Boolean?): OffsetDateTime? {
+        return since
+            ?: if (season == true) {
+                val now = OffsetDateTime.now()
+                OffsetDateTime.of(now.year, now.monthValue, now.dayOfMonth, 0, 0, 0, 0, now.offset)
+            } else {
+                null
+            }
     }
 
     override fun searchRanking(search: String?, pageable: Pageable): MutableList<RankingSearchDtoInner> {

@@ -1,14 +1,13 @@
 package de.lrprojects.monaserver.entity
 
 import com.fasterxml.jackson.annotation.JsonIgnore
-import de.lrprojects.monaserver.types.DeletedEntityType
 import de.lrprojects.monaserver.entity.keys.PreDeleteEntity
 import de.lrprojects.monaserver.properties.DbConstants.ID
 import de.lrprojects.monaserver.properties.DbConstants.MEMBER_USER
 import de.lrprojects.monaserver.properties.DbConstants.SELECTED_BATCH
 import de.lrprojects.monaserver.properties.DbConstants.USER
 import de.lrprojects.monaserver.properties.DbConstants.USERS
-import de.lrprojects.monaserver.properties.DbConstants.USER_ID
+import de.lrprojects.monaserver.types.DeletedEntityType
 import jakarta.persistence.Basic
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
@@ -105,7 +104,7 @@ data class User (
     var groups: MutableSet<Member> = mutableSetOf(),
 
 
-    @OneToMany(mappedBy = USER_ID, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
+    @OneToMany(mappedBy = USER, fetch = FetchType.LAZY, cascade = [CascadeType.REMOVE], orphanRemoval = true)
     @JsonIgnore
     var seasons: MutableSet<UserSeason> = HashSet(),
 

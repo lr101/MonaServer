@@ -1,5 +1,7 @@
 package de.lrprojects.monaserver.entity
 
+import de.lrprojects.monaserver.properties.DbConstants.GROUP_ID
+import de.lrprojects.monaserver.properties.DbConstants.ID
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -17,10 +19,10 @@ data class GroupSeason(
     @GeneratedValue
     val id: UUID = UUID.randomUUID(),
     @ManyToOne
-    @JoinColumn(name = "group_id", nullable = false)
+    @JoinColumn(name = GROUP_ID, referencedColumnName = ID, nullable = false)
     val group: Group,
     @ManyToOne
-    @JoinColumn(name = "season_id", nullable = false)
+    @JoinColumn(name = "season_id", referencedColumnName = ID, nullable = false)
     val season: Season,
     @Column(nullable = false)
     val rank: Int,
