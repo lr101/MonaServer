@@ -8,6 +8,8 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import org.hibernate.annotations.CreationTimestamp
+import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
 import java.util.*
 
@@ -15,8 +17,8 @@ import java.util.*
 @Table(name = "users_seasons")
 data class UserSeason(
     @Id
-    @GeneratedValue
-    val id: UUID = UUID.randomUUID(),
+    @GeneratedValue(generator = "UUID")
+    val id: UUID? = null,
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = ID, nullable = false)
     val user: User,
@@ -27,8 +29,8 @@ data class UserSeason(
     val rank: Int,
     @Column(nullable = false)
     val numberOfPins: Int,
-    @Column(nullable = false)
-    val creationDate: OffsetDateTime = OffsetDateTime.now(),
-    @Column(nullable = false)
-    val updateDate: OffsetDateTime = OffsetDateTime.now()
+    @CreationTimestamp
+    val creationDate: OffsetDateTime? = null,
+    @UpdateTimestamp
+    val updateDate: OffsetDateTime? = null
 )

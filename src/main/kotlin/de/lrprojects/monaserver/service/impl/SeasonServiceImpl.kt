@@ -12,6 +12,7 @@ import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.model.SeasonItemDto
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -31,20 +32,20 @@ class SeasonServiceImpl (
 
     @Transactional
     override fun createSeason(month: Int, year: Int) {
+        log.info("Creating season for month: $month, year: $year")
         val seasonNumber = calculateSeasonNumber()
 
-        val season = Season(
+        var season = Season(
             seasonNumber = seasonNumber,
             year = year,
-            month = month,
-            creationDate = OffsetDateTime.now(),
-            updateDate = OffsetDateTime.now()
+            month = month
         )
 
-        seasonRepository.save(season)
+        season = seasonRepository.save(season)
 
         saveUserSeason(month, year, season)
         saveGroupSeason(month, year, season)
+        log.info("Created season for month: $month, year: $year with season number: $seasonNumber")
     }
 
     override fun getBestGroupSeason(groupId: UUID): SeasonItemDto? {
@@ -76,6 +77,10 @@ class SeasonServiceImpl (
         val ranking = rankingService.groupRanking(null, null, null, since, null, Pageable.unpaged())
             .map { it.toGroupSeason(groupService, season) }.toSet()
         groupSeasonRepository.saveAll(ranking)
+    }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(this::class.java)
     }
 
 }
