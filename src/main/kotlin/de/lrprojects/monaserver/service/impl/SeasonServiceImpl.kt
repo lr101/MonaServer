@@ -4,13 +4,13 @@ import de.lrprojects.monaserver.converter.toGroupSeason
 import de.lrprojects.monaserver.converter.toSeasonItemDto
 import de.lrprojects.monaserver.converter.toUserSeason
 import de.lrprojects.monaserver.entity.Season
+import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.GroupSeasonRepository
 import de.lrprojects.monaserver.repository.SeasonRepository
+import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.repository.UserSeasonRepository
-import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver.service.api.SeasonService
-import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.model.SeasonItemDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
@@ -26,8 +26,8 @@ class SeasonServiceImpl (
     private val groupSeasonRepository: GroupSeasonRepository,
     private val seasonRepository: SeasonRepository,
     private val rankingService: RankingService,
-    private val userService: UserService,
-    private val groupService: GroupService
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository
 ): SeasonService {
 
     @Transactional
@@ -68,14 +68,14 @@ class SeasonServiceImpl (
     private fun saveUserSeason(month: Int, year: Int, season: Season) {
         val since = OffsetDateTime.of(year, month, 1, 0, 0, 0, 0, OffsetDateTime.now().offset)
         val ranking = rankingService.userRanking(null, null, null, since, null, Pageable.unpaged())
-            .map { it.toUserSeason(userService, season) }.toSet()
+            .map { it.toUserSeason(userRepository, season) }.toSet()
         userSeasonRepository.saveAll(ranking)
     }
 
     private fun saveGroupSeason(month: Int, year: Int, season: Season) {
         val since = OffsetDateTime.of(year, month, 1, 0, 0, 0, 0, OffsetDateTime.now().offset)
         val ranking = rankingService.groupRanking(null, null, null, since, null, Pageable.unpaged())
-            .map { it.toGroupSeason(groupService, season) }.toSet()
+            .map { it.toGroupSeason(groupRepository, season) }.toSet()
         groupSeasonRepository.saveAll(ranking)
     }
 

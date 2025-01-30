@@ -1,8 +1,9 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver.converter.toUserUpdateDto
+import de.lrprojects.monaserver.converter.toUserInfoDto
 import de.lrprojects.monaserver.converter.toXpDto
 import de.lrprojects.monaserver.service.api.AchievementService
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver_api.api.UsersApiDelegate
 import de.lrprojects.monaserver_api.model.UserAchievementsDtoInner
@@ -19,7 +20,8 @@ import java.util.*
 @Component
 class UserController(
     private val userService: UserService,
-    private val achievementService: AchievementService
+    private val achievementService: AchievementService,
+    private val seasonService: SeasonService
 ) : UsersApiDelegate {
 
     companion object {
@@ -74,7 +76,7 @@ class UserController(
         log.info("Attempting to get user with ID: $userId")
         val user = userService.getUser(userId)
         log.info("Retrieved user with ID: $userId")
-        return ResponseEntity.ok(user.toUserUpdateDto())
+        return ResponseEntity.ok(user.toUserInfoDto(seasonService))
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId)")
