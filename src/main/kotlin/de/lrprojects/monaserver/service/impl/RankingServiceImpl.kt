@@ -86,7 +86,7 @@ class RankingServiceImpl(
         return since
             ?: if (season == true) {
                 val now = OffsetDateTime.now()
-                OffsetDateTime.of(now.year, now.monthValue, 0, 0, 0, 0, 0, now.offset)
+                OffsetDateTime.of(now.year, now.monthValue, 1, 0, 0, 0, 0, now.offset)
             } else {
                 null
             }
