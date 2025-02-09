@@ -11,8 +11,6 @@ import io.minio.PutObjectArgs
 import io.minio.RemoveObjectArgs
 import io.minio.http.Method
 import org.slf4j.LoggerFactory
-import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
 import java.util.*
@@ -58,7 +56,6 @@ class ObjectServiceImpl(
         )
     }
 
-    @CacheEvict(value =["pinImage"], key = "{#pinId}")
     override fun deletePinObject(pinId: UUID) {
         deleteObject("pins/${pinId}.png")
     }
@@ -86,7 +83,6 @@ class ObjectServiceImpl(
         )
     }
 
-    @Cacheable(value = ["pinImage"], key = "#pin.id")
     override fun getObject(pin: Pin): String {
         return getObject("pins/${pin.id}.png")
     }

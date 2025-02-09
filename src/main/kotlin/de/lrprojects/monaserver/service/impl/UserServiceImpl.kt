@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.converter.setEmailConfirmationUrl
-import de.lrprojects.monaserver.converter.toUserUpdateDto
+import de.lrprojects.monaserver.converter.toUserInfoDto
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.EmailNotConfirmedException
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
@@ -15,6 +15,7 @@ import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
@@ -24,8 +25,6 @@ import de.lrprojects.monaserver_api.model.UserUpdateDto
 import de.lrprojects.monaserver_api.model.UserUpdateResponseDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
-import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Caching
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,21 +41,11 @@ class UserServiceImpl(
     private val passwordEncoder: PasswordEncoder,
     private val pinService: PinService,
     private val achievementRepository: AchievementRepository,
-    private val emailService: EmailService
+    private val emailService: EmailService,
+    private val seasonService: SeasonService
 ): UserService {
 
     @Transactional
-    @Caching(
-        evict = [
-            CacheEvict(value = ["pinsByUser"], key = "#userId"),
-            CacheEvict(value = ["pinsByGroup"], allEntries = true),
-            CacheEvict(value = ["refreshToken"], allEntries = true),
-            CacheEvict(value = ["userGroups"], key = "#userId"),
-            CacheEvict(value = ["isInGroup"], allEntries = true),
-            CacheEvict(value = ["groupsByPin"], allEntries = true),
-            CacheEvict(value = ["pinImage"], allEntries = true),
-        ]
-    )
     override fun deleteUser(userId: UUID, code: Int) {
         val user = userRepository.findByIdAndCode(userId, code.toString())
             .orElseThrow { EntityNotFoundException("user and code in this combination do not exist") }
@@ -107,7 +96,7 @@ class UserServiceImpl(
 
         return UserUpdateResponseDto().also {
             it.userTokenDto = tokenResponse
-            it.userInfoDto = userEntity.toUserUpdateDto()
+            it.userInfoDto = userEntity.toUserInfoDto(seasonService)
         }
     }
 
@@ -174,7 +163,7 @@ class UserServiceImpl(
     }
 
     override fun getUserByRecoverUrl(recoverUrl: String): User {
-        val list = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull();
+        val list = userRepository.findByResetPasswordUrl(recoverUrl).firstOrNull()
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
@@ -186,7 +175,7 @@ class UserServiceImpl(
     }
 
     override fun getUserByDeletionUrl(deletionUrl: String): User {
-        val list = userRepository.findByDeletionUrl(deletionUrl).firstOrNull();
+        val list = userRepository.findByDeletionUrl(deletionUrl).firstOrNull()
         if (list == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {
@@ -198,7 +187,7 @@ class UserServiceImpl(
     }
 
     override fun getUserByEmailConfirmationUrl(deletionUrl: String): User {
-        val user = userRepository.findByEmailConfirmationUrl(deletionUrl).firstOrNull();
+        val user = userRepository.findByEmailConfirmationUrl(deletionUrl).firstOrNull()
         if (user == null) {
             throw UserNotFoundException("user with this reset url does not exist")
         } else {

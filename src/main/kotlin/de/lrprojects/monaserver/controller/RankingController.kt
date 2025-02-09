@@ -38,16 +38,17 @@ class RankingController(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         page: Int?,
         size: Int
     ): ResponseEntity<MutableList<GroupRankingDtoInner>> {
-        log.info("Attempting to get group ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since")
+        log.info("Attempting to get group ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since, season: $season")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
         } else {
             Pageable.unpaged()
         }
-        val result = rankingService.groupRanking(gid0, gid1, gid2, since, pageable)
+        val result = rankingService.groupRanking(gid0, gid1, gid2, since, season, pageable)
         log.info("Retrieved group ranking")
         return ResponseEntity.ok(result)
     }
@@ -58,16 +59,17 @@ class RankingController(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
+        season: Boolean?,
         page: Int?,
         size: Int
     ): ResponseEntity<MutableList<UserRankingDtoInner>> {
-        log.info("Attempting to get user ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since")
+        log.info("Attempting to get user ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since, season: $season")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
         } else {
             Pageable.unpaged()
         }
-        val result = rankingService.userRanking(gid0, gid1, gid2, since, pageable)
+        val result = rankingService.userRanking(gid0, gid1, gid2, since, season, pageable)
         log.info("Retrieved user ranking")
         return ResponseEntity.ok(result)
     }

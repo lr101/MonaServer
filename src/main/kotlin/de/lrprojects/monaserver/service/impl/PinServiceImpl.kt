@@ -17,8 +17,6 @@ import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
-import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -55,7 +53,6 @@ class PinServiceImpl(
     }
 
     @Transactional
-    @CacheEvict(value = ["pinById"], key = "{#pinId}")
     override fun deletePin(pinId: UUID) {
         pinRepository.deleteById(pinId)
         objectService.deletePinObject(pinId)
@@ -79,7 +76,6 @@ class PinServiceImpl(
         return pinRepository.findAllByUser(user)
     }
 
-    @Cacheable(value = ["pinById"], key = "{#pinId}")
     override fun getPin(pinId: UUID): Pin {
         return pinRepository.findById(pinId).orElseThrow { EntityNotFoundException("pin not found") }
     }

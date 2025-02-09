@@ -1,4 +1,4 @@
-package de.lrprojects.monaserver.helper
+package de.lrprojects.monaserver.entity.keys
 
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.User

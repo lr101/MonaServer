@@ -34,6 +34,9 @@ jobs:
           echo "<servers><server><id>github</id><username>lr101</username><password>${{ secrets.GH_TOKEN }}</password></server></servers>" >> ~/.m2/settings.xml
           echo "</settings>" >> ~/.m2/settings.xml
 
+      - name: Test
+        run: mvn test
+
       - name: Build Docker image
         run: mvn spring-boot:build-image -Dspring-boot.build-image.imageName=lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }} --settings ~/.m2/settings.xml
         # Replace "my-spring-boot-app" with your desired image name
