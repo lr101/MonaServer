@@ -2,11 +2,11 @@ package de.lrprojects.monaserver.service.impl
 
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Member
+import de.lrprojects.monaserver.entity.keys.EmbeddedMemberKey
 import de.lrprojects.monaserver.excepetion.ComparisonException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.helper.EmbeddedMemberKey
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.MemberRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -16,9 +16,7 @@ import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUser
 import de.lrprojects.monaserver_api.model.MemberResponseDto
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
-import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
-import org.springframework.cache.annotation.Caching
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -33,11 +31,6 @@ class MemberServiceImpl(
 ): MemberService {
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class, ComparisonException::class)
-    @Caching( evict = [
-        CacheEvict(value = ["userGroups"], key = "#userId"),
-        CacheEvict(value = ["isInGroup"], key = "{#groupId, #userId}"),
-        CacheEvict(value = ["groupRanking"], key = "#groupId")
-    ])
     override fun addMember(userId: UUID, groupId: UUID, inviteUrl: String?): Group {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
@@ -69,12 +62,6 @@ class MemberServiceImpl(
 
     @Throws(EntityNotFoundException::class, UserNotFoundException::class)
     @Transactional
-    @Caching(
-        evict = [
-            CacheEvict(value = ["userGroups"], key = "#userId"),
-            CacheEvict(value = ["isInGroup"], key = "{#groupId, #userId}"),
-        ]
-    )
     override fun deleteMember(userId: UUID, groupId: UUID) {
         val group = groupRepository.findById(groupId)
             .orElseThrow { EntityNotFoundException("Group not found") }
@@ -94,7 +81,6 @@ class MemberServiceImpl(
     }
 
     @Throws(UserNotFoundException::class)
-    @Cacheable(value = ["userGroups"], key = "#userId")
     override fun getGroupsOfUser(userId: UUID): List<Group> {
         val user = userRepository.findById(userId).orElseThrow { UserNotFoundException("User not found") }
         val users = mutableSetOf(user)
@@ -107,7 +93,6 @@ class MemberServiceImpl(
         return groupRepository.findAllByMembersInOrVisibility(mutableSetOf(users), 0)
     }
 
-    @Cacheable(value = ["isInGroup"], key = "{#group.id, #userId}")
     override fun isInGroup(group: Group, userId: UUID): Boolean {
         return memberRepository.existsById_Group_IdAndId_User_Id(group.id!!, userId)
     }

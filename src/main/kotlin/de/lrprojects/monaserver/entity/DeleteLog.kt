@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.entity
 
-import de.lrprojects.monaserver.helper.EmbeddedDeletedEntityKey
+import de.lrprojects.monaserver.entity.keys.EmbeddedDeletedEntityKey
 import de.lrprojects.monaserver.properties.DbConstants.DELETE_LOG
 import jakarta.persistence.Column
 import jakarta.persistence.EmbeddedId

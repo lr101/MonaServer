@@ -3,14 +3,16 @@ package de.lrprojects.monaserver.converter
 import de.lrprojects.monaserver.config.ConstConfig
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.helper.SecurityHelper
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.types.LevelType
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserXpDto
 
 
-fun User.toUserUpdateDto() = UserInfoDto(this.username, this.id!!).also {
+fun User.toUserInfoDto(seasonService: SeasonService) = UserInfoDto(this.username, this.id!!).also {
     it.description = this.description
     it.selectedBatch = this.selectedBatch?.achievementId
+    it.bestSeason = seasonService.getBestUserSeason(this.id!!)
 }
 
 fun User.toXpDto() = UserXpDto().also {

@@ -30,5 +30,6 @@ object DbConstants {
     const val MEMBER_GROUP = "id.group"
     const val MEMBER_USER = "id.user"
     const val USER = "user"
+    const val GROUP = "group"
 
 }

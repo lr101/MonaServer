@@ -5,6 +5,7 @@ import de.lrprojects.monaserver.service.api.DeleteLogService
 import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.types.XpType
 import de.lrprojects.monaserver_api.api.GroupsApiDelegate
@@ -28,7 +29,8 @@ class GroupController(
     private val deleteLogService: DeleteLogService,
     private val memberService: MemberService,
     private val objectService: ObjectService,
-    private val userService: UserService
+    private val userService: UserService,
+    private val seasonService: SeasonService
 ) : GroupsApiDelegate {
 
     companion object {
@@ -41,7 +43,7 @@ class GroupController(
         val result = groupService.addGroup(createGroupDto)
         userService.addXp(createGroupDto.groupAdmin, XpType.CREATE_GROUP_XP)
         log.info("Group added with admin: ${createGroupDto.groupAdmin}")
-        return ResponseEntity(result.toGroupDto(memberService, true, objectService), HttpStatus.CREATED)
+        return ResponseEntity(result.toGroupDto(memberService, true, objectService, null), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
@@ -56,7 +58,8 @@ class GroupController(
         log.info("Attempting to get group with ID: $groupId")
         val result = groupService.getGroup(groupId)
         log.info("Retrieved group with ID: $groupId")
-        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService))
+        val seasonItemDto = seasonService.getBestGroupSeason(groupId)
+        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService, seasonItemDto))
     }
 
     @PreAuthorize("@guard.isGroupVisible(authentication, #groupId)")
@@ -93,9 +96,9 @@ class GroupController(
         }
         val result = groupService
             .getGroupsByIds(ids, search, withUser, userId, updatedAfter, pageable)
-            .map { it.toGroupDto(memberService, withImages, objectService) }
+            .map { it.toGroupDto(memberService, withImages, objectService, seasonService.getBestGroupSeason(it.id!!)) }
             .toMutableList()
-        var deletedGroups = emptyList<UUID>();
+        var deletedGroups = emptyList<UUID>()
         if (updatedAfter != null) {
             deletedGroups = deleteLogService.getDeletedGroups(updatedAfter)
         }
@@ -145,6 +148,7 @@ class GroupController(
         log.info("Attempting to update group with ID: $groupId")
         val result = groupService.updateGroup(groupId, updateGroup)
         log.info("Updated group with ID: $groupId")
-        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService))
+        val seasonItemDto = seasonService.getBestGroupSeason(groupId)
+        return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService, seasonItemDto))
     }
 }

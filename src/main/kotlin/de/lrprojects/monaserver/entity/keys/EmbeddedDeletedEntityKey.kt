@@ -1,5 +1,6 @@
-package de.lrprojects.monaserver.helper
+package de.lrprojects.monaserver.entity.keys
 
+import de.lrprojects.monaserver.types.DeletedEntityType
 import jakarta.persistence.Embeddable
 import java.io.Serializable
 import java.util.*

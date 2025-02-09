@@ -4,6 +4,7 @@ import de.lrprojects.monaserver.converter.toGroupDto
 import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver_api.api.MembersApiDelegate
 import de.lrprojects.monaserver_api.model.GroupDto
 import de.lrprojects.monaserver_api.model.MemberResponseDto
@@ -17,7 +18,8 @@ import java.util.*
 @Component
 class MemberController(
     private val memberService: MemberService,
-    private val objectService: ObjectService
+    private val objectService: ObjectService,
+    private val seasonService: SeasonService
 ) : MembersApiDelegate {
 
     companion object {
@@ -32,7 +34,8 @@ class MemberController(
         log.info("User $userId attempting to join group $groupId with inviteUrl: $inviteUrl")
         val group = memberService.addMember(userId, groupId, inviteUrl)
         log.info("User $userId joined group $groupId")
-        return ResponseEntity(group.toGroupDto(memberService, true, objectService), HttpStatus.CREATED)
+        val seasonItemDto = seasonService.getBestGroupSeason(groupId)
+        return ResponseEntity(group.toGroupDto(memberService, true, objectService, seasonItemDto), HttpStatus.CREATED)
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")

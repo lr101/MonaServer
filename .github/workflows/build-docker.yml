@@ -24,6 +24,8 @@ jobs:
           echo "<servers><server><id>github</id><username>lr101</username><password>${{ secrets.GH_TOKEN }}</password></server></servers>" >> ~/.m2/settings.xml
           echo "</settings>" >> ~/.m2/settings.xml
 
+      - name: Test
+        run: mvn test
       - name: Build Spring Boot Docker image
         run: mvn spring-boot:build-image
 

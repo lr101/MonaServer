@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.service.impl
 
-import de.lrprojects.monaserver.helper.DeletedEntityType
+import de.lrprojects.monaserver.types.DeletedEntityType
 import de.lrprojects.monaserver.repository.DeleteLogRepository
 import de.lrprojects.monaserver.service.api.DeleteLogService
 import org.springframework.stereotype.Service
