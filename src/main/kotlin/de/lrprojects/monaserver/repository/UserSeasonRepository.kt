@@ -16,7 +16,7 @@ interface UserSeasonRepository : JpaRepository<UserSeason, UUID> {
         value = """
             SELECT us.* FROM users_seasons us
             WHERE us.user_id = :userId
-            ORDER BY us.rank DESC LIMIT 1
+            ORDER BY us.rank, us.number_of_pins DESC LIMIT 1
         """, nativeQuery = true
     )
     fun findBestSeasonOfUser(@Param("userId") userId: UUID): UserSeason?

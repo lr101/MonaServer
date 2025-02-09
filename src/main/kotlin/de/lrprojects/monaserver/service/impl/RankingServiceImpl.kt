@@ -11,7 +11,6 @@ import de.lrprojects.monaserver_api.model.MapInfoDto
 import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserRankingDtoInner
-import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
@@ -23,7 +22,6 @@ class RankingServiceImpl(
     private val boundaryRepository: BoundaryRepository
 ): RankingService {
 
-    @Cacheable(value = ["geojson"], key = "#gid2")
     override fun getGeoJson(gid2: String): List<String> {
             return boundaryRepository.getGeoJsonFromGid(gid2)
     }

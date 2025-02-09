@@ -52,13 +52,26 @@ MINIO_ROOT_USER: admin
 MINIO_ROOT_PASSWORD: <MINIO_CONSOLE_ADMIN_PASSWORD>
 MINIO_PORT=9000
 MINIO_CONSOLE_PORT=9001
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=<REDIS_PASSWORD>
 ```
 3. Add your mail login data, public facing app url and minio information and a redis password
     - You might need to start the minio container to create your access key through the admin console: `docker compose up minio`
 4. Run `docker-compose up` to  start all services
+
+### Optional
+
+1. Add influx for monitoring by setting the following values in your `.env`:
+   ```.dotenv
+   INFLUX_ENABLED=true
+   INFLUX_TOKEN=
+   INFLUX_BUCKET=
+   INFLUX_ORG=
+   INFLUX_URL=
+   ```
+2. Add the following achievement thresholds in your `.env`:
+   ```.dotenv
+   ACHIEVEMENT_MONA_GROUP_ID=<UUID>
+   ACHIEVEMENT_CREATED_BEFORE<DATE> # in format ex: 2023-12-10T02:43:44.402768+00:00
+   ```
 
 
 ### Development setup (in IntelliJ)
@@ -68,32 +81,9 @@ REDIS_PASSWORD=<REDIS_PASSWORD>
 3. Set the SDK Version to 17 in the *Project Structure* setting
 4. Create a .env file in the root of the project:
 ```dotenv
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=root
-POSTGRES_DB=sticker
-PORT=8081
-ADMIN_ACCOUNT_NAME=admin
 DB_URL=jdbc:postgresql://db:5432/sticker
-MAIL_PASSWORD=<YOUR MAIL PASSWORD>
-MAIL_USERNAME=<YOUR MAIL USERNAME>
-MAIL_HOST=<YOUR EMAIL SERVER HOST>
-MAIL_PORT=<YOUR EMAIL SERVER PORT>
-MAIL_FROM=<YOUR EMAIL> # when setting --Stick-It Map <YOUR EMAIL>-- the name will be shown
-MAIL_BATCH_SIZE=25 # number of emails to send in the MAIL_BATCH_DURATION timeframe
-MAIL_BATCH_DURATION=60 # in minutes
-MAIL_PROTOCOL=smtp
 APP_URL=http://localhost:8081 # Set to public facing domain
-MINIO_ACCESS_KEY=<MINIO_ACCESS_KEY>
-MINIO_SECRET_KEY=<MINIO_SECRET_KEY>
-MINIO_ENDPOINT=https://minio.example.com # Set to public facing minio domain
-MINIO_BUCKET=<MINIO_BUCKET_NAME>
-MINIO_ROOT_USER: admin
-MINIO_ROOT_PASSWORD: <MINIO_CONSOLE_ADMIN_PASSWORD>
-MINIO_PORT=9000
-MINIO_CONSOLE_PORT=9001
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=<REDIS_PASSWORD>
+MINIO_ENDPOINT=http://localhost:9000 # Set to public facing minio domain
 ```
 5. Create a database in an already running instance or start the db in the [docker-compose](docker-compose.yml) file
 6. Run the server via the main method

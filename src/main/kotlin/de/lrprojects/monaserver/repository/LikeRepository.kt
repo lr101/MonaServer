@@ -23,28 +23,31 @@ interface LikeRepository : JpaRepository<Like, UUID> {
 
     @Query(
         """
-        SELECT COUNT(l) FROM Like l
-        WHERE l.pin.user.id = :userId AND l.likeAll = true
-        """
-    )
+        SELECT COUNT(l) FROM likes l
+        JOIN pins p on l.pin_id = p.id
+        WHERE p.creator_id = :userId AND l.like_all = true
+        """, nativeQuery = true)
     fun countLikeByPinCreator(userId: UUID): Int
 
     @Query("""
-        SELECT COUNT(l) FROM Like l
-        WHERE l.pin.user.id = :userId AND l.likeLocation = true
-        """)
+        SELECT COUNT(l) FROM likes l
+        JOIN pins p on l.pin_id = p.id
+        WHERE p.creator_id = :userId AND l.like_location = true
+        """, nativeQuery = true)
     fun countLikeLocationByCreator(userId: UUID): Int
 
     @Query("""
-        SELECT COUNT(l) FROM Like l
-        WHERE l.pin.user.id = :userId AND l.likeArt = true
-        """)
+        SELECT COUNT(l) FROM likes l
+        JOIN pins p on l.pin_id = p.id
+        WHERE p.creator_id = :userId AND l.like_art = true
+        """, nativeQuery = true)
     fun countLikeArtByCreator(userId: UUID): Int
 
     @Query("""
-        SELECT COUNT(l) FROM Like l
-        WHERE l.pin.user.id = :userId AND l.likePhotography = true
-        """)
+        SELECT COUNT(l) FROM likes l
+        JOIN pins p on l.pin_id = p.id
+        WHERE p.creator_id = :userId AND l.like_photography = true
+        """, nativeQuery = true)
     fun countLikePhotographyByCreator(userId: UUID): Int
 
 }
