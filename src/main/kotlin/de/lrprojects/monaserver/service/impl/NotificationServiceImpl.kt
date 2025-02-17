@@ -4,18 +4,19 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.Notification
-import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.repository.UserRepository
-import de.lrprojects.monaserver.service.api.MessagingService
+import de.lrprojects.monaserver.service.api.NotificationService
 import org.springframework.stereotype.Service
+import java.util.*
+import kotlin.jvm.optionals.getOrNull
 
 @Service
-class MessagingServiceImpl(
+class NotificationServiceImpl(
     private val fcm: FirebaseMessaging,
     private val userRepository: UserRepository
-): MessagingService {
+): NotificationService {
 
-    override fun sendMessageToTopics(body: String, title: String, topic: String) {
+    override fun sendNotificationToTopics(body: String, title: String, topic: String) {
         log.info("Attempting to send message $title to topic: $topic")
         val msg = Message.builder()
             .setNotification(getNotification(title, body))
@@ -28,22 +29,24 @@ class MessagingServiceImpl(
         }
     }
 
-    override fun sendMessageToUser(body: String, title: String, user: User) {
-        log.info("Attempting to send message $title to user: ${user.username}")
-        if (user.firebaseToken.isNullOrEmpty()) {
-            log.info("User ${user.username} does not have a firebase token")
+    override fun sendNotificationToUser(body: String, title: String, userId: UUID, firebaseToken: String?) {
+        log.info("Attempting to send message $title to user: $userId")
+        if (firebaseToken == null) {
+            log.info("User $userId does not have a firebase token")
         } else {
             try {
                 val msg = Message.builder()
-                    .setToken(user.firebaseToken)
+                    .setToken(firebaseToken)
                     .setNotification(getNotification(title, body))
                     .build()
 
                 fcm.send(msg)
             } catch (e: FirebaseMessagingException) {
-                log.warn("Failed to send message to user ${user.username}: ${e.message}. Resetting token.")
-                user.firebaseToken = null
-                userRepository.save(user)
+                log.warn("Failed to send message to user $userId: ${e.message}. Resetting token.")
+                userRepository.findById(userId).getOrNull()?.let {
+                    it.firebaseToken = null
+                    userRepository.save(it)
+                }
             }
         }
     }
