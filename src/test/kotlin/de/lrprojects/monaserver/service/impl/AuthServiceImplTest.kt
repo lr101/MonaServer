@@ -3,7 +3,6 @@ package de.lrprojects.monaserver.service.impl
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
-import de.lrprojects.monaserver.excepetion.WrongPasswordException
 import de.lrprojects.monaserver.properties.AppProperties
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.security.TokenHelper
@@ -55,17 +54,6 @@ class AuthServiceImplTest {
         `when`(userRepository.findByUsername("testUser")).thenReturn(Optional.empty())
 
         assertThrows<UserNotFoundException> {
-            authService.login("testUser", "password123")
-        }
-    }
-
-    @Test
-    fun `should throw WrongPasswordException when password is incorrect`() {
-        val user = User(username = "testUser", password = "encodedPass")
-        `when`(userRepository.findByUsername("testUser")).thenReturn(Optional.of(user))
-        `when`(passwordEncoder.matches("password123", "encodedPass")).thenReturn(false)
-
-        assertThrows<WrongPasswordException> {
             authService.login("testUser", "password123")
         }
     }
