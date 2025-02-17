@@ -7,12 +7,14 @@ import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.types.LevelType
 import de.lrprojects.monaserver_api.model.UserInfoDto
 import de.lrprojects.monaserver_api.model.UserXpDto
+import org.springframework.security.core.context.SecurityContextHolder
 
 
 fun User.toUserInfoDto(seasonService: SeasonService) = UserInfoDto(this.username, this.id!!).also {
     it.description = this.description
     it.selectedBatch = this.selectedBatch?.achievementId
     it.bestSeason = seasonService.getBestUserSeason(this.id!!)
+    it.isMessagingRegistered = if(SecurityContextHolder.getContext().authentication.name == this.id.toString()) this.firebaseToken != null else false
 }
 
 fun User.toXpDto() = UserXpDto().also {
