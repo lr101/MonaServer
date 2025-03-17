@@ -53,4 +53,5 @@ buildDocker.bat
 /backup/
 /docker-compose-local.yml
 /batch-mail-templates/
+/minio/
 /stick-it-map-firebase-*.json
