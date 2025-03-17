@@ -9,17 +9,21 @@
 
 ## What is it for?
 
-This **spring boot** application is the communicating backend server for the app [Stick-It: Geomap](https://lr-projects.de/en/index.html) which can be found in the following [repo](https://github.com/lr101/stick-it).
+This **spring boot** application is the communicating backend server for the app [Stick-It Map](https://stick-it-map.lr-projects.de) which can be found in the following [repo](https://github.com/lr101/stick-it).
 The app allows sharing stickers in groups by geotagging images. 
 
 ## TechStack
+
+The packend server is written in **kotlin** using **spring boot**.
 
 It uses a **postgres** (with postgis extension for localization of different boundaries up to administrative 2 zones) database as its storage medium and implements refresh and jwt-auth tokens for login and authentication purposes. The **openapi** definition can be found in this [repo](https://github.com/lr101/MonaServerApi) or when starting the server under `/public/swagger-ui/index.html`
 Using GitHub actions a docker image is always available at Docker Hub [here](https://hub.docker.com/repository/docker/lrprojects/stick-it-server/general).
 
 For image storage a **minio** bucket is used. Everything can be hosted locally and set up with this repo.
 
-For fun (and maybe a teeny bit of performance improvement) the fast in memory cache **redis** is used.
+For logging the application logs are written to a **logback** file and metric data is optionally published into **influxdb** which can be displayed using **grafana**.
+
+All services are supposed to be running in docker containers using the provided docker compose file.
 
 ## How to run
 
@@ -53,8 +57,11 @@ MINIO_ROOT_PASSWORD: <MINIO_CONSOLE_ADMIN_PASSWORD>
 MINIO_PORT=9000
 MINIO_CONSOLE_PORT=9001
 ```
-3. Add your mail login data, public facing app url and minio information and a redis password
+3. Add your mail login data, public facing app url and minio information
     - You might need to start the minio container to create your access key through the admin console: `docker compose up minio`
+    - Navigate to the minio console at http://localhost:9001 and login using the specified MINIO_ROOT_PASSWORD
+    - Create a bucket with the same name as the MINIO_BUCKET_NAME
+    - Create an access token and add it to your `.env`
 4. Run `docker-compose up` to  start all services
 
 ### Optional
@@ -81,8 +88,8 @@ MINIO_CONSOLE_PORT=9001
 3. Set the SDK Version to 17 in the *Project Structure* setting
 4. Create a .env file in the root of the project:
 ```dotenv
-DB_URL=jdbc:postgresql://db:5432/sticker
-APP_URL=http://localhost:8081 # Set to public facing domain
+DB_URL=jdbc:postgresql://localhost:5432/sticker
+APP_URL=http://localhost:8080 # Set to public facing domain
 MINIO_ENDPOINT=http://localhost:9000 # Set to public facing minio domain
 ```
 5. Create a database in an already running instance or start the db in the [docker-compose](docker-compose.yml) file

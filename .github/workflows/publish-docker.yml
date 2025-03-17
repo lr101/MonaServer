@@ -55,4 +55,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Publish Docker image to Docker Hub
-        run: docker push lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }}
+        run: |
+          docker push lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }}
+          docker push lrprojects/stick-it-server:latest
