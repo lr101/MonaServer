@@ -20,7 +20,7 @@
 		<jackson.version>2.18.3</jackson.version>
 		<monaserverapi.version>1.0.14</monaserverapi.version>
 		<springdoc.version>2.8.5</springdoc.version>
-		<springcore.version>6.2.4</springcore.version>
+		<springcore.version>6.2.5</springcore.version>
 		<flyway.version>11.3.4</flyway.version>
 		<jsonwebtoken.version>0.12.6</jsonwebtoken.version>
 		<com.auth0.java-jwt.version>4.5.0</com.auth0.java-jwt.version>
