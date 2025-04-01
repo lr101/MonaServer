@@ -55,3 +55,4 @@ buildDocker.bat
 /batch-mail-templates/
 /minio/
 /stick-it-map-firebase-*.json
+/secrets/

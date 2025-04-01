@@ -48,12 +48,14 @@ interface PinRepository : JpaRepository<Pin, UUID> {
         FROM users u
         JOIN members m ON m.user_id = u.id
         JOIN pins p ON m.group_id = p.group_id
-        WHERE p.creation_date > 
+        WHERE 
+            p.creator_id != u.id
+            AND u.firebase_token IS NOT NULL
+            AND p.creation_date > 
             (SELECT rt.last_active_date 
                 FROM refresh_token rt 
                 WHERE u.id = rt.user_id
                 ORDER BY rt.last_active_date DESC LIMIT 1) 
-            AND u.firebase_token IS NOT NULL
         GROUP BY u.id, u.firebase_token
         """)
     fun findAllByCreationDateAfterRefreshToken(): List<Array<Any>>

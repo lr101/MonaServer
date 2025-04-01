@@ -17,20 +17,16 @@ class NotificationServiceImpl(
 ): NotificationService {
 
     override fun sendNotificationToTopics(body: String, title: String, topic: String) {
-        log.info("Attempting to send message $title to topic: $topic")
+        log.info("Attempting to send message '$title' to topic: $topic")
         val msg = Message.builder()
             .setNotification(getNotification(title, body))
             .setTopic(topic)
             .build()
-        try {
-            fcm.send(msg)
-        }  catch (e: FirebaseMessagingException) {
-            log.error("Error creating notification for topic $topic: ${e.message}")
-        }
+        fcm.send(msg)
     }
 
     override fun sendNotificationToUser(body: String, title: String, userId: UUID, firebaseToken: String?) {
-        log.info("Attempting to send message $title to user: $userId")
+        log.info("Attempting to send message '$title' to user: $userId")
         if (firebaseToken == null) {
             log.info("User $userId does not have a firebase token")
         } else {
