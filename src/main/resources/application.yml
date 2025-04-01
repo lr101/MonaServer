@@ -76,6 +76,7 @@ app:
   config:
     url: ${APP_URL}
     maxLoginAttempts: ${MAX_LOGIN_ATTEMPTS:10}
+    firebase-config-path: ${FIREBASE_CONFIG_PATH}
   token:
     access-token-exploration: ${ACCESS_TOKEN_EXPIRATION:900}  # 15 min
     refresh-token-exploration: ${REFRESH_TOKEN_EXPIRATION:31556952}   # 1 year

@@ -82,7 +82,7 @@ class UserServiceImpl(
 
     @Transactional
     override fun updateUser(userId: UUID, user: UserUpdateDto): UserUpdateResponseDto {
-        val userEntity = getUser(userId)
+        var userEntity = getUser(userId)
         var tokenResponse: TokenResponseDto? = null
 
         if (user.email != null) updateUserEmail(user, userEntity)
@@ -90,8 +90,9 @@ class UserServiceImpl(
         if (user.description != null) userEntity.description = user.description
         if (user.selectedBatch != null) updateUserBatch(userId, user, userEntity)
         if (user.username != null) updateUserUsername(user, userEntity)
+        if (user.messagingToken != null) userEntity.firebaseToken = user.messagingToken
 
-        userRepository.save(userEntity)
+        userEntity = userRepository.save(userEntity)
         if (user.email != null) sendEmailConfirmation(userEntity)
 
         return UserUpdateResponseDto().also {

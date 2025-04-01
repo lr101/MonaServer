@@ -9,7 +9,6 @@ import de.lrprojects.monaserver_api.model.CreateLikeDto
 import de.lrprojects.monaserver_api.model.PinLikeDto
 import de.lrprojects.monaserver_api.model.UserLikesDto
 import jakarta.transaction.Transactional
-import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -18,7 +17,6 @@ class LikeServiceImpl(
     private val likeRepository: LikeRepository,
     private val userService: UserService,
     private val pinService: PinService,
-    private val cacheManager: CacheManager
 ): LikeService {
 
     override fun likeCountByPin(pinId: UUID, userId: UUID): PinLikeDto {
