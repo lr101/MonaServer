@@ -81,6 +81,9 @@ data class User (
     @Column
     var xp: Int = 0,
 
+    @Column
+    var firebaseToken: String? = null,
+
     @JoinColumn(name = SELECTED_BATCH, referencedColumnName = ID)
     @ManyToOne(fetch = FetchType.EAGER, cascade = [CascadeType.ALL])
     var selectedBatch: UserAchievement? = null,
@@ -110,7 +113,7 @@ data class User (
 
 
     @Transient
-    private var dataSource: DataSource? = null
+    private var dataSource: DataSource? = null,
 
 ): PreDeleteEntity() {
 

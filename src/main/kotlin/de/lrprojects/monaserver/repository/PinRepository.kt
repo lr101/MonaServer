@@ -43,6 +43,23 @@ interface PinRepository : JpaRepository<Pin, UUID> {
     @Query("SELECT p.id FROM Pin p WHERE p.user = :user")
     fun findAllByUser(user: User): List<UUID>
 
+    @Query(nativeQuery = true, value = """
+        SELECT u.id, u.firebase_token, COUNT(DISTINCT p.id)
+        FROM users u
+        JOIN members m ON m.user_id = u.id
+        JOIN pins p ON m.group_id = p.group_id
+        WHERE 
+            p.creator_id != u.id
+            AND u.firebase_token IS NOT NULL
+            AND p.creation_date > 
+            (SELECT rt.last_active_date 
+                FROM refresh_token rt 
+                WHERE u.id = rt.user_id
+                ORDER BY rt.last_active_date DESC LIMIT 1) 
+        GROUP BY u.id, u.firebase_token
+        """)
+    fun findAllByCreationDateAfterRefreshToken(): List<Array<Any>>
+
     fun findByCreationDateAndUserAndLatitudeAndLongitude(creationDate: OffsetDateTime, user: User,latitude: Double, longitude: Double): Optional<Pin>
 
 }

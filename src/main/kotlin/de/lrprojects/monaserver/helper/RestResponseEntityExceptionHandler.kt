@@ -1,15 +1,7 @@
 package de.lrprojects.monaserver.helper
 
-import de.lrprojects.monaserver.excepetion.AlreadyExistException
-import de.lrprojects.monaserver.excepetion.AssertException
-import de.lrprojects.monaserver.excepetion.AttributeDoesNotExist
-import de.lrprojects.monaserver.excepetion.ComparisonException
-import de.lrprojects.monaserver.excepetion.EmailNotConfirmedException
-import de.lrprojects.monaserver.excepetion.ImageProcessingException
-import de.lrprojects.monaserver.excepetion.MailException
-import de.lrprojects.monaserver.excepetion.TimeExpiredException
-import de.lrprojects.monaserver.excepetion.UserExistsException
-import de.lrprojects.monaserver.excepetion.UserNotFoundException
+import com.google.firebase.messaging.FirebaseMessagingException
+import de.lrprojects.monaserver.excepetion.*
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
@@ -190,6 +182,19 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
             ex.message,
             HttpHeaders(),
             HttpStatus.CONFLICT,
+            request
+        )
+    }
+
+    @ExceptionHandler(FirebaseMessagingException::class)
+    protected fun handleFirebaseMessagingException(ex: FirebaseMessagingException, request: WebRequest): ResponseEntity<Any>? {
+        if (log.isWarnEnabled) log.warn("Error sending notification to topic: ${ex.message}")
+
+        return handleExceptionInternal(
+            ex,
+            ex.message,
+            HttpHeaders(),
+            HttpStatus.SERVICE_UNAVAILABLE,
             request
         )
     }
