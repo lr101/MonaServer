@@ -19,7 +19,7 @@
 		<kotlin.version>2.1.21</kotlin.version>
 		<jackson.version>2.19.1</jackson.version>
 		<monaserverapi.version>1.0.15-SNAPSHOT</monaserverapi.version>
-		<springdoc.version>2.8.8</springdoc.version>
+		<springdoc.version>2.8.9</springdoc.version>
 		<springcore.version>6.2.8</springcore.version>
 		<flyway.version>11.8.2</flyway.version>
 		<jsonwebtoken.version>0.12.6</jsonwebtoken.version>
