@@ -11,7 +11,7 @@ services:
       - minio
 
   db:
-    image: postgis/postgis:16-master
+    image: postgis/postgis:17-master
     restart: unless-stopped
     container_name: stick-it-db
     env_file:
