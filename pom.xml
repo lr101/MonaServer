@@ -20,7 +20,7 @@
 		<jackson.version>2.19.2</jackson.version>
 		<monaserverapi.version>1.0.15-SNAPSHOT</monaserverapi.version>
 		<springdoc.version>2.8.14</springdoc.version>
-		<springcore.version>6.2.11</springcore.version>
+		<springcore.version>6.2.12</springcore.version>
 		<flyway.version>11.11.0</flyway.version>
 		<jsonwebtoken.version>0.13.0</jsonwebtoken.version>
 		<com.auth0.java-jwt.version>4.5.0</com.auth0.java-jwt.version>
@@ -205,6 +205,11 @@
 			<groupId>net.coobird</groupId>
 			<artifactId>thumbnailator</artifactId>
 			<version>${thumbnailator.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp</artifactId>
+			<version>4.12.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito.kotlin</groupId>
