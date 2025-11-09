@@ -22,7 +22,7 @@
 		<springdoc.version>2.8.9</springdoc.version>
 		<springcore.version>6.2.11</springcore.version>
 		<flyway.version>11.11.0</flyway.version>
-		<jsonwebtoken.version>0.12.6</jsonwebtoken.version>
+		<jsonwebtoken.version>0.13.0</jsonwebtoken.version>
 		<com.auth0.java-jwt.version>4.5.0</com.auth0.java-jwt.version>
 		<minio.version>8.6.0</minio.version>
 		<thumbnailator.version>0.4.20</thumbnailator.version>
