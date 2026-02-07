@@ -33,7 +33,7 @@ class LikeController(
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
     override fun getPinLikes(pinId: UUID): ResponseEntity<PinLikeDto> {
         log.info("Attempting to get likes for pin with ID: $pinId")
-        return ResponseEntity.ok(likeService.likeCountByPin(pinId, UUID.fromString(SecurityContextHolder.getContext().authentication.name)))
+        return ResponseEntity.ok(likeService.likeCountByPin(pinId, UUID.fromString(SecurityContextHolder.getContext().authentication?.name)))
     }
 
     override fun getUserLikes(userId: UUID): ResponseEntity<UserLikesDto> {

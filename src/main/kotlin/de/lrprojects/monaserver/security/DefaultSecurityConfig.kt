@@ -59,12 +59,12 @@ class DefaultSecurityConfig (
     }
 
     @Bean
-    fun delegatingPasswordEncoder(): PasswordEncoder {
-        val defaultEncoder: PasswordEncoder = NoSaltPasswordEncoder()
+    fun passwordEncoder(): PasswordEncoder {
+        val bycrypt = BCryptPasswordEncoder()
         val encoders: MutableMap<String, PasswordEncoder> = HashMap()
-        encoders["bcrypt"] = BCryptPasswordEncoder()
+        encoders["bcrypt"] = bycrypt
         val passwordEncoder = DelegatingPasswordEncoder("bcrypt", encoders)
-        passwordEncoder.setDefaultPasswordEncoderForMatches(defaultEncoder)
+        passwordEncoder.setDefaultPasswordEncoderForMatches(bycrypt)
         return passwordEncoder
     }
 

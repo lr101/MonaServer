@@ -5,10 +5,6 @@ server:
     session:
       persistent: false
   forward-headers-strategy: native
-  error:
-    whitelabel:
-      enabled: false
-    include-stacktrace: never
 
 spring:
   config:
@@ -30,19 +26,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
-    baseline-version: 0.0.1
-    clean-disabled: false
-  jackson:
-    serialization:
-      WRITE_DATES_AS_TIMESTAMPS: false
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD}
-      repositories:
+  web:
+    error:
+      whitelabel:
         enabled: false
+      include-stacktrace: never
 
 management:
   influx:
@@ -70,7 +58,6 @@ app:
     password: ${MAIL_PASSWORD}
     username: ${MAIL_USERNAME}
     port: ${MAIL_PORT}
-    protocol: ${MAIL_PROTOCOL}
     batchSize: ${MAIL_BATCH_SIZE:25}
     batchDuration: ${MAIL_BATCH_DURATION:60}
   config:

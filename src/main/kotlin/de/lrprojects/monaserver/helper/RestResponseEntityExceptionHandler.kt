@@ -18,7 +18,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
 
 
     @ExceptionHandler(EntityNotFoundException::class)
-    protected fun handleEntityNotFoundException(ex: EntityNotFoundException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleEntityNotFoundException(ex: EntityNotFoundException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -31,7 +31,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(EmailNotConfirmedException::class)
-    protected fun handleEmailNotConfirmedException(ex: EmailNotConfirmedException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleEmailNotConfirmedException(ex: EmailNotConfirmedException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -44,7 +44,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(UserNotFoundException::class)
-    protected fun handleUserNotFoundException(ex: UserNotFoundException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleUserNotFoundException(ex: UserNotFoundException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -57,7 +57,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(UserExistsException::class)
-    protected fun handleUserExistsException(ex: UserExistsException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleUserExistsException(ex: UserExistsException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -70,7 +70,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(AttributeDoesNotExist::class)
-    protected fun handleAttributeDoesNotExist(ex: AttributeDoesNotExist, request: WebRequest): ResponseEntity<Any>? {
+    fun handleAttributeDoesNotExist(ex: AttributeDoesNotExist, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -83,7 +83,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(ImageProcessingException::class)
-    protected fun handleImageProcessingException(ex: ImageProcessingException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleImageProcessingException(ex: ImageProcessingException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -96,7 +96,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(MailException::class)
-    protected fun handleMailException(ex: MailException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleMailException(ex: MailException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -109,7 +109,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(ComparisonException::class)
-    protected fun handleComparisonException(ex: ComparisonException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleComparisonException(ex: ComparisonException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -122,7 +122,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(AssertException::class)
-    protected fun handleAssertException(ex: AssertException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleAssertException(ex: AssertException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -135,7 +135,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(DataIntegrityViolationException::class)
-    protected fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleDataIntegrityViolationException(ex: DataIntegrityViolationException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -148,7 +148,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(NullPointerException::class)
-    protected fun handleNullPointerException(ex: NullPointerException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleNullPointerException(ex: NullPointerException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.stackTraceToString())
 
         return handleExceptionInternal(
@@ -161,7 +161,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(TimeExpiredException::class)
-    protected fun handleTimeExpiredException(ex: TimeExpiredException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleTimeExpiredException(ex: TimeExpiredException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -174,7 +174,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(AlreadyExistException::class)
-    protected fun handleAlreadyExistsException(ex: AlreadyExistException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleAlreadyExistsException(ex: AlreadyExistException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info(ex.message)
 
         return handleExceptionInternal(
@@ -187,7 +187,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(FirebaseMessagingException::class)
-    protected fun handleFirebaseMessagingException(ex: FirebaseMessagingException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleFirebaseMessagingException(ex: FirebaseMessagingException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isWarnEnabled) log.warn("Error sending notification to topic: ${ex.message}")
 
         return handleExceptionInternal(
@@ -200,7 +200,7 @@ class RestResponseEntityExceptionHandler : ResponseEntityExceptionHandler() {
     }
 
     @ExceptionHandler(RuntimeException::class)
-    protected fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
+    fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
         if (log.isInfoEnabled) log.info("${ex.message} with cause: ${ex.cause?.message}")
 
         return handleExceptionInternal(

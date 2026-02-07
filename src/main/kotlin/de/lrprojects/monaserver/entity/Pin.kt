@@ -18,8 +18,6 @@ import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
-import jakarta.persistence.Temporal
-import jakarta.persistence.TemporalType
 import jakarta.persistence.Transient
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
@@ -36,11 +34,9 @@ class Pin (
     var longitude: Double = 0.0,
 
     @Column(nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
     var creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
     @Column
     var updateDate: OffsetDateTime? = null,
 

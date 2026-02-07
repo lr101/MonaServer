@@ -14,7 +14,7 @@ fun User.toUserInfoDto(seasonService: SeasonService) = UserInfoDto(this.username
     it.description = this.description
     it.selectedBatch = this.selectedBatch?.achievementId
     it.bestSeason = seasonService.getBestUserSeason(this.id!!)
-    it.isMessagingRegistered = if(SecurityContextHolder.getContext().authentication.name == this.id.toString()) this.firebaseToken != null else false
+    it.isMessagingRegistered = if(SecurityContextHolder.getContext().authentication?.name == this.id.toString()) this.firebaseToken != null else false
 }
 
 fun User.toXpDto() = UserXpDto().also {

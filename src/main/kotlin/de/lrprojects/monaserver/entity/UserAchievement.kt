@@ -10,8 +10,6 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
-import jakarta.persistence.Temporal
-import jakarta.persistence.TemporalType
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
@@ -23,25 +21,23 @@ data class UserAchievement (
     @GeneratedValue(generator = "UUID")
     val id: UUID? = null,
 
-    @Column
+    @Column(nullable = false)
     val achievementId: Int,
 
-    @JoinColumn(name = USER_ID, referencedColumnName = ID)
+    @JoinColumn(name = USER_ID, referencedColumnName = ID, nullable = false)
     @ManyToOne(cascade = [CascadeType.ALL])
     @JsonIgnore
     val user: User,
 
-    @Column
+    @Column(nullable = false)
     var claimed: Boolean,
 
     @CreationTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column
+    @Column(nullable = false)
     var creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column
+    @Column(nullable = false)
     var updateDate: OffsetDateTime? = null,
 ) {
     override fun equals(other: Any?): Boolean {

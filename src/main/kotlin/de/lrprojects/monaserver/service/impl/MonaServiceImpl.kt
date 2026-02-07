@@ -48,7 +48,7 @@ class MonaServiceImpl(
         updatedAfter: OffsetDateTime?,
         pageable: Pageable,
     ): Page<PinWithOptionalImageDto> {
-        val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication.name)
+        val authentication = UUID.fromString(SecurityContextHolder.getContext().authentication?.name)
         return pinRepository
             .getImagesFromIds(ids?.toTypedArray(), userId, groupId, authentication, updatedAfter, pageable)
             .map {
