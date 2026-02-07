@@ -15,7 +15,7 @@ class MinioConfig(
         return MinioClient.builder()
             .endpoint(minioProperties.endpoint)
             .credentials(minioProperties.accessKey, minioProperties.secretKey)
-            .build();
+            .build()
     }
 
 }
