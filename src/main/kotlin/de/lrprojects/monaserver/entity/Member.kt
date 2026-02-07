@@ -7,8 +7,6 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import jakarta.persistence.Temporal
-import jakarta.persistence.TemporalType
 import org.hibernate.annotations.CreationTimestamp
 import java.time.OffsetDateTime
 
@@ -20,12 +18,10 @@ data class Member (
     var id: EmbeddedMemberKey,
 
     @CreationTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
     @Column
     var creationDate: OffsetDateTime? = null,
 
     @CreationTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
     @Column
     var updateDate: OffsetDateTime? = null,
 

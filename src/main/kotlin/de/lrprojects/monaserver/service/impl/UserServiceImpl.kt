@@ -7,6 +7,7 @@ import de.lrprojects.monaserver.excepetion.EmailNotConfirmedException
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
+import de.lrprojects.monaserver.excepetion.WrongPasswordException
 import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.AchievementRepository
 import de.lrprojects.monaserver.repository.UserRepository
@@ -110,7 +111,8 @@ class UserServiceImpl(
     }
 
     private fun updateUserPassword(user: UserUpdateDto, userEntity: User): TokenResponseDto {
-        userEntity.password = passwordEncoder.encode(user.password)
+        userEntity.password = passwordEncoder.encode(user.password) ?: throw WrongPasswordException("password hashing failed")
+
         userEntity.resetPasswordUrl = null
         userEntity.resetPasswordExpiration = null
         userEntity.failedLoginAttempts = 0

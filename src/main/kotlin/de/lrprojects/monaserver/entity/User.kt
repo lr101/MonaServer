@@ -17,8 +17,6 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
-import jakarta.persistence.Temporal
-import jakarta.persistence.TemporalType
 import jakarta.persistence.Transient
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.Min
@@ -55,13 +53,13 @@ data class User (
     @CreationTimestamp
     var resetPasswordExpiration: OffsetDateTime? = null,
 
-    @Column
+    @Column(nullable = false)
     var failedLoginAttempts: Int = 0,
 
-    @Column
+    @Column(nullable = false)
     var profilePictureExists: Boolean = false,
 
-    @Column
+    @Column(nullable = false)
     var emailConfirmed: Boolean = false,
 
     @Column
@@ -78,7 +76,7 @@ data class User (
     @Column
     var deletionUrl: String? = null,
 
-    @Column
+    @Column(nullable = false)
     var xp: Int = 0,
 
     @Column
@@ -89,18 +87,16 @@ data class User (
     var selectedBatch: UserAchievement? = null,
 
     @CreationTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)
     var creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column
+    @Column(nullable = false)
     var updateDate: OffsetDateTime? = null,
 
     @OneToMany(mappedBy = USER, fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JsonIgnore
-    var refreshTokens: List<RefreshToken> = emptyList(),
+    var refreshTokens: MutableList<RefreshToken> = mutableListOf(),
 
     @OneToMany(mappedBy = MEMBER_USER, fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
     @JsonIgnore
@@ -115,7 +111,7 @@ data class User (
     @Transient
     private var dataSource: DataSource? = null,
 
-): PreDeleteEntity() {
+    ): PreDeleteEntity() {
 
 
     override fun getDeletedEntityType() = DeletedEntityType.USER

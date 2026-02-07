@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '25'
 
       - name: Install xmlstarlet
         run: sudo apt-get install -y xmlstarlet

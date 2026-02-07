@@ -11,10 +11,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
-import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
-import jakarta.persistence.Temporal
-import jakarta.persistence.TemporalType
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
@@ -39,25 +36,23 @@ data class Like(
     var user: User? = null,
 
     @CreationTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column
+    @Column(nullable = false)
     val creationDate: OffsetDateTime? = null,
 
     @UpdateTimestamp
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column
+    @Column(nullable = false)
     val updateDate: OffsetDateTime? = null,
 
-    @Column
+    @Column(nullable = false)
     var likeAll: Boolean = false,
 
-    @Column
+    @Column(nullable = false)
     var likeLocation: Boolean = false,
 
-    @Column
+    @Column(nullable = false)
     var likePhotography: Boolean = false,
 
-    @Column
+    @Column(nullable = false)
     var likeArt: Boolean = false
 ) {
 
