@@ -1,1 +1,1 @@
-ALTER TABLE members ADD CONSTRAINT pk_members PRIMARY KEY (group_id, user_id);
+ALTER TABLE members ADD CONSTRAINT pk_members PRIMARY KEY (group_id, user_id), DROP CONSTRAINT members_pkey;

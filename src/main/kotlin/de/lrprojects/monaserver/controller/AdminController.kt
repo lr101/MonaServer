@@ -5,6 +5,8 @@ import de.lrprojects.monaserver.service.api.NotificationService
 import de.lrprojects.monaserver_api.api.AdminApiDelegate
 import de.lrprojects.monaserver_api.model.AdminMailDto
 import de.lrprojects.monaserver_api.model.NotificationDto
+import org.junit.jupiter.api.AutoClose
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component

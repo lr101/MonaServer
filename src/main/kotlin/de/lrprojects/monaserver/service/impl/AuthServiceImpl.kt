@@ -37,9 +37,10 @@ class AuthServiceImpl(
         if (userRepository.existsByUsername(username)) {
             throw UserExistsException("user with username $username already exists")
         }
+        val encodedPassword = passwordEncoder.encode(password) ?: throw UserExistsException("password hashing has failed")
         var user = User(
             username = username,
-            password = passwordEncoder.encode(password),
+            password = encodedPassword,
             email = email
         )
         user.setEmailConfirmationUrl()
@@ -62,10 +63,6 @@ class AuthServiceImpl(
             user.failedLoginAttempts += 1
             userRepository.save(user)
             throw WrongPasswordException("password is wrong")
-        }
-        if (passwordEncoder is DelegatingPasswordEncoder && passwordEncoder.upgradeEncoding(user.password)) {
-            user.password = passwordEncoder.encode(password)
-            log.info("Password for ${user.username} has been upgraded")
         }
         user.failedLoginAttempts = 0
         userRepository.save(user)

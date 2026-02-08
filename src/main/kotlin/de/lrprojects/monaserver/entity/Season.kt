@@ -23,7 +23,9 @@ data class Season(
     @Column(nullable = false)
     val month: Int,
     @CreationTimestamp
+    @Column(nullable = false)
     val creationDate: OffsetDateTime? = null,
     @UpdateTimestamp
+    @Column(nullable = false)
     val updateDate: OffsetDateTime? = null
 )

@@ -19,7 +19,7 @@ fun Group.toGroupDto(
     seasonItemDto: SeasonItemDto?
 ): GroupDto {
     val withImage = withImages != null && withImages
-    val visibleToUser = this.visibility == 0 || memberService.isInGroup(this, UUID.fromString(SecurityContextHolder.getContext().authentication.name))
+    val visibleToUser = this.visibility == 0 || memberService.isInGroup(this, UUID.fromString(SecurityContextHolder.getContext().authentication?.name))
     val groupDto = GroupDto(
         this.id!!,
         this.name!!,

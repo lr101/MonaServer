@@ -20,18 +20,26 @@ data class GroupSeason(
     @Id
     @GeneratedValue(generator = "UUID")
     val id: UUID? = null,
+
     @ManyToOne
     @JoinColumn(name = GROUP_ID, referencedColumnName = ID, nullable = false)
     val group: Group,
+
     @ManyToOne
     @JoinColumn(name = "season_id", referencedColumnName = ID, nullable = false)
     val season: Season,
+
     @Column(nullable = false)
     val rank: Int,
+
     @Column(nullable = false)
     val numberOfPins: Int,
+
     @CreationTimestamp
+    @Column(nullable = false)
     val creationDate: OffsetDateTime? = null,
+
     @UpdateTimestamp
+    @Column(nullable = false)
     val updateDate: OffsetDateTime? = null
 )
