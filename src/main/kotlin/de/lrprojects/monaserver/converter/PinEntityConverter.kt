@@ -13,6 +13,9 @@ fun Pin.toPinModelWithImage(imageUrl: String?) = PinWithOptionalImageDto().also 
     it.groupId  = this.group?.id!!
     it.image = imageUrl
     it.description = this.description
+    it.gid0 = this.location?.gid0
+    it.gid1 = this.location?.gid1
+    it.gid2 = this.location?.gid2
 }
 
 fun PinRequestDto.toEntity() = Pin().also {
