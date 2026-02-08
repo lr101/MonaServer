@@ -18,7 +18,7 @@
 		<java.version>24</java.version>
 		<kotlin.version>2.2.21</kotlin.version>
 		<jackson.version>2.19.2</jackson.version>
-		<monaserverapi.version>1.0.15-SNAPSHOT</monaserverapi.version>
+		<monaserverapi.version>1.0.16</monaserverapi.version>
 		<springdoc.version>3.0.1</springdoc.version>
 		<springcore.version>7.0.3</springcore.version>
 		<flyway.version>12.0.0</flyway.version>
