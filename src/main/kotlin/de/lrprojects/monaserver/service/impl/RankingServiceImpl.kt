@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
 import java.util.*
+import java.util.Collections.list
 
 
 @Service
@@ -23,7 +24,12 @@ class RankingServiceImpl(
 ): RankingService {
 
     override fun getGeoJson(gid2: String?, gid1: String?, gid0: String?): List<String> {
-            return boundaryRepository.getGeoJsonFromGid(gid0, gid1, gid2)
+        if (gid2 != null) {
+            return boundaryRepository.getGeoJsonFromGid2(gid2)
+        } else {
+            // TODO: Add other gid levels
+            return emptyList()
+        }
     }
 
     override fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto> {
