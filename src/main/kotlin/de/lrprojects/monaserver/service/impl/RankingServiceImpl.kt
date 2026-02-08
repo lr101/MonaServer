@@ -22,8 +22,8 @@ class RankingServiceImpl(
     private val boundaryRepository: BoundaryRepository
 ): RankingService {
 
-    override fun getGeoJson(gid2: String): List<String> {
-            return boundaryRepository.getGeoJsonFromGid(gid2)
+    override fun getGeoJson(gid2: String?, gid1: String?, gid0: String?): List<String> {
+            return boundaryRepository.getGeoJsonFromGid(gid0, gid1, gid2)
     }
 
     override fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto> {

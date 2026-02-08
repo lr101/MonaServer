@@ -10,7 +10,7 @@ import java.time.OffsetDateTime
 
 interface RankingService {
 
-    fun getGeoJson(gid2: String): List<String>
+    fun getGeoJson(gid2: String?, gid1: String?, gid0: String?): List<String>
 
     fun getMapInfo(latitude: Double?, longitude: Double?): MutableList<MapInfoDto>
 
