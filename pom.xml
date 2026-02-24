@@ -23,7 +23,7 @@
 		<springcore.version>7.0.3</springcore.version>
 		<flyway.version>12.0.0</flyway.version>
 		<jsonwebtoken.version>0.13.0</jsonwebtoken.version>
-		<com.auth0.java-jwt.version>4.5.0</com.auth0.java-jwt.version>
+		<com.auth0.java-jwt.version>4.5.1</com.auth0.java-jwt.version>
 		<minio.version>8.6.0</minio.version>
 		<thumbnailator.version>0.4.21</thumbnailator.version>
 		<mockito-kotlin.version>6.2.3</mockito-kotlin.version>
