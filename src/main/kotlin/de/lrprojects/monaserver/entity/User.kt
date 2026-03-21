@@ -115,34 +115,17 @@ data class User (
     override fun getDeletedEntityType() = DeletedEntityType.USER
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other !is User) return false
 
-        other as User
+        if (id != null && other.id != null) {
+            return id == other.id
+        }
 
-        if (username != other.username) return false
-        if (password != other.password) return false
-        if (email != other.email) return false
-        if (description != other.description) return false
-        if (lastUsernameUpdate != other.lastUsernameUpdate) return false
-        if (resetPasswordUrl != other.resetPasswordUrl) return false
-        if (resetPasswordExpiration != other.resetPasswordExpiration) return false
-        if (failedLoginAttempts != other.failedLoginAttempts) return false
-        if (profilePictureExists != other.profilePictureExists) return false
-        if (code != other.code) return false
-        if (codeExpiration != other.codeExpiration) return false
-        if (deletionUrl != other.deletionUrl) return false
-        if (xp != other.xp) return false
-        if (selectedBatch != other.selectedBatch) return false
-        if (creationDate != other.creationDate) return false
-        if (updateDate != other.updateDate) return false
-        if (refreshTokens != other.refreshTokens) return false
-        if (groups != other.groups) return false
-        if (dataSource != other.dataSource) return false
-
-        return true
+        return username == other.username &&
+                email == other.email
     }
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return id?.hashCode() ?: username.hashCode()
     }
 }

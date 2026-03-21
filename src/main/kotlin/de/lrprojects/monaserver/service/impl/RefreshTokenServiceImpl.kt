@@ -46,5 +46,6 @@ class RefreshTokenServiceImpl(
 
     override fun invalidateTokens(user: User) {
         refreshTokenRepository.deleteAll(user.refreshTokens)
+        user.refreshTokens.clear()
     }
 }

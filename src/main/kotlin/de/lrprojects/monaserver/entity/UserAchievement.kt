@@ -42,21 +42,17 @@ data class UserAchievement (
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other !is UserAchievement) return false
 
-        other as UserAchievement
+        if (id != null && other.id != null) {
+            return id == other.id
+        }
 
-        if (id != other.id) return false
-        if (achievementId != other.achievementId) return false
-        if (user != other.user) return false
-        if (claimed != other.claimed) return false
-        if (creationDate != other.creationDate) return false
-        if (updateDate != other.updateDate) return false
-
-        return true
+        return achievementId == other.achievementId &&
+                user.id == other.user.id
     }
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return id?.hashCode() ?: achievementId.hashCode()
     }
 }
