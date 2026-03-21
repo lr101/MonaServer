@@ -36,22 +36,19 @@ data class RefreshToken(
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other !is RefreshToken) return false
 
-        other as RefreshToken
+        if (id != null && other.id != null) {
+            return id == other.id
+        }
 
-        if (id != other.id) return false
-        if (token != other.token) return false
-        if (lastActiveDate != other.lastActiveDate) return false
-        if (user != other.user) return false
-        if (creationDate != other.creationDate) return false
-        if (updateDate != other.updateDate) return false
-
-        return true
+        return token == other.token &&
+                lastActiveDate == other.lastActiveDate &&
+                user.id == other.user.id
     }
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return id?.hashCode() ?: token.hashCode()
     }
 
 

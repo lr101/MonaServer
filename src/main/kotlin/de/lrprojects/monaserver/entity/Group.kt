@@ -21,6 +21,7 @@ import jakarta.persistence.Transient
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
+import java.util.Objects
 import javax.sql.DataSource
 
 
@@ -85,28 +86,18 @@ data class Group (
     override fun getDeletedEntityType() = DeletedEntityType.GROUP
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other !is Group) return false
 
-        other as Group
+        if (id != null && other.id != null) {
+            return id == other.id
+        }
 
-        if (name != other.name) return false
-        if (groupAdmin != other.groupAdmin) return false
-        if (description != other.description) return false
-        if (inviteUrl != other.inviteUrl) return false
-        if (link != other.link) return false
-        if (visibility != other.visibility) return false
-        if (members != other.members) return false
-        if (pins != other.pins) return false
-        if (creationDate != other.creationDate) return false
-        if (updateDate != other.updateDate) return false
-        if (isDeleted != other.isDeleted) return false
-        if (dataSource != other.dataSource) return false
-
-        return true
+        return name == other.name &&
+                groupAdmin?.id == other.groupAdmin?.id
     }
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return id?.hashCode() ?: name?.hashCode() ?: 0
     }
 
 
