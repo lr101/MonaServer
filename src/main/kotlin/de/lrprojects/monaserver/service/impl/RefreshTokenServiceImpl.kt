@@ -24,6 +24,7 @@ class RefreshTokenServiceImpl(
             user = user,
             lastActiveDate = OffsetDateTime.now()
         )
+        user.refreshTokens.add(refreshToken)
         return refreshTokenRepository.save(refreshToken)
     }
 
@@ -36,6 +37,7 @@ class RefreshTokenServiceImpl(
 
     override fun verifyExpiration(token: RefreshToken): RefreshToken {
         if (token.lastActiveDate.plusSeconds(tokenProperties.refreshTokenExploration).isBefore(OffsetDateTime.now())) {
+            token.user.refreshTokens.remove(token)
             refreshTokenRepository.delete(token)
             throw RuntimeException("Refresh token is expired. Please make a new login..!")
         }
@@ -45,6 +47,8 @@ class RefreshTokenServiceImpl(
     }
 
     override fun invalidateTokens(user: User) {
-        refreshTokenRepository.deleteAll(user.refreshTokens)
+        val tokens = user.refreshTokens.toList()
+        user.refreshTokens.clear()
+        refreshTokenRepository.deleteAll(tokens)
     }
 }

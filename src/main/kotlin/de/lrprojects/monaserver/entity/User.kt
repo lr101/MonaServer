@@ -50,7 +50,6 @@ data class User (
     var resetPasswordUrl: String? = null,
 
     @Column
-    @CreationTimestamp
     var resetPasswordExpiration: OffsetDateTime? = null,
 
     @Column(nullable = false)

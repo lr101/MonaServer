@@ -45,7 +45,7 @@ class AuthServiceImpl(
         )
         user.setEmailConfirmationUrl()
         user = userRepository.save(user)
-        emailService.sendEmailConfirmation(user.username, user.email!!, user.emailConfirmationUrl!!)
+        // emailService.sendEmailConfirmation(user.username, user.email!!, user.emailConfirmationUrl!!)
         val accessToken = tokenHelper.generateToken(user.id!!)
         val refreshToken = refreshTokenService.createRefreshToken(user)
 
