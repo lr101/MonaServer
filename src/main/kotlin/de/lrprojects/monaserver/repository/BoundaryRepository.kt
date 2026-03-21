@@ -11,10 +11,12 @@ import java.util.*
 interface BoundaryRepository : CrudRepository<Boundary, UUID> {
 
     @Query("""
-        SELECT ST_AsGeoJSON(geom) FROM admin2_boundaries
-        WHERE gid_2 = :gid2 
+            SELECT ST_AsGeoJSON(geom) FROM admin2_boundaries
+            WHERE (:gid0 IS NULL OR gid_0 = :gid0) 
+            AND (:gid1 IS NULL OR gid_1 = :gid1)
+            AND (:gid2 IS NULL OR gid_2 = :gid2)
         """, nativeQuery = true)
-    fun getGeoJsonFromGid2(@Param("gid2") gid2: String): List<String>
+    fun getGeoJsonFromGid(@Param("gid0") gid0: String?, @Param("gid1") gid1: String?, @Param("gid2") gid2: String?): List<String>
 
     @Query("""
         SELECT p.creator_id, u.username, u.description, count(p.creator_id)::int as points, ua.achievement_id FROM pins p

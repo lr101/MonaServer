@@ -21,7 +21,7 @@ class RankingController(
 
     override fun getGeoJson(gid2: String?, gid1: String?, gid0: String?): ResponseEntity<List<String>> {
         log.info("Attempting to get geojson for gid2: $gid2 or gid1: $gid1 or gid0: $gid0")
-        if (gid0 == null && gid1 == null && gid2 == null) {
+        if (gid0 == null && gid1 == null && gid2 != null) {
             throw RuntimeException("gid0 and gid1 and gid2 must not all be null")
         }
         val result = rankingService.getGeoJson(gid2, gid1, gid0)
