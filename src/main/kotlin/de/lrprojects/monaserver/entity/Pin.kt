@@ -21,6 +21,8 @@ import jakarta.persistence.Table
 import jakarta.persistence.Transient
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.OffsetDateTime
+import java.util.Objects
+import java.util.UUID
 import javax.sql.DataSource
 
 @Entity
@@ -68,24 +70,20 @@ class Pin (
     override fun getDeletedEntityType() = DeletedEntityType.PIN
 
     override fun hashCode(): Int {
-        return id.hashCode()
+        return id?.hashCode() ?: Objects.hash(latitude, longitude, creationDate)
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        if (other !is Pin) return false
 
-        other as Pin
+        if (id != null && other.id != null) {
+            return id == other.id
+        }
 
-        if (latitude != other.latitude) return false
-        if (longitude != other.longitude) return false
-        if (creationDate != other.creationDate) return false
-        if (updateDate != other.updateDate) return false
-        if (user != other.user) return false
-        if (group != other.group) return false
-        if (isDeleted != other.isDeleted) return false
-        if (dataSource != other.dataSource) return false
-
-        return true
+        return latitude == other.latitude &&
+                longitude == other.longitude &&
+                creationDate == other.creationDate &&
+                user?.id == other.user?.id
     }
 }
