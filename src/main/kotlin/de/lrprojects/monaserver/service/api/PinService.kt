@@ -4,6 +4,8 @@ import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver_api.model.PinRequestDto
+import de.lrprojects.monaserver_api.model.SyncDto
+import java.time.OffsetDateTime
 import java.util.*
 
 interface PinService {
@@ -14,5 +16,6 @@ interface PinService {
     fun getPin(pinId: UUID): Pin
     fun getGroupPins(group: Group): List<UUID>
     fun getUserPins(user: User): List<UUID>
+    fun getSync(lastSeen: OffsetDateTime?) : SyncDto
 
 }

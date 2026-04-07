@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.service.api.DeleteLogService
+import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
@@ -11,6 +12,7 @@ import de.lrprojects.monaserver_api.api.PinsApiDelegate
 import de.lrprojects.monaserver_api.model.PinRequestDto
 import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
 import de.lrprojects.monaserver_api.model.PinsSyncDto
+import de.lrprojects.monaserver_api.model.SyncDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -18,6 +20,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.net.URI
 import java.time.OffsetDateTime
 import java.util.*
 
@@ -67,11 +70,20 @@ class PinController(
     }
 
     @PreAuthorize("@guard.isPinPublicOrMember(authentication, #pinId)")
-    override fun getPinImage(pinId: UUID): ResponseEntity<String> {
+    override fun getPinImage(pinId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get pin image for pin with ID: $pinId")
-        val image = monaService.getPinImage(pinId)
+        val imageUrl = monaService.getPinImage(pinId)
         log.info("Retrieved pin image for pin with ID: $pinId")
-        return ResponseEntity.ok(image)
+        if (redirect) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(imageUrl))
+                .build()
+        }
+        return ResponseEntity.ok(imageUrl)
+    }
+
+    override fun sync(lastSeen: OffsetDateTime?): ResponseEntity<SyncDto> {
+        return ResponseEntity.ok(pinService.getSync(lastSeen))
     }
 
     @PreAuthorize("@guard.isPinsCreator(authentication, #ids) || @guard.isPinsPublicOrMember(authentication, #ids) ")

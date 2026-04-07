@@ -12,9 +12,11 @@ import de.lrprojects.monaserver_api.model.UserUpdateDto
 import de.lrprojects.monaserver_api.model.UserUpdateResponseDto
 import de.lrprojects.monaserver_api.model.UserXpDto
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.net.URI
 import java.util.*
 
 @Component
@@ -36,17 +38,27 @@ class UserController(
         return ResponseEntity.ok().build()
     }
 
-    override fun getUserProfileImage(userId: UUID): ResponseEntity<String> {
+    override fun getUserProfileImage(userId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get profile image for user with ID: $userId")
         val image = userService.getUserProfileImage(userId)
         log.info("Retrieved profile image for user with ID: $userId")
+        if (redirect && image != null) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(image))
+                .build()
+        }
         return ResponseEntity.ok(image)
     }
 
-    override fun getUserProfileImageSmall(userId: UUID): ResponseEntity<String> {
+    override fun getUserProfileImageSmall(userId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get small profile image for user with ID: $userId")
         val image = userService.getUserProfileImageSmall(userId)
         log.info("Retrieved small profile image for user with ID: $userId")
+        if (redirect && image != null) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(image))
+                .build()
+        }
         return ResponseEntity.ok(image)
     }
 

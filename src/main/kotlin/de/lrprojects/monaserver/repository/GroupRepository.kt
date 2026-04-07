@@ -68,6 +68,10 @@ interface GroupRepository : JpaRepository<Group, UUID> {
     ): Page<Group>
 
 
+    @Query("SELECT g FROM Group g JOIN Member m ON g.id = m.id.group.id WHERE m.id.user.id = :currentUserId")
+    fun getUserGroups(@Param("currentUserId") currentUserId: UUID): List<Group>
+
+
     @Query("""
         SELECT m.user_id, u.username, count(pg.creator_id)::int as points, ua.achievement_id FROM members m
             LEFT JOIN (SELECT p.id, p.creator_id FROM pins p
