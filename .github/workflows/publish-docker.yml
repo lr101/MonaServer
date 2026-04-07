@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 jobs:
   build-and-publish-image:
@@ -21,12 +22,30 @@ jobs:
       - name: Install xmlstarlet
         run: sudo apt-get install -y xmlstarlet
 
-      - name: Extract version from pom.xml
-        id: extract_version
+      - name: Extract and Compute Version
+        id: compute_version
         run: |
-          VERSION=$(xmlstarlet sel -t -v "/_:project/_:version" pom.xml)
-          echo "VERSION=$VERSION"
-          echo "::set-output name=version::$VERSION"
+          # Extract version from pom.xml
+          POM_VERSION=$(xmlstarlet sel -t -v "/_:project/_:version" pom.xml)
+          echo "Extracted POM_VERSION=$POM_VERSION"
+          
+          # Strip '-SNAPSHOT' if it exists to get a clean base version
+          BASE_VERSION=${POM_VERSION/-SNAPSHOT/}
+          
+          # Determine tag based on the branch triggering the workflow
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            # Main branch: Guaranteed increasing number
+            FINAL_TAG="${BASE_VERSION}.${{ github.run_number }}"
+            echo "is_main=true" >> "$GITHUB_OUTPUT"
+          else
+            # Develop branch: SNAPSHOT
+            FINAL_TAG="${BASE_VERSION}-SNAPSHOT"
+            echo "is_main=false" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Set the tag as a step output using the modern syntax
+          echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
+          echo "Computed FINAL_TAG=$FINAL_TAG"
 
       - name: Create settings.xml for GitHub Packages authentication
         run: |
@@ -38,15 +57,10 @@ jobs:
         run: mvn test
 
       - name: Build Docker image
-        run: mvn spring-boot:build-image -Dspring-boot.build-image.imageName=lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }} --settings ~/.m2/settings.xml
-        # Replace "my-spring-boot-app" with your desired image name
+        run: mvn spring-boot:build-image -Dspring-boot.build-image.imageName=lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }} --settings ~/.m2/settings.xml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Tag Docker image with :latest
-        run: docker tag lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }} lrprojects/stick-it-server:latest
-
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -54,7 +68,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Publish Docker image to Docker Hub
+      - name: Publish base Docker image
         run: |
-          docker push lrprojects/stick-it-server:${{ steps.extract_version.outputs.version }}
+          docker push lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }}
+
+      - name: Tag and Publish :latest (Main only)
+        if: steps.compute_version.outputs.is_main == 'true'
+        run: |
+          docker tag lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }} lrprojects/stick-it-server:latest
           docker push lrprojects/stick-it-server:latest
+
+      - name: Tag and Publish :snapshot (Develop only)
+        if: steps.compute_version.outputs.is_main == 'false'
+        run: |
+          docker tag lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }} lrprojects/stick-it-server:snapshot
+          docker push lrprojects/stick-it-server:snapshot
