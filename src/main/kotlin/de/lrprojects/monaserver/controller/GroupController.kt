@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.stereotype.Component
+import java.net.URI
 import java.time.OffsetDateTime
 import java.util.*
 
@@ -122,24 +123,39 @@ class GroupController(
         return ResponseEntity.ok(result)
     }
 
-    override fun getGroupPinImage(groupId: UUID): ResponseEntity<String> {
+    override fun getGroupPinImage(groupId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get group pin image for group with ID: $groupId")
         val result = groupService.getGroupPinImage(groupId)
         log.info("Retrieved group pin image for group with ID: $groupId")
+        if (redirect) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(result))
+                .build()
+        }
         return ResponseEntity.ok(result)
     }
 
-    override fun getGroupProfileImageSmall(groupId: UUID): ResponseEntity<String> {
+    override fun getGroupProfileImageSmall(groupId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get group profile image small for group with ID: $groupId")
         val result = groupService.getGroupProfileImageSmall(groupId)
         log.info("Retrieved group profile image small for group with ID: $groupId")
+        if (redirect) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(result))
+                .build()
+        }
         return ResponseEntity.ok(result)
     }
 
-    override fun getGroupProfileImage(groupId: UUID): ResponseEntity<String> {
+    override fun getGroupProfileImage(groupId: UUID, redirect: Boolean): ResponseEntity<String> {
         log.info("Attempting to get group profile image for group with ID: $groupId")
         val result = groupService.getGroupProfileImage(groupId)
         log.info("Retrieved group profile image for group with ID: $groupId")
+        if (redirect) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(result))
+                .build()
+        }
         return ResponseEntity.ok(result)
     }
 
