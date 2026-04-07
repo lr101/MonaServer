@@ -1,6 +1,9 @@
 package de.lrprojects.monaserver.service.impl
 
+import com.google.cloud.Identity.group
 import de.lrprojects.monaserver.converter.toEntity
+import de.lrprojects.monaserver.converter.toGroupDto
+import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
@@ -11,14 +14,21 @@ import de.lrprojects.monaserver.helper.ImageHelper
 import de.lrprojects.monaserver.repository.GroupRepository
 import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.repository.UserRepository
+import de.lrprojects.monaserver.service.api.DeleteLogService
+import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RankingService
+import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver_api.model.PinRequestDto
+import de.lrprojects.monaserver_api.model.SyncDto
+import de.lrprojects.monaserver_api.model.SyncDtoGroupUpdatesInner
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 import java.util.*
 
 @Service
@@ -27,8 +37,11 @@ class PinServiceImpl(
     private val pinRepository: PinRepository,
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
+    private val memberService: MemberService,
     private val objectService: ObjectService,
     private val rankingService: RankingService,
+    private val seasonService: SeasonService,
+    private val deleteLogService: DeleteLogService,
     private val imageHelper: ImageHelper
 ) : PinService {
 
@@ -74,6 +87,33 @@ class PinServiceImpl(
 
     override fun getUserPins(user: User): List<UUID> {
         return pinRepository.findAllByUser(user)
+    }
+
+    override fun getSync(lastSeen: OffsetDateTime?): SyncDto {
+        val userId = UUID.fromString(SecurityContextHolder.getContext().authentication?.name
+            ?: throw IllegalStateException("User not authenticated"))
+        val groups = groupRepository.getUserGroups(userId)
+
+        if (groups.isEmpty()) return SyncDto(emptyList(), mutableListOf())
+
+        val groupIds = groups.mapNotNull { it.id }
+        val pins = pinRepository.getUpdatedPinsForGroups(groupIds, lastSeen)
+
+        val pinsByGroupId = pins.groupBy { it.group!!.id }
+
+        val deletedPins = lastSeen?.let { deleteLogService.getDeletedPins(it) } ?: emptyList()
+
+        val groupUpdates = groups.map { groupEntity ->
+            val seasonItemDto = seasonService.getBestGroupSeason(groupEntity.id!!)
+            val groupDto = groupEntity.toGroupDto(memberService, true, objectService, seasonItemDto)
+            val pinDtos = pinsByGroupId[groupEntity.id]
+                ?.map { it.toPinModelWithImage(null) }
+                ?: emptyList()
+
+            SyncDtoGroupUpdatesInner(groupDto, pinDtos)
+        }.toMutableList()
+
+        return SyncDto(deletedPins, groupUpdates)
     }
 
     override fun getPin(pinId: UUID): Pin {

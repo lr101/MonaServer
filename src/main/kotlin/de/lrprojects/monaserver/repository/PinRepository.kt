@@ -37,6 +37,17 @@ interface PinRepository : JpaRepository<Pin, UUID> {
                          pageable: Pageable
     ) :  Page<Pin>
 
+
+    @Query(
+        "SELECT p FROM Pin p " +
+                "WHERE p.group.id IN :groupIds " +
+                "AND ( cast(:lastSeen as timestamp) IS NULL OR p.updateDate > :lastSeen)"
+    )
+    fun getUpdatedPinsForGroups(
+        @Param("groupIds") groupIds: List<UUID>,
+        @Param("lastSeen") lastSeen: OffsetDateTime?
+    ): List<Pin>
+
     @Query("SELECT p.id FROM Pin p WHERE p.group = :group")
     fun findAllByGroup(group: Group): List<UUID>
 

@@ -5,20 +5,20 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.2</version>
+		<version>4.0.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 
 	<groupId>de.lr-projects</groupId>
 	<artifactId>monaserver</artifactId>
-	<version>0.0.16</version>
+	<version>0.0.17-SNAPSHOT</version>
 	<name>monaserver</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>24</java.version>
 		<kotlin.version>2.2.21</kotlin.version>
 		<jackson.version>2.19.2</jackson.version>
-		<monaserverapi.version>1.0.17-SNAPSHOT</monaserverapi.version>
+		<monaserverapi.version>1.0.19-SNAPSHOT</monaserverapi.version>
 		<springdoc.version>3.0.1</springdoc.version>
 		<springcore.version>7.0.3</springcore.version>
 		<flyway.version>12.0.0</flyway.version>
