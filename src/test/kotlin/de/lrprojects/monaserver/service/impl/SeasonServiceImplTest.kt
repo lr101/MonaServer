@@ -61,11 +61,11 @@ class SeasonServiceImplTest {
   // Create a UserRankingDtoInner instance
 
 
-  val userRanking = UserRankingDtoInner().also {
-   it.userInfoDto = UserInfoDto("username", userId)
-   it.rankNr = 1
-   it.points = 50
-  }
+  val userRanking = UserRankingDtoInner(
+   userInfoDto = UserInfoDto("username", userId),
+   rankNr = 1,
+   points = 50
+  )
 
   val user = User("username", "psw").also {
    it.id = userId
