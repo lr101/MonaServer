@@ -1,0 +1,19 @@
+get:
+  operationId: getUserLikes
+  summary: Get user's likes
+  security:
+    - token: [ ]
+  tags:
+    - likes
+  parameters:
+    - name: userId
+      in: path
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successfully returned user's likes
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/userLikesDto.yaml'

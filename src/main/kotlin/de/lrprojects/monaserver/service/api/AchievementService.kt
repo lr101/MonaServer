@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.service.api
 
-import de.lrprojects.monaserver_api.model.UserAchievementsDtoInner
+import de.lrprojects.monaserverapi.model.UserAchievementsDtoInner
 import java.util.*
 
 interface AchievementService {

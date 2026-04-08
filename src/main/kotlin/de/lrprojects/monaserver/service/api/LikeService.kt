@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.service.api
 
-import de.lrprojects.monaserver_api.model.CreateLikeDto
-import de.lrprojects.monaserver_api.model.PinLikeDto
-import de.lrprojects.monaserver_api.model.UserLikesDto
+import de.lrprojects.monaserverapi.model.CreateLikeDto
+import de.lrprojects.monaserverapi.model.PinLikeDto
+import de.lrprojects.monaserverapi.model.UserLikesDto
 import java.util.*
 
 interface LikeService {

@@ -6,7 +6,7 @@ import de.lrprojects.monaserver.repository.PinRepository
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
-import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
+import de.lrprojects.monaserverapi.model.PinWithOptionalImageDto
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

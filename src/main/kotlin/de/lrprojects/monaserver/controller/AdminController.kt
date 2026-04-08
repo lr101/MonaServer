@@ -2,11 +2,9 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.NotificationService
-import de.lrprojects.monaserver_api.api.AdminApiDelegate
-import de.lrprojects.monaserver_api.model.AdminMailDto
-import de.lrprojects.monaserver_api.model.NotificationDto
-import org.junit.jupiter.api.AutoClose
-import org.springframework.beans.factory.annotation.Autowired
+import de.lrprojects.monaserverapi.api.AdminApiDelegate
+import de.lrprojects.monaserverapi.model.AdminMailDto
+import de.lrprojects.monaserverapi.model.NotificationDto
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
@@ -18,20 +16,23 @@ class AdminController(
     private val notificationService: NotificationService
 ): AdminApiDelegate {
 
-    override fun sendAdminMail(adminMailDto: AdminMailDto): ResponseEntity<Void> {
+    override fun sendAdminMail(adminMailDto: AdminMailDto?): ResponseEntity<Unit> {
         try {
+            if (adminMailDto == null) {
+                return ResponseEntity.badRequest().build()
+            }
             var content: String? = null
             if (adminMailDto.messageHtml != null) {
                 content = Base64.getDecoder().decode(adminMailDto.messageHtml).decodeToString()
             }
             emailService.sendRoundMail(adminMailDto.mails, adminMailDto.subject, adminMailDto.message, content)
             return ResponseEntity.ok().build()
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             return ResponseEntity.badRequest().build()
         }
     }
 
-    override fun sendNotification(notificationDto: NotificationDto): ResponseEntity<Void> {
+    override fun sendNotification(notificationDto: NotificationDto): ResponseEntity<Unit> {
         notificationService.sendNotificationToTopics(
             notificationDto.body,
             notificationDto.title,

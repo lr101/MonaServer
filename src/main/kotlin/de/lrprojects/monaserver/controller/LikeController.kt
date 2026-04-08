@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.service.api.LikeService
-import de.lrprojects.monaserver_api.api.LikesApiDelegate
-import de.lrprojects.monaserver_api.model.CreateLikeDto
-import de.lrprojects.monaserver_api.model.PinLikeDto
-import de.lrprojects.monaserver_api.model.UserLikesDto
+import de.lrprojects.monaserverapi.api.LikesApiDelegate
+import de.lrprojects.monaserverapi.model.CreateLikeDto
+import de.lrprojects.monaserverapi.model.PinLikeDto
+import de.lrprojects.monaserverapi.model.UserLikesDto
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity

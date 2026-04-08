@@ -11,9 +11,9 @@ import de.lrprojects.monaserver.repository.SeasonRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.repository.UserSeasonRepository
 import de.lrprojects.monaserver.service.api.RankingService
-import de.lrprojects.monaserver_api.model.SeasonItemDto
-import de.lrprojects.monaserver_api.model.UserInfoDto
-import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import de.lrprojects.monaserverapi.model.SeasonItemDto
+import de.lrprojects.monaserverapi.model.UserInfoDto
+import de.lrprojects.monaserverapi.model.UserRankingDtoInner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach

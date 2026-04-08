@@ -36,7 +36,7 @@ data class User (
     @Column(nullable = false)
     var password: @Min(1) String,
 
-    @Email
+    @param:Email
     @Column
     var email: String? = null,
 
@@ -65,7 +65,7 @@ data class User (
     var emailConfirmationUrl: String? = null,
 
     @Column
-    @Length(min = 6, max = 6)
+    @param:Length(min = 6, max = 6)
     var code: String? = null,
 
     @Column

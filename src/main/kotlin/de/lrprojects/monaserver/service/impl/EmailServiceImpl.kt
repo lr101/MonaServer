@@ -6,7 +6,7 @@ import de.lrprojects.monaserver.properties.AppProperties
 import de.lrprojects.monaserver.properties.MailProperties
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.EmailService
-import de.lrprojects.monaserver_api.model.ReportDto
+import de.lrprojects.monaserverapi.model.ReportDto
 import jakarta.mail.MessagingException
 import org.slf4j.LoggerFactory
 import org.springframework.mail.javamail.JavaMailSender

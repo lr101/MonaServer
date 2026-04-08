@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserverapi.model.MemberResponseDto
 import java.util.*
 
 interface MemberService {

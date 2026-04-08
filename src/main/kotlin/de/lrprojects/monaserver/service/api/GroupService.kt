@@ -1,8 +1,8 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Group
-import de.lrprojects.monaserver_api.model.CreateGroupDto
-import de.lrprojects.monaserver_api.model.UpdateGroupDto
+import de.lrprojects.monaserverapi.model.CreateGroupDto
+import de.lrprojects.monaserverapi.model.UpdateGroupDto
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.OffsetDateTime

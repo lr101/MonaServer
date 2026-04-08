@@ -5,13 +5,17 @@ on:
     branches:
       - main
       - develop
+    tags:
+      - 'v*' # Triggers on any tag starting with 'v' (e.g., v1.0.0)
 
 jobs:
   build-and-publish-image:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v5
@@ -32,15 +36,24 @@ jobs:
           # Strip '-SNAPSHOT' if it exists to get a clean base version
           BASE_VERSION=${POM_VERSION/-SNAPSHOT/}
           
-          # Determine tag based on the branch triggering the workflow
-          if [ "${{ github.ref_name }}" == "main" ]; then
-            # Main branch: Guaranteed increasing number
+          # Determine tag based on what triggered the workflow
+          if [ "${{ github.ref_type }}" == "tag" ]; then
+            # Triggered by a Tag: Clean Release
+            FINAL_TAG="${BASE_VERSION}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "Workflow triggered by a Tag. Building Release version."
+          
+          elif [ "${{ github.ref_name }}" == "main" ]; then
+            # Triggered by Main branch: Guaranteed increasing number
             FINAL_TAG="${BASE_VERSION}.${{ github.run_number }}"
-            echo "is_main=true" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "Workflow triggered by Main. Building Release version."
+          
           else
-            # Develop branch: SNAPSHOT
+            # Triggered by Develop branch: SNAPSHOT
             FINAL_TAG="${BASE_VERSION}-SNAPSHOT"
-            echo "is_main=false" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "Workflow triggered by Develop. Building SNAPSHOT version."
           fi
           
           # Set the tag as a step output using the modern syntax
@@ -72,14 +85,24 @@ jobs:
         run: |
           docker push lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }}
 
-      - name: Tag and Publish :latest (Main only)
-        if: steps.compute_version.outputs.is_main == 'true'
+      - name: Tag and Publish :latest (Release/Main only)
+        if: steps.compute_version.outputs.is_release == 'true'
         run: |
           docker tag lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }} lrprojects/stick-it-server:latest
           docker push lrprojects/stick-it-server:latest
 
       - name: Tag and Publish :snapshot (Develop only)
-        if: steps.compute_version.outputs.is_main == 'false'
+        if: steps.compute_version.outputs.is_release == 'false'
         run: |
           docker tag lrprojects/stick-it-server:${{ steps.compute_version.outputs.tag }} lrprojects/stick-it-server:snapshot
           docker push lrprojects/stick-it-server:snapshot
+
+      - name: Push Release Commit to Main Branch
+        if: github.ref_type == 'tag'
+        run: |
+          # Authenticate using the built-in GITHUB_TOKEN
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Push the commit currently associated with the tag to the main branch
+          git push origin HEAD:main

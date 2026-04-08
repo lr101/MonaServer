@@ -1,0 +1,146 @@
+openapi: 3.0.3
+info:
+  title: Stick-It RESP API
+  version: 1.0.1
+servers:
+  - url: https://stick-it.lr-projects.de
+  - url: http://localhost:8081
+tags:
+  - name: public
+    description: Everything about the public apiF
+  - name: auth
+    description: Everything about Authentication
+  - name: groups
+    description: Everything about Groups
+  - name: pins
+    description: Everything about Pins
+  - name: users
+    description: Everything about Users
+  - name: members
+    description: Everything about Memberships
+  - name: report
+    description: Everything about Reports
+  - name: likes
+    description: Everything about Likes
+  - name: admin
+    description: Everything only allowed by Admins
+  - name: ranking
+    description: Everything about user rankings
+paths:
+  /api/v2/groups:
+    $ref: './methods/groups.yaml'
+
+  /api/v2/groups/{groupId}:
+    $ref: './methods/groupById.yaml'
+
+  /api/v2/groups/{groupId}/profile_image:
+    $ref: './methods/groupProfileImage.yaml'
+
+  /api/v2/groups/{groupId}/profile_image_small:
+    $ref: './methods/groupProfileImageSmall.yaml'
+
+  /api/v2/groups/{groupId}/pin_image:
+    $ref: './methods/groupPinImage.yaml'
+
+  /api/v2/groups/{groupId}/description:
+    $ref: './methods/groupDescription.yaml'
+
+  /api/v2/groups/{groupId}/link:
+    $ref: './methods/groupLink.yaml'
+
+  /api/v2/groups/{groupId}/admin:
+    $ref: './methods/groupAdmin.yaml'
+
+  /api/v2/groups/{groupId}/invite_url:
+    $ref: './methods/groupInviteUrl.yaml'
+
+  /api/v2/groups/{groupId}/members:
+    $ref: './methods/groupMembers.yaml'
+
+  /api/v2/public/delete-code/{username}:
+    $ref: './methods/userDeleteCode.yaml'
+
+  /api/v2/public/recover:
+    $ref: './methods/publicRecover.yaml'
+
+  /api/v2/public/login:
+    $ref: './methods/publicLogin.yaml'
+
+  /api/v2/public/signup:
+    $ref: './methods/publicSignup.yaml'
+
+  /api/v2/public/refresh:
+    $ref: './methods/publicRefresh.yaml'
+
+  /api/v2/report:
+    $ref: './methods/report.yaml'
+
+  /api/v2/pins:
+    $ref: './methods/pins.yaml'
+
+  /api/v2/pins/{pinId}:
+    $ref: './methods/pinsById.yaml'
+
+  /api/v2/pins/{pinId}/image:
+    $ref: './methods/pinsImage.yaml'
+
+  /api/v2/pins/{pinId}/likes:
+    $ref: './methods/likes.yaml'
+
+  /api/v2/users/{userId}/likes:
+    $ref: './methods/userLikes.yaml'
+
+  /api/v2/public/infos:
+    $ref: './methods/publicInfos.yaml'
+
+  /api/v2/users/{userId}:
+    $ref: './methods/userById.yaml'
+
+  /api/v2/users/{userId}/profile_picture_small:
+    $ref: './methods/userProfileImageSmall.yaml'
+
+  /api/v2/users/{userId}/profile_picture:
+    $ref: './methods/userProfileImage.yaml'
+
+  /api/v2/users/{userId}/xp:
+    $ref: './methods/userXp.yaml'
+
+  /api/v2/users/{userId}/achievements:
+    $ref: './methods/userAchievements.yaml'
+
+  /api/v2/users/{userId}/achievements/{achievementId}:
+    $ref: './methods/userAchievementsById.yaml'
+
+  /api/v2/ranking/group:
+    $ref: './methods/groupRanking.yaml'
+
+  /api/v2/ranking/user:
+    $ref: './methods/userRanking.yaml'
+
+  /api/v2/ranking/search:
+    $ref: './methods/searchRanking.yaml'
+
+  /api/v2/map:
+    $ref: './methods/mapInfo.yaml'
+
+  /api/v2/map/geojson:
+    $ref: './methods/getGeojson.yaml'
+
+  /api/v2/status:
+    $ref: './methods/status.yaml'
+
+  /api/v2/admin/mail:
+    $ref: './methods/adminMail.yaml'
+
+  /api/v2/admin/notification:
+    $ref: './methods/adminNotification.yaml'
+
+  /api/v3/sync:
+    $ref: './methods/sync.yaml'
+
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

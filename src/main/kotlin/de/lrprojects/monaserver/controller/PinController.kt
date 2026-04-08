@@ -2,17 +2,16 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.service.api.DeleteLogService
-import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.types.XpType
-import de.lrprojects.monaserver_api.api.PinsApiDelegate
-import de.lrprojects.monaserver_api.model.PinRequestDto
-import de.lrprojects.monaserver_api.model.PinWithOptionalImageDto
-import de.lrprojects.monaserver_api.model.PinsSyncDto
-import de.lrprojects.monaserver_api.model.SyncDto
+import de.lrprojects.monaserverapi.api.PinsApiDelegate
+import de.lrprojects.monaserverapi.model.PinRequestDto
+import de.lrprojects.monaserverapi.model.PinWithOptionalImageDto
+import de.lrprojects.monaserverapi.model.PinsSyncDto
+import de.lrprojects.monaserverapi.model.SyncDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -50,7 +49,7 @@ class PinController(
     }
 
     @PreAuthorize("@guard.isPinCreator(authentication, #pinId) || @guard.isPinGroupAdmin(authentication, #pinId)")
-    override fun deletePin(pinId: UUID): ResponseEntity<Void>? {
+    override fun deletePin(pinId: UUID): ResponseEntity<Unit> {
         log.info("Attempting to delete pin with ID: $pinId")
         pinService.deletePin(pinId)
         log.info("Pin deleted with ID: $pinId")

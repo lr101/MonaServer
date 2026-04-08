@@ -1,0 +1,85 @@
+get:
+  operationId: getGroupsByIds
+  security:
+    - token: [ ]
+  summary: Get groups by IDs
+  tags:
+    - groups
+  parameters:
+    - name: ids
+      in: query
+      description: Comma-separated list of group IDs
+      schema:
+        type: array
+        items:
+          $ref: '../parameters/id.yaml'
+    - name: search
+      description: "search term used to find a group name"
+      in: query
+      schema:
+        $ref: '../parameters/shortString.yaml'
+    - name: userId
+      description: "this is the userId used when withUser is set to true or false"
+      in: query
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: withUser
+      description: "use false if user groups should be included and true if user groups should be excluded from search"
+      in: query
+      schema:
+        type: boolean
+    - name: withImages
+      description: "use false if profile picture should not be returned and true if it should. Defaults to false"
+      in: query
+      schema:
+        default: false
+        type: boolean
+    - name: page
+      description: "page number"
+      in: query
+      schema:
+        type: integer
+    - name: size
+      description: "page size. Defaults to 20"
+      in: query
+      schema:
+        type: integer
+        default: 20
+    - name: updatedAfter
+      description: "only include groups that have been updated after this date. If set all deleted groups after this time are returned."
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupsSyncDto.yaml'
+post:
+  operationId: addGroup
+  security:
+    - token: [ ]
+  summary: Create a new group
+  tags:
+    - groups
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/createGroupDto.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupDto.yaml'
+    400:
+      description: Image can not be used or is not square
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

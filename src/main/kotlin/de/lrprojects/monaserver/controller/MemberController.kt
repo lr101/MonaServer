@@ -5,9 +5,9 @@ import de.lrprojects.monaserver.excepetion.UserIsAdminException
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.SeasonService
-import de.lrprojects.monaserver_api.api.MembersApiDelegate
-import de.lrprojects.monaserver_api.model.GroupDto
-import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserverapi.api.MembersApiDelegate
+import de.lrprojects.monaserverapi.model.GroupDto
+import de.lrprojects.monaserverapi.model.MemberResponseDto
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -39,13 +39,13 @@ class MemberController(
     }
 
     @PreAuthorize("@guard.isSameUser(authentication, #userId) || @guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Void>? {
+    override fun deleteMemberFromGroup(groupId: UUID, userId: UUID): ResponseEntity<Unit> {
         log.info("Attempting to delete user $userId from group $groupId")
         return try {
             memberService.deleteMember(userId, groupId)
             log.info("User $userId deleted from group $groupId")
             ResponseEntity.ok().build()
-        } catch (e: UserIsAdminException) {
+        } catch (_: UserIsAdminException) {
             log.warn("Failed to delete user $userId from group $groupId: user is an admin")
             ResponseEntity(HttpStatus.CONFLICT)
         }

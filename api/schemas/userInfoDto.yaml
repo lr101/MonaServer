@@ -1,0 +1,20 @@
+type: object
+required:
+  - username
+  - userId
+properties:
+  username:
+    $ref: '../parameters/shortString.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'
+  description:
+    $ref: '../parameters/longString.yaml'
+  selectedBatch:
+    type: integer
+    nullable: true
+  bestSeason:
+    $ref: './seasonItemDto.yaml'
+  isMessagingRegistered:
+    type: boolean
+    nullable: true
+    description: Flag for whether the user registered to receive push messages. Only set for the current user.

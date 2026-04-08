@@ -1,0 +1,23 @@
+get:
+  operationId: getUserAchievements
+  security:
+    - token: [ ]
+  summary: Get user's achievements
+  tags:
+    - users
+  parameters:
+    - name: userId
+      in: path
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successfully returned user's achievements
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/userAchievementsDto.yaml'
+    404:
+      description: User not found
+    403:
+      description: Token not of requested user

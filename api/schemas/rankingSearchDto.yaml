@@ -1,0 +1,22 @@
+type: array
+items:
+  type: object
+  required:
+    - adminLevel
+    - name
+    - gid
+  properties:
+    adminLevel:
+      type: integer
+      minimum: 0
+      maximum: 2
+      description: "0: Country, 1: State, 2: County/City"
+      example: 0
+    name:
+      type: string
+      description: "Name of the country, state or county"
+      example: "Germany"
+    gid:
+      type: string
+      description: "ID of the country, state or county"
+      example: "DE"

@@ -1,0 +1,22 @@
+get:
+  operationId: requestPasswordRecovery
+  summary: Request password recovery
+  tags:
+    - auth
+  parameters:
+    - name: username
+      in: query
+      required: true
+      schema:
+        $ref: '../parameters/shortString.yaml'
+  responses:
+    '201':
+      description: Recovery email sent
+    '400':
+      description: E-Mail could not be send
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+    '503':
+      description: Unique code could not be generated. Contact the developer under lr.dev.projects@gmail.com

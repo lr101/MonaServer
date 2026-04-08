@@ -8,11 +8,11 @@ import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.SeasonService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.types.XpType
-import de.lrprojects.monaserver_api.api.GroupsApiDelegate
-import de.lrprojects.monaserver_api.model.CreateGroupDto
-import de.lrprojects.monaserver_api.model.GroupDto
-import de.lrprojects.monaserver_api.model.GroupsSyncDto
-import de.lrprojects.monaserver_api.model.UpdateGroupDto
+import de.lrprojects.monaserverapi.api.GroupsApiDelegate
+import de.lrprojects.monaserverapi.model.CreateGroupDto
+import de.lrprojects.monaserverapi.model.GroupDto
+import de.lrprojects.monaserverapi.model.GroupsSyncDto
+import de.lrprojects.monaserverapi.model.UpdateGroupDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -48,7 +48,7 @@ class GroupController(
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun deleteGroup(groupId: UUID): ResponseEntity<Void>? {
+    override fun deleteGroup(groupId: UUID): ResponseEntity<Unit> {
         log.info("Attempting to delete group with ID: $groupId")
         groupService.deleteGroup(groupId)
         log.info("Group deleted with ID: $groupId")
@@ -160,9 +160,9 @@ class GroupController(
     }
 
     @PreAuthorize("@guard.isGroupAdmin(authentication, #groupId)")
-    override fun updateGroup(groupId: UUID, updateGroup: UpdateGroupDto): ResponseEntity<GroupDto> {
+    override fun updateGroup(groupId: UUID, updateGroupDto: UpdateGroupDto): ResponseEntity<GroupDto> {
         log.info("Attempting to update group with ID: $groupId")
-        val result = groupService.updateGroup(groupId, updateGroup)
+        val result = groupService.updateGroup(groupId, updateGroupDto)
         log.info("Updated group with ID: $groupId")
         val seasonItemDto = seasonService.getBestGroupSeason(groupId)
         return ResponseEntity.ok(result.toGroupDto(memberService, true, objectService, seasonItemDto))

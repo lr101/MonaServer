@@ -1,0 +1,23 @@
+type: object
+required:
+  - mails
+  - subject
+  - message
+properties:
+  mails:
+    nullable: true
+    description: List of emails when null all users will get this mail
+    type: array
+    items:
+      type: string
+      format: email
+  subject:
+    $ref: '../parameters/shortString.yaml'
+  message:
+    type: string
+    nullable: false
+    description: Plaintext message
+  messageHtml:
+    type: string
+    nullable: true
+    description: Html message

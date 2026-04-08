@@ -1,11 +1,11 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.service.api.RankingService
-import de.lrprojects.monaserver_api.api.RankingApiDelegate
-import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
-import de.lrprojects.monaserver_api.model.MapInfoDto
-import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
-import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import de.lrprojects.monaserverapi.api.RankingApiDelegate
+import de.lrprojects.monaserverapi.model.GroupRankingDtoInner
+import de.lrprojects.monaserverapi.model.MapInfoDto
+import de.lrprojects.monaserverapi.model.RankingSearchDtoInner
+import de.lrprojects.monaserverapi.model.UserRankingDtoInner
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -29,7 +29,7 @@ class RankingController(
         return ResponseEntity.ok(result)
     }
 
-    override fun getMapInfo(latitude: BigDecimal?, longitude: BigDecimal?): ResponseEntity<MutableList<MapInfoDto>> {
+    override fun getMapInfo(latitude: BigDecimal?, longitude: BigDecimal?): ResponseEntity<List<MapInfoDto>> {
         log.info("Attempting to get map info with lat: $latitude, long: $longitude")
         val result = rankingService.getMapInfo(latitude?.toDouble(), longitude?.toDouble())
         log.info("Retrieved map info")
@@ -41,10 +41,10 @@ class RankingController(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
-        season: Boolean?,
+        season: Boolean,
         page: Int?,
         size: Int
-    ): ResponseEntity<MutableList<GroupRankingDtoInner>> {
+    ): ResponseEntity<List<GroupRankingDtoInner>> {
         log.info("Attempting to get group ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since, season: $season")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
@@ -62,10 +62,10 @@ class RankingController(
         gid1: String?,
         gid2: String?,
         since: OffsetDateTime?,
-        season: Boolean?,
+        season: Boolean,
         page: Int?,
         size: Int
-    ): ResponseEntity<MutableList<UserRankingDtoInner>> {
+    ): ResponseEntity<List<UserRankingDtoInner>> {
         log.info("Attempting to get user ranking for gid0: $gid0, gid1: $gid1, gid2: $gid2, since: $since, season: $season")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)
@@ -81,7 +81,7 @@ class RankingController(
         search: String?,
         page: Int?,
         size: Int
-    ): ResponseEntity<MutableList<RankingSearchDtoInner>> {
+    ): ResponseEntity<List<RankingSearchDtoInner>> {
         log.info("Attempt to search for boundaries: $search")
         val pageable: Pageable = if (page != null) {
             PageRequest.of(page, size)

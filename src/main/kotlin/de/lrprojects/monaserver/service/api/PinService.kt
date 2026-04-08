@@ -3,8 +3,8 @@ package de.lrprojects.monaserver.service.api
 import de.lrprojects.monaserver.entity.Group
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
-import de.lrprojects.monaserver_api.model.PinRequestDto
-import de.lrprojects.monaserver_api.model.SyncDto
+import de.lrprojects.monaserverapi.model.PinRequestDto
+import de.lrprojects.monaserverapi.model.SyncDto
 import java.time.OffsetDateTime
 import java.util.*
 

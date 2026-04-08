@@ -3,7 +3,7 @@ package de.lrprojects.monaserver.converter
 import de.lrprojects.monaserver.entity.Like
 import de.lrprojects.monaserver.entity.Pin
 import de.lrprojects.monaserver.entity.User
-import de.lrprojects.monaserver_api.model.CreateLikeDto
+import de.lrprojects.monaserverapi.model.CreateLikeDto
 
 
 fun CreateLikeDto.toEntity(pin: Pin, user: User) = Like(
