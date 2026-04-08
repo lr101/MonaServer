@@ -2,6 +2,7 @@ package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.converter.toPinModelWithImage
 import de.lrprojects.monaserver.service.api.DeleteLogService
+import de.lrprojects.monaserver.service.api.GroupService
 import de.lrprojects.monaserver.service.api.MonaService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService

@@ -31,7 +31,7 @@
 		<hibernate.validator.version>9.1.0.Final</hibernate.validator.version>
 		<jetbrains.annotations.version>26.0.2-1</jetbrains.annotations.version>
 		<org.junit.jupiter.version>6.0.2</org.junit.jupiter.version>
-		<firebase-admin.version>9.7.1</firebase-admin.version>
+		<firebase-admin.version>9.8.0</firebase-admin.version>
 		<okhttp3.version>4.9.1</okhttp3.version>
 	</properties>
 
