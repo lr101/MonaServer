@@ -1,0 +1,87 @@
+get:
+  operationId: getUser
+  security:
+    - token: [ ]
+  summary: Get a user by userId
+  tags:
+    - users
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Get successfull
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/userInfoDto.yaml'
+    404:
+      description: User does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+
+put:
+  operationId: updateUser
+  security:
+    - token: [ ]
+  summary: Update user information by userId
+  tags:
+    - users
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/userUpdateDto.yaml'
+  responses:
+    '200':
+      description: Update successfull
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/userUpdateResponseDto.yaml'
+    404:
+      description: User does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+delete:
+  operationId: deleteUser
+  security:
+    - token: [ ]
+  summary: Delete a user by userId
+  tags:
+    - users
+  parameters:
+    - name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    content:
+      application/json:
+        schema:
+          $ref: '../parameters/code.yaml'
+
+  responses:
+    '200':
+      description: Deleted
+    404:
+      description: User does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

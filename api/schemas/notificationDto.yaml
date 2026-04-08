@@ -1,0 +1,18 @@
+type: object
+required:
+  - title
+  - body
+  - topic
+properties:
+  title:
+    type: string
+    description: The title of the notification
+    example: This is a notification
+  body:
+    type: string
+    description: The body of the notification
+    example: This is the notification body
+  topic:
+    type: string
+    description: The topic to send the notification to
+    example: info

@@ -11,9 +11,9 @@ import de.lrprojects.monaserver.repository.SeasonRepository
 import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.repository.UserSeasonRepository
 import de.lrprojects.monaserver.service.api.RankingService
-import de.lrprojects.monaserver_api.model.SeasonItemDto
-import de.lrprojects.monaserver_api.model.UserInfoDto
-import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import de.lrprojects.monaserverapi.model.SeasonItemDto
+import de.lrprojects.monaserverapi.model.UserInfoDto
+import de.lrprojects.monaserverapi.model.UserRankingDtoInner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -61,11 +61,11 @@ class SeasonServiceImplTest {
   // Create a UserRankingDtoInner instance
 
 
-  val userRanking = UserRankingDtoInner().also {
-   it.userInfoDto = UserInfoDto("username", userId)
-   it.rankNr = 1
-   it.points = 50
-  }
+  val userRanking = UserRankingDtoInner(
+   userInfoDto = UserInfoDto("username", userId),
+   rankNr = 1,
+   points = 50
+  )
 
   val user = User("username", "psw").also {
    it.id = userId

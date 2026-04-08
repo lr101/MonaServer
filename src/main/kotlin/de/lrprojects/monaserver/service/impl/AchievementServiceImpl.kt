@@ -9,7 +9,7 @@ import de.lrprojects.monaserver.service.api.AchievementService
 import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.types.AchievementType
 import de.lrprojects.monaserver.types.XpType
-import de.lrprojects.monaserver_api.model.UserAchievementsDtoInner
+import de.lrprojects.monaserverapi.model.UserAchievementsDtoInner
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
@@ -67,13 +67,13 @@ class AchievementServiceImpl(
         achievementType: AchievementType,
         currentValue: Int,
         claimed: List<UserAchievement>
-    ) = UserAchievementsDtoInner().also {
-        it.achievementId = achievementType.id
-        it.claimed = claimed.any { ach -> ach.achievementId == achievementType.id }
-        it.currentValue = currentValue
-        it.thresholdValue = achievementType.threshold
-        it.thresholdUp = achievementType.thresholdUp
-    }
+    ) = UserAchievementsDtoInner(
+        achievementId = achievementType.id,
+        claimed = claimed.any { ach -> ach.achievementId == achievementType.id },
+        currentValue = currentValue,
+        thresholdValue = achievementType.threshold,
+        thresholdUp = achievementType.thresholdUp
+    )
 
     private fun getSqlParamMap(params: List<String>, userId: UUID): Map<String, Any> {
         val map = mutableMapOf<String, Any>()

@@ -21,9 +21,9 @@ import de.lrprojects.monaserver.service.api.UserService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
 import de.lrprojects.monaserver.types.XpType
-import de.lrprojects.monaserver_api.model.TokenResponseDto
-import de.lrprojects.monaserver_api.model.UserUpdateDto
-import de.lrprojects.monaserver_api.model.UserUpdateResponseDto
+import de.lrprojects.monaserverapi.model.TokenResponseDto
+import de.lrprojects.monaserverapi.model.UserUpdateDto
+import de.lrprojects.monaserverapi.model.UserUpdateResponseDto
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -82,7 +82,7 @@ class UserServiceImpl(
     }
 
     @Transactional
-    override fun updateUser(userId: UUID, user: UserUpdateDto): UserUpdateResponseDto {
+    override fun updateUser(userId: UUID, user: UserUpdateDto, profileImage: String?, profileImageSmall: String?): UserUpdateResponseDto {
         var userEntity = getUser(userId)
         var tokenResponse: TokenResponseDto? = null
 
@@ -96,10 +96,12 @@ class UserServiceImpl(
         userEntity = userRepository.save(userEntity)
         if (user.email != null) sendEmailConfirmation(userEntity)
 
-        return UserUpdateResponseDto().also {
-            it.userTokenDto = tokenResponse
-            it.userInfoDto = userEntity.toUserInfoDto(seasonService)
-        }
+        return UserUpdateResponseDto(
+            userTokenDto = tokenResponse,
+            userInfoDto = userEntity.toUserInfoDto(seasonService),
+            profileImage = profileImage,
+            profileImageSmall = profileImageSmall,
+        )
     }
 
     private fun updateUserEmail(user: UserUpdateDto, userEntity: User) {
@@ -125,20 +127,22 @@ class UserServiceImpl(
     }
 
     private fun updateUserBatch(userId: UUID, user: UserUpdateDto, userEntity: User) {
-        val batch = achievementRepository.findByUser_IdAndAchievementId(userId, user.selectedBatch)
+        if (user.selectedBatch == null) return
+        val batch = achievementRepository.findByUser_IdAndAchievementId(userId, user.selectedBatch!!)
             .orElseThrow { EntityNotFoundException("Achievement not found") }
         if (batch.claimed) userEntity.selectedBatch = batch
     }
 
     private fun updateUserUsername(user: UserUpdateDto, userEntity: User) {
+        if (user.username == null) return
         if (userEntity.lastUsernameUpdate != null && OffsetDateTime.now()
                 .isBefore(userEntity.lastUsernameUpdate!!.plusDays(USERNAME_CHANGE_TIMEOUT))
         ) {
             throw TimeExpiredException("username can only be changed once every 14 days")
         }
-        userRepository.findByUsername(user.username)
+        userRepository.findByUsername(user.username!!)
             .ifPresent { throw UserExistsException("user with this username already exists") }
-        userEntity.username = user.username
+        userEntity.username = user.username!!
         userEntity.lastUsernameUpdate = OffsetDateTime.now()
     }
 

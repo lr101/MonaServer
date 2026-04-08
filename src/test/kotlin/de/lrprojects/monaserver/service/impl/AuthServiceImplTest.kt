@@ -1,5 +1,6 @@
 package de.lrprojects.monaserver.service.impl
 
+import de.lrprojects.monaserver.entity.RefreshToken
 import de.lrprojects.monaserver.entity.User
 import de.lrprojects.monaserver.excepetion.UserExistsException
 import de.lrprojects.monaserver.excepetion.UserNotFoundException
@@ -17,7 +18,9 @@ import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
+import java.time.OffsetDateTime
 import java.util.*
+import kotlin.time.Instant
 
 @ExtendWith(MockitoExtension::class)
 class AuthServiceImplTest {
@@ -69,7 +72,7 @@ class AuthServiceImplTest {
      `when`(userRepository.save(any<User>())).thenReturn(newUser)
      `when`(emailService.sendEmailConfirmation(any<String>(), any<String>(), any<String>())).thenAnswer { }
      `when`(tokenHelper.generateToken(any<UUID>())).thenReturn("token")
-     `when`(refreshTokenService.createRefreshToken(any<User>())).thenReturn(mock())
+     `when`(refreshTokenService.createRefreshToken(any<User>())).thenReturn(RefreshToken(token=UUID.randomUUID(), user = newUser, lastActiveDate = OffsetDateTime.now()))
 
      authService.signup("testUser", "password123", "test@example.com")
  }

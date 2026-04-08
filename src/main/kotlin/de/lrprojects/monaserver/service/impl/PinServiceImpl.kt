@@ -20,9 +20,9 @@ import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver.service.api.SeasonService
-import de.lrprojects.monaserver_api.model.PinRequestDto
-import de.lrprojects.monaserver_api.model.SyncDto
-import de.lrprojects.monaserver_api.model.SyncDtoGroupUpdatesInner
+import de.lrprojects.monaserverapi.model.PinRequestDto
+import de.lrprojects.monaserverapi.model.SyncDto
+import de.lrprojects.monaserverapi.model.SyncDtoGroupUpdatesInner
 import io.minio.errors.MinioException
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.security.core.context.SecurityContextHolder
@@ -50,7 +50,7 @@ class PinServiceImpl(
     override fun createPin(newPin: PinRequestDto): Pin {
         val user = userRepository.findById(newPin.userId).orElseThrow{ UserNotFoundException("user does not exist") }
         pinRepository.findByCreationDateAndUserAndLatitudeAndLongitude(
-            newPin.creationDate,
+            newPin.creationDate!!,
             user,
             newPin.latitude.toDouble(),
             newPin.longitude.toDouble()

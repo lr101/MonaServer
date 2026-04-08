@@ -1,20 +1,24 @@
 package de.lrprojects.monaserver.controller
 
 import de.lrprojects.monaserver.excepetion.TimeExpiredException
+import de.lrprojects.monaserver.properties.AppProperties
 import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ClassPathResource
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import java.net.URI
 
 @Controller
 class ViewController (
     private val userService: UserService,
     private val tokenHelper: TokenHelper,
+    private val appProperties: AppProperties
 ) {
 
     companion object {
@@ -23,7 +27,7 @@ class ViewController (
 
 
     @GetMapping("/public/recover/{url}")
-    fun recoverPassword(@PathVariable("url") url: String?, model: Model): String? {
+    fun recoverPassword(@PathVariable url: String?, model: Model): String? {
         log.info("Trying password recovery view'")
         return try {
             val user = userService.getUserByRecoverUrl(url!!)
@@ -31,9 +35,9 @@ class ViewController (
             model.addAttribute("userId", user.id)
             model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "recover-view"
-        } catch (e: TimeExpiredException) {
+        } catch (_: TimeExpiredException) {
             return "time-expired"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "404"
         }
     }
@@ -57,19 +61,19 @@ class ViewController (
     }
 
     @GetMapping("/public/email-confirmation/{url}")
-    fun emailConfirmationView(@PathVariable("url") url: String, model: Model): String {
+    fun emailConfirmationView(@PathVariable url: String, model: Model): String {
         log.info("Displaying email confirmation view")
         return try {
             val user = userService.getUserByEmailConfirmationUrl(url)
             model.addAttribute("username", user.username)
             "email-confirmation-view"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "404"
         }
     }
 
     @GetMapping("/public/delete-account/{url}")
-    fun deleteAccountView(@PathVariable("url") url: String, model: Model): String {
+    fun deleteAccountView(@PathVariable url: String, model: Model): String {
         log.info("Displaying delete account view")
         return try {
             val user = userService.getUserByDeletionUrl(url)
@@ -77,9 +81,9 @@ class ViewController (
             model.addAttribute("username", user.username)
             model.addAttribute("token", tokenHelper.generateToken(user.id!!))
             "delete-view"
-        } catch (e: TimeExpiredException) {
+        } catch (_: TimeExpiredException) {
             "time-expired"
-        } catch (e: Exception) {
+        } catch (_: Exception) {
                 "404"
         }
     }
@@ -90,6 +94,13 @@ class ViewController (
         return ResponseEntity.ok()
             .header("Content-Type", "image/x-icon")
             .body(favicon)
+    }
+
+    @GetMapping("/")
+    fun redirectToApp(): ResponseEntity<Unit> {
+        return ResponseEntity.status(HttpStatus.PERMANENT_REDIRECT)
+            .location(URI.create(appProperties.redirectUrl))
+            .build()
     }
 
 }

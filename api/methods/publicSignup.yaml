@@ -1,0 +1,22 @@
+post:
+  operationId: createUser
+  summary: User registration
+  tags:
+    - auth
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/userRequestDto.yaml'
+  responses:
+    '201':
+      description: User registered successfully
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tokenResponseDto.yaml'
+    '400':
+      description: Registration failed
+    '409':
+      description: Username already exists

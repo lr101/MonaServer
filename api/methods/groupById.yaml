@@ -1,0 +1,87 @@
+get:
+  operationId: getGroup
+  security:
+    - token: [ ]
+  summary: Get a group by ID
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupDto.yaml'
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+put:
+  operationId: updateGroup
+  security:
+    - token: [ ]
+  summary: Update a group by ID
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/updateGroupDto.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupDto.yaml'
+    400:
+      description: Image can not be used or is not square
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+
+delete:
+  operationId: deleteGroup
+  security:
+    - token: [ ]
+  summary: Delete a group by ID
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    200:
+      description: Deleted
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'

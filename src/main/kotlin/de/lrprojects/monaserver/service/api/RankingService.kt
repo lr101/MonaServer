@@ -1,10 +1,10 @@
 package de.lrprojects.monaserver.service.api
 
 import de.lrprojects.monaserver.entity.Boundary
-import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
-import de.lrprojects.monaserver_api.model.MapInfoDto
-import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
-import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import de.lrprojects.monaserverapi.model.GroupRankingDtoInner
+import de.lrprojects.monaserverapi.model.MapInfoDto
+import de.lrprojects.monaserverapi.model.RankingSearchDtoInner
+import de.lrprojects.monaserverapi.model.UserRankingDtoInner
 import org.springframework.data.domain.Pageable
 import java.time.OffsetDateTime
 

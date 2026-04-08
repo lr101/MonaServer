@@ -1,0 +1,12 @@
+type: object
+required:
+    - accessToken
+    - refreshToken
+    - userId
+properties:
+  refreshToken:
+    $ref: '../parameters/id.yaml'
+  accessToken:
+    $ref: '../parameters/longString.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'

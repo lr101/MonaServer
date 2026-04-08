@@ -11,7 +11,7 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.repository.UserSeasonRepository
 import de.lrprojects.monaserver.service.api.RankingService
 import de.lrprojects.monaserver.service.api.SeasonService
-import de.lrprojects.monaserver_api.model.SeasonItemDto
+import de.lrprojects.monaserverapi.model.SeasonItemDto
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service

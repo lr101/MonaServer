@@ -1,7 +1,7 @@
 package de.lrprojects.monaserver.controller
 
-import de.lrprojects.monaserver_api.api.ReportApiDelegate
-import de.lrprojects.monaserver_api.model.ReportDto
+import de.lrprojects.monaserverapi.api.ReportApiDelegate
+import de.lrprojects.monaserverapi.model.ReportDto
 import de.lrprojects.monaserver.service.api.EmailService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -15,9 +15,9 @@ class ReportController (private val emailService: EmailService) : ReportApiDeleg
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun createReport(report: ReportDto): ResponseEntity<Void>? {
-        log.info("Attempting send report from user with id: ${report.userId}")
-        emailService.sendReportEmail(report)
+    override fun createReport(reportDto: ReportDto): ResponseEntity<Unit> {
+        log.info("Attempting send report from user with id: ${reportDto.userId}")
+        emailService.sendReportEmail(reportDto)
         return ResponseEntity.ok().build()
     }
 

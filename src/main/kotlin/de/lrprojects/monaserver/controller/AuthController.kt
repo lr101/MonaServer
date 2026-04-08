@@ -3,11 +3,11 @@ package de.lrprojects.monaserver.controller
 import de.lrprojects.monaserver.excepetion.UniqueResetUrlNotFoundException
 import de.lrprojects.monaserver.excepetion.WrongPasswordException
 import de.lrprojects.monaserver.service.api.AuthService
-import de.lrprojects.monaserver_api.api.AuthApiDelegate
-import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
-import de.lrprojects.monaserver_api.model.TokenResponseDto
-import de.lrprojects.monaserver_api.model.UserLoginRequest
-import de.lrprojects.monaserver_api.model.UserRequestDto
+import de.lrprojects.monaserverapi.api.AuthApiDelegate
+import de.lrprojects.monaserverapi.model.RefreshTokenRequestDto
+import de.lrprojects.monaserverapi.model.TokenResponseDto
+import de.lrprojects.monaserverapi.model.UserLoginRequest
+import de.lrprojects.monaserverapi.model.UserRequestDto
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -22,21 +22,21 @@ class AuthController(
         private val log = LoggerFactory.getLogger(this::class.java)
     }
 
-    override fun createUser(createUser: UserRequestDto): ResponseEntity<TokenResponseDto> {
-        log.info("Attempting to create user with username: ${createUser.name}")
-        val token = authService.signup(createUser.name, createUser.password, createUser.email)
-        log.info("Created user with username: ${createUser.name}")
+    override fun createUser(userRequestDto: UserRequestDto): ResponseEntity<TokenResponseDto> {
+        log.info("Attempting to create user with username: ${userRequestDto.name}")
+        val token = authService.signup(userRequestDto.name, userRequestDto.password, userRequestDto.email)
+        log.info("Created user with username: ${userRequestDto.name}")
         return ResponseEntity(token, HttpStatus.CREATED)
     }
 
-    override fun generateDeleteCode(username: String): ResponseEntity<Void>? {
+    override fun generateDeleteCode(username: String): ResponseEntity<Unit> {
         log.info("Generating delete code for user: $username")
         authService.requestDeleteCode(username)
         log.info("Created delete code for user: $username")
         return ResponseEntity.ok().build()
     }
 
-    override fun requestPasswordRecovery(username: String): ResponseEntity<Void> {
+    override fun requestPasswordRecovery(username: String): ResponseEntity<Unit> {
         log.info("Attempting password recovery for user: $username")
         return try {
             authService.recoverPassword(username)
@@ -60,9 +60,12 @@ class AuthController(
         }
     }
 
-    override fun refreshToken(refreshTokenRequestDto: RefreshTokenRequestDto): ResponseEntity<TokenResponseDto>? {
+    override fun refreshToken(refreshTokenRequestDto: RefreshTokenRequestDto?): ResponseEntity<TokenResponseDto> {
         log.info("Attempting token refresh")
         return try {
+            if (refreshTokenRequestDto == null) {
+                return ResponseEntity.badRequest().build()
+            }
             val token = authService.refreshToken(refreshTokenRequestDto)
             log.info("New access token has been generated")
             ResponseEntity.ok().body(token)

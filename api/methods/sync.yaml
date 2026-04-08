@@ -1,0 +1,20 @@
+get:
+  operationId: sync
+  security:
+    - token: [ ]
+  summary: Sync all pins and groups based on last seen date
+  tags:
+    - pins
+  parameters:
+    - name: lastSeen
+      description: "Syncs created and deleted pins after this date"
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/syncDto.yaml'

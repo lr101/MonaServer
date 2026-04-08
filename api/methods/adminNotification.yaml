@@ -1,0 +1,21 @@
+post:
+  operationId: sendNotification
+  summary: Post a notification to a specific topic
+  description: Post a notification with a given title and body to a specific topic
+  security:
+    - token: []
+  tags:
+    - admin
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+         $ref: '../schemas/notificationDto.yaml'
+  responses:
+    201:
+      description: Notification sent
+    401:
+      description: Not authorized to send notifications
+    500:
+      description: Internal server error

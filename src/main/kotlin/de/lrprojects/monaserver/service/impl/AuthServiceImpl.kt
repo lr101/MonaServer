@@ -11,8 +11,8 @@ import de.lrprojects.monaserver.security.TokenHelper
 import de.lrprojects.monaserver.service.api.AuthService
 import de.lrprojects.monaserver.service.api.EmailService
 import de.lrprojects.monaserver.service.api.RefreshTokenService
-import de.lrprojects.monaserver_api.model.RefreshTokenRequestDto
-import de.lrprojects.monaserver_api.model.TokenResponseDto
+import de.lrprojects.monaserverapi.model.RefreshTokenRequestDto
+import de.lrprojects.monaserverapi.model.TokenResponseDto
 import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -103,7 +103,7 @@ class AuthServiceImpl(
 
     @Transactional
     override fun refreshToken(token: RefreshTokenRequestDto): TokenResponseDto {
-        val refreshToken = refreshTokenService.findByToken(token.refreshToken, token.userId)
+        val refreshToken = refreshTokenService.findByToken(token.refreshToken!!, token.userId!!)
         return TokenResponseDto(refreshToken.token, tokenHelper.generateToken(refreshToken.user.id!!), refreshToken.user.id!!)
     }
 

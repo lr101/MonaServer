@@ -62,6 +62,7 @@ app:
     batchDuration: ${MAIL_BATCH_DURATION:60}
   config:
     url: ${APP_URL}
+    redirectUrl: ${REDIRECT_URL:https://app.lr-projects.de}
     maxLoginAttempts: ${MAX_LOGIN_ATTEMPTS:10}
     firebase-config-path: ${FIREBASE_CONFIG_PATH}
   token:

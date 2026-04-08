@@ -6,8 +6,8 @@ import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
-import de.lrprojects.monaserver_api.model.GroupDto
-import de.lrprojects.monaserver_api.model.SeasonItemDto
+import de.lrprojects.monaserverapi.model.GroupDto
+import de.lrprojects.monaserverapi.model.SeasonItemDto
 import org.springframework.security.core.context.SecurityContextHolder
 import java.util.*
 
@@ -24,16 +24,15 @@ fun Group.toGroupDto(
         this.id!!,
         this.name!!,
         this.visibility,
-    ).also {
-        it.profileImage = if (withImage) objectService.getObject(getGroupFileProfile(it.id)) else null
-        it.pinImage = if (withImage) objectService.getObject(getGroupFilePin(it.id)) else null
-        it.profileImageSmall = if (withImage) objectService.getObject(getGroupFileProfileSmall(it.id)) else null
-        it.description = if (visibleToUser) this.description else null
-        it.groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null
-        it.link = if (visibleToUser) this.link else null
-        it.lastUpdated = if (visibleToUser) this.updateDate else null
-        it.inviteUrl = if (visibleToUser) this.inviteUrl else null
-        it.bestSeason = seasonItemDto
-    }
+        profileImage = if (withImage) objectService.getObject(getGroupFileProfile(id!!)) else null,
+        pinImage = if (withImage) objectService.getObject(getGroupFilePin(id!!)) else null,
+        profileImageSmall = if (withImage) objectService.getObject(getGroupFileProfileSmall(id!!)) else null,
+        description = if (visibleToUser) this.description else null,
+        groupAdmin = if (visibleToUser) this.groupAdmin!!.id else null,
+        link = if (visibleToUser) this.link else null,
+        lastUpdated = if (visibleToUser) this.updateDate else null,
+        inviteUrl = if (visibleToUser) this.inviteUrl else null,
+        bestSeason = seasonItemDto
+    )
     return groupDto
 }

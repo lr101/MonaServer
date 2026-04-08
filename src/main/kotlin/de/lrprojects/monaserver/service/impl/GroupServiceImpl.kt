@@ -14,7 +14,7 @@ import de.lrprojects.monaserver.service.api.PinService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFilePin
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfile
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getGroupFileProfileSmall
-import de.lrprojects.monaserver_api.model.*
+import de.lrprojects.monaserverapi.model.*
 import jakarta.persistence.EntityNotFoundException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -146,7 +146,7 @@ class GroupServiceImpl (
             )
             group.updateDate = OffsetDateTime.now()
         }
-        updateGroup.visibility?.let { group.visibility = updateGroup.visibility }
+        updateGroup.visibility?.let { group.visibility = updateGroup.visibility!! }
         if (updateGroup.visibility!! == 0) {
             group.inviteUrl = null
         } else {

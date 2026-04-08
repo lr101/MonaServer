@@ -1,0 +1,13 @@
+description: An array of sorted users by rank and points
+type: array
+items:
+  type: object
+  properties:
+    userInfoDto:
+      $ref: './userInfoDto.yaml'
+    rankNr:
+      type: integer
+      minimum: 0
+    points:
+      type: integer
+      minimum: 0

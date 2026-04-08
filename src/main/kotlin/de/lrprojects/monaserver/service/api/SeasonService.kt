@@ -1,6 +1,6 @@
 package de.lrprojects.monaserver.service.api
 
-import de.lrprojects.monaserver_api.model.SeasonItemDto
+import de.lrprojects.monaserverapi.model.SeasonItemDto
 import java.util.*
 
 interface SeasonService {

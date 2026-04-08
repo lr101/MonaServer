@@ -6,5 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class AppProperties(
     val url: String,
     val maxLoginAttempts: Int,
+    val redirectUrl: String,
     val firebaseConfigPath: String?
 )

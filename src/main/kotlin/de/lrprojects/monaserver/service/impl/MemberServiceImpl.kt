@@ -13,7 +13,7 @@ import de.lrprojects.monaserver.repository.UserRepository
 import de.lrprojects.monaserver.service.api.MemberService
 import de.lrprojects.monaserver.service.api.ObjectService
 import de.lrprojects.monaserver.service.impl.ObjectServiceImpl.Companion.getUserFileProfileSmall
-import de.lrprojects.monaserver_api.model.MemberResponseDto
+import de.lrprojects.monaserverapi.model.MemberResponseDto
 import jakarta.persistence.EntityNotFoundException
 import org.slf4j.LoggerFactory
 import org.springframework.cache.annotation.Cacheable
@@ -53,10 +53,13 @@ class MemberServiceImpl(
     @Cacheable(value = ["groupRanking"], key = "#groupId")
     override fun getRanking(groupId: UUID): MutableList<MemberResponseDto> {
         return groupRepository.getRanking(groupId).map {
-            MemberResponseDto(it[0] as UUID, it[1] as String, it[2] as Int).also {
-                e -> e.profileImageSmall = objectService.getObject(getUserFileProfileSmall(e.userId))
-                e.selectedBatch = it[3] as Int?
-            }
+            MemberResponseDto(
+                userId =it[0] as UUID,
+                username = it[1] as String,
+                ranking = it[2] as Int,
+                profileImageSmall = objectService.getObject(getUserFileProfileSmall(it[0] as UUID)),
+                selectedBatch = it[3] as Int?
+            )
         }.toMutableList()
     }
 

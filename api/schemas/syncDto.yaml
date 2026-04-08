@@ -1,0 +1,26 @@
+type: object
+required:
+  - deletedPins
+  - groupUpdates
+properties:
+  deletedPins:
+    type: array
+    description: List of ids of deleted pins (unspecific of group)
+    items:
+      $ref: "../parameters/id.yaml"
+  groupUpdates:
+    type: array
+    description: "List of groups and their respective pin changes."
+    items:
+      type: object
+      description: A group and its respective pin changes
+      required:
+        - group
+        - pinsAdded
+      properties:
+        group:
+          $ref: "./groupDto.yaml"
+        pinsAdded:
+          type: array
+          items:
+            $ref: "./pinWithOptionalImageDto.yaml"

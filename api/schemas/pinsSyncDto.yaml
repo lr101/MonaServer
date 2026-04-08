@@ -1,0 +1,13 @@
+type: object
+required:
+  - items
+  - deleted
+properties:
+  items:
+    type: array
+    items:
+      $ref: 'pinWithOptionalImageDto.yaml'
+  deleted:
+    type: array
+    items:
+      $ref: '../parameters/id.yaml'

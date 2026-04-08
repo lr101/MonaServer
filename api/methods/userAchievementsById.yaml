@@ -1,0 +1,26 @@
+post:
+  operationId: claimUserAchievement
+  security:
+    - token: [ ]
+  summary: Claim an achievement
+  tags:
+    - users
+  parameters:
+    - name: userId
+      in: path
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: achievementId
+      in: path
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    '200':
+      description: Successfully claimed achievement
+    404:
+      description: User not found
+    403:
+      description: Token not of requested user
+    400:
+      description: Not fulfilled conditions

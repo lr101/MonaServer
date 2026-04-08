@@ -5,12 +5,12 @@ import de.lrprojects.monaserver.entity.Boundary
 import de.lrprojects.monaserver.excepetion.AssertException
 import de.lrprojects.monaserver.repository.BoundaryRepository
 import de.lrprojects.monaserver.service.api.RankingService
-import de.lrprojects.monaserver_api.model.GroupDto
-import de.lrprojects.monaserver_api.model.GroupRankingDtoInner
-import de.lrprojects.monaserver_api.model.MapInfoDto
-import de.lrprojects.monaserver_api.model.RankingSearchDtoInner
-import de.lrprojects.monaserver_api.model.UserInfoDto
-import de.lrprojects.monaserver_api.model.UserRankingDtoInner
+import de.lrprojects.monaserverapi.model.GroupDto
+import de.lrprojects.monaserverapi.model.GroupRankingDtoInner
+import de.lrprojects.monaserverapi.model.MapInfoDto
+import de.lrprojects.monaserverapi.model.RankingSearchDtoInner
+import de.lrprojects.monaserverapi.model.UserInfoDto
+import de.lrprojects.monaserverapi.model.UserRankingDtoInner
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
@@ -47,16 +47,18 @@ class RankingServiceImpl(
         season: Boolean?,
         pageable: Pageable
     ): MutableList<GroupRankingDtoInner> {
-        var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
+        val rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
         return boundaryRepository.getGroupRanking(gid0, gid1, gid2, getSinceValue(since, season), pageable).map { r ->
-            rank += 1
-            GroupRankingDtoInner().also {
-                it.rankNr = rank
-                it.points = r[4] as Int
-                it.groupInfoDto = GroupDto(r[0] as UUID, r[1] as String, r[2] as Int).also {
-                    g -> g.description = if(r[2] == 0) r[3] as String? else null
-                }
-            }
+            GroupRankingDtoInner(
+                rankNr = rank + 1,
+                points = r[4] as Int,
+                groupInfoDto = GroupDto(
+                    id = r[0] as UUID,
+                    name = r[1] as String,
+                    visibility = r[2] as Int,
+                    description = if(r[2] == 0) r[3] as String? else null
+                )
+            )
         }.toMutableList()
     }
 
@@ -71,14 +73,16 @@ class RankingServiceImpl(
         var rank = if(pageable.isPaged)  pageable.pageNumber * pageable.pageSize else 0
         return boundaryRepository.getUserRanking(gid0, gid1, gid2, getSinceValue(since, season), pageable).map { r ->
             rank += 1
-            UserRankingDtoInner().also {
-                it.rankNr = rank
-                it.points = r[3] as Int
-                it.userInfoDto = UserInfoDto(r[1] as String, r[0] as UUID).also { user ->
-                    user.description = r[2] as String?
-                    user.selectedBatch = r[4] as Int?
-                }
-            }
+            UserRankingDtoInner(
+                rankNr = rank,
+                points = r[3] as Int,
+                userInfoDto = UserInfoDto(
+                    username = r[1] as String,
+                    userId = r[0] as UUID,
+                    description = r[2] as String?,
+                    selectedBatch = r[4] as Int?
+                )
+            )
         }.toMutableList()
     }
 
@@ -94,7 +98,7 @@ class RankingServiceImpl(
 
     override fun searchRanking(search: String?, pageable: Pageable): MutableList<RankingSearchDtoInner> {
         return boundaryRepository.searchBoundaries(search, pageable).map { r ->
-            RankingSearchDtoInner(r[0] as Int, r[2] as String?, r[1] as String?)
+            RankingSearchDtoInner(r[0] as Int, r[2] as String, r[1] as String)
         }.toMutableList()
     }
 }
