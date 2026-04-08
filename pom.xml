@@ -17,7 +17,7 @@
 	<properties>
 		<java.version>24</java.version>
 		<kotlin.version>2.2.21</kotlin.version>
-		<jackson.version>2.19.2</jackson.version>
+		<jackson.version>2.21.2</jackson.version>
 		<monaserverapi.version>1.0.19-SNAPSHOT</monaserverapi.version>
 		<springdoc.version>3.0.1</springdoc.version>
 		<springcore.version>7.0.6</springcore.version>
