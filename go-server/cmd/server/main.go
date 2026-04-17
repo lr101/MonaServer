@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +15,7 @@ import (
 	"github.com/lrprojects/monaserver/internal/config"
 	"github.com/lrprojects/monaserver/internal/db"
 	genapi "github.com/lrprojects/monaserver/internal/gen/api"
+	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/handler"
 	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/scheduler"
@@ -43,9 +45,6 @@ func main() {
 	authSvc := service.NewAuth(q, tok, cfg)
 	guardSvc := service.NewGuard(q)
 
-	authH := handler.NewAuth(authSvc)
-
-	// Optional integrations — initialize only if configured.
 	var objSvc *service.Object
 	if cfg.MinioEndpoint != "" {
 		o, err := service.NewObject(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey,
@@ -60,22 +59,39 @@ func main() {
 		}
 	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
-
 	mailSvc := service.NewEmail(cfg, nil)
+
 	userSvc := service.NewUser(q, objSvc, tok, authSvc, mailSvc)
-	usersH := handler.NewUsers(userSvc)
 	groupSvc := service.NewGroup(q, objSvc, userSvc)
-	groupsH := handler.NewGroups(groupSvc)
 	pinSvc := service.NewPin(q, objSvc)
-	pinsH := handler.NewPins(pinSvc)
 	memberSvc := service.NewMember(q, objSvc, groupSvc)
-	membersH := handler.NewMembers(memberSvc)
 	likeSvc := service.NewLike(q)
-	likesH := handler.NewLikes(likeSvc)
 	rankSvc := service.NewRanking(q)
-	rankH := handler.NewRanking(rankSvc)
-	adminH := handler.NewAdmin(q, mailSvc, notifSvc)
-	reportH := handler.NewReport(q, mailSvc)
+
+	// Servicers wrapping business logic and implementing genserver interfaces.
+	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.MinioEndpoint, cfg.RedirectURL)
+	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
+	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
+	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
+	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
+	rankingServicer := handler.NewRankingServicer(rankSvc)
+	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
+	reportServicer := handler.NewReportServicer(mailSvc)
+	publicServicer := handler.NewPublicServicer()
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc)
+
+	// Generated controllers (handle HTTP param parsing).
+	authCtrl := genserver.NewAuthAPIController(authServicer)
+	groupsCtrl := genserver.NewGroupsAPIController(groupsServicer)
+	pinsCtrl := genserver.NewPinsAPIController(pinsServicer)
+	membersCtrl := genserver.NewMembersAPIController(membersServicer)
+	likesCtrl := genserver.NewLikesAPIController(likesServicer)
+	rankingCtrl := genserver.NewRankingAPIController(rankingServicer)
+	adminCtrl := genserver.NewAdminAPIController(adminServicer)
+	reportCtrl := genserver.NewReportAPIController(reportServicer)
+	publicCtrl := genserver.NewPublicAPIController(publicServicer)
+	usersCtrl := genserver.NewUsersAPIController(usersServicer)
+
 	viewsH := handler.NewViews(q, tok, cfg.RedirectURL)
 
 	sched := scheduler.New()
@@ -96,8 +112,7 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	// OpenAPI spec — served at the same path as SpringDoc exposes it in the
-	// Kotlin build, plus a Swagger-UI CDN page so it's browsable.
+	// OpenAPI spec + Swagger UI.
 	r.Get("/public/api-docs", serveOpenAPISpec)
 	r.Get("/public/api-docs/", serveOpenAPISpec)
 	r.Get("/swagger-ui", serveSwaggerUI)
@@ -109,13 +124,15 @@ func main() {
 	r.Get("/public/delete-account/{url}", viewsH.DeleteAccountView)
 	r.Get("/public/email-confirmation/{url}", viewsH.EmailConfirmation)
 
-	// Public routes (no auth).
-	r.Route("/api/v2/public", func(r chi.Router) {
-		r.Post("/signup", authH.Signup)
-		r.Post("/login", authH.Login)
-		r.Post("/refresh", authH.Refresh)
-		r.Get("/recover", handler.NotImplemented)
-		r.Get("/infos", handler.NotImplemented)
+	// Public routes (no auth) — auth controller public endpoints + public API controller.
+	r.Group(func(r chi.Router) {
+		registerRoutes(r, authCtrl, isPublicRoute)
+		registerRoutes(r, publicCtrl, alwaysTrue)
+	})
+
+	// Status endpoint (no auth).
+	r.Group(func(r chi.Router) {
+		registerRoutes(r, authCtrl, isStatusRoute)
 	})
 
 	// Authenticated routes: require JWT + USER role.
@@ -123,80 +140,22 @@ func main() {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 
-		r.Route("/api/v2", func(r chi.Router) {
-			// Users
-			r.Route("/users/{userId}", func(r chi.Router) {
-				r.Get("/", usersH.Get)
-				r.With(middleware.RequireSameUser("userId")).Put("/", usersH.Update)
-				r.With(middleware.RequireSameUser("userId")).Delete("/", usersH.Delete)
-				r.Get("/profile_picture", usersH.ProfileImage(false))
-				r.Get("/profile_picture_small", usersH.ProfileImage(true))
-				r.With(middleware.RequireSameUser("userId")).Get("/xp", usersH.Xp)
-				r.With(middleware.RequireSameUser("userId")).Get("/achievements", usersH.Achievements)
-				r.With(middleware.RequireSameUser("userId")).Post("/achievements/{achievementId}", usersH.ClaimAchievement)
-				r.Get("/likes", likesH.UserLikes)
-			})
-
-			// Groups
-			r.Route("/groups", func(r chi.Router) {
-				r.Get("/", groupsH.Search)
-				r.Post("/", groupsH.Create)
-				r.Route("/{groupId}", func(r chi.Router) {
-					r.Get("/", groupsH.Get)
-					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Put("/", groupsH.Update)
-					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Delete("/", groupsH.Delete)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/admin", groupsH.Admin)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/description", groupsH.Description)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/link", groupsH.Link)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/invite_url", groupsH.InviteUrl)
-					r.Get("/profile_image", groupsH.ProfileImage(false))
-					r.Get("/profile_image_small", groupsH.ProfileImage(true))
-					r.Get("/pin_image", groupsH.PinImage)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/members", membersH.Ranking)
-					r.Post("/members", membersH.Join)
-					r.With(middleware.RequireAny(
-						middleware.RequireSameUserQuery("userId"),
-						middleware.RequireGroupAdmin(guardSvc, "groupId"),
-					)).Delete("/members", membersH.Leave)
-				})
-			})
-
-			// Pins
-			r.Route("/pins", func(r chi.Router) {
-				r.Get("/", handler.NotImplemented)
-				r.Post("/", pinsH.Create)
-				r.Route("/{pinId}", func(r chi.Router) {
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/", pinsH.Get)
-					r.With(middleware.RequireAny(
-						middleware.RequirePinCreator(guardSvc, "pinId"),
-						middleware.RequirePinGroupAdmin(guardSvc, "pinId"),
-					)).Delete("/", pinsH.Delete)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/image", pinsH.Image)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/likes", likesH.PinLikes)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Post("/likes", likesH.CreateOrUpdate)
-				})
-			})
-
-			// Ranking + map
-			r.Get("/ranking/group", rankH.GroupRanking)
-			r.Get("/ranking/user", rankH.UserRanking)
-			r.Get("/ranking/search", rankH.SearchRanking)
-			r.Get("/map", rankH.MapInfo)
-			r.Get("/map/geojson", rankH.GeoJson)
-
-			r.Post("/report", reportH.Create)
-		})
-
-		// v3 sync
-		r.Get("/api/v3/sync", handler.NotImplemented)
+		registerRoutes(r, groupsCtrl, alwaysTrue)
+		registerRoutes(r, pinsCtrl, alwaysTrue)
+		registerRoutes(r, membersCtrl, alwaysTrue)
+		registerRoutes(r, likesCtrl, alwaysTrue)
+		registerRoutes(r, rankingCtrl, alwaysTrue)
+		registerRoutes(r, reportCtrl, alwaysTrue)
+		registerRoutes(r, usersCtrl, alwaysTrue)
+		// Auth: only the status route needs auth (already covered above without auth,
+		// so skip here to avoid duplicate registration).
 	})
 
 	// Admin-only routes.
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		r.Post("/api/v2/admin/mail", adminH.Mail)
-		r.Post("/api/v2/admin/notification", adminH.Notification)
+		registerRoutes(r, adminCtrl, alwaysTrue)
 	})
 
 	addr := ":" + cfg.Port
@@ -208,8 +167,25 @@ func main() {
 	}
 }
 
-// serveOpenAPISpec writes the embedded OpenAPI 3.0.3 spec as JSON. The spec is
-// compiled into the binary by oapi-codegen's embedded-spec generator.
+// registerRoutes registers controller routes into r, filtered by predicate on the pattern.
+func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool) {
+	for _, route := range ctrl.OrderedRoutes() {
+		if pred(route.Pattern) {
+			r.Method(route.Method, route.Pattern, route.HandlerFunc)
+		}
+	}
+}
+
+func isPublicRoute(pattern string) bool {
+	return strings.HasPrefix(pattern, "/api/v2/public/")
+}
+
+func isStatusRoute(pattern string) bool {
+	return pattern == "/api/v2/status"
+}
+
+func alwaysTrue(_ string) bool { return true }
+
 func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
 	spec, err := genapi.GetSwagger()
 	if err != nil {
@@ -225,7 +201,6 @@ func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(buf)
 }
 
-// serveSwaggerUI returns a minimal Swagger-UI HTML page pointing at /public/api-docs.
 func serveSwaggerUI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(`<!DOCTYPE html>

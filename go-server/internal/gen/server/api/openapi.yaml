@@ -1,0 +1,2597 @@
+openapi: 3.0.3
+info:
+  title: Stick-It RESP API
+  version: 1.0.1
+servers:
+- url: https://stick-it.lr-projects.de
+- url: http://localhost:8081
+tags:
+- description: Everything about the public apiF
+  name: public
+- description: Everything about Authentication
+  name: auth
+- description: Everything about Groups
+  name: groups
+- description: Everything about Pins
+  name: pins
+- description: Everything about Users
+  name: users
+- description: Everything about Memberships
+  name: members
+- description: Everything about Reports
+  name: report
+- description: Everything about Likes
+  name: likes
+- description: Everything only allowed by Admins
+  name: admin
+- description: Everything about user rankings
+  name: ranking
+paths:
+  /api/v2/groups:
+    get:
+      operationId: getGroupsByIds
+      parameters:
+      - description: Comma-separated list of group IDs
+        in: query
+        name: ids
+        schema:
+          items:
+            $ref: "#/components/schemas/id"
+          type: array
+      - description: search term used to find a group name
+        in: query
+        name: search
+        schema:
+          $ref: "#/components/schemas/shortString"
+      - description: this is the userId used when withUser is set to true or false
+        in: query
+        name: userId
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: use false if user groups should be included and true if user
+          groups should be excluded from search
+        in: query
+        name: withUser
+        schema:
+          type: boolean
+      - description: use false if profile picture should not be returned and true
+          if it should. Defaults to false
+        in: query
+        name: withImages
+        schema:
+          default: false
+          type: boolean
+      - description: page number
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: page size. Defaults to 20
+        in: query
+        name: size
+        schema:
+          default: 20
+          type: integer
+      - description: only include groups that have been updated after this date. If
+          set all deleted groups after this time are returned.
+        in: query
+        name: updatedAfter
+        schema:
+          $ref: "#/components/schemas/date"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupsSyncDto"
+          description: Successful response
+      security:
+      - token: []
+      summary: Get groups by IDs
+      tags:
+      - groups
+    post:
+      operationId: addGroup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createGroupDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupDto"
+          description: Successful response
+        "400":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Image can not be used or is not square
+      security:
+      - token: []
+      summary: Create a new group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}:
+    delete:
+      operationId: deleteGroup
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Delete a group by ID
+      tags:
+      - groups
+    get:
+      operationId: getGroup
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupDto"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get a group by ID
+      tags:
+      - groups
+    put:
+      operationId: updateGroup
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateGroupDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupDto"
+          description: Successful response
+        "400":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Image can not be used or is not square
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Update a group by ID
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/profile_image:
+    get:
+      operationId: getGroupProfileImage
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get profile of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/profile_image_small:
+    get:
+      operationId: getGroupProfileImageSmall
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get small profile image url of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/pin_image:
+    get:
+      operationId: getGroupPinImage
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/png:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get pin image of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/description:
+    get:
+      operationId: getGroupDescription
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/shortString"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get description of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/link:
+    get:
+      operationId: getGroupLink
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/shortString"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get link of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/admin:
+    get:
+      operationId: getGroupAdmin
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/shortString"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get admin of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/invite_url:
+    get:
+      operationId: getGroupInviteUrl
+      parameters:
+      - description: group id
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/shortString"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get invite url of group
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/members:
+    delete:
+      operationId: deleteMemberFromGroup
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: userId
+        in: query
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group or user does not exist
+        "409":
+          description: User cannot leave as group admin when the group is not empty
+      security:
+      - token: []
+      summary: leave group or delete group when the user is the last group member
+      tags:
+      - members
+    get:
+      operationId: getGroupMembers
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/memberResponseDto"
+                type: array
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group does not exist
+      security:
+      - token: []
+      summary: Get members of a group by ID
+      tags:
+      - members
+    post:
+      operationId: joinGroup
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: id of user
+        in: query
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: inviteUrl to authorize a user to join a private group
+        in: query
+        name: inviteUrl
+        schema:
+          $ref: "#/components/schemas/shortString"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupDto"
+          description: Successful response
+        "400":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group or user does not exist
+        "403":
+          description: inviteUrl does not match
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Group or user does not exist
+        "409":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User is already a member
+      security:
+      - token: []
+      summary: Add a member to a group by ID
+      tags:
+      - members
+  /api/v2/public/delete-code/{username}:
+    get:
+      operationId: generateDeleteCode
+      parameters:
+      - description: userId
+        in: path
+        name: username
+        required: true
+        schema:
+          $ref: "#/components/schemas/shortString"
+      responses:
+        "201":
+          description: Delete code generated and sent to the user
+        "400":
+          description: E-Mail could not be send
+        "401":
+          description: Unauthorized
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Generate delete code
+      tags:
+      - auth
+  /api/v2/public/recover:
+    get:
+      operationId: requestPasswordRecovery
+      parameters:
+      - in: query
+        name: username
+        required: true
+        schema:
+          $ref: "#/components/schemas/shortString"
+      responses:
+        "201":
+          description: Recovery email sent
+        "400":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: E-Mail could not be send
+        "503":
+          description: Unique code could not be generated. Contact the developer under
+            lr.dev.projects@gmail.com
+      summary: Request password recovery
+      tags:
+      - auth
+  /api/v2/public/login:
+    post:
+      operationId: userLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/userLogin_request"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tokenResponseDto"
+          description: Successful login
+        "400":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Wrong password or user does not exist
+      summary: User login
+      tags:
+      - auth
+  /api/v2/public/signup:
+    post:
+      operationId: createUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/userRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tokenResponseDto"
+          description: User registered successfully
+        "400":
+          description: Registration failed
+        "409":
+          description: Username already exists
+      summary: User registration
+      tags:
+      - auth
+  /api/v2/public/refresh:
+    post:
+      description: Request a new access token with a refresh token
+      operationId: refreshToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/refreshTokenRequestDto"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/tokenResponseDto"
+          description: Successfully applied new access token
+        "403":
+          description: Invalid refresh token try logging in again
+      summary: Request a new access token
+      tags:
+      - auth
+  /api/v2/report:
+    post:
+      operationId: createReport
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/reportDto"
+        required: true
+      responses:
+        "201":
+          description: Report submitted successfully
+        "400":
+          description: User not found
+        "503":
+          description: Mail service at the moment not reachable
+      security:
+      - token: []
+      summary: Report content
+      tags:
+      - report
+  /api/v2/pins:
+    get:
+      operationId: getPinImagesByIds
+      parameters:
+      - description: Comma-separated list of image IDs
+        in: query
+        name: ids
+        schema:
+          items:
+            $ref: "#/components/schemas/id"
+          type: array
+      - description: Only pins of this group are returned
+        in: query
+        name: groupId
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: Only pins of this user are returned
+        in: query
+        name: userId
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: Describes if the images of the pins should be returned too
+        in: query
+        name: withImage
+        schema:
+          default: false
+          type: boolean
+      - description: Compression level for images (optional)
+        in: query
+        name: compression
+        schema:
+          maximum: 100
+          minimum: 0
+          type: integer
+      - description: Height for images (optional)
+        in: query
+        name: height
+        schema:
+          maximum: 10000
+          minimum: 0
+          type: integer
+      - description: page number (can only be used when ids is not set). Sorted by
+          creation date descending
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: page size. Defaults to 20
+        in: query
+        name: size
+        schema:
+          default: 20
+          type: integer
+      - description: only include pins that have been updated after this date.If set
+          all deleted pins after this time are returned.
+        in: query
+        name: updatedAfter
+        schema:
+          $ref: "#/components/schemas/date"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinsSyncDto"
+          description: Successful response
+      security:
+      - token: []
+      summary: Get images by IDs
+      tags:
+      - pins
+    post:
+      operationId: createPin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/pinRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinWithOptionalImageDto"
+          description: Successful response
+      security:
+      - token: []
+      summary: Create a new pin
+      tags:
+      - pins
+  /api/v2/pins/{pinId}:
+    delete:
+      operationId: deletePin
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          description: successfully deleted
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Pin does not exist
+      security:
+      - token: []
+      summary: Delete a pin by ID
+      tags:
+      - pins
+    get:
+      operationId: getPin
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: Describes if the image of the pin should be returned too
+        in: query
+        name: withImage
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinWithOptionalImageDto"
+          description: Successful response
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Pin does not exist
+      security:
+      - token: []
+      summary: Get pin information by ID
+      tags:
+      - pins
+  /api/v2/pins/{pinId}/image:
+    get:
+      operationId: getPinImage
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to target image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: Pin does not exist
+      security:
+      - token: []
+      summary: Get the image associated with a pin by ID
+      tags:
+      - pins
+  /api/v2/pins/{pinId}/likes:
+    get:
+      description: Get pin likes
+      operationId: getPinLikes
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinLikeDto"
+          description: OK
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "400":
+          description: Bad request
+        "404":
+          description: Pin not found
+      security:
+      - token: []
+      summary: Get pin likes
+      tags:
+      - likes
+    post:
+      description: Create or update a like
+      operationId: createOrUpdateLike
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createLikeDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinLikeDto"
+          description: Created or updated
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "400":
+          description: Bad request
+        "404":
+          description: Pin not found
+      security:
+      - token: []
+      summary: Create or update a like
+      tags:
+      - likes
+  /api/v2/users/{userId}/likes:
+    get:
+      operationId: getUserLikes
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userLikesDto"
+          description: Successfully returned user's likes
+      security:
+      - token: []
+      summary: Get user's likes
+      tags:
+      - likes
+  /api/v2/public/infos:
+    get:
+      operationId: getServerInfo
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/infoDto"
+                type: array
+          description: Successful response
+      summary: Get public server statistics
+      tags:
+      - public
+  /api/v2/users/{userId}:
+    delete:
+      operationId: deleteUser
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/code"
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Delete a user by userId
+      tags:
+      - users
+    get:
+      operationId: getUser
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userInfoDto"
+          description: Get successfull
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Get a user by userId
+      tags:
+      - users
+    put:
+      operationId: updateUser
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/userUpdateDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userUpdateResponseDto"
+          description: Update successfull
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Update user information by userId
+      tags:
+      - users
+  /api/v2/users/{userId}/profile_picture_small:
+    get:
+      operationId: getUserProfileImageSmall
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Get the small profile picture of a user by userId
+      tags:
+      - users
+  /api/v2/users/{userId}/profile_picture:
+    get:
+      operationId: getUserProfileImage
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - description: "When true, this endpoint redirects directly to the target image\
+          \ otherwise the image URL is returned"
+        in: query
+        name: redirect
+        required: false
+        schema:
+          default: false
+          type: boolean
+      responses:
+        "200":
+          content:
+            image/*:
+              schema:
+                $ref: "#/components/schemas/imageUrl"
+          description: Successful response
+        "301":
+          description: Successful redirect to image
+        "404":
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/longString"
+          description: User does not exist
+      security:
+      - token: []
+      summary: Get the profile picture of a user by userId
+      tags:
+      - users
+  /api/v2/users/{userId}/xp:
+    get:
+      operationId: getUserXp
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userXpDto"
+          description: Successfully returned user's xp
+        "404":
+          description: User not found
+        "403":
+          description: Token not of requested user
+        "401":
+          description: Unauthorized
+        "400":
+          description: Bad request parameter format
+      security:
+      - token: []
+      summary: Get user's xp
+      tags:
+      - users
+  /api/v2/users/{userId}/achievements:
+    get:
+      operationId: getUserAchievements
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userAchievementsDto"
+          description: Successfully returned user's achievements
+        "404":
+          description: User not found
+        "403":
+          description: Token not of requested user
+      security:
+      - token: []
+      summary: Get user's achievements
+      tags:
+      - users
+  /api/v2/users/{userId}/achievements/{achievementId}:
+    post:
+      operationId: claimUserAchievement
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      - in: path
+        name: achievementId
+        required: true
+        schema:
+          minimum: 0
+          type: integer
+      responses:
+        "200":
+          description: Successfully claimed achievement
+        "404":
+          description: User not found
+        "403":
+          description: Token not of requested user
+        "400":
+          description: Not fulfilled conditions
+      security:
+      - token: []
+      summary: Claim an achievement
+      tags:
+      - users
+  /api/v2/ranking/group:
+    get:
+      operationId: groupRanking
+      parameters:
+      - description: Country ID. When not null the ranking by country is returned.
+        in: query
+        name: gid0
+        schema:
+          type: string
+      - description: State ID. When not null the ranking by country is returned.
+        in: query
+        name: gid1
+        schema:
+          type: string
+      - description: County ID. When not null the ranking by country is returned.
+        in: query
+        name: gid2
+        schema:
+          type: string
+      - deprecated: true
+        description: Only include pins added since this point in time. When null all
+          pins are included
+        in: query
+        name: since
+        schema:
+          $ref: "#/components/schemas/date"
+      - description: Only include pins from this season. When null all pins are included
+        in: query
+        name: season
+        schema:
+          default: false
+          type: boolean
+      - description: page number
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: page size. Defaults to 20
+        in: query
+        name: size
+        schema:
+          default: 20
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupRankingDto"
+          description: Created or updated
+      security:
+      - token: []
+      tags:
+      - ranking
+  /api/v2/ranking/user:
+    get:
+      operationId: userRanking
+      parameters:
+      - description: Country ID. When not null the ranking by country is returned.
+        in: query
+        name: gid0
+        schema:
+          type: string
+      - description: State ID. When not null the ranking by country is returned.
+        in: query
+        name: gid1
+        schema:
+          type: string
+      - description: County ID. When not null the ranking by country is returned.
+        in: query
+        name: gid2
+        schema:
+          type: string
+      - deprecated: true
+        description: Only include pins added since this point in time. When null all
+          pins are included
+        in: query
+        name: since
+        schema:
+          $ref: "#/components/schemas/date"
+      - description: Only include pins from this season. When null all pins are included
+        in: query
+        name: season
+        schema:
+          default: false
+          type: boolean
+      - description: page number
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: page size. Defaults to 20
+        in: query
+        name: size
+        schema:
+          default: 20
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/userRankingDto"
+          description: Created or updated
+      security:
+      - token: []
+      tags:
+      - ranking
+  /api/v2/ranking/search:
+    get:
+      operationId: searchRanking
+      parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+      - description: page number
+        in: query
+        name: page
+        schema:
+          type: integer
+      - description: page size. Defaults to 20
+        in: query
+        name: size
+        schema:
+          default: 20
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/rankingSearchDto"
+          description: "List of countries, states and counties"
+      summary: Search for a location
+      tags:
+      - ranking
+  /api/v2/map:
+    get:
+      operationId: getMapInfo
+      parameters:
+      - description: Together with longitude an info dto of the position can be requested.
+        in: query
+        name: latitude
+        schema:
+          $ref: "#/components/schemas/latitude"
+      - description: Together with latitude an info dto of the position can be requested.
+        in: query
+        name: longitude
+        schema:
+          $ref: "#/components/schemas/longitude"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/mapInfoDto"
+                type: array
+          description: Get mapInfo list
+        "400":
+          description: Query parameters have the wrong format
+        "403":
+          description: Forbidden
+        "401":
+          description: Unauthenticated
+      security:
+      - token: []
+      tags:
+      - ranking
+  /api/v2/map/geojson:
+    get:
+      description: Gets the geojson info of a specific gid
+      operationId: getGeoJson
+      parameters:
+      - description: County ID. Only one allowed
+        in: query
+        name: gid2
+        required: false
+        schema:
+          type: string
+      - description: State ID. Only one allowed
+        in: query
+        name: gid1
+        required: false
+        schema:
+          type: string
+      - description: Country ID. Only one allowed
+        in: query
+        name: gid0
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  type: string
+                type: array
+          description: OK
+        "404":
+          description: Country not found
+      security:
+      - token: []
+      tags:
+      - ranking
+  /api/v2/status:
+    get:
+      operationId: getStatus
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/status"
+          description: Successful response
+      security:
+      - token: []
+      summary: Gets the status of the server and user specific information
+      tags:
+      - auth
+  /api/v2/admin/mail:
+    post:
+      operationId: sendAdminMail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminMailDto"
+      responses:
+        "200":
+          description: Successfully sent mail(s)
+        "400":
+          description: Failure
+      security:
+      - token: []
+      summary: Send an admin mail
+      tags:
+      - admin
+  /api/v2/admin/notification:
+    post:
+      description: Post a notification with a given title and body to a specific topic
+      operationId: sendNotification
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/notificationDto"
+        required: true
+      responses:
+        "201":
+          description: Notification sent
+        "401":
+          description: Not authorized to send notifications
+        "500":
+          description: Internal server error
+      security:
+      - token: []
+      summary: Post a notification to a specific topic
+      tags:
+      - admin
+  /api/v3/sync:
+    get:
+      operationId: sync
+      parameters:
+      - description: Syncs created and deleted pins after this date
+        in: query
+        name: lastSeen
+        schema:
+          $ref: "#/components/schemas/date"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/syncDto"
+          description: Successful response
+      security:
+      - token: []
+      summary: Sync all pins and groups based on last seen date
+      tags:
+      - pins
+components:
+  schemas:
+    id:
+      format: uuid
+      type: string
+    shortString:
+      maxLength: 256
+      type: string
+    date:
+      example: 2017-01-10T14:55:32+01:00
+      format: date-time
+      type: string
+    groupsSyncDto:
+      example:
+        deleted:
+        - null
+        - null
+        items:
+        - lastUpdated: 2017-01-10T14:55:32+01:00
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          visibility: 0
+          group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          invite_url: invite_url
+          name: name
+          link: link
+          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          profileImage: https://minio.lr-projects/stick-it/1/1.png
+        - lastUpdated: 2017-01-10T14:55:32+01:00
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          visibility: 0
+          group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          invite_url: invite_url
+          name: name
+          link: link
+          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          profileImage: https://minio.lr-projects/stick-it/1/1.png
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/groupDto"
+          type: array
+        deleted:
+          items:
+            $ref: "#/components/schemas/id"
+          type: array
+      required:
+      - deleted
+      - items
+      type: object
+    createGroupDto:
+      properties:
+        description:
+          maxLength: 256
+          type: string
+        name:
+          maxLength: 256
+          type: string
+        profileImage:
+          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          format: byte
+          type: string
+        visibility:
+          description: "The visibility of the group. 0 for public, 1 for private"
+          type: integer
+        groupAdmin:
+          format: uuid
+          type: string
+        link:
+          maxLength: 256
+          type: string
+        userId:
+          format: uuid
+          type: string
+      required:
+      - description
+      - groupAdmin
+      - name
+      - profileImage
+      - visibility
+      type: object
+    groupDto:
+      example:
+        lastUpdated: 2017-01-10T14:55:32+01:00
+        bestSeason:
+          season:
+            month: 6
+            year: 1
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            seasonNumber: 5
+          rank: 2
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          points: 5
+        profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+        visibility: 0
+        group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        invite_url: invite_url
+        name: name
+        link: link
+        pinImage: https://minio.lr-projects/stick-it/1/1.png
+        description: description
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        profileImage: https://minio.lr-projects/stick-it/1/1.png
+      properties:
+        id:
+          format: uuid
+          type: string
+        description:
+          maxLength: 256
+          type: string
+        invite_url:
+          maxLength: 256
+          type: string
+        name:
+          maxLength: 256
+          type: string
+        visibility:
+          description: "The visibility of the group. 0 for public, 1 for private"
+          type: integer
+        group_admin:
+          format: uuid
+          type: string
+        link:
+          maxLength: 256
+          type: string
+        lastUpdated:
+          example: 2017-01-10T14:55:32+01:00
+          format: date-time
+          type: string
+        profileImage:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        profileImageSmall:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        pinImage:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        bestSeason:
+          $ref: "#/components/schemas/seasonItemDto"
+      required:
+      - id
+      - name
+      - visibility
+      type: object
+    longString:
+      maxLength: 500
+      type: string
+    updateGroupDto:
+      properties:
+        description:
+          maxLength: 256
+          type: string
+        name:
+          maxLength: 256
+          type: string
+        profileImage:
+          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          format: byte
+          type: string
+        visibility:
+          description: "The visibility of the group. 0 for public, 1 for private"
+          type: integer
+        groupAdmin:
+          format: uuid
+          type: string
+        link:
+          maxLength: 256
+          type: string
+      type: object
+    imageUrl:
+      example: https://minio.lr-projects/stick-it/1/1.png
+      format: url
+      type: string
+    memberResponseDto:
+      example:
+        ranking: 0
+        profile_image_small: https://minio.lr-projects/stick-it/1/1.png
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        username: username
+        selectedBatch: 6
+      properties:
+        userId:
+          format: uuid
+          type: string
+        username:
+          maxLength: 256
+          type: string
+        ranking:
+          type: integer
+        profile_image_small:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        selectedBatch:
+          nullable: true
+          type: integer
+      required:
+      - ranking
+      - userId
+      - username
+      type: object
+    tokenResponseDto:
+      example:
+        accessToken: accessToken
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        refreshToken: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        refreshToken:
+          format: uuid
+          type: string
+        accessToken:
+          maxLength: 500
+          type: string
+        userId:
+          format: uuid
+          type: string
+      required:
+      - accessToken
+      - refreshToken
+      - userId
+      type: object
+    userRequestDto:
+      properties:
+        name:
+          maxLength: 256
+          type: string
+        email:
+          format: email
+          maximum: 265
+          type: string
+        password:
+          maxLength: 256
+          type: string
+      required:
+      - email
+      - name
+      - password
+      type: object
+    refreshTokenRequestDto:
+      properties:
+        refreshToken:
+          format: uuid
+          type: string
+        userId:
+          format: uuid
+          type: string
+      type: object
+    reportDto:
+      properties:
+        userId:
+          format: uuid
+          type: string
+        report:
+          maxLength: 256
+          type: string
+        message:
+          maximum: 5000
+          type: string
+      required:
+      - message
+      - report
+      - userId
+      type: object
+    pinsSyncDto:
+      example:
+        deleted:
+        - null
+        - null
+        items:
+        - image: https://minio.lr-projects/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+        - image: https://minio.lr-projects/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/pinWithOptionalImageDto"
+          type: array
+        deleted:
+          items:
+            $ref: "#/components/schemas/id"
+          type: array
+      required:
+      - deleted
+      - items
+      type: object
+    pinRequestDto:
+      properties:
+        image:
+          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          format: byte
+          type: string
+        latitude:
+          maximum: 90
+          minimum: -90
+          type: number
+        longitude:
+          maximum: 180
+          minimum: -180
+          type: number
+        userId:
+          format: uuid
+          type: string
+        groupId:
+          format: uuid
+          type: string
+        creationDate:
+          example: 2017-01-10T14:55:32+01:00
+          format: date-time
+          type: string
+        description:
+          maxLength: 1024
+          nullable: true
+          type: string
+      required:
+      - groupId
+      - image
+      - latitude
+      - longitude
+      - userId
+      type: object
+    pinWithOptionalImageDto:
+      example:
+        image: https://minio.lr-projects/stick-it/1/1.png
+        creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        latitude: -75.5850925717018
+        groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        description: description
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        creationDate: 2017-01-10T14:55:32+01:00
+        longitude: 36.988422590534526
+      properties:
+        id:
+          format: uuid
+          type: string
+        creationDate:
+          example: 2017-01-10T14:55:32+01:00
+          format: date-time
+          type: string
+        latitude:
+          maximum: 90
+          minimum: -90
+          type: number
+        longitude:
+          maximum: 180
+          minimum: -180
+          type: number
+        creationUser:
+          format: uuid
+          type: string
+        image:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        groupId:
+          format: uuid
+          type: string
+        description:
+          maxLength: 1024
+          nullable: true
+          type: string
+      required:
+      - creationDate
+      - creationUser
+      - groupId
+      - id
+      - latitude
+      - longitude
+      type: object
+    pinLikeDto:
+      example:
+        likedLocationByUser: true
+        likeLocationCount: 1
+        likedByUser: true
+        likeArtCount: 6
+        likePhotographyCount: 5
+        likeCount: 0
+        likedArtByUser: true
+        likedPhotographyByUser: true
+      properties:
+        likeCount:
+          type: integer
+        likeArtCount:
+          type: integer
+        likeLocationCount:
+          type: integer
+        likePhotographyCount:
+          type: integer
+        likedByUser:
+          type: boolean
+        likedArtByUser:
+          type: boolean
+        likedLocationByUser:
+          type: boolean
+        likedPhotographyByUser:
+          type: boolean
+      type: object
+    createLikeDto:
+      properties:
+        like:
+          type: boolean
+        likeLocation:
+          type: boolean
+        likePhotography:
+          type: boolean
+        likeArt:
+          type: boolean
+        userId:
+          format: uuid
+          type: string
+      required:
+      - userId
+      type: object
+    userLikesDto:
+      example:
+        likeLocationCount: 1
+        likeArtCount: 6
+        likePhotographyCount: 5
+        likeCount: 0
+      properties:
+        likeCount:
+          type: integer
+        likeArtCount:
+          type: integer
+        likeLocationCount:
+          type: integer
+        likePhotographyCount:
+          type: integer
+      required:
+      - likeArtCount
+      - likeCount
+      - likeLocationCount
+      - likePhotographyCount
+      type: object
+    infoDto:
+      example:
+        num-groups: 6.027456183070403
+        num-users: 0.8008281904610115
+        num-pins: 1.4658129805029452
+      properties:
+        num-users:
+          type: number
+        num-groups:
+          type: number
+        num-pins:
+          type: number
+      required:
+      - num-groups
+      - num-pins
+      - num-users
+      type: object
+    userInfoDto:
+      example:
+        bestSeason:
+          season:
+            month: 6
+            year: 1
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            seasonNumber: 5
+          rank: 2
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          points: 5
+        description: description
+        isMessagingRegistered: true
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        username: username
+        selectedBatch: 0
+      properties:
+        username:
+          maxLength: 256
+          type: string
+        userId:
+          format: uuid
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        selectedBatch:
+          nullable: true
+          type: integer
+        bestSeason:
+          $ref: "#/components/schemas/seasonItemDto"
+        isMessagingRegistered:
+          description: Flag for whether the user registered to receive push messages.
+            Only set for the current user.
+          nullable: true
+          type: boolean
+      required:
+      - userId
+      - username
+      type: object
+    userUpdateDto:
+      properties:
+        email:
+          format: email
+          maximum: 265
+          type: string
+        password:
+          maxLength: 256
+          type: string
+        image:
+          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          format: byte
+          type: string
+        username:
+          maxLength: 256
+          type: string
+        description:
+          maxLength: 500
+          type: string
+        selectedBatch:
+          nullable: true
+          type: integer
+        messagingToken:
+          maxLength: 256
+          type: string
+      type: object
+    userUpdateResponseDto:
+      example:
+        userInfoDto:
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          description: description
+          isMessagingRegistered: true
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          username: username
+          selectedBatch: 0
+        profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+        profileImage: https://minio.lr-projects/stick-it/1/1.png
+        userTokenDto:
+          accessToken: accessToken
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          refreshToken: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        userTokenDto:
+          $ref: "#/components/schemas/tokenResponseDto"
+        profileImageSmall:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        profileImage:
+          example: https://minio.lr-projects/stick-it/1/1.png
+          format: url
+          type: string
+        userInfoDto:
+          $ref: "#/components/schemas/userInfoDto"
+      type: object
+    code:
+      maxLength: 6
+      minLength: 6
+      type: integer
+    userXpDto:
+      example:
+        currentLevel: 0
+        totalXp: 0
+        nextLevelXp: 0
+        currentLevelXp: 0
+      properties:
+        totalXp:
+          minimum: 0
+          type: integer
+        currentLevel:
+          minimum: 0
+          type: integer
+        currentLevelXp:
+          minimum: 0
+          type: integer
+        nextLevelXp:
+          minimum: 0
+          type: integer
+      required:
+      - currentLevel
+      - currentLevelXp
+      - nextLevelXp
+      - totalXp
+      type: object
+    userAchievementsDto:
+      items:
+        $ref: "#/components/schemas/userAchievementsDto_inner"
+      type: array
+    groupRankingDto:
+      description: An array of sorted groups by rank and points
+      items:
+        $ref: "#/components/schemas/groupRankingDto_inner"
+      type: array
+    userRankingDto:
+      description: An array of sorted users by rank and points
+      items:
+        $ref: "#/components/schemas/userRankingDto_inner"
+      type: array
+    rankingSearchDto:
+      items:
+        $ref: "#/components/schemas/rankingSearchDto_inner"
+      type: array
+    latitude:
+      maximum: 90
+      minimum: -90
+      type: number
+    longitude:
+      maximum: 180
+      minimum: -180
+      type: number
+    mapInfoDto:
+      example:
+        gid2: gid2
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        name2: name2
+        name1: name1
+        gid0: gid0
+        name0: name0
+        gid1: gid1
+      properties:
+        id:
+          description: A unique identifier for each feature.
+          format: uuid
+          type: string
+        gid0:
+          description: Country GID.
+          nullable: true
+          type: string
+        name0:
+          description: Country name.
+          nullable: true
+          type: string
+        gid1:
+          description: First-level administrative GID.
+          nullable: true
+          type: string
+        name1:
+          description: First-level administrative name.
+          nullable: true
+          type: string
+        gid2:
+          description: Second-level administrative GID.
+          nullable: true
+          type: string
+        name2:
+          description: Second-level administrative name.
+          nullable: true
+          type: string
+      required:
+      - gid0
+      - gid1
+      - gid2
+      - id
+      - nae1
+      - name0
+      - name2
+      type: object
+    status:
+      example:
+        notifications:
+        - notifications
+        - notifications
+        token-validity: 2017-01-10T14:55:32+01:00
+        minio-endpoint: minio-endpoint
+      properties:
+        notifications:
+          items:
+            description: A notification message list to be shown to the user
+            type: string
+          type: array
+        token-validity:
+          example: 2017-01-10T14:55:32+01:00
+          format: date-time
+          type: string
+        minio-endpoint:
+          maxLength: 256
+          type: string
+      required:
+      - notifications
+      - token-validity
+      type: object
+    adminMailDto:
+      properties:
+        mails:
+          description: List of emails when null all users will get this mail
+          items:
+            format: email
+            type: string
+          nullable: true
+          type: array
+        subject:
+          maxLength: 256
+          type: string
+        message:
+          description: Plaintext message
+          nullable: false
+          type: string
+        messageHtml:
+          description: Html message
+          nullable: true
+          type: string
+      required:
+      - mails
+      - message
+      - subject
+      type: object
+    notificationDto:
+      properties:
+        title:
+          description: The title of the notification
+          example: This is a notification
+          type: string
+        body:
+          description: The body of the notification
+          example: This is the notification body
+          type: string
+        topic:
+          description: The topic to send the notification to
+          example: info
+          type: string
+      required:
+      - body
+      - title
+      - topic
+      type: object
+    syncDto:
+      example:
+        groupUpdates:
+        - pinsAdded:
+          - image: https://minio.lr-projects/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          - image: https://minio.lr-projects/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          group:
+            lastUpdated: 2017-01-10T14:55:32+01:00
+            bestSeason:
+              season:
+                month: 6
+                year: 1
+                id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+                seasonNumber: 5
+              rank: 2
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              points: 5
+            profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+            visibility: 0
+            group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            invite_url: invite_url
+            name: name
+            link: link
+            pinImage: https://minio.lr-projects/stick-it/1/1.png
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            profileImage: https://minio.lr-projects/stick-it/1/1.png
+        - pinsAdded:
+          - image: https://minio.lr-projects/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          - image: https://minio.lr-projects/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          group:
+            lastUpdated: 2017-01-10T14:55:32+01:00
+            bestSeason:
+              season:
+                month: 6
+                year: 1
+                id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+                seasonNumber: 5
+              rank: 2
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              points: 5
+            profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+            visibility: 0
+            group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            invite_url: invite_url
+            name: name
+            link: link
+            pinImage: https://minio.lr-projects/stick-it/1/1.png
+            description: description
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            profileImage: https://minio.lr-projects/stick-it/1/1.png
+        deletedPins:
+        - null
+        - null
+      properties:
+        deletedPins:
+          description: List of ids of deleted pins (unspecific of group)
+          items:
+            $ref: "#/components/schemas/id"
+          type: array
+        groupUpdates:
+          description: List of groups and their respective pin changes.
+          items:
+            $ref: "#/components/schemas/syncDto_groupUpdates_inner"
+          type: array
+      required:
+      - deletedPins
+      - groupUpdates
+      type: object
+    image:
+      example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      format: byte
+      type: string
+    visibility:
+      description: "The visibility of the group. 0 for public, 1 for private"
+      type: integer
+    seasonItemDto:
+      example:
+        season:
+          month: 6
+          year: 1
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          seasonNumber: 5
+        rank: 2
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        points: 5
+      properties:
+        id:
+          format: uuid
+          type: string
+        season:
+          $ref: "#/components/schemas/seasonDto"
+        points:
+          description: Number of sticks
+          type: integer
+        rank:
+          description: Rank reached at the end of the season
+          type: integer
+      required:
+      - id
+      - points
+      - rank
+      - season
+      type: object
+    email:
+      format: email
+      maximum: 265
+      type: string
+    veryLongStringNullable:
+      maxLength: 1024
+      nullable: true
+      type: string
+    seasonDto:
+      example:
+        month: 6
+        year: 1
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        seasonNumber: 5
+      properties:
+        id:
+          format: uuid
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        seasonNumber:
+          type: integer
+      required:
+      - id
+      - month
+      - seasonNumber
+      - year
+      type: object
+    userLogin_request:
+      properties:
+        username:
+          maxLength: 256
+          type: string
+        password:
+          maxLength: 256
+          type: string
+      type: object
+    userAchievementsDto_inner:
+      example:
+        claimed: true
+        achievementId: 0
+        thresholdValue: 6
+        thresholdUp: true
+        currentValue: 1
+      properties:
+        achievementId:
+          type: integer
+        claimed:
+          type: boolean
+        thresholdValue:
+          type: integer
+        currentValue:
+          type: integer
+        thresholdUp:
+          type: boolean
+      required:
+      - achievementId
+      - claimed
+      - currentValue
+      - thresholdUp
+      - thresholdValue
+      type: object
+    groupRankingDto_inner:
+      example:
+        groupInfoDto:
+          lastUpdated: 2017-01-10T14:55:32+01:00
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          visibility: 0
+          group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          invite_url: invite_url
+          name: name
+          link: link
+          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          profileImage: https://minio.lr-projects/stick-it/1/1.png
+        rankNr: 0
+        points: 0
+      properties:
+        groupInfoDto:
+          $ref: "#/components/schemas/groupDto"
+        rankNr:
+          minimum: 0
+          type: integer
+        points:
+          minimum: 0
+          type: integer
+      type: object
+    userRankingDto_inner:
+      example:
+        userInfoDto:
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          description: description
+          isMessagingRegistered: true
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          username: username
+          selectedBatch: 0
+        rankNr: 0
+        points: 0
+      properties:
+        userInfoDto:
+          $ref: "#/components/schemas/userInfoDto"
+        rankNr:
+          minimum: 0
+          type: integer
+        points:
+          minimum: 0
+          type: integer
+      type: object
+    rankingSearchDto_inner:
+      example:
+        gid: DE
+        adminLevel: 0
+        name: Germany
+      properties:
+        adminLevel:
+          description: "0: Country, 1: State, 2: County/City"
+          example: 0
+          maximum: 2
+          minimum: 0
+          type: integer
+        name:
+          description: "Name of the country, state or county"
+          example: Germany
+          type: string
+        gid:
+          description: "ID of the country, state or county"
+          example: DE
+          type: string
+      required:
+      - adminLevel
+      - gid
+      - name
+      type: object
+    syncDto_groupUpdates_inner:
+      description: A group and its respective pin changes
+      example:
+        pinsAdded:
+        - image: https://minio.lr-projects/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+        - image: https://minio.lr-projects/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+        group:
+          lastUpdated: 2017-01-10T14:55:32+01:00
+          bestSeason:
+            season:
+              month: 6
+              year: 1
+              id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+              seasonNumber: 5
+            rank: 2
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            points: 5
+          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          visibility: 0
+          group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          invite_url: invite_url
+          name: name
+          link: link
+          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          description: description
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          profileImage: https://minio.lr-projects/stick-it/1/1.png
+      properties:
+        group:
+          $ref: "#/components/schemas/groupDto"
+        pinsAdded:
+          items:
+            $ref: "#/components/schemas/pinWithOptionalImageDto"
+          type: array
+      required:
+      - group
+      - pinsAdded
+      type: object
+  securitySchemes:
+    token:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http

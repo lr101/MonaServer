@@ -31,6 +31,22 @@ var (
 	ErrUnavailable   = &AppError{Code: http.StatusServiceUnavailable, Message: "service unavailable"}
 )
 
+// HTTPStatus returns the HTTP status code for an error.
+func HTTPStatus(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+	var appErr *AppError
+	if errors.As(err, &appErr) {
+		return appErr.Code
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
 // WriteError translates domain errors to HTTP responses. Replaces @ControllerAdvice.
 func WriteError(w http.ResponseWriter, err error) {
 	if err == nil {
