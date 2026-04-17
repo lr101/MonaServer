@@ -245,6 +245,250 @@ func (q *Queries) InvalidateUserTokens(ctx context.Context, userID uuid.UUID) er
 	return q.g.InvalidateUserTokens(ctx, pgUUID(userID))
 }
 
+// ---- Groups ----
+
+type Group struct {
+	ID           uuid.UUID
+	Name         string
+	Description  *string
+	Link         *string
+	Visibility   int
+	AdminID      uuid.UUID
+	InviteUrl    *string
+	CreationDate *time.Time
+	UpdateDate   *time.Time
+}
+
+func (q *Queries) CreateGroup(ctx context.Context, g Group) (uuid.UUID, error) {
+	if g.ID == uuid.Nil {
+		g.ID = uuid.New()
+	}
+	err := q.g.CreateGroup(ctx, dbgen.CreateGroupParams{
+		ID:          pgUUID(g.ID),
+		Name:        pgText(&g.Name),
+		Description: pgText(g.Description),
+		Link:        pgText(g.Link),
+		Visibility:  pgtype.Int4{Int32: int32(g.Visibility), Valid: true},
+		AdminID:     pgUUID(g.AdminID),
+		InviteUrl:   pgText(g.InviteUrl),
+	})
+	return g.ID, err
+}
+
+func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error) {
+	row, err := q.g.GetGroupByID(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	vis := 0
+	if row.Visibility.Valid {
+		vis = int(row.Visibility.Int32)
+	}
+	return &Group{
+		ID:           goUUID(row.ID),
+		Name:         row.Name.String,
+		Description:  goText(row.Description),
+		Link:         goText(row.Link),
+		Visibility:   vis,
+		AdminID:      goUUID(row.AdminID),
+		InviteUrl:    goText(row.InviteUrl),
+		CreationDate: goTZ(row.CreationDate),
+		UpdateDate:   goTZ(row.UpdateDate),
+	}, nil
+}
+
+func (q *Queries) GroupExistsByName(ctx context.Context, name string) (bool, error) {
+	return q.g.GroupExistsByName(ctx, pgTextS(name))
+}
+
+func (q *Queries) GetGroupAdminUsername(ctx context.Context, id uuid.UUID) (string, error) {
+	t, err := q.g.GetGroupAdminUsername(ctx, pgUUID(id))
+	if err != nil {
+		return "", err
+	}
+	return t.String, nil
+}
+
+type GroupUpdate struct {
+	Name        *string
+	Description *string
+	Link        *string
+	Visibility  *int
+	AdminID     *uuid.UUID
+	InviteUrl   *string
+}
+
+func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) error {
+	p := dbgen.UpdateGroupParams{ID: pgUUID(id)}
+	if u.Name != nil {
+		p.Name = pgTextS(*u.Name)
+	}
+	if u.Description != nil {
+		p.Description = pgTextS(*u.Description)
+	}
+	if u.Link != nil {
+		p.Link = pgTextS(*u.Link)
+	}
+	if u.Visibility != nil {
+		p.Visibility = pgtype.Int4{Int32: int32(*u.Visibility), Valid: true}
+	}
+	if u.AdminID != nil {
+		p.AdminID = pgUUID(*u.AdminID)
+	}
+	if u.InviteUrl != nil {
+		p.InviteUrl = pgTextS(*u.InviteUrl)
+	}
+	return q.g.UpdateGroup(ctx, p)
+}
+
+func (q *Queries) SoftDeleteGroup(ctx context.Context, id uuid.UUID) error {
+	return q.g.SoftDeleteGroup(ctx, pgUUID(id))
+}
+
+type GroupSearch struct {
+	Search       *string
+	UpdatedAfter *time.Time
+	UserID       *uuid.UUID
+	WithUser     *bool // nil = any; true = only user's; false = only not-user's
+	Limit        int32
+	Offset       int32
+}
+
+func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, error) {
+	search := pgtype.Text{}
+	if s.Search != nil {
+		search = pgTextS(*s.Search)
+	}
+	after := pgTZ(s.UpdatedAfter)
+	if s.Limit == 0 {
+		s.Limit = 20
+	}
+	var rows []groupRow
+	if s.WithUser == nil {
+		rs, err := q.g.SearchGroups(ctx, dbgen.SearchGroupsParams{
+			Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rs {
+			rows = append(rows, groupRow(r))
+		}
+	} else if *s.WithUser {
+		if s.UserID == nil {
+			return nil, errors.New("withUser requires userId")
+		}
+		rs, err := q.g.SearchGroupsInUser(ctx, dbgen.SearchGroupsInUserParams{
+			UserID: pgUUID(*s.UserID), Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rs {
+			rows = append(rows, groupRow(r))
+		}
+	} else {
+		if s.UserID == nil {
+			return nil, errors.New("withUser requires userId")
+		}
+		rs, err := q.g.SearchGroupsNotInUser(ctx, dbgen.SearchGroupsNotInUserParams{
+			UserID: pgUUID(*s.UserID), Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rs {
+			rows = append(rows, groupRow(r))
+		}
+	}
+	out := make([]Group, 0, len(rows))
+	for _, r := range rows {
+		vis := 0
+		if r.Visibility.Valid {
+			vis = int(r.Visibility.Int32)
+		}
+		out = append(out, Group{
+			ID: goUUID(r.ID), Name: r.Name.String, Description: goText(r.Description),
+			Link: goText(r.Link), Visibility: vis, AdminID: goUUID(r.AdminID),
+			InviteUrl: goText(r.InviteUrl),
+			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+		})
+	}
+	return out, nil
+}
+
+type groupRow struct {
+	ID           pgtype.UUID
+	Name         pgtype.Text
+	Description  pgtype.Text
+	Link         pgtype.Text
+	Visibility   pgtype.Int4
+	AdminID      pgtype.UUID
+	InviteUrl    pgtype.Text
+	CreationDate pgtype.Timestamptz
+	UpdateDate   pgtype.Timestamptz
+}
+
+func (q *Queries) ListDeletedGroupsAfter(ctx context.Context, after time.Time) ([]uuid.UUID, error) {
+	rs, err := q.g.ListDeletedGroupsAfter(ctx, pgTZ(&after))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uuid.UUID, len(rs))
+	for i, r := range rs {
+		out[i] = goUUID(r)
+	}
+	return out, nil
+}
+
+// LogDeletion marks an entity as deleted in the audit table (matches
+// Spring's delete_log behavior). entityType: 1=user, 2=group, 3=pin.
+func (q *Queries) LogDeletion(ctx context.Context, entityType int16, id uuid.UUID) error {
+	return q.g.LogDeletion(ctx, dbgen.LogDeletionParams{
+		DeletedEntityType: entityType,
+		DeletedEntityID:   pgUUID(id),
+	})
+}
+
+// ---- Members ----
+
+type GroupMember struct {
+	UserID   uuid.UUID
+	Username string
+	IsAdmin  bool
+}
+
+func (q *Queries) AddMember(ctx context.Context, groupID, userID uuid.UUID) error {
+	return q.g.AddMember(ctx, dbgen.AddMemberParams{GroupID: pgUUID(groupID), UserID: pgUUID(userID)})
+}
+
+func (q *Queries) RemoveMember(ctx context.Context, groupID, userID uuid.UUID) error {
+	return q.g.RemoveMember(ctx, dbgen.RemoveMemberParams{GroupID: pgUUID(groupID), UserID: pgUUID(userID)})
+}
+
+func (q *Queries) ListGroupMembers(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
+	rs, err := q.g.ListGroupMembers(ctx, pgUUID(groupID))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupMember, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, GroupMember{UserID: goUUID(r.UserID), Username: r.Username.String, IsAdmin: r.IsAdmin})
+	}
+	return out, nil
+}
+
+func (q *Queries) IsMember(ctx context.Context, groupID, userID uuid.UUID) (bool, error) {
+	return q.g.IsMember(ctx, dbgen.IsMemberParams{GroupID: pgUUID(groupID), UserID: pgUUID(userID)})
+}
+
+func (q *Queries) CountGroupMembers(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	return q.g.CountGroupMembers(ctx, pgUUID(groupID))
+}
+
 // ---- Guards ----
 
 func (q *Queries) IsGroupAdmin(ctx context.Context, groupID, userID uuid.UUID) (bool, error) {

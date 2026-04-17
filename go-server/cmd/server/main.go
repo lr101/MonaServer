@@ -65,6 +65,8 @@ func main() {
 	mailSvc := service.NewEmail(cfg, nil)
 	userSvc := service.NewUser(q, objSvc, tok, authSvc, mailSvc)
 	usersH := handler.NewUsers(userSvc)
+	groupSvc := service.NewGroup(q, objSvc, userSvc)
+	groupsH := handler.NewGroups(groupSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -120,19 +122,19 @@ func main() {
 
 			// Groups
 			r.Route("/groups", func(r chi.Router) {
-				r.Get("/", handler.NotImplemented)
-				r.Post("/", handler.NotImplemented)
+				r.Get("/", groupsH.Search)
+				r.Post("/", groupsH.Create)
 				r.Route("/{groupId}", func(r chi.Router) {
-					r.Get("/", handler.NotImplemented)
-					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Put("/", handler.NotImplemented)
-					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Delete("/", handler.NotImplemented)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/admin", handler.NotImplemented)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/description", handler.NotImplemented)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/link", handler.NotImplemented)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/invite_url", handler.NotImplemented)
-					r.Get("/profile_image", handler.NotImplemented)
-					r.Get("/profile_image_small", handler.NotImplemented)
-					r.Get("/pin_image", handler.NotImplemented)
+					r.Get("/", groupsH.Get)
+					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Put("/", groupsH.Update)
+					r.With(middleware.RequireGroupAdmin(guardSvc, "groupId")).Delete("/", groupsH.Delete)
+					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/admin", groupsH.Admin)
+					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/description", groupsH.Description)
+					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/link", groupsH.Link)
+					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/invite_url", groupsH.InviteUrl)
+					r.Get("/profile_image", groupsH.ProfileImage(false))
+					r.Get("/profile_image_small", groupsH.ProfileImage(true))
+					r.Get("/pin_image", groupsH.PinImage)
 					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/members", handler.NotImplemented)
 					r.Post("/members", handler.NotImplemented)
 					r.Delete("/members", handler.NotImplemented) // internally RequireSameUser OR RequireGroupAdmin

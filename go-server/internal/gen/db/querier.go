@@ -11,15 +11,22 @@ import (
 )
 
 type Querier interface {
+	// Members --
+	AddMember(ctx context.Context, arg AddMemberParams) error
 	AddUserXp(ctx context.Context, arg AddUserXpParams) error
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error
+	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
 	CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error)
+	// Group + member queries.
+	CreateGroup(ctx context.Context, arg CreateGroupParams) error
 	// Refresh tokens --
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error)
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (pgtype.UUID, error)
+	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
+	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
 	GetUserAchievement(ctx context.Context, arg GetUserAchievementParams) (GetUserAchievementRow, error)
 	GetUserByDeletionUrl(ctx context.Context, deletionUrl pgtype.Text) (GetUserByDeletionUrlRow, error)
@@ -30,26 +37,39 @@ type Querier interface {
 	GetUserByResetPasswordUrl(ctx context.Context, resetPasswordUrl pgtype.Text) (GetUserByResetPasswordUrlRow, error)
 	GetUserByUsername(ctx context.Context, username pgtype.Text) (GetUserByUsernameRow, error)
 	GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
+	GroupExistsByName(ctx context.Context, name pgtype.Text) (bool, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
 	InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) error
 	// Guard queries: fast authorization checks used by middleware.
 	IsGroupAdmin(ctx context.Context, arg IsGroupAdminParams) (bool, error)
 	IsGroupMember(ctx context.Context, arg IsGroupMemberParams) (bool, error)
 	IsGroupVisible(ctx context.Context, arg IsGroupVisibleParams) (bool, error)
+	IsMember(ctx context.Context, arg IsMemberParams) (bool, error)
 	IsPinCreator(ctx context.Context, arg IsPinCreatorParams) (bool, error)
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
+	// Delete log --
+	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
+	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListUserAchievements(ctx context.Context, userID pgtype.UUID) ([]ListUserAchievementsRow, error)
 	ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]ListUserLikedPinsRow, error)
+	LogDeletion(ctx context.Context, arg LogDeletionParams) error
+	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
+	SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error)
+	SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error)
+	SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error)
+	SetGroupInviteUrl(ctx context.Context, arg SetGroupInviteUrlParams) error
 	SetUserDeletionUrl(ctx context.Context, arg SetUserDeletionUrlParams) error
 	SetUserProfilePictureExists(ctx context.Context, arg SetUserProfilePictureExistsParams) error
 	SetUserRecoveryCode(ctx context.Context, arg SetUserRecoveryCodeParams) error
 	SetUserResetPasswordUrl(ctx context.Context, arg SetUserResetPasswordUrlParams) error
 	SetUserSelectedBatch(ctx context.Context, arg SetUserSelectedBatchParams) error
+	SoftDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteUser(ctx context.Context, id pgtype.UUID) error
 	TouchRefreshToken(ctx context.Context, token pgtype.UUID) error
+	UpdateGroup(ctx context.Context, arg UpdateGroupParams) error
 	UpdateUserDescription(ctx context.Context, arg UpdateUserDescriptionParams) error
 	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) error
 	UpdateUserFirebaseToken(ctx context.Context, arg UpdateUserFirebaseTokenParams) error
