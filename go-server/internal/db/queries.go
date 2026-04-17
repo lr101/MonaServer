@@ -217,6 +217,20 @@ func (q *Queries) ConfirmUserEmail(ctx context.Context, id uuid.UUID) error {
 	return q.g.ConfirmUserEmail(ctx, pgUUID(id))
 }
 
+func (q *Queries) ListAllUserEmails(ctx context.Context) ([]string, error) {
+	rs, err := q.g.ListAllUserEmails(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rs))
+	for _, r := range rs {
+		if r.Valid {
+			out = append(out, r.String)
+		}
+	}
+	return out, nil
+}
+
 // ---- Refresh tokens ----
 
 func (q *Queries) CreateRefreshToken(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {

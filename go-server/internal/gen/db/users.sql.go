@@ -321,6 +321,30 @@ func (q *Queries) InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) 
 	return err
 }
 
+const listAllUserEmails = `-- name: ListAllUserEmails :many
+SELECT email FROM users WHERE is_deleted = FALSE AND email IS NOT NULL AND email_confirmed = TRUE
+`
+
+func (q *Queries) ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listAllUserEmails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.Text
+	for rows.Next() {
+		var email pgtype.Text
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		items = append(items, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resetFailedLogin = `-- name: ResetFailedLogin :exec
 UPDATE users SET failed_login_attempts = 0 WHERE id = $1
 `

@@ -60,6 +60,7 @@ type Querier interface {
 	IsPinCreator(ctx context.Context, arg IsPinCreatorParams) (bool, error)
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
+	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)

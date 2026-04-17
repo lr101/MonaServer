@@ -60,7 +60,6 @@ func main() {
 		}
 	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
-	_ = notifSvc
 
 	mailSvc := service.NewEmail(cfg, nil)
 	userSvc := service.NewUser(q, objSvc, tok, authSvc, mailSvc)
@@ -75,6 +74,8 @@ func main() {
 	likesH := handler.NewLikes(likeSvc)
 	rankSvc := service.NewRanking(q)
 	rankH := handler.NewRanking(rankSvc)
+	adminH := handler.NewAdmin(q, mailSvc, notifSvc)
+	reportH := handler.NewReport(q, mailSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -175,7 +176,7 @@ func main() {
 			r.Get("/map", rankH.MapInfo)
 			r.Get("/map/geojson", rankH.GeoJson)
 
-			r.Post("/report", handler.NotImplemented)
+			r.Post("/report", reportH.Create)
 		})
 
 		// v3 sync
@@ -186,8 +187,8 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		r.Post("/api/v2/admin/mail", handler.NotImplemented)
-		r.Post("/api/v2/admin/notification", handler.NotImplemented)
+		r.Post("/api/v2/admin/mail", adminH.Mail)
+		r.Post("/api/v2/admin/notification", adminH.Notification)
 	})
 
 	addr := ":" + cfg.Port

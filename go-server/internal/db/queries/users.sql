@@ -127,3 +127,6 @@ UPDATE refresh_token SET last_active_date = NOW() WHERE token = $1;
 
 -- name: InvalidateUserTokens :exec
 DELETE FROM refresh_token WHERE user_id = $1;
+
+-- name: ListAllUserEmails :many
+SELECT email FROM users WHERE is_deleted = FALSE AND email IS NOT NULL AND email_confirmed = TRUE;
