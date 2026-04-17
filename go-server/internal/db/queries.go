@@ -489,6 +489,33 @@ func (q *Queries) CountGroupMembers(ctx context.Context, groupID uuid.UUID) (int
 	return q.g.CountGroupMembers(ctx, pgUUID(groupID))
 }
 
+type GroupRanking struct {
+	UserID        uuid.UUID
+	Username      string
+	Points        int32
+	AchievementID *int32
+}
+
+func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]GroupRanking, error) {
+	rs, err := q.g.GetGroupRanking(ctx, pgUUID(groupID))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupRanking, 0, len(rs))
+	for _, r := range rs {
+		var ach *int32
+		if r.AchievementID.Valid {
+			v := r.AchievementID.Int32
+			ach = &v
+		}
+		out = append(out, GroupRanking{
+			UserID: goUUID(r.UserID), Username: r.Username.String,
+			Points: r.Points, AchievementID: ach,
+		})
+	}
+	return out, nil
+}
+
 // ---- Guards ----
 
 func (q *Queries) IsGroupAdmin(ctx context.Context, groupID, userID uuid.UUID) (bool, error) {

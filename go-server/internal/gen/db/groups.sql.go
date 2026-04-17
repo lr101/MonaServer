@@ -119,6 +119,53 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByI
 	return i, err
 }
 
+const getGroupRanking = `-- name: GetGroupRanking :many
+SELECT m.user_id, u.username,
+       COUNT(pg.creator_id)::int AS points,
+       ua.achievement_id
+FROM members m
+LEFT JOIN (
+    SELECT p.id, p.creator_id FROM pins p WHERE p.group_id = $1 AND p.is_deleted = FALSE
+) AS pg ON pg.creator_id = m.user_id
+JOIN users u ON u.id = m.user_id
+LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+WHERE m.group_id = $1
+GROUP BY m.user_id, u.username, ua.achievement_id
+ORDER BY points DESC, m.user_id
+`
+
+type GetGroupRankingRow struct {
+	UserID        pgtype.UUID `json:"user_id"`
+	Username      pgtype.Text `json:"username"`
+	Points        int32       `json:"points"`
+	AchievementID pgtype.Int4 `json:"achievement_id"`
+}
+
+func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error) {
+	rows, err := q.db.Query(ctx, getGroupRanking, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupRankingRow
+	for rows.Next() {
+		var i GetGroupRankingRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Points,
+			&i.AchievementID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const groupExistsByName = `-- name: GroupExistsByName :one
 SELECT EXISTS (SELECT 1 FROM groups WHERE name = $1 AND is_deleted = FALSE)
 `

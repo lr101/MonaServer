@@ -69,6 +69,8 @@ func main() {
 	groupsH := handler.NewGroups(groupSvc)
 	pinSvc := service.NewPin(q, objSvc)
 	pinsH := handler.NewPins(pinSvc)
+	memberSvc := service.NewMember(q, objSvc, groupSvc)
+	membersH := handler.NewMembers(memberSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -137,9 +139,12 @@ func main() {
 					r.Get("/profile_image", groupsH.ProfileImage(false))
 					r.Get("/profile_image_small", groupsH.ProfileImage(true))
 					r.Get("/pin_image", groupsH.PinImage)
-					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/members", handler.NotImplemented)
-					r.Post("/members", handler.NotImplemented)
-					r.Delete("/members", handler.NotImplemented) // internally RequireSameUser OR RequireGroupAdmin
+					r.With(middleware.RequireGroupVisible(guardSvc, "groupId")).Get("/members", membersH.Ranking)
+					r.Post("/members", membersH.Join)
+					r.With(middleware.RequireAny(
+						middleware.RequireSameUserQuery("userId"),
+						middleware.RequireGroupAdmin(guardSvc, "groupId"),
+					)).Delete("/members", membersH.Leave)
 				})
 			})
 

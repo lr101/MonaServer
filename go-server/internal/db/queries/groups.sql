@@ -88,6 +88,20 @@ ORDER BY u.username;
 -- name: CountGroupMembers :one
 SELECT COUNT(*)::bigint FROM members WHERE group_id = $1;
 
+-- name: GetGroupRanking :many
+SELECT m.user_id, u.username,
+       COUNT(pg.creator_id)::int AS points,
+       ua.achievement_id
+FROM members m
+LEFT JOIN (
+    SELECT p.id, p.creator_id FROM pins p WHERE p.group_id = $1 AND p.is_deleted = FALSE
+) AS pg ON pg.creator_id = m.user_id
+JOIN users u ON u.id = m.user_id
+LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+WHERE m.group_id = $1
+GROUP BY m.user_id, u.username, ua.achievement_id
+ORDER BY points DESC, m.user_id;
+
 -- name: IsMember :one
 SELECT EXISTS (SELECT 1 FROM members WHERE group_id = $1 AND user_id = $2);
 

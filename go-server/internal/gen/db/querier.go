@@ -30,6 +30,7 @@ type Querier interface {
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (pgtype.UUID, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
+	GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
 	GetUserAchievement(ctx context.Context, arg GetUserAchievementParams) (GetUserAchievementRow, error)

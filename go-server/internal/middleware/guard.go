@@ -106,6 +106,30 @@ func RequireSameUser(param string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireSameUserQuery: like RequireSameUser but reads the target user ID
+// from a query parameter instead of a path parameter.
+func RequireSameUserQuery(param string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if Role(r.Context()) == RoleAdmin {
+				next.ServeHTTP(w, r)
+				return
+			}
+			uid, ok := curUser(r.Context())
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			target, err := uuid.Parse(r.URL.Query().Get(param))
+			if err != nil || target != uid {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireAny succeeds if any provided middleware allows the request.
 // Runs each sub-middleware with a recording ResponseWriter; on first success, replays to downstream.
 func RequireAny(guards ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
