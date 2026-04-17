@@ -1,0 +1,60 @@
+name: Build Go Docker Image
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+    paths:
+      - 'go-server/**'
+      - 'api/**'
+      - '.github/workflows/build-go-docker.yml'
+  pull_request:
+    paths:
+      - 'go-server/**'
+      - 'api/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-master
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: monatest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d monatest"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: go-server/go.sum
+
+      - name: Go vet
+        working-directory: go-server
+        run: go vet ./...
+
+      - name: Go test (unit + integration)
+        working-directory: go-server
+        env:
+          TEST_DATABASE_URL: postgres://test:testpw@localhost:5432/monatest?sslmode=disable
+        run: go test ./...
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: go-server
+          file: go-server/Dockerfile
+          push: false
+          tags: lrprojects/stick-it-server-go:pr

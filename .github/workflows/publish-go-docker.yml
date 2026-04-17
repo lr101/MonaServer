@@ -1,0 +1,120 @@
+name: Docker Publish (Go)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+    paths:
+      - 'go-server/**'
+      - 'api/**'
+      - '.github/workflows/publish-go-docker.yml'
+
+jobs:
+  build-and-publish-image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-master
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: monatest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d monatest"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: go-server/go.sum
+
+      - name: Test
+        working-directory: go-server
+        env:
+          TEST_DATABASE_URL: postgres://test:testpw@localhost:5432/monatest?sslmode=disable
+        run: go test ./...
+
+      # Mirror the tagging strategy of the Spring Boot publish workflow:
+      #   tag push          -> FINAL_TAG=<base>, also push :latest
+      #   main branch push  -> FINAL_TAG=<base>.<run_number>, also push :latest
+      #   develop push      -> FINAL_TAG=<base>-SNAPSHOT, also push :snapshot
+      - name: Compute version
+        id: compute_version
+        run: |
+          BASE_VERSION=$(grep -m1 -E '^version' go-server/VERSION 2>/dev/null | awk -F'=' '{print $2}' | xargs)
+          if [ -z "$BASE_VERSION" ]; then BASE_VERSION="1.0.1"; fi
+          if [ "${{ github.ref_type }}" == "tag" ]; then
+            FINAL_TAG="${GITHUB_REF_NAME#v}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "is_snapshot=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" == "main" ]; then
+            FINAL_TAG="${BASE_VERSION}.${{ github.run_number }}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "is_snapshot=false" >> "$GITHUB_OUTPUT"
+          else
+            FINAL_TAG="${BASE_VERSION}-SNAPSHOT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "is_snapshot=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
+          echo "Computed FINAL_TAG=$FINAL_TAG"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push versioned image
+        uses: docker/build-push-action@v6
+        with:
+          context: go-server
+          file: go-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: lrprojects/stick-it-server-go:${{ steps.compute_version.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tag and push :latest (Release/Main only)
+        if: steps.compute_version.outputs.is_release == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: go-server
+          file: go-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: lrprojects/stick-it-server-go:latest
+          cache-from: type=gha
+
+      - name: Tag and push :snapshot (Develop only)
+        if: steps.compute_version.outputs.is_snapshot == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: go-server
+          file: go-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: lrprojects/stick-it-server-go:snapshot
+          cache-from: type=gha
+
+      - name: Push Release Commit to Main Branch
+        if: github.ref_type == 'tag'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push origin HEAD:main
