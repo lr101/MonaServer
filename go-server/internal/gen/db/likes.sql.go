@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countLikesForCreator = `-- name: CountLikesForCreator :one
+SELECT
+  COALESCE(SUM(CASE WHEN l.like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
+  COALESCE(SUM(CASE WHEN l.like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
+  COALESCE(SUM(CASE WHEN l.like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
+  COALESCE(SUM(CASE WHEN l.like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
+FROM likes l
+JOIN pins p ON p.id = l.pin_id
+WHERE p.creator_id = $1 AND p.is_deleted = FALSE
+`
+
+type CountLikesForCreatorRow struct {
+	LikeAll         int64 `json:"like_all"`
+	LikeLocation    int64 `json:"like_location"`
+	LikePhotography int64 `json:"like_photography"`
+	LikeArt         int64 `json:"like_art"`
+}
+
+func (q *Queries) CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error) {
+	row := q.db.QueryRow(ctx, countLikesForCreator, creatorID)
+	var i CountLikesForCreatorRow
+	err := row.Scan(
+		&i.LikeAll,
+		&i.LikeLocation,
+		&i.LikePhotography,
+		&i.LikeArt,
+	)
+	return i, err
+}
+
 const countPinLikes = `-- name: CountPinLikes :one
 SELECT COUNT(*)::bigint AS n FROM likes WHERE pin_id = $1
 `
@@ -20,6 +50,34 @@ func (q *Queries) CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, 
 	var n int64
 	err := row.Scan(&n)
 	return n, err
+}
+
+const countPinLikesByType = `-- name: CountPinLikesByType :one
+SELECT
+  COALESCE(SUM(CASE WHEN like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
+  COALESCE(SUM(CASE WHEN like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
+  COALESCE(SUM(CASE WHEN like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
+  COALESCE(SUM(CASE WHEN like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
+FROM likes WHERE pin_id = $1
+`
+
+type CountPinLikesByTypeRow struct {
+	LikeAll         int64 `json:"like_all"`
+	LikeLocation    int64 `json:"like_location"`
+	LikePhotography int64 `json:"like_photography"`
+	LikeArt         int64 `json:"like_art"`
+}
+
+func (q *Queries) CountPinLikesByType(ctx context.Context, pinID pgtype.UUID) (CountPinLikesByTypeRow, error) {
+	row := q.db.QueryRow(ctx, countPinLikesByType, pinID)
+	var i CountPinLikesByTypeRow
+	err := row.Scan(
+		&i.LikeAll,
+		&i.LikeLocation,
+		&i.LikePhotography,
+		&i.LikeArt,
+	)
+	return i, err
 }
 
 const deleteLike = `-- name: DeleteLike :exec

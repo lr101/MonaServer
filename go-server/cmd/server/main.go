@@ -71,6 +71,8 @@ func main() {
 	pinsH := handler.NewPins(pinSvc)
 	memberSvc := service.NewMember(q, objSvc, groupSvc)
 	membersH := handler.NewMembers(memberSvc)
+	likeSvc := service.NewLike(q)
+	likesH := handler.NewLikes(likeSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -121,7 +123,7 @@ func main() {
 				r.With(middleware.RequireSameUser("userId")).Get("/xp", usersH.Xp)
 				r.With(middleware.RequireSameUser("userId")).Get("/achievements", usersH.Achievements)
 				r.With(middleware.RequireSameUser("userId")).Post("/achievements/{achievementId}", usersH.ClaimAchievement)
-				r.Get("/likes", usersH.Likes)
+				r.Get("/likes", likesH.UserLikes)
 			})
 
 			// Groups
@@ -159,8 +161,8 @@ func main() {
 						middleware.RequirePinGroupAdmin(guardSvc, "pinId"),
 					)).Delete("/", pinsH.Delete)
 					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/image", pinsH.Image)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/likes", handler.NotImplemented)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Post("/likes", handler.NotImplemented)
+					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/likes", likesH.PinLikes)
+					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Post("/likes", likesH.CreateOrUpdate)
 				})
 			})
 

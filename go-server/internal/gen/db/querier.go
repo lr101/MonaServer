@@ -17,7 +17,9 @@ type Querier interface {
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
+	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error)
 	CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error)
+	CountPinLikesByType(ctx context.Context, pinID pgtype.UUID) (CountPinLikesByTypeRow, error)
 	// Group + member queries.
 	CreateGroup(ctx context.Context, arg CreateGroupParams) error
 	// Pin queries.

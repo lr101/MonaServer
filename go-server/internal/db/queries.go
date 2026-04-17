@@ -706,6 +706,49 @@ type UserLikedPin struct {
 	LikeArt         bool
 }
 
+type LikeFlags struct {
+	LikeAll, LikeLocation, LikePhotography, LikeArt bool
+}
+
+func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UUID) (*LikeFlags, error) {
+	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &LikeFlags{LikeAll: row.LikeAll, LikeLocation: row.LikeLocation, LikePhotography: row.LikePhotography, LikeArt: row.LikeArt}, nil
+}
+
+func (q *Queries) UpsertLike(ctx context.Context, userID, pinID uuid.UUID, f LikeFlags) error {
+	return q.g.UpsertLike(ctx, dbgen.UpsertLikeParams{
+		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), UserID: pgUUID(userID),
+		LikeAll: f.LikeAll, LikeLocation: f.LikeLocation,
+		LikePhotography: f.LikePhotography, LikeArt: f.LikeArt,
+	})
+}
+
+type LikeCounts struct {
+	LikeAll, LikeLocation, LikePhotography, LikeArt int64
+}
+
+func (q *Queries) CountPinLikesByType(ctx context.Context, pinID uuid.UUID) (LikeCounts, error) {
+	r, err := q.g.CountPinLikesByType(ctx, pgUUID(pinID))
+	if err != nil {
+		return LikeCounts{}, err
+	}
+	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+}
+
+func (q *Queries) CountLikesForCreator(ctx context.Context, userID uuid.UUID) (LikeCounts, error) {
+	r, err := q.g.CountLikesForCreator(ctx, pgUUID(userID))
+	if err != nil {
+		return LikeCounts{}, err
+	}
+	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+}
+
 func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]UserLikedPin, error) {
 	rows, err := q.g.ListUserLikedPins(ctx, pgUUID(userID))
 	if err != nil {
