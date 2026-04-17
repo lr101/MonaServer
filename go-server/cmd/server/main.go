@@ -73,6 +73,8 @@ func main() {
 	membersH := handler.NewMembers(memberSvc)
 	likeSvc := service.NewLike(q)
 	likesH := handler.NewLikes(likeSvc)
+	rankSvc := service.NewRanking(q)
+	rankH := handler.NewRanking(rankSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -167,11 +169,11 @@ func main() {
 			})
 
 			// Ranking + map
-			r.Get("/ranking/group", handler.NotImplemented)
-			r.Get("/ranking/user", handler.NotImplemented)
-			r.Get("/ranking/search", handler.NotImplemented)
-			r.Get("/map", handler.NotImplemented)
-			r.Get("/map/geojson", handler.NotImplemented)
+			r.Get("/ranking/group", rankH.GroupRanking)
+			r.Get("/ranking/user", rankH.UserRanking)
+			r.Get("/ranking/search", rankH.SearchRanking)
+			r.Get("/map", rankH.MapInfo)
+			r.Get("/map/geojson", rankH.GeoJson)
 
 			r.Post("/report", handler.NotImplemented)
 		})

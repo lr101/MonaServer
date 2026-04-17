@@ -516,6 +516,148 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]Gro
 	return out, nil
 }
 
+// ---- Ranking / Map ----
+
+type UserRankingRow struct {
+	UserID        uuid.UUID
+	Username      string
+	Description   *string
+	Points        int32
+	AchievementID *int32
+}
+
+type GroupRankingRow struct {
+	GroupID     uuid.UUID
+	Name        string
+	Visibility  int
+	Description *string
+	Points      int32
+}
+
+type RankingFilter struct {
+	Gid0, Gid1, Gid2 *string
+	Since            *time.Time
+	Limit, Offset    int32
+}
+
+func rankParams(f RankingFilter) (dbgen.GetUserRankingParams, dbgen.GetGlobalGroupRankingParams) {
+	lim := f.Limit
+	if lim == 0 {
+		lim = 20
+	}
+	u := dbgen.GetUserRankingParams{
+		Gid0: pgText(f.Gid0), Gid1: pgText(f.Gid1), Gid2: pgText(f.Gid2),
+		Since: pgTZ(f.Since), Lim: lim, Off: f.Offset,
+	}
+	g := dbgen.GetGlobalGroupRankingParams{
+		Gid0: pgText(f.Gid0), Gid1: pgText(f.Gid1), Gid2: pgText(f.Gid2),
+		Since: pgTZ(f.Since), Lim: lim, Off: f.Offset,
+	}
+	return u, g
+}
+
+func (q *Queries) GetUserRanking(ctx context.Context, f RankingFilter) ([]UserRankingRow, error) {
+	up, _ := rankParams(f)
+	rs, err := q.g.GetUserRanking(ctx, up)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UserRankingRow, 0, len(rs))
+	for _, r := range rs {
+		var ach *int32
+		if r.AchievementID.Valid {
+			v := r.AchievementID.Int32
+			ach = &v
+		}
+		out = append(out, UserRankingRow{
+			UserID: goUUID(r.CreatorID), Username: r.Username.String,
+			Description: goText(r.Description), Points: r.Points, AchievementID: ach,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) GetGlobalGroupRanking(ctx context.Context, f RankingFilter) ([]GroupRankingRow, error) {
+	_, gp := rankParams(f)
+	rs, err := q.g.GetGlobalGroupRanking(ctx, gp)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GroupRankingRow, 0, len(rs))
+	for _, r := range rs {
+		vis := 0
+		if r.Visibility.Valid {
+			vis = int(r.Visibility.Int32)
+		}
+		out = append(out, GroupRankingRow{
+			GroupID: goUUID(r.GroupID), Name: r.Name.String,
+			Visibility: vis, Description: goText(r.Description), Points: r.Points,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) GetGeoJson(ctx context.Context, gid0, gid1, gid2 *string) ([]string, error) {
+	rs, err := q.g.GetGeoJson(ctx, dbgen.GetGeoJsonParams{
+		Gid0: pgText(gid0), Gid1: pgText(gid1), Gid2: pgText(gid2),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rs))
+	for _, r := range rs {
+		if s, ok := r.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+type MapInfoRow struct {
+	ID    uuid.UUID
+	Gid0, Gid1, Gid2     *string
+	Name0, Name1, Name2  *string
+}
+
+func (q *Queries) GetMapInfo(ctx context.Context, lat, lng float64) (*MapInfoRow, error) {
+	row, err := q.g.GetMapInfo(ctx, dbgen.GetMapInfoParams{StPoint: lng, StPoint_2: lat})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &MapInfoRow{
+		ID:    goUUID(row.ID),
+		Gid0: goText(row.Gid0), Gid1: goText(row.Gid1), Gid2: goText(row.Gid2),
+		Name0: goText(row.Name0), Name1: goText(row.Name1), Name2: goText(row.Name2),
+	}, nil
+}
+
+type BoundarySearchRow struct {
+	Level int32
+	Gid   string
+	Name  string
+}
+
+func (q *Queries) SearchBoundaries(ctx context.Context, search *string, limit, offset int32) ([]BoundarySearchRow, error) {
+	lim := limit
+	if lim == 0 {
+		lim = 20
+	}
+	rs, err := q.g.SearchBoundaries(ctx, dbgen.SearchBoundariesParams{
+		Search: pgText(search), Lim: lim, Off: offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BoundarySearchRow, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, BoundarySearchRow{Level: r.Level, Gid: r.Gid.String, Name: r.Name.String})
+	}
+	return out, nil
+}
+
 // ---- Guards ----
 
 func (q *Queries) IsGroupAdmin(ctx context.Context, groupID, userID uuid.UUID) (bool, error) {

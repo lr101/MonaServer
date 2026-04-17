@@ -30,10 +30,13 @@ type Querier interface {
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
 	FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForPointParams) (pgtype.UUID, error)
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (pgtype.UUID, error)
+	GetGeoJson(ctx context.Context, arg GetGeoJsonParams) ([]interface{}, error)
+	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
 	GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
+	GetMapInfo(ctx context.Context, arg GetMapInfoParams) (GetMapInfoRow, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
 	GetUserAchievement(ctx context.Context, arg GetUserAchievementParams) (GetUserAchievementRow, error)
 	GetUserByDeletionUrl(ctx context.Context, deletionUrl pgtype.Text) (GetUserByDeletionUrlRow, error)
@@ -43,6 +46,8 @@ type Querier interface {
 	GetUserByIDAndCode(ctx context.Context, arg GetUserByIDAndCodeParams) (pgtype.UUID, error)
 	GetUserByResetPasswordUrl(ctx context.Context, resetPasswordUrl pgtype.Text) (GetUserByResetPasswordUrlRow, error)
 	GetUserByUsername(ctx context.Context, username pgtype.Text) (GetUserByUsernameRow, error)
+	// Ranking and map queries (PostGIS).
+	GetUserRanking(ctx context.Context, arg GetUserRankingParams) ([]GetUserRankingRow, error)
 	GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GroupExistsByName(ctx context.Context, name pgtype.Text) (bool, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
@@ -69,6 +74,7 @@ type Querier interface {
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
+	SearchBoundaries(ctx context.Context, arg SearchBoundariesParams) ([]SearchBoundariesRow, error)
 	SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error)
 	SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error)
 	SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error)
