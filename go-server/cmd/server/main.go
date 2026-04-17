@@ -76,6 +76,7 @@ func main() {
 	rankH := handler.NewRanking(rankSvc)
 	adminH := handler.NewAdmin(q, mailSvc, notifSvc)
 	reportH := handler.NewReport(q, mailSvc)
+	viewsH := handler.NewViews(q, tok, cfg.RedirectURL)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -100,6 +101,13 @@ func main() {
 	r.Get("/public/api-docs", serveOpenAPISpec)
 	r.Get("/public/api-docs/", serveOpenAPISpec)
 	r.Get("/swagger-ui", serveSwaggerUI)
+
+	// HTML view routes (no auth).
+	r.Get("/", viewsH.Root)
+	r.Get("/public/recover/{url}", viewsH.RecoverPassword)
+	r.Get("/public/delete-account/code", viewsH.RequestDeleteCode)
+	r.Get("/public/delete-account/{url}", viewsH.DeleteAccountView)
+	r.Get("/public/email-confirmation/{url}", viewsH.EmailConfirmation)
 
 	// Public routes (no auth).
 	r.Route("/api/v2/public", func(r chi.Router) {

@@ -213,6 +213,45 @@ func (q *Queries) SetUserResetPasswordUrl(ctx context.Context, id uuid.UUID, url
 		ID: pgUUID(id), ResetPasswordUrl: pgTextS(url), ResetPasswordExpiration: pgTZ(&exp),
 	})
 }
+type UserURLLookup struct {
+	ID             uuid.UUID
+	Username       string
+	Expiration     *time.Time
+}
+
+func (q *Queries) GetUserByResetPasswordUrl(ctx context.Context, url string) (*UserURLLookup, error) {
+	r, err := q.g.GetUserByResetPasswordUrl(ctx, pgTextS(url))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &UserURLLookup{ID: goUUID(r.ID), Username: r.Username.String, Expiration: goTZ(r.ResetPasswordExpiration)}, nil
+}
+
+func (q *Queries) GetUserByDeletionUrl(ctx context.Context, url string) (*UserURLLookup, error) {
+	r, err := q.g.GetUserByDeletionUrl(ctx, pgTextS(url))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &UserURLLookup{ID: goUUID(r.ID), Username: r.Username.String, Expiration: goTZ(r.CodeExpiration)}, nil
+}
+
+func (q *Queries) GetUserByEmailConfirmationUrl(ctx context.Context, url string) (*UserURLLookup, error) {
+	r, err := q.g.GetUserByEmailConfirmationUrl(ctx, pgTextS(url))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &UserURLLookup{ID: goUUID(r.ID), Username: r.Username.String}, nil
+}
+
 func (q *Queries) ConfirmUserEmail(ctx context.Context, id uuid.UUID) error {
 	return q.g.ConfirmUserEmail(ctx, pgUUID(id))
 }
