@@ -67,6 +67,8 @@ func main() {
 	usersH := handler.NewUsers(userSvc)
 	groupSvc := service.NewGroup(q, objSvc, userSvc)
 	groupsH := handler.NewGroups(groupSvc)
+	pinSvc := service.NewPin(q, objSvc)
+	pinsH := handler.NewPins(pinSvc)
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) { log.Info("weekly notification tick") })
@@ -144,14 +146,14 @@ func main() {
 			// Pins
 			r.Route("/pins", func(r chi.Router) {
 				r.Get("/", handler.NotImplemented)
-				r.Post("/", handler.NotImplemented)
+				r.Post("/", pinsH.Create)
 				r.Route("/{pinId}", func(r chi.Router) {
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/", handler.NotImplemented)
+					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/", pinsH.Get)
 					r.With(middleware.RequireAny(
 						middleware.RequirePinCreator(guardSvc, "pinId"),
 						middleware.RequirePinGroupAdmin(guardSvc, "pinId"),
-					)).Delete("/", handler.NotImplemented)
-					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/image", handler.NotImplemented)
+					)).Delete("/", pinsH.Delete)
+					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/image", pinsH.Image)
 					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Get("/likes", handler.NotImplemented)
 					r.With(middleware.RequirePinPublicOrMember(guardSvc, "pinId")).Post("/likes", handler.NotImplemented)
 				})

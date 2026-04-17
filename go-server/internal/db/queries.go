@@ -510,6 +510,165 @@ func (q *Queries) IsPinPublicOrMember(ctx context.Context, pinID, userID uuid.UU
 	return q.g.IsPinPublicOrMember(ctx, dbgen.IsPinPublicOrMemberParams{ID: pgUUID(pinID), UserID: pgUUID(userID)})
 }
 
+// ---- Pins ----
+
+type Pin struct {
+	ID              uuid.UUID
+	Latitude        float64
+	Longitude       float64
+	CreationDate    *time.Time
+	UpdateDate      *time.Time
+	Description     *string
+	CreatorID       uuid.UUID
+	GroupID         uuid.UUID
+	StateProvinceID *uuid.UUID
+}
+
+func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
+	var sp *uuid.UUID
+	if r.StateProvinceID.Valid {
+		u := goUUID(r.StateProvinceID)
+		sp = &u
+	}
+	return &Pin{
+		ID:              goUUID(r.ID),
+		Latitude:        r.Latitude.Float64,
+		Longitude:       r.Longitude.Float64,
+		CreationDate:    goTZ(r.CreationDate),
+		UpdateDate:      goTZ(r.UpdateDate),
+		Description:     goText(r.Description),
+		CreatorID:       goUUID(r.CreatorID),
+		GroupID:         goUUID(r.GroupID),
+		StateProvinceID: sp,
+	}
+}
+
+func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	var sp pgtype.UUID
+	if p.StateProvinceID != nil {
+		sp = pgUUID(*p.StateProvinceID)
+	}
+	err := q.g.CreatePin(ctx, dbgen.CreatePinParams{
+		ID:              pgUUID(p.ID),
+		Latitude:        pgtype.Float8{Float64: p.Latitude, Valid: true},
+		Longitude:       pgtype.Float8{Float64: p.Longitude, Valid: true},
+		CreationDate:    pgTZ(p.CreationDate),
+		Description:     pgText(p.Description),
+		CreatorID:       pgUUID(p.CreatorID),
+		GroupID:         pgUUID(p.GroupID),
+		StateProvinceID: sp,
+	})
+	return p.ID, err
+}
+
+func (q *Queries) GetPinByID(ctx context.Context, id uuid.UUID) (*Pin, error) {
+	row, err := q.g.GetPinByID(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return pinFromRow(row), nil
+}
+
+func (q *Queries) PinExistsForUserAt(ctx context.Context, userID uuid.UUID, lat, lng float64, creation time.Time) (bool, error) {
+	return q.g.PinExistsForUserAt(ctx, dbgen.PinExistsForUserAtParams{
+		CreatorID:    pgUUID(userID),
+		Latitude:     pgtype.Float8{Float64: lat, Valid: true},
+		Longitude:    pgtype.Float8{Float64: lng, Valid: true},
+		CreationDate: pgTZ(&creation),
+	})
+}
+
+func (q *Queries) SoftDeletePin(ctx context.Context, id uuid.UUID) error {
+	return q.g.SoftDeletePin(ctx, pgUUID(id))
+}
+
+func (q *Queries) ListUserPinIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rs, err := q.g.ListUserPinIDs(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uuid.UUID, len(rs))
+	for i, r := range rs {
+		out[i] = goUUID(r)
+	}
+	return out, nil
+}
+
+func (q *Queries) ListGroupPinIDs(ctx context.Context, groupID uuid.UUID) ([]uuid.UUID, error) {
+	rs, err := q.g.ListGroupPinIDs(ctx, pgUUID(groupID))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uuid.UUID, len(rs))
+	for i, r := range rs {
+		out[i] = goUUID(r)
+	}
+	return out, nil
+}
+
+func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.UUID, updatedAfter *time.Time) ([]Pin, error) {
+	ids := make([]pgtype.UUID, len(groupIDs))
+	for i, g := range groupIDs {
+		ids[i] = pgUUID(g)
+	}
+	rs, err := q.g.ListUpdatedPinsForGroups(ctx, dbgen.ListUpdatedPinsForGroupsParams{
+		GroupIds: ids, UpdatedAfter: pgTZ(updatedAfter),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Pin, 0, len(rs))
+	for _, r := range rs {
+		var sp *uuid.UUID
+		if r.StateProvinceID.Valid {
+			u := goUUID(r.StateProvinceID)
+			sp = &u
+		}
+		out = append(out, Pin{
+			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
+			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) ListDeletedPinsAfter(ctx context.Context, after time.Time) ([]uuid.UUID, error) {
+	rs, err := q.g.ListDeletedPinsAfter(ctx, pgTZ(&after))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uuid.UUID, len(rs))
+	for i, r := range rs {
+		out[i] = goUUID(r)
+	}
+	return out, nil
+}
+
+func (q *Queries) FindBoundaryForPoint(ctx context.Context, lat, lng float64) (*uuid.UUID, error) {
+	row, err := q.g.FindBoundaryForPoint(ctx, dbgen.FindBoundaryForPointParams{
+		StPoint: lng, StPoint_2: lat,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !row.Valid {
+		return nil, nil
+	}
+	u := goUUID(row)
+	return &u, nil
+}
+
 // ---- Likes ----
 
 type UserLikedPin struct {
