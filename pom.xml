@@ -22,7 +22,7 @@
 		<openapi.generator.maven.plugin.version>7.21.0</openapi.generator.maven.plugin.version>
 
 		<springdoc.version>3.0.3</springdoc.version>
-		<flyway.version>12.3.0</flyway.version>
+		<flyway.version>12.4.0</flyway.version>
 		<jsonwebtoken.version>0.13.0</jsonwebtoken.version>
 		<com.auth0.java-jwt.version>4.5.0</com.auth0.java-jwt.version>
 		<minio.version>8.6.0</minio.version>
