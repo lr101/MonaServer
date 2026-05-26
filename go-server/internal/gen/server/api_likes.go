@@ -54,19 +54,19 @@ func (c *LikesAPIController) Routes() Routes {
 		"GetPinLikes": Route{
 			"GetPinLikes",
 			strings.ToUpper("Get"),
-			"/api/v2/pins/{pinId}/likes",
+			"/api/v2/likes/pins/{pinId}",
 			c.GetPinLikes,
 		},
 		"CreateOrUpdateLike": Route{
 			"CreateOrUpdateLike",
 			strings.ToUpper("Post"),
-			"/api/v2/pins/{pinId}/likes",
+			"/api/v2/likes/pins/{pinId}",
 			c.CreateOrUpdateLike,
 		},
 		"GetUserLikes": Route{
 			"GetUserLikes",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/likes",
+			"/api/v2/likes/users/{userId}",
 			c.GetUserLikes,
 		},
 	}
@@ -78,19 +78,19 @@ func (c *LikesAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetPinLikes",
 			strings.ToUpper("Get"),
-			"/api/v2/pins/{pinId}/likes",
+			"/api/v2/likes/pins/{pinId}",
 			c.GetPinLikes,
 		},
 		Route{
 			"CreateOrUpdateLike",
 			strings.ToUpper("Post"),
-			"/api/v2/pins/{pinId}/likes",
+			"/api/v2/likes/pins/{pinId}",
 			c.CreateOrUpdateLike,
 		},
 		Route{
 			"GetUserLikes",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/likes",
+			"/api/v2/likes/users/{userId}",
 			c.GetUserLikes,
 		},
 	}

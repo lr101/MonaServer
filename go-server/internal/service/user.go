@@ -239,6 +239,19 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		u.FirebaseToken = in.MessagingToken
 	}
 
+	if in.SelectedBatch != nil {
+		rowID, err := s.q.GetUserAchievementRow(ctx, id, *in.SelectedBatch)
+		if err != nil {
+			return nil, err
+		}
+		if rowID != nil {
+			if err := s.q.SetUserSelectedBatch(ctx, id, *rowID); err != nil {
+				return nil, err
+			}
+			u.SelectedBatch = rowID
+		}
+	}
+
 	return &UserUpdateResult{
 		UserTokenDto:      tokenResp,
 		UserInfoDto:       toUserInfo(u),

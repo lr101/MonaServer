@@ -74,13 +74,13 @@ func (c *UsersAPIController) Routes() Routes {
 		"GetUserProfileImageSmall": Route{
 			"GetUserProfileImageSmall",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/profile_picture_small",
+			"/api/v2/users/{userId}/image/small",
 			c.GetUserProfileImageSmall,
 		},
 		"GetUserProfileImage": Route{
 			"GetUserProfileImage",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/profile_picture",
+			"/api/v2/users/{userId}/image",
 			c.GetUserProfileImage,
 		},
 		"GetUserXp": Route{
@@ -98,7 +98,7 @@ func (c *UsersAPIController) Routes() Routes {
 		"ClaimUserAchievement": Route{
 			"ClaimUserAchievement",
 			strings.ToUpper("Post"),
-			"/api/v2/users/{userId}/achievements/{achievementId}",
+			"/api/v2/users/{userId}/achievements/{achievementId}/claim",
 			c.ClaimUserAchievement,
 		},
 	}
@@ -128,13 +128,13 @@ func (c *UsersAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetUserProfileImageSmall",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/profile_picture_small",
+			"/api/v2/users/{userId}/image/small",
 			c.GetUserProfileImageSmall,
 		},
 		Route{
 			"GetUserProfileImage",
 			strings.ToUpper("Get"),
-			"/api/v2/users/{userId}/profile_picture",
+			"/api/v2/users/{userId}/image",
 			c.GetUserProfileImage,
 		},
 		Route{
@@ -152,7 +152,7 @@ func (c *UsersAPIController) OrderedRoutes() []Route {
 		Route{
 			"ClaimUserAchievement",
 			strings.ToUpper("Post"),
-			"/api/v2/users/{userId}/achievements/{achievementId}",
+			"/api/v2/users/{userId}/achievements/{achievementId}/claim",
 			c.ClaimUserAchievement,
 		},
 	}

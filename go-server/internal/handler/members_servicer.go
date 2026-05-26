@@ -69,7 +69,7 @@ func (s *MembersServicer) JoinGroup(ctx context.Context, groupID, userID, invite
 	if err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
-	return genserver.Response(http.StatusOK, toGroupDto(dto)), nil
+	return genserver.Response(http.StatusCreated, toGroupDto(dto)), nil
 }
 
 func (s *MembersServicer) DeleteMemberFromGroup(ctx context.Context, groupID, userID string) (genserver.ImplResponse, error) {

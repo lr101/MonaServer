@@ -52,13 +52,13 @@ func (c *RankingAPIController) Routes() Routes {
 		"GroupRanking": Route{
 			"GroupRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/group",
+			"/api/v2/ranking/groups",
 			c.GroupRanking,
 		},
 		"UserRanking": Route{
 			"UserRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/user",
+			"/api/v2/ranking/users",
 			c.UserRanking,
 		},
 		"SearchRanking": Route{
@@ -70,13 +70,13 @@ func (c *RankingAPIController) Routes() Routes {
 		"GetMapInfo": Route{
 			"GetMapInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/map",
+			"/api/v2/ranking/map-info",
 			c.GetMapInfo,
 		},
 		"GetGeoJson": Route{
 			"GetGeoJson",
 			strings.ToUpper("Get"),
-			"/api/v2/map/geojson",
+			"/api/v2/ranking/geojson",
 			c.GetGeoJson,
 		},
 	}
@@ -88,13 +88,13 @@ func (c *RankingAPIController) OrderedRoutes() []Route {
 		Route{
 			"GroupRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/group",
+			"/api/v2/ranking/groups",
 			c.GroupRanking,
 		},
 		Route{
 			"UserRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/user",
+			"/api/v2/ranking/users",
 			c.UserRanking,
 		},
 		Route{
@@ -106,13 +106,13 @@ func (c *RankingAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetMapInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/map",
+			"/api/v2/ranking/map-info",
 			c.GetMapInfo,
 		},
 		Route{
 			"GetGeoJson",
 			strings.ToUpper("Get"),
-			"/api/v2/map/geojson",
+			"/api/v2/ranking/geojson",
 			c.GetGeoJson,
 		},
 	}
@@ -439,7 +439,7 @@ func (c *RankingAPIController) GetGeoJson(w http.ResponseWriter, r *http.Request
 		gid0Param = param
 	} else {
 	}
-	result, err := c.service.GetGeoJson(r.Context(), gid2Param, gid1Param, gid0Param)
+	result, err := c.service.GetGeoJson(r.Context(), gid0Param, gid1Param, gid2Param)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

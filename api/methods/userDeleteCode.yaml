@@ -1,4 +1,4 @@
-get:
+post:
   operationId: generateDeleteCode
   security:
     - token: [ ]

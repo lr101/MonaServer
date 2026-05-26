@@ -27,21 +27,16 @@ type CreateGroupDto struct {
 	UserId string `json:"userId,omitempty"`
 }
 
-// AssertCreateGroupDtoRequired checks if the required fields are not zero-ed
+// AssertCreateGroupDtoRequired checks if the required fields are not zero-ed.
+// Only name and groupAdmin are truly required; description, profileImage, and
+// visibility=0 (public) are all valid empty/zero values.
 func AssertCreateGroupDtoRequired(obj CreateGroupDto) error {
-	elements := map[string]interface{}{
-		"description":  obj.Description,
-		"name":         obj.Name,
-		"profileImage": obj.ProfileImage,
-		"visibility":   obj.Visibility,
-		"groupAdmin":   obj.GroupAdmin,
+	if obj.Name == "" {
+		return &RequiredError{Field: "name"}
 	}
-	for name, el := range elements {
-		if isZero := IsZeroValue(el); isZero {
-			return &RequiredError{Field: name}
-		}
+	if obj.GroupAdmin == "" {
+		return &RequiredError{Field: "groupAdmin"}
 	}
-
 	return nil
 }
 

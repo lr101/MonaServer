@@ -54,8 +54,8 @@ func (c *PinsAPIController) Routes() Routes {
 	return Routes{
 		"GetPinImagesByIds": Route{
 			"GetPinImagesByIds",
-			strings.ToUpper("Get"),
-			"/api/v2/pins",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/sync",
 			c.GetPinImagesByIds,
 		},
 		"CreatePin": Route{
@@ -85,7 +85,7 @@ func (c *PinsAPIController) Routes() Routes {
 		"Sync": Route{
 			"Sync",
 			strings.ToUpper("Get"),
-			"/api/v3/sync",
+			"/api/v2/pins/sync/lastSeen",
 			c.Sync,
 		},
 	}
@@ -96,8 +96,8 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 	return []Route{
 		Route{
 			"GetPinImagesByIds",
-			strings.ToUpper("Get"),
-			"/api/v2/pins",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/sync",
 			c.GetPinImagesByIds,
 		},
 		Route{
@@ -127,7 +127,7 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 		Route{
 			"Sync",
 			strings.ToUpper("Get"),
-			"/api/v3/sync",
+			"/api/v2/pins/sync/lastSeen",
 			c.Sync,
 		},
 	}
@@ -135,118 +135,45 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 
 // GetPinImagesByIds - Get images by IDs
 func (c *PinsAPIController) GetPinImagesByIds(w http.ResponseWriter, r *http.Request) {
-	query, err := parseQuery(r.URL.RawQuery)
-	if err != nil {
-		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
-		return
+	// Accept JSON body (Kotlin-compatible) with fallback to query params.
+	var body struct {
+		Ids          []string  `json:"ids"`
+		GroupId      string    `json:"groupId"`
+		UserId       string    `json:"userId"`
+		WithImage    bool      `json:"withImage"`
+		Compression  int32     `json:"compression"`
+		Height       int32     `json:"height"`
+		Page         int32     `json:"page"`
+		Size         int32     `json:"size"`
+		UpdatedAfter time.Time `json:"updatedAfter"`
 	}
-	var idsParam []string
+	body.Size = 20 // default
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+			return
+		}
+	}
+	// Also read any query params that override (for backward compat).
+	query, _ := parseQuery(r.URL.RawQuery)
 	if query.Has("ids") {
-		idsParam = strings.Split(query.Get("ids"), ",")
+		body.Ids = strings.Split(query.Get("ids"), ",")
 	}
-	var groupIdParam string
 	if query.Has("groupId") {
-		param := query.Get("groupId")
-
-		groupIdParam = param
-	} else {
+		body.GroupId = query.Get("groupId")
 	}
-	var userIdParam string
 	if query.Has("userId") {
-		param := query.Get("userId")
-
-		userIdParam = param
-	} else {
+		body.UserId = query.Get("userId")
 	}
-	var withImageParam bool
-	if query.Has("withImage") {
-		param, err := parseBoolParameter(
-			query.Get("withImage"),
-			WithParse[bool](parseBool),
-		)
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "withImage", Err: err}, nil)
-			return
-		}
-
-		withImageParam = param
-	} else {
-		var param bool = false
-		withImageParam = param
-	}
-	var compressionParam int32
-	if query.Has("compression") {
-		param, err := parseNumericParameter[int32](
-			query.Get("compression"),
-			WithParse[int32](parseInt32),
-			WithMinimum[int32](0),
-			WithMaximum[int32](100),
-		)
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "compression", Err: err}, nil)
-			return
-		}
-
-		compressionParam = param
-	} else {
-	}
-	var heightParam int32
-	if query.Has("height") {
-		param, err := parseNumericParameter[int32](
-			query.Get("height"),
-			WithParse[int32](parseInt32),
-			WithMinimum[int32](0),
-			WithMaximum[int32](10000),
-		)
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "height", Err: err}, nil)
-			return
-		}
-
-		heightParam = param
-	} else {
-	}
-	var pageParam int32
-	if query.Has("page") {
-		param, err := parseNumericParameter[int32](
-			query.Get("page"),
-			WithParse[int32](parseInt32),
-		)
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "page", Err: err}, nil)
-			return
-		}
-
-		pageParam = param
-	} else {
-	}
-	var sizeParam int32
-	if query.Has("size") {
-		param, err := parseNumericParameter[int32](
-			query.Get("size"),
-			WithParse[int32](parseInt32),
-		)
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "size", Err: err}, nil)
-			return
-		}
-
-		sizeParam = param
-	} else {
-		var param int32 = 20
-		sizeParam = param
-	}
-	var updatedAfterParam time.Time
-	if query.Has("updatedAfter") {
-		param, err := parseTime(query.Get("updatedAfter"))
-		if err != nil {
-			c.errorHandler(w, r, &ParsingError{Param: "updatedAfter", Err: err}, nil)
-			return
-		}
-
-		updatedAfterParam = param
-	} else {
-	}
+	idsParam := body.Ids
+	groupIdParam := body.GroupId
+	userIdParam := body.UserId
+	withImageParam := body.WithImage
+	compressionParam := body.Compression
+	heightParam := body.Height
+	pageParam := body.Page
+	sizeParam := body.Size
+	updatedAfterParam := body.UpdatedAfter
 	result, err := c.service.GetPinImagesByIds(r.Context(), idsParam, groupIdParam, userIdParam, withImageParam, compressionParam, heightParam, pageParam, sizeParam, updatedAfterParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
@@ -385,15 +312,17 @@ func (c *PinsAPIController) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var lastSeenParam time.Time
-	if query.Has("lastSeen") {
-		param, err := parseTime(query.Get("lastSeen"))
+	rawSince := query.Get("lastSeen")
+	if rawSince == "" {
+		rawSince = query.Get("since") // backward compat with /api/v3/sync?since=
+	}
+	if rawSince != "" {
+		param, err := parseTime(rawSince)
 		if err != nil {
 			c.errorHandler(w, r, &ParsingError{Param: "lastSeen", Err: err}, nil)
 			return
 		}
-
 		lastSeenParam = param
-	} else {
 	}
 	result, err := c.service.Sync(r.Context(), lastSeenParam)
 	// If an error occurred, encode the error with the status code

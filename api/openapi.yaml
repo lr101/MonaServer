@@ -33,13 +33,13 @@ paths:
   /api/v2/groups/{groupId}:
     $ref: './methods/groupById.yaml'
 
-  /api/v2/groups/{groupId}/profile_image:
+  /api/v2/groups/{groupId}/image:
     $ref: './methods/groupProfileImage.yaml'
 
-  /api/v2/groups/{groupId}/profile_image_small:
+  /api/v2/groups/{groupId}/image/small:
     $ref: './methods/groupProfileImageSmall.yaml'
 
-  /api/v2/groups/{groupId}/pin_image:
+  /api/v2/groups/{groupId}/pin-image:
     $ref: './methods/groupPinImage.yaml'
 
   /api/v2/groups/{groupId}/description:
@@ -51,32 +51,41 @@ paths:
   /api/v2/groups/{groupId}/admin:
     $ref: './methods/groupAdmin.yaml'
 
-  /api/v2/groups/{groupId}/invite_url:
+  /api/v2/groups/{groupId}/invite-url:
     $ref: './methods/groupInviteUrl.yaml'
 
-  /api/v2/groups/{groupId}/members:
-    $ref: './methods/groupMembers.yaml'
+  /api/v2/members/groups/{groupId}:
+    $ref: './methods/membersByGroup.yaml'
 
-  /api/v2/public/delete-code/{username}:
+  /api/v2/members/groups/{groupId}/users/{userId}:
+    $ref: './methods/membersByGroupUser.yaml'
+
+  /api/v2/auth/delete-code/{username}:
     $ref: './methods/userDeleteCode.yaml'
 
-  /api/v2/public/recover:
+  /api/v2/auth/recover/{username}:
     $ref: './methods/publicRecover.yaml'
 
-  /api/v2/public/login:
+  /api/v2/auth/login:
     $ref: './methods/publicLogin.yaml'
 
-  /api/v2/public/signup:
+  /api/v2/auth/signup:
     $ref: './methods/publicSignup.yaml'
 
-  /api/v2/public/refresh:
+  /api/v2/auth/refresh:
     $ref: './methods/publicRefresh.yaml'
 
-  /api/v2/report:
+  /api/v2/reports:
     $ref: './methods/report.yaml'
 
   /api/v2/pins:
     $ref: './methods/pins.yaml'
+
+  /api/v2/pins/sync:
+    $ref: './methods/pinsSync.yaml'
+
+  /api/v2/pins/sync/lastSeen:
+    $ref: './methods/sync.yaml'
 
   /api/v2/pins/{pinId}:
     $ref: './methods/pinsById.yaml'
@@ -84,22 +93,22 @@ paths:
   /api/v2/pins/{pinId}/image:
     $ref: './methods/pinsImage.yaml'
 
-  /api/v2/pins/{pinId}/likes:
+  /api/v2/likes/pins/{pinId}:
     $ref: './methods/likes.yaml'
 
-  /api/v2/users/{userId}/likes:
+  /api/v2/likes/users/{userId}:
     $ref: './methods/userLikes.yaml'
 
-  /api/v2/public/infos:
+  /api/v2/public/info:
     $ref: './methods/publicInfos.yaml'
 
   /api/v2/users/{userId}:
     $ref: './methods/userById.yaml'
 
-  /api/v2/users/{userId}/profile_picture_small:
+  /api/v2/users/{userId}/image/small:
     $ref: './methods/userProfileImageSmall.yaml'
 
-  /api/v2/users/{userId}/profile_picture:
+  /api/v2/users/{userId}/image:
     $ref: './methods/userProfileImage.yaml'
 
   /api/v2/users/{userId}/xp:
@@ -108,22 +117,22 @@ paths:
   /api/v2/users/{userId}/achievements:
     $ref: './methods/userAchievements.yaml'
 
-  /api/v2/users/{userId}/achievements/{achievementId}:
+  /api/v2/users/{userId}/achievements/{achievementId}/claim:
     $ref: './methods/userAchievementsById.yaml'
 
-  /api/v2/ranking/group:
+  /api/v2/ranking/groups:
     $ref: './methods/groupRanking.yaml'
 
-  /api/v2/ranking/user:
+  /api/v2/ranking/users:
     $ref: './methods/userRanking.yaml'
 
   /api/v2/ranking/search:
     $ref: './methods/searchRanking.yaml'
 
-  /api/v2/map:
+  /api/v2/ranking/map-info:
     $ref: './methods/mapInfo.yaml'
 
-  /api/v2/map/geojson:
+  /api/v2/ranking/geojson:
     $ref: './methods/getGeojson.yaml'
 
   /api/v2/status:
@@ -132,11 +141,8 @@ paths:
   /api/v2/admin/mail:
     $ref: './methods/adminMail.yaml'
 
-  /api/v2/admin/notification:
+  /api/v2/admin/notifications:
     $ref: './methods/adminNotification.yaml'
-
-  /api/v3/sync:
-    $ref: './methods/sync.yaml'
 
 components:
   securitySchemes:

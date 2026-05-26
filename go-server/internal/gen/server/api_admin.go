@@ -60,7 +60,7 @@ func (c *AdminAPIController) Routes() Routes {
 		"SendNotification": Route{
 			"SendNotification",
 			strings.ToUpper("Post"),
-			"/api/v2/admin/notification",
+			"/api/v2/admin/notifications",
 			c.SendNotification,
 		},
 	}
@@ -78,7 +78,7 @@ func (c *AdminAPIController) OrderedRoutes() []Route {
 		Route{
 			"SendNotification",
 			strings.ToUpper("Post"),
-			"/api/v2/admin/notification",
+			"/api/v2/admin/notifications",
 			c.SendNotification,
 		},
 	}

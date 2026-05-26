@@ -31,21 +31,15 @@ type PinRequestDto struct {
 	Description *string `json:"description,omitempty"`
 }
 
-// AssertPinRequestDtoRequired checks if the required fields are not zero-ed
+// AssertPinRequestDtoRequired checks if the required fields are not zero-ed.
+// Image is optional; lat/lng at 0.0 are valid ocean coordinates, so only userId/groupId are checked.
 func AssertPinRequestDtoRequired(obj PinRequestDto) error {
-	elements := map[string]interface{}{
-		"image":     obj.Image,
-		"latitude":  obj.Latitude,
-		"longitude": obj.Longitude,
-		"userId":    obj.UserId,
-		"groupId":   obj.GroupId,
+	if obj.UserId == "" {
+		return &RequiredError{Field: "userId"}
 	}
-	for name, el := range elements {
-		if isZero := IsZeroValue(el); isZero {
-			return &RequiredError{Field: name}
-		}
+	if obj.GroupId == "" {
+		return &RequiredError{Field: "groupId"}
 	}
-
 	return nil
 }
 

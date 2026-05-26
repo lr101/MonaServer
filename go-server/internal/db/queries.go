@@ -135,6 +135,28 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 	}, nil
 }
 
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	const getUserByEmail = `SELECT id, username, email, password, xp, description, profile_picture_exists,
+	       email_confirmed, failed_login_attempts, firebase_token,
+	       code, code_expiration, reset_password_url, reset_password_expiration,
+	       deletion_url, email_confirmation_url, last_username_update, selected_batch
+	FROM users WHERE email = $1 AND is_deleted = FALSE LIMIT 1`
+	row := q.pool.QueryRow(ctx, getUserByEmail, email)
+	var r dbgen.GetUserByIDRow
+	if err := row.Scan(
+		&r.ID, &r.Username, &r.Email, &r.Password, &r.Xp, &r.Description, &r.ProfilePictureExists,
+		&r.EmailConfirmed, &r.FailedLoginAttempts, &r.FirebaseToken, &r.Code, &r.CodeExpiration,
+		&r.ResetPasswordUrl, &r.ResetPasswordExpiration,
+		&r.DeletionUrl, &r.EmailConfirmationUrl, &r.LastUsernameUpdate, &r.SelectedBatch,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return userFromIDRow(r), nil
+}
+
 func (q *Queries) GetUsernameByID(ctx context.Context, id uuid.UUID) (string, error) {
 	t, err := q.g.GetUsernameByID(ctx, pgUUID(id))
 	if err != nil {
@@ -962,6 +984,71 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]Us
 	return out, nil
 }
 
+// ---- Seasons ----
+
+func (q *Queries) GetMaxSeasonNumber(ctx context.Context) (int, error) {
+	n, err := q.g.GetMaxSeasonNumber(ctx)
+	return int(n), err
+}
+
+func (q *Queries) CreateSeason(ctx context.Context, seasonNumber, year, month int) (uuid.UUID, error) {
+	id := uuid.New()
+	row, err := q.g.CreateSeason(ctx, dbgen.CreateSeasonParams{
+		ID:           pgUUID(id),
+		SeasonNumber: int32(seasonNumber),
+		Year:         int32(year),
+		Month:        int32(month),
+	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return goUUID(row), nil
+}
+
+func (q *Queries) CreateUserSeason(ctx context.Context, userID, seasonID uuid.UUID, rank, pinCount int32) error {
+	return q.g.CreateUserSeason(ctx, dbgen.CreateUserSeasonParams{
+		ID:           pgUUID(uuid.New()),
+		UserID:       pgUUID(userID),
+		SeasonID:     pgUUID(seasonID),
+		Rank:         rank,
+		NumberOfPins: pinCount,
+	})
+}
+
+func (q *Queries) CreateGroupSeason(ctx context.Context, groupID, seasonID uuid.UUID, rank, pinCount int32) error {
+	return q.g.CreateGroupSeason(ctx, dbgen.CreateGroupSeasonParams{
+		ID:           pgUUID(uuid.New()),
+		GroupID:      pgUUID(groupID),
+		SeasonID:     pgUUID(seasonID),
+		Rank:         rank,
+		NumberOfPins: pinCount,
+	})
+}
+
+// ---- Notifications ----
+
+type NotificationTarget struct {
+	UserID        uuid.UUID
+	FirebaseToken string
+	PinCount      int32
+}
+
+func (q *Queries) FindUsersWithNewPins(ctx context.Context) ([]NotificationTarget, error) {
+	rs, err := q.g.FindUsersWithNewPinsSinceLastActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]NotificationTarget, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, NotificationTarget{
+			UserID:        goUUID(r.ID),
+			FirebaseToken: r.FirebaseToken.String,
+			PinCount:      r.PinCount,
+		})
+	}
+	return out, nil
+}
+
 // ---- Achievements ----
 
 type UserAchievement struct {
@@ -983,4 +1070,24 @@ func (q *Queries) ListUserAchievements(ctx context.Context, userID uuid.UUID) ([
 
 func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, achievementID int32) error {
 	return q.g.ClaimUserAchievement(ctx, dbgen.ClaimUserAchievementParams{UserID: pgUUID(userID), AchievementID: achievementID})
+}
+
+func (q *Queries) SetUserSelectedBatch(ctx context.Context, userID, achievementRowID uuid.UUID) error {
+	return q.g.SetUserSelectedBatch(ctx, dbgen.SetUserSelectedBatchParams{
+		ID: pgUUID(userID), SelectedBatch: pgUUID(achievementRowID),
+	})
+}
+
+func (q *Queries) GetUserAchievementRow(ctx context.Context, userID uuid.UUID, achievementID int32) (*uuid.UUID, error) {
+	row, err := q.g.GetUserAchievement(ctx, dbgen.GetUserAchievementParams{
+		UserID: pgUUID(userID), AchievementID: achievementID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	id := goUUID(row.ID)
+	return &id, nil
 }

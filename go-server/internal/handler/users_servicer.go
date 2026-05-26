@@ -8,18 +8,21 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/lrprojects/monaserver/internal/apperrors"
+	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
 )
 
 // UsersServicer implements genserver.UsersAPIServicer.
 type UsersServicer struct {
-	user  *service.User
-	guard *service.Guard
+	user   *service.User
+	guard  *service.Guard
+	q      *db.Queries
+	achCfg db.AchievementConfig
 }
 
-func NewUsersServicer(user *service.User, guard *service.Guard) *UsersServicer {
-	return &UsersServicer{user: user, guard: guard}
+func NewUsersServicer(user *service.User, guard *service.Guard, q *db.Queries, achCfg db.AchievementConfig) *UsersServicer {
+	return &UsersServicer{user: user, guard: guard, q: q, achCfg: achCfg}
 }
 
 func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.ImplResponse, error) {
@@ -172,15 +175,18 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	items, err := s.user.Achievements(ctx, id)
+	items, err := s.q.GetAchievementProgress(ctx, id, s.achCfg)
 	if err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
 		dtos = append(dtos, genserver.UserAchievementsDtoInner{
-			AchievementId: a.AchievementID,
-			Claimed:       a.Claimed,
+			AchievementId:  a.ID,
+			Claimed:        a.Claimed,
+			CurrentValue:   a.CurrentValue,
+			ThresholdValue: a.Threshold,
+			ThresholdUp:    a.ThresholdUp,
 		})
 	}
 	return genserver.Response(http.StatusOK, dtos), nil
@@ -198,8 +204,16 @@ func (s *UsersServicer) ClaimUserAchievement(ctx context.Context, userID string,
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
+	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id, s.achCfg)
+	if err != nil {
+		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+	}
+	if !claimable {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
 	if err := s.user.ClaimAchievement(ctx, id, achievementID); err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
+	_ = s.q.AddUserXp(ctx, id, 20)
 	return genserver.Response(http.StatusOK, nil), nil
 }

@@ -52,7 +52,14 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 		}
 		items = append(items, dto)
 	}
-	return genserver.Response(http.StatusOK, genserver.PinsSyncDto{Items: items, Deleted: []string{}}), nil
+	deleted := []string{}
+	if after != nil {
+		deletedIDs, _ := s.q.ListDeletedPinsAfter(ctx, *after)
+		for _, id := range deletedIDs {
+			deleted = append(deleted, id.String())
+		}
+	}
+	return genserver.Response(http.StatusOK, genserver.PinsSyncDto{Items: items, Deleted: deleted}), nil
 }
 
 func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDto) (genserver.ImplResponse, error) {
@@ -80,10 +87,11 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 	if err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
+	_ = s.q.AddUserXp(ctx, uid, 5)
 	return genserver.Response(http.StatusCreated, pinDTOtoDto(result)), nil
 }
 
-func (s *PinsServicer) GetPin(ctx context.Context, pinID string, redirect bool) (genserver.ImplResponse, error) {
+func (s *PinsServicer) GetPin(ctx context.Context, pinID string, withImage bool) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(pinID)
 	if err != nil {
 		return genserver.Response(http.StatusBadRequest, nil), nil
@@ -99,7 +107,14 @@ func (s *PinsServicer) GetPin(ctx context.Context, pinID string, redirect bool) 
 	if err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
-	return genserver.Response(http.StatusOK, pinDTOtoDto(dto)), nil
+	result := pinDTOtoDto(dto)
+	if withImage {
+		imgURL, _ := s.pin.ImageURL(ctx, id)
+		if imgURL != nil {
+			result.Image = *imgURL
+		}
+	}
+	return genserver.Response(http.StatusOK, result), nil
 }
 
 func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.ImplResponse, error) {

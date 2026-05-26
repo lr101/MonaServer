@@ -51,7 +51,7 @@ func (c *PublicAPIController) Routes() Routes {
 		"GetServerInfo": Route{
 			"GetServerInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/public/infos",
+			"/api/v2/public/info",
 			c.GetServerInfo,
 		},
 	}
@@ -63,7 +63,7 @@ func (c *PublicAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetServerInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/public/infos",
+			"/api/v2/public/info",
 			c.GetServerInfo,
 		},
 	}

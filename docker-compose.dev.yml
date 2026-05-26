@@ -1,0 +1,55 @@
+services:
+  go-server:
+    build:
+      context: ./go-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env.dev
+    depends_on:
+      db:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+
+  db:
+    image: postgis/postgis:17-master
+    restart: unless-stopped
+    container_name: stick-it-db-dev
+    environment:
+      POSTGRES_USER: monaserver
+      POSTGRES_PASSWORD: monaserver
+      POSTGRES_DB: monaserver
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monaserver -d monaserver"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    container_name: rustfs-dev
+    environment:
+      RUSTFS_ACCESS_KEY: devaccesskey
+      RUSTFS_SECRET_KEY: devsecretkey
+      RUSTFS_VOLUMES: /data
+    ports:
+      - "9000:9000"
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || curl -sf -o /dev/null -w '%{http_code}' http://localhost:9000/ | grep -qE '^(200|403|404)'"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  db-data:
+  rustfs-data:

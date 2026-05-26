@@ -52,7 +52,7 @@ func (c *ReportAPIController) Routes() Routes {
 		"CreateReport": Route{
 			"CreateReport",
 			strings.ToUpper("Post"),
-			"/api/v2/report",
+			"/api/v2/reports",
 			c.CreateReport,
 		},
 	}
@@ -64,7 +64,7 @@ func (c *ReportAPIController) OrderedRoutes() []Route {
 		Route{
 			"CreateReport",
 			strings.ToUpper("Post"),
-			"/api/v2/report",
+			"/api/v2/reports",
 			c.CreateReport,
 		},
 	}

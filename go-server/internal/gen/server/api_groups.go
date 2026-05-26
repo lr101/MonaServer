@@ -85,19 +85,19 @@ func (c *GroupsAPIController) Routes() Routes {
 		"GetGroupProfileImage": Route{
 			"GetGroupProfileImage",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/profile_image",
+			"/api/v2/groups/{groupId}/image",
 			c.GetGroupProfileImage,
 		},
 		"GetGroupProfileImageSmall": Route{
 			"GetGroupProfileImageSmall",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/profile_image_small",
+			"/api/v2/groups/{groupId}/image/small",
 			c.GetGroupProfileImageSmall,
 		},
 		"GetGroupPinImage": Route{
 			"GetGroupPinImage",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/pin_image",
+			"/api/v2/groups/{groupId}/pin-image",
 			c.GetGroupPinImage,
 		},
 		"GetGroupDescription": Route{
@@ -121,7 +121,7 @@ func (c *GroupsAPIController) Routes() Routes {
 		"GetGroupInviteUrl": Route{
 			"GetGroupInviteUrl",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/invite_url",
+			"/api/v2/groups/{groupId}/invite-url",
 			c.GetGroupInviteUrl,
 		},
 	}
@@ -163,19 +163,19 @@ func (c *GroupsAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetGroupProfileImage",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/profile_image",
+			"/api/v2/groups/{groupId}/image",
 			c.GetGroupProfileImage,
 		},
 		Route{
 			"GetGroupProfileImageSmall",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/profile_image_small",
+			"/api/v2/groups/{groupId}/image/small",
 			c.GetGroupProfileImageSmall,
 		},
 		Route{
 			"GetGroupPinImage",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/pin_image",
+			"/api/v2/groups/{groupId}/pin-image",
 			c.GetGroupPinImage,
 		},
 		Route{
@@ -199,7 +199,7 @@ func (c *GroupsAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetGroupInviteUrl",
 			strings.ToUpper("Get"),
-			"/api/v2/groups/{groupId}/invite_url",
+			"/api/v2/groups/{groupId}/invite-url",
 			c.GetGroupInviteUrl,
 		},
 	}

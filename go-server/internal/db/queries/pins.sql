@@ -42,6 +42,23 @@ SELECT deleted_entity_id FROM delete_log
 WHERE deleted_entity_type = 3 AND creation_date > $1
 ORDER BY creation_date;
 
+-- name: FindUsersWithNewPinsSinceLastActive :many
+SELECT u.id, u.firebase_token, COUNT(DISTINCT p.id)::int AS pin_count
+FROM users u
+JOIN members m ON m.user_id = u.id AND m.is_deleted = FALSE
+JOIN pins p ON m.group_id = p.group_id
+WHERE p.creator_id != u.id
+  AND u.is_deleted = FALSE
+  AND u.firebase_token IS NOT NULL
+  AND p.is_deleted = FALSE
+  AND p.creation_date > (
+      SELECT COALESCE(MAX(rt.last_active_date), NOW() - INTERVAL '7 days')
+      FROM refresh_token rt
+      WHERE rt.user_id = u.id
+  )
+GROUP BY u.id, u.firebase_token
+HAVING COUNT(DISTINCT p.id) > 0;
+
 -- name: FindBoundaryForPoint :one
 SELECT id FROM admin2_boundaries
 WHERE ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326))

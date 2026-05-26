@@ -39,6 +39,10 @@ type Config struct {
 
 	// Firebase
 	FirebaseConfigPath string `mapstructure:"FIREBASE_CONFIG_PATH"`
+
+	// Achievements
+	AchievementMonaGroupID   string `mapstructure:"ACHIEVEMENT_MONA_GROUP_ID"`
+	AchievementCreatedBefore string `mapstructure:"ACHIEVEMENT_CREATED_BEFORE"`
 }
 
 func Load() (*Config, error) {
@@ -55,6 +59,7 @@ func Load() (*Config, error) {
 		"MINIO_BUCKET", "MINIO_USE_SSL", "MINIO_URL_EXPIRY",
 		"MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
 		"FIREBASE_CONFIG_PATH",
+		"ACHIEVEMENT_MONA_GROUP_ID", "ACHIEVEMENT_CREATED_BEFORE",
 	} {
 		_ = v.BindEnv(k)
 	}

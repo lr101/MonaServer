@@ -44,25 +44,13 @@ func (s *AuthServicer) GenerateDeleteCode(ctx context.Context, username string) 
 	return genserver.Response(http.StatusOK, nil), nil
 }
 
-func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, email string) (genserver.ImplResponse, error) {
-	users, err := s.q.ListAllUserEmails(ctx)
-	if err != nil {
-		return genserver.Response(http.StatusInternalServerError, nil), nil
-	}
-	var found bool
-	for _, e := range users {
-		if e == email {
-			found = true
-			break
-		}
-	}
-	if !found {
+func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username string) (genserver.ImplResponse, error) {
+	u, err := s.q.GetUserByUsername(ctx, username)
+	if err != nil || u == nil {
 		return genserver.Response(http.StatusOK, nil), nil // silently succeed
 	}
-	u, err := s.q.GetUserByUsername(ctx, email)
-	if err != nil || u == nil {
-		// Try by email field via a different lookup — just silently succeed for now
-		return genserver.Response(http.StatusOK, nil), nil
+	if u.Email == nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
 	url := randomAlphaStr(32)
 	exp := time.Now().Add(24 * time.Hour)
@@ -70,7 +58,7 @@ func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, email string
 		return genserver.Response(http.StatusInternalServerError, nil), nil
 	}
 	resetURL := s.baseURL + "/public/recover/" + url
-	_ = s.mail.SendPasswordRecovery(ctx, u.Username, email, resetURL)
+	_ = s.mail.SendPasswordRecovery(ctx, u.Username, *u.Email, resetURL)
 	return genserver.Response(http.StatusOK, nil), nil
 }
 

@@ -66,7 +66,7 @@ func (s *LikesServicer) CreateOrUpdateLike(ctx context.Context, pinID string, dt
 	if err != nil {
 		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
 	}
-	return genserver.Response(http.StatusOK, toLikesDto(result)), nil
+	return genserver.Response(http.StatusCreated, toLikesDto(result)), nil
 }
 
 func (s *LikesServicer) GetUserLikes(ctx context.Context, userID string) (genserver.ImplResponse, error) {
