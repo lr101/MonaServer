@@ -87,6 +87,11 @@ func ctxUserID(ctx context.Context) (uuid.UUID, bool) {
 	return middleware.UserID(ctx)
 }
 
+// ctxIsAdmin reports whether the authenticated caller has the ADMIN role.
+func ctxIsAdmin(ctx context.Context) bool {
+	return middleware.Role(ctx) == middleware.RoleAdmin
+}
+
 func strDeref(s *string) string {
 	if s == nil {
 		return ""

@@ -98,8 +98,10 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
 
+	// Mirror the route wiring in main.go.
 	r.Group(func(r chi.Router) {
 		registerRoutes(r, authCtrl, isPublicRoute)
+		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
 	r.Group(func(r chi.Router) {
@@ -130,7 +132,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 type authResp struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
-	UserID       string `json:"userId"`  // TokenResponseDto field
+	UserID       string `json:"userId"`
 }
 
 type apiClient struct {
@@ -162,7 +164,7 @@ func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Respon
 func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 	t.Helper()
 	// UserRequestDto uses "name" for username; email is a required non-empty field.
-	resp := c.do(t, "POST", "/api/v2/auth/signup", map[string]string{
+	resp := c.do(t, "POST", "/api/v2/public/signup", map[string]string{
 		"name":     username,
 		"email":    username + "@test.example",
 		"password": password,
@@ -178,7 +180,7 @@ func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 
 func (c *apiClient) login(t *testing.T, username, password string) authResp {
 	t.Helper()
-	resp := c.do(t, "POST", "/api/v2/auth/login", map[string]string{
+	resp := c.do(t, "POST", "/api/v2/public/login", map[string]string{
 		"username": username, "password": password,
 	})
 	defer resp.Body.Close()
@@ -188,6 +190,23 @@ func (c *apiClient) login(t *testing.T, username, password string) authResp {
 	var ar authResp
 	_ = json.NewDecoder(resp.Body).Decode(&ar)
 	return ar
+}
+
+// createGroup creates a group administered by the client's own user and returns its id.
+func (c *apiClient) createGroup(t *testing.T, adminID, name string, visibility int) string {
+	t.Helper()
+	resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
+		"name":       name,
+		"visibility": visibility,
+		"groupAdmin": adminID,
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create group %q: expected 201, got %d", name, resp.StatusCode)
+	}
+	var g map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&g)
+	return fmt.Sprintf("%v", g["id"])
 }
 
 func decode(t *testing.T, resp *http.Response, v any) {
@@ -217,8 +236,8 @@ func TestEndpointAuth(t *testing.T) {
 
 	t.Run("duplicate signup rejected", func(t *testing.T) {
 		c.signup(t, "dupuser", "pw123")
-		resp := c.do(t, "POST", "/api/v2/auth/signup", map[string]string{
-			"username": "dupuser", "password": "pw123",
+		resp := c.do(t, "POST", "/api/v2/public/signup", map[string]string{
+			"name": "dupuser", "email": "dupuser@test.example", "password": "pw123",
 		})
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusCreated {
@@ -236,7 +255,7 @@ func TestEndpointAuth(t *testing.T) {
 
 	t.Run("wrong password rejected", func(t *testing.T) {
 		c.signup(t, "charlie", "correct")
-		resp := c.do(t, "POST", "/api/v2/auth/login", map[string]string{
+		resp := c.do(t, "POST", "/api/v2/public/login", map[string]string{
 			"username": "charlie", "password": "wrong",
 		})
 		resp.Body.Close()
@@ -247,7 +266,7 @@ func TestEndpointAuth(t *testing.T) {
 
 	t.Run("refresh", func(t *testing.T) {
 		ar := c.signup(t, "dave", "pw123")
-		resp := c.do(t, "POST", "/api/v2/auth/refresh", map[string]string{
+		resp := c.do(t, "POST", "/api/v2/public/refresh", map[string]string{
 			"refreshToken": ar.RefreshToken,
 		})
 		defer resp.Body.Close()
@@ -256,11 +275,25 @@ func TestEndpointAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("status is public and returns 200", func(t *testing.T) {
+	t.Run("status returns 200", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/status", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status: expected 200, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("delete-code is public (no bearer token required)", func(t *testing.T) {
+		// Mirrors Spring's /api/v2/public/** permitAll: requesting a delete code
+		// must not require authentication.
+		c.signup(t, "delcode_user", "pw123")
+		resp := c.do(t, "GET", "/api/v2/public/delete-code/delcode_user", nil)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Fatalf("delete-code should be public, got 401")
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("delete-code: expected 200, got %d", resp.StatusCode)
 		}
 	})
 }
@@ -270,8 +303,8 @@ func TestEndpointPublic(t *testing.T) {
 	defer srv.Close()
 	c := &apiClient{base: srv.URL}
 
-	t.Run("GET /api/v2/public/info", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/public/info", nil)
+	t.Run("GET /api/v2/public/infos", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/public/infos", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -342,8 +375,8 @@ func TestEndpointUsers(t *testing.T) {
 		}
 	})
 
-	t.Run("GET /api/v2/users/{id}/image — returns 200", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/users/"+uid+"/image", nil)
+	t.Run("GET /api/v2/users/{id}/profile_picture — returns 200", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/users/"+uid+"/profile_picture", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -359,25 +392,7 @@ func TestEndpointGroups(t *testing.T) {
 	ar := anon.signup(t, "grouper", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
-	var gid string
-
-	t.Run("POST /api/v2/groups", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
-			"name":       "testgroup",
-			"visibility": 0,
-			"groupAdmin": ar.UserID,
-		})
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusCreated {
-			t.Fatalf("expected 201, got %d", resp.StatusCode)
-		}
-		var g map[string]any
-		decode(t, resp, &g)
-		gid = fmt.Sprintf("%v", g["id"])
-		if gid == "" || gid == "<nil>" {
-			t.Fatalf("empty group id: %v", g)
-		}
-	})
+	gid := c.createGroup(t, ar.UserID, "testgroup", 0)
 
 	t.Run("GET /api/v2/groups/{id}", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/groups/"+gid, nil)
@@ -402,7 +417,8 @@ func TestEndpointGroups(t *testing.T) {
 
 	t.Run("PUT /api/v2/groups/{id}", func(t *testing.T) {
 		resp := c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{
-			"name": "testgroup_renamed",
+			"name":       "testgroup_renamed",
+			"visibility": 0,
 		})
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -411,38 +427,65 @@ func TestEndpointGroups(t *testing.T) {
 	})
 
 	t.Run("DELETE /api/v2/groups/{id}", func(t *testing.T) {
-		// Create a separate group to delete.
-		resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
-			"name":       "todelete_group",
-			"visibility": 0,
-			"groupAdmin": ar.UserID,
-		})
-		var g map[string]any
-		decode(t, resp, &g)
-		dgid := fmt.Sprintf("%v", g["id"])
-
-		resp2 := c.do(t, "DELETE", "/api/v2/groups/"+dgid, nil)
-		resp2.Body.Close()
-		if resp2.StatusCode != http.StatusOK {
-			t.Fatalf("delete group: expected 200, got %d", resp2.StatusCode)
+		dgid := c.createGroup(t, ar.UserID, "todelete_group", 0)
+		resp := c.do(t, "DELETE", "/api/v2/groups/"+dgid, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("delete group: expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("GET /api/v2/groups/{id}/image — no image returns 200", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/image", nil)
+	t.Run("GET /api/v2/groups/{id}/profile_image — no image returns 200", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/profile_image", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("GET /api/v2/groups/{id}/invite-url", func(t *testing.T) {
+	t.Run("GET /api/v2/groups/{id}/invite_url", func(t *testing.T) {
 		// Make group private first so an invite URL is generated.
 		c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{"visibility": 1}).Body.Close()
-		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/invite-url", nil)
+		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/invite_url", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+}
+
+// TestGroupCreateAuthorization verifies the AddGroup authorization fix:
+// a non-admin caller may only create a group whose groupAdmin is themselves.
+func TestGroupCreateAuthorization(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	a := anon.signup(t, "ga_owner", "pw123")
+	b := anon.signup(t, "ga_other", "pw123")
+	bc := &apiClient{base: srv.URL, bearer: b.AccessToken}
+
+	t.Run("forbidden when setting another user as groupAdmin", func(t *testing.T) {
+		resp := bc.do(t, "POST", "/api/v2/groups", map[string]any{
+			"name":       "spoofed_group",
+			"visibility": 0,
+			"groupAdmin": a.UserID, // not the caller
+		})
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("expected 403, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("allowed when groupAdmin is the caller", func(t *testing.T) {
+		resp := bc.do(t, "POST", "/api/v2/groups", map[string]any{
+			"name":       "own_group",
+			"visibility": 0,
+			"groupAdmin": b.UserID,
+		})
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", resp.StatusCode)
 		}
 	})
 }
@@ -457,36 +500,28 @@ func TestEndpointMembers(t *testing.T) {
 	admin := &apiClient{base: srv.URL, bearer: adminAR.AccessToken}
 	member := &apiClient{base: srv.URL, bearer: memberAR.AccessToken}
 
-	// Create a group.
-	resp := admin.do(t, "POST", "/api/v2/groups", map[string]any{
-		"name":       "membertest_group",
-		"visibility": 0,
-		"groupAdmin": adminAR.UserID,
-	})
-	var g map[string]any
-	decode(t, resp, &g)
-	gid := fmt.Sprintf("%v", g["id"])
+	gid := admin.createGroup(t, adminAR.UserID, "membertest_group", 0)
 
-	t.Run("GET /api/v2/members/groups/{id} — list members", func(t *testing.T) {
-		resp := admin.do(t, "GET", "/api/v2/members/groups/"+gid, nil)
+	t.Run("GET /api/v2/groups/{id}/members — list members", func(t *testing.T) {
+		resp := admin.do(t, "GET", "/api/v2/groups/"+gid+"/members", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("POST /api/v2/members/groups/{id}/users/{uid} — join", func(t *testing.T) {
+	t.Run("POST /api/v2/groups/{id}/members — join", func(t *testing.T) {
 		resp := member.do(t, "POST",
-			"/api/v2/members/groups/"+gid+"/users/"+memberAR.UserID, nil)
+			"/api/v2/groups/"+gid+"/members?userId="+memberAR.UserID, nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("join: expected 201, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("DELETE /api/v2/members/groups/{id}/users/{uid} — leave", func(t *testing.T) {
+	t.Run("DELETE /api/v2/groups/{id}/members — leave", func(t *testing.T) {
 		resp := member.do(t, "DELETE",
-			"/api/v2/members/groups/"+gid+"/users/"+memberAR.UserID, nil)
+			"/api/v2/groups/"+gid+"/members?userId="+memberAR.UserID, nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("leave: expected 200, got %d", resp.StatusCode)
@@ -502,38 +537,23 @@ func TestEndpointPins(t *testing.T) {
 	ar := anon.signup(t, "pinner", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
-	// Create a group.
-	resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
-		"name":       "pintest_group",
-		"visibility": 0,
-		"groupAdmin": ar.UserID,
-	})
-	var g map[string]any
-	decode(t, resp, &g)
-	gid := g["id"]
+	gid := c.createGroup(t, ar.UserID, "pintest_group", 0)
 
 	var pid string
 
-	t.Run("POST /api/v2/pins/sync — fetch sync page", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/pins/sync", map[string]any{
-			"ids":       []string{},
-			"groupId":   gid,
-			"userId":    ar.UserID,
-			"withImage": false,
-			"page":      0,
-			"size":      50,
-		})
+	t.Run("GET /api/v2/pins — list group pins (sync)", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/pins?groupId="+gid+"&withImage=false", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("sync: expected 200, got %d", resp.StatusCode)
+			t.Fatalf("pins by group: expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("GET /api/v2/pins/sync/lastSeen", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/pins/sync/lastSeen?lastSeen=2020-01-01T00:00:00Z", nil)
+	t.Run("GET /api/v3/sync", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v3/sync?lastSeen=2020-01-01T00:00:00Z", nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("lastSeen: expected 200, got %d", resp.StatusCode)
+			t.Fatalf("sync: expected 200, got %d", resp.StatusCode)
 		}
 	})
 
@@ -546,32 +566,82 @@ func TestEndpointPins(t *testing.T) {
 			"groupId":      gid,
 		})
 		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
-			var p map[string]any
-			decode(t, resp, &p)
-			pid = fmt.Sprintf("%v", p["id"])
-		} else {
-			t.Logf("POST /api/v2/pins returned %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create pin: expected 201, got %d", resp.StatusCode)
+		}
+		var p map[string]any
+		decode(t, resp, &p)
+		pid = fmt.Sprintf("%v", p["id"])
+		if pid == "" || pid == "<nil>" {
+			t.Fatalf("empty pin id: %v", p)
 		}
 	})
 
-	if pid != "" {
-		t.Run("GET /api/v2/pins/{id}", func(t *testing.T) {
-			resp := c.do(t, "GET", "/api/v2/pins/"+pid, nil)
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("expected 200, got %d", resp.StatusCode)
-			}
-		})
+	t.Run("GET /api/v2/pins/{id}", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/pins/"+pid, nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+	})
 
-		t.Run("DELETE /api/v2/pins/{id}", func(t *testing.T) {
-			resp := c.do(t, "DELETE", "/api/v2/pins/"+pid, nil)
-			resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("expected 200, got %d", resp.StatusCode)
-			}
-		})
+	t.Run("DELETE /api/v2/pins/{id}", func(t *testing.T) {
+		resp := c.do(t, "DELETE", "/api/v2/pins/"+pid, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+}
+
+// TestPinCreateAuthorization verifies the CreatePin authorization fix:
+// a caller must be a member of the target group AND the pin's userId.
+func TestPinCreateAuthorization(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	owner := anon.signup(t, "pin_owner", "pw123")
+	stranger := anon.signup(t, "pin_stranger", "pw123")
+	oc := &apiClient{base: srv.URL, bearer: owner.AccessToken}
+	sc := &apiClient{base: srv.URL, bearer: stranger.AccessToken}
+
+	gid := oc.createGroup(t, owner.UserID, "authpin_group", 0)
+
+	pinBody := func(userID string) map[string]any {
+		return map[string]any{
+			"latitude":     48.1,
+			"longitude":    11.6,
+			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"userId":       userID,
+			"groupId":      gid,
+		}
 	}
+
+	t.Run("non-member forbidden", func(t *testing.T) {
+		resp := sc.do(t, "POST", "/api/v2/pins", pinBody(stranger.UserID))
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("expected 403 for non-member, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("spoofing another user's id forbidden", func(t *testing.T) {
+		// stranger is not a member and also tries to post as the owner.
+		resp := sc.do(t, "POST", "/api/v2/pins", pinBody(owner.UserID))
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("expected 403 for user spoofing, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("member creating own pin allowed", func(t *testing.T) {
+		resp := oc.do(t, "POST", "/api/v2/pins", pinBody(owner.UserID))
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201 for group member, got %d", resp.StatusCode)
+		}
+	})
 }
 
 func TestEndpointLikes(t *testing.T) {
@@ -582,15 +652,7 @@ func TestEndpointLikes(t *testing.T) {
 	ar := anon.signup(t, "liker_ep", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
-	// Create group and pin.
-	resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
-		"name":       "liketest_group",
-		"visibility": 0,
-		"groupAdmin": ar.UserID,
-	})
-	var g map[string]any
-	decode(t, resp, &g)
-	gid := g["id"]
+	gid := c.createGroup(t, ar.UserID, "liketest_group", 0)
 
 	pinResp := c.do(t, "POST", "/api/v2/pins", map[string]any{
 		"latitude":     52.5,
@@ -599,17 +661,15 @@ func TestEndpointLikes(t *testing.T) {
 		"userId":       ar.UserID,
 		"groupId":      gid,
 	})
-	defer pinResp.Body.Close()
 	var p map[string]any
-	_ = json.NewDecoder(pinResp.Body).Decode(&p)
+	decode(t, pinResp, &p)
 	pid := fmt.Sprintf("%v", p["id"])
-
 	if pid == "" || pid == "<nil>" {
-		t.Skip("could not create pin to test likes endpoint")
+		t.Fatalf("could not create pin to test likes endpoint: %v", p)
 	}
 
-	t.Run("GET /api/v2/likes/pins/{id} — initial zero likes", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/likes/pins/"+pid, nil)
+	t.Run("GET /api/v2/pins/{id}/likes — initial zero likes", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/pins/"+pid+"/likes", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -622,8 +682,8 @@ func TestEndpointLikes(t *testing.T) {
 		}
 	})
 
-	t.Run("POST /api/v2/likes/pins/{id} — like pin", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/likes/pins/"+pid, map[string]any{
+	t.Run("POST /api/v2/pins/{id}/likes — like pin", func(t *testing.T) {
+		resp := c.do(t, "POST", "/api/v2/pins/"+pid+"/likes", map[string]any{
 			"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false,
 			"userId": ar.UserID,
 		})
@@ -638,8 +698,8 @@ func TestEndpointLikes(t *testing.T) {
 		}
 	})
 
-	t.Run("GET /api/v2/likes/users/{id}", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/likes/users/"+ar.UserID, nil)
+	t.Run("GET /api/v2/users/{id}/likes", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/users/"+ar.UserID+"/likes", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -655,24 +715,24 @@ func TestEndpointRanking(t *testing.T) {
 	ar := anon.signup(t, "rank_ep", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
-	t.Run("GET /api/v2/ranking/users", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/ranking/users?page=0&size=10", nil)
+	t.Run("GET /api/v2/ranking/user", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/ranking/user?page=0&size=10", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("GET /api/v2/ranking/groups", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/ranking/groups?page=0&size=10", nil)
+	t.Run("GET /api/v2/ranking/group", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/ranking/group?page=0&size=10", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
 
-	t.Run("GET /api/v2/ranking/map-info", func(t *testing.T) {
-		resp := c.do(t, "GET", "/api/v2/ranking/map-info?lat=48.1&lng=11.6", nil)
+	t.Run("GET /api/v2/map — map info", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v2/map?latitude=48.1&longitude=11.6", nil)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -688,9 +748,10 @@ func TestEndpointReport(t *testing.T) {
 	ar := anon.signup(t, "reporter", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
-	t.Run("POST /api/v2/reports", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/reports", map[string]any{
-			"pinId":   uuid.New().String(),
+	t.Run("POST /api/v2/report", func(t *testing.T) {
+		resp := c.do(t, "POST", "/api/v2/report", map[string]any{
+			"userId":  uuid.New().String(),
+			"report":  "spam",
 			"message": "test report",
 		})
 		resp.Body.Close()

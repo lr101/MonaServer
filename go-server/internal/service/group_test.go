@@ -361,16 +361,19 @@ func TestGroupSyncAndDeletion(t *testing.T) {
 	})
 
 	t.Run("search without user excludes user's groups", func(t *testing.T) {
-		otherID := createTestUser(t, auth, "sync_other")
-		gid := createTestGroup(t, group, adminID, "sync_excl")
+		// withUser=false returns groups the user is NOT a member of
+		// (mirrors Kotlin searchInNotUserGroup). The user is the admin —
+		// and therefore a member — of this group, so it must be excluded.
+		memberID := createTestUser(t, auth, "sync_excl_member")
+		gid := createTestGroup(t, group, memberID, "sync_excl")
 		withUser := false
-		result, err := group.Search(ctx, nil, &otherID, &withUser, false, 0, 100, nil)
+		result, err := group.Search(ctx, nil, &memberID, &withUser, false, 0, 100, nil)
 		if err != nil {
 			t.Fatalf("search: %v", err)
 		}
 		for _, g := range result.Groups {
 			if g.ID == gid {
-				t.Fatal("group created by different admin should not appear in other user's withUser=false list")
+				t.Fatal("group the user belongs to should not appear with withUser=false")
 			}
 		}
 	})

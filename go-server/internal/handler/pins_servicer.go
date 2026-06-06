@@ -70,6 +70,18 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 	if err != nil {
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
+	// Authorization mirrors Kotlin PinController.createPin:
+	// hasAuthority('ADMIN') || (isGroupMember(groupId) && isSameUser(userId)).
+	caller, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	if !ctxIsAdmin(ctx) {
+		isMember, _ := s.guard.IsGroupMember(ctx, gid, caller)
+		if !isMember || caller != uid {
+			return genserver.Response(http.StatusForbidden, nil), nil
+		}
+	}
 	imgBytes, err := base64.StdEncoding.DecodeString(dto.Image)
 	if err != nil {
 		return genserver.Response(http.StatusBadRequest, nil), nil

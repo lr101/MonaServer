@@ -169,14 +169,22 @@ func main() {
 
 	// HTML view routes (no auth).
 	r.Get("/", viewsH.Root)
+	r.Get("/favicon.ico", viewsH.Favicon)
+	r.Get("/public/favicon.ico", viewsH.Favicon)
 	r.Get("/public/recover/{url}", viewsH.RecoverPassword)
 	r.Get("/public/delete-account/code", viewsH.RequestDeleteCode)
 	r.Get("/public/delete-account/{url}", viewsH.DeleteAccountView)
 	r.Get("/public/email-confirmation/{url}", viewsH.EmailConfirmation)
+	r.Get("/public/agb", viewsH.Agb)
+	r.Get("/public/privacy-policy", viewsH.PrivacyPolicy)
 
-	// Public routes (no auth): login, signup, refresh, recover + public info.
+	// Public routes (no auth): login, signup, refresh, recover, delete-code + public info.
+	// The original Spring security config makes all of /api/v2/public/** permitAll
+	// (matched before the /api/v2/** USER_ROLE rule), so delete-code is public too —
+	// despite its OpenAPI `security: token` annotation, which Spring does not enforce.
 	r.Group(func(r chi.Router) {
 		registerRoutes(r, authCtrl, isPublicRoute)
+		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
 
@@ -190,7 +198,6 @@ func main() {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 
-		registerRoutes(r, authCtrl, isDeleteCodeRoute) // delete-code requires auth per spec
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)

@@ -1,4 +1,4 @@
-.PHONY: gen gen-api gen-db gen-server build run tidy
+.PHONY: gen gen-api gen-db gen-server build run tidy test test-integration
 
 gen: gen-api gen-db gen-server
 
@@ -24,3 +24,13 @@ run:
 
 tidy:
 	go mod tidy
+
+# Unit tests only (integration tests skip without TEST_DATABASE_URL).
+test:
+	go test ./...
+
+# Integration tests against a real Postgres. Override TEST_DATABASE_URL as needed.
+# Runs with -p 1 because the DB-backed packages TRUNCATE a shared database.
+TEST_DATABASE_URL ?= postgres://monaserver:monaserver@localhost:5433/monaserver_test?sslmode=disable
+test-integration:
+	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -p 1 ./...

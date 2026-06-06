@@ -15,6 +15,9 @@ import (
 //go:embed templates/*.html
 var tmplFS embed.FS
 
+//go:embed static/favicon.ico
+var faviconBytes []byte
+
 var templates = template.Must(template.ParseFS(tmplFS, "templates/*.html"))
 
 type Views struct {
@@ -74,6 +77,19 @@ func (v *Views) RequestDeleteCode(w http.ResponseWriter, r *http.Request) {
 
 func (v *Views) Root(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, v.redirectURL, http.StatusPermanentRedirect)
+}
+
+func (v *Views) Agb(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "agb.html", nil)
+}
+
+func (v *Views) PrivacyPolicy(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "privacy-policy.html", nil)
+}
+
+func (v *Views) Favicon(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/x-icon")
+	_, _ = w.Write(faviconBytes)
 }
 
 func renderTemplate(w http.ResponseWriter, name string, data any) {

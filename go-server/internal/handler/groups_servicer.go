@@ -63,9 +63,16 @@ func (s *GroupsServicer) AddGroup(ctx context.Context, dto genserver.CreateGroup
 	}
 	groupAdminID := uid
 	if dto.GroupAdmin != "" {
-		if id, err := uuid.Parse(dto.GroupAdmin); err == nil {
-			groupAdminID = id
+		id, err := uuid.Parse(dto.GroupAdmin)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
 		}
+		groupAdminID = id
+	}
+	// Authorization mirrors Kotlin GroupController.addGroup:
+	// hasAuthority('ADMIN') || isSameUser(groupAdmin).
+	if !ctxIsAdmin(ctx) && groupAdminID != uid {
+		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	var imgBytes []byte
 	if dto.ProfileImage != "" {

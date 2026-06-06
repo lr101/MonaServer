@@ -42,6 +42,7 @@ privateKey
 /REST_Routes.xlsx
 /~$REST_Routes.xlsx
 /.env
+/.env.dev
 /logs/
 /keystore-ubuntu.p12
 /DB_Backup/
