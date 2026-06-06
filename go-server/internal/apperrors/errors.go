@@ -1,6 +1,7 @@
 package apperrors
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,13 +23,13 @@ func New(code int, msg string) *AppError {
 }
 
 var (
-	ErrNotFound      = &AppError{Code: http.StatusNotFound, Message: "not found"}
-	ErrConflict      = &AppError{Code: http.StatusConflict, Message: "conflict"}
-	ErrForbidden     = &AppError{Code: http.StatusForbidden, Message: "forbidden"}
-	ErrBadRequest    = &AppError{Code: http.StatusBadRequest, Message: "bad request"}
-	ErrUnauthorized  = &AppError{Code: http.StatusUnauthorized, Message: "unauthorized"}
-	ErrInternal      = &AppError{Code: http.StatusInternalServerError, Message: "internal server error"}
-	ErrUnavailable   = &AppError{Code: http.StatusServiceUnavailable, Message: "service unavailable"}
+	ErrNotFound     = &AppError{Code: http.StatusNotFound, Message: "not found"}
+	ErrConflict     = &AppError{Code: http.StatusConflict, Message: "conflict"}
+	ErrForbidden    = &AppError{Code: http.StatusForbidden, Message: "forbidden"}
+	ErrBadRequest   = &AppError{Code: http.StatusBadRequest, Message: "bad request"}
+	ErrUnauthorized = &AppError{Code: http.StatusUnauthorized, Message: "unauthorized"}
+	ErrInternal     = &AppError{Code: http.StatusInternalServerError, Message: "internal server error"}
+	ErrUnavailable  = &AppError{Code: http.StatusServiceUnavailable, Message: "service unavailable"}
 )
 
 // HTTPStatus returns the HTTP status code for an error.
@@ -47,20 +48,33 @@ func HTTPStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
-// WriteError translates domain errors to HTTP responses. Replaces @ControllerAdvice.
+// Message extracts a human-readable message from an error for use in JSON responses.
+func Message(err error) string {
+	if err == nil {
+		return ""
+	}
+	var appErr *AppError
+	if errors.As(err, &appErr) {
+		return appErr.Message
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return "unique constraint violation"
+	}
+	return "internal server error"
+}
+
+// WriteJSONError writes a JSON {"error": msg} response with the given status code.
+func WriteJSONError(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// WriteError translates domain errors to JSON HTTP responses.
 func WriteError(w http.ResponseWriter, err error) {
 	if err == nil {
 		return
 	}
-	var appErr *AppError
-	if errors.As(err, &appErr) {
-		http.Error(w, appErr.Message, appErr.Code)
-		return
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		http.Error(w, "unique constraint violation", http.StatusBadRequest)
-		return
-	}
-	http.Error(w, "internal server error", http.StatusInternalServerError)
+	WriteJSONError(w, Message(err), HTTPStatus(err))
 }

@@ -2,20 +2,56 @@ package image
 
 import (
 	"bytes"
-	_ "embed"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"log"
+	"embed"
 
 	"github.com/disintegration/imaging"
 )
 
-//go:embed assets/pin_image.png
-var pinTemplatePNG []byte
+var (
+	pinPhotoMask image.Image // pin_image.png
+	pinBorder    image.Image // pin_border.png
+)
 
-//go:embed assets/pin_border.png
-var pinBorderPNG []byte
+const (
+	pinW         = 100
+	pinH         = 100
+	pinCX        = 50.0
+	pinCY        = 43.0
+	pinPhotoR    = 39.5
+	pinOuterR    = 42.5
+	pinStemHW    = 3.0
+	pinStemBaseY = 83
+	pinStemTipY  = 99
+	pinDiameter  = 79
+	pinXOffset   = 11
+	pinYOffset   = 4
+)
+
+//go:embed resources
+var assets embed.FS
+
+func init() {
+	pinPhotoMask = mustLoad("resources/pin_image.png")
+	pinBorder = mustLoad("resources/pin_border.png")
+}
+
+func mustLoad(name string) image.Image {
+	data, err := assets.ReadFile(name)
+	if err != nil {
+		log.Fatalf("loading template %s: %v", name, err)
+	}
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		log.Fatalf("decoding template %s: %v", name, err)
+	}
+	return img
+}
+
 
 // CompressJPEG resizes an image to fit within (maxW,maxH) and re-encodes as JPEG
 // at the given quality. Mirrors ImageHelper.compressImage (thumbnailator).
@@ -46,47 +82,43 @@ func ResizePNG(raw []byte, maxW, maxH int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ComposePin overlays userPhoto onto the pin-shaped template, masking by the
-// template's alpha channel, then draws the border on top. Mirrors
-// ImageHelper.getPinImage (per-pixel alpha copy).
+func notTransparent(img image.Image, x, y int) bool {
+	b := img.Bounds()
+	if x < b.Min.X || x >= b.Max.X || y < b.Min.Y || y >= b.Max.Y {
+		return false
+	}
+	_, _, _, a := img.At(x, y).RGBA()
+	return a != 0
+}
+
 func ComposePin(userPhoto []byte) ([]byte, error) {
-	tmpl, err := png.Decode(bytes.NewReader(pinTemplatePNG))
-	if err != nil {
-		return nil, err
-	}
-	border, err := png.Decode(bytes.NewReader(pinBorderPNG))
-	if err != nil {
-		return nil, err
-	}
-	photo, err := imaging.Decode(bytes.NewReader(userPhoto))
+	raw, err := imaging.Decode(bytes.NewReader(userPhoto))
 	if err != nil {
 		return nil, err
 	}
 
-	b := tmpl.Bounds()
-	photo = imaging.Fill(photo, b.Dx(), b.Dy(), imaging.Center, imaging.Lanczos)
-	out := image.NewRGBA(b)
+	diam := pinDiameter // SIZE_GROUP_PIN_DIAMETER
+	photo := imaging.Fill(raw, diam, diam, imaging.Center, imaging.Lanczos)
 
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			_, _, _, ta := tmpl.At(x, y).RGBA()
-			if ta == 0 {
-				continue
+	out := image.NewNRGBA(image.Rect(0, 0, pinW, pinH))
+	for y := 0; y < pinH; y++ {
+		for x := 0; x < pinW; x++ {
+			switch {
+			case x >= pinXOffset && x < pinXOffset+diam &&
+				y >= pinYOffset && y < pinYOffset+diam &&
+				notTransparent(pinPhotoMask, x, y):
+				r, g, b, _ := photo.At(x-pinXOffset, y-pinYOffset).RGBA()
+				out.Set(x, y, color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 255})
+
+			case notTransparent(pinBorder, x, y):
+				r, g, b, _ := pinBorder.At(x, y).RGBA()
+				out.Set(x, y, color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 255})
+
+			// default: leave fully transparent (NRGBA zero value)
 			}
-			pr, pg, pb, _ := photo.At(x, y).RGBA()
-			out.Set(x, y, color.RGBA{uint8(pr >> 8), uint8(pg >> 8), uint8(pb >> 8), uint8(ta >> 8)})
 		}
 	}
-	// draw border on top (composite)
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
-			br, bg, bb, ba := border.At(x, y).RGBA()
-			if ba == 0 {
-				continue
-			}
-			out.Set(x, y, color.RGBA{uint8(br >> 8), uint8(bg >> 8), uint8(bb >> 8), uint8(ba >> 8)})
-		}
-	}
+
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, out); err != nil {
 		return nil, err

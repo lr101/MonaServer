@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8081:8081"
+      - "8080:8080"
     env_file:
       - .env.dev
     depends_on:
@@ -40,8 +40,10 @@ services:
       RUSTFS_ACCESS_KEY: devaccesskey
       RUSTFS_SECRET_KEY: devsecretkey
       RUSTFS_VOLUMES: /data
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports:
       - "9000:9000"
+      - "9001:9001"
     volumes:
       - rustfs-data:/data
     healthcheck:

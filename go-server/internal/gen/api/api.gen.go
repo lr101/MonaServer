@@ -26,11 +26,8 @@ const (
 	TokenScopes tokenContextKey = "token.Scopes"
 )
 
-// tokenContextKey is the context key for token security scheme
-type tokenContextKey string
-
-// SendAdminMailJSONBody defines parameters for SendAdminMail.
-type SendAdminMailJSONBody struct {
+// AdminMailDto defines model for adminMailDto.
+type AdminMailDto struct {
 	// Mails List of emails when null all users will get this mail
 	Mails *[]openapi_types.Email `json:"mails"`
 
@@ -42,8 +39,131 @@ type SendAdminMailJSONBody struct {
 	Subject     string  `json:"subject"`
 }
 
-// SendNotificationJSONBody defines parameters for SendNotification.
-type SendNotificationJSONBody struct {
+// Code defines model for code.
+type Code = int
+
+// CreateGroupDto defines model for createGroupDto.
+type CreateGroupDto struct {
+	Description  string              `json:"description"`
+	GroupAdmin   openapi_types.UUID  `json:"groupAdmin"`
+	Link         *string             `json:"link,omitempty"`
+	Name         string              `json:"name"`
+	ProfileImage []byte              `json:"profileImage"`
+	UserId       *openapi_types.UUID `json:"userId,omitempty"`
+
+	// Visibility The visibility of the group. 0 for public, 1 for private
+	Visibility int `json:"visibility"`
+}
+
+// CreateLikeDto defines model for createLikeDto.
+type CreateLikeDto struct {
+	Like            *bool              `json:"like,omitempty"`
+	LikeArt         *bool              `json:"likeArt,omitempty"`
+	LikeLocation    *bool              `json:"likeLocation,omitempty"`
+	LikePhotography *bool              `json:"likePhotography,omitempty"`
+	UserId          openapi_types.UUID `json:"userId"`
+}
+
+// Date defines model for date.
+type Date = time.Time
+
+// Email defines model for email.
+type Email = openapi_types.Email
+
+// GroupDto defines model for groupDto.
+type GroupDto struct {
+	BestSeason        *SeasonItemDto      `json:"bestSeason,omitempty"`
+	Description       *string             `json:"description,omitempty"`
+	GroupAdmin        *openapi_types.UUID `json:"group_admin,omitempty"`
+	Id                openapi_types.UUID  `json:"id"`
+	InviteUrl         *string             `json:"invite_url,omitempty"`
+	LastUpdated       *time.Time          `json:"lastUpdated,omitempty"`
+	Link              *string             `json:"link,omitempty"`
+	Name              string              `json:"name"`
+	PinImage          *string             `json:"pinImage,omitempty"`
+	ProfileImage      *string             `json:"profileImage,omitempty"`
+	ProfileImageSmall *string             `json:"profileImageSmall,omitempty"`
+
+	// Visibility The visibility of the group. 0 for public, 1 for private
+	Visibility int `json:"visibility"`
+}
+
+// GroupRankingDto An array of sorted groups by rank and points
+type GroupRankingDto = []GroupRankingDtoInner
+
+// GroupRankingDtoInner defines model for groupRankingDto_inner.
+type GroupRankingDtoInner struct {
+	GroupInfoDto *GroupDto `json:"groupInfoDto,omitempty"`
+	Points       *int      `json:"points,omitempty"`
+	RankNr       *int      `json:"rankNr,omitempty"`
+}
+
+// GroupsSyncDto defines model for groupsSyncDto.
+type GroupsSyncDto struct {
+	Deleted []Id       `json:"deleted"`
+	Items   []GroupDto `json:"items"`
+}
+
+// Id defines model for id.
+type Id = openapi_types.UUID
+
+// Image defines model for image.
+type Image = []byte
+
+// ImageUrl defines model for imageUrl.
+type ImageUrl = string
+
+// InfoDto defines model for infoDto.
+type InfoDto struct {
+	NumGroups float32 `json:"num-groups"`
+	NumPins   float32 `json:"num-pins"`
+	NumUsers  float32 `json:"num-users"`
+}
+
+// Latitude defines model for latitude.
+type Latitude = float32
+
+// LongString defines model for longString.
+type LongString = string
+
+// Longitude defines model for longitude.
+type Longitude = float32
+
+// MapInfoDto defines model for mapInfoDto.
+type MapInfoDto struct {
+	// Gid0 Country GID.
+	Gid0 *string `json:"gid0"`
+
+	// Gid1 First-level administrative GID.
+	Gid1 *string `json:"gid1"`
+
+	// Gid2 Second-level administrative GID.
+	Gid2 *string `json:"gid2"`
+
+	// Id A unique identifier for each feature.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name0 Country name.
+	Name0 *string `json:"name0"`
+
+	// Name1 First-level administrative name.
+	Name1 *string `json:"name1,omitempty"`
+
+	// Name2 Second-level administrative name.
+	Name2 *string `json:"name2"`
+}
+
+// MemberResponseDto defines model for memberResponseDto.
+type MemberResponseDto struct {
+	ProfileImageSmall *string            `json:"profile_image_small,omitempty"`
+	Ranking           int                `json:"ranking"`
+	SelectedBatch     *int               `json:"selectedBatch,omitempty"`
+	UserId            openapi_types.UUID `json:"userId"`
+	Username          string             `json:"username"`
+}
+
+// NotificationDto defines model for notificationDto.
+type NotificationDto struct {
 	// Body The body of the notification
 	Body string `json:"body"`
 
@@ -54,35 +174,240 @@ type SendNotificationJSONBody struct {
 	Topic string `json:"topic"`
 }
 
-// UserLoginJSONBody defines parameters for UserLogin.
-type UserLoginJSONBody struct {
-	Password *string `json:"password,omitempty"`
-	Username *string `json:"username,omitempty"`
+// PinLikeDto defines model for pinLikeDto.
+type PinLikeDto struct {
+	LikeArtCount           *int  `json:"likeArtCount,omitempty"`
+	LikeCount              *int  `json:"likeCount,omitempty"`
+	LikeLocationCount      *int  `json:"likeLocationCount,omitempty"`
+	LikePhotographyCount   *int  `json:"likePhotographyCount,omitempty"`
+	LikedArtByUser         *bool `json:"likedArtByUser,omitempty"`
+	LikedByUser            *bool `json:"likedByUser,omitempty"`
+	LikedLocationByUser    *bool `json:"likedLocationByUser,omitempty"`
+	LikedPhotographyByUser *bool `json:"likedPhotographyByUser,omitempty"`
 }
 
-// RefreshTokenJSONBody defines parameters for RefreshToken.
-type RefreshTokenJSONBody struct {
+// PinRequestDto defines model for pinRequestDto.
+type PinRequestDto struct {
+	CreationDate *time.Time         `json:"creationDate,omitempty"`
+	Description  *string            `json:"description,omitempty"`
+	GroupId      openapi_types.UUID `json:"groupId"`
+	Image        []byte             `json:"image"`
+	Latitude     float32            `json:"latitude"`
+	Longitude    float32            `json:"longitude"`
+	UserId       openapi_types.UUID `json:"userId"`
+}
+
+// PinWithOptionalImageDto defines model for pinWithOptionalImageDto.
+type PinWithOptionalImageDto struct {
+	CreationDate time.Time          `json:"creationDate"`
+	CreationUser openapi_types.UUID `json:"creationUser"`
+	Description  *string            `json:"description,omitempty"`
+	GroupId      openapi_types.UUID `json:"groupId"`
+	Id           openapi_types.UUID `json:"id"`
+	Image        *string            `json:"image,omitempty"`
+	Latitude     float32            `json:"latitude"`
+	Longitude    float32            `json:"longitude"`
+}
+
+// PinsSyncDto defines model for pinsSyncDto.
+type PinsSyncDto struct {
+	Deleted []Id                      `json:"deleted"`
+	Items   []PinWithOptionalImageDto `json:"items"`
+}
+
+// RankingSearchDto defines model for rankingSearchDto.
+type RankingSearchDto = []RankingSearchDtoInner
+
+// RankingSearchDtoInner defines model for rankingSearchDto_inner.
+type RankingSearchDtoInner struct {
+	// AdminLevel 0: Country, 1: State, 2: County/City
+	AdminLevel int `json:"adminLevel"`
+
+	// Gid ID of the country, state or county
+	Gid string `json:"gid"`
+
+	// Name Name of the country, state or county
+	Name string `json:"name"`
+}
+
+// RefreshTokenRequestDto defines model for refreshTokenRequestDto.
+type RefreshTokenRequestDto struct {
 	RefreshToken *openapi_types.UUID `json:"refreshToken,omitempty"`
 	UserId       *openapi_types.UUID `json:"userId,omitempty"`
 }
 
-// CreateUserJSONBody defines parameters for CreateUser.
-type CreateUserJSONBody struct {
+// ReportDto defines model for reportDto.
+type ReportDto struct {
+	Message string             `json:"message"`
+	Report  string             `json:"report"`
+	UserId  openapi_types.UUID `json:"userId"`
+}
+
+// SeasonDto defines model for seasonDto.
+type SeasonDto struct {
+	Id           openapi_types.UUID `json:"id"`
+	Month        int                `json:"month"`
+	SeasonNumber int                `json:"seasonNumber"`
+	Year         int                `json:"year"`
+}
+
+// SeasonItemDto defines model for seasonItemDto.
+type SeasonItemDto struct {
+	Id openapi_types.UUID `json:"id"`
+
+	// Points Number of sticks
+	Points int `json:"points"`
+
+	// Rank Rank reached at the end of the season
+	Rank   int       `json:"rank"`
+	Season SeasonDto `json:"season"`
+}
+
+// ShortString defines model for shortString.
+type ShortString = string
+
+// Status defines model for status.
+type Status struct {
+	MinioEndpoint *string   `json:"minio-endpoint,omitempty"`
+	Notifications []string  `json:"notifications"`
+	TokenValidity time.Time `json:"token-validity"`
+}
+
+// SyncDto defines model for syncDto.
+type SyncDto struct {
+	// DeletedPins List of ids of deleted pins (unspecific of group)
+	DeletedPins []Id `json:"deletedPins"`
+
+	// GroupUpdates List of groups and their respective pin changes.
+	GroupUpdates []SyncDtoGroupUpdatesInner `json:"groupUpdates"`
+}
+
+// SyncDtoGroupUpdatesInner A group and its respective pin changes
+type SyncDtoGroupUpdatesInner struct {
+	Group     GroupDto                  `json:"group"`
+	PinsAdded []PinWithOptionalImageDto `json:"pinsAdded"`
+}
+
+// TokenResponseDto defines model for tokenResponseDto.
+type TokenResponseDto struct {
+	AccessToken  string             `json:"accessToken"`
+	RefreshToken openapi_types.UUID `json:"refreshToken"`
+	UserId       openapi_types.UUID `json:"userId"`
+}
+
+// UpdateGroupDto defines model for updateGroupDto.
+type UpdateGroupDto struct {
+	Description  *string             `json:"description,omitempty"`
+	GroupAdmin   *openapi_types.UUID `json:"groupAdmin,omitempty"`
+	Link         *string             `json:"link,omitempty"`
+	Name         *string             `json:"name,omitempty"`
+	ProfileImage *[]byte             `json:"profileImage,omitempty"`
+
+	// Visibility The visibility of the group. 0 for public, 1 for private
+	Visibility *int `json:"visibility,omitempty"`
+}
+
+// UserAchievementsDto defines model for userAchievementsDto.
+type UserAchievementsDto = []UserAchievementsDtoInner
+
+// UserAchievementsDtoInner defines model for userAchievementsDto_inner.
+type UserAchievementsDtoInner struct {
+	AchievementId  int  `json:"achievementId"`
+	Claimed        bool `json:"claimed"`
+	CurrentValue   int  `json:"currentValue"`
+	ThresholdUp    bool `json:"thresholdUp"`
+	ThresholdValue int  `json:"thresholdValue"`
+}
+
+// UserInfoDto defines model for userInfoDto.
+type UserInfoDto struct {
+	BestSeason  *SeasonItemDto `json:"bestSeason,omitempty"`
+	Description *string        `json:"description,omitempty"`
+
+	// IsMessagingRegistered Flag for whether the user registered to receive push messages. Only set for the current user.
+	IsMessagingRegistered *bool              `json:"isMessagingRegistered,omitempty"`
+	SelectedBatch         *int               `json:"selectedBatch,omitempty"`
+	UserId                openapi_types.UUID `json:"userId"`
+	Username              string             `json:"username"`
+}
+
+// UserLikesDto defines model for userLikesDto.
+type UserLikesDto struct {
+	LikeArtCount         int `json:"likeArtCount"`
+	LikeCount            int `json:"likeCount"`
+	LikeLocationCount    int `json:"likeLocationCount"`
+	LikePhotographyCount int `json:"likePhotographyCount"`
+}
+
+// UserLoginRequest defines model for userLogin_request.
+type UserLoginRequest struct {
+	Password *string `json:"password,omitempty"`
+	Username *string `json:"username,omitempty"`
+}
+
+// UserRankingDto An array of sorted users by rank and points
+type UserRankingDto = []UserRankingDtoInner
+
+// UserRankingDtoInner defines model for userRankingDto_inner.
+type UserRankingDtoInner struct {
+	Points      *int         `json:"points,omitempty"`
+	RankNr      *int         `json:"rankNr,omitempty"`
+	UserInfoDto *UserInfoDto `json:"userInfoDto,omitempty"`
+}
+
+// UserRequestDto defines model for userRequestDto.
+type UserRequestDto struct {
 	Email    openapi_types.Email `json:"email"`
 	Name     string              `json:"name"`
 	Password string              `json:"password"`
 }
 
+// UserUpdateDto defines model for userUpdateDto.
+type UserUpdateDto struct {
+	Description    *string              `json:"description,omitempty"`
+	Email          *openapi_types.Email `json:"email,omitempty"`
+	Image          *[]byte              `json:"image,omitempty"`
+	MessagingToken *string              `json:"messagingToken,omitempty"`
+	Password       *string              `json:"password,omitempty"`
+	SelectedBatch  *int                 `json:"selectedBatch,omitempty"`
+	Username       *string              `json:"username,omitempty"`
+}
+
+// UserUpdateResponseDto defines model for userUpdateResponseDto.
+type UserUpdateResponseDto struct {
+	ProfileImage      *string           `json:"profileImage,omitempty"`
+	ProfileImageSmall *string           `json:"profileImageSmall,omitempty"`
+	UserInfoDto       *UserInfoDto      `json:"userInfoDto,omitempty"`
+	UserTokenDto      *TokenResponseDto `json:"userTokenDto,omitempty"`
+}
+
+// UserXpDto defines model for userXpDto.
+type UserXpDto struct {
+	CurrentLevel   int `json:"currentLevel"`
+	CurrentLevelXp int `json:"currentLevelXp"`
+	NextLevelXp    int `json:"nextLevelXp"`
+	TotalXp        int `json:"totalXp"`
+}
+
+// VeryLongStringNullable defines model for veryLongStringNullable.
+type VeryLongStringNullable = string
+
+// Visibility The visibility of the group. 0 for public, 1 for private
+type Visibility = int
+
+// tokenContextKey is the context key for token security scheme
+type tokenContextKey string
+
 // GetGroupsByIdsParams defines parameters for GetGroupsByIds.
 type GetGroupsByIdsParams struct {
 	// Ids Comma-separated list of group IDs
-	Ids *[]openapi_types.UUID `form:"ids,omitempty" json:"ids,omitempty"`
+	Ids *[]Id `form:"ids,omitempty" json:"ids,omitempty"`
 
 	// Search search term used to find a group name
-	Search *string `form:"search,omitempty" json:"search,omitempty"`
+	Search *ShortString `form:"search,omitempty" json:"search,omitempty"`
 
 	// UserId this is the userId used when withUser is set to true or false
-	UserId *openapi_types.UUID `form:"userId,omitempty" json:"userId,omitempty"`
+	UserId *Id `form:"userId,omitempty" json:"userId,omitempty"`
 
 	// WithUser use false if user groups should be included and true if user groups should be excluded from search
 	WithUser *bool `form:"withUser,omitempty" json:"withUser,omitempty"`
@@ -97,32 +422,28 @@ type GetGroupsByIdsParams struct {
 	Size *int `form:"size,omitempty" json:"size,omitempty"`
 
 	// UpdatedAfter only include groups that have been updated after this date. If set all deleted groups after this time are returned.
-	UpdatedAfter *time.Time `form:"updatedAfter,omitempty" json:"updatedAfter,omitempty"`
+	UpdatedAfter *Date `form:"updatedAfter,omitempty" json:"updatedAfter,omitempty"`
 }
 
-// AddGroupJSONBody defines parameters for AddGroup.
-type AddGroupJSONBody struct {
-	Description  string              `json:"description"`
-	GroupAdmin   openapi_types.UUID  `json:"groupAdmin"`
-	Link         *string             `json:"link,omitempty"`
-	Name         string              `json:"name"`
-	ProfileImage []byte              `json:"profileImage"`
-	UserId       *openapi_types.UUID `json:"userId,omitempty"`
-
-	// Visibility The visibility of the group. 0 for public, 1 for private
-	Visibility int `json:"visibility"`
+// DeleteMemberFromGroupParams defines parameters for DeleteMemberFromGroup.
+type DeleteMemberFromGroupParams struct {
+	// UserId userId
+	UserId Id `form:"userId" json:"userId"`
 }
 
-// UpdateGroupJSONBody defines parameters for UpdateGroup.
-type UpdateGroupJSONBody struct {
-	Description  *string             `json:"description,omitempty"`
-	GroupAdmin   *openapi_types.UUID `json:"groupAdmin,omitempty"`
-	Link         *string             `json:"link,omitempty"`
-	Name         *string             `json:"name,omitempty"`
-	ProfileImage *[]byte             `json:"profileImage,omitempty"`
+// JoinGroupParams defines parameters for JoinGroup.
+type JoinGroupParams struct {
+	// UserId id of user
+	UserId Id `form:"userId" json:"userId"`
 
-	// Visibility The visibility of the group. 0 for public, 1 for private
-	Visibility *int `json:"visibility,omitempty"`
+	// InviteUrl inviteUrl to authorize a user to join a private group
+	InviteUrl *ShortString `form:"inviteUrl,omitempty" json:"inviteUrl,omitempty"`
+}
+
+// GetGroupPinImageParams defines parameters for GetGroupPinImage.
+type GetGroupPinImageParams struct {
+	// Redirect When true, this endpoint redirects directly to the target image otherwise the image URL is returned
+	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
 }
 
 // GetGroupProfileImageParams defines parameters for GetGroupProfileImage.
@@ -137,48 +458,37 @@ type GetGroupProfileImageSmallParams struct {
 	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
 }
 
-// GetGroupPinImageParams defines parameters for GetGroupPinImage.
-type GetGroupPinImageParams struct {
-	// Redirect When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
+// GetMapInfoParams defines parameters for GetMapInfo.
+type GetMapInfoParams struct {
+	// Latitude Together with longitude an info dto of the position can be requested.
+	Latitude *Latitude `form:"latitude,omitempty" json:"latitude,omitempty"`
+
+	// Longitude Together with latitude an info dto of the position can be requested.
+	Longitude *Longitude `form:"longitude,omitempty" json:"longitude,omitempty"`
 }
 
-// CreateOrUpdateLikeJSONBody defines parameters for CreateOrUpdateLike.
-type CreateOrUpdateLikeJSONBody struct {
-	Like            *bool              `json:"like,omitempty"`
-	LikeArt         *bool              `json:"likeArt,omitempty"`
-	LikeLocation    *bool              `json:"likeLocation,omitempty"`
-	LikePhotography *bool              `json:"likePhotography,omitempty"`
-	UserId          openapi_types.UUID `json:"userId"`
-}
+// GetGeoJsonParams defines parameters for GetGeoJson.
+type GetGeoJsonParams struct {
+	// Gid2 County ID. Only one allowed
+	Gid2 *string `form:"gid2,omitempty" json:"gid2,omitempty"`
 
-// JoinGroupParams defines parameters for JoinGroup.
-type JoinGroupParams struct {
-	// InviteUrl inviteUrl to authorize a user to join a private group
-	InviteUrl *string `form:"inviteUrl,omitempty" json:"inviteUrl,omitempty"`
-}
+	// Gid1 State ID. Only one allowed
+	Gid1 *string `form:"gid1,omitempty" json:"gid1,omitempty"`
 
-// CreatePinJSONBody defines parameters for CreatePin.
-type CreatePinJSONBody struct {
-	CreationDate *time.Time         `json:"creationDate,omitempty"`
-	Description  *string            `json:"description,omitempty"`
-	GroupId      openapi_types.UUID `json:"groupId"`
-	Image        []byte             `json:"image"`
-	Latitude     float32            `json:"latitude"`
-	Longitude    float32            `json:"longitude"`
-	UserId       openapi_types.UUID `json:"userId"`
+	// Gid0 Country ID. Only one allowed
+	Gid0 *string `form:"gid0,omitempty" json:"gid0,omitempty"`
 }
 
 // GetPinImagesByIdsParams defines parameters for GetPinImagesByIds.
 type GetPinImagesByIdsParams struct {
 	// Ids Comma-separated list of image IDs
-	Ids *[]openapi_types.UUID `form:"ids,omitempty" json:"ids,omitempty"`
+	Ids *[]Id `form:"ids,omitempty" json:"ids,omitempty"`
 
 	// GroupId Only pins of this group are returned
-	GroupId *openapi_types.UUID `form:"groupId,omitempty" json:"groupId,omitempty"`
+	GroupId *Id `form:"groupId,omitempty" json:"groupId,omitempty"`
 
 	// UserId Only pins of this user are returned
-	UserId *openapi_types.UUID `form:"userId,omitempty" json:"userId,omitempty"`
+	UserId *Id `form:"userId,omitempty" json:"userId,omitempty"`
 
 	// WithImage Describes if the images of the pins should be returned too
 	WithImage *bool `form:"withImage,omitempty" json:"withImage,omitempty"`
@@ -195,14 +505,8 @@ type GetPinImagesByIdsParams struct {
 	// Size page size. Defaults to 20
 	Size *int `form:"size,omitempty" json:"size,omitempty"`
 
-	// UpdatedAfter only include pins that have been updated after this date. If set all deleted pins after this time are returned.
-	UpdatedAfter *time.Time `form:"updatedAfter,omitempty" json:"updatedAfter,omitempty"`
-}
-
-// SyncParams defines parameters for Sync.
-type SyncParams struct {
-	// LastSeen Syncs created and deleted pins after this date
-	LastSeen *time.Time `form:"lastSeen,omitempty" json:"lastSeen,omitempty"`
+	// UpdatedAfter only include pins that have been updated after this date.If set all deleted pins after this time are returned.
+	UpdatedAfter *Date `form:"updatedAfter,omitempty" json:"updatedAfter,omitempty"`
 }
 
 // GetPinParams defines parameters for GetPin.
@@ -217,16 +521,9 @@ type GetPinImageParams struct {
 	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
 }
 
-// GetGeoJsonParams defines parameters for GetGeoJson.
-type GetGeoJsonParams struct {
-	// Gid2 County ID. Only one allowed
-	Gid2 *string `form:"gid2,omitempty" json:"gid2,omitempty"`
-
-	// Gid1 State ID. Only one allowed
-	Gid1 *string `form:"gid1,omitempty" json:"gid1,omitempty"`
-
-	// Gid0 Country ID. Only one allowed
-	Gid0 *string `form:"gid0,omitempty" json:"gid0,omitempty"`
+// RequestPasswordRecoveryParams defines parameters for RequestPasswordRecovery.
+type RequestPasswordRecoveryParams struct {
+	Username ShortString `form:"username" json:"username"`
 }
 
 // GroupRankingParams defines parameters for GroupRanking.
@@ -241,7 +538,7 @@ type GroupRankingParams struct {
 	Gid2 *string `form:"gid2,omitempty" json:"gid2,omitempty"`
 
 	// Since Only include pins added since this point in time. When null all pins are included
-	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+	Since *Date `form:"since,omitempty" json:"since,omitempty"`
 
 	// Season Only include pins from this season. When null all pins are included
 	Season *bool `form:"season,omitempty" json:"season,omitempty"`
@@ -251,15 +548,6 @@ type GroupRankingParams struct {
 
 	// Size page size. Defaults to 20
 	Size *int `form:"size,omitempty" json:"size,omitempty"`
-}
-
-// GetMapInfoParams defines parameters for GetMapInfo.
-type GetMapInfoParams struct {
-	// Latitude Together with longitude an info dto of the position can be requested.
-	Latitude *float32 `form:"latitude,omitempty" json:"latitude,omitempty"`
-
-	// Longitude Together with latitude an info dto of the position can be requested.
-	Longitude *float32 `form:"longitude,omitempty" json:"longitude,omitempty"`
 }
 
 // SearchRankingParams defines parameters for SearchRanking.
@@ -285,7 +573,7 @@ type UserRankingParams struct {
 	Gid2 *string `form:"gid2,omitempty" json:"gid2,omitempty"`
 
 	// Since Only include pins added since this point in time. When null all pins are included
-	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+	Since *Date `form:"since,omitempty" json:"since,omitempty"`
 
 	// Season Only include pins from this season. When null all pins are included
 	Season *bool `form:"season,omitempty" json:"season,omitempty"`
@@ -295,27 +583,6 @@ type UserRankingParams struct {
 
 	// Size page size. Defaults to 20
 	Size *int `form:"size,omitempty" json:"size,omitempty"`
-}
-
-// CreateReportJSONBody defines parameters for CreateReport.
-type CreateReportJSONBody struct {
-	Message string             `json:"message"`
-	Report  string             `json:"report"`
-	UserId  openapi_types.UUID `json:"userId"`
-}
-
-// DeleteUserJSONBody defines parameters for DeleteUser.
-type DeleteUserJSONBody = int
-
-// UpdateUserJSONBody defines parameters for UpdateUser.
-type UpdateUserJSONBody struct {
-	Description    *string              `json:"description,omitempty"`
-	Email          *openapi_types.Email `json:"email,omitempty"`
-	Image          *[]byte              `json:"image,omitempty"`
-	MessagingToken *string              `json:"messagingToken,omitempty"`
-	Password       *string              `json:"password,omitempty"`
-	SelectedBatch  *int                 `json:"selectedBatch,omitempty"`
-	Username       *string              `json:"username,omitempty"`
 }
 
 // GetUserProfileImageParams defines parameters for GetUserProfileImage.
@@ -330,41 +597,47 @@ type GetUserProfileImageSmallParams struct {
 	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
 }
 
+// SyncParams defines parameters for Sync.
+type SyncParams struct {
+	// LastSeen Syncs created and deleted pins after this date
+	LastSeen *Date `form:"lastSeen,omitempty" json:"lastSeen,omitempty"`
+}
+
 // SendAdminMailJSONRequestBody defines body for SendAdminMail for application/json ContentType.
-type SendAdminMailJSONRequestBody SendAdminMailJSONBody
+type SendAdminMailJSONRequestBody = AdminMailDto
 
 // SendNotificationJSONRequestBody defines body for SendNotification for application/json ContentType.
-type SendNotificationJSONRequestBody SendNotificationJSONBody
-
-// UserLoginJSONRequestBody defines body for UserLogin for application/json ContentType.
-type UserLoginJSONRequestBody UserLoginJSONBody
-
-// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
-type RefreshTokenJSONRequestBody RefreshTokenJSONBody
-
-// CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
-type CreateUserJSONRequestBody CreateUserJSONBody
+type SendNotificationJSONRequestBody = NotificationDto
 
 // AddGroupJSONRequestBody defines body for AddGroup for application/json ContentType.
-type AddGroupJSONRequestBody AddGroupJSONBody
+type AddGroupJSONRequestBody = CreateGroupDto
 
 // UpdateGroupJSONRequestBody defines body for UpdateGroup for application/json ContentType.
-type UpdateGroupJSONRequestBody UpdateGroupJSONBody
-
-// CreateOrUpdateLikeJSONRequestBody defines body for CreateOrUpdateLike for application/json ContentType.
-type CreateOrUpdateLikeJSONRequestBody CreateOrUpdateLikeJSONBody
+type UpdateGroupJSONRequestBody = UpdateGroupDto
 
 // CreatePinJSONRequestBody defines body for CreatePin for application/json ContentType.
-type CreatePinJSONRequestBody CreatePinJSONBody
+type CreatePinJSONRequestBody = PinRequestDto
+
+// CreateOrUpdateLikeJSONRequestBody defines body for CreateOrUpdateLike for application/json ContentType.
+type CreateOrUpdateLikeJSONRequestBody = CreateLikeDto
+
+// UserLoginJSONRequestBody defines body for UserLogin for application/json ContentType.
+type UserLoginJSONRequestBody = UserLoginRequest
+
+// RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
+type RefreshTokenJSONRequestBody = RefreshTokenRequestDto
+
+// CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
+type CreateUserJSONRequestBody = UserRequestDto
 
 // CreateReportJSONRequestBody defines body for CreateReport for application/json ContentType.
-type CreateReportJSONRequestBody CreateReportJSONBody
+type CreateReportJSONRequestBody = ReportDto
 
 // DeleteUserJSONRequestBody defines body for DeleteUser for application/json ContentType.
-type DeleteUserJSONRequestBody = DeleteUserJSONBody
+type DeleteUserJSONRequestBody = Code
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
-type UpdateUserJSONRequestBody UpdateUserJSONBody
+type UpdateUserJSONRequestBody = UserUpdateDto
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -372,23 +645,8 @@ type ServerInterface interface {
 	// (POST /api/v2/admin/mail)
 	SendAdminMail(w http.ResponseWriter, r *http.Request)
 	// Post a notification to a specific topic
-	// (POST /api/v2/admin/notifications)
+	// (POST /api/v2/admin/notification)
 	SendNotification(w http.ResponseWriter, r *http.Request)
-	// Generate delete code
-	// (POST /api/v2/auth/delete-code/{username})
-	GenerateDeleteCode(w http.ResponseWriter, r *http.Request, username string)
-	// User login
-	// (POST /api/v2/auth/login)
-	UserLogin(w http.ResponseWriter, r *http.Request)
-	// Request password recovery
-	// (GET /api/v2/auth/recover/{username})
-	RequestPasswordRecovery(w http.ResponseWriter, r *http.Request, username string)
-	// Request a new access token
-	// (POST /api/v2/auth/refresh)
-	RefreshToken(w http.ResponseWriter, r *http.Request)
-	// User registration
-	// (POST /api/v2/auth/signup)
-	CreateUser(w http.ResponseWriter, r *http.Request)
 	// Get groups by IDs
 	// (GET /api/v2/groups)
 	GetGroupsByIds(w http.ResponseWriter, r *http.Request, params GetGroupsByIdsParams)
@@ -397,118 +655,133 @@ type ServerInterface interface {
 	AddGroup(w http.ResponseWriter, r *http.Request)
 	// Delete a group by ID
 	// (DELETE /api/v2/groups/{groupId})
-	DeleteGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	DeleteGroup(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Get a group by ID
 	// (GET /api/v2/groups/{groupId})
-	GetGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	GetGroup(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Update a group by ID
 	// (PUT /api/v2/groups/{groupId})
-	UpdateGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	UpdateGroup(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Get admin of group
 	// (GET /api/v2/groups/{groupId}/admin)
-	GetGroupAdmin(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	GetGroupAdmin(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Get description of group
 	// (GET /api/v2/groups/{groupId}/description)
-	GetGroupDescription(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
-	// Get profile of group
-	// (GET /api/v2/groups/{groupId}/image)
-	GetGroupProfileImage(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupProfileImageParams)
-	// Get small profile image url of group
-	// (GET /api/v2/groups/{groupId}/image/small)
-	GetGroupProfileImageSmall(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupProfileImageSmallParams)
+	GetGroupDescription(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Get invite url of group
-	// (GET /api/v2/groups/{groupId}/invite-url)
-	GetGroupInviteUrl(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	// (GET /api/v2/groups/{groupId}/invite_url)
+	GetGroupInviteUrl(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Get link of group
 	// (GET /api/v2/groups/{groupId}/link)
-	GetGroupLink(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
-	// Get pin image of group
-	// (GET /api/v2/groups/{groupId}/pin-image)
-	GetGroupPinImage(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupPinImageParams)
-	// Get pin likes
-	// (GET /api/v2/likes/pins/{pinId})
-	GetPinLikes(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID)
-	// Create or update a like
-	// (POST /api/v2/likes/pins/{pinId})
-	CreateOrUpdateLike(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID)
-	// Get user's likes
-	// (GET /api/v2/likes/users/{userId})
-	GetUserLikes(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
-	// Get members of a group by ID
-	// (GET /api/v2/members/groups/{groupId})
-	GetGroupMembers(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID)
+	GetGroupLink(w http.ResponseWriter, r *http.Request, groupId Id)
 	// leave group or delete group when the user is the last group member
-	// (DELETE /api/v2/members/groups/{groupId}/users/{userId})
-	DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, userId openapi_types.UUID)
+	// (DELETE /api/v2/groups/{groupId}/members)
+	DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request, groupId Id, params DeleteMemberFromGroupParams)
+	// Get members of a group by ID
+	// (GET /api/v2/groups/{groupId}/members)
+	GetGroupMembers(w http.ResponseWriter, r *http.Request, groupId Id)
 	// Add a member to a group by ID
-	// (POST /api/v2/members/groups/{groupId}/users/{userId})
-	JoinGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, userId openapi_types.UUID, params JoinGroupParams)
+	// (POST /api/v2/groups/{groupId}/members)
+	JoinGroup(w http.ResponseWriter, r *http.Request, groupId Id, params JoinGroupParams)
+	// Get pin image of group
+	// (GET /api/v2/groups/{groupId}/pin_image)
+	GetGroupPinImage(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupPinImageParams)
+	// Get profile of group
+	// (GET /api/v2/groups/{groupId}/profile_image)
+	GetGroupProfileImage(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupProfileImageParams)
+	// Get small profile image url of group
+	// (GET /api/v2/groups/{groupId}/profile_image_small)
+	GetGroupProfileImageSmall(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupProfileImageSmallParams)
+
+	// (GET /api/v2/map)
+	GetMapInfo(w http.ResponseWriter, r *http.Request, params GetMapInfoParams)
+
+	// (GET /api/v2/map/geojson)
+	GetGeoJson(w http.ResponseWriter, r *http.Request, params GetGeoJsonParams)
+	// Get images by IDs
+	// (GET /api/v2/pins)
+	GetPinImagesByIds(w http.ResponseWriter, r *http.Request, params GetPinImagesByIdsParams)
 	// Create a new pin
 	// (POST /api/v2/pins)
 	CreatePin(w http.ResponseWriter, r *http.Request)
-	// Sync pins by IDs or group
-	// (POST /api/v2/pins/sync)
-	GetPinImagesByIds(w http.ResponseWriter, r *http.Request, params GetPinImagesByIdsParams)
-	// Sync all pins and groups based on last seen date
-	// (GET /api/v2/pins/sync/lastSeen)
-	Sync(w http.ResponseWriter, r *http.Request, params SyncParams)
 	// Delete a pin by ID
 	// (DELETE /api/v2/pins/{pinId})
-	DeletePin(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID)
+	DeletePin(w http.ResponseWriter, r *http.Request, pinId Id)
 	// Get pin information by ID
 	// (GET /api/v2/pins/{pinId})
-	GetPin(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID, params GetPinParams)
+	GetPin(w http.ResponseWriter, r *http.Request, pinId Id, params GetPinParams)
 	// Get the image associated with a pin by ID
 	// (GET /api/v2/pins/{pinId}/image)
-	GetPinImage(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID, params GetPinImageParams)
+	GetPinImage(w http.ResponseWriter, r *http.Request, pinId Id, params GetPinImageParams)
+	// Get pin likes
+	// (GET /api/v2/pins/{pinId}/likes)
+	GetPinLikes(w http.ResponseWriter, r *http.Request, pinId Id)
+	// Create or update a like
+	// (POST /api/v2/pins/{pinId}/likes)
+	CreateOrUpdateLike(w http.ResponseWriter, r *http.Request, pinId Id)
+	// Generate delete code
+	// (GET /api/v2/public/delete-code/{username})
+	GenerateDeleteCode(w http.ResponseWriter, r *http.Request, username ShortString)
 	// Get public server statistics
-	// (GET /api/v2/public/info)
+	// (GET /api/v2/public/infos)
 	GetServerInfo(w http.ResponseWriter, r *http.Request)
+	// User login
+	// (POST /api/v2/public/login)
+	UserLogin(w http.ResponseWriter, r *http.Request)
+	// Request password recovery
+	// (GET /api/v2/public/recover)
+	RequestPasswordRecovery(w http.ResponseWriter, r *http.Request, params RequestPasswordRecoveryParams)
+	// Request a new access token
+	// (POST /api/v2/public/refresh)
+	RefreshToken(w http.ResponseWriter, r *http.Request)
+	// User registration
+	// (POST /api/v2/public/signup)
+	CreateUser(w http.ResponseWriter, r *http.Request)
 
-	// (GET /api/v2/ranking/geojson)
-	GetGeoJson(w http.ResponseWriter, r *http.Request, params GetGeoJsonParams)
-
-	// (GET /api/v2/ranking/groups)
+	// (GET /api/v2/ranking/group)
 	GroupRanking(w http.ResponseWriter, r *http.Request, params GroupRankingParams)
-
-	// (GET /api/v2/ranking/map-info)
-	GetMapInfo(w http.ResponseWriter, r *http.Request, params GetMapInfoParams)
 	// Search for a location
 	// (GET /api/v2/ranking/search)
 	SearchRanking(w http.ResponseWriter, r *http.Request, params SearchRankingParams)
 
-	// (GET /api/v2/ranking/users)
+	// (GET /api/v2/ranking/user)
 	UserRanking(w http.ResponseWriter, r *http.Request, params UserRankingParams)
 	// Report content
-	// (POST /api/v2/reports)
+	// (POST /api/v2/report)
 	CreateReport(w http.ResponseWriter, r *http.Request)
 	// Gets the status of the server and user specific information
 	// (GET /api/v2/status)
 	GetStatus(w http.ResponseWriter, r *http.Request)
 	// Delete a user by userId
 	// (DELETE /api/v2/users/{userId})
-	DeleteUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	DeleteUser(w http.ResponseWriter, r *http.Request, userId Id)
 	// Get a user by userId
 	// (GET /api/v2/users/{userId})
-	GetUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	GetUser(w http.ResponseWriter, r *http.Request, userId Id)
 	// Update user information by userId
 	// (PUT /api/v2/users/{userId})
-	UpdateUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	UpdateUser(w http.ResponseWriter, r *http.Request, userId Id)
 	// Get user's achievements
 	// (GET /api/v2/users/{userId}/achievements)
-	GetUserAchievements(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	GetUserAchievements(w http.ResponseWriter, r *http.Request, userId Id)
 	// Claim an achievement
-	// (POST /api/v2/users/{userId}/achievements/{achievementId}/claim)
-	ClaimUserAchievement(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, achievementId int)
+	// (POST /api/v2/users/{userId}/achievements/{achievementId})
+	ClaimUserAchievement(w http.ResponseWriter, r *http.Request, userId Id, achievementId int)
+	// Get user's likes
+	// (GET /api/v2/users/{userId}/likes)
+	GetUserLikes(w http.ResponseWriter, r *http.Request, userId Id)
 	// Get the profile picture of a user by userId
-	// (GET /api/v2/users/{userId}/image)
-	GetUserProfileImage(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params GetUserProfileImageParams)
+	// (GET /api/v2/users/{userId}/profile_picture)
+	GetUserProfileImage(w http.ResponseWriter, r *http.Request, userId Id, params GetUserProfileImageParams)
 	// Get the small profile picture of a user by userId
-	// (GET /api/v2/users/{userId}/image/small)
-	GetUserProfileImageSmall(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params GetUserProfileImageSmallParams)
+	// (GET /api/v2/users/{userId}/profile_picture_small)
+	GetUserProfileImageSmall(w http.ResponseWriter, r *http.Request, userId Id, params GetUserProfileImageSmallParams)
 	// Get user's xp
 	// (GET /api/v2/users/{userId}/xp)
-	GetUserXp(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	GetUserXp(w http.ResponseWriter, r *http.Request, userId Id)
+	// Sync all pins and groups based on last seen date
+	// (GET /api/v3/sync)
+	Sync(w http.ResponseWriter, r *http.Request, params SyncParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -522,38 +795,8 @@ func (_ Unimplemented) SendAdminMail(w http.ResponseWriter, r *http.Request) {
 }
 
 // Post a notification to a specific topic
-// (POST /api/v2/admin/notifications)
+// (POST /api/v2/admin/notification)
 func (_ Unimplemented) SendNotification(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Generate delete code
-// (POST /api/v2/auth/delete-code/{username})
-func (_ Unimplemented) GenerateDeleteCode(w http.ResponseWriter, r *http.Request, username string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// User login
-// (POST /api/v2/auth/login)
-func (_ Unimplemented) UserLogin(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Request password recovery
-// (GET /api/v2/auth/recover/{username})
-func (_ Unimplemented) RequestPasswordRecovery(w http.ResponseWriter, r *http.Request, username string) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Request a new access token
-// (POST /api/v2/auth/refresh)
-func (_ Unimplemented) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// User registration
-// (POST /api/v2/auth/signup)
-func (_ Unimplemented) CreateUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -571,97 +814,95 @@ func (_ Unimplemented) AddGroup(w http.ResponseWriter, r *http.Request) {
 
 // Delete a group by ID
 // (DELETE /api/v2/groups/{groupId})
-func (_ Unimplemented) DeleteGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+func (_ Unimplemented) DeleteGroup(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get a group by ID
 // (GET /api/v2/groups/{groupId})
-func (_ Unimplemented) GetGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+func (_ Unimplemented) GetGroup(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Update a group by ID
 // (PUT /api/v2/groups/{groupId})
-func (_ Unimplemented) UpdateGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+func (_ Unimplemented) UpdateGroup(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get admin of group
 // (GET /api/v2/groups/{groupId}/admin)
-func (_ Unimplemented) GetGroupAdmin(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+func (_ Unimplemented) GetGroupAdmin(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get description of group
 // (GET /api/v2/groups/{groupId}/description)
-func (_ Unimplemented) GetGroupDescription(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get profile of group
-// (GET /api/v2/groups/{groupId}/image)
-func (_ Unimplemented) GetGroupProfileImage(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupProfileImageParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get small profile image url of group
-// (GET /api/v2/groups/{groupId}/image/small)
-func (_ Unimplemented) GetGroupProfileImageSmall(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupProfileImageSmallParams) {
+func (_ Unimplemented) GetGroupDescription(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get invite url of group
-// (GET /api/v2/groups/{groupId}/invite-url)
-func (_ Unimplemented) GetGroupInviteUrl(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+// (GET /api/v2/groups/{groupId}/invite_url)
+func (_ Unimplemented) GetGroupInviteUrl(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get link of group
 // (GET /api/v2/groups/{groupId}/link)
-func (_ Unimplemented) GetGroupLink(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get pin image of group
-// (GET /api/v2/groups/{groupId}/pin-image)
-func (_ Unimplemented) GetGroupPinImage(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, params GetGroupPinImageParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get pin likes
-// (GET /api/v2/likes/pins/{pinId})
-func (_ Unimplemented) GetPinLikes(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Create or update a like
-// (POST /api/v2/likes/pins/{pinId})
-func (_ Unimplemented) CreateOrUpdateLike(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get user's likes
-// (GET /api/v2/likes/users/{userId})
-func (_ Unimplemented) GetUserLikes(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Get members of a group by ID
-// (GET /api/v2/members/groups/{groupId})
-func (_ Unimplemented) GetGroupMembers(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID) {
+func (_ Unimplemented) GetGroupLink(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // leave group or delete group when the user is the last group member
-// (DELETE /api/v2/members/groups/{groupId}/users/{userId})
-func (_ Unimplemented) DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, userId openapi_types.UUID) {
+// (DELETE /api/v2/groups/{groupId}/members)
+func (_ Unimplemented) DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request, groupId Id, params DeleteMemberFromGroupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get members of a group by ID
+// (GET /api/v2/groups/{groupId}/members)
+func (_ Unimplemented) GetGroupMembers(w http.ResponseWriter, r *http.Request, groupId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Add a member to a group by ID
-// (POST /api/v2/members/groups/{groupId}/users/{userId})
-func (_ Unimplemented) JoinGroup(w http.ResponseWriter, r *http.Request, groupId openapi_types.UUID, userId openapi_types.UUID, params JoinGroupParams) {
+// (POST /api/v2/groups/{groupId}/members)
+func (_ Unimplemented) JoinGroup(w http.ResponseWriter, r *http.Request, groupId Id, params JoinGroupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get pin image of group
+// (GET /api/v2/groups/{groupId}/pin_image)
+func (_ Unimplemented) GetGroupPinImage(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupPinImageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get profile of group
+// (GET /api/v2/groups/{groupId}/profile_image)
+func (_ Unimplemented) GetGroupProfileImage(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupProfileImageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get small profile image url of group
+// (GET /api/v2/groups/{groupId}/profile_image_small)
+func (_ Unimplemented) GetGroupProfileImageSmall(w http.ResponseWriter, r *http.Request, groupId Id, params GetGroupProfileImageSmallParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/v2/map)
+func (_ Unimplemented) GetMapInfo(w http.ResponseWriter, r *http.Request, params GetMapInfoParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/v2/map/geojson)
+func (_ Unimplemented) GetGeoJson(w http.ResponseWriter, r *http.Request, params GetGeoJsonParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get images by IDs
+// (GET /api/v2/pins)
+func (_ Unimplemented) GetPinImagesByIds(w http.ResponseWriter, r *http.Request, params GetPinImagesByIdsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -671,54 +912,74 @@ func (_ Unimplemented) CreatePin(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Sync pins by IDs or group
-// (POST /api/v2/pins/sync)
-func (_ Unimplemented) GetPinImagesByIds(w http.ResponseWriter, r *http.Request, params GetPinImagesByIdsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Sync all pins and groups based on last seen date
-// (GET /api/v2/pins/sync/lastSeen)
-func (_ Unimplemented) Sync(w http.ResponseWriter, r *http.Request, params SyncParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 // Delete a pin by ID
 // (DELETE /api/v2/pins/{pinId})
-func (_ Unimplemented) DeletePin(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID) {
+func (_ Unimplemented) DeletePin(w http.ResponseWriter, r *http.Request, pinId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get pin information by ID
 // (GET /api/v2/pins/{pinId})
-func (_ Unimplemented) GetPin(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID, params GetPinParams) {
+func (_ Unimplemented) GetPin(w http.ResponseWriter, r *http.Request, pinId Id, params GetPinParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get the image associated with a pin by ID
 // (GET /api/v2/pins/{pinId}/image)
-func (_ Unimplemented) GetPinImage(w http.ResponseWriter, r *http.Request, pinId openapi_types.UUID, params GetPinImageParams) {
+func (_ Unimplemented) GetPinImage(w http.ResponseWriter, r *http.Request, pinId Id, params GetPinImageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get pin likes
+// (GET /api/v2/pins/{pinId}/likes)
+func (_ Unimplemented) GetPinLikes(w http.ResponseWriter, r *http.Request, pinId Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create or update a like
+// (POST /api/v2/pins/{pinId}/likes)
+func (_ Unimplemented) CreateOrUpdateLike(w http.ResponseWriter, r *http.Request, pinId Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Generate delete code
+// (GET /api/v2/public/delete-code/{username})
+func (_ Unimplemented) GenerateDeleteCode(w http.ResponseWriter, r *http.Request, username ShortString) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get public server statistics
-// (GET /api/v2/public/info)
+// (GET /api/v2/public/infos)
 func (_ Unimplemented) GetServerInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (GET /api/v2/ranking/geojson)
-func (_ Unimplemented) GetGeoJson(w http.ResponseWriter, r *http.Request, params GetGeoJsonParams) {
+// User login
+// (POST /api/v2/public/login)
+func (_ Unimplemented) UserLogin(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (GET /api/v2/ranking/groups)
+// Request password recovery
+// (GET /api/v2/public/recover)
+func (_ Unimplemented) RequestPasswordRecovery(w http.ResponseWriter, r *http.Request, params RequestPasswordRecoveryParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Request a new access token
+// (POST /api/v2/public/refresh)
+func (_ Unimplemented) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// User registration
+// (POST /api/v2/public/signup)
+func (_ Unimplemented) CreateUser(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /api/v2/ranking/group)
 func (_ Unimplemented) GroupRanking(w http.ResponseWriter, r *http.Request, params GroupRankingParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (GET /api/v2/ranking/map-info)
-func (_ Unimplemented) GetMapInfo(w http.ResponseWriter, r *http.Request, params GetMapInfoParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -728,13 +989,13 @@ func (_ Unimplemented) SearchRanking(w http.ResponseWriter, r *http.Request, par
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// (GET /api/v2/ranking/users)
+// (GET /api/v2/ranking/user)
 func (_ Unimplemented) UserRanking(w http.ResponseWriter, r *http.Request, params UserRankingParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Report content
-// (POST /api/v2/reports)
+// (POST /api/v2/report)
 func (_ Unimplemented) CreateReport(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
@@ -747,49 +1008,61 @@ func (_ Unimplemented) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 // Delete a user by userId
 // (DELETE /api/v2/users/{userId})
-func (_ Unimplemented) DeleteUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+func (_ Unimplemented) DeleteUser(w http.ResponseWriter, r *http.Request, userId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get a user by userId
 // (GET /api/v2/users/{userId})
-func (_ Unimplemented) GetUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+func (_ Unimplemented) GetUser(w http.ResponseWriter, r *http.Request, userId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Update user information by userId
 // (PUT /api/v2/users/{userId})
-func (_ Unimplemented) UpdateUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+func (_ Unimplemented) UpdateUser(w http.ResponseWriter, r *http.Request, userId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get user's achievements
 // (GET /api/v2/users/{userId}/achievements)
-func (_ Unimplemented) GetUserAchievements(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+func (_ Unimplemented) GetUserAchievements(w http.ResponseWriter, r *http.Request, userId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Claim an achievement
-// (POST /api/v2/users/{userId}/achievements/{achievementId}/claim)
-func (_ Unimplemented) ClaimUserAchievement(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, achievementId int) {
+// (POST /api/v2/users/{userId}/achievements/{achievementId})
+func (_ Unimplemented) ClaimUserAchievement(w http.ResponseWriter, r *http.Request, userId Id, achievementId int) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get user's likes
+// (GET /api/v2/users/{userId}/likes)
+func (_ Unimplemented) GetUserLikes(w http.ResponseWriter, r *http.Request, userId Id) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get the profile picture of a user by userId
-// (GET /api/v2/users/{userId}/image)
-func (_ Unimplemented) GetUserProfileImage(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params GetUserProfileImageParams) {
+// (GET /api/v2/users/{userId}/profile_picture)
+func (_ Unimplemented) GetUserProfileImage(w http.ResponseWriter, r *http.Request, userId Id, params GetUserProfileImageParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get the small profile picture of a user by userId
-// (GET /api/v2/users/{userId}/image/small)
-func (_ Unimplemented) GetUserProfileImageSmall(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params GetUserProfileImageSmallParams) {
+// (GET /api/v2/users/{userId}/profile_picture_small)
+func (_ Unimplemented) GetUserProfileImageSmall(w http.ResponseWriter, r *http.Request, userId Id, params GetUserProfileImageSmallParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Get user's xp
 // (GET /api/v2/users/{userId}/xp)
-func (_ Unimplemented) GetUserXp(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+func (_ Unimplemented) GetUserXp(w http.ResponseWriter, r *http.Request, userId Id) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Sync all pins and groups based on last seen date
+// (GET /api/v3/sync)
+func (_ Unimplemented) Sync(w http.ResponseWriter, r *http.Request, params SyncParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -833,106 +1106,6 @@ func (siw *ServerInterfaceWrapper) SendNotification(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SendNotification(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GenerateDeleteCode operation middleware
-func (siw *ServerInterfaceWrapper) GenerateDeleteCode(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "username" -------------
-	var username string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "username", chi.URLParam(r, "username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GenerateDeleteCode(w, r, username)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// UserLogin operation middleware
-func (siw *ServerInterfaceWrapper) UserLogin(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.UserLogin(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RequestPasswordRecovery operation middleware
-func (siw *ServerInterfaceWrapper) RequestPasswordRecovery(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "username" -------------
-	var username string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "username", chi.URLParam(r, "username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RequestPasswordRecovery(w, r, username)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RefreshToken operation middleware
-func (siw *ServerInterfaceWrapper) RefreshToken(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RefreshToken(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreateUser operation middleware
-func (siw *ServerInterfaceWrapper) CreateUser(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateUser(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1099,7 +1272,7 @@ func (siw *ServerInterfaceWrapper) DeleteGroup(w http.ResponseWriter, r *http.Re
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1131,7 +1304,7 @@ func (siw *ServerInterfaceWrapper) GetGroup(w http.ResponseWriter, r *http.Reque
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1163,7 +1336,7 @@ func (siw *ServerInterfaceWrapper) UpdateGroup(w http.ResponseWriter, r *http.Re
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1195,7 +1368,7 @@ func (siw *ServerInterfaceWrapper) GetGroupAdmin(w http.ResponseWriter, r *http.
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1227,7 +1400,7 @@ func (siw *ServerInterfaceWrapper) GetGroupDescription(w http.ResponseWriter, r 
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1252,6 +1425,259 @@ func (siw *ServerInterfaceWrapper) GetGroupDescription(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// GetGroupInviteUrl operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupInviteUrl(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroupInviteUrl(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGroupLink operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroupLink(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMemberFromGroup operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteMemberFromGroupParams
+
+	// ------------- Required query parameter "userId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "userId", r.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "userId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMemberFromGroup(w, r, groupId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGroupMembers operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroupMembers(w, r, groupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JoinGroup operation middleware
+func (siw *ServerInterfaceWrapper) JoinGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params JoinGroupParams
+
+	// ------------- Required query parameter "userId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "userId", r.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "userId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "inviteUrl" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "inviteUrl", r.URL.Query(), &params.InviteUrl, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "inviteUrl"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "inviteUrl", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JoinGroup(w, r, groupId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGroupPinImage operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupPinImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "groupId" -------------
+	var groupId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGroupPinImageParams
+
+	// ------------- Optional query parameter "redirect" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", r.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "redirect"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "redirect", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroupPinImage(w, r, groupId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetGroupProfileImage operation middleware
 func (siw *ServerInterfaceWrapper) GetGroupProfileImage(w http.ResponseWriter, r *http.Request) {
 
@@ -1259,7 +1685,7 @@ func (siw *ServerInterfaceWrapper) GetGroupProfileImage(w http.ResponseWriter, r
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1307,7 +1733,7 @@ func (siw *ServerInterfaceWrapper) GetGroupProfileImageSmall(w http.ResponseWrit
 	_ = err
 
 	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
+	var groupId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1348,84 +1774,11 @@ func (siw *ServerInterfaceWrapper) GetGroupProfileImageSmall(w http.ResponseWrit
 	handler.ServeHTTP(w, r)
 }
 
-// GetGroupInviteUrl operation middleware
-func (siw *ServerInterfaceWrapper) GetGroupInviteUrl(w http.ResponseWriter, r *http.Request) {
+// GetMapInfo operation middleware
+func (siw *ServerInterfaceWrapper) GetMapInfo(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGroupInviteUrl(w, r, groupId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetGroupLink operation middleware
-func (siw *ServerInterfaceWrapper) GetGroupLink(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGroupLink(w, r, groupId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetGroupPinImage operation middleware
-func (siw *ServerInterfaceWrapper) GetGroupPinImage(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
 
 	ctx := r.Context()
 
@@ -1434,23 +1787,36 @@ func (siw *ServerInterfaceWrapper) GetGroupPinImage(w http.ResponseWriter, r *ht
 	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetGroupPinImageParams
+	var params GetMapInfoParams
 
-	// ------------- Optional query parameter "redirect" -------------
+	// ------------- Optional query parameter "latitude" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "redirect", r.URL.Query(), &params.Redirect, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "latitude", r.URL.Query(), &params.Latitude, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "redirect"})
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "latitude"})
 		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "redirect", Err: err})
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "latitude", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "longitude" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "longitude", r.URL.Query(), &params.Longitude, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "longitude"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "longitude", Err: err})
 		}
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGroupPinImage(w, r, groupId, params)
+		siw.Handler.GetMapInfo(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1460,198 +1826,11 @@ func (siw *ServerInterfaceWrapper) GetGroupPinImage(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
-// GetPinLikes operation middleware
-func (siw *ServerInterfaceWrapper) GetPinLikes(w http.ResponseWriter, r *http.Request) {
+// GetGeoJson operation middleware
+func (siw *ServerInterfaceWrapper) GetGeoJson(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
-
-	// ------------- Path parameter "pinId" -------------
-	var pinId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pinId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetPinLikes(w, r, pinId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreateOrUpdateLike operation middleware
-func (siw *ServerInterfaceWrapper) CreateOrUpdateLike(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "pinId" -------------
-	var pinId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pinId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateOrUpdateLike(w, r, pinId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetUserLikes operation middleware
-func (siw *ServerInterfaceWrapper) GetUserLikes(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetUserLikes(w, r, userId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetGroupMembers operation middleware
-func (siw *ServerInterfaceWrapper) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGroupMembers(w, r, groupId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteMemberFromGroup operation middleware
-func (siw *ServerInterfaceWrapper) DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
-
-	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteMemberFromGroup(w, r, groupId, userId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// JoinGroup operation middleware
-func (siw *ServerInterfaceWrapper) JoinGroup(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "groupId" -------------
-	var groupId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "groupId", chi.URLParam(r, "groupId"), &groupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "groupId", Err: err})
-		return
-	}
-
-	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
-		return
-	}
 
 	ctx := r.Context()
 
@@ -1660,43 +1839,49 @@ func (siw *ServerInterfaceWrapper) JoinGroup(w http.ResponseWriter, r *http.Requ
 	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params JoinGroupParams
+	var params GetGeoJsonParams
 
-	// ------------- Optional query parameter "inviteUrl" -------------
+	// ------------- Optional query parameter "gid2" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "inviteUrl", r.URL.Query(), &params.InviteUrl, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid2", r.URL.Query(), &params.Gid2, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "inviteUrl"})
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid2"})
 		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "inviteUrl", Err: err})
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid2", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "gid1" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid1", r.URL.Query(), &params.Gid1, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid1"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid1", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "gid0" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid0", r.URL.Query(), &params.Gid0, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid0"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid0", Err: err})
 		}
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.JoinGroup(w, r, groupId, userId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// CreatePin operation middleware
-func (siw *ServerInterfaceWrapper) CreatePin(w http.ResponseWriter, r *http.Request) {
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreatePin(w, r)
+		siw.Handler.GetGeoJson(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1849,11 +2034,8 @@ func (siw *ServerInterfaceWrapper) GetPinImagesByIds(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
-// Sync operation middleware
-func (siw *ServerInterfaceWrapper) Sync(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
+// CreatePin operation middleware
+func (siw *ServerInterfaceWrapper) CreatePin(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
@@ -1861,24 +2043,8 @@ func (siw *ServerInterfaceWrapper) Sync(w http.ResponseWriter, r *http.Request) 
 
 	r = r.WithContext(ctx)
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params SyncParams
-
-	// ------------- Optional query parameter "lastSeen" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "lastSeen", r.URL.Query(), &params.LastSeen, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "lastSeen"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lastSeen", Err: err})
-		}
-		return
-	}
-
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.Sync(w, r, params)
+		siw.Handler.CreatePin(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1895,7 +2061,7 @@ func (siw *ServerInterfaceWrapper) DeletePin(w http.ResponseWriter, r *http.Requ
 	_ = err
 
 	// ------------- Path parameter "pinId" -------------
-	var pinId openapi_types.UUID
+	var pinId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1927,7 +2093,7 @@ func (siw *ServerInterfaceWrapper) GetPin(w http.ResponseWriter, r *http.Request
 	_ = err
 
 	// ------------- Path parameter "pinId" -------------
-	var pinId openapi_types.UUID
+	var pinId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -1975,7 +2141,7 @@ func (siw *ServerInterfaceWrapper) GetPinImage(w http.ResponseWriter, r *http.Re
 	_ = err
 
 	// ------------- Path parameter "pinId" -------------
-	var pinId openapi_types.UUID
+	var pinId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2016,6 +2182,102 @@ func (siw *ServerInterfaceWrapper) GetPinImage(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetPinLikes operation middleware
+func (siw *ServerInterfaceWrapper) GetPinLikes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "pinId" -------------
+	var pinId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pinId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPinLikes(w, r, pinId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateOrUpdateLike operation middleware
+func (siw *ServerInterfaceWrapper) CreateOrUpdateLike(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "pinId" -------------
+	var pinId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pinId", chi.URLParam(r, "pinId"), &pinId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pinId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOrUpdateLike(w, r, pinId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GenerateDeleteCode operation middleware
+func (siw *ServerInterfaceWrapper) GenerateDeleteCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username ShortString
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", chi.URLParam(r, "username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GenerateDeleteCode(w, r, username)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetServerInfo operation middleware
 func (siw *ServerInterfaceWrapper) GetServerInfo(w http.ResponseWriter, r *http.Request) {
 
@@ -2030,62 +2292,72 @@ func (siw *ServerInterfaceWrapper) GetServerInfo(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
-// GetGeoJson operation middleware
-func (siw *ServerInterfaceWrapper) GetGeoJson(w http.ResponseWriter, r *http.Request) {
+// UserLogin operation middleware
+func (siw *ServerInterfaceWrapper) UserLogin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UserLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestPasswordRecovery operation middleware
+func (siw *ServerInterfaceWrapper) RequestPasswordRecovery(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	_ = err
 
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetGeoJsonParams
+	var params RequestPasswordRecoveryParams
 
-	// ------------- Optional query parameter "gid2" -------------
+	// ------------- Required query parameter "username" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid2", r.URL.Query(), &params.Gid2, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "username", r.URL.Query(), &params.Username, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid2"})
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "username"})
 		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid2", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "gid1" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid1", r.URL.Query(), &params.Gid1, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid1"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid1", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "gid0" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "gid0", r.URL.Query(), &params.Gid0, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "gid0"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "gid0", Err: err})
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
 		}
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetGeoJson(w, r, params)
+		siw.Handler.RequestPasswordRecovery(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RefreshToken operation middleware
+func (siw *ServerInterfaceWrapper) RefreshToken(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RefreshToken(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateUser operation middleware
+func (siw *ServerInterfaceWrapper) CreateUser(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateUser(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2203,58 +2475,6 @@ func (siw *ServerInterfaceWrapper) GroupRanking(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GroupRanking(w, r, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetMapInfo operation middleware
-func (siw *ServerInterfaceWrapper) GetMapInfo(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, TokenScopes, []string{})
-
-	r = r.WithContext(ctx)
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetMapInfoParams
-
-	// ------------- Optional query parameter "latitude" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "latitude", r.URL.Query(), &params.Latitude, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "latitude"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "latitude", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "longitude" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "longitude", r.URL.Query(), &params.Longitude, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "longitude"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "longitude", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMapInfo(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2487,7 +2707,7 @@ func (siw *ServerInterfaceWrapper) DeleteUser(w http.ResponseWriter, r *http.Req
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2519,7 +2739,7 @@ func (siw *ServerInterfaceWrapper) GetUser(w http.ResponseWriter, r *http.Reques
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2551,7 +2771,7 @@ func (siw *ServerInterfaceWrapper) UpdateUser(w http.ResponseWriter, r *http.Req
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2583,9 +2803,9 @@ func (siw *ServerInterfaceWrapper) GetUserAchievements(w http.ResponseWriter, r 
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
 		return
@@ -2615,9 +2835,9 @@ func (siw *ServerInterfaceWrapper) ClaimUserAchievement(w http.ResponseWriter, r
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
 		return
@@ -2626,7 +2846,7 @@ func (siw *ServerInterfaceWrapper) ClaimUserAchievement(w http.ResponseWriter, r
 	// ------------- Path parameter "achievementId" -------------
 	var achievementId int
 
-	err = runtime.BindStyledParameterWithOptions("simple", "achievementId", chi.URLParam(r, "achievementId"), &achievementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "integer", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "achievementId", chi.URLParam(r, "achievementId"), &achievementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "achievementId", Err: err})
 		return
@@ -2649,6 +2869,38 @@ func (siw *ServerInterfaceWrapper) ClaimUserAchievement(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetUserLikes operation middleware
+func (siw *ServerInterfaceWrapper) GetUserLikes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUserLikes(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetUserProfileImage operation middleware
 func (siw *ServerInterfaceWrapper) GetUserProfileImage(w http.ResponseWriter, r *http.Request) {
 
@@ -2656,7 +2908,7 @@ func (siw *ServerInterfaceWrapper) GetUserProfileImage(w http.ResponseWriter, r 
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2704,7 +2956,7 @@ func (siw *ServerInterfaceWrapper) GetUserProfileImageSmall(w http.ResponseWrite
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
 	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -2752,9 +3004,9 @@ func (siw *ServerInterfaceWrapper) GetUserXp(w http.ResponseWriter, r *http.Requ
 	_ = err
 
 	// ------------- Path parameter "userId" -------------
-	var userId openapi_types.UUID
+	var userId Id
 
-	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
 		return
@@ -2768,6 +3020,45 @@ func (siw *ServerInterfaceWrapper) GetUserXp(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetUserXp(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Sync operation middleware
+func (siw *ServerInterfaceWrapper) Sync(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, TokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncParams
+
+	// ------------- Optional query parameter "lastSeen" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "lastSeen", r.URL.Query(), &params.LastSeen, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "lastSeen"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lastSeen", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Sync(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2894,22 +3185,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v2/admin/mail", wrapper.SendAdminMail)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/admin/notifications", wrapper.SendNotification)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/auth/delete-code/{username}", wrapper.GenerateDeleteCode)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/auth/login", wrapper.UserLogin)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/auth/recover/{username}", wrapper.RequestPasswordRecovery)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/auth/refresh", wrapper.RefreshToken)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/auth/signup", wrapper.CreateUser)
+		r.Post(options.BaseURL+"/api/v2/admin/notification", wrapper.SendNotification)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v2/groups", wrapper.GetGroupsByIds)
@@ -2933,46 +3209,40 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/description", wrapper.GetGroupDescription)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/image", wrapper.GetGroupProfileImage)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/image/small", wrapper.GetGroupProfileImageSmall)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/invite-url", wrapper.GetGroupInviteUrl)
+		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/invite_url", wrapper.GetGroupInviteUrl)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/link", wrapper.GetGroupLink)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/pin-image", wrapper.GetGroupPinImage)
+		r.Delete(options.BaseURL+"/api/v2/groups/{groupId}/members", wrapper.DeleteMemberFromGroup)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/likes/pins/{pinId}", wrapper.GetPinLikes)
+		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/members", wrapper.GetGroupMembers)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/likes/pins/{pinId}", wrapper.CreateOrUpdateLike)
+		r.Post(options.BaseURL+"/api/v2/groups/{groupId}/members", wrapper.JoinGroup)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/likes/users/{userId}", wrapper.GetUserLikes)
+		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/pin_image", wrapper.GetGroupPinImage)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/members/groups/{groupId}", wrapper.GetGroupMembers)
+		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/profile_image", wrapper.GetGroupProfileImage)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v2/members/groups/{groupId}/users/{userId}", wrapper.DeleteMemberFromGroup)
+		r.Get(options.BaseURL+"/api/v2/groups/{groupId}/profile_image_small", wrapper.GetGroupProfileImageSmall)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/members/groups/{groupId}/users/{userId}", wrapper.JoinGroup)
+		r.Get(options.BaseURL+"/api/v2/map", wrapper.GetMapInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v2/map/geojson", wrapper.GetGeoJson)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v2/pins", wrapper.GetPinImagesByIds)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v2/pins", wrapper.CreatePin)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/pins/sync", wrapper.GetPinImagesByIds)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/pins/sync/lastSeen", wrapper.Sync)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/api/v2/pins/{pinId}", wrapper.DeletePin)
@@ -2984,25 +3254,40 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v2/pins/{pinId}/image", wrapper.GetPinImage)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/public/info", wrapper.GetServerInfo)
+		r.Get(options.BaseURL+"/api/v2/pins/{pinId}/likes", wrapper.GetPinLikes)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/ranking/geojson", wrapper.GetGeoJson)
+		r.Post(options.BaseURL+"/api/v2/pins/{pinId}/likes", wrapper.CreateOrUpdateLike)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/ranking/groups", wrapper.GroupRanking)
+		r.Get(options.BaseURL+"/api/v2/public/delete-code/{username}", wrapper.GenerateDeleteCode)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/ranking/map-info", wrapper.GetMapInfo)
+		r.Get(options.BaseURL+"/api/v2/public/infos", wrapper.GetServerInfo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v2/public/login", wrapper.UserLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v2/public/recover", wrapper.RequestPasswordRecovery)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v2/public/refresh", wrapper.RefreshToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v2/public/signup", wrapper.CreateUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v2/ranking/group", wrapper.GroupRanking)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v2/ranking/search", wrapper.SearchRanking)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/ranking/users", wrapper.UserRanking)
+		r.Get(options.BaseURL+"/api/v2/ranking/user", wrapper.UserRanking)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/reports", wrapper.CreateReport)
+		r.Post(options.BaseURL+"/api/v2/report", wrapper.CreateReport)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v2/status", wrapper.GetStatus)
@@ -3020,16 +3305,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/api/v2/users/{userId}/achievements", wrapper.GetUserAchievements)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v2/users/{userId}/achievements/{achievementId}/claim", wrapper.ClaimUserAchievement)
+		r.Post(options.BaseURL+"/api/v2/users/{userId}/achievements/{achievementId}", wrapper.ClaimUserAchievement)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/users/{userId}/image", wrapper.GetUserProfileImage)
+		r.Get(options.BaseURL+"/api/v2/users/{userId}/likes", wrapper.GetUserLikes)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v2/users/{userId}/image/small", wrapper.GetUserProfileImageSmall)
+		r.Get(options.BaseURL+"/api/v2/users/{userId}/profile_picture", wrapper.GetUserProfileImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v2/users/{userId}/profile_picture_small", wrapper.GetUserProfileImageSmall)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v2/users/{userId}/xp", wrapper.GetUserXp)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/sync", wrapper.Sync)
 	})
 
 	return r
@@ -3040,104 +3331,115 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"2zjN7Yfb/w8AAP//",
+	"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",
+	"d/f/EwAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

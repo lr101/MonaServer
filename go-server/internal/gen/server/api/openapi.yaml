@@ -4,7 +4,7 @@ info:
   version: 1.0.1
 servers:
 - url: https://stick-it.lr-projects.de
-- url: http://localhost:8081
+- url: http://localhost:8080
 tags:
 - description: Everything about the public apiF
   name: public

@@ -53,19 +53,19 @@ func (c *MembersAPIController) Routes() Routes {
 		"GetGroupMembers": Route{
 			"GetGroupMembers",
 			strings.ToUpper("Get"),
-			"/api/v2/members/groups/{groupId}",
+			"/api/v2/groups/{groupId}/members",
 			c.GetGroupMembers,
 		},
 		"JoinGroup": Route{
 			"JoinGroup",
 			strings.ToUpper("Post"),
-			"/api/v2/members/groups/{groupId}/users/{userId}",
+			"/api/v2/groups/{groupId}/members",
 			c.JoinGroup,
 		},
 		"DeleteMemberFromGroup": Route{
 			"DeleteMemberFromGroup",
 			strings.ToUpper("Delete"),
-			"/api/v2/members/groups/{groupId}/users/{userId}",
+			"/api/v2/groups/{groupId}/members",
 			c.DeleteMemberFromGroup,
 		},
 	}
@@ -77,19 +77,19 @@ func (c *MembersAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetGroupMembers",
 			strings.ToUpper("Get"),
-			"/api/v2/members/groups/{groupId}",
+			"/api/v2/groups/{groupId}/members",
 			c.GetGroupMembers,
 		},
 		Route{
 			"JoinGroup",
 			strings.ToUpper("Post"),
-			"/api/v2/members/groups/{groupId}/users/{userId}",
+			"/api/v2/groups/{groupId}/members",
 			c.JoinGroup,
 		},
 		Route{
 			"DeleteMemberFromGroup",
 			strings.ToUpper("Delete"),
-			"/api/v2/members/groups/{groupId}/users/{userId}",
+			"/api/v2/groups/{groupId}/members",
 			c.DeleteMemberFromGroup,
 		},
 	}
@@ -124,17 +124,17 @@ func (c *MembersAPIController) JoinGroup(w http.ResponseWriter, r *http.Request)
 		c.errorHandler(w, r, &RequiredError{"groupId"}, nil)
 		return
 	}
-	userIdParam := chi.URLParam(r, "userId")
+	var userIdParam string
+	if query.Has("userId") {
+		userIdParam = query.Get("userId")
+	}
 	if userIdParam == "" {
 		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
 		return
 	}
 	var inviteUrlParam string
 	if query.Has("inviteUrl") {
-		param := query.Get("inviteUrl")
-
-		inviteUrlParam = param
-	} else {
+		inviteUrlParam = query.Get("inviteUrl")
 	}
 	result, err := c.service.JoinGroup(r.Context(), groupIdParam, userIdParam, inviteUrlParam)
 	// If an error occurred, encode the error with the status code
@@ -148,12 +148,20 @@ func (c *MembersAPIController) JoinGroup(w http.ResponseWriter, r *http.Request)
 
 // DeleteMemberFromGroup - leave group or delete group when the user is the last group member
 func (c *MembersAPIController) DeleteMemberFromGroup(w http.ResponseWriter, r *http.Request) {
+	query, err := parseQuery(r.URL.RawQuery)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
 	groupIdParam := chi.URLParam(r, "groupId")
 	if groupIdParam == "" {
 		c.errorHandler(w, r, &RequiredError{"groupId"}, nil)
 		return
 	}
-	userIdParam := chi.URLParam(r, "userId")
+	var userIdParam string
+	if query.Has("userId") {
+		userIdParam = query.Get("userId")
+	}
 	if userIdParam == "" {
 		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
 		return

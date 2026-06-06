@@ -30,7 +30,7 @@ cd go-server
 export DATABASE_URL="postgres://mona:mona@localhost:5432/mona?sslmode=disable"
 export JWT_SECRET="change-me"
 export TOKEN_ADMIN_USERNAME="root"   # account whose username grants ADMIN role
-export PORT=8081
+export PORT=8080
 go run ./cmd/server
 ```
 
@@ -41,7 +41,7 @@ only after they succeed.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `PORT` | `8081` | HTTP listen port |
+| `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | `postgres://user:pw@host:5432/db?sslmode=disable` |
 | `JWT_SECRET` | — | HS256 signing key, **must match** Kotlin deployment during migration |
 | `TOKEN_ACCESS_EXPIRY` | `15m` | Go duration string |
@@ -49,11 +49,12 @@ only after they succeed.
 | `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
 | `APP_URL` / `APP_REDIRECT_URL` | — | Public URL; used in email links |
-| `MINIO_ENDPOINT` | — | e.g. `minio.example.com:9000` |
-| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | — | credentials |
-| `MINIO_BUCKET` | `monaserver` | bucket name |
-| `MINIO_USE_SSL` | `false` | |
-| `MINIO_URL_EXPIRY` | `60m` | presigned URL TTL |
+| `RUSTFS_ENDPOINT` | — | Internal S3 endpoint, e.g. `rustfs:9000` |
+| `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
+| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
+| `RUSTFS_BUCKET` | `monaserver` | bucket name |
+| `RUSTFS_USE_SSL` | `false` | |
+| `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
 
@@ -63,7 +64,7 @@ The source of truth is the OpenAPI spec at `../api/openapi.yaml`. The Go server
 types and `ServerInterface` are generated from it via `oapi-codegen`:
 
 ```bash
-make gen-api    # regenerates internal/gen/api/api.gen.go
+~/go/bin/oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml#
 ```
 
 The running server exposes the bundled spec at the same path as SpringDoc does
@@ -95,7 +96,7 @@ docker build -t stick-it-go .   # multi-stage -> distroless static image
 ```
 
 The container image is ~15 MB (distroless/static), runs as `nonroot`, and
-listens on `:8081`. All HTML templates, SQL migrations, and pin template PNGs
+listens on `:8080`. All HTML templates, SQL migrations, and pin template PNGs
 are embedded into the binary via `//go:embed`, so no extra volumes are needed.
 
 ## Testing

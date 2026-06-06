@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
@@ -21,18 +22,18 @@ func JWT(tok *token.Helper, lookup UserLookup, adminUsername string) func(http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := r.Header.Get("Authorization")
 			if !strings.HasPrefix(h, "Bearer ") {
-				http.Error(w, "missing bearer token", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "missing bearer token", http.StatusUnauthorized)
 				return
 			}
 			raw := strings.TrimPrefix(h, "Bearer ")
 			uid, err := tok.ParseAccessToken(raw)
 			if err != nil {
-				http.Error(w, "invalid token", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
 			username, err := lookup.GetUsername(r.Context(), uid)
 			if err != nil {
-				http.Error(w, "user not found", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "user not found", http.StatusUnauthorized)
 				return
 			}
 			role := RoleUser
@@ -51,11 +52,11 @@ func RequireRole(required string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			role := Role(r.Context())
 			if role == "" {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			if required == RoleAdmin && role != RoleAdmin {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			// USER role: both USER and ADMIN pass

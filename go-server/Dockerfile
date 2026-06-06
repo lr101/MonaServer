@@ -20,6 +20,6 @@ WORKDIR /app
 COPY --from=build /out/monaserver /app/monaserver
 # Templates and static assets are embedded via //go:embed at build time;
 # no extra COPY is needed for them.
-EXPOSE 8081
+EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/app/monaserver"]

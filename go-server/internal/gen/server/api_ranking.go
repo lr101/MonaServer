@@ -52,13 +52,13 @@ func (c *RankingAPIController) Routes() Routes {
 		"GroupRanking": Route{
 			"GroupRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/groups",
+			"/api/v2/ranking/group",
 			c.GroupRanking,
 		},
 		"UserRanking": Route{
 			"UserRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/users",
+			"/api/v2/ranking/user",
 			c.UserRanking,
 		},
 		"SearchRanking": Route{
@@ -70,13 +70,13 @@ func (c *RankingAPIController) Routes() Routes {
 		"GetMapInfo": Route{
 			"GetMapInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/map-info",
+			"/api/v2/map",
 			c.GetMapInfo,
 		},
 		"GetGeoJson": Route{
 			"GetGeoJson",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/geojson",
+			"/api/v2/map/geojson",
 			c.GetGeoJson,
 		},
 	}
@@ -88,13 +88,13 @@ func (c *RankingAPIController) OrderedRoutes() []Route {
 		Route{
 			"GroupRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/groups",
+			"/api/v2/ranking/group",
 			c.GroupRanking,
 		},
 		Route{
 			"UserRanking",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/users",
+			"/api/v2/ranking/user",
 			c.UserRanking,
 		},
 		Route{
@@ -106,13 +106,13 @@ func (c *RankingAPIController) OrderedRoutes() []Route {
 		Route{
 			"GetMapInfo",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/map-info",
+			"/api/v2/map",
 			c.GetMapInfo,
 		},
 		Route{
 			"GetGeoJson",
 			strings.ToUpper("Get"),
-			"/api/v2/ranking/geojson",
+			"/api/v2/map/geojson",
 			c.GetGeoJson,
 		},
 	}

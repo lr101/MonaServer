@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
 )
@@ -43,7 +43,7 @@ func (s *GroupsServicer) GetGroupsByIds(ctx context.Context, ids []string, searc
 	}
 	result, err := s.group.Search(ctx, searchPtr, uidPtr, withUserPtr, withImages, page, size, afterPtr)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.GroupDto, 0, len(result.Groups))
 	for _, g := range result.Groups {
@@ -67,15 +67,22 @@ func (s *GroupsServicer) AddGroup(ctx context.Context, dto genserver.CreateGroup
 			groupAdminID = id
 		}
 	}
+	var imgBytes []byte
+	if dto.ProfileImage != "" {
+		if b, err := base64.StdEncoding.DecodeString(dto.ProfileImage); err == nil {
+			imgBytes = b
+		}
+	}
 	result, err := s.group.Create(ctx, service.CreateGroupInput{
-		Name:        dto.Name,
-		Description: strNilable(dto.Description),
-		Link:        strNilable(dto.Link),
-		Visibility:  int(dto.Visibility),
-		GroupAdmin:  groupAdminID,
+		Name:         dto.Name,
+		Description:  strNilable(dto.Description),
+		Link:         strNilable(dto.Link),
+		Visibility:   int(dto.Visibility),
+		GroupAdmin:   groupAdminID,
+		ProfileImage: imgBytes,
 	})
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusCreated, toGroupDto(result)), nil
 }
@@ -87,7 +94,7 @@ func (s *GroupsServicer) GetGroup(ctx context.Context, groupID string) (genserve
 	}
 	dto, err := s.group.GetDTO(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, toGroupDto(dto)), nil
 }
@@ -110,15 +117,22 @@ func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto ge
 			adminID = &a
 		}
 	}
+	var imgBytes []byte
+	if dto.ProfileImage != "" {
+		if b, err2 := base64.StdEncoding.DecodeString(dto.ProfileImage); err2 == nil {
+			imgBytes = b
+		}
+	}
 	result, err := s.group.Update(ctx, id, service.UpdateGroupInput{
-		Name:        strNilable(dto.Name),
-		Description: strNilable(dto.Description),
-		Link:        strNilable(dto.Link),
-		Visibility:  intNilable(int(dto.Visibility)),
-		GroupAdmin:  adminID,
+		Name:         strNilable(dto.Name),
+		Description:  strNilable(dto.Description),
+		Link:         strNilable(dto.Link),
+		Visibility:   intNilable(int(dto.Visibility)),
+		GroupAdmin:   adminID,
+		ProfileImage: imgBytes,
 	})
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, toGroupDto(result)), nil
 }
@@ -136,7 +150,7 @@ func (s *GroupsServicer) DeleteGroup(ctx context.Context, groupID string) (gense
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.group.Delete(ctx, id); err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
@@ -148,7 +162,7 @@ func (s *GroupsServicer) GetGroupProfileImage(ctx context.Context, groupID strin
 	}
 	u, err := s.group.ProfileImageURL(ctx, id, false)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -166,7 +180,7 @@ func (s *GroupsServicer) GetGroupProfileImageSmall(ctx context.Context, groupID 
 	}
 	u, err := s.group.ProfileImageURL(ctx, id, true)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -184,13 +198,10 @@ func (s *GroupsServicer) GetGroupPinImage(ctx context.Context, groupID string, r
 	}
 	u, err := s.group.PinImageURL(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
-	}
-	if redirect {
-		return genserver.Response(http.StatusOK, *u), nil
 	}
 	return genserver.Response(http.StatusOK, *u), nil
 }
@@ -209,7 +220,7 @@ func (s *GroupsServicer) GetGroupDescription(ctx context.Context, groupID string
 	}
 	dto, err := s.group.GetDTO(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, strDeref(dto.Description)), nil
 }
@@ -228,7 +239,7 @@ func (s *GroupsServicer) GetGroupLink(ctx context.Context, groupID string) (gens
 	}
 	dto, err := s.group.GetDTO(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, strDeref(dto.Link)), nil
 }
@@ -247,7 +258,7 @@ func (s *GroupsServicer) GetGroupAdmin(ctx context.Context, groupID string) (gen
 	}
 	admin, err := s.group.GetAdminUsername(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, admin), nil
 }
@@ -266,7 +277,7 @@ func (s *GroupsServicer) GetGroupInviteUrl(ctx context.Context, groupID string) 
 	}
 	dto, err := s.group.GetDTO(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, strDeref(dto.InviteUrl)), nil
 }

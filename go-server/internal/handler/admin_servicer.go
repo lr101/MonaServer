@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -40,18 +39,18 @@ func (s *AdminServicer) SendAdminMail(ctx context.Context, dto genserver.AdminMa
 		var err error
 		recipients, err = s.q.ListAllUserEmails(ctx)
 		if err != nil {
-			return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+			return serviceErrResp(err), nil
 		}
 	}
 	if err := s.email.SendBulk(ctx, recipients, dto.Subject, htmlBody); err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
 
 func (s *AdminServicer) SendNotification(ctx context.Context, dto genserver.NotificationDto) (genserver.ImplResponse, error) {
 	if err := s.notif.SendToTopic(ctx, dto.Topic, dto.Title, dto.Body); err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusCreated, nil), nil
 }

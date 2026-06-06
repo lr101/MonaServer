@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/apperrors"
@@ -53,7 +54,7 @@ func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair,
 		return nil, err
 	}
 	if u == nil {
-		return nil, apperrors.ErrNotFound
+		return nil, apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
 	}
 	if u.FailedLoginAttempts >= s.cfg.MaxLoginAttempts {
 		return nil, apperrors.New(403, "account locked")

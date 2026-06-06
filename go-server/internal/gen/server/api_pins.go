@@ -54,8 +54,8 @@ func (c *PinsAPIController) Routes() Routes {
 	return Routes{
 		"GetPinImagesByIds": Route{
 			"GetPinImagesByIds",
-			strings.ToUpper("Post"),
-			"/api/v2/pins/sync",
+			strings.ToUpper("Get"),
+			"/api/v2/pins",
 			c.GetPinImagesByIds,
 		},
 		"CreatePin": Route{
@@ -85,7 +85,7 @@ func (c *PinsAPIController) Routes() Routes {
 		"Sync": Route{
 			"Sync",
 			strings.ToUpper("Get"),
-			"/api/v2/pins/sync/lastSeen",
+			"/api/v3/sync",
 			c.Sync,
 		},
 	}
@@ -96,8 +96,8 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 	return []Route{
 		Route{
 			"GetPinImagesByIds",
-			strings.ToUpper("Post"),
-			"/api/v2/pins/sync",
+			strings.ToUpper("Get"),
+			"/api/v2/pins",
 			c.GetPinImagesByIds,
 		},
 		Route{
@@ -127,7 +127,7 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 		Route{
 			"Sync",
 			strings.ToUpper("Get"),
-			"/api/v2/pins/sync/lastSeen",
+			"/api/v3/sync",
 			c.Sync,
 		},
 	}
@@ -135,45 +135,39 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 
 // GetPinImagesByIds - Get images by IDs
 func (c *PinsAPIController) GetPinImagesByIds(w http.ResponseWriter, r *http.Request) {
-	// Accept JSON body (Kotlin-compatible) with fallback to query params.
-	var body struct {
-		Ids          []string  `json:"ids"`
-		GroupId      string    `json:"groupId"`
-		UserId       string    `json:"userId"`
-		WithImage    bool      `json:"withImage"`
-		Compression  int32     `json:"compression"`
-		Height       int32     `json:"height"`
-		Page         int32     `json:"page"`
-		Size         int32     `json:"size"`
-		UpdatedAfter time.Time `json:"updatedAfter"`
+	query, _ := parseQuery(r.URL.RawQuery)
+	var idsParam []string
+	if query.Has("ids") {
+		idsParam = strings.Split(query.Get("ids"), ",")
 	}
-	body.Size = 20 // default
-	if r.Body != nil && r.ContentLength != 0 {
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			c.errorHandler(w, r, &ParsingError{Err: err}, nil)
-			return
+	groupIdParam := query.Get("groupId")
+	userIdParam := query.Get("userId")
+	withImageParam := false
+	if query.Has("withImage") {
+		withImageParam, _ = parseBool(query.Get("withImage"))
+	}
+	var compressionParam int32
+	if query.Has("compression") {
+		compressionParam, _ = parseInt32(query.Get("compression"))
+	}
+	var heightParam int32
+	if query.Has("height") {
+		heightParam, _ = parseInt32(query.Get("height"))
+	}
+	var pageParam int32
+	if query.Has("page") {
+		pageParam, _ = parseInt32(query.Get("page"))
+	}
+	sizeParam := int32(20)
+	if query.Has("size") {
+		if v, err := parseInt32(query.Get("size")); err == nil {
+			sizeParam = v
 		}
 	}
-	// Also read any query params that override (for backward compat).
-	query, _ := parseQuery(r.URL.RawQuery)
-	if query.Has("ids") {
-		body.Ids = strings.Split(query.Get("ids"), ",")
+	var updatedAfterParam time.Time
+	if query.Has("updatedAfter") {
+		updatedAfterParam, _ = parseTime(query.Get("updatedAfter"))
 	}
-	if query.Has("groupId") {
-		body.GroupId = query.Get("groupId")
-	}
-	if query.Has("userId") {
-		body.UserId = query.Get("userId")
-	}
-	idsParam := body.Ids
-	groupIdParam := body.GroupId
-	userIdParam := body.UserId
-	withImageParam := body.WithImage
-	compressionParam := body.Compression
-	heightParam := body.Height
-	pageParam := body.Page
-	sizeParam := body.Size
-	updatedAfterParam := body.UpdatedAfter
 	result, err := c.service.GetPinImagesByIds(r.Context(), idsParam, groupIdParam, userIdParam, withImageParam, compressionParam, heightParam, pageParam, sizeParam, updatedAfterParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {

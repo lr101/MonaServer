@@ -55,32 +55,32 @@ func (c *AuthAPIController) Routes() Routes {
 	return Routes{
 		"GenerateDeleteCode": Route{
 			"GenerateDeleteCode",
-			strings.ToUpper("Post"),
-			"/api/v2/auth/delete-code/{username}",
+			strings.ToUpper("Get"),
+			"/api/v2/public/delete-code/{username}",
 			c.GenerateDeleteCode,
 		},
 		"RequestPasswordRecovery": Route{
 			"RequestPasswordRecovery",
 			strings.ToUpper("Get"),
-			"/api/v2/auth/recover/{username}",
+			"/api/v2/public/recover",
 			c.RequestPasswordRecovery,
 		},
 		"UserLogin": Route{
 			"UserLogin",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/login",
+			"/api/v2/public/login",
 			c.UserLogin,
 		},
 		"CreateUser": Route{
 			"CreateUser",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/signup",
+			"/api/v2/public/signup",
 			c.CreateUser,
 		},
 		"RefreshToken": Route{
 			"RefreshToken",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/refresh",
+			"/api/v2/public/refresh",
 			c.RefreshToken,
 		},
 		"GetStatus": Route{
@@ -97,32 +97,32 @@ func (c *AuthAPIController) OrderedRoutes() []Route {
 	return []Route{
 		Route{
 			"GenerateDeleteCode",
-			strings.ToUpper("Post"),
-			"/api/v2/auth/delete-code/{username}",
+			strings.ToUpper("Get"),
+			"/api/v2/public/delete-code/{username}",
 			c.GenerateDeleteCode,
 		},
 		Route{
 			"RequestPasswordRecovery",
 			strings.ToUpper("Get"),
-			"/api/v2/auth/recover/{username}",
+			"/api/v2/public/recover",
 			c.RequestPasswordRecovery,
 		},
 		Route{
 			"UserLogin",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/login",
+			"/api/v2/public/login",
 			c.UserLogin,
 		},
 		Route{
 			"CreateUser",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/signup",
+			"/api/v2/public/signup",
 			c.CreateUser,
 		},
 		Route{
 			"RefreshToken",
 			strings.ToUpper("Post"),
-			"/api/v2/auth/refresh",
+			"/api/v2/public/refresh",
 			c.RefreshToken,
 		},
 		Route{
@@ -153,27 +153,27 @@ func (c *AuthAPIController) GenerateDeleteCode(w http.ResponseWriter, r *http.Re
 
 // RequestPasswordRecovery - Request password recovery
 func (c *AuthAPIController) RequestPasswordRecovery(w http.ResponseWriter, r *http.Request) {
-	usernameParam := chi.URLParam(r, "username")
-	if usernameParam == "" {
-		c.errorHandler(w, r, &RequiredError{"username"}, nil)
+	query, err := parseQuery(r.URL.RawQuery)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
 		return
 	}
+	var usernameParam string
+	if query.Has("username") {
+		usernameParam = query.Get("username")
+	}
 	result, err := c.service.RequestPasswordRecovery(r.Context(), usernameParam)
-	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)
 		return
 	}
-	// If no error, encode the body and the result code
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 
 // UserLogin - User login
 func (c *AuthAPIController) UserLogin(w http.ResponseWriter, r *http.Request) {
 	var userLoginRequestParam UserLoginRequest
-	d := json.NewDecoder(r.Body)
-	d.DisallowUnknownFields()
-	if err := d.Decode(&userLoginRequestParam); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&userLoginRequestParam); err != nil {
 		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
 		return
 	}

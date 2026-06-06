@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lrprojects/monaserver/internal/apperrors"
 )
 
 // GuardQuery performs the DB reads required by guard checks.
@@ -42,21 +43,21 @@ func guardMiddleware(getParam paramFn, check checkFn) func(http.Handler) http.Ha
 			}
 			uid, ok := curUser(r.Context())
 			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			rid, err := getParam(r)
 			if err != nil {
-				http.Error(w, "invalid id", http.StatusBadRequest)
+				apperrors.WriteJSONError(w, "invalid id", http.StatusBadRequest)
 				return
 			}
 			ok, err = check(r.Context(), rid, uid)
 			if err != nil {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			if !ok {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -93,12 +94,12 @@ func RequireSameUser(param string) func(http.Handler) http.Handler {
 			}
 			uid, ok := curUser(r.Context())
 			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			target, err := uuid.Parse(chi.URLParam(r, param))
 			if err != nil || target != uid {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -117,12 +118,12 @@ func RequireSameUserQuery(param string) func(http.Handler) http.Handler {
 			}
 			uid, ok := curUser(r.Context())
 			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				apperrors.WriteJSONError(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			target, err := uuid.Parse(r.URL.Query().Get(param))
 			if err != nil || target != uid {
-				http.Error(w, "forbidden", http.StatusForbidden)
+				apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -145,7 +146,7 @@ func RequireAny(guards ...func(http.Handler) http.Handler) func(http.Handler) ht
 					return
 				}
 			}
-			http.Error(w, "forbidden", http.StatusForbidden)
+			apperrors.WriteJSONError(w, "forbidden", http.StatusForbidden)
 		})
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
 )
@@ -26,7 +25,7 @@ func (s *RankingServicer) GroupRanking(ctx context.Context, gid0, gid1, gid2 str
 	}
 	out, err := s.svc.GroupRanking(ctx, optStr(gid0), optStr(gid1), optStr(gid2), sincePtr, season, page, size)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.GroupRankingDtoInner, 0, len(out))
 	for _, r := range out {
@@ -51,7 +50,7 @@ func (s *RankingServicer) UserRanking(ctx context.Context, gid0, gid1, gid2 stri
 	}
 	out, err := s.svc.UserRanking(ctx, optStr(gid0), optStr(gid1), optStr(gid2), sincePtr, season, page, size)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.UserRankingDtoInner, 0, len(out))
 	for _, r := range out {
@@ -71,7 +70,7 @@ func (s *RankingServicer) UserRanking(ctx context.Context, gid0, gid1, gid2 stri
 func (s *RankingServicer) SearchRanking(ctx context.Context, search string, page, size int32) (genserver.ImplResponse, error) {
 	out, err := s.svc.SearchBoundaries(ctx, optStr(search), page, size)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.RankingSearchDtoInner, 0, len(out))
 	for _, r := range out {
@@ -87,7 +86,7 @@ func (s *RankingServicer) SearchRanking(ctx context.Context, search string, page
 func (s *RankingServicer) GetMapInfo(ctx context.Context, lat, lng float32) (genserver.ImplResponse, error) {
 	rows, err := s.svc.MapInfo(ctx, float64(lat), float64(lng))
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.MapInfoDto, 0, len(rows))
 	for _, r := range rows {
@@ -107,7 +106,7 @@ func (s *RankingServicer) GetMapInfo(ctx context.Context, lat, lng float32) (gen
 func (s *RankingServicer) GetGeoJson(ctx context.Context, gid0, gid1, gid2 string) (genserver.ImplResponse, error) {
 	out, err := s.svc.GeoJson(ctx, optStr(gid0), optStr(gid1), optStr(gid2))
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, out), nil
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -74,6 +75,11 @@ func toTokenResponseDto(p *service.TokenPair) genserver.TokenResponseDto {
 		RefreshToken: p.RefreshToken.String(),
 		UserId:       p.UserID.String(),
 	}
+}
+
+// serviceErrResp converts a service/domain error to an ImplResponse with a JSON body.
+func serviceErrResp(err error) genserver.ImplResponse {
+	return genserver.Response(apperrors.HTTPStatus(err), map[string]string{"error": apperrors.Message(err)})
 }
 
 // ctxUserID extracts the authenticated user's UUID from context.

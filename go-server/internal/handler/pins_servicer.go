@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -39,7 +38,7 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 	}
 	pins, err := s.q.ListUpdatedPinsForGroups(ctx, []uuid.UUID{gid}, after)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.PinWithOptionalImageDto, 0, len(pins))
 	for _, p := range pins {
@@ -85,7 +84,7 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 		Image:        imgBytes,
 	})
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	_ = s.q.AddUserXp(ctx, uid, 5)
 	return genserver.Response(http.StatusCreated, pinDTOtoDto(result)), nil
@@ -105,7 +104,7 @@ func (s *PinsServicer) GetPin(ctx context.Context, pinID string, withImage bool)
 	}
 	dto, err := s.pin.Get(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	result := pinDTOtoDto(dto)
 	if withImage {
@@ -132,7 +131,7 @@ func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.I
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.pin.Delete(ctx, id); err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
@@ -151,7 +150,7 @@ func (s *PinsServicer) GetPinImage(ctx context.Context, pinID string, redirect b
 	}
 	u, err := s.pin.ImageURL(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -168,9 +167,9 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
 	withUser := true
-	groups, err := s.group.Search(ctx, nil, &uid, &withUser, false, 0, 1000, nil)
+	groups, err := s.group.Search(ctx, nil, &uid, &withUser, true, 0, 1000, nil)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	groupIDs := make([]uuid.UUID, 0, len(groups.Groups))
 	for _, g := range groups.Groups {
@@ -178,7 +177,7 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 	}
 	deletedPins, err := s.q.ListDeletedPinsAfter(ctx, since)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	deletedStrs := make([]string, 0, len(deletedPins))
 	for _, id := range deletedPins {
@@ -186,19 +185,26 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 	}
 	updatedPins, err := s.q.ListUpdatedPinsForGroups(ctx, groupIDs, &since)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
-	// Group pins by group
 	pinsByGroup := make(map[uuid.UUID][]genserver.PinWithOptionalImageDto)
 	for _, p := range updatedPins {
-		pinsByGroup[p.GroupID] = append(pinsByGroup[p.GroupID], pinToDto(p))
+		dto := pinToDto(p)
+		if imgURL, _ := s.pin.ImageURL(ctx, p.ID); imgURL != nil {
+			dto.Image = *imgURL
+		}
+		pinsByGroup[p.GroupID] = append(pinsByGroup[p.GroupID], dto)
 	}
 	groupUpdates := make([]genserver.SyncDtoGroupUpdatesInner, 0, len(groups.Groups))
 	for _, g := range groups.Groups {
 		dto := toGroupDto(g)
+		pins := pinsByGroup[g.ID]
+		if pins == nil {
+			pins = make([]genserver.PinWithOptionalImageDto, 0)
+		}
 		groupUpdates = append(groupUpdates, genserver.SyncDtoGroupUpdatesInner{
 			Group:     dto,
-			PinsAdded: pinsByGroup[g.ID],
+			PinsAdded: pins,
 		})
 	}
 	return genserver.Response(http.StatusOK, genserver.SyncDto{

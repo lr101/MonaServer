@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
 )
@@ -35,7 +34,7 @@ func (s *MembersServicer) GetGroupMembers(ctx context.Context, groupID string) (
 	}
 	members, err := s.member.Ranking(ctx, id)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	dtos := make([]genserver.MemberResponseDto, 0, len(members))
 	for _, m := range members {
@@ -67,7 +66,7 @@ func (s *MembersServicer) JoinGroup(ctx context.Context, groupID, userID, invite
 	}
 	dto, err := s.member.Join(ctx, gid, uid, invitePtr)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusCreated, toGroupDto(dto)), nil
 }
@@ -91,7 +90,7 @@ func (s *MembersServicer) DeleteMemberFromGroup(ctx context.Context, groupID, us
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.member.Leave(ctx, gid, target); err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }

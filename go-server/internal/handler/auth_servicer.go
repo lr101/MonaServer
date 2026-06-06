@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -65,7 +64,7 @@ func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username str
 func (s *AuthServicer) UserLogin(_ context.Context, req genserver.UserLoginRequest) (genserver.ImplResponse, error) {
 	pair, err := s.auth.Login(context.Background(), req.Username, req.Password)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }
@@ -78,7 +77,7 @@ func (s *AuthServicer) CreateUser(_ context.Context, req genserver.UserRequestDt
 	}
 	pair, err := s.auth.Signup(context.Background(), req.Name, req.Password, email)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusCreated, toTokenResponseDto(pair)), nil
 }
@@ -90,7 +89,7 @@ func (s *AuthServicer) RefreshToken(_ context.Context, req genserver.RefreshToke
 	}
 	pair, err := s.auth.Refresh(context.Background(), tok)
 	if err != nil {
-		return genserver.Response(apperrors.HTTPStatus(err), nil), nil
+		return serviceErrResp(err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }

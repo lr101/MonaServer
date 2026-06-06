@@ -36,7 +36,7 @@ All services are supposed to be running in docker containers using the provided 
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=root
 POSTGRES_DB=sticker
-PORT=8081
+PORT=8080
 ADMIN_ACCOUNT_NAME=admin
 DB_URL=jdbc:postgresql://db:5432/sticker
 MAIL_PASSWORD=<YOUR MAIL PASSWORD>

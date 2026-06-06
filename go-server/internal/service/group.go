@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -234,10 +235,16 @@ func (s *Group) Search(ctx context.Context, search *string, userID *uuid.UUID, w
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*GroupDTO, 0, len(groups))
+	out := make([]*GroupDTO, len(groups))
+	var wg sync.WaitGroup
 	for i := range groups {
-		out = append(out, s.toDTO(ctx, &groups[i], withImages))
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			out[i] = s.toDTO(ctx, &groups[i], withImages)
+		}(i)
 	}
+	wg.Wait()
 	var deleted []uuid.UUID
 	if updatedAfter != nil {
 		deleted, _ = s.q.ListDeletedGroupsAfter(ctx, *updatedAfter)
@@ -267,6 +274,7 @@ func (s *Group) PinImageURL(ctx context.Context, id uuid.UUID) (*string, error) 
 	}
 	return &u, nil
 }
+
 
 // helpers
 

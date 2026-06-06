@@ -48,15 +48,16 @@ func main() {
 	guardSvc := service.NewGuard(q)
 
 	var objSvc *service.Object
-	if cfg.MinioEndpoint != "" {
-		o, err := service.NewObject(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey,
-			cfg.MinioBucket, cfg.MinioUseSSL, cfg.MinioURLExpiry)
+	if cfg.RustfsEndpoint != "" {
+		o, err := service.NewObject(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
+			cfg.RustfsAccessKey, cfg.RustfsSecretKey,
+			cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsURLExpiry)
 		if err != nil {
-			log.Error("minio init", "err", err)
+			log.Error("rustfs init", "err", err)
 		} else if err := o.EnsureBucket(ctx); err != nil {
-			log.Warn("minio ensure bucket", "err", err)
+			log.Warn("rustfs ensure bucket", "err", err)
 		} else {
-			log.Info("minio ready", "bucket", cfg.MinioBucket)
+			log.Info("rustfs ready", "bucket", cfg.RustfsBucket)
 			objSvc = o
 		}
 	}
@@ -75,7 +76,7 @@ func main() {
 	rankSvc := service.NewRanking(q)
 
 	// Servicers wrapping business logic and implementing genserver interfaces.
-	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.MinioEndpoint, cfg.RedirectURL)
+	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.RustfsExternalEndpoint, cfg.RedirectURL)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
@@ -153,6 +154,7 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
+	r.Use(requestLogger(log))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -172,13 +174,13 @@ func main() {
 	r.Get("/public/delete-account/{url}", viewsH.DeleteAccountView)
 	r.Get("/public/email-confirmation/{url}", viewsH.EmailConfirmation)
 
-	// Public routes (no auth) — auth controller public endpoints + public API controller.
+	// Public routes (no auth): login, signup, refresh, recover + public info.
 	r.Group(func(r chi.Router) {
 		registerRoutes(r, authCtrl, isPublicRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
 
-	// Status endpoint (no auth).
+	// Status endpoint — requires valid JWT to confirm token validity.
 	r.Group(func(r chi.Router) {
 		registerRoutes(r, authCtrl, isStatusRoute)
 	})
@@ -188,6 +190,7 @@ func main() {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 
+		registerRoutes(r, authCtrl, isDeleteCodeRoute) // delete-code requires auth per spec
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
@@ -195,8 +198,6 @@ func main() {
 		registerRoutes(r, rankingCtrl, alwaysTrue)
 		registerRoutes(r, reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
-		// Auth: only the status route needs auth (already covered above without auth,
-		// so skip here to avoid duplicate registration).
 	})
 
 	// Admin-only routes.
@@ -205,11 +206,6 @@ func main() {
 		r.Use(middleware.RequireRole(middleware.RoleAdmin))
 		registerRoutes(r, adminCtrl, alwaysTrue)
 	})
-
-	// Backward-compatible route aliases — old Kotlin paths mapped to the same handlers.
-	// These allow existing mobile clients to continue working without changes.
-	addCompatAliases(r, tok, authSvc, cfg, authCtrl, groupsCtrl, pinsCtrl, membersCtrl,
-		likesCtrl, rankingCtrl, adminCtrl, reportCtrl, publicCtrl, usersCtrl, authServicer, q)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -230,12 +226,22 @@ func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool)
 }
 
 func isPublicRoute(pattern string) bool {
-	return strings.HasPrefix(pattern, "/api/v2/public/") ||
-		strings.HasPrefix(pattern, "/api/v2/auth/")
+	switch pattern {
+	case "/api/v2/public/login",
+		"/api/v2/public/signup",
+		"/api/v2/public/refresh",
+		"/api/v2/public/recover":
+		return true
+	}
+	return false
 }
 
 func isStatusRoute(pattern string) bool {
 	return pattern == "/api/v2/status"
+}
+
+func isDeleteCodeRoute(pattern string) bool {
+	return strings.HasPrefix(pattern, "/api/v2/public/delete-code/")
 }
 
 func alwaysTrue(_ string) bool { return true }
@@ -269,102 +275,6 @@ func serveSwaggerUI(w http.ResponseWriter, _ *http.Request) {
 </body></html>`))
 }
 
-// addCompatAliases registers the legacy Kotlin API paths as aliases so existing
-// mobile clients continue working without any client-side changes.
-func addCompatAliases(
-	r chi.Router,
-	tok *token.Helper, authSvc *service.Auth, cfg *config.Config,
-	authCtrl *genserver.AuthAPIController,
-	groupsCtrl *genserver.GroupsAPIController,
-	pinsCtrl *genserver.PinsAPIController,
-	membersCtrl *genserver.MembersAPIController,
-	likesCtrl *genserver.LikesAPIController,
-	rankingCtrl *genserver.RankingAPIController,
-	adminCtrl *genserver.AdminAPIController,
-	reportCtrl *genserver.ReportAPIController,
-	publicCtrl *genserver.PublicAPIController,
-	usersCtrl *genserver.UsersAPIController,
-	authServicer *handler.AuthServicer,
-	q *db.Queries,
-) {
-	// Public (no auth) — old /api/v2/public/* auth endpoints + /api/v3/sync.
-	r.Group(func(r chi.Router) {
-		r.Post("/api/v2/public/signup", authCtrl.CreateUser)
-		r.Post("/api/v2/public/login", authCtrl.UserLogin)
-		r.Post("/api/v2/public/refresh", authCtrl.RefreshToken)
-		r.Post("/api/v2/public/delete-code/{username}", authCtrl.GenerateDeleteCode)
-		r.Get("/api/v2/public/infos", publicCtrl.GetServerInfo) // trailing-s variant
-		// recover by email query param (Kotlin: GET /api/v2/public/recover?email=)
-		r.Get("/api/v2/public/recover", func(w http.ResponseWriter, req *http.Request) {
-			email := req.URL.Query().Get("email")
-			if email == "" {
-				http.Error(w, `{"error":"email required"}`, http.StatusBadRequest)
-				return
-			}
-			u, err := q.GetUserByEmail(req.Context(), email)
-			if err != nil || u == nil {
-				w.WriteHeader(http.StatusOK) // silently succeed per Kotlin behaviour
-				return
-			}
-			resp, _ := authServicer.RequestPasswordRecovery(req.Context(), u.Username)
-			code := resp.Code
-			if code == 0 {
-				code = http.StatusOK
-			}
-			w.WriteHeader(code)
-		})
-		// /api/v3/sync?since= → same handler; 'since' param is already accepted alongside 'lastSeen'
-		r.Get("/api/v3/sync", pinsCtrl.Sync)
-	})
-
-	// Authenticated (JWT + user role).
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleUser))
-
-		// Users — profile image path renames.
-		r.Get("/api/v2/users/{userId}/profile_picture", usersCtrl.GetUserProfileImage)
-		r.Get("/api/v2/users/{userId}/profile_picture_small", usersCtrl.GetUserProfileImageSmall)
-		// Achievements — old path without /claim suffix.
-		r.Post("/api/v2/users/{userId}/achievements/{achievementId}", usersCtrl.ClaimUserAchievement)
-
-		// Groups — underscore-to-hyphen renames.
-		r.Get("/api/v2/groups/{groupId}/profile_image", groupsCtrl.GetGroupProfileImage)
-		r.Get("/api/v2/groups/{groupId}/profile_image_small", groupsCtrl.GetGroupProfileImageSmall)
-		r.Get("/api/v2/groups/{groupId}/pin_image", groupsCtrl.GetGroupPinImage)
-		r.Get("/api/v2/groups/{groupId}/invite_url", groupsCtrl.GetGroupInviteUrl)
-
-		// Members — restructured from groups/{id}/members to members/groups/{id}.
-		r.Get("/api/v2/groups/{groupId}/members", membersCtrl.GetGroupMembers)
-		r.Post("/api/v2/groups/{groupId}/members/{userId}", membersCtrl.JoinGroup)
-		r.Delete("/api/v2/groups/{groupId}/members/{userId}", membersCtrl.DeleteMemberFromGroup)
-
-		// Likes — restructured from pins/{id}/likes to likes/pins/{id}.
-		r.Get("/api/v2/pins/{pinId}/likes", likesCtrl.GetPinLikes)
-		r.Post("/api/v2/pins/{pinId}/likes", likesCtrl.CreateOrUpdateLike)
-		r.Get("/api/v2/users/{userId}/likes", likesCtrl.GetUserLikes)
-
-		// Ranking — singular-to-plural + map path moved.
-		r.Get("/api/v2/ranking/group", rankingCtrl.GroupRanking)
-		r.Get("/api/v2/ranking/user", rankingCtrl.UserRanking)
-		r.Get("/api/v2/map", rankingCtrl.GetMapInfo)
-		r.Get("/api/v2/map/geojson", rankingCtrl.GetGeoJson)
-
-		// Report — singular to plural.
-		r.Post("/api/v2/report", reportCtrl.CreateReport)
-
-		// Pins — old GET list endpoint; handler already reads query params as fallback.
-		r.Get("/api/v2/pins", pinsCtrl.GetPinImagesByIds)
-	})
-
-	// Admin-only.
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		r.Post("/api/v2/admin/notification", adminCtrl.SendNotification)
-	})
-}
-
 func daysInMonth(t time.Time) int {
 	return time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, t.Location()).Day()
 }
@@ -374,4 +284,32 @@ func must(err error, context string) {
 		slog.Error(context, "err", err)
 		os.Exit(1)
 	}
+}
+
+// requestLogger logs method, path, status code, and duration for every request.
+func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+			next.ServeHTTP(ww, r)
+			log.Info("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", ww.status,
+				"duration_ms", time.Since(start).Milliseconds(),
+				"request_id", chimw.GetReqID(r.Context()),
+			)
+		})
+	}
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sw *statusWriter) WriteHeader(code int) {
+	sw.status = code
+	sw.ResponseWriter.WriteHeader(code)
 }

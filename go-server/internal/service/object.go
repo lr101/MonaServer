@@ -20,20 +20,43 @@ import (
 //   users/{id}/profile.png
 //   users/{id}/profile_small.png
 type Object struct {
-	client     *minio.Client
-	bucket     string
-	urlExpiry  time.Duration
+	client        *minio.Client // internal endpoint — used for all API operations
+	presignClient *minio.Client // external endpoint — used only for PresignedGetObject
+	bucket        string
+	urlExpiry     time.Duration
 }
 
-func NewObject(endpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
-	c, err := minio.New(endpoint, &minio.Options{
+// NewObject creates an Object service.
+// endpoint is the internal S3 address used for API calls (e.g. "rustfs:9000").
+// externalEndpoint is the address clients will use to download presigned URLs
+// (e.g. "10.0.2.2:9000"). When empty, endpoint is used for both.
+// Using separate clients ensures the presigned URL's Host and its HMAC signature
+// are both computed over the external address, so the signature remains valid
+// when the client actually fetches the URL.
+func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-	})
+		// Region must be set to prevent minio-go from calling GetBucketLocation on
+		// every presign operation. Without it, each PresignedGetObject triggers an
+		// HTTP round-trip to the endpoint — the external endpoint is reachable by
+		// mobile clients but not from inside the Docker network, causing a 30-second
+		// TCP timeout per call.
+		Region: "us-east-1",
+	}
+	client, err := minio.New(endpoint, opts)
 	if err != nil {
 		return nil, err
 	}
-	return &Object{client: c, bucket: bucket, urlExpiry: urlExpiry}, nil
+	extEndpoint := externalEndpoint
+	if extEndpoint == "" {
+		extEndpoint = endpoint
+	}
+	presignClient, err := minio.New(extEndpoint, opts)
+	if err != nil {
+		return nil, err
+	}
+	return &Object{client: client, presignClient: presignClient, bucket: bucket, urlExpiry: urlExpiry}, nil
 }
 
 // EnsureBucket creates the bucket if absent (idempotent).
@@ -67,14 +90,12 @@ func (o *Object) Remove(ctx context.Context, key string) error {
 	return o.client.RemoveObject(ctx, o.bucket, key, minio.RemoveObjectOptions{})
 }
 
-// PresignedGet returns a time-limited URL to download the object. Empty string
-// if the object does not exist.
+// PresignedGet returns a time-limited presigned URL for the object.
+// URL generation is pure local HMAC computation — no network call is made.
+// If the object does not exist in RustFS the URL will 404 when the client fetches it.
+// The external client is used so the Host in the signature matches what the caller sees.
 func (o *Object) PresignedGet(ctx context.Context, key string) (string, error) {
-	_, err := o.client.StatObject(ctx, o.bucket, key, minio.StatObjectOptions{})
-	if err != nil {
-		return "", nil
-	}
-	u, err := o.client.PresignedGetObject(ctx, o.bucket, key, o.urlExpiry, nil)
+	u, err := o.presignClient.PresignedGetObject(ctx, o.bucket, key, o.urlExpiry, nil)
 	if err != nil {
 		return "", err
 	}

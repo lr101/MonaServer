@@ -22,13 +22,14 @@ type Config struct {
 	AdminUsername         string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
 	MaxLoginAttempts      int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
 
-	// MinIO
-	MinioEndpoint   string `mapstructure:"MINIO_ENDPOINT"`
-	MinioAccessKey  string `mapstructure:"MINIO_ACCESS_KEY"`
-	MinioSecretKey  string `mapstructure:"MINIO_SECRET_KEY"`
-	MinioBucket     string `mapstructure:"MINIO_BUCKET"`
-	MinioUseSSL     bool   `mapstructure:"MINIO_USE_SSL"`
-	MinioURLExpiry  time.Duration `mapstructure:"MINIO_URL_EXPIRY"`
+	// RustFS / object storage
+	RustfsEndpoint         string        `mapstructure:"RUSTFS_ENDPOINT"`
+	RustfsExternalEndpoint string        `mapstructure:"RUSTFS_EXTERNAL_ENDPOINT"`
+	RustfsAccessKey        string        `mapstructure:"RUSTFS_ACCESS_KEY"`
+	RustfsSecretKey        string        `mapstructure:"RUSTFS_SECRET_KEY"`
+	RustfsBucket           string        `mapstructure:"RUSTFS_BUCKET"`
+	RustfsUseSSL           bool          `mapstructure:"RUSTFS_USE_SSL"`
+	RustfsURLExpiry        time.Duration `mapstructure:"RUSTFS_URL_EXPIRY"`
 
 	// Mail
 	MailHost     string `mapstructure:"MAIL_HOST"`
@@ -55,8 +56,9 @@ func Load() (*Config, error) {
 		"PORT", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
 		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
-		"MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY",
-		"MINIO_BUCKET", "MINIO_USE_SSL", "MINIO_URL_EXPIRY",
+		"RUSTFS_ENDPOINT", "RUSTFS_EXTERNAL_ENDPOINT",
+		"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY",
+		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_URL_EXPIRY",
 		"MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
 		"FIREBASE_CONFIG_PATH",
 		"ACHIEVEMENT_MONA_GROUP_ID", "ACHIEVEMENT_CREATED_BEFORE",
@@ -64,13 +66,13 @@ func Load() (*Config, error) {
 		_ = v.BindEnv(k)
 	}
 
-	v.SetDefault("PORT", "8081")
+	v.SetDefault("PORT", "8080")
 	v.SetDefault("TOKEN_ACCESS_EXPIRY", 15*time.Minute)
 	v.SetDefault("TOKEN_REFRESH_EXPIRY", 365*24*time.Hour)
 	v.SetDefault("APP_MAX_LOGIN_ATTEMPTS", 10)
-	v.SetDefault("MINIO_BUCKET", "monaserver")
-	v.SetDefault("MINIO_USE_SSL", false)
-	v.SetDefault("MINIO_URL_EXPIRY", 60*time.Minute)
+	v.SetDefault("RUSTFS_BUCKET", "monaserver")
+	v.SetDefault("RUSTFS_USE_SSL", false)
+	v.SetDefault("RUSTFS_URL_EXPIRY", 60*time.Minute)
 	v.SetDefault("MAIL_PORT", 587)
 
 	var cfg Config
