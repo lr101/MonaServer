@@ -1,10 +1,14 @@
 name: Build Go Docker Image
 
 on:
-  pull_request:
+  push:
+    branches-ignore:
+      - main
+      - develop
     paths:
       - 'go-server/**'
       - 'api/**'
+      - '.github/workflows/build-go-docker.yml'
 
 jobs:
   build-and-test:
