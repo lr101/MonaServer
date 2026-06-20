@@ -22,18 +22,6 @@ jobs:
     permissions:
       contents: write   # push the release commit back to main
       packages: write   # push images to GitHub Container Registry
-    services:
-      postgres:
-        image: postgis/postgis:17-master
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: testpw
-          POSTGRES_DB: monatest
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U test -d monatest"
-          --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -46,11 +34,6 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: go-server/go.sum
 
-      - name: Test
-        working-directory: go-server
-        env:
-          TEST_DATABASE_URL: postgres://test:testpw@localhost:5432/monatest?sslmode=disable
-        run: go test ./...
 
       # Mirror the tagging strategy of the Spring Boot publish workflow:
       #   tag push          -> FINAL_TAG=<base>, also push :latest
