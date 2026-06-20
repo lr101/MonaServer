@@ -1,6 +1,6 @@
 services:
   stick-it-server:
-    image: lrprojects/stick-it-server:latest
+    image: ghcr.io/lr101/stick-it-server-go:latest
     restart: unless-stopped
     ports:
       - ${PORT}:8080

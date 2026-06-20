@@ -5,7 +5,7 @@ get:
     - auth
   parameters:
     - name: username
-      in: query
+      in: path
       required: true
       schema:
         $ref: '../parameters/shortString.yaml'
