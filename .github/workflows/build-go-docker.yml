@@ -57,4 +57,4 @@ jobs:
           context: go-server
           file: go-server/Dockerfile
           push: false
-          tags: lrprojects/stick-it-server-go:pr
+          tags: ghcr.io/${{ github.repository_owner }}/stick-it-server-go:pr

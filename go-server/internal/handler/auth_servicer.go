@@ -2,6 +2,9 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -18,11 +21,10 @@ type AuthServicer struct {
 	q             *db.Queries
 	mail          *service.Email
 	minioEndpoint string
-	baseURL       string
 }
 
-func NewAuthServicer(auth *service.Auth, q *db.Queries, mail *service.Email, minioEndpoint, baseURL string) *AuthServicer {
-	return &AuthServicer{auth: auth, q: q, mail: mail, minioEndpoint: minioEndpoint, baseURL: baseURL}
+func NewAuthServicer(auth *service.Auth, q *db.Queries, mail *service.Email, minioEndpoint string) *AuthServicer {
+	return &AuthServicer{auth: auth, q: q, mail: mail, minioEndpoint: minioEndpoint}
 }
 
 func (s *AuthServicer) GenerateDeleteCode(ctx context.Context, username string) (genserver.ImplResponse, error) {
@@ -34,13 +36,42 @@ func (s *AuthServicer) GenerateDeleteCode(ctx context.Context, username string) 
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
 	url := randomAlphaStr(32)
+	code := randomDeleteCode()
 	exp := time.Now().Add(24 * time.Hour)
+	// The 6-digit code is what the app and the web delete page actually submit
+	// (validated in User.Delete); the deletion URL backs the web confirmation page.
+	if err := s.q.SetUserRecoveryCode(ctx, u.ID, code, exp); err != nil {
+		return genserver.Response(http.StatusInternalServerError, nil), nil
+	}
 	if err := s.q.SetUserDeletionUrl(ctx, u.ID, url, exp); err != nil {
 		return genserver.Response(http.StatusInternalServerError, nil), nil
 	}
-	deleteURL := s.baseURL + "/public/delete-account/" + url
-	_ = s.mail.SendDeleteAccount(ctx, u.Username, *u.Email, deleteURL, "")
+	username, email := u.Username, *u.Email
+	sendMailAsync(func(c context.Context) error {
+		return s.mail.SendDeleteAccount(c, username, email, url, code)
+	})
 	return genserver.Response(http.StatusOK, nil), nil
+}
+
+// sendMailAsync runs a mail send off the request path so a slow SMTP server
+// cannot delay — or time out — the HTTP response. Errors are best-effort,
+// matching the previous synchronous behaviour (they were already ignored).
+func sendMailAsync(send func(context.Context) error) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = send(ctx)
+	}()
+}
+
+// randomDeleteCode returns a cryptographically random 6-digit, zero-padded code.
+// The format matches User.Delete's itoaCode comparison.
+func randomDeleteCode() string {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+	}
+	return fmt.Sprintf("%06d", n.Int64())
 }
 
 func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username string) (genserver.ImplResponse, error) {
@@ -56,8 +87,10 @@ func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username str
 	if err := s.q.SetUserResetPasswordUrl(ctx, u.ID, url, exp); err != nil {
 		return genserver.Response(http.StatusInternalServerError, nil), nil
 	}
-	resetURL := s.baseURL + "/public/recover/" + url
-	_ = s.mail.SendPasswordRecovery(ctx, u.Username, *u.Email, resetURL)
+	username, email := u.Username, *u.Email
+	sendMailAsync(func(c context.Context) error {
+		return s.mail.SendPasswordRecovery(c, username, email, url)
+	})
 	return genserver.Response(http.StatusOK, nil), nil
 }
 

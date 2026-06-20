@@ -76,7 +76,7 @@ func main() {
 	rankSvc := service.NewRanking(q)
 
 	// Servicers wrapping business logic and implementing genserver interfaces.
-	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.RustfsExternalEndpoint, cfg.RedirectURL)
+	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.RustfsExternalEndpoint)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)

@@ -19,26 +19,54 @@
             <label for="username" class="form-label">Username</label>
             <input type="text" id="username" class="form-control" placeholder="Enter your username">
         </div>
-        <button type="button" onclick="requestDeleteCode()" class="btn btn-danger">Request Delete Code</button>
+        <button id="submitBtn" type="button" onclick="requestDeleteCode()" class="btn btn-danger">Request Delete Code</button>
     </form>
-    <div id="successMessage" class="mt-3 text-success" style="display:none;">Code has been sent. Check your email.</div>
-    <div id="errorMessage" class="mt-3 text-danger" style="display:none;">Account does not exist or email not valid.</div>
-    <div id="passwordNotMatchMessage" class="mt-3 text-danger" style="display:none;">Please enter a valid username.</div>
+    <div id="successMessage" class="alert alert-success mt-3 mb-0" style="display:none;">Code has been sent. Check your email.</div>
+    <div id="errorMessage" class="alert alert-danger mt-3 mb-0" style="display:none;"></div>
+    <div id="validationMessage" class="alert alert-warning mt-3 mb-0" style="display:none;">Please enter your username.</div>
 </div>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function requestDeleteCode() {
-    document.getElementById("successMessage").style.display = "none";
-    document.getElementById("errorMessage").style.display = "none";
-    document.getElementById("passwordNotMatchMessage").style.display = "none";
-    const username = document.getElementById("username").value;
-    if (username) {
-        $.ajax({
-            url: `/api/v2/public/delete-code/${username}`, type: 'GET', contentType: 'application/json',
-            success: function() { document.getElementById("successMessage").style.display = "block"; document.getElementById("form").remove(); },
-            error: function(jqXHR) { document.getElementById("errorMessage").innerText = jqXHR.responseText || 'Account does not exist or email not valid.'; document.getElementById("errorMessage").style.display = "block"; }
-        });
-    } else { document.getElementById("passwordNotMatchMessage").style.display = "block"; }
+    const success = document.getElementById("successMessage");
+    const error = document.getElementById("errorMessage");
+    const validation = document.getElementById("validationMessage");
+    const btn = document.getElementById("submitBtn");
+    success.style.display = "none";
+    error.style.display = "none";
+    validation.style.display = "none";
+
+    const username = document.getElementById("username").value.trim();
+    if (!username) {
+        validation.style.display = "block";
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    $.ajax({
+        url: `/api/v2/public/delete-code/${encodeURIComponent(username)}`,
+        type: 'GET',
+        dataType: 'text',
+        success: function () {
+            document.getElementById("form").remove();
+            success.style.display = "block";
+        },
+        error: function (jqXHR) {
+            let msg;
+            if (jqXHR.status === 404) {
+                msg = "No account found with that username.";
+            } else if (jqXHR.status === 400) {
+                msg = "This account has no email address, so a code can’t be sent.";
+            } else {
+                msg = "Something went wrong. Please try again in a moment.";
+            }
+            error.textContent = msg;
+            error.style.display = "block";
+            btn.disabled = false;
+            btn.textContent = "Request Delete Code";
+        }
+    });
 }
 </script>
 </body>

@@ -18,9 +18,9 @@ services:
     image: postgis/postgis:17-master
     restart: unless-stopped
     container_name: stick-it-db-dev
+    env_file:
+      - .env.dev
     environment:
-      POSTGRES_USER: monaserver
-      POSTGRES_PASSWORD: monaserver
       POSTGRES_DB: monaserver
     ports:
       - "5433:5432"
@@ -36,9 +36,9 @@ services:
     image: rustfs/rustfs:latest
     restart: unless-stopped
     container_name: rustfs-dev
+    env_file:
+      - .env.dev
     environment:
-      RUSTFS_ACCESS_KEY: devaccesskey
-      RUSTFS_SECRET_KEY: devsecretkey
       RUSTFS_VOLUMES: /data
       RUSTFS_CONSOLE_ENABLE: "true"
     ports:

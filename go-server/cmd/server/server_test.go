@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	notifSvc := service.NewNotification(context.Background(), "")
 	achCfg := db.AchievementConfig{}
 
-	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, "", "http://localhost")
+	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, "")
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
@@ -296,6 +297,62 @@ func TestEndpointAuth(t *testing.T) {
 			t.Fatalf("delete-code: expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+// TestDeleteAccountWithEmailedCode exercises the full account-deletion flow:
+// request a delete code (which must store a 6-digit code), then delete the
+// account using exactly that code — as both the app and web page do.
+func TestDeleteAccountWithEmailedCode(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	ar := anon.signup(t, "delflow", "pw123")
+	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+
+	// Request the delete code (public endpoint, no auth).
+	resp := c.do(t, "GET", "/api/v2/public/delete-code/delflow", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("request delete code: expected 200, got %d", resp.StatusCode)
+	}
+
+	// The code is emailed to the user; read it from the DB to act as the user
+	// typing it into the app/website.
+	pool, err := db.NewPool(context.Background(), os.Getenv("TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	defer pool.Close()
+	var code string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT code FROM users WHERE username = $1`, "delflow").Scan(&code); err != nil {
+		t.Fatalf("read stored delete code: %v", err)
+	}
+	if code == "" {
+		t.Fatal("delete code was not stored — the app could not delete the account")
+	}
+	if len(code) != 6 {
+		t.Fatalf("expected a 6-digit code, got %q", code)
+	}
+	codeInt, err := strconv.Atoi(code)
+	if err != nil {
+		t.Fatalf("stored code is not numeric: %q", code)
+	}
+
+	// Wrong code must be rejected.
+	wrong := c.do(t, "DELETE", "/api/v2/users/"+ar.UserID, (codeInt+1)%1000000)
+	wrong.Body.Close()
+	if wrong.StatusCode == http.StatusOK {
+		t.Fatal("deletion succeeded with the wrong code")
+	}
+
+	// Correct emailed code deletes the account.
+	ok := c.do(t, "DELETE", "/api/v2/users/"+ar.UserID, codeInt)
+	ok.Body.Close()
+	if ok.StatusCode != http.StatusOK {
+		t.Fatalf("delete with emailed code: expected 200, got %d", ok.StatusCode)
+	}
 }
 
 func TestEndpointPublic(t *testing.T) {

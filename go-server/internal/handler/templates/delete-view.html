@@ -38,7 +38,7 @@ function deleteAccount(userId, token) {
     const code = document.getElementById("code").value;
     if (code && code.length === 6) {
         $.ajax({
-            url: '/api/v2/users/' + userId, type: 'DELETE', contentType: 'application/json',
+            url: '/api/v2/users/' + userId, type: 'DELETE', contentType: 'application/json', dataType: 'text',
             data: code,
             beforeSend: function(xhr) { xhr.setRequestHeader('Authorization', 'Bearer ' + token); },
             success: function() { document.getElementById("successMessage").style.display = "block"; document.getElementById("form").remove(); },
