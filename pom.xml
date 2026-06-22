@@ -28,7 +28,7 @@
 		<minio.version>8.6.0</minio.version>
 		<thumbnailator.version>0.4.21</thumbnailator.version>
 		<mockito-kotlin.version>6.3.0</mockito-kotlin.version>
-		<hibernate.validator.version>9.1.0.Final</hibernate.validator.version>
+		<hibernate.validator.version>9.1.1.Final</hibernate.validator.version>
 		<jetbrains.annotations.version>26.1.0</jetbrains.annotations.version>
 		<org.junit.jupiter.version>6.1.0</org.junit.jupiter.version>
 		<firebase-admin.version>9.9.0</firebase-admin.version>
