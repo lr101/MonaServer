@@ -16,7 +16,7 @@ require (
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/viper v1.21.0
-	github.com/wneessen/go-mail v0.8.0
+	github.com/wneessen/go-mail v0.8.1
 	golang.org/x/crypto v0.54.0
 	google.golang.org/api v0.287.1
 )
