@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	firebase.google.com/go/v4 v4.21.0
 	github.com/disintegration/imaging v1.6.2
-	github.com/getkin/kin-openapi v0.146.0
+	github.com/getkin/kin-openapi v0.147.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
