@@ -1,5 +1,5 @@
 # ---- build stage ----
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 # Install build tools for CGO-free build (we don't use CGO but keep ca-certs).
