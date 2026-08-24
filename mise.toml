@@ -1,0 +1,12 @@
+[tools]
+go = "1.25.8"
+
+[tasks.test]
+description = "Run the Go server test suite"
+dir = "go-server"
+run = "go test ./..."
+
+[tasks.build]
+description = "Build the Go server"
+dir = "go-server"
+run = "go build -o bin/server ./cmd/server"
