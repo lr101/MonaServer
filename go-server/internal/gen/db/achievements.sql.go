@@ -27,6 +27,57 @@ func (q *Queries) ClaimUserAchievement(ctx context.Context, arg ClaimUserAchieve
 	return err
 }
 
+const claimUserAchievementAndAwardXP = `-- name: ClaimUserAchievementAndAwardXP :one
+WITH claim AS (
+    INSERT INTO user_achievement (
+        id, user_id, achievement_id, claimed, creation_date, update_date
+    )
+    VALUES ($1, $2, $3, TRUE, NOW(), NOW())
+    ON CONFLICT (user_id, achievement_id) DO UPDATE
+        SET claimed = TRUE, update_date = NOW()
+        WHERE user_achievement.claimed = FALSE
+    RETURNING user_id
+)
+UPDATE users u
+SET xp = xp + $4, update_date = NOW()
+FROM claim
+WHERE u.id = claim.user_id
+RETURNING u.id
+`
+
+type ClaimUserAchievementAndAwardXPParams struct {
+	ID            pgtype.UUID `json:"id"`
+	UserID        pgtype.UUID `json:"user_id"`
+	AchievementID int32       `json:"achievement_id"`
+	Xp            int32       `json:"xp"`
+}
+
+func (q *Queries) ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, claimUserAchievementAndAwardXP,
+		arg.ID,
+		arg.UserID,
+		arg.AchievementID,
+		arg.Xp,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getSelectedUserAchievementID = `-- name: GetSelectedUserAchievementID :one
+SELECT ua.achievement_id
+FROM users u
+JOIN user_achievement ua ON ua.id = u.selected_batch
+WHERE u.id = $1 AND u.is_deleted = FALSE
+`
+
+func (q *Queries) GetSelectedUserAchievementID(ctx context.Context, id pgtype.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getSelectedUserAchievementID, id)
+	var achievement_id int32
+	err := row.Scan(&achievement_id)
+	return achievement_id, err
+}
+
 const getUserAchievement = `-- name: GetUserAchievement :one
 SELECT id, user_id, achievement_id, claimed
 FROM user_achievement

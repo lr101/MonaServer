@@ -11,9 +11,8 @@
 package genserver
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5/middleware"
+	"net/http"
 )
 
 func Logger(inner http.Handler) http.Handler {

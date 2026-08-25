@@ -27,4 +27,6 @@ properties:
   pinImage:
     $ref: '../parameters/imageUrl.yaml'
   bestSeason:
-    $ref: './seasonItemDto.yaml'
+    nullable: true
+    allOf:
+      - $ref: './seasonItemDto.yaml'

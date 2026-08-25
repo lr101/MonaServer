@@ -1,0 +1,14 @@
+[tools]
+go = "1.25.8"
+oapi-codegen = "2.7.0"
+sqlc = "1.31.1"
+
+[tasks.test]
+description = "Run the Go server test suite"
+dir = "go-server"
+run = "go test ./..."
+
+[tasks.build]
+description = "Build the Go server"
+dir = "go-server"
+run = "go build -o bin/server ./cmd/server"

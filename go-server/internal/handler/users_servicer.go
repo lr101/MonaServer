@@ -36,7 +36,21 @@ func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.I
 	if u == nil {
 		return genserver.Response(http.StatusNotFound, nil), nil
 	}
-	return genserver.Response(http.StatusOK, toUserInfoDto(service.ToPublicUserInfo(u))), nil
+	info := service.ToPublicUserInfo(u)
+	info.SelectedBatch, err = s.q.GetSelectedUserAchievementID(ctx, id)
+	if err != nil {
+		return serviceErrResp(err), nil
+	}
+	info.BestSeason, err = s.q.GetBestUserSeason(ctx, id)
+	if err != nil {
+		return serviceErrResp(err), nil
+	}
+	registered := false
+	if caller, ok := ctxUserID(ctx); ok && caller == id {
+		registered = u.FirebaseToken != nil
+	}
+	info.IsMessagingRegistered = &registered
+	return genserver.Response(http.StatusOK, toUserInfoDto(info)), nil
 }
 
 func (s *UsersServicer) UpdateUser(ctx context.Context, userID string, dto genserver.UserUpdateDto) (genserver.ImplResponse, error) {
@@ -53,10 +67,11 @@ func (s *UsersServicer) UpdateUser(ctx context.Context, userID string, dto gense
 	}
 	var imgBytes []byte
 	if dto.Image != "" {
-		b, err2 := base64.StdEncoding.DecodeString(dto.Image)
-		if err2 == nil {
-			imgBytes = b
+		b, err := base64.StdEncoding.DecodeString(dto.Image)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
 		}
+		imgBytes = b
 	}
 	in := service.UserUpdateInput{
 		Description:    strNilable(dto.Description),
@@ -119,7 +134,7 @@ func (s *UsersServicer) GetUserProfileImageSmall(ctx context.Context, userID str
 	if redirect {
 		return genserver.Response(http.StatusOK, *u), nil
 	}
-	return genserver.Response(http.StatusOK, *u), nil
+	return genserver.Response(http.StatusOK, []byte(*u)), nil
 }
 
 func (s *UsersServicer) GetUserProfileImage(ctx context.Context, userID string, redirect bool) (genserver.ImplResponse, error) {
@@ -137,7 +152,7 @@ func (s *UsersServicer) GetUserProfileImage(ctx context.Context, userID string, 
 	if redirect {
 		return genserver.Response(http.StatusOK, *u), nil
 	}
-	return genserver.Response(http.StatusOK, *u), nil
+	return genserver.Response(http.StatusOK, []byte(*u)), nil
 }
 
 func (s *UsersServicer) GetUserXp(ctx context.Context, userID string) (genserver.ImplResponse, error) {
@@ -159,7 +174,13 @@ func (s *UsersServicer) GetUserXp(ctx context.Context, userID string) (genserver
 	if u == nil {
 		return genserver.Response(http.StatusNotFound, nil), nil
 	}
-	return genserver.Response(http.StatusOK, genserver.UserXpDto{TotalXp: int32(u.XP)}), nil
+	progress := service.ProgressForXP(u.XP)
+	return genserver.Response(http.StatusOK, genserver.UserXpDto{
+		TotalXp:        int32(u.XP),
+		CurrentLevel:   progress.Level,
+		CurrentLevelXp: progress.CurrentLevel,
+		NextLevelXp:    progress.NextLevel,
+	}), nil
 }
 
 func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) (genserver.ImplResponse, error) {
@@ -213,6 +234,5 @@ func (s *UsersServicer) ClaimUserAchievement(ctx context.Context, userID string,
 	if err := s.user.ClaimAchievement(ctx, id, achievementID); err != nil {
 		return serviceErrResp(err), nil
 	}
-	_ = s.q.AddUserXp(ctx, id, 20)
 	return genserver.Response(http.StatusOK, nil), nil
 }

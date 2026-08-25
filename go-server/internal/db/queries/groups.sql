@@ -25,7 +25,10 @@ SET name       = COALESCE(sqlc.narg('name'),       name),
     link       = COALESCE(sqlc.narg('link'),       link),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),
     admin_id   = COALESCE(sqlc.narg('admin_id'),   admin_id),
-    invite_url = COALESCE(sqlc.narg('invite_url'), invite_url),
+    invite_url = CASE
+                   WHEN sqlc.arg('clear_invite_url')::boolean THEN NULL
+                   ELSE COALESCE(sqlc.narg('invite_url'), invite_url)
+                 END,
     update_date= NOW()
 WHERE id = sqlc.arg('id');
 
@@ -35,12 +38,18 @@ UPDATE groups SET invite_url = $2, update_date = NOW() WHERE id = $1;
 -- name: SoftDeleteGroup :exec
 UPDATE groups SET is_deleted = TRUE, update_date = NOW() WHERE id = $1;
 
+-- name: HardDeleteGroup :exec
+DELETE FROM groups WHERE id = $1;
+
 -- name: SearchGroups :many
 SELECT id, name, description, link, visibility, admin_id, invite_url,
        creation_date, update_date
 FROM groups
 WHERE is_deleted = FALSE
-  AND (sqlc.narg('search')::text IS NULL OR name ILIKE '%' || sqlc.narg('search')::text || '%')
+  AND (cardinality(sqlc.arg('ids')::uuid[]) = 0 OR id = ANY(sqlc.arg('ids')::uuid[]))
+  AND (sqlc.narg('search')::text IS NULL
+       OR name ILIKE '%' || sqlc.narg('search')::text || '%'
+       OR description ILIKE '%' || sqlc.narg('search')::text || '%')
   AND (sqlc.narg('updated_after')::timestamptz IS NULL OR update_date > sqlc.narg('updated_after')::timestamptz)
 ORDER BY name
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
@@ -51,7 +60,10 @@ SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_u
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = sqlc.arg('user_id')
-  AND (sqlc.narg('search')::text IS NULL OR g.name ILIKE '%' || sqlc.narg('search')::text || '%')
+  AND (cardinality(sqlc.arg('ids')::uuid[]) = 0 OR g.id = ANY(sqlc.arg('ids')::uuid[]))
+  AND (sqlc.narg('search')::text IS NULL
+       OR g.name ILIKE '%' || sqlc.narg('search')::text || '%'
+       OR g.description ILIKE '%' || sqlc.narg('search')::text || '%')
   AND (sqlc.narg('updated_after')::timestamptz IS NULL OR g.update_date > sqlc.narg('updated_after')::timestamptz)
 ORDER BY g.name
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
@@ -62,7 +74,10 @@ SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_u
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = sqlc.arg('user_id'))
-  AND (sqlc.narg('search')::text IS NULL OR g.name ILIKE '%' || sqlc.narg('search')::text || '%')
+  AND (cardinality(sqlc.arg('ids')::uuid[]) = 0 OR g.id = ANY(sqlc.arg('ids')::uuid[]))
+  AND (sqlc.narg('search')::text IS NULL
+       OR g.name ILIKE '%' || sqlc.narg('search')::text || '%'
+       OR g.description ILIKE '%' || sqlc.narg('search')::text || '%')
   AND (sqlc.narg('updated_after')::timestamptz IS NULL OR g.update_date > sqlc.narg('updated_after')::timestamptz)
 ORDER BY g.name
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
@@ -109,7 +124,7 @@ SELECT EXISTS (SELECT 1 FROM members WHERE group_id = $1 AND user_id = $2);
 
 -- name: ListDeletedGroupsAfter :many
 SELECT deleted_entity_id FROM delete_log
-WHERE deleted_entity_type = 2 AND creation_date > $1
+WHERE deleted_entity_type = 0 AND creation_date > $1
 ORDER BY creation_date;
 
 -- name: LogDeletion :exec

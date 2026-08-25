@@ -20,8 +20,11 @@ WHERE username = $1 AND is_deleted = FALSE;
 SELECT username FROM users WHERE id = $1 AND is_deleted = FALSE;
 
 -- name: CreateUser :one
-INSERT INTO users (id, username, password, email, creation_date, update_date)
-VALUES ($1, $2, $3, $4, NOW(), NOW())
+INSERT INTO users (
+    id, username, password, email, email_confirmation_url,
+    email_confirmed, creation_date, update_date
+)
+VALUES ($1, $2, $3, $4, $5, FALSE, NOW(), NOW())
 RETURNING id;
 
 -- name: IncrementFailedLogin :exec
@@ -32,6 +35,21 @@ UPDATE users SET failed_login_attempts = 0 WHERE id = $1;
 
 -- name: SoftDeleteUser :exec
 UPDATE users SET is_deleted = TRUE WHERE id = $1;
+
+-- name: ListAdminGroupIDs :many
+SELECT id FROM groups WHERE admin_id = $1;
+
+-- name: ListPinIDsRemovedWithUser :many
+SELECT p.id
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.creator_id = $1 OR g.admin_id = $1;
+
+-- name: HardDeleteUser :exec
+WITH cleared AS (
+  UPDATE users SET selected_batch = NULL WHERE users.id = $1
+)
+DELETE FROM users WHERE users.id = $1;
 
 -- name: UpdateUserDescription :exec
 UPDATE users SET description = $2, update_date = NOW() WHERE id = $1;
@@ -120,10 +138,13 @@ INSERT INTO refresh_token (id, token, user_id, creation_date, update_date, last_
 VALUES ($1, $2, $3, NOW(), NOW(), NOW());
 
 -- name: FindRefreshToken :one
-SELECT user_id FROM refresh_token WHERE token = $1;
+SELECT user_id, last_active_date FROM refresh_token WHERE token = $1;
 
 -- name: TouchRefreshToken :exec
 UPDATE refresh_token SET last_active_date = NOW() WHERE token = $1;
+
+-- name: DeleteRefreshToken :exec
+DELETE FROM refresh_token WHERE token = $1;
 
 -- name: InvalidateUserTokens :exec
 DELETE FROM refresh_token WHERE user_id = $1;

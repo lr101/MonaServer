@@ -1,9 +1,11 @@
-# MonaServer — Go Port
+# MonaServer
 
-Go rewrite of the Kotlin/Spring Boot **Stick-It** API. Wire-compatible: same
-endpoints, same JWT, same PostgreSQL/PostGIS schema, same MinIO bucket layout,
-so both servers can run against the same database and object store during
-migration.
+Go backend for the **Stick-It** API. It preserves the established endpoints,
+PostgreSQL/PostGIS schema, password hashes, refresh tokens, and object-store key
+layout. Existing Spring access tokens require refresh or login after cutover.
+
+For a production Docker Compose migration from Spring, see
+[`MIGRATION.md`](MIGRATION.md).
 
 ## Requirements
 
@@ -11,8 +13,8 @@ migration.
 - **PostgreSQL 14+ with PostGIS** (any version `postgis/postgis:17-master`
   supports). The database is migrated on startup by `golang-migrate` from the
   embedded SQL files in `internal/db/migrations/`.
-- **MinIO** (or any S3-compatible store) — optional at startup; image endpoints
-  are unreachable if unconfigured.
+- **RustFS** (or another S3-compatible store) is optional at startup. Image
+  endpoints are unreachable if it is unconfigured.
 - **Firebase service-account JSON** — optional; push notification sends become
   no-ops if not provided.
 - **SMTP server** — optional; only needed for password recovery, account
@@ -43,7 +45,7 @@ only after they succeed.
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | `postgres://user:pw@host:5432/db?sslmode=disable` |
-| `JWT_SECRET` | — | HS256 signing key, **must match** Kotlin deployment during migration |
+| `JWT_SECRET` | — | HS256 signing key |
 | `TOKEN_ACCESS_EXPIRY` | `15m` | Go duration string |
 | `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
 | `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
@@ -60,22 +62,25 @@ only after they succeed.
 
 ## API
 
-The source of truth is the OpenAPI spec at `../api/openapi.yaml`. The Go server
-types and `ServerInterface` are generated from it via `oapi-codegen`:
+The source of truth is the OpenAPI spec at `../api/openapi.yaml`. Regenerate the
+Go API types and the runtime controller/model package with:
 
 ```bash
-~/go/bin/oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml#
+mise exec -- make gen-api
+OPENAPI_GENERATOR_JAR=/path/to/openapi-generator-cli-7.19.0.jar make gen-server
 ```
 
-The running server exposes the bundled spec at the same path as SpringDoc does
-in the Kotlin build:
+The second command also requires Java. Normal build, test, and run workflows
+need only the Go tools pinned in the repository `mise.toml`.
+
+The running server exposes the bundled specification at these paths:
 
 | Path | Content |
 |---|---|
 | `GET /public/api-docs` | OpenAPI 3.0.3 JSON (embedded into the binary) |
 | `GET /swagger-ui`      | Swagger UI HTML page pointing at the spec above |
 
-Endpoints, auth, and RBAC are identical to the Kotlin deployment:
+Endpoint authentication and role requirements are:
 
 | Path prefix | Auth |
 |---|---|
@@ -84,9 +89,7 @@ Endpoints, auth, and RBAC are identical to the Kotlin deployment:
 | `/api/v2/admin/*` | JWT + `ADMIN` role (username == `TOKEN_ADMIN_USERNAME`) |
 | `/api/v3/sync` | JWT + `USER` role |
 
-Fine-grained guards (group admin, group member, pin creator, etc.) are applied
-as chi middleware per-route and execute the same SQL checks as the Kotlin
-`Guard` component.
+Fine-grained guards cover group administrators, group members, and pin creators.
 
 ## Build
 

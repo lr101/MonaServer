@@ -57,16 +57,20 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, username, password, email, creation_date, update_date)
-VALUES ($1, $2, $3, $4, NOW(), NOW())
+INSERT INTO users (
+    id, username, password, email, email_confirmation_url,
+    email_confirmed, creation_date, update_date
+)
+VALUES ($1, $2, $3, $4, $5, FALSE, NOW(), NOW())
 RETURNING id
 `
 
 type CreateUserParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Username pgtype.Text `json:"username"`
-	Password pgtype.Text `json:"password"`
-	Email    pgtype.Text `json:"email"`
+	ID                   pgtype.UUID `json:"id"`
+	Username             pgtype.Text `json:"username"`
+	Password             pgtype.Text `json:"password"`
+	Email                pgtype.Text `json:"email"`
+	EmailConfirmationUrl pgtype.Text `json:"email_confirmation_url"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error) {
@@ -75,21 +79,36 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.
 		arg.Username,
 		arg.Password,
 		arg.Email,
+		arg.EmailConfirmationUrl,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
-const findRefreshToken = `-- name: FindRefreshToken :one
-SELECT user_id FROM refresh_token WHERE token = $1
+const deleteRefreshToken = `-- name: DeleteRefreshToken :exec
+DELETE FROM refresh_token WHERE token = $1
 `
 
-func (q *Queries) FindRefreshToken(ctx context.Context, token pgtype.UUID) (pgtype.UUID, error) {
+func (q *Queries) DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRefreshToken, token)
+	return err
+}
+
+const findRefreshToken = `-- name: FindRefreshToken :one
+SELECT user_id, last_active_date FROM refresh_token WHERE token = $1
+`
+
+type FindRefreshTokenRow struct {
+	UserID         pgtype.UUID        `json:"user_id"`
+	LastActiveDate pgtype.Timestamptz `json:"last_active_date"`
+}
+
+func (q *Queries) FindRefreshToken(ctx context.Context, token pgtype.UUID) (FindRefreshTokenRow, error) {
 	row := q.db.QueryRow(ctx, findRefreshToken, token)
-	var user_id pgtype.UUID
-	err := row.Scan(&user_id)
-	return user_id, err
+	var i FindRefreshTokenRow
+	err := row.Scan(&i.UserID, &i.LastActiveDate)
+	return i, err
 }
 
 const getUserByDeletionUrl = `-- name: GetUserByDeletionUrl :one
@@ -303,6 +322,18 @@ func (q *Queries) GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.T
 	return username, err
 }
 
+const hardDeleteUser = `-- name: HardDeleteUser :exec
+WITH cleared AS (
+  UPDATE users SET selected_batch = NULL WHERE users.id = $1
+)
+DELETE FROM users WHERE users.id = $1
+`
+
+func (q *Queries) HardDeleteUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, hardDeleteUser, id)
+	return err
+}
+
 const incrementFailedLogin = `-- name: IncrementFailedLogin :exec
 UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = $1
 `
@@ -319,6 +350,30 @@ DELETE FROM refresh_token WHERE user_id = $1
 func (q *Queries) InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, invalidateUserTokens, userID)
 	return err
+}
+
+const listAdminGroupIDs = `-- name: ListAdminGroupIDs :many
+SELECT id FROM groups WHERE admin_id = $1
+`
+
+func (q *Queries) ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listAdminGroupIDs, adminID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAllUserEmails = `-- name: ListAllUserEmails :many
@@ -338,6 +393,33 @@ func (q *Queries) ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error) 
 			return nil, err
 		}
 		items = append(items, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPinIDsRemovedWithUser = `-- name: ListPinIDsRemovedWithUser :many
+SELECT p.id
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.creator_id = $1 OR g.admin_id = $1
+`
+
+func (q *Queries) ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listPinIDsRemovedWithUser, creatorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

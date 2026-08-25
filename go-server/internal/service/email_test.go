@@ -36,6 +36,18 @@ func TestViewLinkNoDoubleDomain(t *testing.T) {
 	}
 }
 
+func TestViewLinkUsesPublicAppURL(t *testing.T) {
+	e := NewEmail(&config.Config{
+		AppURL:      "https://api.example.com",
+		RedirectURL: "stickit://app",
+	}, nil)
+	got := e.viewLink("/public/recover/", "abc123")
+	want := "https://api.example.com/public/recover/abc123"
+	if got != want {
+		t.Fatalf("view link = %q, want %q", got, want)
+	}
+}
+
 // TestActionEmailRendersDirectLink verifies the branded template embeds the
 // direct link (button + fallback) and greets the user, with no ?c= wrapper.
 func TestActionEmailRendersDirectLink(t *testing.T) {
@@ -64,7 +76,7 @@ func TestActionEmailDangerAccent(t *testing.T) {
 	html := actionEmail(actionEmailData{
 		Title: "Delete", Heading: "Delete your account", Name: "bob",
 		Intro: "intro", Button: "Delete account",
-		URL: "https://app.example.com/public/delete-account/tok",
+		URL:  "https://app.example.com/public/delete-account/tok",
 		Code: "123456", Danger: true, Note: "note",
 	})
 	if !strings.Contains(html, "#dc2626") {

@@ -10,7 +10,6 @@ target/
 .factorypath
 .project
 .settings
-.springBeans
 .sts4-cache
 
 ### IntelliJ IDEA ###
@@ -36,18 +35,14 @@ update.sh
 privateKey
 **/scratches/*
 /DB_Backup/
-/springboot.jks
-/springboot.p12
 /REST_Routes.xlsx
 /REST_Routes.xlsx
 /~$REST_Routes.xlsx
 /.env
 /.env.dev
 /logs/
-/keystore-ubuntu.p12
 /DB_Backup/
 buildDocker.bat
-/keystore-ubuntu.p12
 /ubuntuAWSOPENSSH
 /postgres-data/
 /src/main/resources/application-secrets.yml

@@ -13,12 +13,13 @@ import (
 )
 
 // Object wraps MinIO with the bucket layout used by the Kotlin ObjectServiceImpl:
-//   pins/{id}.png
-//   groups/{id}/group_pin.png
-//   groups/{id}/group_profile.png
-//   groups/{id}/group_profile_small.png
-//   users/{id}/profile.png
-//   users/{id}/profile_small.png
+//
+//	pins/{id}.png
+//	groups/{id}/group_pin.png
+//	groups/{id}/group_profile.png
+//	groups/{id}/group_profile_small.png
+//	users/{id}/profile.png
+//	users/{id}/profile_small.png
 type Object struct {
 	client        *minio.Client // internal endpoint — used for all API operations
 	presignClient *minio.Client // external endpoint — used only for PresignedGetObject
@@ -84,6 +85,23 @@ func (o *Object) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 	defer obj.Close()
 	return io.ReadAll(obj)
+}
+
+// GetIfExists reads an object while treating a missing key as normal state.
+func (o *Object) GetIfExists(ctx context.Context, key string) ([]byte, bool, error) {
+	if _, err := o.client.StatObject(ctx, o.bucket, key, minio.StatObjectOptions{}); err != nil {
+		switch minio.ToErrorResponse(err).Code {
+		case "NoSuchKey", "NoSuchObject", "NotFound":
+			return nil, false, nil
+		default:
+			return nil, false, err
+		}
+	}
+	data, err := o.Get(ctx, key)
+	if err != nil {
+		return nil, false, err
+	}
+	return data, true, nil
 }
 
 func (o *Object) Remove(ctx context.Context, key string) error {

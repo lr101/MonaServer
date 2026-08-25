@@ -37,6 +37,8 @@ func (e *Email) client() (*mail.Client, error) {
 		opts = append(opts, mail.WithSSLPort(false))
 	case 587:
 		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSMandatory))
+	default:
+		opts = append(opts, mail.WithTLSPolicy(mail.NoTLS))
 	}
 	return mail.NewClient(e.cfg.MailHost, opts...)
 }
@@ -74,20 +76,24 @@ func (e *Email) SendTemplated(ctx context.Context, to, subject, tmplName string,
 // viewLink builds a direct link to a public view route from a bare token.
 // It uses RedirectURL as the single origin, so the domain is never duplicated.
 func (e *Email) viewLink(route, token string) string {
-	return strings.TrimRight(e.cfg.RedirectURL, "/") + route + token
+	baseURL := e.cfg.AppURL
+	if baseURL == "" {
+		baseURL = e.cfg.RedirectURL
+	}
+	return strings.TrimRight(baseURL, "/") + route + token
 }
 
 // SendEmailConfirmation emails a direct link to confirm the user's address.
 // token is the bare email_confirmation_url value.
 func (e *Email) SendEmailConfirmation(ctx context.Context, username, to, token string) error {
 	html := actionEmail(actionEmailData{
-		Title:    "Confirm your email",
-		Heading:  "Confirm your email",
-		Name:     username,
-		Intro:    "Thanks for joining Stick-It! Please confirm your email address to finish setting up your account.",
-		Button:   "Confirm email",
-		URL:      e.viewLink("/public/email-confirmation/", token),
-		Note:     "If you didn’t create a Stick-It account, you can safely ignore this email.",
+		Title:   "Confirm your email",
+		Heading: "Confirm your email",
+		Name:    username,
+		Intro:   "Thanks for joining Stick-It! Please confirm your email address to finish setting up your account.",
+		Button:  "Confirm email",
+		URL:     e.viewLink("/public/email-confirmation/", token),
+		Note:    "If you didn’t create a Stick-It account, you can safely ignore this email.",
 	})
 	return e.SendHTML(ctx, to, "Confirm your email", html)
 }
@@ -96,13 +102,13 @@ func (e *Email) SendEmailConfirmation(ctx context.Context, username, to, token s
 // token is the bare reset_password_url value.
 func (e *Email) SendPasswordRecovery(ctx context.Context, username, to, token string) error {
 	html := actionEmail(actionEmailData{
-		Title:    "Reset your password",
-		Heading:  "Reset your password",
-		Name:     username,
-		Intro:    "We received a request to reset your Stick-It password. Click the button below to choose a new one. This link expires in 24 hours.",
-		Button:   "Reset password",
-		URL:      e.viewLink("/public/recover/", token),
-		Note:     "If you didn’t request this, you can safely ignore this email — your password won’t change.",
+		Title:   "Reset your password",
+		Heading: "Reset your password",
+		Name:    username,
+		Intro:   "We received a request to reset your Stick-It password. Click the button below to choose a new one. This link expires in 10 minutes.",
+		Button:  "Reset password",
+		URL:     e.viewLink("/public/recover/", token),
+		Note:    "If you didn’t request this, you can safely ignore this email — your password won’t change.",
 	})
 	return e.SendHTML(ctx, to, "Password recovery", html)
 }
@@ -111,15 +117,15 @@ func (e *Email) SendPasswordRecovery(ctx context.Context, username, to, token st
 // token is the bare deletion_url value; code, when set, is shown to the user.
 func (e *Email) SendDeleteAccount(ctx context.Context, username, to, token, code string) error {
 	html := actionEmail(actionEmailData{
-		Title:    "Delete your account",
-		Heading:  "Delete your account",
-		Name:     username,
-		Intro:    "We received a request to delete your Stick-It account. Enter the code below in the app, or use the button to confirm on the web. The code and link expire in 24 hours.",
-		Button:   "Delete account",
-		URL:      e.viewLink("/public/delete-account/", token),
-		Code:     code,
-		Danger:   true,
-		Note:     "If you didn’t request this, please ignore this email and your account will stay active.",
+		Title:   "Delete your account",
+		Heading: "Delete your account",
+		Name:    username,
+		Intro:   "We received a request to delete your Stick-It account. Enter the code below in the app, or use the button to confirm on the web. The code and link expire in 10 minutes.",
+		Button:  "Delete account",
+		URL:     e.viewLink("/public/delete-account/", token),
+		Code:    code,
+		Danger:  true,
+		Note:    "If you didn’t request this, please ignore this email and your account will stay active.",
 	})
 	return e.SendHTML(ctx, to, "Delete your account", html)
 }
@@ -217,4 +223,17 @@ func (e *Email) SendBulk(ctx context.Context, recipients []string, subject, html
 		}
 	}
 	return nil
+}
+
+func (e *Email) SendReport(ctx context.Context, username, report, message string) error {
+	if e.cfg.MailUsername == "" {
+		return fmt.Errorf("report inbox is not configured")
+	}
+	body := fmt.Sprintf(
+		"<p>Report from user %s: %s</p><p>%s</p>",
+		template.HTMLEscapeString(username),
+		template.HTMLEscapeString(report),
+		template.HTMLEscapeString(message),
+	)
+	return e.SendHTML(ctx, e.cfg.MailUsername, "User Report: "+report, body)
 }

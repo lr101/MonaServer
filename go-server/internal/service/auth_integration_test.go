@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,30 @@ import (
 	"github.com/lrprojects/monaserver/internal/db"
 	"github.com/lrprojects/monaserver/internal/token"
 )
+
+func TestLoginUpgradesLegacyPasswordHash(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	pair, err := auth.Signup(ctx, "legacy_password_user", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	sum := sha256.Sum256([]byte("password123"))
+	legacy := hex.EncodeToString(sum[:])
+	if _, err := q.Pool().Exec(ctx, `UPDATE users SET password = $2 WHERE id = $1`, pair.UserID, legacy); err != nil {
+		t.Fatalf("store legacy password: %v", err)
+	}
+	if _, err := auth.Login(ctx, "legacy_password_user", "password123"); err != nil {
+		t.Fatalf("login with legacy password: %v", err)
+	}
+	stored, err := q.GetUserByID(ctx, pair.UserID)
+	if err != nil {
+		t.Fatalf("get upgraded user: %v", err)
+	}
+	if !strings.HasPrefix(stored.Password, "{bcrypt}$2") {
+		t.Fatalf("password hash was not upgraded: %q", stored.Password)
+	}
+}
 
 func testDSN(t *testing.T) string {
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -36,7 +63,7 @@ func setup(t *testing.T) *Auth {
 	}
 	q := db.New(pool)
 	tok := token.NewHelper("test-secret", time.Minute)
-	cfg := &config.Config{MaxLoginAttempts: 5}
+	cfg := &config.Config{MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour}
 	return NewAuth(q, tok, cfg)
 }
 
@@ -72,7 +99,7 @@ func TestAuthSignupLoginRefresh(t *testing.T) {
 	}
 
 	// refresh
-	rp, err := svc.Refresh(ctx, pair.RefreshToken)
+	rp, err := svc.Refresh(ctx, pair.RefreshToken, pair.UserID)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
@@ -87,5 +114,76 @@ func TestAuthSignupLoginRefresh(t *testing.T) {
 	}
 	if name != "alice" {
 		t.Fatalf("got %q", name)
+	}
+}
+
+func TestRefreshRejectsAndDeletesExpiredToken(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	pair, err := auth.Signup(ctx, "expired_refresh", "pw12345", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if _, err := q.Pool().Exec(ctx,
+		`UPDATE refresh_token SET last_active_date = NOW() - INTERVAL '2 hours' WHERE token = $1`,
+		pair.RefreshToken,
+	); err != nil {
+		t.Fatalf("age refresh token: %v", err)
+	}
+
+	if _, err := auth.Refresh(ctx, pair.RefreshToken, pair.UserID); err == nil {
+		t.Fatal("expired refresh token should be rejected")
+	}
+	var count int
+	if err := q.Pool().QueryRow(ctx,
+		`SELECT COUNT(*) FROM refresh_token WHERE token = $1`, pair.RefreshToken,
+	).Scan(&count); err != nil {
+		t.Fatalf("count refresh token: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expired refresh token still exists, count = %d", count)
+	}
+}
+
+func TestSignupCreatesEmailConfirmationToken(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "new-user@example.com"
+	pair, err := auth.Signup(ctx, "confirmation_user", "password123", &email)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	user, err := q.GetUserByID(ctx, pair.UserID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.EmailConfirmationUrl == nil || *user.EmailConfirmationUrl == "" {
+		t.Fatal("signup did not create an email confirmation token")
+	}
+	if user.EmailConfirmed {
+		t.Fatal("new signup should remain unconfirmed until the confirmation link is used")
+	}
+}
+
+func TestSignupRollsBackWhenConfirmationMailFails(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	failingMail := NewEmail(&config.Config{
+		MailHost: "127.0.0.1", MailPort: 1, MailUsername: "sender@example.com",
+		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
+	}, nil)
+	auth := NewAuth(q, token.NewHelper("test-secret", time.Minute), &config.Config{
+		MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour,
+	}, failingMail)
+	email := "failed-signup@example.com"
+	if _, err := auth.Signup(ctx, "failed_signup", "password123", &email); err == nil {
+		t.Fatal("signup should fail when the confirmation email cannot be sent")
+	}
+	stored, err := q.GetUserByUsername(ctx, "failed_signup")
+	if err != nil {
+		t.Fatalf("look up failed signup: %v", err)
+	}
+	if stored != nil {
+		t.Fatal("failed signup left a user row behind")
 	}
 }

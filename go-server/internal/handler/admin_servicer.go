@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -58,15 +59,32 @@ func (s *AdminServicer) SendNotification(ctx context.Context, dto genserver.Noti
 // ReportServicer implements genserver.ReportAPIServicer.
 type ReportServicer struct {
 	email *service.Email
+	q     *db.Queries
 }
 
-func NewReportServicer(email *service.Email) *ReportServicer {
-	return &ReportServicer{email: email}
+func NewReportServicer(email *service.Email, q *db.Queries) *ReportServicer {
+	return &ReportServicer{email: email, q: q}
 }
 
 func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportDto) (genserver.ImplResponse, error) {
-	body := "<p>Report from user " + dto.UserId + ": " + dto.Report + "</p><p>" + dto.Message + "</p>"
-	_ = s.email.SendBulk(ctx, nil, "User Report: "+dto.Report, body)
+	username := dto.UserId
+	if s.q != nil {
+		userID, err := uuid.Parse(dto.UserId)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
+		}
+		user, err := s.q.GetUserByID(ctx, userID)
+		if err != nil {
+			return serviceErrResp(err), nil
+		}
+		if user == nil {
+			return genserver.Response(http.StatusNotFound, nil), nil
+		}
+		username = user.Username
+	}
+	if err := s.email.SendReport(ctx, username, dto.Report, dto.Message); err != nil {
+		return serviceErrResp(err), nil
+	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
 
@@ -76,5 +94,5 @@ type PublicServicer struct{}
 func NewPublicServicer() *PublicServicer { return &PublicServicer{} }
 
 func (s *PublicServicer) GetServerInfo(_ context.Context) (genserver.ImplResponse, error) {
-	return genserver.Response(http.StatusOK, genserver.InfoDto{}), nil
+	return genserver.Response(http.StatusOK, []genserver.InfoDto{}), nil
 }

@@ -4,16 +4,58 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
+func TestPinUsesNearestBoundaryWhenPointIsOutsideAllPolygons(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	if _, err := q.Pool().Exec(ctx, `DELETE FROM admin2_boundaries WHERE gid_0 = 'NEAR'`); err != nil {
+		t.Fatalf("clear prior test boundaries: %v", err)
+	}
+	boundaryID := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO admin2_boundaries (id, gid_0, name_0, gid_1, name_1, gid_2, name_2, geom)
+		VALUES ($1, 'NEAR', 'Nearest', 'NEAR.1', 'Nearest One', 'NEAR.1.1', 'Nearest Two',
+		        ST_GeomFromText('MULTIPOLYGON(((10 10, 10 11, 11 11, 11 10, 10 10)))', 4326))`, boundaryID,
+	); err != nil {
+		t.Fatalf("insert boundary: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = q.Pool().Exec(context.Background(), `DELETE FROM pins WHERE state_province_id = $1`, boundaryID)
+		_, _ = q.Pool().Exec(context.Background(), `DELETE FROM admin2_boundaries WHERE id = $1`, boundaryID)
+	})
+	uid := createTestUser(t, auth, "nearest_boundary_user")
+	gid := createTestGroup(t, group, uid, "nearest_boundary_group")
+
+	created, err := pin.Create(ctx, CreatePinInput{
+		Latitude: 10.5, Longitude: 11.1, CreationDate: time.Now(), UserID: uid, GroupID: gid,
+	})
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+	stored, err := q.GetPinByID(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get stored pin: %v", err)
+	}
+	if stored.StateProvinceID == nil || *stored.StateProvinceID != boundaryID {
+		t.Fatalf("boundary = %v, want nearest boundary %s", stored.StateProvinceID, boundaryID)
+	}
+}
+
 func TestPinCreateGetDelete(t *testing.T) {
-	_, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()
 
 	uid := createTestUser(t, auth, "pinner")
 	gid := createTestGroup(t, group, uid, "pingroup")
 
 	t.Run("create pin", func(t *testing.T) {
+		before, err := q.GetUserByID(ctx, uid)
+		if err != nil {
+			t.Fatalf("get user before pin: %v", err)
+		}
 		dto, err := pin.Create(ctx, CreatePinInput{
 			Latitude:     52.5,
 			Longitude:    13.4,
@@ -29,6 +71,13 @@ func TestPinCreateGetDelete(t *testing.T) {
 		}
 		if dto.UserID != uid {
 			t.Fatalf("creator mismatch")
+		}
+		after, err := q.GetUserByID(ctx, uid)
+		if err != nil {
+			t.Fatalf("get user after pin: %v", err)
+		}
+		if after.XP-before.XP != 5 {
+			t.Fatalf("pin XP delta = %d, want 5", after.XP-before.XP)
 		}
 	})
 

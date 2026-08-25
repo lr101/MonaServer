@@ -45,8 +45,11 @@ func (q *Queries) CreatePin(ctx context.Context, arg CreatePinParams) error {
 }
 
 const findBoundaryForPoint = `-- name: FindBoundaryForPoint :one
-SELECT id FROM admin2_boundaries
-WHERE ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326))
+SELECT id
+FROM admin2_boundaries
+ORDER BY
+  ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326)) DESC,
+  geom <-> ST_SetSRID(ST_Point($1, $2), 4326)
 LIMIT 1
 `
 
@@ -142,9 +145,18 @@ func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow
 	return i, err
 }
 
+const hardDeletePin = `-- name: HardDeletePin :exec
+DELETE FROM pins WHERE id = $1
+`
+
+func (q *Queries) HardDeletePin(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, hardDeletePin, id)
+	return err
+}
+
 const listDeletedPinsAfter = `-- name: ListDeletedPinsAfter :many
 SELECT deleted_entity_id FROM delete_log
-WHERE deleted_entity_type = 3 AND creation_date > $1
+WHERE deleted_entity_type = 1 AND creation_date > $1
 ORDER BY creation_date
 `
 
@@ -299,6 +311,103 @@ func (q *Queries) PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAt
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const searchPins = `-- name: SearchPins :many
+SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
+       p.description, p.creator_id, p.group_id, p.state_province_id
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE
+  AND g.is_deleted = FALSE
+  AND (
+      g.visibility = 0
+      OR EXISTS (
+          SELECT 1
+          FROM members m
+          WHERE m.group_id = g.id
+            AND m.user_id = $1::uuid
+            AND m.is_deleted = FALSE
+      )
+  )
+  AND (
+      cardinality($2::uuid[]) = 0
+      OR p.id = ANY($2::uuid[])
+  )
+  AND (
+      $3::uuid IS NULL
+      OR p.group_id = $3::uuid
+  )
+  AND (
+      $4::uuid IS NULL
+      OR p.creator_id = $4::uuid
+  )
+  AND (
+      $5::timestamptz IS NULL
+      OR p.update_date > $5::timestamptz
+  )
+ORDER BY p.creation_date DESC
+LIMIT $7 OFFSET $6
+`
+
+type SearchPinsParams struct {
+	CallerID     pgtype.UUID        `json:"caller_id"`
+	Ids          []pgtype.UUID      `json:"ids"`
+	GroupID      pgtype.UUID        `json:"group_id"`
+	CreatorID    pgtype.UUID        `json:"creator_id"`
+	UpdatedAfter pgtype.Timestamptz `json:"updated_after"`
+	Off          int32              `json:"off"`
+	Lim          int32              `json:"lim"`
+}
+
+type SearchPinsRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Latitude        pgtype.Float8      `json:"latitude"`
+	Longitude       pgtype.Float8      `json:"longitude"`
+	CreationDate    pgtype.Timestamptz `json:"creation_date"`
+	UpdateDate      pgtype.Timestamptz `json:"update_date"`
+	Description     pgtype.Text        `json:"description"`
+	CreatorID       pgtype.UUID        `json:"creator_id"`
+	GroupID         pgtype.UUID        `json:"group_id"`
+	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+}
+
+func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error) {
+	rows, err := q.db.Query(ctx, searchPins,
+		arg.CallerID,
+		arg.Ids,
+		arg.GroupID,
+		arg.CreatorID,
+		arg.UpdatedAfter,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchPinsRow
+	for rows.Next() {
+		var i SearchPinsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Latitude,
+			&i.Longitude,
+			&i.CreationDate,
+			&i.UpdateDate,
+			&i.Description,
+			&i.CreatorID,
+			&i.GroupID,
+			&i.StateProvinceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const softDeletePin = `-- name: SoftDeletePin :exec

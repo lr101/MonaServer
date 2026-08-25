@@ -48,19 +48,22 @@ func (s *LikesServicer) CreateOrUpdateLike(ctx context.Context, pinID string, dt
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
+	requestUserID, err := uuid.Parse(dto.UserId)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	if !ctxIsAdmin(ctx) && requestUserID != uid {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
 	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, pid, uid); !ok2 {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	likeAll := dto.Like
-	likeLoc := dto.LikeLocation
-	likePhoto := dto.LikePhotography
-	likeArt := dto.LikeArt
 	result, err := s.like.CreateOrUpdate(ctx, pid, service.CreateLikeInput{
 		UserID:          uid,
-		Like:            &likeAll,
-		LikeLocation:    &likeLoc,
-		LikePhotography: &likePhoto,
-		LikeArt:         &likeArt,
+		Like:            dto.Like,
+		LikeLocation:    dto.LikeLocation,
+		LikePhotography: dto.LikePhotography,
+		LikeArt:         dto.LikeArt,
 	})
 	if err != nil {
 		return serviceErrResp(err), nil

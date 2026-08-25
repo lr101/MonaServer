@@ -30,22 +30,24 @@ type UserUpdateInput struct {
 
 // UserUpdateResult mirrors UserUpdateResponseDto.
 type UserUpdateResult struct {
-	UserTokenDto      *TokenPair    `json:"userTokenDto,omitempty"`
-	UserInfoDto       *UserInfo     `json:"userInfoDto"`
-	ProfileImage      *string       `json:"profileImage,omitempty"`
-	ProfileImageSmall *string       `json:"profileImageSmall,omitempty"`
+	UserTokenDto      *TokenPair `json:"userTokenDto,omitempty"`
+	UserInfoDto       *UserInfo  `json:"userInfoDto"`
+	ProfileImage      *string    `json:"profileImage,omitempty"`
+	ProfileImageSmall *string    `json:"profileImageSmall,omitempty"`
 }
 
 // UserInfo mirrors UserInfoDto.
 type UserInfo struct {
-	ID                   uuid.UUID `json:"id"`
-	Username             string    `json:"username"`
-	Email                *string   `json:"email,omitempty"`
-	Description          *string   `json:"description,omitempty"`
-	Xp                   int64     `json:"xp"`
-	ProfilePictureExists bool      `json:"profilePictureExists"`
-	EmailConfirmed       bool      `json:"emailConfirmed"`
-	SelectedBatch        *uuid.UUID `json:"selectedBatch,omitempty"`
+	ID                    uuid.UUID      `json:"id"`
+	Username              string         `json:"username"`
+	Email                 *string        `json:"email,omitempty"`
+	Description           *string        `json:"description,omitempty"`
+	Xp                    int64          `json:"xp"`
+	ProfilePictureExists  bool           `json:"profilePictureExists"`
+	EmailConfirmed        bool           `json:"emailConfirmed"`
+	SelectedBatch         *int32         `json:"selectedBatch,omitempty"`
+	BestSeason            *db.SeasonItem `json:"bestSeason,omitempty"`
+	IsMessagingRegistered *bool          `json:"isMessagingRegistered,omitempty"`
 }
 
 // ToPublicUserInfo hides sensitive fields for the public GET /users/{id} response.
@@ -56,7 +58,6 @@ func ToPublicUserInfo(u *db.User) *UserInfo {
 		Description:          u.Description,
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
-		SelectedBatch:        u.SelectedBatch,
 	}
 }
 
@@ -69,7 +70,6 @@ func toUserInfo(u *db.User) *UserInfo {
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
 		EmailConfirmed:       u.EmailConfirmed,
-		SelectedBatch:        u.SelectedBatch,
 	}
 }
 
@@ -97,7 +97,7 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 	return u, nil
 }
 
-// Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration, soft-deletes.
+// Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	u, err := s.Get(ctx, id)
 	if err != nil {
@@ -112,8 +112,45 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	if time.Now().After(*u.CodeExpiration) {
 		return apperrors.New(400, "code expired")
 	}
-	// TODO: pin object cleanup — wired in Pins module.
-	return s.q.SoftDeleteUser(ctx, id)
+	groupIDs, err := s.q.ListAdminGroupIDs(ctx, id)
+	if err != nil {
+		return err
+	}
+	pinIDs, err := s.q.ListPinIDsRemovedWithUser(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		for _, pinID := range pinIDs {
+			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
+				return err
+			}
+		}
+		for _, groupID := range groupIDs {
+			if err := q.LogDeletion(ctx, db.DeletedEntityGroup, groupID); err != nil {
+				return err
+			}
+		}
+		if err := q.LogDeletion(ctx, db.DeletedEntityUser, id); err != nil {
+			return err
+		}
+		return q.HardDeleteUser(ctx, id)
+	}); err != nil {
+		return err
+	}
+	if s.obj != nil {
+		for _, pinID := range pinIDs {
+			_ = s.obj.Remove(ctx, PinKey(pinID))
+		}
+		for _, groupID := range groupIDs {
+			_ = s.obj.Remove(ctx, GroupPinKey(groupID))
+			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, false))
+			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, true))
+		}
+		_ = s.obj.Remove(ctx, UserProfileKey(id, false))
+		_ = s.obj.Remove(ctx, UserProfileKey(id, true))
+	}
+	return nil
 }
 
 // ProfileImageURL returns a presigned URL or nil if no image / no object store.
@@ -140,6 +177,23 @@ func (s *User) ProfileImageURL(ctx context.Context, id uuid.UUID, small bool) (*
 
 // Update mirrors UserServiceImpl.updateUser.
 func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
+	var result *UserUpdateResult
+	err := s.q.InTx(ctx, func(q *db.Queries) error {
+		txService := *s
+		txService.q = q
+		if s.auth != nil {
+			txAuth := *s.auth
+			txAuth.q = q
+			txService.auth = &txAuth
+		}
+		var err error
+		result, err = txService.update(ctx, id, in)
+		return err
+	})
+	return result, err
+}
+
+func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
 	u, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -152,18 +206,18 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if s.obj == nil {
 			return nil, apperrors.ErrUnavailable
 		}
-		large, err := image.ResizePNG(in.Image, 512, 512)
+		large, err := image.CompressProfileJPEG(in.Image, 500)
 		if err != nil {
 			return nil, apperrors.ErrBadRequest
 		}
-		small, err := image.ResizePNG(in.Image, 128, 128)
+		small, err := image.CompressProfileJPEG(in.Image, 100)
 		if err != nil {
 			return nil, apperrors.ErrBadRequest
 		}
-		if err := s.obj.Put(ctx, UserProfileKey(id, false), large, "image/png"); err != nil {
+		if err := s.obj.Put(ctx, UserProfileKey(id, false), large, "image/jpeg"); err != nil {
 			return nil, err
 		}
-		if err := s.obj.Put(ctx, UserProfileKey(id, true), small, "image/png"); err != nil {
+		if err := s.obj.Put(ctx, UserProfileKey(id, true), small, "image/jpeg"); err != nil {
 			return nil, err
 		}
 		if err := s.q.SetUserProfilePictureExists(ctx, id, true); err != nil {
@@ -184,10 +238,13 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if err := s.q.UpdateUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
 			return nil, err
 		}
-		u.Email = in.Email
 		if s.mail != nil {
-			_ = s.mail.SendEmailConfirmation(ctx, u.Username, *in.Email, confirmUrl)
+			if err := s.mail.SendEmailConfirmation(ctx, u.Username, *in.Email, confirmUrl); err != nil {
+				return nil, err
+			}
 		}
+		u.Email = in.Email
+		u.EmailConfirmed = false
 	}
 
 	if in.Password != nil {
@@ -240,21 +297,37 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 	}
 
 	if in.SelectedBatch != nil {
-		rowID, err := s.q.GetUserAchievementRow(ctx, id, *in.SelectedBatch)
+		rowID, claimed, err := s.q.GetUserAchievementSelection(ctx, id, *in.SelectedBatch)
 		if err != nil {
 			return nil, err
 		}
-		if rowID != nil {
+		if rowID == nil {
+			return nil, apperrors.ErrNotFound
+		}
+		if claimed {
 			if err := s.q.SetUserSelectedBatch(ctx, id, *rowID); err != nil {
 				return nil, err
 			}
 			u.SelectedBatch = rowID
 		}
 	}
+	selectedBatch, err := s.q.GetSelectedUserAchievementID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	bestSeason, err := s.q.GetBestUserSeason(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	messagingRegistered := u.FirebaseToken != nil
+	info := toUserInfo(u)
+	info.SelectedBatch = selectedBatch
+	info.BestSeason = bestSeason
+	info.IsMessagingRegistered = &messagingRegistered
 
 	return &UserUpdateResult{
 		UserTokenDto:      tokenResp,
-		UserInfoDto:       toUserInfo(u),
+		UserInfoDto:       info,
 		ProfileImage:      profileImg,
 		ProfileImageSmall: profileImgSmall,
 	}, nil
@@ -277,7 +350,12 @@ func (s *User) LikedPins(ctx context.Context, id uuid.UUID) ([]db.UserLikedPin, 
 
 // ---- helpers ----
 
-func strPtr(s string) *string { if s == "" { return nil }; return &s }
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
 
 func itoaCode(n int) string {
 	if n < 0 {

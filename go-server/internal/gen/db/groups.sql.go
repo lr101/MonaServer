@@ -177,6 +177,15 @@ func (q *Queries) GroupExistsByName(ctx context.Context, name pgtype.Text) (bool
 	return exists, err
 }
 
+const hardDeleteGroup = `-- name: HardDeleteGroup :exec
+DELETE FROM groups WHERE id = $1
+`
+
+func (q *Queries) HardDeleteGroup(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, hardDeleteGroup, id)
+	return err
+}
+
 const isMember = `-- name: IsMember :one
 SELECT EXISTS (SELECT 1 FROM members WHERE group_id = $1 AND user_id = $2)
 `
@@ -196,7 +205,7 @@ func (q *Queries) IsMember(ctx context.Context, arg IsMemberParams) (bool, error
 const listDeletedGroupsAfter = `-- name: ListDeletedGroupsAfter :many
 
 SELECT deleted_entity_id FROM delete_log
-WHERE deleted_entity_type = 2 AND creation_date > $1
+WHERE deleted_entity_type = 0 AND creation_date > $1
 ORDER BY creation_date
 `
 
@@ -291,13 +300,17 @@ SELECT id, name, description, link, visibility, admin_id, invite_url,
        creation_date, update_date
 FROM groups
 WHERE is_deleted = FALSE
-  AND ($1::text IS NULL OR name ILIKE '%' || $1::text || '%')
-  AND ($2::timestamptz IS NULL OR update_date > $2::timestamptz)
+  AND (cardinality($1::uuid[]) = 0 OR id = ANY($1::uuid[]))
+  AND ($2::text IS NULL
+       OR name ILIKE '%' || $2::text || '%'
+       OR description ILIKE '%' || $2::text || '%')
+  AND ($3::timestamptz IS NULL OR update_date > $3::timestamptz)
 ORDER BY name
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type SearchGroupsParams struct {
+	Ids          []pgtype.UUID      `json:"ids"`
 	Search       pgtype.Text        `json:"search"`
 	UpdatedAfter pgtype.Timestamptz `json:"updated_after"`
 	Off          int32              `json:"off"`
@@ -318,6 +331,7 @@ type SearchGroupsRow struct {
 
 func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error) {
 	rows, err := q.db.Query(ctx, searchGroups,
+		arg.Ids,
 		arg.Search,
 		arg.UpdatedAfter,
 		arg.Off,
@@ -357,14 +371,18 @@ SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_u
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = $1
-  AND ($2::text IS NULL OR g.name ILIKE '%' || $2::text || '%')
-  AND ($3::timestamptz IS NULL OR g.update_date > $3::timestamptz)
+  AND (cardinality($2::uuid[]) = 0 OR g.id = ANY($2::uuid[]))
+  AND ($3::text IS NULL
+       OR g.name ILIKE '%' || $3::text || '%'
+       OR g.description ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR g.update_date > $4::timestamptz)
 ORDER BY g.name
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type SearchGroupsInUserParams struct {
 	UserID       pgtype.UUID        `json:"user_id"`
+	Ids          []pgtype.UUID      `json:"ids"`
 	Search       pgtype.Text        `json:"search"`
 	UpdatedAfter pgtype.Timestamptz `json:"updated_after"`
 	Off          int32              `json:"off"`
@@ -386,6 +404,7 @@ type SearchGroupsInUserRow struct {
 func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error) {
 	rows, err := q.db.Query(ctx, searchGroupsInUser,
 		arg.UserID,
+		arg.Ids,
 		arg.Search,
 		arg.UpdatedAfter,
 		arg.Off,
@@ -425,14 +444,18 @@ SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_u
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = $1)
-  AND ($2::text IS NULL OR g.name ILIKE '%' || $2::text || '%')
-  AND ($3::timestamptz IS NULL OR g.update_date > $3::timestamptz)
+  AND (cardinality($2::uuid[]) = 0 OR g.id = ANY($2::uuid[]))
+  AND ($3::text IS NULL
+       OR g.name ILIKE '%' || $3::text || '%'
+       OR g.description ILIKE '%' || $3::text || '%')
+  AND ($4::timestamptz IS NULL OR g.update_date > $4::timestamptz)
 ORDER BY g.name
-LIMIT $5 OFFSET $4
+LIMIT $6 OFFSET $5
 `
 
 type SearchGroupsNotInUserParams struct {
 	UserID       pgtype.UUID        `json:"user_id"`
+	Ids          []pgtype.UUID      `json:"ids"`
 	Search       pgtype.Text        `json:"search"`
 	UpdatedAfter pgtype.Timestamptz `json:"updated_after"`
 	Off          int32              `json:"off"`
@@ -454,6 +477,7 @@ type SearchGroupsNotInUserRow struct {
 func (q *Queries) SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error) {
 	rows, err := q.db.Query(ctx, searchGroupsNotInUser,
 		arg.UserID,
+		arg.Ids,
 		arg.Search,
 		arg.UpdatedAfter,
 		arg.Off,
@@ -517,19 +541,23 @@ SET name       = COALESCE($1,       name),
     link       = COALESCE($3,       link),
     visibility = COALESCE($4, visibility),
     admin_id   = COALESCE($5,   admin_id),
-    invite_url = COALESCE($6, invite_url),
+    invite_url = CASE
+                   WHEN $6::boolean THEN NULL
+                   ELSE COALESCE($7, invite_url)
+                 END,
     update_date= NOW()
-WHERE id = $7
+WHERE id = $8
 `
 
 type UpdateGroupParams struct {
-	Name        pgtype.Text `json:"name"`
-	Description pgtype.Text `json:"description"`
-	Link        pgtype.Text `json:"link"`
-	Visibility  pgtype.Int4 `json:"visibility"`
-	AdminID     pgtype.UUID `json:"admin_id"`
-	InviteUrl   pgtype.Text `json:"invite_url"`
-	ID          pgtype.UUID `json:"id"`
+	Name           pgtype.Text `json:"name"`
+	Description    pgtype.Text `json:"description"`
+	Link           pgtype.Text `json:"link"`
+	Visibility     pgtype.Int4 `json:"visibility"`
+	AdminID        pgtype.UUID `json:"admin_id"`
+	ClearInviteUrl bool        `json:"clear_invite_url"`
+	InviteUrl      pgtype.Text `json:"invite_url"`
+	ID             pgtype.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) error {
@@ -539,6 +567,7 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) error 
 		arg.Link,
 		arg.Visibility,
 		arg.AdminID,
+		arg.ClearInviteUrl,
 		arg.InviteUrl,
 		arg.ID,
 	)

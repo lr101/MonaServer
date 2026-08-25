@@ -1,5 +1,7 @@
 .PHONY: gen gen-api gen-db gen-server build run tidy test test-integration
 
+OPENAPI_GENERATOR_JAR ?= $(HOME)/openapi-generator-cli.jar
+
 gen: gen-api gen-db gen-server
 
 gen-api:
@@ -9,12 +11,12 @@ gen-db:
 	cd internal/db && sqlc generate
 
 gen-server:
-	java -jar ~/openapi-generator-cli.jar generate \
+	java -jar "$(OPENAPI_GENERATOR_JAR)" generate \
 		-i ../api/openapi.yaml \
 		-g go-server \
 		--additional-properties router=chi,packageName=genserver,outputAsLibrary=true,onlyInterfaces=true,hideGenerationTimestamp=true,sourceFolder=. \
 		-o internal/gen/server
-	~/go/bin/goimports -w internal/gen/server/
+	gofmt -w internal/gen/server/
 
 build:
 	go build -o bin/server ./cmd/server

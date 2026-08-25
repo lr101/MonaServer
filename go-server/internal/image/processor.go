@@ -2,12 +2,12 @@ package image
 
 import (
 	"bytes"
+	"embed"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
 	"log"
-	"embed"
 
 	"github.com/disintegration/imaging"
 )
@@ -52,7 +52,6 @@ func mustLoad(name string) image.Image {
 	return img
 }
 
-
 // CompressJPEG resizes an image to fit within (maxW,maxH) and re-encodes as JPEG
 // at the given quality. Mirrors ImageHelper.compressImage (thumbnailator).
 func CompressJPEG(raw []byte, maxW, maxH, quality int) ([]byte, error) {
@@ -66,6 +65,37 @@ func CompressJPEG(raw []byte, maxW, maxH, quality int) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func CompressProfileJPEG(raw []byte, maxSize int) ([]byte, error) {
+	return CompressJPEG(raw, maxSize, maxSize, taggedJPEGQuality(len(raw)))
+}
+
+func CompressPinJPEG(raw []byte) ([]byte, error) {
+	img, err := imaging.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	img = imaging.Resize(img, 720, 960, imaging.Lanczos)
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: taggedJPEGQuality(len(raw))}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func taggedJPEGQuality(sizeBytes int) int {
+	sizeKB := sizeBytes / 1024
+	switch {
+	case sizeKB > 2500:
+		return 30
+	case sizeKB > 1500:
+		return 50
+	case sizeKB > 750:
+		return 80
+	default:
+		return 90
+	}
 }
 
 // ResizePNG resizes an image to fit and encodes it as PNG.
@@ -114,7 +144,7 @@ func ComposePin(userPhoto []byte) ([]byte, error) {
 				r, g, b, _ := pinBorder.At(x, y).RGBA()
 				out.Set(x, y, color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 255})
 
-			// default: leave fully transparent (NRGBA zero value)
+				// default: leave fully transparent (NRGBA zero value)
 			}
 		}
 	}

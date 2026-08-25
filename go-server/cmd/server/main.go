@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +49,8 @@ func main() {
 
 	q := db.New(pool)
 	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
-	authSvc := service.NewAuth(q, tok, cfg)
+	mailSvc := service.NewEmail(cfg, nil)
+	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
 
 	var objSvc *service.Object
@@ -62,7 +68,6 @@ func main() {
 		}
 	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
-	mailSvc := service.NewEmail(cfg, nil)
 
 	achMonaGroupID, _ := uuid.Parse(cfg.AchievementMonaGroupID)
 	achCreatedBefore, _ := time.Parse(time.RFC3339, cfg.AchievementCreatedBefore)
@@ -74,6 +79,7 @@ func main() {
 	memberSvc := service.NewMember(q, objSvc, groupSvc)
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
+	seasonSvc := service.NewSeason(q)
 
 	// Servicers wrapping business logic and implementing genserver interfaces.
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, cfg.RustfsExternalEndpoint)
@@ -83,7 +89,7 @@ func main() {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	reportServicer := handler.NewReportServicer(mailSvc)
+	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
 
@@ -109,8 +115,9 @@ func main() {
 			return
 		}
 		for _, t := range targets {
-			body := fmt.Sprintf("You are missing out on %d new post(s) since you were gone!", t.PinCount)
-			_ = notifSvc.SendToToken(c, t.FirebaseToken, "See what you have missed", body)
+			if err := sendWeeklyNotification(c, notifSvc, q, t); err != nil {
+				log.Warn("weekly notification failed; token cleared", "user", t.UserID, "err", err)
+			}
 		}
 		log.Info("weekly notifications sent", "count", len(targets))
 	})
@@ -119,32 +126,12 @@ func main() {
 		if now.Day() != daysInMonth(now) {
 			return
 		}
-		maxNum, err := q.GetMaxSeasonNumber(c)
-		if err != nil {
-			log.Error("season: get max number", "err", err)
-			return
-		}
-		seasonID, err := q.CreateSeason(c, maxNum+1, now.Year(), int(now.Month()))
+		result, err := seasonSvc.CreateMonth(c, now)
 		if err != nil {
 			log.Error("season: create", "err", err)
 			return
 		}
-		since := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		userRanks, err := q.GetUserRanking(c, db.RankingFilter{Since: &since, Limit: 10000})
-		if err != nil {
-			log.Error("season: user ranking", "err", err)
-		}
-		for i, r := range userRanks {
-			_ = q.CreateUserSeason(c, r.UserID, seasonID, int32(i+1), r.Points)
-		}
-		groupRanks, err := q.GetGlobalGroupRanking(c, db.RankingFilter{Since: &since, Limit: 10000})
-		if err != nil {
-			log.Error("season: group ranking", "err", err)
-		}
-		for i, r := range groupRanks {
-			_ = q.CreateGroupSeason(c, r.GroupID, seasonID, int32(i+1), r.Points)
-		}
-		log.Info("monthly season created", "season", maxNum+1, "users", len(userRanks), "groups", len(groupRanks))
+		log.Info("monthly season created", "season", result.Number, "users", result.Users, "groups", result.Groups)
 	})
 	sched.Start()
 	defer sched.Stop()
@@ -179,9 +166,7 @@ func main() {
 	r.Get("/public/privacy-policy", viewsH.PrivacyPolicy)
 
 	// Public routes (no auth): login, signup, refresh, recover, delete-code + public info.
-	// The original Spring security config makes all of /api/v2/public/** permitAll
-	// (matched before the /api/v2/** USER_ROLE rule), so delete-code is public too —
-	// despite its OpenAPI `security: token` annotation, which Spring does not enforce.
+	// Account entry and delete-code workflows are public routes.
 	r.Group(func(r chi.Router) {
 		registerRoutes(r, authCtrl, isPublicRoute)
 		registerRoutes(r, authCtrl, isDeleteCodeRoute)
@@ -189,14 +174,16 @@ func main() {
 	})
 
 	// Status endpoint — requires valid JWT to confirm token validity.
-	r.Group(func(r chi.Router) {
-		registerRoutes(r, authCtrl, isStatusRoute)
-	})
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
 
 	// Authenticated routes: require JWT + USER role.
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
+		r.Use(redirectImageResponses)
+		r.Use(requireCompatibilityJSONFields)
+		r.Use(validateCoupledQueryParameters)
+		r.Use(unpagedWhenPageMissing)
 
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
@@ -247,11 +234,164 @@ func isStatusRoute(pattern string) bool {
 	return pattern == "/api/v2/status"
 }
 
+func registerProtectedStatusRoutes(r chi.Router, ctrl genserver.Router, tok *token.Helper, auth *service.Auth, adminUsername string) {
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.JWT(tok, auth, adminUsername))
+		r.Use(middleware.RequireRole(middleware.RoleUser))
+		registerRoutes(r, ctrl, isStatusRoute)
+	})
+}
+
 func isDeleteCodeRoute(pattern string) bool {
 	return strings.HasPrefix(pattern, "/api/v2/public/delete-code/")
 }
 
 func alwaysTrue(_ string) bool { return true }
+
+// redirectImageResponses translates the generated controllers' URL response
+// into the 301 response documented by the image endpoints.
+func redirectImageResponses(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirect, err := strconv.ParseBool(r.URL.Query().Get("redirect"))
+		if err != nil || !redirect || !isImageRoute(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		buffered := newBufferedResponse()
+		next.ServeHTTP(buffered, r)
+		if buffered.status != http.StatusOK {
+			buffered.writeTo(w)
+			return
+		}
+		var target string
+		if err := json.Unmarshal(buffered.body.Bytes(), &target); err != nil || target == "" {
+			buffered.writeTo(w)
+			return
+		}
+		w.Header().Set("Location", target)
+		w.WriteHeader(http.StatusMovedPermanently)
+	})
+}
+
+func isImageRoute(path string) bool {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 5 || parts[0] != "api" || parts[1] != "v2" {
+		return false
+	}
+	switch parts[2] {
+	case "groups":
+		return parts[4] == "profile_image" || parts[4] == "profile_image_small" || parts[4] == "pin_image"
+	case "pins":
+		return parts[4] == "image"
+	case "users":
+		return parts[4] == "profile_picture" || parts[4] == "profile_picture_small"
+	default:
+		return false
+	}
+}
+
+type bufferedResponse struct {
+	header http.Header
+	body   bytes.Buffer
+	status int
+}
+
+func newBufferedResponse() *bufferedResponse {
+	return &bufferedResponse{header: make(http.Header), status: http.StatusOK}
+}
+
+func (w *bufferedResponse) Header() http.Header { return w.header }
+
+func (w *bufferedResponse) WriteHeader(status int) { w.status = status }
+
+func (w *bufferedResponse) Write(p []byte) (int, error) { return w.body.Write(p) }
+
+func (w *bufferedResponse) writeTo(target http.ResponseWriter) {
+	for key, values := range w.header {
+		for _, value := range values {
+			target.Header().Add(key, value)
+		}
+	}
+	target.WriteHeader(w.status)
+	_, _ = target.Write(w.body.Bytes())
+}
+
+func unpagedWhenPageMissing(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if !query.Has("page") {
+			query.Set("size", "0")
+			r.URL.RawQuery = query.Encode()
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func validateCoupledQueryParameters(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		invalidGroupFilter := r.URL.Path == "/api/v2/groups" && query.Has("withUser") != query.Has("userId")
+		invalidMapPoint := r.URL.Path == "/api/v2/map" && query.Has("latitude") != query.Has("longitude")
+		if invalidGroupFilter || invalidMapPoint {
+			http.Error(w, "coupled query parameters must be provided together", http.StatusBadRequest)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requireCompatibilityJSONFields(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var required []string
+		if r.Method == http.MethodPost {
+			switch r.URL.Path {
+			case "/api/v2/groups":
+				required = []string{"description", "name", "groupAdmin", "profileImage", "visibility"}
+			case "/api/v2/pins":
+				required = []string{"image", "latitude", "longitude", "userId", "groupId"}
+			}
+		}
+		if len(required) == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(body, &fields); err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		for _, field := range required {
+			if _, ok := fields[field]; !ok {
+				http.Error(w, "required field is missing: "+field, http.StatusBadRequest)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+type notificationSender interface {
+	SendToToken(context.Context, string, string, string) error
+}
+
+type firebaseTokenClearer interface {
+	UpdateUserFirebaseToken(context.Context, uuid.UUID, *string) error
+}
+
+func sendWeeklyNotification(ctx context.Context, sender notificationSender, clearer firebaseTokenClearer, target db.NotificationTarget) error {
+	body := fmt.Sprintf("You are missing out on %d new post(s) since you were gone!", target.PinCount)
+	if err := sender.SendToToken(ctx, target.FirebaseToken, "See what you have missed", body); err != nil {
+		return errors.Join(err, clearer.UpdateUserFirebaseToken(ctx, target.UserID, nil))
+	}
+	return nil
+}
 
 func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
 	spec, err := genapi.GetSwagger()

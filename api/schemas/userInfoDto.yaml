@@ -13,7 +13,9 @@ properties:
     type: integer
     nullable: true
   bestSeason:
-    $ref: './seasonItemDto.yaml'
+    nullable: true
+    allOf:
+      - $ref: './seasonItemDto.yaml'
   isMessagingRegistered:
     type: boolean
     nullable: true

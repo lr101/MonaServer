@@ -32,6 +32,24 @@ func TestCompressJPEG(t *testing.T) {
 	}
 }
 
+func TestCompressPinJPEGUsesTaggedDimensions(t *testing.T) {
+	in := makeTestPNG(800, 600, color.RGBA{255, 0, 0, 255})
+	out, err := CompressPinJPEG(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, format, err := image.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if format != "jpeg" {
+		t.Fatalf("format = %q, want jpeg", format)
+	}
+	if img.Bounds().Dx() != 720 || img.Bounds().Dy() != 960 {
+		t.Fatalf("dimensions = %v, want 720x960", img.Bounds())
+	}
+}
+
 func TestResizePNG(t *testing.T) {
 	in := makeTestPNG(200, 200, color.RGBA{0, 255, 0, 255})
 	out, err := ResizePNG(in, 50, 50)

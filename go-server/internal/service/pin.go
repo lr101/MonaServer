@@ -11,6 +11,8 @@ import (
 	"github.com/lrprojects/monaserver/internal/image"
 )
 
+const CreatePinXP = 5
+
 // Pin service — mirrors PinServiceImpl.
 type Pin struct {
 	q   *db.Queries
@@ -65,19 +67,37 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 	if exists {
 		return nil, apperrors.ErrConflict
 	}
-	boundary, _ := s.q.FindBoundaryForPoint(ctx, in.Latitude, in.Longitude)
-	id, err := s.q.CreatePin(ctx, db.Pin{
-		Latitude: in.Latitude, Longitude: in.Longitude,
-		CreationDate: &in.CreationDate, Description: in.Description,
-		CreatorID: in.UserID, GroupID: in.GroupID, StateProvinceID: boundary,
-	})
+	boundary, err := s.q.FindBoundaryForPoint(ctx, in.Latitude, in.Longitude)
 	if err != nil {
 		return nil, err
 	}
-	if len(in.Image) > 0 && s.obj != nil {
-		if compressed, err := image.ResizePNG(in.Image, 1024, 1024); err == nil {
-			_ = s.obj.Put(ctx, PinKey(id), compressed, "image/png")
+	var compressed []byte
+	if len(in.Image) > 0 {
+		compressed, err = image.CompressPinJPEG(in.Image)
+		if err != nil {
+			return nil, apperrors.ErrBadRequest
 		}
+	}
+	var id uuid.UUID
+	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		var err error
+		id, err = q.CreatePin(ctx, db.Pin{
+			Latitude: in.Latitude, Longitude: in.Longitude,
+			CreationDate: &in.CreationDate, Description: in.Description,
+			CreatorID: in.UserID, GroupID: in.GroupID, StateProvinceID: boundary,
+		})
+		if err != nil {
+			return err
+		}
+		if err := q.AddUserXp(ctx, in.UserID, CreatePinXP); err != nil {
+			return err
+		}
+		if len(compressed) > 0 && s.obj != nil {
+			return s.obj.Put(ctx, PinKey(id), compressed, "image/jpeg")
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 	p, err := s.q.GetPinByID(ctx, id)
 	if err != nil {
@@ -105,10 +125,14 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 	if p == nil {
 		return apperrors.ErrNotFound
 	}
-	if err := s.q.SoftDeletePin(ctx, id); err != nil {
+	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		if err := q.LogDeletion(ctx, db.DeletedEntityPin, id); err != nil {
+			return err
+		}
+		return q.HardDeletePin(ctx, id)
+	}); err != nil {
 		return err
 	}
-	_ = s.q.LogDeletion(ctx, 3, id)
 	if s.obj != nil {
 		_ = s.obj.Remove(ctx, PinKey(id))
 	}

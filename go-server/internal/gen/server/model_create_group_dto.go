@@ -27,9 +27,9 @@ type CreateGroupDto struct {
 	UserId string `json:"userId,omitempty"`
 }
 
-// AssertCreateGroupDtoRequired checks if the required fields are not zero-ed.
-// Only name and groupAdmin are truly required; description, profileImage, and
-// visibility=0 (public) are all valid empty/zero values.
+// AssertCreateGroupDtoRequired checks nonzero required values. The HTTP
+// compatibility middleware separately checks key presence so valid zero values
+// remain distinguishable from omitted fields, and the handler validates images.
 func AssertCreateGroupDtoRequired(obj CreateGroupDto) error {
 	if obj.Name == "" {
 		return &RequiredError{Field: "name"}

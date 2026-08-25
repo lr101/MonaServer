@@ -1,13 +1,59 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/lrprojects/monaserver/internal/apperrors"
 )
 
+type failingGroupObjectStore struct {
+	objects map[string][]byte
+	failKey string
+	failed  bool
+}
+
+func (s *failingGroupObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
+	if key == s.failKey && !s.failed {
+		s.failed = true
+		return errors.New("injected object-store failure")
+	}
+	s.objects[key] = bytes.Clone(data)
+	return nil
+}
+
+func (s *failingGroupObjectStore) GetIfExists(_ context.Context, key string) ([]byte, bool, error) {
+	data, ok := s.objects[key]
+	return bytes.Clone(data), ok, nil
+}
+
+func (s *failingGroupObjectStore) Remove(_ context.Context, key string) error {
+	delete(s.objects, key)
+	return nil
+}
+
+func (s *failingGroupObjectStore) PresignedGet(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func groupTestPNG() []byte {
+	var output bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	_ = png.Encode(&output, img)
+	return output.Bytes()
+}
+
 func TestGroupCreateGetUpdate(t *testing.T) {
-	_, auth, _, _, _, group, _, _, _ := setupServices(t)
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()
 
 	uid := createTestUser(t, auth, "groupadmin")
@@ -60,6 +106,56 @@ func TestGroupCreateGetUpdate(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid replacement image leaves group unchanged", func(t *testing.T) {
+		gid := createTestGroup(t, group, uid, "image_update_original")
+		newName := "image_update_should_rollback"
+		if _, err := group.Update(ctx, gid, UpdateGroupInput{
+			Name: &newName, ProfileImage: []byte("not an image"),
+		}); !errors.Is(err, apperrors.ErrBadRequest) {
+			t.Fatalf("update error = %v, want bad request", err)
+		}
+		stored, err := group.Get(ctx, gid)
+		if err != nil {
+			t.Fatalf("get unchanged group: %v", err)
+		}
+		if stored.Name != "image_update_original" {
+			t.Fatalf("name = %q after failed image update, want original", stored.Name)
+		}
+	})
+
+	t.Run("object failure restores earlier image writes", func(t *testing.T) {
+		gid := createTestGroup(t, group, uid, "image_store_rollback")
+		oldPin := []byte("old pin")
+		oldLarge := []byte("old large")
+		oldSmall := []byte("old small")
+		store := &failingGroupObjectStore{objects: map[string][]byte{
+			GroupPinKey(gid):            bytes.Clone(oldPin),
+			GroupProfileKey(gid, false): bytes.Clone(oldLarge),
+			GroupProfileKey(gid, true):  bytes.Clone(oldSmall),
+		}, failKey: GroupProfileKey(gid, false)}
+		group.obj = store
+
+		newName := "image_store_should_rollback"
+		if _, err := group.Update(ctx, gid, UpdateGroupInput{Name: &newName, ProfileImage: groupTestPNG()}); err == nil {
+			t.Fatal("expected object-store failure")
+		}
+		for key, want := range map[string][]byte{
+			GroupPinKey(gid): oldPin, GroupProfileKey(gid, false): oldLarge, GroupProfileKey(gid, true): oldSmall,
+		} {
+			if got := store.objects[key]; !bytes.Equal(got, want) {
+				t.Fatalf("object %q = %q after rollback, want %q", key, got, want)
+			}
+		}
+		stored, err := group.Get(ctx, gid)
+		if err != nil {
+			t.Fatalf("get group after storage failure: %v", err)
+		}
+		if stored.Name != "image_store_rollback" {
+			t.Fatalf("name = %q after storage failure, want original", stored.Name)
+		}
+		group.obj = nil
+	})
+
 	t.Run("get admin username", func(t *testing.T) {
 		gid := createTestGroup(t, group, uid, "admintest")
 		name, err := group.GetAdminUsername(ctx, gid)
@@ -91,11 +187,22 @@ func TestGroupCreateGetUpdate(t *testing.T) {
 
 	t.Run("delete group", func(t *testing.T) {
 		gid := createTestGroup(t, group, uid, "todeletegrp")
+		pid := createTestPin(t, pin, uid, gid)
 		if err := group.Delete(ctx, gid); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 		if _, err := group.Get(ctx, gid); err == nil {
 			t.Fatal("expected not-found after delete")
+		}
+		var pinCount int
+		if err := q.Pool().QueryRow(ctx, `SELECT COUNT(*) FROM pins WHERE id = $1`, pid).Scan(&pinCount); err != nil {
+			t.Fatalf("count cascaded pin: %v", err)
+		}
+		if pinCount != 0 {
+			t.Fatalf("deleted group left %d pin rows behind", pinCount)
+		}
+		if _, err := group.Create(ctx, CreateGroupInput{Name: "todeletegrp", Visibility: 0, GroupAdmin: uid}); err != nil {
+			t.Fatalf("reuse deleted group name: %v", err)
 		}
 	})
 }
@@ -427,6 +534,16 @@ func TestGroupImageURLs(t *testing.T) {
 		}
 		if u != nil {
 			t.Fatal("expected nil without object store")
+		}
+	})
+
+	t.Run("missing group image urls return not found", func(t *testing.T) {
+		missingID := uuid.New()
+		if _, err := group.ProfileImageURL(ctx, missingID, false); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("profile image error = %v, want not found", err)
+		}
+		if _, err := group.PinImageURL(ctx, missingID); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("pin image error = %v, want not found", err)
 		}
 	})
 
