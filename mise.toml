@@ -1,5 +1,5 @@
 [tools]
-go = "1.25.8"
+go = "1.27.0"
 oapi-codegen = "2.7.0"
 sqlc = "1.31.1"
 
