@@ -16,6 +16,10 @@ mise run build
 
 The Go module and its detailed setup instructions are in [`go-server/`](go-server/README.md). The OpenAPI contract is in [`api/openapi.yaml`](api/openapi.yaml).
 
+For a production cutover from the Spring deployment, follow the
+[`go-server/MIGRATION.md`](go-server/MIGRATION.md) guide. It covers the one-time
+Flyway handoff and keeps the existing PostgreSQL and RustFS data in place.
+
 For a complete local stack, create an ignored `.env.dev` as described in the Go server guide, then run:
 
 ```bash

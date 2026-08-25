@@ -1,7 +1,11 @@
 # MonaServer
 
 Go backend for the **Stick-It** API. It preserves the established endpoints,
-JWT format, PostgreSQL/PostGIS schema, and object-store key layout.
+PostgreSQL/PostGIS schema, password hashes, refresh tokens, and object-store key
+layout. Existing Spring access tokens require refresh or login after cutover.
+
+For a production Docker Compose migration from Spring, see
+[`MIGRATION.md`](MIGRATION.md).
 
 ## Requirements
 
@@ -9,8 +13,8 @@ JWT format, PostgreSQL/PostGIS schema, and object-store key layout.
 - **PostgreSQL 14+ with PostGIS** (any version `postgis/postgis:17-master`
   supports). The database is migrated on startup by `golang-migrate` from the
   embedded SQL files in `internal/db/migrations/`.
-- **MinIO** (or any S3-compatible store) — optional at startup; image endpoints
-  are unreachable if unconfigured.
+- **RustFS** (or another S3-compatible store) is optional at startup. Image
+  endpoints are unreachable if it is unconfigured.
 - **Firebase service-account JSON** — optional; push notification sends become
   no-ops if not provided.
 - **SMTP server** — optional; only needed for password recovery, account
