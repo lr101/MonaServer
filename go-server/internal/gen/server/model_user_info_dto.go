@@ -19,7 +19,7 @@ type UserInfoDto struct {
 
 	SelectedBatch *int32 `json:"selectedBatch,omitempty"`
 
-	BestSeason SeasonItemDto `json:"bestSeason,omitempty"`
+	BestSeason *SeasonItemDto `json:"bestSeason,omitempty"`
 
 	// Flag for whether the user registered to receive push messages. Only set for the current user.
 	IsMessagingRegistered *bool `json:"isMessagingRegistered,omitempty"`
@@ -37,16 +37,20 @@ func AssertUserInfoDtoRequired(obj UserInfoDto) error {
 		}
 	}
 
-	if err := AssertSeasonItemDtoRequired(obj.BestSeason); err != nil {
-		return err
+	if obj.BestSeason != nil {
+		if err := AssertSeasonItemDtoRequired(*obj.BestSeason); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // AssertUserInfoDtoConstraints checks if the values respects the defined constraints
 func AssertUserInfoDtoConstraints(obj UserInfoDto) error {
-	if err := AssertSeasonItemDtoConstraints(obj.BestSeason); err != nil {
-		return err
+	if obj.BestSeason != nil {
+		if err := AssertSeasonItemDtoConstraints(*obj.BestSeason); err != nil {
+			return err
+		}
 	}
 	return nil
 }

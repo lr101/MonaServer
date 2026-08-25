@@ -9,20 +9,15 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Notification wraps Firebase Cloud Messaging. Optional: if configPath is empty
-// or init fails, the service is still usable but sends become no-ops (matches
-// the Kotlin FirebaseConfig fallback).
+// Notification wraps Firebase Cloud Messaging. If explicit credentials are not
+// configured, Firebase uses Application Default Credentials.
 type Notification struct {
 	client  *messaging.Client
 	enabled bool
 }
 
 func NewNotification(ctx context.Context, configPath string) *Notification {
-	if configPath == "" {
-		slog.Warn("firebase config path empty; notifications disabled")
-		return &Notification{enabled: false}
-	}
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(configPath))
+	app, err := firebase.NewApp(ctx, nil, firebaseOptions(configPath)...)
 	if err != nil {
 		slog.Warn("firebase init failed; notifications disabled", "err", err)
 		return &Notification{enabled: false}
@@ -33,6 +28,13 @@ func NewNotification(ctx context.Context, configPath string) *Notification {
 		return &Notification{enabled: false}
 	}
 	return &Notification{client: c, enabled: true}
+}
+
+func firebaseOptions(configPath string) []option.ClientOption {
+	if configPath == "" {
+		return nil
+	}
+	return []option.ClientOption{option.WithCredentialsFile(configPath)}
 }
 
 // SendToToken sends a push to a single device token.

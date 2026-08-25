@@ -19,8 +19,8 @@ type AchievementDef struct {
 
 // AchievementConfig holds environment-specific parameters used by certain achievements.
 type AchievementConfig struct {
-	MonaGroupID    uuid.UUID
-	CreatedBefore  time.Time
+	MonaGroupID   uuid.UUID
+	CreatedBefore time.Time
 }
 
 var achievementDefs = []AchievementDef{
@@ -100,13 +100,13 @@ func (q *Queries) runAchievementQuery(ctx context.Context, def AchievementDef, u
 	var row interface{ Scan(...any) error }
 	uid := pgUUID(userID)
 	if def.needsGroup && def.needsDate {
-		row = q.pool.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID), pgTZ(&cfg.CreatedBefore))
+		row = q.runner.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID), pgTZ(&cfg.CreatedBefore))
 	} else if def.needsGroup {
-		row = q.pool.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID))
+		row = q.runner.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID))
 	} else if def.needsDate {
-		row = q.pool.QueryRow(ctx, def.sql, uid, pgTZ(&cfg.CreatedBefore))
+		row = q.runner.QueryRow(ctx, def.sql, uid, pgTZ(&cfg.CreatedBefore))
 	} else {
-		row = q.pool.QueryRow(ctx, def.sql, uid)
+		row = q.runner.QueryRow(ctx, def.sql, uid)
 	}
 	var n int
 	if err := row.Scan(&n); err != nil {

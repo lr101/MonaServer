@@ -2,7 +2,7 @@
 
 ## Working scope
 
-The maintained server lives in `go-server/`. Use `go-server/README.md` for its runtime configuration. The root `pom.xml`, the old development section in the root `README.md`, and `docker-compose-dev.yml` do not describe the current application. Do not use them to build or run the server unless a task explicitly targets those files.
+The maintained server lives in `go-server/`. Use `go-server/README.md` for its runtime configuration.
 
 The main repository areas are:
 
@@ -40,7 +40,7 @@ Tests that need PostGIS skip when `TEST_DATABASE_URL` is unset. A passing plain 
 ## Change rules
 
 - Keep API behavior, `api/openapi.yaml`, generated API code, handlers, and route authorization in sync.
-- Do not edit files below `go-server/internal/gen/` by hand. Change their source and run the matching generator.
+- Do not edit files below `go-server/internal/gen/` by hand except the explicitly preserved compatibility adapters listed in `go-server/internal/gen/server/.openapi-generator-ignore`. Change generator sources whenever they can represent the required behavior.
 - Add database changes as new migrations. Do not rewrite a migration that may have run in another environment.
 - Keep credentials out of commits and command output. `.env` and `.env.dev` are ignored for this reason.
 - Do not mix dependency upgrades or generated-file churn into an unrelated change.

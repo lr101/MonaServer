@@ -24,7 +24,7 @@ func setupPool(t *testing.T) (*pgxpool.Pool, *db.Queries) {
 		t.Fatalf("pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(context.Background(), `TRUNCATE TABLE refresh_token, users, groups, pins, likes, members CASCADE`); err != nil {
+	if _, err := pool.Exec(context.Background(), `TRUNCATE TABLE refresh_token, users, groups, pins, likes, members, seasons CASCADE`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool, db.New(pool)
@@ -34,7 +34,7 @@ func setupServices(t *testing.T) (*db.Queries, *Auth, *User, *Like, *Pin, *Group
 	t.Helper()
 	_, q := setupPool(t)
 	tok := token.NewHelper("test-secret", time.Minute)
-	cfg := &config.Config{MaxLoginAttempts: 5}
+	cfg := &config.Config{MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour}
 	authSvc := NewAuth(q, tok, cfg)
 	userSvc := NewUser(q, nil, tok, authSvc, nil)
 	likeSvc := NewLike(q)

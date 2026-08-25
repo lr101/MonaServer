@@ -1,15 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +29,8 @@ import (
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
+const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
 func testDSN(t *testing.T) string {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -33,6 +38,75 @@ func testDSN(t *testing.T) string {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
 	return dsn
+}
+
+func startTestSMTPServer(t *testing.T) (string, int) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for SMTP: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split SMTP address: %v", err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatalf("parse SMTP port: %v", err)
+	}
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go serveTestSMTPConnection(conn)
+		}
+	}()
+	return host, port
+}
+
+func serveTestSMTPConnection(conn net.Conn) {
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+	write := func(line string) {
+		_, _ = writer.WriteString(line + "\r\n")
+		_ = writer.Flush()
+	}
+	write("220 localhost ESMTP")
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		command := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(command, "EHLO"), strings.HasPrefix(command, "HELO"):
+			_, _ = writer.WriteString("250-localhost\r\n250 AUTH PLAIN\r\n")
+			_ = writer.Flush()
+		case strings.HasPrefix(command, "AUTH"):
+			write("235 2.7.0 Authentication successful")
+		case command == "DATA":
+			write("354 End data with <CR><LF>.<CR><LF>")
+			for {
+				dataLine, err := reader.ReadString('\n')
+				if err != nil {
+					return
+				}
+				if strings.TrimSpace(dataLine) == "." {
+					break
+				}
+			}
+			write("250 2.0.0 queued")
+		case command == "QUIT":
+			write("221 2.0.0 bye")
+			return
+		default:
+			write("250 OK")
+		}
+	}
 }
 
 func buildTestServer(t *testing.T) *httptest.Server {
@@ -49,28 +123,34 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	t.Cleanup(pool.Close)
 
 	if _, err := pool.Exec(context.Background(),
-		`TRUNCATE TABLE refresh_token, users, groups, pins, likes, members CASCADE`); err != nil {
+		`TRUNCATE TABLE refresh_token, users, groups, pins, likes, members, seasons CASCADE`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
 	q := db.New(pool)
+	mailHost, mailPort := startTestSMTPServer(t)
 	cfg := &config.Config{
 		JWTSecret:          "test-secret",
 		AccessTokenExpiry:  time.Minute,
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
 		AdminUsername:      "admin",
+		MailHost:           mailHost,
+		MailPort:           mailPort,
+		MailUsername:       "mail@test.example",
+		MailPassword:       "password",
+		MailFrom:           "mail@test.example",
 	}
 	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
-	authSvc := service.NewAuth(q, tok, cfg)
+	mailSvc := service.NewEmail(cfg, nil)
+	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
-	userSvc := service.NewUser(q, nil, tok, authSvc, nil)
+	userSvc := service.NewUser(q, nil, tok, authSvc, mailSvc)
 	groupSvc := service.NewGroup(q, nil, userSvc)
 	pinSvc := service.NewPin(q, nil)
 	memberSvc := service.NewMember(q, nil, groupSvc)
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
-	mailSvc := service.NewEmail(cfg, nil)
 	notifSvc := service.NewNotification(context.Background(), "")
 	achCfg := db.AchievementConfig{}
 
@@ -81,7 +161,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	reportServicer := handler.NewReportServicer(mailSvc)
+	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
 
@@ -105,12 +185,14 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
-	r.Group(func(r chi.Router) {
-		registerRoutes(r, authCtrl, isStatusRoute)
-	})
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
+		r.Use(redirectImageResponses)
+		r.Use(requireCompatibilityJSONFields)
+		r.Use(validateCoupledQueryParameters)
+		r.Use(unpagedWhenPageMissing)
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
@@ -128,6 +210,55 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(r)
 }
 
+func TestUnpagedWhenPageMissing(t *testing.T) {
+	tests := []struct {
+		rawQuery string
+		wantSize string
+	}{
+		{rawQuery: "", wantSize: "0"},
+		{rawQuery: "size=5", wantSize: "0"},
+		{rawQuery: "page=2", wantSize: ""},
+		{rawQuery: "page=2&size=5", wantSize: "5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.rawQuery, func(t *testing.T) {
+			var got string
+			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.URL.Query().Get("size") })
+			req := httptest.NewRequest(http.MethodGet, "/api/v2/groups?"+tt.rawQuery, nil)
+			unpagedWhenPageMissing(next).ServeHTTP(httptest.NewRecorder(), req)
+			if got != tt.wantSize {
+				t.Fatalf("size = %q, want %q", got, tt.wantSize)
+			}
+		})
+	}
+}
+
+func TestValidateCoupledQueryParameters(t *testing.T) {
+	tests := []struct {
+		path  string
+		query string
+		want  int
+	}{
+		{path: "/api/v2/groups", query: "withUser=true", want: http.StatusBadRequest},
+		{path: "/api/v2/groups", query: "userId=00000000-0000-0000-0000-000000000000", want: http.StatusBadRequest},
+		{path: "/api/v2/groups", query: "withUser=false&userId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
+		{path: "/api/v2/map", query: "latitude=1", want: http.StatusBadRequest},
+		{path: "/api/v2/map", query: "longitude=1", want: http.StatusBadRequest},
+		{path: "/api/v2/map", query: "latitude=1&longitude=2", want: http.StatusOK},
+		{path: "/api/v2/pins", query: "userId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path+"?"+tt.query, nil)
+			recorder := httptest.NewRecorder()
+			validateCoupledQueryParameters(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })).ServeHTTP(recorder, req)
+			if recorder.Code != tt.want {
+				t.Fatalf("status = %d, want %d", recorder.Code, tt.want)
+			}
+		})
+	}
+}
+
 // --- helper types ---
 
 type authResp struct {
@@ -139,6 +270,35 @@ type authResp struct {
 type apiClient struct {
 	base   string
 	bearer string
+}
+
+type testNotificationSender struct{ err error }
+
+func (s testNotificationSender) SendToToken(context.Context, string, string, string) error {
+	return s.err
+}
+
+type testFirebaseTokenClearer struct {
+	userID uuid.UUID
+	token  *string
+}
+
+func (c *testFirebaseTokenClearer) UpdateUserFirebaseToken(_ context.Context, userID uuid.UUID, token *string) error {
+	c.userID = userID
+	c.token = token
+	return nil
+}
+
+func TestFailedWeeklyNotificationClearsInvalidToken(t *testing.T) {
+	target := db.NotificationTarget{UserID: uuid.New(), FirebaseToken: "invalid", PinCount: 3}
+	clearer := &testFirebaseTokenClearer{}
+	err := sendWeeklyNotification(context.Background(), testNotificationSender{err: fmt.Errorf("unregistered")}, clearer, target)
+	if err == nil {
+		t.Fatal("send failure was not reported")
+	}
+	if clearer.userID != target.UserID || clearer.token != nil {
+		t.Fatalf("cleared user/token = %s/%v, want %s/nil", clearer.userID, clearer.token, target.UserID)
+	}
 }
 
 func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Response {
@@ -197,9 +357,8 @@ func (c *apiClient) login(t *testing.T, username, password string) authResp {
 func (c *apiClient) createGroup(t *testing.T, adminID, name string, visibility int) string {
 	t.Helper()
 	resp := c.do(t, "POST", "/api/v2/groups", map[string]any{
-		"name":       name,
-		"visibility": visibility,
-		"groupAdmin": adminID,
+		"name": name, "description": "", "profileImage": testImageBase64,
+		"visibility": visibility, "groupAdmin": adminID,
 	})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
@@ -208,6 +367,65 @@ func (c *apiClient) createGroup(t *testing.T, adminID, name string, visibility i
 	var g map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&g)
 	return fmt.Sprintf("%v", g["id"])
+}
+
+func TestRequiredCreateFieldsAreValidatedByPresence(t *testing.T) {
+	tests := []struct {
+		path string
+		body string
+	}{
+		{path: "/api/v2/groups", body: `{"name":"group","groupAdmin":"id","visibility":0,"description":""}`},
+		{path: "/api/v2/pins", body: `{"latitude":0,"longitude":0,"userId":"id","groupId":"id"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			requireCompatibilityJSONFields(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })).ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", recorder.Code)
+			}
+		})
+	}
+}
+
+func TestRedirectImageResponses(t *testing.T) {
+	const target = "https://objects.example/image.jpg?signature=test"
+	routes := []string{
+		"/api/v2/groups/id/profile_image",
+		"/api/v2/groups/id/profile_image_small",
+		"/api/v2/groups/id/pin_image",
+		"/api/v2/pins/id/image",
+		"/api/v2/users/id/profile_picture",
+		"/api/v2/users/id/profile_picture_small",
+	}
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(target)
+	})
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, route+"?redirect=true", nil)
+			redirectImageResponses(next).ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusMovedPermanently {
+				t.Fatalf("status = %d, want 301", recorder.Code)
+			}
+			if location := recorder.Header().Get("Location"); location != target {
+				t.Fatalf("Location = %q, want %q", location, target)
+			}
+		})
+	}
+
+	t.Run("redirect false preserves URL response", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, routes[0]+"?redirect=false", nil)
+		redirectImageResponses(next).ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", recorder.Code)
+		}
+	})
 }
 
 func decode(t *testing.T, resp *http.Response, v any) {
@@ -269,6 +487,7 @@ func TestEndpointAuth(t *testing.T) {
 		ar := c.signup(t, "dave", "pw123")
 		resp := c.do(t, "POST", "/api/v2/public/refresh", map[string]string{
 			"refreshToken": ar.RefreshToken,
+			"userId":       ar.UserID,
 		})
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
@@ -276,17 +495,23 @@ func TestEndpointAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("status returns 200", func(t *testing.T) {
+	t.Run("status requires authentication", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/status", nil)
 		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status: expected 401, got %d", resp.StatusCode)
+		}
+		ar := c.signup(t, "status_user", "pw123")
+		authed := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+		resp = authed.do(t, "GET", "/api/v2/status", nil)
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("status: expected 200, got %d", resp.StatusCode)
+			t.Fatalf("authenticated status: expected 200, got %d", resp.StatusCode)
 		}
 	})
 
 	t.Run("delete-code is public (no bearer token required)", func(t *testing.T) {
-		// Mirrors Spring's /api/v2/public/** permitAll: requesting a delete code
-		// must not require authentication.
+		// Requesting a delete code is part of the public account workflow.
 		c.signup(t, "delcode_user", "pw123")
 		resp := c.do(t, "GET", "/api/v2/public/delete-code/delcode_user", nil)
 		resp.Body.Close()
@@ -362,9 +587,14 @@ func TestEndpointPublic(t *testing.T) {
 
 	t.Run("GET /api/v2/public/infos", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/public/infos", nil)
-		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		var infos []genserver.InfoDto
+		decode(t, resp, &infos)
+		if len(infos) != 0 {
+			t.Fatalf("public infos = %+v, want an empty list", infos)
 		}
 	})
 }
@@ -483,6 +713,26 @@ func TestEndpointGroups(t *testing.T) {
 		}
 	})
 
+	t.Run("group description is raw text", func(t *testing.T) {
+		update := c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{"description": "plain description"})
+		update.Body.Close()
+		if update.StatusCode != http.StatusOK {
+			t.Fatalf("update description: expected 200, got %d", update.StatusCode)
+		}
+		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/description", nil)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read description: %v", err)
+		}
+		if got := string(body); got != "plain description" {
+			t.Fatalf("description body = %q, want raw text", got)
+		}
+		if contentType := resp.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain") {
+			t.Fatalf("description content type = %q, want text/plain", contentType)
+		}
+	})
+
 	t.Run("DELETE /api/v2/groups/{id}", func(t *testing.T) {
 		dgid := c.createGroup(t, ar.UserID, "todelete_group", 0)
 		resp := c.do(t, "DELETE", "/api/v2/groups/"+dgid, nil)
@@ -524,7 +774,7 @@ func TestGroupCreateAuthorization(t *testing.T) {
 
 	t.Run("forbidden when setting another user as groupAdmin", func(t *testing.T) {
 		resp := bc.do(t, "POST", "/api/v2/groups", map[string]any{
-			"name":       "spoofed_group",
+			"name": "spoofed_group", "description": "", "profileImage": testImageBase64,
 			"visibility": 0,
 			"groupAdmin": a.UserID, // not the caller
 		})
@@ -536,7 +786,7 @@ func TestGroupCreateAuthorization(t *testing.T) {
 
 	t.Run("allowed when groupAdmin is the caller", func(t *testing.T) {
 		resp := bc.do(t, "POST", "/api/v2/groups", map[string]any{
-			"name":       "own_group",
+			"name": "own_group", "description": "", "profileImage": testImageBase64,
 			"visibility": 0,
 			"groupAdmin": b.UserID,
 		})
@@ -616,6 +866,7 @@ func TestEndpointPins(t *testing.T) {
 
 	t.Run("POST /api/v2/pins — create single pin", func(t *testing.T) {
 		resp := c.do(t, "POST", "/api/v2/pins", map[string]any{
+			"image":        testImageBase64,
 			"latitude":     48.137,
 			"longitude":    11.576,
 			"creationDate": time.Now().UTC().Format(time.RFC3339),
@@ -667,6 +918,7 @@ func TestPinCreateAuthorization(t *testing.T) {
 
 	pinBody := func(userID string) map[string]any {
 		return map[string]any{
+			"image":        testImageBase64,
 			"latitude":     48.1,
 			"longitude":    11.6,
 			"creationDate": time.Now().UTC().Format(time.RFC3339),
@@ -712,6 +964,7 @@ func TestEndpointLikes(t *testing.T) {
 	gid := c.createGroup(t, ar.UserID, "liketest_group", 0)
 
 	pinResp := c.do(t, "POST", "/api/v2/pins", map[string]any{
+		"image":        testImageBase64,
 		"latitude":     52.5,
 		"longitude":    13.4,
 		"creationDate": time.Now().UTC().Format(time.RFC3339),

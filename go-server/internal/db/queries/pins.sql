@@ -21,6 +21,9 @@ SELECT EXISTS (
 -- name: SoftDeletePin :exec
 UPDATE pins SET is_deleted = TRUE, update_date = NOW() WHERE id = $1;
 
+-- name: HardDeletePin :exec
+DELETE FROM pins WHERE id = $1;
+
 -- name: ListUserPinIDs :many
 SELECT id FROM pins WHERE creator_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC;
 
@@ -37,9 +40,45 @@ WHERE is_deleted = FALSE
        OR update_date > sqlc.narg('updated_after')::timestamptz)
 ORDER BY update_date DESC;
 
+-- name: SearchPins :many
+SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
+       p.description, p.creator_id, p.group_id, p.state_province_id
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE
+  AND g.is_deleted = FALSE
+  AND (
+      g.visibility = 0
+      OR EXISTS (
+          SELECT 1
+          FROM members m
+          WHERE m.group_id = g.id
+            AND m.user_id = sqlc.arg('caller_id')::uuid
+            AND m.is_deleted = FALSE
+      )
+  )
+  AND (
+      cardinality(sqlc.arg('ids')::uuid[]) = 0
+      OR p.id = ANY(sqlc.arg('ids')::uuid[])
+  )
+  AND (
+      sqlc.narg('group_id')::uuid IS NULL
+      OR p.group_id = sqlc.narg('group_id')::uuid
+  )
+  AND (
+      sqlc.narg('creator_id')::uuid IS NULL
+      OR p.creator_id = sqlc.narg('creator_id')::uuid
+  )
+  AND (
+      sqlc.narg('updated_after')::timestamptz IS NULL
+      OR p.update_date > sqlc.narg('updated_after')::timestamptz
+  )
+ORDER BY p.creation_date DESC
+LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
+
 -- name: ListDeletedPinsAfter :many
 SELECT deleted_entity_id FROM delete_log
-WHERE deleted_entity_type = 3 AND creation_date > $1
+WHERE deleted_entity_type = 1 AND creation_date > $1
 ORDER BY creation_date;
 
 -- name: FindUsersWithNewPinsSinceLastActive :many
@@ -60,6 +99,9 @@ GROUP BY u.id, u.firebase_token
 HAVING COUNT(DISTINCT p.id) > 0;
 
 -- name: FindBoundaryForPoint :one
-SELECT id FROM admin2_boundaries
-WHERE ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326))
+SELECT id
+FROM admin2_boundaries
+ORDER BY
+  ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326)) DESC,
+  geom <-> ST_SetSRID(ST_Point($1, $2), 4326)
 LIMIT 1;

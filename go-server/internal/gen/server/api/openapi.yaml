@@ -32,52 +32,76 @@ paths:
       operationId: getGroupsByIds
       parameters:
       - description: Comma-separated list of group IDs
+        explode: true
         in: query
         name: ids
+        required: false
         schema:
           items:
             $ref: "#/components/schemas/id"
           type: array
+        style: form
       - description: search term used to find a group name
+        explode: true
         in: query
         name: search
+        required: false
         schema:
           $ref: "#/components/schemas/shortString"
+        style: form
       - description: this is the userId used when withUser is set to true or false
+        explode: true
         in: query
         name: userId
+        required: false
         schema:
           $ref: "#/components/schemas/id"
+        style: form
       - description: use false if user groups should be included and true if user
           groups should be excluded from search
+        explode: true
         in: query
         name: withUser
+        required: false
         schema:
           type: boolean
+        style: form
       - description: use false if profile picture should not be returned and true
           if it should. Defaults to false
+        explode: true
         in: query
         name: withImages
+        required: false
         schema:
           default: false
           type: boolean
+        style: form
       - description: page number
+        explode: true
         in: query
         name: page
+        required: false
         schema:
           type: integer
+        style: form
       - description: page size. Defaults to 20
+        explode: true
         in: query
         name: size
+        required: false
         schema:
           default: 20
           type: integer
+        style: form
       - description: only include groups that have been updated after this date. If
           set all deleted groups after this time are returned.
+        explode: true
         in: query
         name: updatedAfter
+        required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
       responses:
         "200":
           content:
@@ -120,11 +144,13 @@ paths:
     delete:
       operationId: deleteGroup
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           description: Deleted
@@ -142,11 +168,13 @@ paths:
     get:
       operationId: getGroup
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -168,11 +196,13 @@ paths:
     put:
       operationId: updateGroup
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       requestBody:
         content:
           application/json:
@@ -208,19 +238,23 @@ paths:
       operationId: getGroupProfileImage
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -246,19 +280,23 @@ paths:
       operationId: getGroupProfileImageSmall
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -284,19 +322,23 @@ paths:
       operationId: getGroupPinImage
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -322,11 +364,13 @@ paths:
       operationId: getGroupDescription
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -350,11 +394,13 @@ paths:
       operationId: getGroupLink
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -378,11 +424,13 @@ paths:
       operationId: getGroupAdmin
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -406,11 +454,13 @@ paths:
       operationId: getGroupInviteUrl
       parameters:
       - description: group id
+        explode: false
         in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -433,17 +483,21 @@ paths:
     delete:
       operationId: deleteMemberFromGroup
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: userId
+        explode: true
         in: query
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: form
       responses:
         "200":
           description: Deleted
@@ -463,11 +517,13 @@ paths:
     get:
       operationId: getGroupMembers
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -491,22 +547,29 @@ paths:
     post:
       operationId: joinGroup
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: groupId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: id of user
+        explode: true
         in: query
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: form
       - description: inviteUrl to authorize a user to join a private group
+        explode: true
         in: query
         name: inviteUrl
+        required: false
         schema:
           $ref: "#/components/schemas/shortString"
+        style: form
       responses:
         "201":
           content:
@@ -544,11 +607,13 @@ paths:
       operationId: generateDeleteCode
       parameters:
       - description: userId
+        explode: false
         in: path
         name: username
         required: true
         schema:
           $ref: "#/components/schemas/shortString"
+        style: simple
       responses:
         "201":
           description: Delete code generated and sent to the user
@@ -571,11 +636,13 @@ paths:
     get:
       operationId: requestPasswordRecovery
       parameters:
-      - in: query
+      - explode: true
+        in: query
         name: username
         required: true
         schema:
           $ref: "#/components/schemas/shortString"
+        style: form
       responses:
         "201":
           description: Recovery email sent
@@ -686,60 +753,87 @@ paths:
       operationId: getPinImagesByIds
       parameters:
       - description: Comma-separated list of image IDs
+        explode: true
         in: query
         name: ids
+        required: false
         schema:
           items:
             $ref: "#/components/schemas/id"
           type: array
+        style: form
       - description: Only pins of this group are returned
+        explode: true
         in: query
         name: groupId
+        required: false
         schema:
           $ref: "#/components/schemas/id"
+        style: form
       - description: Only pins of this user are returned
+        explode: true
         in: query
         name: userId
+        required: false
         schema:
           $ref: "#/components/schemas/id"
+        style: form
       - description: Describes if the images of the pins should be returned too
+        explode: true
         in: query
         name: withImage
+        required: false
         schema:
           default: false
           type: boolean
+        style: form
       - description: Compression level for images (optional)
+        explode: true
         in: query
         name: compression
+        required: false
         schema:
           maximum: 100
           minimum: 0
           type: integer
+        style: form
       - description: Height for images (optional)
+        explode: true
         in: query
         name: height
+        required: false
         schema:
           maximum: 10000
           minimum: 0
           type: integer
+        style: form
       - description: page number (can only be used when ids is not set). Sorted by
           creation date descending
+        explode: true
         in: query
         name: page
+        required: false
         schema:
           type: integer
+        style: form
       - description: page size. Defaults to 20
+        explode: true
         in: query
         name: size
+        required: false
         schema:
           default: 20
           type: integer
+        style: form
       - description: only include pins that have been updated after this date.If set
           all deleted pins after this time are returned.
+        explode: true
         in: query
         name: updatedAfter
+        required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
       responses:
         "200":
           content:
@@ -776,11 +870,13 @@ paths:
     delete:
       operationId: deletePin
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: pinId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           description: successfully deleted
@@ -798,17 +894,22 @@ paths:
     get:
       operationId: getPin
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: pinId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: Describes if the image of the pin should be returned too
+        explode: true
         in: query
         name: withImage
+        required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -831,19 +932,23 @@ paths:
     get:
       operationId: getPinImage
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: pinId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -869,11 +974,13 @@ paths:
       description: Get pin likes
       operationId: getPinLikes
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: pinId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -898,11 +1005,13 @@ paths:
       description: Create or update a like
       operationId: createOrUpdateLike
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: pinId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       requestBody:
         content:
           application/json:
@@ -933,11 +1042,13 @@ paths:
     get:
       operationId: getUserLikes
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -969,11 +1080,13 @@ paths:
     delete:
       operationId: deleteUser
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       requestBody:
         content:
           application/json:
@@ -996,11 +1109,13 @@ paths:
     get:
       operationId: getUser
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -1022,11 +1137,13 @@ paths:
     put:
       operationId: updateUser
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       requestBody:
         content:
           application/json:
@@ -1055,19 +1172,23 @@ paths:
     get:
       operationId: getUserProfileImageSmall
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -1092,19 +1213,23 @@ paths:
     get:
       operationId: getUserProfileImage
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       - description: "When true, this endpoint redirects directly to the target image\
           \ otherwise the image URL is returned"
+        explode: true
         in: query
         name: redirect
         required: false
         schema:
           default: false
           type: boolean
+        style: form
       responses:
         "200":
           content:
@@ -1129,11 +1254,13 @@ paths:
     get:
       operationId: getUserXp
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -1158,11 +1285,13 @@ paths:
     get:
       operationId: getUserAchievements
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
+        style: simple
       responses:
         "200":
           content:
@@ -1183,17 +1312,21 @@ paths:
     post:
       operationId: claimUserAchievement
       parameters:
-      - in: path
+      - explode: false
+        in: path
         name: userId
         required: true
         schema:
           $ref: "#/components/schemas/id"
-      - in: path
+        style: simple
+      - explode: false
+        in: path
         name: achievementId
         required: true
         schema:
           minimum: 0
           type: integer
+        style: simple
       responses:
         "200":
           description: Successfully claimed achievement
@@ -1213,44 +1346,65 @@ paths:
       operationId: groupRanking
       parameters:
       - description: Country ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid0
+        required: false
         schema:
           type: string
+        style: form
       - description: State ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid1
+        required: false
         schema:
           type: string
+        style: form
       - description: County ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid2
+        required: false
         schema:
           type: string
+        style: form
       - deprecated: true
         description: Only include pins added since this point in time. When null all
           pins are included
+        explode: true
         in: query
         name: since
+        required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
       - description: Only include pins from this season. When null all pins are included
+        explode: true
         in: query
         name: season
+        required: false
         schema:
           default: false
           type: boolean
+        style: form
       - description: page number
+        explode: true
         in: query
         name: page
+        required: false
         schema:
           type: integer
+        style: form
       - description: page size. Defaults to 20
+        explode: true
         in: query
         name: size
+        required: false
         schema:
           default: 20
           type: integer
+        style: form
       responses:
         "200":
           content:
@@ -1267,44 +1421,65 @@ paths:
       operationId: userRanking
       parameters:
       - description: Country ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid0
+        required: false
         schema:
           type: string
+        style: form
       - description: State ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid1
+        required: false
         schema:
           type: string
+        style: form
       - description: County ID. When not null the ranking by country is returned.
+        explode: true
         in: query
         name: gid2
+        required: false
         schema:
           type: string
+        style: form
       - deprecated: true
         description: Only include pins added since this point in time. When null all
           pins are included
+        explode: true
         in: query
         name: since
+        required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
       - description: Only include pins from this season. When null all pins are included
+        explode: true
         in: query
         name: season
+        required: false
         schema:
           default: false
           type: boolean
+        style: form
       - description: page number
+        explode: true
         in: query
         name: page
+        required: false
         schema:
           type: integer
+        style: form
       - description: page size. Defaults to 20
+        explode: true
         in: query
         name: size
+        required: false
         schema:
           default: 20
           type: integer
+        style: form
       responses:
         "200":
           content:
@@ -1320,21 +1495,30 @@ paths:
     get:
       operationId: searchRanking
       parameters:
-      - in: query
+      - explode: true
+        in: query
         name: search
+        required: false
         schema:
           type: string
+        style: form
       - description: page number
+        explode: true
         in: query
         name: page
+        required: false
         schema:
           type: integer
+        style: form
       - description: page size. Defaults to 20
+        explode: true
         in: query
         name: size
+        required: false
         schema:
           default: 20
           type: integer
+        style: form
       responses:
         "200":
           content:
@@ -1350,15 +1534,21 @@ paths:
       operationId: getMapInfo
       parameters:
       - description: Together with longitude an info dto of the position can be requested.
+        explode: true
         in: query
         name: latitude
+        required: false
         schema:
           $ref: "#/components/schemas/latitude"
+        style: form
       - description: Together with latitude an info dto of the position can be requested.
+        explode: true
         in: query
         name: longitude
+        required: false
         schema:
           $ref: "#/components/schemas/longitude"
+        style: form
       responses:
         "200":
           content:
@@ -1384,23 +1574,29 @@ paths:
       operationId: getGeoJson
       parameters:
       - description: County ID. Only one allowed
+        explode: true
         in: query
         name: gid2
         required: false
         schema:
           type: string
+        style: form
       - description: State ID. Only one allowed
+        explode: true
         in: query
         name: gid1
         required: false
         schema:
           type: string
+        style: form
       - description: Country ID. Only one allowed
+        explode: true
         in: query
         name: gid0
         required: false
         schema:
           type: string
+        style: form
       responses:
         "200":
           content:
@@ -1476,10 +1672,13 @@ paths:
       operationId: sync
       parameters:
       - description: Syncs created and deleted pins after this date
+        explode: true
         in: query
         name: lastSeen
+        required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
       responses:
         "200":
           content:
@@ -1572,7 +1771,9 @@ components:
           maxLength: 256
           type: string
         profileImage:
-          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          example: !!binary |-
+            aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQy
+            bU5rK0E4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJST0=
           format: byte
           type: string
         visibility:
@@ -1655,7 +1856,9 @@ components:
           format: url
           type: string
         bestSeason:
-          $ref: "#/components/schemas/seasonItemDto"
+          allOf:
+          - $ref: "#/components/schemas/seasonItemDto"
+          nullable: true
       required:
       - id
       - name
@@ -1668,22 +1871,30 @@ components:
       properties:
         description:
           maxLength: 256
+          nullable: true
           type: string
         name:
           maxLength: 256
+          nullable: true
           type: string
         profileImage:
-          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          example: !!binary |-
+            aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQy
+            bU5rK0E4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJST0=
           format: byte
+          nullable: true
           type: string
         visibility:
           description: "The visibility of the group. 0 for public, 1 for private"
+          nullable: true
           type: integer
         groupAdmin:
           format: uuid
+          nullable: true
           type: string
         link:
           maxLength: 256
+          nullable: true
           type: string
       type: object
     imageUrl:
@@ -1818,7 +2029,9 @@ components:
     pinRequestDto:
       properties:
         image:
-          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          example: !!binary |-
+            aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQy
+            bU5rK0E4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJST0=
           format: byte
           type: string
         latitude:
@@ -1929,12 +2142,16 @@ components:
     createLikeDto:
       properties:
         like:
+          nullable: true
           type: boolean
         likeLocation:
+          nullable: true
           type: boolean
         likePhotography:
+          nullable: true
           type: boolean
         likeArt:
+          nullable: true
           type: boolean
         userId:
           format: uuid
@@ -2010,7 +2227,9 @@ components:
           nullable: true
           type: integer
         bestSeason:
-          $ref: "#/components/schemas/seasonItemDto"
+          allOf:
+          - $ref: "#/components/schemas/seasonItemDto"
+          nullable: true
         isMessagingRegistered:
           description: Flag for whether the user registered to receive push messages.
             Only set for the current user.
@@ -2030,7 +2249,9 @@ components:
           maxLength: 256
           type: string
         image:
-          example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+          example: !!binary |-
+            aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQy
+            bU5rK0E4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJST0=
           format: byte
           type: string
         username:
@@ -2351,7 +2572,9 @@ components:
       - groupUpdates
       type: object
     image:
-      example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      example: !!binary |-
+        aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQy
+        bU5rK0E4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJST0=
       format: byte
       type: string
     visibility:

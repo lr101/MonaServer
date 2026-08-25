@@ -84,6 +84,76 @@ func (q *Queries) CreateUserSeason(ctx context.Context, arg CreateUserSeasonPara
 	return err
 }
 
+const getBestGroupSeason = `-- name: GetBestGroupSeason :one
+SELECT gs.id, gs.rank, gs.number_of_pins,
+       s.id AS season_id, s.season_number, s.year, s.month
+FROM groups_seasons gs
+JOIN seasons s ON s.id = gs.season_id
+WHERE gs.group_id = $1
+ORDER BY gs.rank ASC, gs.number_of_pins DESC, s.season_number DESC
+LIMIT 1
+`
+
+type GetBestGroupSeasonRow struct {
+	ID           pgtype.UUID `json:"id"`
+	Rank         int32       `json:"rank"`
+	NumberOfPins int32       `json:"number_of_pins"`
+	SeasonID     pgtype.UUID `json:"season_id"`
+	SeasonNumber int32       `json:"season_number"`
+	Year         int32       `json:"year"`
+	Month        int32       `json:"month"`
+}
+
+func (q *Queries) GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error) {
+	row := q.db.QueryRow(ctx, getBestGroupSeason, groupID)
+	var i GetBestGroupSeasonRow
+	err := row.Scan(
+		&i.ID,
+		&i.Rank,
+		&i.NumberOfPins,
+		&i.SeasonID,
+		&i.SeasonNumber,
+		&i.Year,
+		&i.Month,
+	)
+	return i, err
+}
+
+const getBestUserSeason = `-- name: GetBestUserSeason :one
+SELECT us.id, us.rank, us.number_of_pins,
+       s.id AS season_id, s.season_number, s.year, s.month
+FROM users_seasons us
+JOIN seasons s ON s.id = us.season_id
+WHERE us.user_id = $1
+ORDER BY us.rank ASC, us.number_of_pins DESC, s.season_number DESC
+LIMIT 1
+`
+
+type GetBestUserSeasonRow struct {
+	ID           pgtype.UUID `json:"id"`
+	Rank         int32       `json:"rank"`
+	NumberOfPins int32       `json:"number_of_pins"`
+	SeasonID     pgtype.UUID `json:"season_id"`
+	SeasonNumber int32       `json:"season_number"`
+	Year         int32       `json:"year"`
+	Month        int32       `json:"month"`
+}
+
+func (q *Queries) GetBestUserSeason(ctx context.Context, userID pgtype.UUID) (GetBestUserSeasonRow, error) {
+	row := q.db.QueryRow(ctx, getBestUserSeason, userID)
+	var i GetBestUserSeasonRow
+	err := row.Scan(
+		&i.ID,
+		&i.Rank,
+		&i.NumberOfPins,
+		&i.SeasonID,
+		&i.SeasonNumber,
+		&i.Year,
+		&i.Month,
+	)
+	return i, err
+}
+
 const getMaxSeasonNumber = `-- name: GetMaxSeasonNumber :one
 
 SELECT COALESCE(MAX(season_number), 0)::int FROM seasons

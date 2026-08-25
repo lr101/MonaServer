@@ -38,7 +38,7 @@ type GroupDto struct {
 
 	PinImage string `json:"pinImage,omitempty"`
 
-	BestSeason SeasonItemDto `json:"bestSeason,omitempty"`
+	BestSeason *SeasonItemDto `json:"bestSeason,omitempty"`
 }
 
 // AssertGroupDtoRequired checks if the required fields are not zero-ed
@@ -54,16 +54,20 @@ func AssertGroupDtoRequired(obj GroupDto) error {
 		}
 	}
 
-	if err := AssertSeasonItemDtoRequired(obj.BestSeason); err != nil {
-		return err
+	if obj.BestSeason != nil {
+		if err := AssertSeasonItemDtoRequired(*obj.BestSeason); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // AssertGroupDtoConstraints checks if the values respects the defined constraints
 func AssertGroupDtoConstraints(obj GroupDto) error {
-	if err := AssertSeasonItemDtoConstraints(obj.BestSeason); err != nil {
-		return err
+	if obj.BestSeason != nil {
+		if err := AssertSeasonItemDtoConstraints(*obj.BestSeason); err != nil {
+			return err
+		}
 	}
 	return nil
 }

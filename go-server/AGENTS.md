@@ -122,7 +122,7 @@ Do not assume an OpenAPI `security` entry configures chi middleware. The route g
 
 ## Generated code and embedded files
 
-Never hand-edit `internal/gen/api/`, `internal/gen/db/`, or `internal/gen/server/`. Their checked-in output must match the API contract or SQL sources in the same commit.
+Never hand-edit `internal/gen/api/` or `internal/gen/db/`. Most of `internal/gen/server/` is generated too. The files listed in `internal/gen/server/.openapi-generator-ignore` are narrow compatibility adapters for behavior the generator cannot express; change them only with a focused wire-level regression test. Running `make gen-server` preserves those adapters and regenerates everything else from the API contract. It requires Java and an OpenAPI Generator CLI jar; set `OPENAPI_GENERATOR_JAR` when the jar is not at `$HOME/openapi-generator-cli.jar`.
 
 The Docker image is a static, nonroot distroless image. Migrations, HTML templates, the favicon, and pin images are embedded at compile time. Code must not rely on the repository working directory or runtime copies of those files.
 

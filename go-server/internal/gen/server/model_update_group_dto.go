@@ -11,18 +11,18 @@
 package genserver
 
 type UpdateGroupDto struct {
-	Description string `json:"description,omitempty"`
+	Description *string `json:"description,omitempty"`
 
-	Name string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 
-	ProfileImage string `json:"profileImage,omitempty"`
+	ProfileImage *string `json:"profileImage,omitempty"`
 
 	// The visibility of the group. 0 for public, 1 for private
-	Visibility int32 `json:"visibility,omitempty"`
+	Visibility *int32 `json:"visibility,omitempty"`
 
-	GroupAdmin string `json:"groupAdmin,omitempty"`
+	GroupAdmin *string `json:"groupAdmin,omitempty"`
 
-	Link string `json:"link,omitempty"`
+	Link *string `json:"link,omitempty"`
 }
 
 // AssertUpdateGroupDtoRequired checks if the required fields are not zero-ed

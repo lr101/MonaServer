@@ -12,14 +12,14 @@ Run generators from `go-server/`:
 
 ```bash
 mise exec -- make gen-api
-mise exec -- make gen-server
+OPENAPI_GENERATOR_JAR=/path/to/openapi-generator-cli-7.19.0.jar make gen-server
 ```
 
 `make gen-api` updates `go-server/internal/gen/api/api.gen.go`. That package embeds the specification served at `/public/api-docs`. The command requires `oapi-codegen` on `PATH`; the checked-in file records v2.7.0.
 
-`make gen-server` updates controllers, servicer interfaces, and models in `go-server/internal/gen/server/`. It expects a Java runtime, the OpenAPI Generator jar at `~/openapi-generator-cli.jar`, and `goimports` at `~/go/bin/goimports`. The checked-in output records OpenAPI Generator 7.19.0. The normal `mise.toml` installs only Go, so it does not provide the Java runtime or generator jar. `make gen` also runs sqlc, so do not use it for an API-only edit unless SQL generation is intended.
+`make gen-server` updates controllers, servicer interfaces, and models in `go-server/internal/gen/server/`. It expects a Java runtime and defaults to the OpenAPI Generator jar at `~/openapi-generator-cli.jar`; override `OPENAPI_GENERATOR_JAR` for another location. The checked-in output records OpenAPI Generator 7.19.0. The normal `mise.toml` intentionally installs only Go tools, so it does not provide Java or the generator jar. `make gen` also runs sqlc, so do not use it for an API-only edit unless SQL generation is intended.
 
-Do not edit either generated directory by hand. Commit the source and generated changes together.
+Do not edit `internal/gen/api/` by hand. Most of `internal/gen/server/` is generated as well, but the files listed in its `.openapi-generator-ignore` are tested compatibility adapters that the generator preserves. Commit contract and generated changes together.
 
 ## Server work required after contract changes
 

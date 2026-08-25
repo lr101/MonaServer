@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/apperrors"
@@ -20,13 +21,18 @@ type TokenPair struct {
 }
 
 type Auth struct {
-	q   *db.Queries
-	tok *token.Helper
-	cfg *config.Config
+	q    *db.Queries
+	tok  *token.Helper
+	cfg  *config.Config
+	mail *Email
 }
 
-func NewAuth(q *db.Queries, tok *token.Helper, cfg *config.Config) *Auth {
-	return &Auth{q: q, tok: tok, cfg: cfg}
+func NewAuth(q *db.Queries, tok *token.Helper, cfg *config.Config, mail ...*Email) *Auth {
+	var email *Email
+	if len(mail) > 0 {
+		email = mail[0]
+	}
+	return &Auth{q: q, tok: tok, cfg: cfg, mail: email}
 }
 
 func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *string) (*TokenPair, error) {
@@ -41,11 +47,28 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 	if err != nil {
 		return nil, err
 	}
-	uid, err := s.q.CreateUser(ctx, username, hash, email)
-	if err != nil {
+	var confirmationURL *string
+	if email != nil {
+		url := randomAlpha(32)
+		confirmationURL = &url
+	}
+	var pair *TokenPair
+	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		uid, err := q.CreateUser(ctx, username, hash, email, confirmationURL)
+		if err != nil {
+			return err
+		}
+		if s.mail != nil && email != nil && confirmationURL != nil {
+			if err := s.mail.SendEmailConfirmation(ctx, username, *email, *confirmationURL); err != nil {
+				return err
+			}
+		}
+		pair, err = s.issueTokensWithQueries(ctx, q, uid)
+		return err
+	}); err != nil {
 		return nil, err
 	}
-	return s.issueTokens(ctx, uid)
+	return pair, nil
 }
 
 func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair, error) {
@@ -63,31 +86,58 @@ func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair,
 		_ = s.q.IncrementFailedLogin(ctx, u.ID)
 		return nil, apperrors.New(400, "wrong password")
 	}
-	_ = s.q.ResetFailedLogin(ctx, u.ID)
+	if password.NeedsUpgrade(u.Password) {
+		hash, err := password.Hash(plainPW)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.q.UpdateUserPassword(ctx, u.ID, hash); err != nil {
+			return nil, err
+		}
+	} else if err := s.q.ResetFailedLogin(ctx, u.ID); err != nil {
+		return nil, err
+	}
 	return s.issueTokens(ctx, u.ID)
 }
 
-func (s *Auth) Refresh(ctx context.Context, refresh uuid.UUID) (*TokenPair, error) {
-	uid, err := s.q.FindRefreshToken(ctx, refresh)
+func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPair, error) {
+	stored, err := s.q.FindRefreshToken(ctx, refresh)
 	if err != nil {
-		return nil, apperrors.ErrUnauthorized
+		return nil, apperrors.ErrBadRequest
+	}
+	if stored.UserID != userID {
+		return nil, apperrors.ErrBadRequest
+	}
+	expiry := s.cfg.RefreshTokenExpiry
+	if expiry <= 0 {
+		expiry = 365 * 24 * time.Hour
+	}
+	if stored.LastActiveDate.Add(expiry).Before(time.Now()) {
+		if err := s.q.DeleteRefreshToken(ctx, refresh); err != nil {
+			return nil, err
+		}
+		return nil, apperrors.New(http.StatusBadRequest, "refresh token expired")
 	}
 	if err := s.q.TouchRefreshToken(ctx, refresh); err != nil {
 		return nil, err
 	}
-	access, err := s.tok.GenerateAccessToken(uid)
+	access, err := s.tok.GenerateAccessToken(stored.UserID)
 	if err != nil {
 		return nil, err
 	}
-	return &TokenPair{AccessToken: access, RefreshToken: refresh, UserID: uid}, nil
+	return &TokenPair{AccessToken: access, RefreshToken: refresh, UserID: stored.UserID}, nil
 }
 
 func (s *Auth) issueTokens(ctx context.Context, uid uuid.UUID) (*TokenPair, error) {
+	return s.issueTokensWithQueries(ctx, s.q, uid)
+}
+
+func (s *Auth) issueTokensWithQueries(ctx context.Context, q *db.Queries, uid uuid.UUID) (*TokenPair, error) {
 	access, err := s.tok.GenerateAccessToken(uid)
 	if err != nil {
 		return nil, fmt.Errorf("sign: %w", err)
 	}
-	refresh, err := s.q.CreateRefreshToken(ctx, uid)
+	refresh, err := q.CreateRefreshToken(ctx, uid)
 	if err != nil {
 		return nil, err
 	}

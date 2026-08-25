@@ -39,9 +39,10 @@ func (s *MembersServicer) GetGroupMembers(ctx context.Context, groupID string) (
 	dtos := make([]genserver.MemberResponseDto, 0, len(members))
 	for _, m := range members {
 		dto := genserver.MemberResponseDto{
-			UserId:   m.UserID.String(),
-			Username: m.Username,
-			Ranking:  int32(m.Ranking),
+			UserId:        m.UserID.String(),
+			Username:      m.Username,
+			Ranking:       int32(m.Ranking),
+			SelectedBatch: m.SelectedBatch,
 		}
 		if m.ProfileImageSmall != nil {
 			dto.ProfileImageSmall = *m.ProfileImageSmall
@@ -68,7 +69,7 @@ func (s *MembersServicer) JoinGroup(ctx context.Context, groupID, userID, invite
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusCreated, toGroupDto(dto)), nil
+	return genserver.Response(http.StatusCreated, toGroupDto(dto, true)), nil
 }
 
 func (s *MembersServicer) DeleteMemberFromGroup(ctx context.Context, groupID, userID string) (genserver.ImplResponse, error) {

@@ -31,9 +31,9 @@ func (s *RankingServicer) GroupRanking(ctx context.Context, gid0, gid1, gid2 str
 	for _, r := range out {
 		items = append(items, genserver.GroupRankingDtoInner{
 			GroupInfoDto: genserver.GroupDto{
-				Id:         r.GroupID.String(),
-				Name:       r.Name,
-				Visibility: int32(r.Visibility),
+				Id:          r.GroupID.String(),
+				Name:        r.Name,
+				Visibility:  int32(r.Visibility),
 				Description: strDeref(r.Description),
 			},
 			RankNr: int32(r.RankNr),
@@ -56,9 +56,10 @@ func (s *RankingServicer) UserRanking(ctx context.Context, gid0, gid1, gid2 stri
 	for _, r := range out {
 		items = append(items, genserver.UserRankingDtoInner{
 			UserInfoDto: genserver.UserInfoDto{
-				UserId:      r.UserID.String(),
-				Username:    r.Username,
-				Description: strDeref(r.Description),
+				UserId:        r.UserID.String(),
+				Username:      r.Username,
+				Description:   strDeref(r.Description),
+				SelectedBatch: r.SelectedBatch,
 			},
 			RankNr: int32(r.RankNr),
 			Points: r.Points,

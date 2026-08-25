@@ -31,8 +31,9 @@ type PinRequestDto struct {
 	Description *string `json:"description,omitempty"`
 }
 
-// AssertPinRequestDtoRequired checks if the required fields are not zero-ed.
-// Image is optional; lat/lng at 0.0 are valid ocean coordinates, so only userId/groupId are checked.
+// AssertPinRequestDtoRequired checks nonzero required values. The HTTP
+// compatibility middleware separately checks key presence so zero coordinates
+// remain valid, and the handler validates the required image.
 func AssertPinRequestDtoRequired(obj PinRequestDto) error {
 	if obj.UserId == "" {
 		return &RequiredError{Field: "userId"}

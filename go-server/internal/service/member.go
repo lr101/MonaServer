@@ -59,7 +59,7 @@ func (s *Member) Join(ctx context.Context, groupID, userID uuid.UUID, inviteUrl 
 	if err := s.q.AddMember(ctx, groupID, userID); err != nil {
 		return nil, err
 	}
-	return s.group.toDTO(ctx, g, true), nil
+	return s.group.toDTO(ctx, g, true)
 }
 
 // Leave removes a user from a group. If the user is the admin and sole member,

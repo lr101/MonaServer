@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/spf13/viper"
@@ -8,19 +10,19 @@ import (
 
 type Config struct {
 	// Server
-	Port       string `mapstructure:"PORT"`
-	AppURL     string `mapstructure:"APP_URL"`
+	Port        string `mapstructure:"PORT"`
+	AppURL      string `mapstructure:"APP_URL"`
 	RedirectURL string `mapstructure:"APP_REDIRECT_URL"`
 
 	// Database
 	DatabaseURL string `mapstructure:"DATABASE_URL"`
 
 	// JWT
-	JWTSecret             string        `mapstructure:"JWT_SECRET"`
-	AccessTokenExpiry     time.Duration `mapstructure:"TOKEN_ACCESS_EXPIRY"`
-	RefreshTokenExpiry    time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
-	AdminUsername         string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
-	MaxLoginAttempts      int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
+	JWTSecret          string        `mapstructure:"JWT_SECRET"`
+	AccessTokenExpiry  time.Duration `mapstructure:"TOKEN_ACCESS_EXPIRY"`
+	RefreshTokenExpiry time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
+	AdminUsername      string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
+	MaxLoginAttempts   int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
 
 	// RustFS / object storage
 	RustfsEndpoint         string        `mapstructure:"RUSTFS_ENDPOINT"`
@@ -79,5 +81,27 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	legacyString(&cfg.RustfsEndpoint, "RUSTFS_ENDPOINT", "MINIO_ENDPOINT")
+	legacyString(&cfg.RustfsExternalEndpoint, "RUSTFS_EXTERNAL_ENDPOINT", "MINIO_EXTERNAL_ENDPOINT")
+	legacyString(&cfg.RustfsAccessKey, "RUSTFS_ACCESS_KEY", "MINIO_ACCESS_KEY")
+	legacyString(&cfg.RustfsSecretKey, "RUSTFS_SECRET_KEY", "MINIO_SECRET_KEY")
+	legacyString(&cfg.RustfsBucket, "RUSTFS_BUCKET", "MINIO_BUCKET")
+	if os.Getenv("RUSTFS_USE_SSL") == "" {
+		if raw := os.Getenv("MINIO_USE_SSL"); raw != "" {
+			useSSL, err := strconv.ParseBool(raw)
+			if err != nil {
+				return nil, err
+			}
+			cfg.RustfsUseSSL = useSSL
+		}
+	}
 	return &cfg, nil
+}
+
+func legacyString(dst *string, current, legacy string) {
+	if os.Getenv(current) == "" {
+		if value := os.Getenv(legacy); value != "" {
+			*dst = value
+		}
+	}
 }

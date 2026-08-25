@@ -15,6 +15,7 @@ type Querier interface {
 	AddMember(ctx context.Context, arg AddMemberParams) error
 	AddUserXp(ctx context.Context, arg AddUserXpParams) error
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
+	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
 	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error)
@@ -31,9 +32,12 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error)
 	CreateUserSeason(ctx context.Context, arg CreateUserSeasonParams) error
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
+	DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error
 	FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForPointParams) (pgtype.UUID, error)
-	FindRefreshToken(ctx context.Context, token pgtype.UUID) (pgtype.UUID, error)
+	FindRefreshToken(ctx context.Context, token pgtype.UUID) (FindRefreshTokenRow, error)
 	FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]FindUsersWithNewPinsSinceLastActiveRow, error)
+	GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error)
+	GetBestUserSeason(ctx context.Context, userID pgtype.UUID) (GetBestUserSeasonRow, error)
 	GetGeoJson(ctx context.Context, arg GetGeoJsonParams) ([]interface{}, error)
 	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
@@ -44,6 +48,7 @@ type Querier interface {
 	// Season queries.
 	GetMaxSeasonNumber(ctx context.Context) (int32, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
+	GetSelectedUserAchievementID(ctx context.Context, id pgtype.UUID) (int32, error)
 	GetUserAchievement(ctx context.Context, arg GetUserAchievementParams) (GetUserAchievementRow, error)
 	GetUserByDeletionUrl(ctx context.Context, deletionUrl pgtype.Text) (GetUserByDeletionUrlRow, error)
 	GetUserByEmailConfirmationUrl(ctx context.Context, emailConfirmationUrl pgtype.Text) (GetUserByEmailConfirmationUrlRow, error)
@@ -56,6 +61,9 @@ type Querier interface {
 	GetUserRanking(ctx context.Context, arg GetUserRankingParams) ([]GetUserRankingRow, error)
 	GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GroupExistsByName(ctx context.Context, name pgtype.Text) (bool, error)
+	HardDeleteGroup(ctx context.Context, id pgtype.UUID) error
+	HardDeletePin(ctx context.Context, id pgtype.UUID) error
+	HardDeleteUser(ctx context.Context, id pgtype.UUID) error
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
 	InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) error
 	// Guard queries: fast authorization checks used by middleware.
@@ -66,12 +74,14 @@ type Querier interface {
 	IsPinCreator(ctx context.Context, arg IsPinCreatorParams) (bool, error)
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
+	ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error)
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
+	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error)
 	ListUserAchievements(ctx context.Context, userID pgtype.UUID) ([]ListUserAchievementsRow, error)
@@ -85,6 +95,7 @@ type Querier interface {
 	SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error)
 	SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error)
 	SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error)
+	SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error)
 	SetGroupInviteUrl(ctx context.Context, arg SetGroupInviteUrlParams) error
 	SetUserDeletionUrl(ctx context.Context, arg SetUserDeletionUrlParams) error
 	SetUserProfilePictureExists(ctx context.Context, arg SetUserProfilePictureExistsParams) error

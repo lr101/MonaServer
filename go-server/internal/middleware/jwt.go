@@ -16,7 +16,7 @@ type UserLookup interface {
 }
 
 // JWT parses Bearer token, loads user, and injects UserID + Role into context.
-// Missing or invalid tokens return 401. Matches Spring's JWTFilter + MyUserDetailsService.
+// Missing or invalid tokens return 401.
 func JWT(tok *token.Helper, lookup UserLookup, adminUsername string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

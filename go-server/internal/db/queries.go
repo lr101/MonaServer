@@ -13,16 +13,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
 )
 
 type Queries struct {
-	pool *pgxpool.Pool
-	g    *dbgen.Queries
+	pool   *pgxpool.Pool
+	runner dbgen.DBTX
+	g      *dbgen.Queries
 }
 
 func New(pool *pgxpool.Pool) *Queries {
-	return &Queries{pool: pool, g: dbgen.New(pool)}
+	return &Queries{pool: pool, runner: pool, g: dbgen.New(pool)}
 }
 
 // Gen returns the underlying sqlc-generated Queries for callers that want to
@@ -30,18 +32,56 @@ func New(pool *pgxpool.Pool) *Queries {
 func (q *Queries) Gen() *dbgen.Queries { return q.g }
 func (q *Queries) Pool() *pgxpool.Pool { return q.pool }
 
+func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
+	tx, err := q.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	txQueries := &Queries{pool: q.pool, runner: tx, g: q.g.WithTx(tx)}
+	if err := fn(txQueries); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // ---- conversion helpers ----
 
-func pgUUID(id uuid.UUID) pgtype.UUID   { return pgtype.UUID{Bytes: id, Valid: true} }
-func goUUID(p pgtype.UUID) uuid.UUID    { return uuid.UUID(p.Bytes) }
-func pgText(s *string) pgtype.Text      { if s == nil { return pgtype.Text{} }; return pgtype.Text{String: *s, Valid: true} }
-func pgTextS(s string) pgtype.Text      { return pgtype.Text{String: s, Valid: true} }
-func goText(p pgtype.Text) *string      { if !p.Valid { return nil }; v := p.String; return &v }
+func pgUUID(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }
+func pgUUIDPtr(id *uuid.UUID) pgtype.UUID {
+	if id == nil {
+		return pgtype.UUID{}
+	}
+	return pgUUID(*id)
+}
+func goUUID(p pgtype.UUID) uuid.UUID { return uuid.UUID(p.Bytes) }
+func pgText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
+}
+func pgTextS(s string) pgtype.Text { return pgtype.Text{String: s, Valid: true} }
+func goText(p pgtype.Text) *string {
+	if !p.Valid {
+		return nil
+	}
+	v := p.String
+	return &v
+}
 func pgTZ(t *time.Time) pgtype.Timestamptz {
-	if t == nil { return pgtype.Timestamptz{} }
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
 	return pgtype.Timestamptz{Time: *t, Valid: true}
 }
-func goTZ(p pgtype.Timestamptz) *time.Time { if !p.Valid { return nil }; v := p.Time; return &v }
+func goTZ(p pgtype.Timestamptz) *time.Time {
+	if !p.Valid {
+		return nil
+	}
+	v := p.Time
+	return &v
+}
 
 // ---- Users ----
 
@@ -141,7 +181,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, erro
 	       code, code_expiration, reset_password_url, reset_password_expiration,
 	       deletion_url, email_confirmation_url, last_username_update, selected_batch
 	FROM users WHERE email = $1 AND is_deleted = FALSE LIMIT 1`
-	row := q.pool.QueryRow(ctx, getUserByEmail, email)
+	row := q.runner.QueryRow(ctx, getUserByEmail, email)
 	var r dbgen.GetUserByIDRow
 	if err := row.Scan(
 		&r.ID, &r.Username, &r.Email, &r.Password, &r.Xp, &r.Description, &r.ProfilePictureExists,
@@ -165,13 +205,14 @@ func (q *Queries) GetUsernameByID(ctx context.Context, id uuid.UUID) (string, er
 	return t.String, nil
 }
 
-func (q *Queries) CreateUser(ctx context.Context, username, passwordHash string, email *string) (uuid.UUID, error) {
+func (q *Queries) CreateUser(ctx context.Context, username, passwordHash string, email, confirmationURL *string) (uuid.UUID, error) {
 	id := uuid.New()
 	_, err := q.g.CreateUser(ctx, dbgen.CreateUserParams{
-		ID:       pgUUID(id),
-		Username: pgTextS(username),
-		Password: pgTextS(passwordHash),
-		Email:    pgText(email),
+		ID:                   pgUUID(id),
+		Username:             pgTextS(username),
+		Password:             pgTextS(passwordHash),
+		Email:                pgText(email),
+		EmailConfirmationUrl: pgText(confirmationURL),
 	})
 	return id, err
 }
@@ -186,6 +227,34 @@ func (q *Queries) ResetFailedLogin(ctx context.Context, id uuid.UUID) error {
 
 func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
 	return q.g.SoftDeleteUser(ctx, pgUUID(id))
+}
+
+func (q *Queries) HardDeleteUser(ctx context.Context, id uuid.UUID) error {
+	return q.g.HardDeleteUser(ctx, pgUUID(id))
+}
+
+func (q *Queries) ListAdminGroupIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.g.ListAdminGroupIDs(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, len(rows))
+	for i, id := range rows {
+		ids[i] = goUUID(id)
+	}
+	return ids, nil
+}
+
+func (q *Queries) ListPinIDsRemovedWithUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.g.ListPinIDsRemovedWithUser(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, len(rows))
+	for i, id := range rows {
+		ids[i] = goUUID(id)
+	}
+	return ids, nil
 }
 
 func (q *Queries) UpdateUserDescription(ctx context.Context, id uuid.UUID, desc *string) error {
@@ -235,10 +304,11 @@ func (q *Queries) SetUserResetPasswordUrl(ctx context.Context, id uuid.UUID, url
 		ID: pgUUID(id), ResetPasswordUrl: pgTextS(url), ResetPasswordExpiration: pgTZ(&exp),
 	})
 }
+
 type UserURLLookup struct {
-	ID             uuid.UUID
-	Username       string
-	Expiration     *time.Time
+	ID         uuid.UUID
+	Username   string
+	Expiration *time.Time
 }
 
 func (q *Queries) GetUserByResetPasswordUrl(ctx context.Context, url string) (*UserURLLookup, error) {
@@ -304,16 +374,25 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, userID uuid.UUID) (uui
 	return tok, err
 }
 
-func (q *Queries) FindRefreshToken(ctx context.Context, token uuid.UUID) (uuid.UUID, error) {
+type RefreshToken struct {
+	UserID         uuid.UUID
+	LastActiveDate time.Time
+}
+
+func (q *Queries) FindRefreshToken(ctx context.Context, token uuid.UUID) (*RefreshToken, error) {
 	p, err := q.g.FindRefreshToken(ctx, pgUUID(token))
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
-	return goUUID(p), nil
+	return &RefreshToken{UserID: goUUID(p.UserID), LastActiveDate: p.LastActiveDate.Time}, nil
 }
 
 func (q *Queries) TouchRefreshToken(ctx context.Context, token uuid.UUID) error {
 	return q.g.TouchRefreshToken(ctx, pgUUID(token))
+}
+
+func (q *Queries) DeleteRefreshToken(ctx context.Context, token uuid.UUID) error {
+	return q.g.DeleteRefreshToken(ctx, pgUUID(token))
 }
 
 func (q *Queries) InvalidateUserTokens(ctx context.Context, userID uuid.UUID) error {
@@ -388,16 +467,17 @@ func (q *Queries) GetGroupAdminUsername(ctx context.Context, id uuid.UUID) (stri
 }
 
 type GroupUpdate struct {
-	Name        *string
-	Description *string
-	Link        *string
-	Visibility  *int
-	AdminID     *uuid.UUID
-	InviteUrl   *string
+	Name           *string
+	Description    *string
+	Link           *string
+	Visibility     *int
+	AdminID        *uuid.UUID
+	InviteUrl      *string
+	ClearInviteURL bool
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) error {
-	p := dbgen.UpdateGroupParams{ID: pgUUID(id)}
+	p := dbgen.UpdateGroupParams{ID: pgUUID(id), ClearInviteUrl: u.ClearInviteURL}
 	if u.Name != nil {
 		p.Name = pgTextS(*u.Name)
 	}
@@ -423,7 +503,12 @@ func (q *Queries) SoftDeleteGroup(ctx context.Context, id uuid.UUID) error {
 	return q.g.SoftDeleteGroup(ctx, pgUUID(id))
 }
 
+func (q *Queries) HardDeleteGroup(ctx context.Context, id uuid.UUID) error {
+	return q.g.HardDeleteGroup(ctx, pgUUID(id))
+}
+
 type GroupSearch struct {
+	IDs          []uuid.UUID
 	Search       *string
 	UpdatedAfter *time.Time
 	UserID       *uuid.UUID
@@ -433,18 +518,22 @@ type GroupSearch struct {
 }
 
 func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, error) {
+	ids := make([]pgtype.UUID, len(s.IDs))
+	for i, id := range s.IDs {
+		ids[i] = pgUUID(id)
+	}
 	search := pgtype.Text{}
 	if s.Search != nil {
 		search = pgTextS(*s.Search)
 	}
 	after := pgTZ(s.UpdatedAfter)
-	if s.Limit == 0 {
-		s.Limit = 20
+	if s.Limit <= 0 {
+		s.Limit = 1<<31 - 1
 	}
 	var rows []groupRow
 	if s.WithUser == nil {
 		rs, err := q.g.SearchGroups(ctx, dbgen.SearchGroupsParams{
-			Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+			Ids: ids, Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
 		})
 		if err != nil {
 			return nil, err
@@ -457,7 +546,7 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, errors.New("withUser requires userId")
 		}
 		rs, err := q.g.SearchGroupsInUser(ctx, dbgen.SearchGroupsInUserParams{
-			UserID: pgUUID(*s.UserID), Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+			UserID: pgUUID(*s.UserID), Ids: ids, Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
 		})
 		if err != nil {
 			return nil, err
@@ -470,7 +559,7 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, errors.New("withUser requires userId")
 		}
 		rs, err := q.g.SearchGroupsNotInUser(ctx, dbgen.SearchGroupsNotInUserParams{
-			UserID: pgUUID(*s.UserID), Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
+			UserID: pgUUID(*s.UserID), Ids: ids, Search: search, UpdatedAfter: after, Lim: s.Limit, Off: s.Offset,
 		})
 		if err != nil {
 			return nil, err
@@ -488,7 +577,7 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 		out = append(out, Group{
 			ID: goUUID(r.ID), Name: r.Name.String, Description: goText(r.Description),
 			Link: goText(r.Link), Visibility: vis, AdminID: goUUID(r.AdminID),
-			InviteUrl: goText(r.InviteUrl),
+			InviteUrl:    goText(r.InviteUrl),
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 		})
 	}
@@ -519,8 +608,13 @@ func (q *Queries) ListDeletedGroupsAfter(ctx context.Context, after time.Time) (
 	return out, nil
 }
 
-// LogDeletion marks an entity as deleted in the audit table (matches
-// Spring's delete_log behavior). entityType: 1=user, 2=group, 3=pin.
+const (
+	DeletedEntityGroup int16 = iota
+	DeletedEntityPin
+	DeletedEntityUser
+)
+
+// LogDeletion records an entity removal for incremental sync clients.
 func (q *Queries) LogDeletion(ctx context.Context, entityType int16, id uuid.UUID) error {
 	return q.g.LogDeletion(ctx, dbgen.LogDeletionParams{
 		DeletedEntityType: entityType,
@@ -617,8 +711,8 @@ type RankingFilter struct {
 
 func rankParams(f RankingFilter) (dbgen.GetUserRankingParams, dbgen.GetGlobalGroupRankingParams) {
 	lim := f.Limit
-	if lim == 0 {
-		lim = 20
+	if lim <= 0 {
+		lim = 1<<31 - 1
 	}
 	u := dbgen.GetUserRankingParams{
 		Gid0: pgText(f.Gid0), Gid1: pgText(f.Gid1), Gid2: pgText(f.Gid2),
@@ -689,9 +783,9 @@ func (q *Queries) GetGeoJson(ctx context.Context, gid0, gid1, gid2 *string) ([]s
 }
 
 type MapInfoRow struct {
-	ID    uuid.UUID
-	Gid0, Gid1, Gid2     *string
-	Name0, Name1, Name2  *string
+	ID                  uuid.UUID
+	Gid0, Gid1, Gid2    *string
+	Name0, Name1, Name2 *string
 }
 
 func (q *Queries) GetMapInfo(ctx context.Context, lat, lng float64) (*MapInfoRow, error) {
@@ -703,7 +797,7 @@ func (q *Queries) GetMapInfo(ctx context.Context, lat, lng float64) (*MapInfoRow
 		return nil, err
 	}
 	return &MapInfoRow{
-		ID:    goUUID(row.ID),
+		ID:   goUUID(row.ID),
 		Gid0: goText(row.Gid0), Gid1: goText(row.Gid1), Gid2: goText(row.Gid2),
 		Name0: goText(row.Name0), Name1: goText(row.Name1), Name2: goText(row.Name2),
 	}, nil
@@ -832,6 +926,10 @@ func (q *Queries) SoftDeletePin(ctx context.Context, id uuid.UUID) error {
 	return q.g.SoftDeletePin(ctx, pgUUID(id))
 }
 
+func (q *Queries) HardDeletePin(ctx context.Context, id uuid.UUID) error {
+	return q.g.HardDeletePin(ctx, pgUUID(id))
+}
+
 func (q *Queries) ListUserPinIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
 	rs, err := q.g.ListUserPinIDs(ctx, pgUUID(userID))
 	if err != nil {
@@ -879,6 +977,54 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
+		})
+	}
+	return out, nil
+}
+
+type PinSearch struct {
+	CallerID     uuid.UUID
+	IDs          []uuid.UUID
+	GroupID      *uuid.UUID
+	CreatorID    *uuid.UUID
+	UpdatedAfter *time.Time
+	Limit        int32
+	Offset       int32
+}
+
+func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
+	ids := make([]pgtype.UUID, len(s.IDs))
+	for i, id := range s.IDs {
+		ids[i] = pgUUID(id)
+	}
+	limit := s.Limit
+	if limit <= 0 {
+		limit = 1<<31 - 1
+	}
+	rows, err := q.g.SearchPins(ctx, dbgen.SearchPinsParams{
+		CallerID:     pgUUID(s.CallerID),
+		Ids:          ids,
+		GroupID:      pgUUIDPtr(s.GroupID),
+		CreatorID:    pgUUIDPtr(s.CreatorID),
+		UpdatedAfter: pgTZ(s.UpdatedAfter),
+		Lim:          limit,
+		Off:          s.Offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Pin, 0, len(rows))
+	for _, r := range rows {
+		var boundary *uuid.UUID
+		if r.StateProvinceID.Valid {
+			id := goUUID(r.StateProvinceID)
+			boundary = &id
+		}
+		out = append(out, Pin{
+			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
+			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
 		})
 	}
 	return out, nil
@@ -1025,6 +1171,38 @@ func (q *Queries) CreateGroupSeason(ctx context.Context, groupID, seasonID uuid.
 	})
 }
 
+type SeasonItem struct {
+	ID           uuid.UUID
+	Rank         int32
+	Points       int32
+	SeasonID     uuid.UUID
+	SeasonNumber int32
+	Year         int32
+	Month        int32
+}
+
+func (q *Queries) GetBestUserSeason(ctx context.Context, userID uuid.UUID) (*SeasonItem, error) {
+	r, err := q.g.GetBestUserSeason(ctx, pgUUID(userID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &SeasonItem{ID: goUUID(r.ID), Rank: r.Rank, Points: r.NumberOfPins, SeasonID: goUUID(r.SeasonID), SeasonNumber: r.SeasonNumber, Year: r.Year, Month: r.Month}, nil
+}
+
+func (q *Queries) GetBestGroupSeason(ctx context.Context, groupID uuid.UUID) (*SeasonItem, error) {
+	r, err := q.g.GetBestGroupSeason(ctx, pgUUID(groupID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &SeasonItem{ID: goUUID(r.ID), Rank: r.Rank, Points: r.NumberOfPins, SeasonID: goUUID(r.SeasonID), SeasonNumber: r.SeasonNumber, Year: r.Year, Month: r.Month}, nil
+}
+
 // ---- Notifications ----
 
 type NotificationTarget struct {
@@ -1056,6 +1234,17 @@ type UserAchievement struct {
 	Claimed       bool
 }
 
+func (q *Queries) GetSelectedUserAchievementID(ctx context.Context, userID uuid.UUID) (*int32, error) {
+	id, err := q.g.GetSelectedUserAchievementID(ctx, pgUUID(userID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
 func (q *Queries) ListUserAchievements(ctx context.Context, userID uuid.UUID) ([]UserAchievement, error) {
 	rows, err := q.g.ListUserAchievements(ctx, pgUUID(userID))
 	if err != nil {
@@ -1069,7 +1258,16 @@ func (q *Queries) ListUserAchievements(ctx context.Context, userID uuid.UUID) ([
 }
 
 func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, achievementID int32) error {
-	return q.g.ClaimUserAchievement(ctx, dbgen.ClaimUserAchievementParams{UserID: pgUUID(userID), AchievementID: achievementID})
+	_, err := q.g.ClaimUserAchievementAndAwardXP(ctx, dbgen.ClaimUserAchievementAndAwardXPParams{
+		ID:            pgUUID(uuid.New()),
+		UserID:        pgUUID(userID),
+		AchievementID: achievementID,
+		Xp:            20,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.ErrConflict
+	}
+	return err
 }
 
 func (q *Queries) SetUserSelectedBatch(ctx context.Context, userID, achievementRowID uuid.UUID) error {
@@ -1090,4 +1288,18 @@ func (q *Queries) GetUserAchievementRow(ctx context.Context, userID uuid.UUID, a
 	}
 	id := goUUID(row.ID)
 	return &id, nil
+}
+
+func (q *Queries) GetUserAchievementSelection(ctx context.Context, userID uuid.UUID, achievementID int32) (*uuid.UUID, bool, error) {
+	row, err := q.g.GetUserAchievement(ctx, dbgen.GetUserAchievementParams{
+		UserID: pgUUID(userID), AchievementID: achievementID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	id := goUUID(row.ID)
+	return &id, row.Claimed, nil
 }

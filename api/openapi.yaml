@@ -1655,7 +1655,9 @@ components:
           format: url
           type: string
         bestSeason:
-          $ref: "#/components/schemas/seasonItemDto"
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/seasonItemDto"
       required:
       - id
       - name
@@ -1668,22 +1670,28 @@ components:
       properties:
         description:
           maxLength: 256
+          nullable: true
           type: string
         name:
           maxLength: 256
+          nullable: true
           type: string
         profileImage:
           example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
           format: byte
+          nullable: true
           type: string
         visibility:
           description: "The visibility of the group. 0 for public, 1 for private"
+          nullable: true
           type: integer
         groupAdmin:
           format: uuid
+          nullable: true
           type: string
         link:
           maxLength: 256
+          nullable: true
           type: string
       type: object
     imageUrl:
@@ -1929,12 +1937,16 @@ components:
     createLikeDto:
       properties:
         like:
+          nullable: true
           type: boolean
         likeLocation:
+          nullable: true
           type: boolean
         likePhotography:
+          nullable: true
           type: boolean
         likeArt:
+          nullable: true
           type: boolean
         userId:
           format: uuid
@@ -2010,7 +2022,9 @@ components:
           nullable: true
           type: integer
         bestSeason:
-          $ref: "#/components/schemas/seasonItemDto"
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/seasonItemDto"
         isMessagingRegistered:
           description: Flag for whether the user registered to receive push messages.
             Only set for the current user.

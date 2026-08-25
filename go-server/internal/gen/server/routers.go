@@ -11,9 +11,8 @@
 package genserver
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
+	"net/http"
 )
 
 // A Route defines the parameters for an api endpoint

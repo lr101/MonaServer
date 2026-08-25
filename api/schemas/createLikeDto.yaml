@@ -4,11 +4,15 @@ required:
 properties:
   like:
     type: boolean
+    nullable: true
   likeLocation:
     type: boolean
+    nullable: true
   likePhotography:
     type: boolean
+    nullable: true
   likeArt:
     type: boolean
+    nullable: true
   userId:
     $ref: '../parameters/id.yaml'

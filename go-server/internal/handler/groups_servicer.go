@@ -23,6 +23,14 @@ func NewGroupsServicer(group *service.Group, guard *service.Guard) *GroupsServic
 }
 
 func (s *GroupsServicer) GetGroupsByIds(ctx context.Context, ids []string, search, userID string, withUser, withImages bool, page, size int32, updatedAfter time.Time) (genserver.ImplResponse, error) {
+	parsedIDs := make([]uuid.UUID, 0, len(ids))
+	for _, raw := range ids {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
+		}
+		parsedIDs = append(parsedIDs, id)
+	}
 	var searchPtr *string
 	if search != "" {
 		searchPtr = &search
@@ -41,13 +49,18 @@ func (s *GroupsServicer) GetGroupsByIds(ctx context.Context, ids []string, searc
 	if !updatedAfter.IsZero() {
 		afterPtr = &updatedAfter
 	}
-	result, err := s.group.Search(ctx, searchPtr, uidPtr, withUserPtr, withImages, page, size, afterPtr)
+	result, err := s.group.Search(ctx, searchPtr, uidPtr, withUserPtr, withImages, page, size, afterPtr, parsedIDs...)
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
 	items := make([]genserver.GroupDto, 0, len(result.Groups))
+	caller, hasCaller := ctxUserID(ctx)
 	for _, g := range result.Groups {
-		items = append(items, toGroupDto(g))
+		includePrivate := g.Visibility == 0
+		if !includePrivate && hasCaller {
+			includePrivate, _ = s.guard.IsGroupMember(ctx, g.ID, caller)
+		}
+		items = append(items, toGroupDto(g, includePrivate))
 	}
 	deleted := make([]string, 0, len(result.Deleted))
 	for _, id := range result.Deleted {
@@ -57,6 +70,9 @@ func (s *GroupsServicer) GetGroupsByIds(ctx context.Context, ids []string, searc
 }
 
 func (s *GroupsServicer) AddGroup(ctx context.Context, dto genserver.CreateGroupDto) (genserver.ImplResponse, error) {
+	if dto.ProfileImage == "" {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
 	uid, ok := ctxUserID(ctx)
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
@@ -76,9 +92,11 @@ func (s *GroupsServicer) AddGroup(ctx context.Context, dto genserver.CreateGroup
 	}
 	var imgBytes []byte
 	if dto.ProfileImage != "" {
-		if b, err := base64.StdEncoding.DecodeString(dto.ProfileImage); err == nil {
-			imgBytes = b
+		b, err := base64.StdEncoding.DecodeString(dto.ProfileImage)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
 		}
+		imgBytes = b
 	}
 	result, err := s.group.Create(ctx, service.CreateGroupInput{
 		Name:         dto.Name,
@@ -91,7 +109,7 @@ func (s *GroupsServicer) AddGroup(ctx context.Context, dto genserver.CreateGroup
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusCreated, toGroupDto(result)), nil
+	return genserver.Response(http.StatusCreated, toGroupDto(result, true)), nil
 }
 
 func (s *GroupsServicer) GetGroup(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -103,7 +121,14 @@ func (s *GroupsServicer) GetGroup(ctx context.Context, groupID string) (genserve
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, toGroupDto(dto)), nil
+	includePrivate := dto.Visibility == 0
+	if !includePrivate {
+		uid, ok := ctxUserID(ctx)
+		if ok {
+			includePrivate, _ = s.guard.IsGroupMember(ctx, id, uid)
+		}
+	}
+	return genserver.Response(http.StatusOK, toGroupDto(dto, includePrivate)), nil
 }
 
 func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto genserver.UpdateGroupDto) (genserver.ImplResponse, error) {
@@ -119,29 +144,36 @@ func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto ge
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	var adminID *uuid.UUID
-	if dto.GroupAdmin != "" {
-		if a, err2 := uuid.Parse(dto.GroupAdmin); err2 == nil {
-			adminID = &a
+	if dto.GroupAdmin != nil {
+		a, err := uuid.Parse(*dto.GroupAdmin)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
 		}
+		adminID = &a
 	}
 	var imgBytes []byte
-	if dto.ProfileImage != "" {
-		if b, err2 := base64.StdEncoding.DecodeString(dto.ProfileImage); err2 == nil {
-			imgBytes = b
+	if dto.ProfileImage != nil {
+		if *dto.ProfileImage == "" {
+			return genserver.Response(http.StatusBadRequest, nil), nil
 		}
+		b, err := base64.StdEncoding.DecodeString(*dto.ProfileImage)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
+		}
+		imgBytes = b
 	}
 	result, err := s.group.Update(ctx, id, service.UpdateGroupInput{
-		Name:         strNilable(dto.Name),
-		Description:  strNilable(dto.Description),
-		Link:         strNilable(dto.Link),
-		Visibility:   intNilable(int(dto.Visibility)),
+		Name:         dto.Name,
+		Description:  dto.Description,
+		Link:         dto.Link,
+		Visibility:   int32PtrToInt(dto.Visibility),
 		GroupAdmin:   adminID,
 		ProfileImage: imgBytes,
 	})
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, toGroupDto(result)), nil
+	return genserver.Response(http.StatusOK, toGroupDto(result, true)), nil
 }
 
 func (s *GroupsServicer) DeleteGroup(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -177,7 +209,7 @@ func (s *GroupsServicer) GetGroupProfileImage(ctx context.Context, groupID strin
 	if redirect {
 		return genserver.Response(http.StatusOK, *u), nil
 	}
-	return genserver.Response(http.StatusOK, *u), nil
+	return genserver.Response(http.StatusOK, []byte(*u)), nil
 }
 
 func (s *GroupsServicer) GetGroupProfileImageSmall(ctx context.Context, groupID string, redirect bool) (genserver.ImplResponse, error) {
@@ -195,7 +227,7 @@ func (s *GroupsServicer) GetGroupProfileImageSmall(ctx context.Context, groupID 
 	if redirect {
 		return genserver.Response(http.StatusOK, *u), nil
 	}
-	return genserver.Response(http.StatusOK, *u), nil
+	return genserver.Response(http.StatusOK, []byte(*u)), nil
 }
 
 func (s *GroupsServicer) GetGroupPinImage(ctx context.Context, groupID string, redirect bool) (genserver.ImplResponse, error) {
@@ -210,7 +242,10 @@ func (s *GroupsServicer) GetGroupPinImage(ctx context.Context, groupID string, r
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
 	}
-	return genserver.Response(http.StatusOK, *u), nil
+	if redirect {
+		return genserver.Response(http.StatusOK, *u), nil
+	}
+	return genserver.Response(http.StatusOK, []byte(*u)), nil
 }
 
 func (s *GroupsServicer) GetGroupDescription(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -229,7 +264,7 @@ func (s *GroupsServicer) GetGroupDescription(ctx context.Context, groupID string
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, strDeref(dto.Description)), nil
+	return genserver.Response(http.StatusOK, []byte(strDeref(dto.Description))), nil
 }
 
 func (s *GroupsServicer) GetGroupLink(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -248,7 +283,7 @@ func (s *GroupsServicer) GetGroupLink(ctx context.Context, groupID string) (gens
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, strDeref(dto.Link)), nil
+	return genserver.Response(http.StatusOK, []byte(strDeref(dto.Link))), nil
 }
 
 func (s *GroupsServicer) GetGroupAdmin(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -267,7 +302,7 @@ func (s *GroupsServicer) GetGroupAdmin(ctx context.Context, groupID string) (gen
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, admin), nil
+	return genserver.Response(http.StatusOK, []byte(admin)), nil
 }
 
 func (s *GroupsServicer) GetGroupInviteUrl(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
@@ -286,7 +321,7 @@ func (s *GroupsServicer) GetGroupInviteUrl(ctx context.Context, groupID string) 
 	if err != nil {
 		return serviceErrResp(err), nil
 	}
-	return genserver.Response(http.StatusOK, strDeref(dto.InviteUrl)), nil
+	return genserver.Response(http.StatusOK, []byte(strDeref(dto.InviteUrl))), nil
 }
 
 // strNilable returns nil for empty string, otherwise a pointer to the string.
@@ -297,10 +332,10 @@ func strNilable(s string) *string {
 	return &s
 }
 
-// intNilable returns nil for zero, otherwise a pointer to the int.
-func intNilable(n int) *int {
-	if n == 0 {
+func int32PtrToInt(n *int32) *int {
+	if n == nil {
 		return nil
 	}
-	return &n
+	v := int(*n)
+	return &v
 }
