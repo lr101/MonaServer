@@ -37,6 +37,8 @@ mise exec -- go test ./...
 
 Tests that need PostGIS skip when `TEST_DATABASE_URL` is unset. A passing plain test run does not mean the database tests ran. Database tests truncate shared tables, so point them only at a disposable test database and run them serially.
 
+PostgreSQL and PostGIS are OS-level test dependencies, not mise tools. If the container has no database or container runtime, follow the native Debian setup in `go-server/internal/db/AGENTS.md`. Do not stop at the plain test suite when database behavior changed.
+
 ## Change rules
 
 - Keep API behavior, `api/openapi.yaml`, generated API code, handlers, and route authorization in sync.

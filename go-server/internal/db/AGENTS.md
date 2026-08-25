@@ -42,3 +42,31 @@ mise exec -- go test -p 1 ./...
 ```
 
 Do not add `t.Parallel()` to tests that share this database. Test both the SQL behavior and the service behavior when a schema or query change affects business rules.
+
+### Native PostGIS setup for agent containers
+
+PostgreSQL and PostGIS are OS services, so they do not belong in `mise.toml`. When Docker or Podman is unavailable in a Debian-based agent container, install and start a disposable local instance with:
+
+```bash
+apt-get update
+apt-get install -y postgresql postgresql-contrib postgis
+pg_ctlcluster 15 main start
+pg_isready -h 127.0.0.1 -p 5432
+runuser -u postgres -- psql -v ON_ERROR_STOP=1 \
+  -c "CREATE ROLE monaserver LOGIN PASSWORD 'monaserver';"
+runuser -u postgres -- createdb -O monaserver monaserver_test
+runuser -u postgres -- psql -d monaserver_test -v ON_ERROR_STOP=1 \
+  -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+```
+
+Those role and database creation commands assume a fresh container. If either already exists, keep it and continue. Verify the service before running tests:
+
+```bash
+PGPASSWORD=monaserver psql -h 127.0.0.1 -U monaserver \
+  -d monaserver_test -Atc 'SELECT PostGIS_Version();'
+cd go-server
+TEST_DATABASE_URL='postgres://monaserver:monaserver@localhost:5432/monaserver_test?sslmode=disable' \
+mise exec -- go test -count=1 -p 1 ./...
+```
+
+The credentials above are only for the disposable local test database. Never reuse them for development, staging, or production.
