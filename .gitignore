@@ -52,3 +52,4 @@ buildDocker.bat
 /minio/
 /stick-it-map-firebase-*.json
 /secrets/
+.worktrees/
