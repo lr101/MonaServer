@@ -217,7 +217,9 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
 	withUser := true
-	groups, err := s.group.Search(ctx, nil, &uid, &withUser, true, 0, 1000, nil)
+	// The client uses this membership snapshot to remove groups that are no
+	// longer joined, so it must not be truncated by the paginated group API.
+	groups, err := s.group.Search(ctx, nil, &uid, &withUser, true, 0, 0, nil)
 	if err != nil {
 		return serviceErrResp(err), nil
 	}

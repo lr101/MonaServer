@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A Sticker App.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Stick-It">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Stick-It</title>
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="preload" href="splash/img/light-1x.png" as="image">
+  <link rel="preload" href="assets/icon/logo-rounded-corners.png" as="image">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+  <script src="posthog.js"></script>
+
+  <style>
+    body {
+      background-color: #e1a064; /* Match this to your app's background color */
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    #splash-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .splash-logo {
+      width: 120px; /* Adjust size as needed */
+      height: auto;
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .splash-loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db; /* Match this to your primary brand color */
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      margin-top: 24px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="splash-screen">
+    <img class="splash-logo" src="assets/icon/logo-rounded-corners.png" alt="Stick-It Logo">
+    <div class="splash-loader"></div>
+  </div>
+
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splashScreen = document.getElementById('splash-screen');
+      if (splashScreen) {
+        splashScreen.remove();
+      }
+    });
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+
+</body>
+</html>
