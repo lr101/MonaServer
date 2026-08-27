@@ -13,7 +13,7 @@ class PosthogSettings {
 
   static PosthogSettings? fromEnvironment(
     Map<String, String> environment, {
-    bool isProduction = false,
+    required bool isProduction,
   }) {
     final apiKey = environment['POSTHOG_API_KEY']?.trim();
     if (apiKey == null || apiKey.isEmpty) return null;

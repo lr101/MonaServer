@@ -56,6 +56,10 @@ identities and the `APP_STORE_CONNECT_PRIVATE_KEY`,
 `APP_STORE_CONNECT_KEY_IDENTIFIER`, and `APP_STORE_CONNECT_ISSUER_ID` secrets
 in Codemagic before enabling that workflow.
 
+PostHog is configured at build time with the `POSTHOG_API_KEY` environment
+variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub
+Actions rather than committing it to either checked-in Flutter config file.
+
 ## Repository layout
 
 - `flutter/`: Flutter app, platform projects, assets, and generated Dart API client

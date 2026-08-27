@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('does not configure PostHog without an API key', () {
-    expect(PosthogSettings.fromEnvironment({}), isNull);
+    expect(PosthogSettings.fromEnvironment({}, isProduction: false), isNull);
   });
 
   test('loads PostHog settings from the build environment', () {

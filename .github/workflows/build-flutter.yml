@@ -3,14 +3,14 @@ name: Build and test Flutter app
 on:
   push:
     paths:
-      - 'flutter/**'
-      - 'api/**'
-      - '.github/workflows/build-flutter.yml'
+      - "flutter/**"
+      - "api/**"
+      - ".github/workflows/build-flutter.yml"
   pull_request:
     paths:
-      - 'flutter/**'
-      - 'api/**'
-      - '.github/workflows/build-flutter.yml'
+      - "flutter/**"
+      - "api/**"
+      - ".github/workflows/build-flutter.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,18 +23,59 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
+
       - name: Add Google services configuration
-        id: google-services
         env:
           GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
         run: |
           if [ -z "$GOOGLE_SERVICES" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::GOOGLE_SERVICES is unavailable; skipping the Android build."
-            exit 0
+            echo "::notice::GOOGLE_SERVICES is unavailable; using a CI-only Firebase configuration for the compile check."
+            printf '%s' '{
+              "project_info": {
+                "project_number": "000000000000",
+                "project_id": "stick-it-ci",
+                "storage_bucket": "stick-it-ci.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                    "android_client_info": {
+                      "package_name": "com.TheGermanApps.buff_lisa"
+                    }
+                  },
+                  "api_key": [
+                    {
+                      "current_key": "ci-placeholder"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "status": 2,
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
+              "configuration_version": "1"
+            }' > flutter/android/app/google-services.json
+          else
+            printf '%s' "$GOOGLE_SERVICES" | base64 --decode > flutter/android/app/google-services.json
           fi
-          printf '%s' "$GOOGLE_SERVICES" | base64 --decode > flutter/android/app/google-services.json
-          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -46,7 +87,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Check generated Dart API client
         working-directory: flutter
@@ -82,10 +123,48 @@ jobs:
         working-directory: flutter/api
         run: flutter pub get && flutter test
 
+      - name: Build web release
+        working-directory: flutter
+        run: flutter build web --wasm --release --no-pub
+
       - name: Build Android APK
-        if: steps.google-services.outputs.available == 'true'
         working-directory: flutter
         run: flutter build apk --debug --no-pub
+
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.1
+
+      - name: Install dependencies
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Build iOS release
+        working-directory: flutter
+        run: flutter build ios --release --no-codesign --no-pub
 
   publish-web:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -97,6 +176,21 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::warning::POSTHOG_API_KEY is unavailable; the published web image will have PostHog disabled."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3

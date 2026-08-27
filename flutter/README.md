@@ -81,6 +81,14 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 
 The app release in Google Play Store and App Store is managed via Codemagic. The pipeline is triggered when a new commit is pushed to the main branch.
 
+### Analytics configuration
+
+PostHog is initialized at build time from `POSTHOG_API_KEY` and the optional
+`POSTHOG_HOST` setting. Keep the API key out of the repository: provide it as
+an environment variable in Codemagic, or as the `POSTHOG_API_KEY` GitHub
+Actions secret. The checked-in `.config` files intentionally omit it. Builds
+without the key run with analytics disabled.
+
 ### Generate API (summary)
 1. Activate openapi-generator: `flutter pub global activate openapi_generator_cli`
 2. Run from `flutter/`: `openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api`

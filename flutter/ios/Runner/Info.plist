@@ -26,11 +26,6 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
-		<key>NSAppTransportSecurity</key>
-		<dict>
-			<key>NSAllowsArbitraryLoads</key>
-			<true/>
-		</dict>
 		<key>NSCameraUsageDescription</key>
 		<string>Stick-It needs access to the camera to post pictures you have taken. It is only used and accessed on the camera page</string>
 		<key>NSLocationWhenInUseUsageDescription</key>

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/config/posthog_settings.dart';
+import 'package:buff_lisa/data/config/posthog_web_stub.dart'
+    if (dart.library.js_interop) 'package:buff_lisa/data/config/posthog_web.dart';
+import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
@@ -49,12 +51,21 @@ Future<void> main() async {
     isProduction: isProduction,
   );
   if (posthogSettings != null) {
+    await initializePosthogWeb(
+      apiKey: posthogSettings.apiKey,
+      host: posthogSettings.host,
+      debug: posthogSettings.debug,
+    );
     final posthogConfig = PostHogConfig(posthogSettings.apiKey)
       ..host = posthogSettings.host
       ..captureApplicationLifecycleEvents =
           posthogSettings.captureApplicationLifecycleEvents
       ..debug = posthogSettings.debug;
     await Posthog().setup(posthogConfig);
+  } else if (isProduction) {
+    debugPrint(
+      'PostHog is disabled because POSTHOG_API_KEY is not configured.',
+    );
   }
 
   // Initialize Drift database (cross-platform)
