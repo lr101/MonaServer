@@ -29,6 +29,34 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# camera_avfoundation 0.10.2 still references notification properties that
+# disappeared from the iOS 18 SDK's Swift importer. Keep the upstream package
+# version while applying the source-compatible notification names at pod setup.
+def patch_camera_avfoundation
+  source_path = File.expand_path(
+    '.symlinks/plugins/camera_avfoundation/ios/camera_avfoundation/Sources/' \
+      'camera_avfoundation/DefaultCamera.swift',
+    __dir__
+  )
+  return unless File.file?(source_path)
+
+  source = File.read(source_path)
+  patched_source = source
+    .gsub(
+      'AVCaptureSession.wasInterruptedNotification',
+      'NSNotification.Name("AVCaptureSessionWasInterruptedNotification")'
+    )
+    .gsub(
+      'AVCaptureSession.runtimeErrorNotification',
+      'NSNotification.Name("AVCaptureSessionRuntimeErrorNotification")'
+    )
+
+  return if patched_source == source
+
+  File.write(source_path, patched_source)
+  puts 'Patched camera_avfoundation notification names for the iOS 18 SDK.'
+end
+
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
@@ -38,6 +66,8 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  patch_camera_avfoundation
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
   end
