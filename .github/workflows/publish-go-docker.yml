@@ -71,7 +71,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push versioned image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: go-server
           file: go-server/Dockerfile
@@ -83,7 +83,7 @@ jobs:
 
       - name: Tag and push :latest (Release/Main only)
         if: steps.compute_version.outputs.is_release == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: go-server
           file: go-server/Dockerfile
@@ -94,7 +94,7 @@ jobs:
 
       - name: Tag and push :snapshot (Develop only)
         if: steps.compute_version.outputs.is_snapshot == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: go-server
           file: go-server/Dockerfile
