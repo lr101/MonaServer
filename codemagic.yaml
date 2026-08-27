@@ -26,7 +26,7 @@ workflows:
       - name: Set up code signing settings on Xcode project
         script: cd flutter && xcode-project use-profiles
       - name: Build iOS IPA
-        script: cd flutter && flutter build ipa --release --no-pub
+        script: cd flutter && FLUTTER_SWIFT_PACKAGE_MANAGER=false flutter build ipa --release --no-pub
     artifacts:
       - flutter/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log

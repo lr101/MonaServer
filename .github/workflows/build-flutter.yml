@@ -164,6 +164,8 @@ jobs:
 
       - name: Build iOS release
         working-directory: flutter
+        env:
+          FLUTTER_SWIFT_PACKAGE_MANAGER: "false"
         run: flutter build ios --release --no-codesign --no-pub
 
   publish-web:
