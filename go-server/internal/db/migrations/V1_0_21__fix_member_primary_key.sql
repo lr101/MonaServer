@@ -1,0 +1,1 @@
+ALTER TABLE members DROP CONSTRAINT pk_members, DROP COLUMN id;
