@@ -1,0 +1,37 @@
+workflows:
+  flutter-ios:
+    name: Flutter IOS Build
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: 3.47.1
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.TheGermanApps.buffLisa
+    scripts:
+      - name: Create local app configuration
+        script: |
+          cd flutter
+          {
+            echo "API_HOST=$API_HOST"
+            echo "DISCORD_INVITE=$DISCORD_INVITE"
+            echo "INSTAGRAM_URL=$INSTAGRAM_URL"
+            echo "URL_GITHUB_REPO=$URL_GITHUB_REPO"
+            echo "APPSTORE_ID=$APPSTORE_ID"
+            echo "POSTHOG_API_KEY=$POSTHOG_API_KEY"
+            echo "POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } > .config
+      - name: Get Flutter packages
+        script: cd flutter && flutter pub get
+      - name: Set up code signing settings on Xcode project
+        script: cd flutter && xcode-project use-profiles
+      - name: Build iOS IPA
+        script: cd flutter && flutter build ipa --release --no-pub
+    artifacts:
+      - flutter/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID

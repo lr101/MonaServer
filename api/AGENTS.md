@@ -15,7 +15,7 @@ mise exec -- make gen-api
 OPENAPI_GENERATOR_JAR=/path/to/openapi-generator-cli-7.19.0.jar make gen-server
 ```
 
-`make gen-api` updates `go-server/internal/gen/api/api.gen.go`. That package embeds the specification served at `/public/api-docs`. The command requires `oapi-codegen` on `PATH`; the checked-in file records v2.7.0.
+`make gen-api` updates `go-server/internal/gen/api/api.gen.go`. That package embeds the specification served at `/public/api-docs`. The command requires `oapi-codegen` on `PATH`; the checked-in file records v2.8.0.
 
 `make gen-server` updates controllers, servicer interfaces, and models in `go-server/internal/gen/server/`. It expects a Java runtime and defaults to the OpenAPI Generator jar at `~/openapi-generator-cli.jar`; override `OPENAPI_GENERATOR_JAR` for another location. The checked-in output records OpenAPI Generator 7.19.0. The normal `mise.toml` intentionally installs only Go tools, so it does not provide Java or the generator jar. `make gen` also runs sqlc, so do not use it for an API-only edit unless SQL generation is intended.
 

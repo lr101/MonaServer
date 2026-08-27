@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -87,6 +91,51 @@ func TestPinSyncAppliesVisibilityAndFilters(t *testing.T) {
 		if item.Id == privatePin.ID.String() {
 			t.Fatal("id filter leaked a private pin")
 		}
+	}
+}
+
+func TestPinSyncIncludesAllUserGroups(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	servicer := NewPinsServicer(service.NewPin(q, nil), groupSvc, service.NewGuard(q), q)
+	ctx := context.Background()
+
+	user, err := auth.Signup(ctx, "pin_sync_many_groups", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+
+	const groupCount = 1001
+	for i := range groupCount {
+		groupID := uuid.New()
+		if _, err := q.CreateGroup(ctx, db.Group{
+			ID:         groupID,
+			Name:       fmt.Sprintf("pin_sync_many_%04d", i),
+			Visibility: 0,
+			AdminID:    user.UserID,
+		}); err != nil {
+			t.Fatalf("create group %d: %v", i, err)
+		}
+		if err := q.AddMember(ctx, groupID, user.UserID); err != nil {
+			t.Fatalf("add member %d: %v", i, err)
+		}
+	}
+
+	resp, err := servicer.Sync(
+		middleware.WithUser(ctx, user.UserID, middleware.RoleUser),
+		time.Time{},
+	)
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	result, ok := resp.Body.(genserver.SyncDto)
+	if !ok {
+		t.Fatalf("sync response body type = %T", resp.Body)
+	}
+	if len(result.GroupUpdates) != groupCount {
+		t.Fatalf("sync returned %d groups, want %d", len(result.GroupUpdates), groupCount)
 	}
 }
 
