@@ -1,0 +1,32 @@
+get:
+  operationId: getMapInfo
+  tags:
+    - ranking
+  security:
+    - token: []
+  parameters:
+    - name: latitude
+      in: query
+      description: Together with longitude an info dto of the position can be requested.
+      schema:
+        $ref: '../parameters/latitude.yaml'
+    - name: longitude
+      in: query
+      description: Together with latitude an info dto of the position can be requested.
+      schema:
+        $ref: '../parameters/longitude.yaml'
+  responses:
+    200:
+      description: Get mapInfo list
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/mapInfoDto.yaml'
+    400:
+      description: Query parameters have the wrong format
+    403:
+      description: Forbidden
+    401:
+      description: Unauthenticated

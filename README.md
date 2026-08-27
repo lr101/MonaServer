@@ -1,107 +1,75 @@
-# Mona Server
+# Stick-It monorepo
 
-[![Docker Publish](https://github.com/lr101/MonaServer/actions/workflows/publish-docker.yml/badge.svg)](https://github.com/lr101/MonaServer/actions/workflows/publish-docker.yml)
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/lr101/stick-it/issues)
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white&style=flat)](https://discord.gg/ReMZ8j6S8X)
-[![Play Store](https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white&style=flat)](https://play.google.com/store/apps/details?id=com.TheGermanApps.buff_lisa)
-[![App Store](https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white&style=flat)](https://apps.apple.com/de/app/stick-it-geomap/id6446781455)
+Stick-It is a Flutter app backed by MonaServer, the Go API for [Stick-It Map](https://stick-it-map.lr-projects.de). The app lets users record stickers and street art, share them with groups, and explore them on a map. The server provides the API for authentication, images, groups, rankings, achievements, account workflows, and notifications.
 
+The service uses PostgreSQL with PostGIS and an optional S3-compatible object store, SMTP server, and Firebase Cloud Messaging configuration.
 
-## What is it for?
+## Development
 
-This **spring boot** application is the communicating backend server for the app [Stick-It Map](https://stick-it-map.lr-projects.de) which can be found in the following [repo](https://github.com/lr101/stick-it).
-The app allows sharing stickers in groups by geotagging images. 
+Install the pinned Go tools and run the server checks from the repository root:
 
-## TechStack
-
-The packend server is written in **kotlin** using **spring boot**.
-
-It uses a **postgres** (with postgis extension for localization of different boundaries up to administrative 2 zones) database as its storage medium and implements refresh and jwt-auth tokens for login and authentication purposes. The **openapi** definition can be found in this [repo](https://github.com/lr101/MonaServerApi) or when starting the server under `/public/swagger-ui/index.html`
-Using GitHub actions a docker image is always available at Docker Hub [here](https://hub.docker.com/repository/docker/lrprojects/stick-it-server/general).
-
-For image storage a **minio** bucket is used. Everything can be hosted locally and set up with this repo.
-
-For logging the application logs are written to a **logback** file and metric data is optionally published into **influxdb** which can be displayed using **grafana**.
-
-All services are supposed to be running in docker containers using the provided docker compose file.
-
-## How to run
-
-### Production setup in docker
-
-1. Clone the repo (or copy [docker-compose.yml](./docker-compose.yml) file and `init/` folder)
-2. Create a `.env` file in the root of the project:
-
-```dotenv
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=root
-POSTGRES_DB=sticker
-PORT=8081
-ADMIN_ACCOUNT_NAME=admin
-DB_URL=jdbc:postgresql://db:5432/sticker
-MAIL_PASSWORD=<YOUR MAIL PASSWORD>
-MAIL_USERNAME=<YOUR MAIL USERNAME>
-MAIL_HOST=<YOUR EMAIL SERVER HOST>
-MAIL_PORT=<YOUR EMAIL SERVER PORT>
-MAIL_FROM=<YOUR EMAIL> # when setting --Stick-It Map <YOUR EMAIL>-- the name will be shown
-MAIL_BATCH_SIZE=25 # number of emails to send in the MAIL_BATCH_DURATION timeframe
-MAIL_BATCH_DURATION=60 # in minutes
-MAIL_PROTOCOL=smtp
-APP_URL=<YOUR_PUBLIC_FACING_DOMAIN> # Set to public facing api domain
-MINIO_ACCESS_KEY=<MINIO_ACCESS_KEY>
-MINIO_SECRET_KEY=<MINIO_SECRET_KEY>
-MINIO_ENDPOINT=https://minio.example.com # Set to public facing minio domain
-MINIO_BUCKET=<MINIO_BUCKET_NAME>
-MINIO_ROOT_USER: admin
-MINIO_ROOT_PASSWORD: <MINIO_CONSOLE_ADMIN_PASSWORD>
-MINIO_PORT=9000
-MINIO_CONSOLE_PORT=9001
+```bash
+mise install
+mise run test
+mise run build
 ```
-3. Add your mail login data, public facing app url and minio information
-    - You might need to start the minio container to create your access key through the admin console: `docker compose up minio`
-    - Navigate to the minio console at http://localhost:9001 and login using the specified MINIO_ROOT_PASSWORD
-    - Create a bucket with the same name as the MINIO_BUCKET_NAME
-    - Create an access token and add it to your `.env`
-4. Run `docker-compose up` to  start all services
 
-### Optional
+The Go module and its detailed setup instructions are in [`go-server/`](go-server/README.md). The OpenAPI contract is in [`api/openapi.yaml`](api/openapi.yaml).
 
-1. Add influx for monitoring by setting the following values in your `.env`:
-   ```.dotenv
-   INFLUX_ENABLED=true
-   INFLUX_TOKEN=
-   INFLUX_BUCKET=
-   INFLUX_ORG=
-   INFLUX_URL=
-   ```
-2. Add the following achievement thresholds in your `.env`:
-   ```.dotenv
-   ACHIEVEMENT_MONA_GROUP_ID=<UUID>
-   ACHIEVEMENT_CREATED_BEFORE<DATE> # in format ex: 2023-12-10T02:43:44.402768+00:00
-   ```
+For a production cutover from the Spring deployment, follow the
+[`go-server/MIGRATION.md`](go-server/MIGRATION.md) guide. It covers the one-time
+Flyway handoff and keeps the existing PostgreSQL and RustFS data in place.
 
+For a complete local stack, create an ignored `.env.dev` as described in the Go server guide, then run:
 
-### Development setup (in IntelliJ)
-
-1. Clone the repo
-2. Open the project with IntelliJ
-3. Set the SDK Version to 17 in the *Project Structure* setting
-4. Create a .env file in the root of the project:
-```dotenv
-DB_URL=jdbc:postgresql://localhost:5432/sticker
-APP_URL=http://localhost:8080 # Set to public facing domain
-MINIO_ENDPOINT=http://localhost:9000 # Set to public facing minio domain
+```bash
+docker compose -f docker-compose.dev.yml up --build
 ```
-5. Create a database in an already running instance or start the db in the [docker-compose](docker-compose.yml) file
-6. Run the server via the main method
 
-## FAQ
+The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
 
-1. How do I use my gmail address when using TFA? - *See this [link](https://support.google.com/accounts/answer/185833?hl=en#zippy=) for how to generate an app password*
-2. What gmail smtp server protocol should I use? - See [this](https://developers.google.com/gmail/imap/imap-smtp?hl=de) Google developer page for mail protocol information*
-3. How do I back up the database? `docker exec -it <DB DOCKER ID> /bin/bash -c 'pg_dump -U postgres -Fc mona > /backup/db.dump'`
-4. How do I restore a database? `docker exec -it <DB DOCKER ID> /bin/bash -c 'pg_restore -d sticker /backup/db.dump`
-5. Run spacial data import:
-```shell
-docker exec -it <CONTAINER_ID> ogr2ogr -f "PostgreSQL" PG:"host=localhost user=postgres dbname=geospatial_db password=your_password"     -nln states_provinces -append -t_srs "EPSG:4326"     /docker-entrypoint-initdb.d/world_admin2.geojson
+To work on the Flutter app, install Flutter, then run these commands from the repository root:
+
+```bash
+cd flutter
+flutter pub get
+dart run build_runner build
+flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
+
+The repository pins Go 1.27.0, Flutter 3.47.1, and the API tooling in
+[`mise.toml`](mise.toml). The same checks are available from the repository
+root as `mise run flutter-analyze`, `mise run flutter-test`, and
+`mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
+build.
+
+The app uses the generated Dart client in `flutter/api/`. Regenerate it from the shared contract with:
+
+```bash
+cd flutter
+openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
+```
+
+The Codemagic iOS workflow writes the app's `.config`, prepares signing, builds
+an IPA, and uploads it to App Store Connect. Configure the iOS signing
+identities and the `APP_STORE_CONNECT_PRIVATE_KEY`,
+`APP_STORE_CONNECT_KEY_IDENTIFIER`, and `APP_STORE_CONNECT_ISSUER_ID` secrets
+in Codemagic before enabling that workflow.
+
+PostHog is configured at build time with the `POSTHOG_API_KEY` environment
+variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub
+Actions rather than committing it to either checked-in Flutter config file.
+
+## Repository layout
+
+- `flutter/`: Flutter app, platform projects, assets, and generated Dart API client
+- `go-server/`: server module, database migrations, tests, and container image
+- `api/`: OpenAPI sources and bundled contract
+- `docker-compose.dev.yml`: local PostGIS, object storage, and server stack
+- `docker-compose.yml`: deployment stack
+- `codemagic.yaml`: mobile release workflow
+- `mise.toml`: pinned development tools and tasks
+
+## License
+
+See [LICENSE](LICENSE).

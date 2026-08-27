@@ -1,0 +1,26 @@
+type: object
+properties:
+  description:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/shortString.yaml'
+  name:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/shortString.yaml'
+  profileImage:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/image.yaml'
+  visibility:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/visibility.yaml'
+  groupAdmin:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/id.yaml'
+  link:
+    nullable: true
+    allOf:
+      - $ref: '../parameters/shortString.yaml'

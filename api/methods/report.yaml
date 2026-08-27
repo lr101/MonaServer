@@ -1,0 +1,20 @@
+post:
+  operationId: createReport
+  tags:
+    - report
+  security:
+    - token: [ ]
+  summary: Report content
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/reportDto.yaml'
+  responses:
+    '201':
+      description: Report submitted successfully
+    '400':
+      description: User not found
+    '503':
+      description: Mail service at the moment not reachable

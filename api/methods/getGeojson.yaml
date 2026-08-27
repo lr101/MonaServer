@@ -1,0 +1,37 @@
+get:
+  operationId: getGeoJson
+  description: Gets the geojson info of a specific gid
+  security:
+    - token: []
+  tags:
+    - ranking
+  parameters:
+    - name: gid2
+      description: County ID. Only one allowed
+      required: false
+      in: query
+      schema:
+        type: string
+    - name: gid1
+      description: State ID. Only one allowed
+      required: false
+      in: query
+      schema:
+        type: string
+    - name: gid0
+      description: Country ID. Only one allowed
+      required: false
+      in: query
+      schema:
+        type: string
+  responses:
+    200:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: string
+    404:
+      description: Country not found

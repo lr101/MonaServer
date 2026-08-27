@@ -1,0 +1,15 @@
+type: object
+required:
+  - id
+  - month
+  - year
+  - seasonNumber
+properties:
+  id:
+    $ref: '../parameters/id.yaml'
+  month:
+    type: integer
+  year:
+    type: integer
+  seasonNumber:
+    type: integer

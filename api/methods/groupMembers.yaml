@@ -1,0 +1,110 @@
+get:
+  operationId: getGroupMembers
+  security:
+    - token: [ ]
+  summary: Get members of a group by ID
+  tags:
+    - members
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/memberResponseDto.yaml'
+    404:
+      description: Group does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+post:
+  operationId: joinGroup
+  security:
+    - token: [ ]
+  summary: Add a member to a group by ID
+  tags:
+    - members
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: userId
+      in: query
+      required: true
+      description: id of user
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: inviteUrl
+      in: query
+      description: inviteUrl to authorize a user to join a private group
+      schema:
+        $ref: '../parameters/shortString.yaml'
+  responses:
+    '201':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupDto.yaml'
+    400:
+      description: Group or user does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+    '403':
+      description: inviteUrl does not match
+    404:
+      description: Group or user does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+    409:
+      description: User is already a member
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+
+delete:
+  operationId: deleteMemberFromGroup
+  security:
+    - token: [ ]
+  summary: leave group or delete group when the user is the last group member
+  tags:
+    - members
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: userId
+      in: query
+      required: true
+      description: userId
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Deleted
+    404:
+      description: Group or user does not exist
+      content:
+        text/plain; charset=utf-8:
+          schema:
+            $ref: '../parameters/longString.yaml'
+    409:
+      description: User cannot leave as group admin when the group is not empty

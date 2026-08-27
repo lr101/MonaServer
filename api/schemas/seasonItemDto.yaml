@@ -1,0 +1,17 @@
+type: object
+required:
+  - id
+  - season
+  - points
+  - rank
+properties:
+  id:
+    $ref: '../parameters/id.yaml'
+  season:
+    $ref: './seasonDto.yaml'
+  points:
+    type: integer
+    description: Number of sticks
+  rank:
+    type: integer
+    description: Rank reached at the end of the season

@@ -1,0 +1,6 @@
+type: object
+properties:
+  refreshToken:
+    $ref: '../parameters/id.yaml'
+  userId:
+    $ref: '../parameters/id.yaml'

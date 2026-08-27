@@ -1,0 +1,12 @@
+required:
+  - email
+  - password
+  - name
+type: object
+properties:
+  name:
+    $ref: '../parameters/shortString.yaml'
+  email:
+    $ref: '../parameters/email.yaml'
+  password:
+    $ref: '../parameters/shortString.yaml'

@@ -1,0 +1,20 @@
+post:
+  operationId: createPin
+  security:
+    - token: [ ]
+  summary: Create a new pin
+  tags:
+    - pins
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/pinRequestDto.yaml'
+  responses:
+    '201':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/pinWithOptionalImageDto.yaml'

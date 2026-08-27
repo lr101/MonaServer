@@ -1,0 +1,13 @@
+description: An array of sorted groups by rank and points
+type: array
+items:
+  type: object
+  properties:
+    groupInfoDto:
+      $ref: './groupDto.yaml'
+    rankNr:
+      type: integer
+      minimum: 0
+    points:
+      type: integer
+      minimum: 0

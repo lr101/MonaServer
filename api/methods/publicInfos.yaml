@@ -1,0 +1,14 @@
+get:
+  operationId: getServerInfo
+  summary: Get public server statistics
+  tags:
+    - public
+  responses:
+    '200':
+      description: Successful response
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/infoDto.yaml'

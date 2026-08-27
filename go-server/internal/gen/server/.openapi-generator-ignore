@@ -1,0 +1,12 @@
+# OpenAPI Generator cannot express several wire-compatibility rules used by the
+# existing mobile clients. Keep these small controller/model adapters when the
+# remaining server models are regenerated. Their behavior is covered by tests.
+api.go
+api_auth.go
+api_groups.go
+api_members.go
+api_pins.go
+api_ranking.go
+helpers.go
+model_create_group_dto.go
+model_pin_request_dto.go

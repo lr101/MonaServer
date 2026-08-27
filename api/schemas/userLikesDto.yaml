@@ -1,0 +1,15 @@
+type: object
+required:
+  - likeCount
+  - likeArtCount
+  - likeLocationCount
+  - likePhotographyCount
+properties:
+  likeCount:
+    type: integer
+  likeArtCount:
+    type: integer
+  likeLocationCount:
+    type: integer
+  likePhotographyCount:
+    type: integer

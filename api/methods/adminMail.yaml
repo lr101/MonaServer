@@ -1,0 +1,17 @@
+post:
+  operationId: sendAdminMail
+  security:
+    - token: []
+  summary: Send an admin mail
+  tags:
+    - admin
+  requestBody:
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/adminMailDto.yaml'
+  responses:
+    200:
+      description: Successfully sent mail(s)
+    400:
+      description: Failure

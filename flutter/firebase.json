@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"stick-it-map","appId":"1:306208739055:android:d10c31ae05e6581246551a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"stick-it-map","configurations":{"android":"1:306208739055:android:d10c31ae05e6581246551a","ios":"1:306208739055:ios:2749b42c8dfa831246551a"}}}}}}

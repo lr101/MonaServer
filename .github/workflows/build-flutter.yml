@@ -1,0 +1,220 @@
+name: Build and test Flutter app
+
+on:
+  push:
+    paths:
+      - "flutter/**"
+      - "api/**"
+      - ".github/workflows/build-flutter.yml"
+  pull_request:
+    paths:
+      - "flutter/**"
+      - "api/**"
+      - ".github/workflows/build-flutter.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
+
+      - name: Add Google services configuration
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES" ]; then
+            echo "::notice::GOOGLE_SERVICES is unavailable; using a CI-only Firebase configuration for the compile check."
+            printf '%s' '{
+              "project_info": {
+                "project_number": "000000000000",
+                "project_id": "stick-it-ci",
+                "storage_bucket": "stick-it-ci.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                    "android_client_info": {
+                      "package_name": "com.TheGermanApps.buff_lisa"
+                    }
+                  },
+                  "api_key": [
+                    {
+                      "current_key": "ci-placeholder"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "status": 2,
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
+              "configuration_version": "1"
+            }' > flutter/android/app/google-services.json
+          else
+            printf '%s' "$GOOGLE_SERVICES" | base64 --decode > flutter/android/app/google-services.json
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Check generated Dart API client
+        working-directory: flutter
+        run: |
+          flutter pub global activate openapi_generator_cli
+          generated_api="$(mktemp -d)"
+          trap 'rm -rf "$generated_api"' EXIT
+          flutter pub global run openapi_generator_cli:main generate \
+            -i ../api/openapi.yaml \
+            -g dart \
+            -o "$generated_api" \
+            --skip-validate-spec
+          diff -ru \
+            --exclude=pubspec.yaml \
+            --exclude=pubspec.lock \
+            --exclude=.dart_tool \
+            --exclude=build \
+            api "$generated_api"
+
+      - name: Install dependencies
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Analyze Dart code
+        working-directory: flutter
+        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+
+      - name: Test Flutter app
+        working-directory: flutter
+        run: flutter test --no-pub
+
+      - name: Test generated Dart API client
+        working-directory: flutter/api
+        run: flutter pub get && flutter test
+
+      - name: Build web release
+        working-directory: flutter
+        run: flutter build web --wasm --release --no-pub
+
+      - name: Build Android APK
+        working-directory: flutter
+        run: flutter build apk --debug --no-pub
+
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.1
+
+      - name: Select Xcode 16.4
+        run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+
+      - name: Install dependencies
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Build iOS release
+        working-directory: flutter
+        env:
+          FLUTTER_SWIFT_PACKAGE_MANAGER: "false"
+        run: flutter build ios --release --no-codesign --no-pub
+
+  publish-web:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: analyze-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Add build-time analytics configuration
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+        run: |
+          if [ -z "$POSTHOG_API_KEY" ]; then
+            echo "::warning::POSTHOG_API_KEY is unavailable; the published web image will have PostHog disabled."
+            exit 0
+          fi
+          {
+            printf '\n'
+            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
+          } >> flutter/.config
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract web image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/stick-it-web
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: flutter
+          file: flutter/docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

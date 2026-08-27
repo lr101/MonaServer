@@ -1,0 +1,38 @@
+type: object
+required:
+  - id
+  - gid0
+  - name0
+  - gid1
+  - nae1
+  - gid2
+  - name2
+properties:
+  id:
+    type: string
+    format: uuid
+    description: A unique identifier for each feature.
+  gid0:
+    type: string
+    nullable: true
+    description: Country GID.
+  name0:
+    type: string
+    nullable: true
+    description: Country name.
+  gid1:
+    type: string
+    nullable: true
+    description: First-level administrative GID.
+  name1:
+    type: string
+    nullable: true
+    description: First-level administrative name.
+  gid2:
+    type: string
+    nullable: true
+    description: Second-level administrative GID.
+  name2:
+    type: string
+    nullable: true
+    description: Second-level administrative name.

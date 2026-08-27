@@ -1,0 +1,2 @@
+type: integer
+description: The visibility of the group. 0 for public, 1 for private

@@ -1,0 +1,13 @@
+type: object
+required:
+  - userId
+  - report
+  - message
+properties:
+  userId:
+    $ref: '../parameters/id.yaml'
+  report:
+    $ref: '../parameters/shortString.yaml'
+  message:
+    type: string
+    maximum: 5000

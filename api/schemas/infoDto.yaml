@@ -1,0 +1,12 @@
+required:
+  - num-groups
+  - num-pins
+  - num-users
+type: object
+properties:
+  num-users:
+    type: number
+  num-groups:
+    type: number
+  num-pins:
+    type: number

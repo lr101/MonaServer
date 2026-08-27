@@ -1,0 +1,19 @@
+type: object
+required:
+  - totalXp
+  - currentLevel
+  - currentLevelXp
+  - nextLevelXp
+properties:
+  totalXp:
+    type: integer
+    minimum: 0
+  currentLevel:
+    type: integer
+    minimum: 0
+  currentLevelXp:
+    type: integer
+    minimum: 0
+  nextLevelXp:
+    type: integer
+    minimum: 0
