@@ -215,12 +215,13 @@ class PinService {
     )) {
       return;
     }
-    if (!await _sessionGuard.runIfCurrent(
-      generation,
-      () => _pinImageRepository.addImage(pin.pinId, image, true),
-    )) {
-      return;
-    }
+    await _pinImageRepository.addImage(
+      pin.pinId,
+      image,
+      true,
+      sessionGeneration: generation,
+    );
+    if (!_sessionGuard.isCurrent(generation)) return;
     final result = await _pinsApi.createPin(pin.toRequestDto(image));
     if (!_sessionGuard.isCurrent(generation)) return;
     final newPin = PinEntity.fromDto(result!, false);
@@ -236,9 +237,11 @@ class PinService {
     )) {
       return;
     }
-    await _sessionGuard.runIfCurrent(
-      generation,
-      () => _pinImageRepository.addImage(newPin.pinId, image, false),
+    await _pinImageRepository.addImage(
+      newPin.pinId,
+      image,
+      false,
+      sessionGeneration: generation,
     );
   }
 
@@ -246,6 +249,7 @@ class PinService {
     String pinId, {
     bool showPrompt = false,
   }) async {
+    final generation = _sessionGuard.generation;
     try {
       if (showPrompt)
         CustomErrorSnackBar.loadingMessage(message: "Deleting image");
@@ -253,7 +257,10 @@ class PinService {
       if (pin != null && pin.keepAlive == false) {
         await _pinsApi.deletePin(pinId);
       }
-      await _pinRepository.delete(pinId);
+      await _sessionGuard.runIfCurrent(
+        generation,
+        () => _pinRepository.delete(pinId),
+      );
       if (showPrompt)
         CustomErrorSnackBar.message(
           message: "Succesfully deleted",

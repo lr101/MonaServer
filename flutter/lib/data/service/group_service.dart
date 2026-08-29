@@ -124,15 +124,34 @@ class UserGroupService extends _$UserGroupService {
     }
 
     // update group pictures
-    ref
-        .read(groupProfileRepoProvider)
-        .overrideUrl(groupId, groupDto.profileImage!, true);
-    ref
-        .read(groupProfileSmallRepoProvider)
-        .overrideUrl(groupId, groupDto.profileImageSmall!, true);
-    ref
-        .read(groupPinImageRepoProvider)
-        .overrideUrl(groupId, groupDto.pinImage!, true);
+    final profileImage = groupDto.profileImage;
+    if (profileImage != null) {
+      await ref
+          .read(groupProfileRepoProvider)
+          .overrideUrl(
+            groupId,
+            profileImage,
+            true,
+            sessionGeneration: generation,
+          );
+    }
+    final profileImageSmall = groupDto.profileImageSmall;
+    if (profileImageSmall != null) {
+      await ref
+          .read(groupProfileSmallRepoProvider)
+          .overrideUrl(
+            groupId,
+            profileImageSmall,
+            true,
+            sessionGeneration: generation,
+          );
+    }
+    final pinImage = groupDto.pinImage;
+    if (pinImage != null) {
+      await ref
+          .read(groupPinImageRepoProvider)
+          .overrideUrl(groupId, pinImage, true, sessionGeneration: generation);
+    }
 
     // sync pins
     final remotePins = await _pinsApi.getPinImagesByIds(
@@ -243,15 +262,39 @@ class UserGroupService extends _$UserGroupService {
           () => _groupRepository.put(entity),
         );
 
-        ref
-            .read(groupProfileRepoProvider)
-            .overrideUrl(groupId, result.profileImage!, true);
-        ref
-            .read(groupProfileSmallRepoProvider)
-            .overrideUrl(groupId, result.profileImageSmall!, true);
-        ref
-            .read(groupPinImageRepoProvider)
-            .overrideUrl(groupId, result.pinImage!, true);
+        final profileImage = result.profileImage;
+        if (profileImage != null) {
+          await ref
+              .read(groupProfileRepoProvider)
+              .overrideUrl(
+                groupId,
+                profileImage,
+                true,
+                sessionGeneration: generation,
+              );
+        }
+        final profileImageSmall = result.profileImageSmall;
+        if (profileImageSmall != null) {
+          await ref
+              .read(groupProfileSmallRepoProvider)
+              .overrideUrl(
+                groupId,
+                profileImageSmall,
+                true,
+                sessionGeneration: generation,
+              );
+        }
+        final pinImage = result.pinImage;
+        if (pinImage != null) {
+          await ref
+              .read(groupPinImageRepoProvider)
+              .overrideUrl(
+                groupId,
+                pinImage,
+                true,
+                sessionGeneration: generation,
+              );
+        }
       } else {
         return "Failed to update group remotely";
       }

@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
+import 'package:buff_lisa/data/service/account_data_session.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
@@ -22,8 +23,18 @@ abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
   Future<Uint8List?> fetchImage(String id, bool keepAlive);
   Stream<Uint8List?> watchImageBytes(String id);
-  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive);
-  Future<void> addImage(String id, Uint8List image, bool keepAlive);
+  Future<Uint8List?> overrideUrl(
+    String id,
+    String url,
+    bool keepAlive, {
+    int? sessionGeneration,
+  });
+  Future<void> addImage(
+    String id,
+    Uint8List image,
+    bool keepAlive, {
+    int? sessionGeneration,
+  });
 }
 
 class _ImageCacheCoordinator {
@@ -61,6 +72,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     implements IImageRepository {
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
+  final AccountDataSessionGuard? sessionGuard;
   @override
   final ImageType type;
 
@@ -76,6 +88,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     required this.db,
     required this.getImageUrl,
     required this.type,
+    this.sessionGuard,
     super.maxItems,
     super.ttlDuration,
   });
@@ -232,25 +245,28 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Stream<Uint8List?> watchImageBytes(String id) {
-    return doWatchById(fastHash('${type.name}_$id')).asyncMap((entity) async {
+    return doWatchById(fastHash('${type.name}_$id')).asyncMap((entity) {
       // Treat null or an explicitly empty Uint8List as no image
       final image = entity?.image;
       if (image == null || image.isEmpty) {
         return null;
       }
 
-      return _cacheCoordinator.writeMutex.protect(() async {
-        final current = await doGet(fastHash('${type.name}_$id'));
-        if (current == null || !_sameImage(current, entity!)) return null;
+      return _runIfSessionCurrent<Uint8List>(
+        sessionGuard?.generation,
+        () => _cacheCoordinator.writeMutex.protect(() async {
+          final current = await doGet(fastHash('${type.name}_$id'));
+          if (current == null || !_sameImage(current, entity!)) return null;
 
-        final bytesCache = _cacheCoordinator.bytesCache;
-        if (bytesCache.containsKey(id)) {
-          return bytesCache[id];
-        }
+          final bytesCache = _cacheCoordinator.bytesCache;
+          if (bytesCache.containsKey(id)) {
+            return bytesCache[id];
+          }
 
-        _precacheInFlutter(id, image);
-        return image;
-      });
+          _precacheInFlutter(id, image);
+          return image;
+        }),
+      );
     }).asBroadcastStream();
   }
 
@@ -260,6 +276,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
     final isarId = fastHash('${type.name}_$id');
     final generation = _cacheCoordinator.generation;
+    final sessionGeneration = sessionGuard?.generation;
+
+    if (sessionGuard != null && !sessionGuard!.isCurrent(sessionGeneration!)) {
+      return null;
+    }
 
     // 1. Check DB Cache First
     final cachedImage = await doGet(isarId);
@@ -272,26 +293,40 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
       // Fast In-Memory Cache
       if (_cacheCoordinator.bytesCache.containsKey(id)) {
-        return _cacheCoordinator.writeMutex.protect(() async {
-          if (generation != _cacheCoordinator.generation) return null;
-          final current = await doGet(isarId);
-          if (current == null || !_sameImage(current, cachedImage)) return null;
-          _incrementHits(cachedImage);
-          return _cacheCoordinator.bytesCache[id];
-        });
+        return _runIfSessionCurrent<Uint8List>(
+          sessionGeneration,
+          () => _cacheCoordinator.writeMutex.protect(() async {
+            if (generation != _cacheCoordinator.generation) {
+              return null;
+            }
+            final current = await doGet(isarId);
+            if (current == null || !_sameImage(current, cachedImage)) {
+              return null;
+            }
+            await _incrementHits(cachedImage);
+            return _cacheCoordinator.bytesCache[id];
+          }),
+        );
       }
 
       // Load from DB Blob
       if (cachedImage.image != null && cachedImage.image!.isNotEmpty) {
         final image = cachedImage.image!;
-        return _cacheCoordinator.writeMutex.protect(() async {
-          if (generation != _cacheCoordinator.generation) return null;
-          final current = await doGet(isarId);
-          if (current == null || !_sameImage(current, cachedImage)) return null;
-          _precacheInFlutter(id, image);
-          _incrementHits(cachedImage);
-          return image;
-        });
+        return _runIfSessionCurrent<Uint8List>(
+          sessionGeneration,
+          () => _cacheCoordinator.writeMutex.protect(() async {
+            if (generation != _cacheCoordinator.generation) {
+              return null;
+            }
+            final current = await doGet(isarId);
+            if (current == null || !_sameImage(current, cachedImage)) {
+              return null;
+            }
+            _precacheInFlutter(id, image);
+            await _incrementHits(cachedImage);
+            return image;
+          }),
+        );
       }
     }
 
@@ -300,7 +335,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
       return _activeRequests[id];
     }
 
-    final requestFuture = _fetchAndCacheImage(id, keepAlive, generation);
+    final requestFuture = _fetchAndCacheImage(
+      id,
+      keepAlive,
+      generation,
+      sessionGeneration,
+    );
     _activeRequests[id] = requestFuture;
 
     try {
@@ -314,13 +354,23 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String id,
     bool keepAlive,
     int cacheGeneration,
+    int? sessionGeneration,
   ) async {
     try {
-      if (cacheGeneration != _cacheCoordinator.generation) return null;
+      if (cacheGeneration != _cacheCoordinator.generation ||
+          (sessionGuard != null &&
+              !sessionGuard!.isCurrent(sessionGeneration!))) {
+        return null;
+      }
       final imageUrl = await getImageUrl(id);
 
       if (imageUrl == null) {
-        await _saveEmptyState(id, keepAlive, cacheGeneration);
+        await _saveEmptyState(
+          id,
+          keepAlive,
+          cacheGeneration,
+          sessionGeneration,
+        );
         return null;
       }
 
@@ -332,6 +382,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           response.bodyBytes,
           keepAlive,
           cacheGeneration,
+          sessionGeneration,
         );
       } else {
         debugPrint("HTTP Error fetching image $id: ${response.statusCode}");
@@ -344,8 +395,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }
 
   @override
-  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
+  Future<Uint8List?> overrideUrl(
+    String id,
+    String url,
+    bool keepAlive, {
+    int? sessionGeneration,
+  }) async {
     final cacheGeneration = _cacheCoordinator.generation;
+    final expectedSessionGeneration =
+        sessionGeneration ?? sessionGuard?.generation;
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -354,10 +412,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
           response.bodyBytes,
           keepAlive,
           cacheGeneration,
+          expectedSessionGeneration,
         );
-        if (image == null) {
-          throw StateError('Image cache was cleared while writing');
-        }
         return image;
       } else {
         throw Exception(
@@ -370,12 +426,18 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }
 
   @override
-  Future<void> addImage(String id, Uint8List image, bool keepAlive) async {
+  Future<void> addImage(
+    String id,
+    Uint8List image,
+    bool keepAlive, {
+    int? sessionGeneration,
+  }) async {
     await _saveAndPrecacheImage(
       id,
       image,
       keepAlive,
       _cacheCoordinator.generation,
+      sessionGeneration ?? sessionGuard?.generation,
     );
   }
 
@@ -391,8 +453,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String id,
     bool keepAlive,
     int cacheGeneration,
+    int? sessionGeneration,
   ) async {
-    if (cacheGeneration != _cacheCoordinator.generation) return;
     // We cache a 0-length Uint8List to signify that we know this image doesn't exist on the server.
     // This prevents us from spamming the server with 404 requests.
     final entity = ImageEntity(
@@ -403,9 +465,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
       ttl: _calculateTtl(),
       onlySession: false,
     );
-    await _cacheCoordinator.writeMutex.protect(() async {
-      if (cacheGeneration != _cacheCoordinator.generation) return;
-      await put(entity);
+    await _runSessionAction(sessionGeneration, () async {
+      await _cacheCoordinator.writeMutex.protect(() async {
+        if (cacheGeneration != _cacheCoordinator.generation) return;
+        await put(entity);
+      });
     });
   }
 
@@ -414,29 +478,54 @@ class ImageRepository extends CacheImpl<ImageEntity>
     Uint8List bytes,
     bool keepAlive,
     int cacheGeneration,
+    int? sessionGeneration,
   ) async {
-    if (cacheGeneration != _cacheCoordinator.generation) return null;
-    await _cacheCoordinator.writeMutex.protect(() async {
-      if (cacheGeneration != _cacheCoordinator.generation) return;
-      _evictFromFlutterCache(id);
-      _precacheInFlutter(id, bytes);
+    Uint8List? savedImage;
+    await _runSessionAction(sessionGeneration, () async {
+      await _cacheCoordinator.writeMutex.protect(() async {
+        if (cacheGeneration != _cacheCoordinator.generation) return;
+        _evictFromFlutterCache(id);
+        _precacheInFlutter(id, bytes);
 
-      final entity = ImageEntity(
-        id: id,
-        type: type,
-        image: bytes,
-        keepAlive: keepAlive,
-        ttl: _calculateTtl(),
-        onlySession: false,
-      );
+        final entity = ImageEntity(
+          id: id,
+          type: type,
+          image: bytes,
+          keepAlive: keepAlive,
+          ttl: _calculateTtl(),
+          onlySession: false,
+        );
 
-      await put(entity);
-
-      // Fire and forget pruning
-      _pruneCacheLimits().ignore();
+        await put(entity);
+        await _pruneCacheLimits();
+        savedImage = bytes;
+      });
     });
 
-    return bytes;
+    return savedImage;
+  }
+
+  Future<bool> _runSessionAction(
+    int? sessionGeneration,
+    Future<void> Function() action,
+  ) async {
+    final guard = sessionGuard;
+    if (guard == null || sessionGeneration == null) {
+      await action();
+      return true;
+    }
+    return guard.runIfCurrent(sessionGeneration, action);
+  }
+
+  Future<T?> _runIfSessionCurrent<T>(
+    int? sessionGeneration,
+    Future<T?> Function() action,
+  ) async {
+    T? result;
+    final ran = await _runSessionAction(sessionGeneration, () async {
+      result = await action();
+    });
+    return ran ? result : null;
   }
 
   bool _sameImage(ImageEntity current, ImageEntity expected) {
@@ -494,6 +583,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
 IImageRepository groupProfileRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.group,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
     maxItems: 10,
@@ -505,6 +595,7 @@ IImageRepository groupProfileRepo(Ref ref) {
 IImageRepository groupProfileSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.groupSmall,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
     maxItems: 10,
@@ -516,6 +607,7 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
 IImageRepository groupPinImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.groupPin,
     getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
     maxItems: 50,
@@ -527,6 +619,7 @@ IImageRepository groupPinImageRepo(Ref ref) {
 IImageRepository userImageSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.userSmall,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
     maxItems: 500,
@@ -538,6 +631,7 @@ IImageRepository userImageSmallRepo(Ref ref) {
 IImageRepository userImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.user,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
     maxItems: 50,
@@ -549,6 +643,7 @@ IImageRepository userImageRepo(Ref ref) {
 IImageRepository pinImageRepository(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
+    sessionGuard: ref.watch(accountDataSessionGuardProvider),
     type: ImageType.pin,
     getImageUrl: ref.watch(pinApiProvider).getPinImage,
     maxItems: 200,

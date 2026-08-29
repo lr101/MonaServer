@@ -27,12 +27,51 @@ class GlobalDataService extends _$GlobalDataService {
             continueWithSessionOnCacheFailure: clearStateOnFailure,
           );
     } catch (error, stackTrace) {
+      await _markCleanupPending();
       if (clearStateOnFailure) {
         _clearSessionState();
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
+    await _clearCleanupPending();
     _clearSessionState();
+  }
+
+  Future<String?> prepareForNewSession() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getBool(GlobalDataRepository.accountCleanupPendingKey) != true) {
+      return null;
+    }
+
+    try {
+      await ref
+          .read(accountDataCleanupProvider)
+          .clearCache(resumeSession: false);
+      await _clearCleanupPending();
+      return null;
+    } catch (_) {
+      return 'Unable to clear data from the previous account. Please try again.';
+    }
+  }
+
+  Future<void> _markCleanupPending() async {
+    try {
+      await ref
+          .read(sharedPreferencesProvider)
+          .setBool(GlobalDataRepository.accountCleanupPendingKey, true);
+    } catch (_) {
+      // Preserve the original logout error if the recovery marker cannot be saved.
+    }
+  }
+
+  Future<void> _clearCleanupPending() async {
+    try {
+      await ref
+          .read(sharedPreferencesProvider)
+          .remove(GlobalDataRepository.accountCleanupPendingKey);
+    } catch (_) {
+      // A stale marker only causes a safe, extra cleanup before the next login.
+    }
   }
 
   void _clearSessionState() {
@@ -50,6 +89,7 @@ class GlobalDataService extends _$GlobalDataService {
     TokenResponseDto refreshToken,
     String username,
   ) async {
+    ref.read(accountDataSessionGuardProvider).beginSession();
     state = state.copyWith(
       refreshToken: refreshToken.refreshToken,
       userId: refreshToken.userId,
@@ -80,6 +120,8 @@ class AuthService extends _$AuthService {
         UserLoginRequest(username: name, password: password),
       );
       if (response != null) {
+        final cleanupError = await global.prepareForNewSession();
+        if (cleanupError != null) return cleanupError;
         await global.updateData(response, name);
         return null;
       }
@@ -117,6 +159,8 @@ class AuthService extends _$AuthService {
       );
       final response = await authApi.createUser(request);
       if (response != null) {
+        final cleanupError = await global.prepareForNewSession();
+        if (cleanupError != null) return cleanupError;
         await global.updateData(response, username);
         return null;
       } else {

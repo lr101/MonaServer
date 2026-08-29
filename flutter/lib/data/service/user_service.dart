@@ -80,12 +80,28 @@ class UserService extends _$UserService {
         final userDto = userEntity.copyUserWith(result, selectedBatch);
         await _sessionGuard.runIfCurrent(generation, () => _repo.put(userDto));
         if (profilePicture != null) {
-          ref
-              .read(userImageRepoProvider)
-              .overrideUrl(this.userId, result.profileImage!, true);
-          ref
-              .read(userImageSmallRepoProvider)
-              .overrideUrl(this.userId, result.profileImageSmall!, true);
+          final profileImage = result.profileImage;
+          if (profileImage != null) {
+            await ref
+                .read(userImageRepoProvider)
+                .overrideUrl(
+                  this.userId,
+                  profileImage,
+                  true,
+                  sessionGeneration: generation,
+                );
+          }
+          final profileImageSmall = result.profileImageSmall;
+          if (profileImageSmall != null) {
+            await ref
+                .read(userImageSmallRepoProvider)
+                .overrideUrl(
+                  this.userId,
+                  profileImageSmall,
+                  true,
+                  sessionGeneration: generation,
+                );
+          }
         }
       }
       return null;

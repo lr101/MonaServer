@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/service/account_data_cleanup.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -239,6 +240,47 @@ void main() {
       expect(await fetch, isNull);
       expect(getUrlCalls, 0);
       expect(await newRepository.getAll(), isEmpty);
+    },
+  );
+
+  test(
+    'image writes that start during aggregate cleanup are rejected',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final sessionGuard = AccountDataSessionGuard();
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.pin,
+        getImageUrl: (_) async => null,
+        sessionGuard: sessionGuard,
+      );
+      final imageCleanupFinished = Completer<void>();
+      final cleanupStarted = Completer<void>();
+      final cleanupGate = Completer<void>();
+      final cleanup = AccountDataCleanup(
+        cacheCleaners: () => [
+          () async {
+            await repository.deleteAll();
+            imageCleanupFinished.complete();
+          },
+          () async {
+            await imageCleanupFinished.future;
+            cleanupStarted.complete();
+            await cleanupGate.future;
+          },
+        ],
+        sessionDataCleaner: () async {},
+        sessionGuard: sessionGuard,
+      );
+
+      final clearing = cleanup.clearCache(resumeSession: false);
+      await cleanupStarted.future;
+      final lateWrite = repository.addImage('late-image', Uint8List(0), false);
+      cleanupGate.complete();
+      await Future.wait([clearing, lateWrite]);
+
+      expect(await repository.getAll(), isEmpty);
     },
   );
 }

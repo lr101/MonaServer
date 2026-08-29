@@ -73,6 +73,7 @@ class GlobalDataRepository {
   static const String usernameKey = "username";
   static const String userIdKey = "userId";
   static const String tokenKey = "auth";
+  static const String accountCleanupPendingKey = "accountCleanupPending";
   static const String pinFileNameKey = 'pin_new';
   static const String groupFileNameKey = 'groups';
   static const String groupOrderKey = 'groupOrder';

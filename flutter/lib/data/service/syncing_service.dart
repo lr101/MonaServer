@@ -151,33 +151,36 @@ class SyncingService extends _$SyncingService {
 
       final profileImage = groupDto.profileImage;
       if (profileImage != null) {
-        if (!await _sessionGuard.runIfCurrent(generation, () async {
-          await ref
-              .read(groupProfileRepoProvider)
-              .overrideUrl(groupDto.id, profileImage, true);
-        })) {
-          return;
-        }
+        await ref
+            .read(groupProfileRepoProvider)
+            .overrideUrl(
+              groupDto.id,
+              profileImage,
+              true,
+              sessionGeneration: generation,
+            );
       }
       final profileImageSmall = groupDto.profileImageSmall;
       if (profileImageSmall != null) {
-        if (!await _sessionGuard.runIfCurrent(generation, () async {
-          await ref
-              .read(groupProfileSmallRepoProvider)
-              .overrideUrl(groupDto.id, profileImageSmall, true);
-        })) {
-          return;
-        }
+        await ref
+            .read(groupProfileSmallRepoProvider)
+            .overrideUrl(
+              groupDto.id,
+              profileImageSmall,
+              true,
+              sessionGeneration: generation,
+            );
       }
       final pinImage = groupDto.pinImage;
       if (pinImage != null) {
-        if (!await _sessionGuard.runIfCurrent(generation, () async {
-          await ref
-              .read(groupPinImageRepoProvider)
-              .overrideUrl(groupDto.id, pinImage, true);
-        })) {
-          return;
-        }
+        await ref
+            .read(groupPinImageRepoProvider)
+            .overrideUrl(
+              groupDto.id,
+              pinImage,
+              true,
+              sessionGeneration: generation,
+            );
       }
     }
   }

@@ -5,39 +5,16 @@ import 'package:buff_lisa/data/repository/member_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
+import 'package:buff_lisa/data/service/account_data_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mutex/mutex.dart';
+
+export 'package:buff_lisa/data/service/account_data_session.dart';
 
 typedef AccountDataCleaner = Future<void> Function();
 typedef AccountDataCleanerResolver = List<AccountDataCleaner> Function();
-
-class AccountDataSessionGuard {
-  final Mutex _mutex = Mutex();
-  int _generation = 0;
-
-  int get generation => _generation;
-
-  void invalidate() {
-    _generation++;
-  }
-
-  bool isCurrent(int generation) => generation == _generation;
-
-  Future<T> synchronize<T>(Future<T> Function() action) {
-    return _mutex.protect(action);
-  }
-
-  Future<bool> runIfCurrent(int generation, Future<void> Function() action) {
-    return synchronize(() async {
-      if (generation != _generation) return false;
-      await action();
-      return true;
-    });
-  }
-}
 
 class AccountDataCleanup {
   const AccountDataCleanup({
@@ -50,17 +27,21 @@ class AccountDataCleanup {
   final AccountDataCleaner sessionDataCleaner;
   final AccountDataSessionGuard? sessionGuard;
 
-  Future<void> clearCache() async {
+  Future<void> clearCache({bool resumeSession = true}) async {
     final guard = sessionGuard;
     if (guard == null) {
       await Future.wait(cacheCleaners().map((cleaner) => cleaner()));
       return;
     }
 
-    guard.invalidate();
-    await guard.synchronize(
-      () => Future.wait(cacheCleaners().map((cleaner) => cleaner())),
-    );
+    guard.beginCleanup(endSession: !resumeSession);
+    try {
+      await guard.synchronize(
+        () => Future.wait(cacheCleaners().map((cleaner) => cleaner())),
+      );
+    } finally {
+      guard.completeCleanup(resumeSession: resumeSession);
+    }
   }
 
   Future<void> clearForLogout({
@@ -69,7 +50,7 @@ class AccountDataCleanup {
     Object? cacheError;
     StackTrace? cacheStackTrace;
     try {
-      await clearCache();
+      await clearCache(resumeSession: false);
     } catch (error, stackTrace) {
       if (!continueWithSessionOnCacheFailure) {
         Error.throwWithStackTrace(error, stackTrace);
@@ -117,7 +98,3 @@ final accountDataCleanupProvider = Provider<AccountDataCleanup>((ref) {
     sessionGuard: ref.read(accountDataSessionGuardProvider),
   );
 });
-
-final accountDataSessionGuardProvider = Provider<AccountDataSessionGuard>(
-  (ref) => AccountDataSessionGuard(),
-);

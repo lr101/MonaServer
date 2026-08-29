@@ -60,6 +60,19 @@ class SuccessfulUsersApi extends UsersApi {
   }
 }
 
+class SuccessfulAuthApi extends AuthApi {
+  SuccessfulAuthApi() : super(ApiClient(basePath: 'https://example.test'));
+
+  @override
+  Future<TokenResponseDto?> userLogin(UserLoginRequest request) async {
+    return TokenResponseDto(
+      refreshToken: 'new-refresh-token',
+      accessToken: 'new-access-token',
+      userId: 'new-user',
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -379,6 +392,117 @@ void main() {
         'Your account was deleted, but local cleanup failed. Please restart the app.',
       );
       expect(sessionData, isEmpty);
+      expect(container.read(globalDataServiceProvider).userId, isNull);
+      expect(
+        prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'login retries failed account cleanup before opening a new session',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.accountCleanupPendingKey: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      await database
+          .into(database.userEntities)
+          .insert(
+            UserEntitiesCompanion.insert(
+              ttl: DateTime(2026),
+              userId: 'old-user',
+              username: 'Old user',
+            ),
+          );
+      final sessionGuard = AccountDataSessionGuard();
+      final storage = FakeSecureStorage({});
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(storage),
+          driftRepoProvider.overrideWithValue(database),
+          accountDataSessionGuardProvider.overrideWithValue(sessionGuard),
+          authApiProvider.overrideWithValue(SuccessfulAuthApi()),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [
+                () => database.delete(database.userEntities).go(),
+              ],
+              sessionDataCleaner: () async {},
+              sessionGuard: sessionGuard,
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(userId: null, refreshToken: null, cameras: []),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(authServiceProvider.notifier)
+          .login('new-user', 'password');
+
+      expect(result, isNull);
+      expect(await database.select(database.userEntities).get(), isEmpty);
+      expect(
+        prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
+        isNull,
+      );
+      expect(container.read(globalDataServiceProvider).userId, 'new-user');
+      expect(
+        storage.values[GlobalDataRepository.tokenKey],
+        'new-refresh-token',
+      );
+    },
+  );
+
+  test(
+    'login stays blocked while previous account cleanup still fails',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.accountCleanupPendingKey: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final sessionGuard = AccountDataSessionGuard();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+          accountDataSessionGuardProvider.overrideWithValue(sessionGuard),
+          authApiProvider.overrideWithValue(SuccessfulAuthApi()),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [
+                () async => throw StateError('cache still unavailable'),
+              ],
+              sessionDataCleaner: () async {},
+              sessionGuard: sessionGuard,
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(userId: null, refreshToken: null, cameras: []),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(authServiceProvider.notifier)
+          .login('new-user', 'password');
+
+      expect(
+        result,
+        'Unable to clear data from the previous account. Please try again.',
+      );
+      expect(
+        prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
+        isTrue,
+      );
       expect(container.read(globalDataServiceProvider).userId, isNull);
     },
   );
