@@ -44,9 +44,7 @@ class GlobalDataService extends _$GlobalDataService {
     }
 
     try {
-      await ref
-          .read(accountDataCleanupProvider)
-          .clearCache(resumeSession: false);
+      await ref.read(accountDataCleanupProvider).clearForLogout();
       await _clearCleanupPending();
       return null;
     } catch (_) {
@@ -75,6 +73,7 @@ class GlobalDataService extends _$GlobalDataService {
   }
 
   void _clearSessionState() {
+    ref.invalidate(openApiConfigProvider);
     ref.invalidate(lastSeenProvider);
     ref.invalidate(hiddenUserServiceProvider);
     ref.invalidate(hiddenPostsServiceProvider);
@@ -89,6 +88,7 @@ class GlobalDataService extends _$GlobalDataService {
     TokenResponseDto refreshToken,
     String username,
   ) async {
+    ref.invalidate(openApiConfigProvider);
     ref.read(accountDataSessionGuardProvider).beginSession();
     state = state.copyWith(
       refreshToken: refreshToken.refreshToken,
@@ -113,6 +113,7 @@ class AuthService extends _$AuthService {
   }
 
   Future<String?> login(String name, String password) async {
+    ref.invalidate(openApiConfigProvider);
     final authApi = ref.read(authApiProvider);
     final global = ref.read(globalDataServiceProvider.notifier);
     try {
@@ -149,6 +150,7 @@ class AuthService extends _$AuthService {
     String password,
     String email,
   ) async {
+    ref.invalidate(openApiConfigProvider);
     final authApi = ref.read(authApiProvider);
     final global = ref.read(globalDataServiceProvider.notifier);
     try {

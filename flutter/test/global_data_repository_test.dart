@@ -80,6 +80,11 @@ void main() {
         const MethodChannel('plugins.flutter.io/path_provider'),
         (call) async => Directory.systemTemp.path,
       );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/camera'),
+        (call) async => <Map<String, Object?>>[],
+      );
 
   test('logout removes account data but keeps application settings', () async {
     SharedPreferences.setMockInitialValues({
@@ -116,6 +121,25 @@ void main() {
     expect(prefs.getBool(GlobalDataRepository.themeKey), isTrue);
     expect(prefs.getInt('hiveVersion'), 2);
   });
+
+  test(
+    'startup ignores credentials while account cleanup is pending',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.accountCleanupPendingKey: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final storage = FakeSecureStorage({
+        GlobalDataRepository.userIdKey: 'old-user',
+        GlobalDataRepository.tokenKey: 'old-token',
+      });
+
+      final global = await GlobalDataRepository.get(prefs, storage);
+
+      expect(global.userId, isNull);
+      expect(global.refreshToken, isNull);
+    },
+  );
 
   test('service logout removes account-owned Drift and image data', () async {
     SharedPreferences.setMockInitialValues({});
@@ -306,7 +330,71 @@ void main() {
 
     expect(storage.values[GlobalDataRepository.tokenKey], 'secret-token');
     expect(container.read(globalDataServiceProvider).userId, 'user-1');
+    expect(
+      prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
+      isTrue,
+    );
   });
+
+  test(
+    'login retries failed session cleanup before opening a new session',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.accountCleanupPendingKey: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final sessionGuard = AccountDataSessionGuard();
+      final sessionData = ['old-account'];
+      var cleanupAttempts = 0;
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+          accountDataSessionGuardProvider.overrideWithValue(sessionGuard),
+          authApiProvider.overrideWithValue(SuccessfulAuthApi()),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [],
+              sessionDataCleaner: () async {
+                cleanupAttempts++;
+                if (cleanupAttempts == 1) {
+                  throw StateError('session cleanup failed');
+                }
+                sessionData.clear();
+              },
+              sessionGuard: sessionGuard,
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'old-user',
+              refreshToken: 'old-refresh-token',
+              cameras: [],
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(
+        container.read(globalDataServiceProvider.notifier).logout(),
+        throwsA(isA<StateError>()),
+      );
+
+      final result = await container
+          .read(authServiceProvider.notifier)
+          .login('new-user', 'password');
+
+      expect(result, isNull);
+      expect(cleanupAttempts, 2);
+      expect(sessionData, isEmpty);
+      expect(container.read(globalDataServiceProvider).userId, 'new-user');
+      expect(
+        prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
+        isNull,
+      );
+    },
+  );
 
   test(
     'logout resets keep-alive hidden filters for the next account',

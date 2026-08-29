@@ -21,7 +21,11 @@ part 'image_repository.g.dart';
 
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
-  Future<Uint8List?> fetchImage(String id, bool keepAlive);
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    int? sessionGeneration,
+  });
   Stream<Uint8List?> watchImageBytes(String id);
   Future<Uint8List?> overrideUrl(
     String id,
@@ -273,12 +277,18 @@ class ImageRepository extends CacheImpl<ImageEntity>
   // --- NETWORK AND DB CACHE OPERATIONS ---
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    int? sessionGeneration,
+  }) async {
     final isarId = fastHash('${type.name}_$id');
     final generation = _cacheCoordinator.generation;
-    final sessionGeneration = sessionGuard?.generation;
+    final expectedSessionGeneration =
+        sessionGeneration ?? sessionGuard?.generation;
 
-    if (sessionGuard != null && !sessionGuard!.isCurrent(sessionGeneration!)) {
+    if (sessionGuard != null &&
+        !sessionGuard!.isCurrent(expectedSessionGeneration!)) {
       return null;
     }
 
@@ -294,7 +304,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       // Fast In-Memory Cache
       if (_cacheCoordinator.bytesCache.containsKey(id)) {
         return _runIfSessionCurrent<Uint8List>(
-          sessionGeneration,
+          expectedSessionGeneration,
           () => _cacheCoordinator.writeMutex.protect(() async {
             if (generation != _cacheCoordinator.generation) {
               return null;
@@ -313,7 +323,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       if (cachedImage.image != null && cachedImage.image!.isNotEmpty) {
         final image = cachedImage.image!;
         return _runIfSessionCurrent<Uint8List>(
-          sessionGeneration,
+          expectedSessionGeneration,
           () => _cacheCoordinator.writeMutex.protect(() async {
             if (generation != _cacheCoordinator.generation) {
               return null;
@@ -331,22 +341,23 @@ class ImageRepository extends CacheImpl<ImageEntity>
     }
 
     // 2. Network Fetch (with deduplication)
-    if (_activeRequests.containsKey(id)) {
-      return _activeRequests[id];
+    final requestKey = '$id|${expectedSessionGeneration ?? -1}';
+    if (_activeRequests.containsKey(requestKey)) {
+      return _activeRequests[requestKey];
     }
 
     final requestFuture = _fetchAndCacheImage(
       id,
       keepAlive,
       generation,
-      sessionGeneration,
+      expectedSessionGeneration,
     );
-    _activeRequests[id] = requestFuture;
+    _activeRequests[requestKey] = requestFuture;
 
     try {
       return await requestFuture;
     } finally {
-      _activeRequests.remove(id);
+      _activeRequests.remove(requestKey);
     }
   }
 
@@ -421,7 +432,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
         );
       }
     } catch (e) {
-      rethrow;
+      debugPrint("Failed to override image $id: $e");
+      return null;
     }
   }
 

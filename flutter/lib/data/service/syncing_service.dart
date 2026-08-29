@@ -193,13 +193,13 @@ class SyncingService extends _$SyncingService {
     for (final pin in offlinePins) {
       if (!_sessionGuard.isCurrent(generation)) return;
       Uint8List? image;
-      if (!await _sessionGuard.runIfCurrent(generation, () async {
-        image = await ref
-            .read(pinImageRepositoryProvider)
-            .fetchImage(pin.pinId, true);
-      })) {
+      if (!_sessionGuard.isCurrent(generation)) {
         return;
       }
+      image = await ref
+          .read(pinImageRepositoryProvider)
+          .fetchImage(pin.pinId, true, sessionGeneration: generation);
+      if (!_sessionGuard.isCurrent(generation)) return;
       try {
         _logger.i("Trying to sync $pin to online backend");
         final newPin = await _pinsApi.createPin(pin.toRequestDto(image!));
