@@ -29,7 +29,7 @@ void main() {
         'delayed-external-image',
       ], waitFor: delayedExternalCache.future);
       final cleanup = AccountDataCleanup(
-        cacheCleaners: [
+        cacheCleaners: () => [
           driftCache.clear,
           imageCache.clear,
           tileCache.clear,
@@ -57,4 +57,18 @@ void main() {
       expect(delayedCache.values, isEmpty);
     },
   );
+
+  test('cleanup resolves the current cache for each account session', () async {
+    var currentSessionCache = MemoryAccountData(['first-session-image']);
+    final cleanup = AccountDataCleanup(
+      cacheCleaners: () => [currentSessionCache.clear],
+      sessionDataCleaner: () async {},
+    );
+
+    await cleanup.clearCache();
+    currentSessionCache = MemoryAccountData(['second-session-image']);
+    await cleanup.clearCache();
+
+    expect(currentSessionCache.values, isEmpty);
+  });
 }

@@ -11,6 +11,7 @@ import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AccountDataCleaner = Future<void> Function();
+typedef AccountDataCleanerResolver = List<AccountDataCleaner> Function();
 
 class AccountDataCleanup {
   const AccountDataCleanup({
@@ -18,16 +19,16 @@ class AccountDataCleanup {
     required this.sessionDataCleaner,
   });
 
-  final List<AccountDataCleaner> cacheCleaners;
+  final AccountDataCleanerResolver cacheCleaners;
   final AccountDataCleaner sessionDataCleaner;
 
   Future<void> clearCache() async {
-    await Future.wait(cacheCleaners.map((cleaner) => cleaner()));
+    await Future.wait(cacheCleaners().map((cleaner) => cleaner()));
   }
 
   Future<void> clearForLogout() async {
     await Future.wait([
-      ...cacheCleaners.map((cleaner) => cleaner()),
+      ...cacheCleaners().map((cleaner) => cleaner()),
       sessionDataCleaner(),
     ]);
   }
@@ -35,7 +36,7 @@ class AccountDataCleanup {
 
 final accountDataCleanupProvider = Provider<AccountDataCleanup>((ref) {
   return AccountDataCleanup(
-    cacheCleaners: [
+    cacheCleaners: () => [
       ref.read(pinImageRepositoryProvider).deleteAll,
       ref.read(groupRepositoryProvider).deleteAll,
       ref.read(groupProfileRepoProvider).deleteAll,
@@ -43,6 +44,7 @@ final accountDataCleanupProvider = Provider<AccountDataCleanup>((ref) {
       ref.read(groupPinImageRepoProvider).deleteAll,
       ref.read(memberRepositoryProvider).deleteAll,
       ref.read(pinRepositoryProvider).deleteAll,
+      ref.read(pinLikeRepositoryProvider).deleteAll,
       ref.read(userImageRepoProvider).deleteAll,
       ref.read(userImageSmallRepoProvider).deleteAll,
       ref.read(userLikeRepositoryProvider).deleteAll,

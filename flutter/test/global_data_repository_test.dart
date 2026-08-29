@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
@@ -8,8 +11,10 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/util/core/cache_migrator.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openapi/api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeSecureStorage implements ISecureStorage {
@@ -31,7 +36,25 @@ class FakeSecureStorage implements ISecureStorage {
   }
 }
 
+class SuccessfulUsersApi extends UsersApi {
+  SuccessfulUsersApi() : super(ApiClient(basePath: 'https://example.test'));
+
+  bool deleted = false;
+
+  @override
+  Future<void> deleteUser(String userId, {int? body}) async {
+    deleted = true;
+  }
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (call) async => Directory.systemTemp.path,
+      );
+
   test('logout removes account data but keeps application settings', () async {
     SharedPreferences.setMockInitialValues({
       GlobalDataRepository.descriptionKey: 'Account biography',
@@ -98,7 +121,7 @@ void main() {
         driftRepoProvider.overrideWithValue(database),
         accountDataCleanupProvider.overrideWithValue(
           AccountDataCleanup(
-            cacheCleaners: [
+            cacheCleaners: () => [
               () => database.delete(database.groupEntities).go(),
               () => database.delete(database.imageEntities).go(),
             ],
@@ -121,6 +144,145 @@ void main() {
     expect(await database.select(database.groupEntities).get(), isEmpty);
     expect(await database.select(database.imageEntities).get(), isEmpty);
   });
+
+  test('production cleanup removes account-owned pin-like rows', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    await database
+        .into(database.pinLikeEntities)
+        .insert(
+          PinLikeEntitiesCompanion.insert(
+            ttl: DateTime(2026),
+            id: 'pin-1',
+            likeCount: 1,
+            likePhotographyCount: 1,
+            likeLocationCount: 0,
+            likeArtCount: 0,
+            hasLike: true,
+            hasLikePhotography: true,
+            hasLikeLocation: false,
+            hasLikeArt: false,
+          ),
+        );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+        driftRepoProvider.overrideWithValue(database),
+        pinApiProvider.overrideWithValue(
+          PinsApi(ApiClient(basePath: 'https://example.test')),
+        ),
+        groupApiProvider.overrideWithValue(
+          GroupsApi(ApiClient(basePath: 'https://example.test')),
+        ),
+        userApiProvider.overrideWithValue(
+          UsersApi(ApiClient(basePath: 'https://example.test')),
+        ),
+        globalDataOnceProvider.overrideWithValue(
+          const GlobalDataDto(
+            userId: 'user-1',
+            refreshToken: 'secret-token',
+            cameras: [],
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    try {
+      await container.read(accountDataCleanupProvider).clearCache();
+    } catch (_) {
+      // Platform-backed external cache cleanup is outside this database test.
+    }
+
+    expect(await database.select(database.pinLikeEntities).get(), isEmpty);
+  });
+
+  test('logout clears authentication when cache cleanup fails', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final sessionData = ['credential'];
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+        accountDataCleanupProvider.overrideWithValue(
+          AccountDataCleanup(
+            cacheCleaners: () => [
+              () async => throw StateError('tile cache failed'),
+            ],
+            sessionDataCleaner: () async {
+              sessionData.clear();
+            },
+          ),
+        ),
+        globalDataOnceProvider.overrideWithValue(
+          const GlobalDataDto(
+            userId: 'deleted-user',
+            refreshToken: 'secret-token',
+            cameras: [],
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final global = container.read(globalDataServiceProvider.notifier);
+
+    await expectLater(global.logout(), throwsA(isA<StateError>()));
+
+    expect(sessionData, isEmpty);
+    expect(container.read(globalDataServiceProvider).userId, isNull);
+    expect(container.read(globalDataServiceProvider).refreshToken, isNull);
+  });
+
+  test(
+    'account deletion surfaces local cleanup failure after clearing auth',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final usersApi = SuccessfulUsersApi();
+      final sessionData = ['credential'];
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+          userApiProvider.overrideWithValue(usersApi),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [
+                () async => throw StateError('tile cache failed'),
+              ],
+              sessionDataCleaner: () async {
+                sessionData.clear();
+              },
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'deleted-user',
+              refreshToken: 'secret-token',
+              cameras: [],
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final message = await container
+          .read(authServiceProvider.notifier)
+          .deleteAccount(123);
+
+      expect(usersApi.deleted, isTrue);
+      expect(
+        message,
+        'Your account was deleted, but local cleanup failed. Please restart the app.',
+      );
+      expect(sessionData, isEmpty);
+      expect(container.read(globalDataServiceProvider).userId, isNull);
+    },
+  );
 
   test('completed cache migration remains a no-op after logout', () async {
     SharedPreferences.setMockInitialValues({
