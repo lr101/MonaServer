@@ -2,6 +2,7 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/account_data_cleanup.dart';
+import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:camera/camera.dart';
@@ -18,17 +19,31 @@ class GlobalDataService extends _$GlobalDataService {
   @override
   GlobalDataDto build() => ref.watch(globalDataOnceProvider);
 
-  Future<void> logout() async {
+  Future<void> logout({bool clearStateOnFailure = false}) async {
     try {
-      await ref.read(accountDataCleanupProvider).clearForLogout();
-    } finally {
-      ref.invalidate(lastSeenProvider);
-      state = GlobalDataDto(
-        userId: null,
-        refreshToken: null,
-        cameras: state.cameras,
-      );
+      await ref
+          .read(accountDataCleanupProvider)
+          .clearForLogout(
+            continueWithSessionOnCacheFailure: clearStateOnFailure,
+          );
+    } catch (error, stackTrace) {
+      if (clearStateOnFailure) {
+        _clearSessionState();
+      }
+      Error.throwWithStackTrace(error, stackTrace);
     }
+    _clearSessionState();
+  }
+
+  void _clearSessionState() {
+    ref.invalidate(lastSeenProvider);
+    ref.invalidate(hiddenUserServiceProvider);
+    ref.invalidate(hiddenPostsServiceProvider);
+    state = GlobalDataDto(
+      userId: null,
+      refreshToken: null,
+      cameras: state.cameras,
+    );
   }
 
   Future<void> updateData(
@@ -154,7 +169,7 @@ class AuthService extends _$AuthService {
       return e.message;
     }
     try {
-      await global.logout();
+      await global.logout(clearStateOnFailure: true);
       return null;
     } catch (e) {
       if (kDebugMode) print('Error cleaning up deleted account: $e');

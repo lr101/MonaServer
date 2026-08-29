@@ -239,9 +239,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
         return null;
       }
 
-      final generation = _cacheCoordinator.generation;
       return _cacheCoordinator.writeMutex.protect(() async {
-        if (generation != _cacheCoordinator.generation) return null;
+        final current = await doGet(fastHash('${type.name}_$id'));
+        if (current == null || !_sameImage(current, entity!)) return null;
 
         final bytesCache = _cacheCoordinator.bytesCache;
         if (bytesCache.containsKey(id)) {
@@ -259,6 +259,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
     final isarId = fastHash('${type.name}_$id');
+    final generation = _cacheCoordinator.generation;
 
     // 1. Check DB Cache First
     final cachedImage = await doGet(isarId);
@@ -270,10 +271,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
 
       // Fast In-Memory Cache
-      final generation = _cacheCoordinator.generation;
       if (_cacheCoordinator.bytesCache.containsKey(id)) {
         return _cacheCoordinator.writeMutex.protect(() async {
           if (generation != _cacheCoordinator.generation) return null;
+          final current = await doGet(isarId);
+          if (current == null || !_sameImage(current, cachedImage)) return null;
           _incrementHits(cachedImage);
           return _cacheCoordinator.bytesCache[id];
         });
@@ -284,6 +286,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
         final image = cachedImage.image!;
         return _cacheCoordinator.writeMutex.protect(() async {
           if (generation != _cacheCoordinator.generation) return null;
+          final current = await doGet(isarId);
+          if (current == null || !_sameImage(current, cachedImage)) return null;
           _precacheInFlutter(id, image);
           _incrementHits(cachedImage);
           return image;
@@ -348,12 +352,16 @@ class ImageRepository extends CacheImpl<ImageEntity>
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return await _saveAndPrecacheImage(
+        final image = await _saveAndPrecacheImage(
           id,
           response.bodyBytes,
           keepAlive,
           cacheGeneration,
         );
+        if (image == null) {
+          throw StateError('Image cache was cleared while writing');
+        }
+        return image;
       } else {
         throw Exception(
           "Failed to override image. Status: ${response.statusCode}",
@@ -404,13 +412,13 @@ class ImageRepository extends CacheImpl<ImageEntity>
     });
   }
 
-  Future<Uint8List> _saveAndPrecacheImage(
+  Future<Uint8List?> _saveAndPrecacheImage(
     String id,
     Uint8List bytes,
     bool keepAlive,
     int cacheGeneration,
   ) async {
-    if (cacheGeneration != _cacheCoordinator.generation) return bytes;
+    if (cacheGeneration != _cacheCoordinator.generation) return null;
     await _cacheCoordinator.writeMutex.protect(() async {
       if (cacheGeneration != _cacheCoordinator.generation) return;
       _evictFromFlutterCache(id);
@@ -432,6 +440,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
     });
 
     return bytes;
+  }
+
+  bool _sameImage(ImageEntity current, ImageEntity expected) {
+    return current.id == expected.id &&
+        current.type == expected.type &&
+        listEquals(current.image, expected.image);
   }
 
   DateTime _calculateTtl() {

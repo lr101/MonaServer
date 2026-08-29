@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/util/core/fast_hash.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +25,27 @@ class DelayedImageRepository extends ImageRepository {
     writeStarted.complete();
     await writeGate;
     await super.doPut(item);
+  }
+}
+
+class DelayedReadImageRepository extends ImageRepository {
+  DelayedReadImageRepository({
+    required super.db,
+    required this.readGate,
+    required this.readStarted,
+  }) : super(type: ImageType.pin, getImageUrl: (_) async => null);
+
+  final Future<void> readGate;
+  final Completer<void> readStarted;
+
+  @override
+  Future<ImageEntity?> doGet(int isarId) async {
+    final result = await super.doGet(isarId);
+    if (!readStarted.isCompleted) {
+      readStarted.complete();
+      await readGate;
+    }
+    return result;
   }
 }
 
@@ -137,4 +160,47 @@ void main() {
       expect(cache.containsKey(MemoryImage(image)), isFalse);
     },
   );
+
+  test('fetch does not precache a row read before cleanup', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final image = Uint8List.fromList([1, 2, 3]);
+    await database
+        .into(database.imageEntities)
+        .insert(
+          ImageEntitiesCompanion.insert(
+            ttl: DateTime(2026),
+            isarId: Value(fastHash('pin_old-account-image')),
+            id: 'old-account-image',
+            type: ImageType.pin,
+            image: Value(image),
+          ),
+        );
+    final readGate = Completer<void>();
+    final readStarted = Completer<void>();
+    final oldRepository = DelayedReadImageRepository(
+      db: database,
+      readGate: readGate.future,
+      readStarted: readStarted,
+    );
+    final newRepository = ImageRepository(
+      db: database,
+      type: ImageType.pin,
+      getImageUrl: (_) async => null,
+    );
+    final cache = PaintingBinding.instance.imageCache;
+    cache.clear();
+    addTearDown(cache.clear);
+
+    final fetch = oldRepository.fetchImage('old-account-image', false);
+    await readStarted.future;
+    final cleanup = newRepository.deleteAll();
+    await cleanup;
+    expect(await database.select(database.imageEntities).get(), isEmpty);
+    readGate.complete();
+
+    expect(await fetch, isNull);
+    expect(cache.containsKey(MemoryImage(image)), isFalse);
+    expect(await newRepository.getAll(), isEmpty);
+  });
 }

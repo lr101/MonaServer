@@ -39,7 +39,12 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
         CustomErrorSnackBar.message(message: "Unable to delete cache: $error");
         return;
       }
-      context.goNamed("login");
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Logout incomplete: $error")));
+      final destination = ref.read(globalDataServiceProvider).userId == null
+          ? "login"
+          : "home";
+      context.goNamed(destination);
       return;
     }
 

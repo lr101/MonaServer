@@ -26,11 +26,30 @@ class AccountDataCleanup {
     await Future.wait(cacheCleaners().map((cleaner) => cleaner()));
   }
 
-  Future<void> clearForLogout() async {
-    await Future.wait([
-      ...cacheCleaners().map((cleaner) => cleaner()),
-      sessionDataCleaner(),
-    ]);
+  Future<void> clearForLogout({
+    bool continueWithSessionOnCacheFailure = false,
+  }) async {
+    Object? cacheError;
+    StackTrace? cacheStackTrace;
+    try {
+      await clearCache();
+    } catch (error, stackTrace) {
+      if (!continueWithSessionOnCacheFailure) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      cacheError = error;
+      cacheStackTrace = stackTrace;
+    }
+
+    try {
+      await sessionDataCleaner();
+    } catch (error, stackTrace) {
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+
+    if (cacheError != null) {
+      Error.throwWithStackTrace(cacheError, cacheStackTrace!);
+    }
   }
 }
 

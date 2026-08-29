@@ -7,6 +7,7 @@ import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/account_data_cleanup.dart';
+import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/util/core/cache_migrator.dart';
@@ -33,6 +34,18 @@ class FakeSecureStorage implements ISecureStorage {
   @override
   Future<void> write({required String key, required String value}) async {
     values[key] = value;
+  }
+}
+
+class FailingSecureStorage extends FakeSecureStorage {
+  FailingSecureStorage(super.values);
+
+  @override
+  Future<void> delete({required String key}) async {
+    if (key == GlobalDataRepository.tokenKey) {
+      throw StateError('token deletion failed');
+    }
+    await super.delete(key: key);
   }
 }
 
@@ -200,7 +213,7 @@ void main() {
     expect(await database.select(database.pinLikeEntities).get(), isEmpty);
   });
 
-  test('logout clears authentication when cache cleanup fails', () async {
+  test('logout keeps authentication when cache cleanup fails', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final sessionData = ['credential'];
@@ -232,10 +245,94 @@ void main() {
 
     await expectLater(global.logout(), throwsA(isA<StateError>()));
 
-    expect(sessionData, isEmpty);
-    expect(container.read(globalDataServiceProvider).userId, isNull);
-    expect(container.read(globalDataServiceProvider).refreshToken, isNull);
+    expect(sessionData, ['credential']);
+    expect(container.read(globalDataServiceProvider).userId, 'deleted-user');
+    expect(
+      container.read(globalDataServiceProvider).refreshToken,
+      'secret-token',
+    );
   });
+
+  test('logout surfaces secure credential deletion failures', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = FailingSecureStorage({
+      GlobalDataRepository.usernameKey: 'alice',
+      GlobalDataRepository.userIdKey: 'user-1',
+      GlobalDataRepository.tokenKey: 'secret-token',
+    });
+    late ProviderContainer container;
+    container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        secureStorageProvider.overrideWithValue(storage),
+        accountDataCleanupProvider.overrideWithValue(
+          AccountDataCleanup(
+            cacheCleaners: () => [],
+            sessionDataCleaner: () =>
+                container.read(globalDataRepositoryProvider).logout(),
+          ),
+        ),
+        globalDataOnceProvider.overrideWithValue(
+          const GlobalDataDto(
+            userId: 'user-1',
+            refreshToken: 'secret-token',
+            cameras: [],
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await expectLater(
+      container.read(globalDataServiceProvider.notifier).logout(),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(storage.values[GlobalDataRepository.tokenKey], 'secret-token');
+    expect(container.read(globalDataServiceProvider).userId, 'user-1');
+  });
+
+  test(
+    'logout resets keep-alive hidden filters for the next account',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.hiddenUsersKey: ['hidden-user'],
+        GlobalDataRepository.hiddenPostsKey: ['hidden-post'],
+      });
+      final prefs = await SharedPreferences.getInstance();
+      late ProviderContainer container;
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [],
+              sessionDataCleaner: () =>
+                  container.read(globalDataRepositoryProvider).logout(),
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-1',
+              refreshToken: 'secret-token',
+              cameras: [],
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(hiddenUserServiceProvider), ['hidden-user']);
+      expect(container.read(hiddenPostsServiceProvider), ['hidden-post']);
+
+      await container.read(globalDataServiceProvider.notifier).logout();
+
+      expect(container.read(hiddenUserServiceProvider), isEmpty);
+      expect(container.read(hiddenPostsServiceProvider), isEmpty);
+    },
+  );
 
   test(
     'account deletion surfaces local cleanup failure after clearing auth',

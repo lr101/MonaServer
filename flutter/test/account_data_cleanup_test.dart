@@ -49,12 +49,13 @@ void main() {
       expect(tileCache.values, isEmpty);
       expect(externalCache.values, isEmpty);
       expect(delayedCache.values, ['delayed-external-image']);
-      expect(sessionData.values, isEmpty);
+      expect(sessionData.values, ['credential', 'profile']);
 
       delayedExternalCache.complete();
       await clearing;
 
       expect(delayedCache.values, isEmpty);
+      expect(sessionData.values, isEmpty);
     },
   );
 
