@@ -50,11 +50,12 @@ cd flutter
 openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 ```
 
-The Codemagic iOS workflow writes the app's `.config`, prepares signing, builds
-an IPA, and uploads it to App Store Connect. Configure the iOS signing
-identities and the `APP_STORE_CONNECT_PRIVATE_KEY`,
-`APP_STORE_CONNECT_KEY_IDENTIFIER`, and `APP_STORE_CONNECT_ISSUER_ID` secrets
-in Codemagic before enabling that workflow.
+The Codemagic Android workflow writes the app's `.config`, restores the Firebase
+Android configuration, prepares release signing, builds an Android App Bundle,
+and uploads it to Google Play. Configure the `android_keystore` signing
+identity, the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS`
+secrets, and the `app_config` environment group in Codemagic before starting
+the workflow.
 
 PostHog is configured at build time with the `POSTHOG_API_KEY` environment
 variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub

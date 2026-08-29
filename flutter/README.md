@@ -79,7 +79,9 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 
 ### Release app
 
-The app release in Google Play Store and App Store is managed via Codemagic. The pipeline is triggered when a new commit is pushed to the main branch.
+The Android release to Google Play is managed by the root `codemagic.yaml`
+workflow. Start the `flutter-android` workflow from Codemagic after configuring
+the Android keystore, Firebase, Google Play, and app configuration variables.
 
 ### Analytics configuration
 
