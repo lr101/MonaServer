@@ -26,6 +26,37 @@ abstract class IImageRepository implements CacheApi<ImageEntity> {
   Future<void> addImage(String id, Uint8List image, bool keepAlive);
 }
 
+class _ImageCacheCoordinator {
+  final Mutex writeMutex = Mutex();
+  final LinkedHashMap<String, Uint8List> bytesCache =
+      LinkedHashMap<String, Uint8List>();
+  final int maxMemoryCacheItems = 50;
+  int generation = 0;
+
+  Future<void> clear(Future<void> Function() delete) async {
+    generation++;
+    await writeMutex.protect(() async {
+      evictAll();
+      await delete();
+    });
+  }
+
+  void evictAll() {
+    for (final bytes in bytesCache.values) {
+      MemoryImage(bytes).evict();
+    }
+    bytesCache.clear();
+  }
+}
+
+final Expando<Map<ImageType, _ImageCacheCoordinator>> _cacheCoordinators =
+    Expando<Map<ImageType, _ImageCacheCoordinator>>();
+
+_ImageCacheCoordinator _coordinatorFor(AppDatabase db, ImageType type) {
+  final coordinators = _cacheCoordinators[db] ??= {};
+  return coordinators[type] ??= _ImageCacheCoordinator();
+}
+
 class ImageRepository extends CacheImpl<ImageEntity>
     implements IImageRepository {
   final AppDatabase db;
@@ -36,12 +67,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
   // In-memory caching for ultra-fast UI rendering
   final Map<String, Future<Uint8List?>> _activeRequests = {};
 
-  // Use a LinkedHashMap to maintain insertion order for a simple LRU memory cache
-  final LinkedHashMap<String, Uint8List> _bytesCache =
-      LinkedHashMap<String, Uint8List>();
-  final int _maxMemoryCacheItems = 50; // Prevents OOM crashes
-  final Mutex _cacheWriteMutex = Mutex();
-  int _cacheGeneration = 0;
+  late final _ImageCacheCoordinator _cacheCoordinator = _coordinatorFor(
+    db,
+    type,
+  );
 
   ImageRepository({
     required this.db,
@@ -54,9 +83,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
   // --- FLUTTER MEMORY CACHE MANAGEMENT ---
 
   void _evictFromFlutterCache(String id) {
-    if (_bytesCache.containsKey(id)) {
-      MemoryImage(_bytesCache[id]!).evict();
-      _bytesCache.remove(id);
+    final bytesCache = _cacheCoordinator.bytesCache;
+    if (bytesCache.containsKey(id)) {
+      MemoryImage(bytesCache[id]!).evict();
+      bytesCache.remove(id);
     }
   }
 
@@ -64,17 +94,18 @@ class ImageRepository extends CacheImpl<ImageEntity>
     // Don't precache empty bytes (used for 404/empty states)
     if (bytes.isEmpty) return;
 
-    if (_bytesCache.length >= _maxMemoryCacheItems &&
-        !_bytesCache.containsKey(id)) {
-      final oldestKey = _bytesCache.keys.first;
+    final bytesCache = _cacheCoordinator.bytesCache;
+    if (bytesCache.length >= _cacheCoordinator.maxMemoryCacheItems &&
+        !bytesCache.containsKey(id)) {
+      final oldestKey = bytesCache.keys.first;
       _evictFromFlutterCache(oldestKey);
     }
 
-    _bytesCache[id] = bytes;
+    bytesCache[id] = bytes;
 
     // Move to end (mark as recently used)
-    _bytesCache.remove(id);
-    _bytesCache[id] = bytes;
+    bytesCache.remove(id);
+    bytesCache[id] = bytes;
 
     MemoryImage(bytes).resolve(ImageConfiguration.empty);
   }
@@ -117,15 +148,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Future<void> doDeleteAll() async {
-    _cacheGeneration++;
-    await _cacheWriteMutex.protect(() async {
-      for (final id in _bytesCache.keys.toList()) {
-        _evictFromFlutterCache(id);
-      }
-      await (db.delete(
+    await _cacheCoordinator.clear(
+      () => (db.delete(
         db.imageEntities,
-      )..where((tbl) => tbl.type.equalsValue(type))).go();
-    });
+      )..where((tbl) => tbl.type.equalsValue(type))).go(),
+    );
   }
 
   @override
@@ -207,16 +234,23 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Stream<Uint8List?> watchImageBytes(String id) {
     return doWatchById(fastHash('${type.name}_$id')).asyncMap((entity) async {
       // Treat null or an explicitly empty Uint8List as no image
-      if (entity == null || entity.image == null || entity.image!.isEmpty) {
+      final image = entity?.image;
+      if (image == null || image.isEmpty) {
         return null;
       }
 
-      if (_bytesCache.containsKey(id)) {
-        return _bytesCache[id];
-      }
+      final generation = _cacheCoordinator.generation;
+      return _cacheCoordinator.writeMutex.protect(() async {
+        if (generation != _cacheCoordinator.generation) return null;
 
-      _precacheInFlutter(id, entity.image!);
-      return entity.image;
+        final bytesCache = _cacheCoordinator.bytesCache;
+        if (bytesCache.containsKey(id)) {
+          return bytesCache[id];
+        }
+
+        _precacheInFlutter(id, image);
+        return image;
+      });
     }).asBroadcastStream();
   }
 
@@ -236,16 +270,24 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
 
       // Fast In-Memory Cache
-      if (_bytesCache.containsKey(id)) {
-        _incrementHits(cachedImage);
-        return _bytesCache[id];
+      final generation = _cacheCoordinator.generation;
+      if (_cacheCoordinator.bytesCache.containsKey(id)) {
+        return _cacheCoordinator.writeMutex.protect(() async {
+          if (generation != _cacheCoordinator.generation) return null;
+          _incrementHits(cachedImage);
+          return _cacheCoordinator.bytesCache[id];
+        });
       }
 
       // Load from DB Blob
       if (cachedImage.image != null && cachedImage.image!.isNotEmpty) {
-        _precacheInFlutter(id, cachedImage.image!);
-        _incrementHits(cachedImage);
-        return cachedImage.image;
+        final image = cachedImage.image!;
+        return _cacheCoordinator.writeMutex.protect(() async {
+          if (generation != _cacheCoordinator.generation) return null;
+          _precacheInFlutter(id, image);
+          _incrementHits(cachedImage);
+          return image;
+        });
       }
     }
 
@@ -254,7 +296,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
       return _activeRequests[id];
     }
 
-    final requestFuture = _fetchAndCacheImage(id, keepAlive, _cacheGeneration);
+    final requestFuture = _fetchAndCacheImage(
+      id,
+      keepAlive,
+      _cacheCoordinator.generation,
+    );
     _activeRequests[id] = requestFuture;
 
     try {
@@ -298,7 +344,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
-    final cacheGeneration = _cacheGeneration;
+    final cacheGeneration = _cacheCoordinator.generation;
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -320,7 +366,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {
-    await _saveAndPrecacheImage(id, image, keepAlive, _cacheGeneration);
+    await _saveAndPrecacheImage(
+      id,
+      image,
+      keepAlive,
+      _cacheCoordinator.generation,
+    );
   }
 
   // --- INTERNAL UTILITIES & PRUNING ---
@@ -336,7 +387,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     bool keepAlive,
     int cacheGeneration,
   ) async {
-    if (cacheGeneration != _cacheGeneration) return;
+    if (cacheGeneration != _cacheCoordinator.generation) return;
     // We cache a 0-length Uint8List to signify that we know this image doesn't exist on the server.
     // This prevents us from spamming the server with 404 requests.
     final entity = ImageEntity(
@@ -347,8 +398,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       ttl: _calculateTtl(),
       onlySession: false,
     );
-    await _cacheWriteMutex.protect(() async {
-      if (cacheGeneration != _cacheGeneration) return;
+    await _cacheCoordinator.writeMutex.protect(() async {
+      if (cacheGeneration != _cacheCoordinator.generation) return;
       await put(entity);
     });
   }
@@ -359,9 +410,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
     bool keepAlive,
     int cacheGeneration,
   ) async {
-    if (cacheGeneration != _cacheGeneration) return bytes;
-    await _cacheWriteMutex.protect(() async {
-      if (cacheGeneration != _cacheGeneration) return;
+    if (cacheGeneration != _cacheCoordinator.generation) return bytes;
+    await _cacheCoordinator.writeMutex.protect(() async {
+      if (cacheGeneration != _cacheCoordinator.generation) return;
       _evictFromFlutterCache(id);
       _precacheInFlutter(id, bytes);
 

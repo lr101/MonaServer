@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/service/account_data_cleanup.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
+import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,13 +24,23 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
   }
 
   Future<void> _logout() async {
-    if (widget.isCacheOnly) {
-      await ref.read(accountDataCleanupProvider).clearCache();
-      ref.invalidate(lastSeenProvider);
-      ref.read(syncingServiceProvider.notifier).toInit();
-      await ref.read(syncingServiceProvider.notifier).syncToBackend();
-    } else {
-      await ref.read(globalDataServiceProvider.notifier).logout();
+    try {
+      if (widget.isCacheOnly) {
+        await ref.read(accountDataCleanupProvider).clearCache();
+        ref.invalidate(lastSeenProvider);
+        ref.read(syncingServiceProvider.notifier).toInit();
+        await ref.read(syncingServiceProvider.notifier).syncToBackend();
+      } else {
+        await ref.read(globalDataServiceProvider.notifier).logout();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      if (widget.isCacheOnly) {
+        CustomErrorSnackBar.message(message: "Unable to delete cache: $error");
+        return;
+      }
+      context.goNamed("login");
+      return;
     }
 
     if (!mounted) return;
