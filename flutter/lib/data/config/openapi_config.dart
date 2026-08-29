@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
@@ -104,11 +105,8 @@ class AccessTokenManager {
 
 @Riverpod(keepAlive: true)
 class OpenApiConfig extends _$OpenApiConfig {
-  final HttpBearerAuth _authentication = HttpBearerAuth();
   final OpenApiClientFactory _clientFactory = OpenApiClientFactory();
-  late final AccessTokenManager _tokenManager = AccessTokenManager(
-    refreshAccessToken: _refreshAccessToken,
-  );
+  AccessTokenManager? _tokenManager;
 
   OpenApiClientResources? _resources;
 
@@ -117,34 +115,40 @@ class OpenApiConfig extends _$OpenApiConfig {
     final data = ref.watch(globalDataServiceProvider);
     _resources?.close();
 
-    _authentication.accessToken = () => _tokenManager.accessToken;
+    final tokenManager = AccessTokenManager(
+      refreshAccessToken: () => _refreshAccessToken(data),
+    );
+    _tokenManager = tokenManager;
+    final authentication = HttpBearerAuth();
+    authentication.accessToken = () => tokenManager.accessToken;
     final resources = _clientFactory.create(
       basePath: data.host,
-      authentication: _authentication,
-      tokenManager: _tokenManager,
-      ensureToken: _ensureTokenExists,
+      authentication: authentication,
+      tokenManager: tokenManager,
+      ensureToken: () => _ensureTokenExists(tokenManager),
     );
     _resources = resources;
     ref.onDispose(_disposeResources);
     return resources.apiClient;
   }
 
-  Future<void> _ensureTokenExists() async {
-    if (_tokenManager.accessToken.isEmpty || _tokenManager.needsRefresh) {
-      await provideAccessToken();
+  Future<void> _ensureTokenExists(AccessTokenManager tokenManager) async {
+    if (tokenManager.accessToken.isEmpty || tokenManager.needsRefresh) {
+      await tokenManager.refresh();
     }
   }
 
   Future<void> provideAccessToken({bool force = false}) async {
+    final tokenManager = _tokenManager;
+    if (tokenManager == null) return;
     final refreshToken = ref.read(globalDataServiceProvider).refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
       return;
     }
-    await _tokenManager.refresh(force: force);
+    await tokenManager.refresh(force: force);
   }
 
-  Future<String?> _refreshAccessToken() async {
-    final data = ref.read(globalDataServiceProvider);
+  Future<String?> _refreshAccessToken(GlobalDataDto data) async {
     final refreshToken = data.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
       return null;
@@ -216,8 +220,11 @@ class OpenApiClientResources {
   OpenApiClientResources(this.apiClient);
 
   final ApiClient apiClient;
+  var _closed = false;
 
   void close() {
+    if (_closed) return;
+    _closed = true;
     apiClient.client.close();
   }
 }
@@ -293,6 +300,7 @@ class RateLimitedAuthClient extends http.BaseClient {
 
   @override
   void close() {
+    _requestLimiter.close();
     inner.close();
   }
 }
@@ -312,6 +320,7 @@ class _RequestLimiter {
   final int _maximumConcurrentRequests;
   final Queue<Completer<void>> _waitingRequests = Queue<Completer<void>>();
   var _activeRequests = 0;
+  var _closed = false;
 
   Future<T> run<T>(Future<T> Function() action) async {
     await _acquire();
@@ -323,6 +332,9 @@ class _RequestLimiter {
   }
 
   Future<void> _acquire() {
+    if (_closed) {
+      return Future<void>.error(StateError('HTTP client is closed'));
+    }
     if (_activeRequests < _maximumConcurrentRequests) {
       _activeRequests++;
       return Future<void>.value();
@@ -338,6 +350,16 @@ class _RequestLimiter {
       return;
     }
     _waitingRequests.removeFirst().complete();
+  }
+
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    while (_waitingRequests.isNotEmpty) {
+      _waitingRequests.removeFirst().completeError(
+        StateError('HTTP client is closed'),
+      );
+    }
   }
 }
 
