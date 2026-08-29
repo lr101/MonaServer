@@ -15,42 +15,67 @@ class CustomFeed extends ConsumerStatefulWidget {
     required this.pinProvider,
     this.index,
     required this.pagingController,
+    this.scrollController,
   });
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
   final PagingController<int, PinEntity> pagingController;
   final int? index;
+  final ScrollController? scrollController;
 
   @override
   ConsumerState<CustomFeed> createState() => _CustomFeedState();
 }
 
 class _CustomFeedState extends ConsumerState<CustomFeed> {
-  ScrollController scrollController = ScrollController();
-
   static const int _pageSize = 3;
 
   List<PinEntity> _pins = [];
+  final GlobalKey _initialItemKey = GlobalKey();
+  late final PageRequestListener<int> _pageRequestListener;
 
   @override
   void initState() {
     super.initState();
-    widget.pagingController.addPageRequestListener((pageKey) {
-      _fetchPage(pageKey);
-    });
+    _pageRequestListener = (pageKey) => _fetchPage(pageKey);
+    widget.pagingController.addPageRequestListener(_pageRequestListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(widget.pinProvider).whenData((data) => _pins = data ?? []);
       if (widget.index != null) {
-        double maxWidth = MediaQuery.of(context).size.width;
-        double maxHeight = MediaQuery.of(context).size.height;
-        if (maxWidth / maxHeight > 3 / 4) {
-          maxWidth = maxHeight * 3 / 4;
-        } else {
-          maxHeight = maxWidth * 4 / 3;
-        }
-        scrollController.jumpTo(maxHeight * widget.index!);
+        _scrollToInitialItem();
       } else {
         widget.pagingController.refresh();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.pagingController.removePageRequestListener(_pageRequestListener);
+    super.dispose();
+  }
+
+  void _scrollToInitialItem() {
+    final targetContext = _initialItemKey.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(targetContext);
+      return;
+    }
+
+    final controller = widget.scrollController;
+    if (controller == null || !controller.hasClients) return;
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final estimatedItemExtent = screenWidth * 4 / 3 + 90;
+    final estimatedOffset = estimatedItemExtent * widget.index!;
+    controller.jumpTo(
+      estimatedOffset.clamp(0.0, controller.position.maxScrollExtent),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _initialItemKey.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(context);
       }
     });
   }
@@ -67,6 +92,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       builderDelegate: PagedChildBuilderDelegate<PinEntity>(
         animateTransitions: true,
         itemBuilder: (context, item, index) => ProviderScope(
+          key: index == widget.index ? _initialItemKey : null,
           child: ProviderScope(
             overrides: [feedItemProvider.overrideWithValue(item)],
             child: const FeedCard(),
