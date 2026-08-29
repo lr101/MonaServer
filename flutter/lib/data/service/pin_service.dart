@@ -3,6 +3,7 @@ import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/service/account_data_cleanup.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -20,6 +21,7 @@ class PinUserService extends _$PinUserService {
   late IPinRepository _pinRepository;
   late PinsApi _pinsApi;
   late String _userId;
+  late AccountDataSessionGuard _sessionGuard;
 
   @override
   Stream<List<PinEntity>> build(String userId) async* {
@@ -28,6 +30,7 @@ class PinUserService extends _$PinUserService {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
     _userId = ref.watch(userIdProvider);
+    _sessionGuard = ref.watch(accountDataSessionGuardProvider);
 
     final pinStream = _pinRepository.getPinsByUser(userId).map((e) {
       e.removeWhere(
@@ -39,13 +42,13 @@ class PinUserService extends _$PinUserService {
 
     yield await pinStream.first;
 
-    await _remoteFetch();
+    await _remoteFetch(_sessionGuard.generation);
 
     yield* pinStream;
   }
 
   // update non-user pins
-  Future<void> _remoteFetch() async {
+  Future<void> _remoteFetch(int generation) async {
     final stream = _pinRepository.getPinsByUser(_userId);
     final pins = await stream.first;
     final isUser = this.userId == _userId;
@@ -58,7 +61,10 @@ class PinUserService extends _$PinUserService {
         final pins = remotePins.items
             .map((e) => PinEntity.fromDto(e, true))
             .toList();
-        await _pinRepository.putMultiple(pins);
+        await _sessionGuard.runIfCurrent(
+          generation,
+          () => _pinRepository.putMultiple(pins),
+        );
       }
     }
   }
@@ -68,6 +74,8 @@ class PinUserService extends _$PinUserService {
 Stream<PinEntity?> pinById(Ref ref, String pinId) async* {
   final repo = ref.watch(pinRepositoryProvider);
   final api = ref.watch(pinApiProvider);
+  final sessionGuard = ref.watch(accountDataSessionGuardProvider);
+  final generation = sessionGuard.generation;
 
   bool hasFetched = false;
   await for (final pin in repo.watchById(pinId)) {
@@ -75,8 +83,9 @@ Stream<PinEntity?> pinById(Ref ref, String pinId) async* {
       hasFetched = true;
       api.getPin(pinId).then((pinDto) async {
         if (pinDto != null) {
-          await repo.put(
-            PinEntity.fromDto(pinDto, true),
+          await sessionGuard.runIfCurrent(
+            generation,
+            () => repo.put(PinEntity.fromDto(pinDto, true)),
           ); // This update will automatically trigger the stream again!
         }
       });
@@ -89,22 +98,27 @@ Stream<PinEntity?> pinById(Ref ref, String pinId) async* {
 class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   late IPinRepository _pinRepository;
   late PinsApi _pinsApi;
+  late AccountDataSessionGuard _sessionGuard;
 
   @override
   Stream<List<PinEntity>> build(String groupId) async* {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
+    _sessionGuard = ref.watch(accountDataSessionGuardProvider);
     final userGroups = ref.watch(userGroupServiceProvider).value ?? [];
 
     yield await _pinRepository.getPinsByGroup(groupId).first;
 
-    await _remoteFetch(userGroups);
+    await _remoteFetch(userGroups, _sessionGuard.generation);
 
     yield* _pinRepository.getPinsByGroup(groupId);
   }
 
   // update non user groups
-  Future<void> _remoteFetch(List<GroupEntity> userGroups) async {
+  Future<void> _remoteFetch(
+    List<GroupEntity> userGroups,
+    int generation,
+  ) async {
     final stream = _pinRepository.getPinsByGroup(groupId);
     final pins = await stream.first;
     final isUserGroup = userGroups.any((e) => e.groupId == groupId);
@@ -117,7 +131,10 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         final pins = remotePins.items
             .map((e) => PinEntity.fromDto(e, !isUserGroup))
             .toList();
-        await _pinRepository.putMultiple(pins);
+        await _sessionGuard.runIfCurrent(
+          generation,
+          () => _pinRepository.putMultiple(pins),
+        );
       }
     }
   }
@@ -148,11 +165,13 @@ class PinService {
   late IPinRepository _pinRepository;
   late IImageRepository _pinImageRepository;
   late PinsApi _pinsApi;
+  late AccountDataSessionGuard _sessionGuard;
 
   PinService({required this.ref}) {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinImageRepository = ref.watch(pinImageRepositoryProvider);
     _pinsApi = ref.read(pinApiProvider);
+    _sessionGuard = ref.watch(accountDataSessionGuardProvider);
     ref.listen(userGroupServiceProvider, (_, _) => ());
   }
 
@@ -189,13 +208,38 @@ class PinService {
   }
 
   Future<void> _addPinToRemote(PinEntity pin, Uint8List image) async {
-    await _pinRepository.put(pin);
-    await _pinImageRepository.addImage(pin.pinId, image, true);
+    final generation = _sessionGuard.generation;
+    if (!await _sessionGuard.runIfCurrent(
+      generation,
+      () => _pinRepository.put(pin),
+    )) {
+      return;
+    }
+    if (!await _sessionGuard.runIfCurrent(
+      generation,
+      () => _pinImageRepository.addImage(pin.pinId, image, true),
+    )) {
+      return;
+    }
     final result = await _pinsApi.createPin(pin.toRequestDto(image));
+    if (!_sessionGuard.isCurrent(generation)) return;
     final newPin = PinEntity.fromDto(result!, false);
-    await _pinRepository.replacePin(pin.pinId, newPin);
-    await _pinImageRepository.delete(pin.pinId);
-    await _pinImageRepository.addImage(newPin.pinId, image, false);
+    if (!await _sessionGuard.runIfCurrent(
+      generation,
+      () => _pinRepository.replacePin(pin.pinId, newPin),
+    )) {
+      return;
+    }
+    if (!await _sessionGuard.runIfCurrent(
+      generation,
+      () => _pinImageRepository.delete(pin.pinId),
+    )) {
+      return;
+    }
+    await _sessionGuard.runIfCurrent(
+      generation,
+      () => _pinImageRepository.addImage(newPin.pinId, image, false),
+    );
   }
 
   Future<String?> deletePinFromGroup(
