@@ -33,7 +33,11 @@ class DelayedReadImageRepository extends ImageRepository {
     required super.db,
     required this.readGate,
     required this.readStarted,
-  }) : super(type: ImageType.pin, getImageUrl: (_) async => null);
+    Future<String?> Function(String)? getImageUrl,
+  }) : super(
+         type: ImageType.pin,
+         getImageUrl: getImageUrl ?? (_) async => null,
+       );
 
   final Future<void> readGate;
   final Completer<void> readStarted;
@@ -203,4 +207,38 @@ void main() {
     expect(cache.containsKey(MemoryImage(image)), isFalse);
     expect(await newRepository.getAll(), isEmpty);
   });
+
+  test(
+    'a cache miss that started before cleanup cannot write after it',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final readGate = Completer<void>();
+      final readStarted = Completer<void>();
+      var getUrlCalls = 0;
+      final oldRepository = DelayedReadImageRepository(
+        db: database,
+        readGate: readGate.future,
+        readStarted: readStarted,
+        getImageUrl: (_) async {
+          getUrlCalls++;
+          return null;
+        },
+      );
+      final newRepository = ImageRepository(
+        db: database,
+        type: ImageType.pin,
+        getImageUrl: (_) async => null,
+      );
+
+      final fetch = oldRepository.fetchImage('old-account-image', false);
+      await readStarted.future;
+      await newRepository.deleteAll();
+      readGate.complete();
+
+      expect(await fetch, isNull);
+      expect(getUrlCalls, 0);
+      expect(await newRepository.getAll(), isEmpty);
+    },
+  );
 }

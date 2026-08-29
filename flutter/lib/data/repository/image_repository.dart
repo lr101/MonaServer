@@ -300,11 +300,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       return _activeRequests[id];
     }
 
-    final requestFuture = _fetchAndCacheImage(
-      id,
-      keepAlive,
-      _cacheCoordinator.generation,
-    );
+    final requestFuture = _fetchAndCacheImage(id, keepAlive, generation);
     _activeRequests[id] = requestFuture;
 
     try {
@@ -320,6 +316,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     int cacheGeneration,
   ) async {
     try {
+      if (cacheGeneration != _cacheCoordinator.generation) return null;
       final imageUrl = await getImageUrl(id);
 
       if (imageUrl == null) {

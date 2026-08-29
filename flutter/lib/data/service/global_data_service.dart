@@ -208,9 +208,9 @@ class LastSeen extends _$LastSeen {
     return DateTime.fromMicrosecondsSinceEpoch(lastSeen);
   }
 
-  void setLastSeenNow() {
+  Future<void> setLastSeenNow() async {
     state = DateTime.now();
-    ref
+    await ref
         .watch(sharedPreferencesProvider)
         .setInt(key, state!.microsecondsSinceEpoch);
   }

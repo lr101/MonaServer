@@ -72,4 +72,35 @@ void main() {
 
     expect(currentSessionCache.values, isEmpty);
   });
+
+  test(
+    'cleanup waits for guarded account writes before deleting caches',
+    () async {
+      final guard = AccountDataSessionGuard();
+      final writeGate = Completer<void>();
+      final values = <String>[];
+      final generation = guard.generation;
+      final write = guard.runIfCurrent(generation, () async {
+        await writeGate.future;
+        values.add('late-write');
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      final cleanup = AccountDataCleanup(
+        cacheCleaners: () => [
+          () async {
+            values.clear();
+          },
+        ],
+        sessionDataCleaner: () async {},
+        sessionGuard: guard,
+      );
+      final clearing = cleanup.clearCache();
+      await Future<void>.delayed(Duration.zero);
+      writeGate.complete();
+      await Future.wait([write, clearing]);
+
+      expect(values, isEmpty);
+    },
+  );
 }

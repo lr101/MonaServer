@@ -72,6 +72,7 @@ void main() {
     SharedPreferences.setMockInitialValues({
       GlobalDataRepository.descriptionKey: 'Account biography',
       GlobalDataRepository.profileImageKey: 'profile-image',
+      GlobalDataRepository.groupOrderKey: ['group-1', 'group-2'],
       GlobalDataRepository.xpKey: 42,
       GlobalDataRepository.lastSeenKey: 1,
       GlobalDataRepository.themeKey: true,
@@ -98,6 +99,7 @@ void main() {
     expect(prefs.containsKey(GlobalDataRepository.profileImageKey), isFalse);
     expect(prefs.containsKey(GlobalDataRepository.xpKey), isFalse);
     expect(prefs.containsKey(GlobalDataRepository.lastSeenKey), isFalse);
+    expect(prefs.containsKey(GlobalDataRepository.groupOrderKey), isFalse);
     expect(prefs.getBool(GlobalDataRepository.themeKey), isTrue);
     expect(prefs.getInt('hiveVersion'), 2);
   });
