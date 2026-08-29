@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -24,17 +25,24 @@ class Camera extends ConsumerStatefulWidget {
   ConsumerState<Camera> createState() => _CameraState();
 }
 
-class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
-
+class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   final PageController pageController = PageController(viewportFraction: 0.3);
   double scaleFactor = 1.0;
   double basScaleFactor = 1.0;
   final _m = Mutex();
+  late final ZoomUpdateCoalescer _zoomUpdates;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
+      final controller = ref.read(cameraControllerProvider).value;
+      if (controller == null || !controller.value.isInitialized) {
+        return;
+      }
+      await controller.setZoomLevel(zoom);
+    });
   }
 
   @override
@@ -47,7 +55,7 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     final route = ModalRoute.of(context);
     if (route?.isCurrent ?? false) {
       final controller = ref.read(cameraControllerProvider).value;
@@ -60,14 +68,28 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     ref.listen(cameraTorchProvider, (_, next) {
-      ref.read(cameraControllerProvider).value?.setFlashMode(next ? FlashMode.off : FlashMode.auto);
+      ref
+          .read(cameraControllerProvider)
+          .value
+          ?.setFlashMode(next ? FlashMode.off : FlashMode.auto);
     });
+    final cameras = ref.watch(
+      globalDataServiceProvider.select((t) => t.cameras),
+    );
+    final cameraFlashMode = ref.watch(cameraTorchProvider);
+    final groupIds = ref.watch(groupOrderServiceProvider);
+    if (cameras.isEmpty) {
+      return const Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Text('No cameras are available on this device.'),
+          ),
+        ),
+      );
+    }
     final controllerAsync = ref.watch(cameraControllerProvider);
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
-    final cameras = ref.watch(globalDataServiceProvider.select((t) => t.cameras));
-    final cameraFlashMode = ref.watch(cameraTorchProvider);
-    final groupIds = ref.watch(groupOrderServiceProvider);
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -78,17 +100,23 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
                   Positioned.fill(
                     // We handle the AsyncValue of the CONTROLLER here
                     child: controllerAsync.when(
-                      loading: () => const Center(child: CircularProgressIndicator()),
-                      error: (err, stack) => Center(child: Text("Camera Error: $err")),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (err, stack) =>
+                          Center(child: Text("Camera Error: $err")),
                       data: (controller) {
                         // Once controller is ready, we check the Values state
                         return cameraStateAsync.when(
-                          loading: () => const Center(child: CircularProgressIndicator()),
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
                           error: (err, stack) => Text(err.toString()),
                           data: (cameraState) => GestureDetector(
-                            onDoubleTap: ref.read(cameraIndexProvider.notifier).increment,
+                            onDoubleTap: ref
+                                .read(cameraIndexProvider.notifier)
+                                .increment,
                             onScaleStart: (_) => basScaleFactor = scaleFactor,
-                            onScaleUpdate: (details) => handleZoom(details, controller, cameraState),
+                            onScaleUpdate: (details) =>
+                                handleZoom(details, cameraState),
                             child: LayoutBuilder(
                               builder: (context, constraints) {
                                 return Center(
@@ -104,114 +132,154 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
                       },
                     ),
                   ),
-                Align(
-                  alignment: FractionalOffset.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 75),
-                    child: ref.watch(cameraCapturingProvider) ? Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).highlightColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Padding(padding: EdgeInsets.all(5),
-                      child:  Text("Hold steady capturing ...") ,
-                      ),
-                    ) : const SizedBox.shrink(),
-                ),),
-                Align(
+                  Align(
                     alignment: FractionalOffset.bottomCenter,
                     child: Padding(
-                        padding: const EdgeInsets.all(5),
-                        child: SizedBox(
-                          height: 50,
-                          child:  Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Padding(
-                                    padding: const EdgeInsets.all(2.5),
-                                    child: CircleAvatar(
-                                        radius: 20,
-                                        backgroundColor: Colors.grey.withValues(alpha: 0.5),
-                                        child: Center(child: IconButton(
-                                            onPressed: () => handleFlashChange(!cameraFlashMode),
-                                            icon: cameraFlashMode ? const Icon(Icons.flash_off) : const Icon(Icons.flash_auto),
-                                        ),),
-                                    ),),
-                              ListView.builder(
-                                  shrinkWrap: true,
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: cameras.length,
-                                  itemBuilder: (context, index) => Padding(
-                                      padding: const EdgeInsets.all(2.5),
-                                      child: CircleAvatar(
-                                          radius: 20,
-                                          backgroundColor: cameraIndex == index ? Colors.grey.withValues(alpha: 0.8) : Colors.grey.withValues(alpha: 0.5),
-                                          child: Center(child: IconButton(
-                                              onPressed: () => handleCameraChange(index),
-                                              icon: cameras[index].lensDirection == CameraLensDirection.back ? const Icon(Icons.landscape) : const Icon(Icons.person),
-                                          ),),
-                                      ),),
+                      padding: const EdgeInsets.only(bottom: 75),
+                      child: ref.watch(cameraCapturingProvider)
+                          ? Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).highlightColor,
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              Padding(
-                                  padding: const EdgeInsets.all(2.5),
-                                  child:CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: Colors.grey.withValues(alpha: 0.5),
-                                      child: Center(
-                                          child: GestureDetector(
-                                             onTap: uploadFileImage,
-                                             child: const Icon(Icons.upload),
-                                             ),),
+                              child: const Padding(
+                                padding: EdgeInsets.all(5),
+                                child: Text("Hold steady capturing ..."),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  Align(
+                    alignment: FractionalOffset.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: SizedBox(
+                        height: 50,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(2.5),
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.grey.withValues(
+                                  alpha: 0.5,
+                                ),
+                                child: Center(
+                                  child: IconButton(
+                                    onPressed: () =>
+                                        handleFlashChange(!cameraFlashMode),
+                                    icon: cameraFlashMode
+                                        ? const Icon(Icons.flash_off)
+                                        : const Icon(Icons.flash_auto),
                                   ),
+                                ),
                               ),
-                            ],
-                          ),
-                        ),),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: (MediaQuery.of(context).size.height) * 0.15,
-            child: Stack(
-              children: [
-                Center(
-                  child: SnappingPageScroll(
-                    controller: pageController,
-                    onPageChanged: onPageChange,
-                    children: List.generate(groupIds.length, (index) => groupCard(groupIds[index], index)),
-                    ),
-                  ),
-                Center(child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.all(2.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          width: 5.0,
-                        color: Theme.of(context).colorScheme.primary,
+                            ),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              scrollDirection: Axis.horizontal,
+                              itemCount: cameras.length,
+                              itemBuilder: (context, index) => Padding(
+                                padding: const EdgeInsets.all(2.5),
+                                child: CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: cameraIndex == index
+                                      ? Colors.grey.withValues(alpha: 0.8)
+                                      : Colors.grey.withValues(alpha: 0.5),
+                                  child: Center(
+                                    child: IconButton(
+                                      onPressed: () =>
+                                          handleCameraChange(index),
+                                      icon:
+                                          cameras[index].lensDirection ==
+                                              CameraLensDirection.back
+                                          ? const Icon(Icons.landscape)
+                                          : const Icon(Icons.person),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(2.5),
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.grey.withValues(
+                                  alpha: 0.5,
+                                ),
+                                child: Center(
+                                  child: GestureDetector(
+                                    onTap: uploadFileImage,
+                                    child: const Icon(Icons.upload),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      shape: BoxShape.circle,
                     ),
-                    height: (MediaQuery.of(context).size.height) * 0.07 * 2,
                   ),
-                ),),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 5,),
-        ],
+            if (groupIds.isNotEmpty)
+              SizedBox(
+                height: (MediaQuery.of(context).size.height) * 0.15,
+                child: Stack(
+                  children: [
+                    Center(
+                      child: SnappingPageScroll(
+                        controller: pageController,
+                        onPageChanged: onPageChange,
+                        children: List.generate(
+                          groupIds.length,
+                          (index) => groupCard(groupIds[index], index),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.all(2.0),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              width: 5.0,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          height:
+                              (MediaQuery.of(context).size.height) * 0.07 * 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 5),
+          ],
+        ),
       ),
-    ),
     );
   }
 
-  Future<void> handleZoom(ScaleUpdateDetails scale, CameraController controller, CameraState state) async {
-    if (scale.scale * basScaleFactor <= state.maxZoom && scale.scale * basScaleFactor >= state.minZoom) {
+  void handleZoom(ScaleUpdateDetails scale, CameraState state) {
+    if (scale.scale * basScaleFactor <= state.maxZoom &&
+        scale.scale * basScaleFactor >= state.minZoom) {
       scaleFactor = basScaleFactor * scale.scale;
-      await controller.setZoomLevel(scaleFactor);
+      unawaited(
+        _zoomUpdates.update(scaleFactor).catchError((
+          Object error,
+          StackTrace stackTrace,
+        ) {
+          debugPrint('Could not update camera zoom: $error');
+        }),
+      );
     }
   }
-
 
   Future<void> uploadFileImage() async {
     final pickedFile = await CustomImagePicker.pick(context: context);
@@ -233,23 +301,29 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
   }
 
   Widget groupCard(String groupId, int index) {
-    return Center(child: Padding(
+    return Center(
+      child: Padding(
         padding: const EdgeInsets.all(5),
         child: GestureDetector(
-            onTap: () => takePicture(groupId, index),
-            child:  RoundImage(
-              size: (MediaQuery.of(context).size.height) * 0.06,
-              imageCallback: ref.watch(groupProfilePictureByIdProvider(groupId)),
-              child: Container(),
-            ),
-        ),),
+          onTap: () => takePicture(groupId, index),
+          child: RoundImage(
+            size: (MediaQuery.of(context).size.height) * 0.06,
+            imageCallback: ref.watch(groupProfilePictureByIdProvider(groupId)),
+            child: Container(),
+          ),
+        ),
+      ),
     );
   }
 
   Future<void> takePicture(String groupId, int index) async {
     final indexProvider = ref.read(cameraGroupIndexProvider);
-    if(index != indexProvider) {
-      pageController.animateToPage(index, duration: const Duration(milliseconds: 200), curve: Curves.easeIn);
+    if (index != indexProvider) {
+      pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeIn,
+      );
       return;
     }
     final controller = ref.read(cameraControllerProvider).value;
@@ -303,16 +377,29 @@ class _CameraState extends ConsumerState<Camera>  with WidgetsBindingObserver {
 
       if (!mounted) return;
       if (coords != null && !fromGallery) {
-        context.pushNamed('imageUpload', queryParameters: {"lat": coords.latitude.toString(), "long": coords.longitude.toString()}, extra: croppedImage);
+        context.pushNamed(
+          'imageUpload',
+          queryParameters: {
+            "lat": coords.latitude.toString(),
+            "long": coords.longitude.toString(),
+          },
+          extra: croppedImage,
+        );
       } else {
-        context.pushNamed('selectLocation', 
-          queryParameters: coords != null ? {"lat": coords.latitude.toString(), "long": coords.longitude.toString()} : {}, 
-          extra: croppedImage);
+        context.pushNamed(
+          'selectLocation',
+          queryParameters: coords != null
+              ? {
+                  "lat": coords.latitude.toString(),
+                  "long": coords.longitude.toString(),
+                }
+              : {},
+          extra: croppedImage,
+        );
       }
     } catch (e) {
       CustomErrorSnackBar.message(message: "Could not load or crop image");
       debugPrint(e.toString());
     }
   }
-
 }

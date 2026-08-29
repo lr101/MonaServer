@@ -6,6 +6,7 @@ import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.d
 import 'package:buff_lisa/features/map_home/presentation/join_group_hint.dart';
 import 'package:buff_lisa/features/map_home/presentation/osm_copyright.dart';
 import 'package:buff_lisa/features/map_home/presentation/ranking_panel.dart';
+import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_map_setup/presentation/custom_tile_layer.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/mode_selector.dart';
@@ -30,6 +31,7 @@ class _MapHomeState extends ConsumerState<MapHome>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final MapController _controller = MapController();
   late final AnimationController _animateController;
+  late final MapLocationAnimator _locationAnimator;
 
   static const double panelHeaderSize = 60;
 
@@ -40,12 +42,24 @@ class _MapHomeState extends ConsumerState<MapHome>
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => moveToCurrentPosition());
+    _locationAnimator = MapLocationAnimator(
+      controller: _animateController,
+      move: _controller.move,
+      onComplete: (center, zoom) {
+        ref
+            .read(districtServiceProvider.notifier)
+            .updateLatLong(center.latitude, center.longitude, zoom);
+        ref.read(districtServiceProvider.notifier).refetch();
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => moveToCurrentPosition(),
+    );
   }
 
   @override
   void dispose() {
+    _locationAnimator.dispose();
     _animateController.dispose();
     _controller.dispose();
     super.dispose();
@@ -69,11 +83,17 @@ class _MapHomeState extends ConsumerState<MapHome>
               keepAlive: true,
               initialCenter: ref.watch(lastKnownLocationProvider),
               onPointerUp: (event, point) {
-                  ref.read(districtServiceProvider.notifier).refetch();
+                ref.read(districtServiceProvider.notifier).refetch();
               },
               onPositionChanged: (position, hasGesture) {
-                  ref.read(mapZoomLevelProvider.notifier).setZoom(position.zoom);
-                  ref.read(districtServiceProvider.notifier).updateLatLong(position.center.latitude, position.center.longitude, position.zoom);
+                ref.read(mapZoomLevelProvider.notifier).setZoom(position.zoom);
+                ref
+                    .read(districtServiceProvider.notifier)
+                    .updateLatLong(
+                      position.center.latitude,
+                      position.center.longitude,
+                      position.zoom,
+                    );
               },
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
@@ -87,31 +107,32 @@ class _MapHomeState extends ConsumerState<MapHome>
                   disableClusteringAtZoom: 16,
                   size: const Size(80, 80),
                   markers: mapState.markers,
-                  polygonOptions:
-                      const PolygonOptions(color: Colors.transparent),
+                  polygonOptions: const PolygonOptions(
+                    color: Colors.transparent,
+                  ),
                   onMarkerTap: onMarkerTab,
                   builder: (context, markers) => CircleWithIndicator(
-                      color: Theme.of(context).highlightColor,
-                      number: markers.length,),
+                    color: Theme.of(context).highlightColor,
+                    number: markers.length,
+                  ),
                 ),
               ),
             ],
           ),
         ),
         Positioned(
-          bottom: panelHeaderSize + 10, 
-          right: 4,                                          // ranking panel has 4px box shadow, so position 4px from bottom and right
+          bottom: panelHeaderSize + 10,
+          right: 4, // ranking panel has 4px box shadow, so position 4px from bottom and right
           child: FloatingActionButton(
-              heroTag: "moveToCurrentLocation",
-              onPressed: moveToCurrentPosition,
-              child: const Icon(Icons.my_location),
-            ),
-            
+            heroTag: "moveToCurrentLocation",
+            onPressed: moveToCurrentPosition,
+            child: const Icon(Icons.my_location),
+          ),
         ),
         const Positioned(
           bottom: panelHeaderSize + 4,
-          left: 0,                                               // ranking panel has 4px box shadow, so position 4px left
-          child: OsmCopyright()
+          left: 0, // ranking panel has 4px box shadow, so position 4px left
+          child: OsmCopyright(),
         ),
         const SafeArea(
           child: Padding(
@@ -119,29 +140,24 @@ class _MapHomeState extends ConsumerState<MapHome>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Flexible(child: TopStatusBar()), 
+                Flexible(child: TopStatusBar()),
                 SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    JoinGroupHintOverlay(),
-                    ModeSelector(),
-                  ],
-                )
-                
+                  children: [JoinGroupHintOverlay(), ModeSelector()],
+                ),
               ],
-            ) 
+            ),
           ),
         ),
-        
+
         const Positioned.fill(
           child: NotificationListener<DraggableScrollableNotification>(
-            child:  RankingSlidingPanel(headerPixelHeight: panelHeaderSize,),
+            child: RankingSlidingPanel(headerPixelHeight: panelHeaderSize),
           ),
         ),
-        
-      ]
+      ],
     );
   }
 
@@ -151,42 +167,34 @@ class _MapHomeState extends ConsumerState<MapHome>
   }
 
   Future<void> moveToCurrentPosition() async {
-    if ((await Geolocator.checkPermission()) == LocationPermission.denied) {
-      await Geolocator.requestPermission();
+    if (!await hasLocationPermission(GeolocatorLocationPermissionGateway())) {
+      CustomErrorSnackBar.message(
+        message: 'Some functions do not work without location permission',
+        type: CustomErrorSnackBarType.error,
+      );
+      return;
     }
-    final destLocation = await Geolocator.getCurrentPosition();
-    setLocation(LatLng(destLocation.latitude, destLocation.longitude), 15);
+    try {
+      final destLocation = await Geolocator.getCurrentPosition();
+      if (!mounted) {
+        return;
+      }
+      setLocation(LatLng(destLocation.latitude, destLocation.longitude), 15);
+    } catch (_) {
+      CustomErrorSnackBar.message(
+        message: 'Could not determine your current location',
+        type: CustomErrorSnackBarType.error,
+      );
+    }
   }
 
-  Future<void> setLocation(LatLng location, double zoom) async {
-    final latTween = Tween<double>(
-      begin: _controller.camera.center.latitude,
-      end: location.latitude,
+  void setLocation(LatLng location, double zoom) {
+    _locationAnimator.animate(
+      currentCenter: _controller.camera.center,
+      currentZoom: _controller.camera.zoom,
+      destination: location,
+      destinationZoom: zoom,
     );
-    final lngTween = Tween<double>(
-      begin: _controller.camera.center.longitude,
-      end: location.longitude,
-    );
-    final zoomTween = Tween<double>(begin: _controller.camera.zoom, end: zoom);
-
-    final Animation<double> animation = CurvedAnimation(
-        parent: _animateController, curve: Curves.fastOutSlowIn,);
-
-    _animateController.addListener(() {
-      _controller.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        zoomTween.evaluate(animation),
-      );
-    });
-    _animateController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        ref.read(districtServiceProvider.notifier).updateLatLong(
-            latTween.evaluate(animation), lngTween.evaluate(animation), zoomTween.evaluate(animation));
-        ref.read(districtServiceProvider.notifier).refetch();
-      }
-    });
-
-    _animateController.forward(from: 0.0);
   }
 
   @override
