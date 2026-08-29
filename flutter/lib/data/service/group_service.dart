@@ -7,6 +7,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/account_data_cleanup.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -74,6 +75,24 @@ class UserGroupService extends _$UserGroupService {
     return _groupRepository.watchUserGroups();
   }
 
+  Future<void> _cacheImageBestEffort(
+    IImageRepository repository,
+    String groupId,
+    String url,
+    int generation,
+  ) async {
+    try {
+      await repository.overrideUrl(
+        groupId,
+        url,
+        true,
+        sessionGeneration: generation,
+      );
+    } catch (error) {
+      debugPrint('Unable to cache group image $groupId: $error');
+    }
+  }
+
   Future<void> sync(DateTime? lastSeen) async {
     final generation = _sessionGuard.generation;
     final remoteGroups = await _groupsApi.getGroupsByIds(
@@ -126,31 +145,30 @@ class UserGroupService extends _$UserGroupService {
     // update group pictures
     final profileImage = groupDto.profileImage;
     if (profileImage != null) {
-      await ref
-          .read(groupProfileRepoProvider)
-          .overrideUrl(
-            groupId,
-            profileImage,
-            true,
-            sessionGeneration: generation,
-          );
+      await _cacheImageBestEffort(
+        ref.read(groupProfileRepoProvider),
+        groupId,
+        profileImage,
+        generation,
+      );
     }
     final profileImageSmall = groupDto.profileImageSmall;
     if (profileImageSmall != null) {
-      await ref
-          .read(groupProfileSmallRepoProvider)
-          .overrideUrl(
-            groupId,
-            profileImageSmall,
-            true,
-            sessionGeneration: generation,
-          );
+      await _cacheImageBestEffort(
+        ref.read(groupProfileSmallRepoProvider),
+        groupId,
+        profileImageSmall,
+        generation,
+      );
     }
     final pinImage = groupDto.pinImage;
     if (pinImage != null) {
-      await ref
-          .read(groupPinImageRepoProvider)
-          .overrideUrl(groupId, pinImage, true, sessionGeneration: generation);
+      await _cacheImageBestEffort(
+        ref.read(groupPinImageRepoProvider),
+        groupId,
+        pinImage,
+        generation,
+      );
     }
 
     // sync pins
@@ -264,36 +282,30 @@ class UserGroupService extends _$UserGroupService {
 
         final profileImage = result.profileImage;
         if (profileImage != null) {
-          await ref
-              .read(groupProfileRepoProvider)
-              .overrideUrl(
-                groupId,
-                profileImage,
-                true,
-                sessionGeneration: generation,
-              );
+          await _cacheImageBestEffort(
+            ref.read(groupProfileRepoProvider),
+            groupId,
+            profileImage,
+            generation,
+          );
         }
         final profileImageSmall = result.profileImageSmall;
         if (profileImageSmall != null) {
-          await ref
-              .read(groupProfileSmallRepoProvider)
-              .overrideUrl(
-                groupId,
-                profileImageSmall,
-                true,
-                sessionGeneration: generation,
-              );
+          await _cacheImageBestEffort(
+            ref.read(groupProfileSmallRepoProvider),
+            groupId,
+            profileImageSmall,
+            generation,
+          );
         }
         final pinImage = result.pinImage;
         if (pinImage != null) {
-          await ref
-              .read(groupPinImageRepoProvider)
-              .overrideUrl(
-                groupId,
-                pinImage,
-                true,
-                sessionGeneration: generation,
-              );
+          await _cacheImageBestEffort(
+            ref.read(groupPinImageRepoProvider),
+            groupId,
+            pinImage,
+            generation,
+          );
         }
       } else {
         return "Failed to update group remotely";

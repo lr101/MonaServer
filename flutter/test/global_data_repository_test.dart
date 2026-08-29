@@ -73,6 +73,22 @@ class SuccessfulAuthApi extends AuthApi {
   }
 }
 
+class TrackingSignupAuthApi extends AuthApi {
+  TrackingSignupAuthApi() : super(ApiClient(basePath: 'https://example.test'));
+
+  bool created = false;
+
+  @override
+  Future<TokenResponseDto?> createUser(UserRequestDto request) async {
+    created = true;
+    return TokenResponseDto(
+      refreshToken: 'new-refresh-token',
+      accessToken: 'new-access-token',
+      userId: 'new-user',
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -140,6 +156,21 @@ void main() {
       expect(global.refreshToken, isNull);
     },
   );
+
+  test('startup also honors a secure-store cleanup marker', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = FakeSecureStorage({
+      GlobalDataRepository.accountCleanupPendingStorageKey: 'true',
+      GlobalDataRepository.userIdKey: 'old-user',
+      GlobalDataRepository.tokenKey: 'old-token',
+    });
+
+    final global = await GlobalDataRepository.get(prefs, storage);
+
+    expect(global.userId, isNull);
+    expect(global.refreshToken, isNull);
+  });
 
   test('service logout removes account-owned Drift and image data', () async {
     SharedPreferences.setMockInitialValues({});
@@ -393,6 +424,50 @@ void main() {
         prefs.getBool(GlobalDataRepository.accountCleanupPendingKey),
         isNull,
       );
+    },
+  );
+
+  test(
+    'signup clears pending account data before creating the account',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        GlobalDataRepository.accountCleanupPendingKey: true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final signupApi = TrackingSignupAuthApi();
+      final sessionGuard = AccountDataSessionGuard();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          secureStorageProvider.overrideWithValue(FakeSecureStorage({})),
+          accountDataSessionGuardProvider.overrideWithValue(sessionGuard),
+          authApiProvider.overrideWithValue(signupApi),
+          accountDataCleanupProvider.overrideWithValue(
+            AccountDataCleanup(
+              cacheCleaners: () => [
+                () async => throw StateError('cache unavailable'),
+              ],
+              sessionDataCleaner: () async {},
+              sessionGuard: sessionGuard,
+            ),
+          ),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(userId: null, refreshToken: null, cameras: []),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(authServiceProvider.notifier)
+          .signupNewUser('new-user', 'password', 'new@example.test');
+
+      expect(
+        result,
+        'Unable to clear data from the previous account. Please try again.',
+      );
+      expect(signupApi.created, isFalse);
+      expect(container.read(globalDataServiceProvider).userId, isNull);
     },
   );
 

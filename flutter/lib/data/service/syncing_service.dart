@@ -59,6 +59,24 @@ class SyncingService extends _$SyncingService {
     return SyncState.init;
   }
 
+  Future<void> _cacheGroupImageBestEffort(
+    IImageRepository repository,
+    String groupId,
+    String url,
+    int generation,
+  ) async {
+    try {
+      await repository.overrideUrl(
+        groupId,
+        url,
+        true,
+        sessionGeneration: generation,
+      );
+    } catch (error) {
+      debugPrint('Unable to cache synced group image $groupId: $error');
+    }
+  }
+
   void toInit() {
     state = SyncState.init;
   }
@@ -151,36 +169,30 @@ class SyncingService extends _$SyncingService {
 
       final profileImage = groupDto.profileImage;
       if (profileImage != null) {
-        await ref
-            .read(groupProfileRepoProvider)
-            .overrideUrl(
-              groupDto.id,
-              profileImage,
-              true,
-              sessionGeneration: generation,
-            );
+        await _cacheGroupImageBestEffort(
+          ref.read(groupProfileRepoProvider),
+          groupDto.id,
+          profileImage,
+          generation,
+        );
       }
       final profileImageSmall = groupDto.profileImageSmall;
       if (profileImageSmall != null) {
-        await ref
-            .read(groupProfileSmallRepoProvider)
-            .overrideUrl(
-              groupDto.id,
-              profileImageSmall,
-              true,
-              sessionGeneration: generation,
-            );
+        await _cacheGroupImageBestEffort(
+          ref.read(groupProfileSmallRepoProvider),
+          groupDto.id,
+          profileImageSmall,
+          generation,
+        );
       }
       final pinImage = groupDto.pinImage;
       if (pinImage != null) {
-        await ref
-            .read(groupPinImageRepoProvider)
-            .overrideUrl(
-              groupDto.id,
-              pinImage,
-              true,
-              sessionGeneration: generation,
-            );
+        await _cacheGroupImageBestEffort(
+          ref.read(groupPinImageRepoProvider),
+          groupDto.id,
+          pinImage,
+          generation,
+        );
       }
     }
   }

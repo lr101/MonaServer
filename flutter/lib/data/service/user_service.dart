@@ -32,6 +32,24 @@ class UserService extends _$UserService {
     return _repo.watchById(userId);
   }
 
+  Future<void> _cacheImageBestEffort(
+    IImageRepository repository,
+    String userId,
+    String url,
+    int generation,
+  ) async {
+    try {
+      await repository.overrideUrl(
+        userId,
+        url,
+        true,
+        sessionGeneration: generation,
+      );
+    } catch (error) {
+      debugPrint('Unable to cache user image $userId: $error');
+    }
+  }
+
   Future<void> _updateRemoteIfMissing(
     IUserRepository repo,
     GlobalDataDto global,
@@ -82,25 +100,21 @@ class UserService extends _$UserService {
         if (profilePicture != null) {
           final profileImage = result.profileImage;
           if (profileImage != null) {
-            await ref
-                .read(userImageRepoProvider)
-                .overrideUrl(
-                  this.userId,
-                  profileImage,
-                  true,
-                  sessionGeneration: generation,
-                );
+            await _cacheImageBestEffort(
+              ref.read(userImageRepoProvider),
+              this.userId,
+              profileImage,
+              generation,
+            );
           }
           final profileImageSmall = result.profileImageSmall;
           if (profileImageSmall != null) {
-            await ref
-                .read(userImageSmallRepoProvider)
-                .overrideUrl(
-                  this.userId,
-                  profileImageSmall,
-                  true,
-                  sessionGeneration: generation,
-                );
+            await _cacheImageBestEffort(
+              ref.read(userImageSmallRepoProvider),
+              this.userId,
+              profileImageSmall,
+              generation,
+            );
           }
         }
       }

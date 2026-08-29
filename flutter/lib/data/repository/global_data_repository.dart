@@ -75,6 +75,7 @@ class GlobalDataRepository {
   static const String userIdKey = "userId";
   static const String tokenKey = "auth";
   static const String accountCleanupPendingKey = "accountCleanupPending";
+  static const String accountCleanupPendingStorageKey = "accountCleanupPending";
   static const String pinFileNameKey = 'pin_new';
   static const String groupFileNameKey = 'groups';
   static const String groupOrderKey = 'groupOrder';
@@ -133,7 +134,19 @@ class GlobalDataRepository {
     SharedPreferences sharedPreferences,
     ISecureStorage storage,
   ) async {
-    if (sharedPreferences.getBool(accountCleanupPendingKey) == true) {
+    var cleanupPending =
+        sharedPreferences.getBool(accountCleanupPendingKey) == true;
+    if (!cleanupPending) {
+      try {
+        cleanupPending =
+            await storage.read(key: accountCleanupPendingStorageKey) == "true";
+      } catch (_) {
+        // If the recovery marker cannot be read, fail closed instead of
+        // exposing the previous account's cache to a new session.
+        cleanupPending = true;
+      }
+    }
+    if (cleanupPending) {
       return GlobalDataDto(
         userId: null,
         refreshToken: null,

@@ -431,9 +431,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
           "Failed to override image. Status: ${response.statusCode}",
         );
       }
-    } catch (e) {
-      debugPrint("Failed to override image $id: $e");
-      return null;
+    } catch (_) {
+      rethrow;
     }
   }
 

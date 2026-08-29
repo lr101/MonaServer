@@ -16,6 +16,8 @@ part 'global_data_service.g.dart';
 
 @Riverpod(keepAlive: true)
 class GlobalDataService extends _$GlobalDataService {
+  bool _cleanupPendingInMemory = false;
+
   @override
   GlobalDataDto build() => ref.watch(globalDataOnceProvider);
 
@@ -27,48 +29,120 @@ class GlobalDataService extends _$GlobalDataService {
             continueWithSessionOnCacheFailure: clearStateOnFailure,
           );
     } catch (error, stackTrace) {
-      await _markCleanupPending();
+      final markerSaved = await _markCleanupPending();
+      if (!markerSaved) {
+        debugPrint('Unable to persist the account cleanup marker.');
+      }
       if (clearStateOnFailure) {
         _clearSessionState();
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
-    await _clearCleanupPending();
+    if (!await _clearCleanupPending()) {
+      debugPrint('Unable to clear the account cleanup marker.');
+    }
     _clearSessionState();
   }
 
   Future<String?> prepareForNewSession() async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    if (prefs.getBool(GlobalDataRepository.accountCleanupPendingKey) != true) {
+    if (!await _hasCleanupPending()) {
       return null;
     }
 
     try {
       await ref.read(accountDataCleanupProvider).clearForLogout();
-      await _clearCleanupPending();
+      if (!await _clearCleanupPending()) {
+        return 'Unable to clear data from the previous account. Please try again.';
+      }
       return null;
     } catch (_) {
       return 'Unable to clear data from the previous account. Please try again.';
     }
   }
 
-  Future<void> _markCleanupPending() async {
+  Future<bool> _markCleanupPending() async {
+    _cleanupPendingInMemory = true;
+    var persisted = false;
     try {
-      await ref
+      persisted = await ref
           .read(sharedPreferencesProvider)
           .setBool(GlobalDataRepository.accountCleanupPendingKey, true);
     } catch (_) {
-      // Preserve the original logout error if the recovery marker cannot be saved.
+      // Try the secure store if SharedPreferences is unavailable.
     }
+    if (!persisted) {
+      try {
+        await ref
+            .read(secureStorageProvider)
+            .write(
+              key: GlobalDataRepository.accountCleanupPendingStorageKey,
+              value: 'true',
+            );
+        persisted = true;
+      } catch (_) {
+        // Keep the in-memory fail-closed marker if both stores are unavailable.
+      }
+    }
+    return persisted;
   }
 
-  Future<void> _clearCleanupPending() async {
+  Future<bool> _clearCleanupPending() async {
+    var cleared = true;
     try {
-      await ref
-          .read(sharedPreferencesProvider)
-          .remove(GlobalDataRepository.accountCleanupPendingKey);
+      final prefs = ref.read(sharedPreferencesProvider);
+      final removed = await prefs.remove(
+        GlobalDataRepository.accountCleanupPendingKey,
+      );
+      if (!removed &&
+          prefs.containsKey(GlobalDataRepository.accountCleanupPendingKey)) {
+        cleared = false;
+      }
     } catch (_) {
-      // A stale marker only causes a safe, extra cleanup before the next login.
+      cleared = false;
+    }
+
+    try {
+      final storage = ref.read(secureStorageProvider);
+      final marker = await storage.read(
+        key: GlobalDataRepository.accountCleanupPendingStorageKey,
+      );
+      if (marker != null) {
+        await storage.delete(
+          key: GlobalDataRepository.accountCleanupPendingStorageKey,
+        );
+        if (await storage.read(
+              key: GlobalDataRepository.accountCleanupPendingStorageKey,
+            ) !=
+            null) {
+          cleared = false;
+        }
+      }
+    } catch (_) {
+      cleared = false;
+    }
+
+    _cleanupPendingInMemory = !cleared;
+    return cleared;
+  }
+
+  Future<bool> _hasCleanupPending() async {
+    if (_cleanupPendingInMemory) return true;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getBool(GlobalDataRepository.accountCleanupPendingKey) == true) {
+      _cleanupPendingInMemory = true;
+      return true;
+    }
+
+    try {
+      final marker = await ref
+          .read(secureStorageProvider)
+          .read(key: GlobalDataRepository.accountCleanupPendingStorageKey);
+      _cleanupPendingInMemory = marker == 'true';
+      return _cleanupPendingInMemory;
+    } catch (_) {
+      // If the marker cannot be read, fail closed until storage recovers.
+      _cleanupPendingInMemory = true;
+      return true;
     }
   }
 
@@ -154,6 +228,8 @@ class AuthService extends _$AuthService {
     final authApi = ref.read(authApiProvider);
     final global = ref.read(globalDataServiceProvider.notifier);
     try {
+      final cleanupError = await global.prepareForNewSession();
+      if (cleanupError != null) return cleanupError;
       final request = UserRequestDto(
         name: username,
         password: password,
@@ -161,8 +237,6 @@ class AuthService extends _$AuthService {
       );
       final response = await authApi.createUser(request);
       if (response != null) {
-        final cleanupError = await global.prepareForNewSession();
-        if (cleanupError != null) return cleanupError;
         await global.updateData(response, username);
         return null;
       } else {
