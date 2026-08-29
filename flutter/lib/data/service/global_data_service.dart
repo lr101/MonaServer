@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:riverpod/misc.dart';
 
 part 'global_data_service.g.dart';
 
@@ -67,7 +68,10 @@ class GlobalDataService extends _$GlobalDataService {
       persisted = await ref
           .read(sharedPreferencesProvider)
           .setBool(GlobalDataRepository.accountCleanupPendingKey, true);
-    } catch (_) {
+    } on UnimplementedError {
+      return false;
+    } catch (error) {
+      if (_isUnimplementedProviderError(error)) return false;
       // Try the secure store if SharedPreferences is unavailable.
     }
     if (!persisted) {
@@ -84,6 +88,10 @@ class GlobalDataService extends _$GlobalDataService {
       }
     }
     return persisted;
+  }
+
+  bool _isUnimplementedProviderError(Object error) {
+    return error is ProviderException && error.exception is UnimplementedError;
   }
 
   Future<bool> _clearCleanupPending() async {
