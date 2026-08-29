@@ -109,6 +109,9 @@ class ImageRepository extends CacheImpl<ImageEntity> implements IImageRepository
 
   @override
   Future<void> doDeleteAll() async {
+    for (final id in _bytesCache.keys.toList()) {
+      _evictFromFlutterCache(id);
+    }
     await (db.delete(db.imageEntities)..where((tbl) => tbl.type.equalsValue(type))).go();
   }
 

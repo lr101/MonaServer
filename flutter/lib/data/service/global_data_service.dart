@@ -3,6 +3,7 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
+import 'package:buff_lisa/data/service/account_data_cleanup.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:camera/camera.dart';
@@ -21,7 +22,8 @@ class GlobalDataService  extends _$GlobalDataService {
   GlobalDataDto build() => ref.watch(globalDataOnceProvider);
 
   Future<void> logout() async {
-    await ref.watch(globalDataRepositoryProvider).logout();
+    await ref.read(accountDataCleanupProvider).clearForLogout();
+    ref.invalidate(lastSeenProvider);
     state = GlobalDataDto(userId: null, refreshToken: null, cameras: state.cameras);
   }
 

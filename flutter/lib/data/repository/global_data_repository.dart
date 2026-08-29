@@ -109,6 +109,25 @@ class GlobalDataRepository {
   static const String lastReviewKey = "lastReviewKey";
   static const String isNotificationEnabledKey = "isNotificationEnabledKey";
 
+  static const List<String> accountPreferenceKeys = [
+    pinFileNameKey,
+    groupFileNameKey,
+    hiddenUsersKey,
+    hiddenPostsKey,
+    activeGroupKey,
+    offlineKeyValue,
+    lastSeenKey,
+    lastSeenPinKey,
+    descriptionKey,
+    profileImageKey,
+    profileImageSmallKey,
+    selectedBatchKey,
+    xpKey,
+    currentLevelKey,
+    currentLevelXpKey,
+    nextLevelXpKey,
+  ];
+
   GlobalDataRepository({required this.ref}) {
     sharedPreferences = ref.watch(sharedPreferencesProvider);
   }
@@ -140,11 +159,13 @@ class GlobalDataRepository {
   }
 
   Future<void> logout() async {
-    sharedPreferences.clear();
     final storage = ref.watch(secureStorageProvider);
-    await storage.delete(key: usernameKey);
-    await storage.delete(key: userIdKey);
-    await storage.delete(key: tokenKey);
+    await Future.wait([
+      ...accountPreferenceKeys.map(sharedPreferences.remove),
+      storage.delete(key: usernameKey),
+      storage.delete(key: userIdKey),
+      storage.delete(key: tokenKey),
+    ]);
   }
 
   Future<void> login(String username, String userId, String token) async {
