@@ -31,7 +31,7 @@ The app is structured as follows:
 ## Quick start (development)
 
 1) Prerequisites
-- Install Flutter: https://flutter.dev/docs/get-started/install
+- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.2 SDK and build tools.
 - Ensure a working Android/iOS development environment (Android Studio / Xcode on macOS for iOS).
 
 2) Install dependencies
