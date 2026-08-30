@@ -13,7 +13,7 @@ workflows:
         - google_play
       vars:
         PACKAGE_NAME: com.TheGermanApps.buff_lisa
-        GOOGLE_PLAY_TRACK: internal
+        GOOGLE_PLAY_TRACK: beta
     scripts:
       - name: Create local app configuration
         script: |
