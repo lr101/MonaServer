@@ -124,7 +124,7 @@ the implementations into Riverpod at the composition root.
 | Layer | May depend on | Must not depend on | Owns |
 | --- | --- | --- | --- |
 | `app` | all application layers, platform setup | product behavior hidden in bootstrap code | app startup, dependency wiring, routing, app shell |
-| `presentation` | domain models and use-case APIs, `core/ui`, Flutter, Riverpod | repository ports and implementations, data sources, Drift, generated OpenAPI types, HTTP, secure storage, database rows, platform adapters | widgets, controllers, view state, user-facing effects |
+| `presentation` | domain models and use-case APIs, `core/ui`, the `core/observability` analytics port, Flutter, Riverpod | repository ports and implementations, data sources, Drift, generated OpenAPI types, HTTP, secure storage, database rows, platform adapters | widgets, controllers, view state, user-facing effects |
 | `domain` | pure Dart, `core/foundation`, pure capability ports | Flutter, Riverpod, Drift, OpenAPI, `BuildContext`, logging, analytics, platform adapters | business rules, immutable models, repository ports, use cases |
 | `data` | domain ports, `core`, generated API, Drift, platform adapters | widgets, `BuildContext`, snackbars, route changes | remote/local data sources, mappers, repository implementations, cache policy |
 | `shared` | `core/ui`, Flutter, callbacks and display models | feature repositories and feature providers | reusable visual components with no product workflow |
@@ -136,7 +136,8 @@ Presentation code must never import repository ports or implementations, data
 sources, generated OpenAPI types or clients, Drift tables or rows, HTTP
 clients, secure storage, or platform adapters. It may depend on domain models,
 use-case APIs, `core/ui`, Flutter, Riverpod, and other presentation code within
-its feature.
+its feature. The only observability dependency permitted here is the pure
+`core/observability/analytics_port.dart` port; domain code must not import it.
 
 Repositories and infrastructure are accessed through domain ports and
 use-case/controller boundaries. Enforce this rule in review and with an import
@@ -350,6 +351,9 @@ screen needs loading, empty, error, pagination, or action state.
 
 Keep side effects out of `build()`. Use controller methods and deliberate
 Riverpod listeners for effects such as navigation, snackbars, and analytics.
+Presentation may report approved analytics through the pure
+`core/observability/analytics_port.dart` port; domain code must not depend on
+that port, and the first-release implementation is a no-op under Option A.
 
 Examples for this codebase:
 
@@ -455,6 +459,7 @@ An outbox record should contain:
 - status such as pending, uploading, failed, or completed
 - attempt count and the next retry time
 - an upload lease or lease expiry for crash recovery
+- a unique upload lease owner/token for conditional state updates
 - the last typed failure
 - the server pin ID once the operation succeeds
 - creation, update, and expiry timestamps
@@ -488,8 +493,16 @@ pending -> uploading -> completed
                     -> failed         (permanent failure)
 ```
 
-The background scheduler selects only due `pending` rows. Android should use a
-platform background worker where the package and OS permit it. Web retries
+The background scheduler claims only due `pending` rows. Claiming must be a
+transactional conditional update that sets `uploading`, a unique lease owner,
+and a lease expiry, then returns the claimed row. Foreground work and an
+Android worker must compete through this same claim, so they cannot upload the
+same row concurrently. Completion, retry, failure, and lease extension must
+also update the row only when the caller still owns the lease; a stale worker
+must discard its result. An expired lease may be reclaimed by a new owner.
+
+Android should use a platform background worker where the package and OS permit
+it. Web retries
 while the app is active and on the next launch, resume, authentication, or
 online transition; do not promise execution while a browser tab is closed
 unless the supported browser set and Background Sync behavior are verified.
@@ -737,8 +750,9 @@ sync pattern used by the rest of the app.
 - Make upload status visible as read-only state and retry automatically in the
   background.
 - Add tests for app restart, expired upload leases, missing images, duplicate
-  retries, idempotency retention, image cleanup, hidden users/posts, paging,
-  logout, account deletion, and account-scoped data.
+  retries, concurrent claim ownership, stale-worker completion, idempotency
+  retention, image cleanup, hidden users/posts, paging, logout, account
+  deletion, and account-scoped data.
 
 ### Phase 5: migrate map, camera, ranking, and platform flows
 
