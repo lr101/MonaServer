@@ -29,7 +29,7 @@ dependencies:
   flutter_dotenv:
   flutter_login:
   flutter_map:
-  flutter_map_location_marker:
+  flutter_map_location_marker: ^10.3.0
   flutter_map_marker_cluster:
   flutter_map_tile_caching:
   flutter_native_splash:

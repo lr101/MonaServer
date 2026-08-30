@@ -671,10 +671,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_map_location_marker
-      sha256: "8566017d49b45d4b21313bcd3fcea87e47314347dac2b902c412e00f7abb074f"
+      sha256: f14027f6a3ddaa34becb71204245206cef2d78695625e33b0e733757f11ff2d3
       url: "https://pub.dev"
     source: hosted
-    version: "10.2.0"
+    version: "10.3.0"
   flutter_map_marker_cluster:
     dependency: "direct main"
     description:
@@ -727,10 +727,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_rotation_sensor
-      sha256: "6a6af0ba340fd392c5fd37d1db04c0a153286170495c58f1bee4cc2103395d68"
+      sha256: "87e69301e459432e9100d112f16b443b51c1d5c801a9e461f1551a1a088880e4"
       url: "https://pub.dev"
     source: hosted
-    version: "0.2.0"
+    version: "0.3.1"
   flutter_secure_storage:
     dependency: "direct main"
     description:
