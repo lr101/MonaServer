@@ -28,7 +28,8 @@ docker compose -f docker-compose.dev.yml up --build
 
 The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
 
-To work on the Flutter app, install Flutter, then run these commands from the repository root:
+To work on the Flutter app, install the pinned toolchain with `mise install`,
+then run these commands from the repository root:
 
 ```bash
 cd flutter
@@ -37,7 +38,7 @@ dart run build_runner build
 flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
 
-The repository pins Go 1.27.0, Flutter 3.47.1, and the API tooling in
+The repository pins Go 1.27.0, Flutter 3.47.2, and the API tooling in
 [`mise.toml`](mise.toml). The same checks are available from the repository
 root as `mise run flutter-analyze`, `mise run flutter-test`, and
 `mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
