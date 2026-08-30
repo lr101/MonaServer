@@ -133,6 +133,10 @@ jobs:
 
   build-ios:
     runs-on: macos-15
+    env:
+      # Flutter 3.44+ uses Swift Package Manager for compatible plugins and
+      # falls back to CocoaPods only for plugins that still require it.
+      FLUTTER_SWIFT_PACKAGE_MANAGER: "true"
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -167,8 +171,6 @@ jobs:
 
       - name: Build iOS release
         working-directory: flutter
-        env:
-          FLUTTER_SWIFT_PACKAGE_MANAGER: "false"
         run: flutter build ios --release --no-codesign --no-pub
 
   publish-web:

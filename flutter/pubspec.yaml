@@ -90,6 +90,13 @@ dev_dependencies:
   lint:
   meta:
 
+dependency_overrides:
+  # flutter_map_tile_caching 10.1.1 still pins ObjectBox to 4.x, whose Android
+  # library targets SDK 31. ObjectBox 5.0.0 is the compatible 5.x runtime
+  # release and retains the package's flat_buffers 23.x compatibility.
+  objectbox: 5.0.0
+  objectbox_flutter_libs: 5.0.0
+
 
 flutter:
   assets:
