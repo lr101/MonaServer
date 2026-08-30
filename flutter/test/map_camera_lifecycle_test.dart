@@ -71,6 +71,25 @@ void main() {
     expect(groupIdAt(['group-a'], 1), isNull);
   });
 
+  test('camera preview ratio follows the Android device orientation', () {
+    const sensorAspectRatio = 16 / 9;
+
+    expect(
+      cameraPreviewAspectRatio(
+        sensorAspectRatio: sensorAspectRatio,
+        orientation: DeviceOrientation.landscapeRight,
+      ),
+      sensorAspectRatio,
+    );
+    expect(
+      cameraPreviewAspectRatio(
+        sensorAspectRatio: sensorAspectRatio,
+        orientation: DeviceOrientation.portraitUp,
+      ),
+      9 / 16,
+    );
+  });
+
   test('static markers do not create an animation controller', () {
     expect(
       createMarkerAnimationController(

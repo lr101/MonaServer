@@ -117,16 +117,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                             onScaleStart: (_) => basScaleFactor = scaleFactor,
                             onScaleUpdate: (details) =>
                                 handleZoom(details, cameraState),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Center(
-                                  child: AspectRatio(
-                                    aspectRatio: controller.value.aspectRatio,
-                                    child: CameraPreview(controller),
-                                  ),
-                                );
-                              },
-                            ),
+                            child: cameraPreviewViewport(controller),
                           ),
                         );
                       },
@@ -402,4 +393,31 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       debugPrint(e.toString());
     }
   }
+}
+
+Widget cameraPreviewViewport(CameraController controller) {
+  return ValueListenableBuilder<CameraValue>(
+    valueListenable: controller,
+    builder: (context, value, _) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final aspectRatio = cameraPreviewAspectRatio(
+            sensorAspectRatio: value.aspectRatio,
+            orientation: value.deviceOrientation,
+          );
+
+          return ClipRect(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxWidth / aspectRatio,
+                child: CameraPreview(controller),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
 }

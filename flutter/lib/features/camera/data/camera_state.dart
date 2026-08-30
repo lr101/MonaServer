@@ -10,6 +10,15 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'camera_state.g.dart';
 
+double cameraPreviewAspectRatio({
+  required double sensorAspectRatio,
+  required DeviceOrientation orientation,
+}) {
+  final isLandscape = orientation == DeviceOrientation.landscapeLeft ||
+      orientation == DeviceOrientation.landscapeRight;
+  return isLandscape ? sensorAspectRatio : 1 / sensorAspectRatio;
+}
+
 int? cameraIndexForLength(int index, int length) {
   if (length <= 0) {
     return null;
