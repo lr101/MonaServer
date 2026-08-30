@@ -10,6 +10,17 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 
+AnimationController? createMarkerAnimationController({
+  required bool withAnimation,
+  required TickerProvider vsync,
+}) {
+  if (!withAnimation) {
+    return null;
+  }
+  return AnimationController(vsync: vsync, duration: const Duration(seconds: 2))
+    ..repeat();
+}
+
 class CustomMarkerContent extends ConsumerStatefulWidget {
   final PinEntity pinDto;
   final bool withAnimation;
@@ -24,43 +35,65 @@ class CustomMarkerContent extends ConsumerStatefulWidget {
   _CustomMarkerContentState createState() => _CustomMarkerContentState();
 }
 
-class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
+    with TickerProviderStateMixin {
+  AnimationController? _controller;
   final Distance _distance = const Distance();
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _controller = createMarkerAnimationController(
+      withAnimation: widget.withAnimation,
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomMarkerContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.withAnimation == widget.withAnimation) {
+      return;
+    }
+    _controller?.dispose();
+    _controller = createMarkerAnimationController(
+      withAnimation: widget.withAnimation,
+      vsync: this,
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   bool _isWithinDistance(Position userPosition) {
-    return _distance.as(LengthUnit.Meter, LatLng(userPosition.latitude, userPosition.longitude),
-        LatLng(widget.pinDto.latitude, widget.pinDto.longitude),) <= 50.0;
+    return _distance.as(
+          LengthUnit.Meter,
+          LatLng(userPosition.latitude, userPosition.longitude),
+          LatLng(widget.pinDto.latitude, widget.pinDto.longitude),
+        ) <=
+        50.0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isInRange = ref.watch(currentLocationProvider.select((e) => e.whenOrNull(data: (data) => _isWithinDistance(data))));
-    final markerImage = Image.memory(ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ?? ref.read(defaultGroupPinImageProvider));
-    if (widget.withAnimation == false || isInRange == null) {
-     return Column(
+    final isInRange = ref.watch(
+      currentLocationProvider.select(
+        (e) => e.whenOrNull(data: (data) => _isWithinDistance(data)),
+      ),
+    );
+    final markerImage = Image.memory(
+      ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
+          ref.read(defaultGroupPinImageProvider),
+    );
+    final controller = _controller;
+    if (controller == null || isInRange == null) {
+      return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(
-            height: 30,
-            width: 30,
-            child: markerImage,
-          ),
+          SizedBox(height: 30, width: 30, child: markerImage),
           const SizedBox.square(dimension: 30),
         ],
       );
@@ -71,24 +104,21 @@ class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent> with 
       children: [
         if (isInRange)
           AnimatedBuilder(
-            animation: _controller,
+            animation: controller,
             builder: (context, child) {
-              final scale = _controller.value;
+              final scale = controller.value;
               return Container(
                 width: 50 + scale * 50,
                 height: 50 + scale * 50,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.8 - (scale - 0.2)),
+                  color: Theme.of(context).colorScheme.tertiary
+                      .withValues(alpha: 0.8 - (scale - 0.2)),
                 ),
               );
             },
           ),
-        SizedBox(
-          height: 30,
-          width: 30,
-          child: markerImage,
-        ),
+        SizedBox(height: 30, width: 30, child: markerImage),
       ],
     );
   }
@@ -151,14 +181,17 @@ class RankedClusterMarker extends ConsumerWidget {
               if (top3.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(4.0),
-                  child: Text("No Data", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                  child: Text(
+                    "No Data",
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
                 )
               else
                 ...top3.asMap().entries.map((entry) {
                   final index = entry.key;
                   final item = entry.value;
                   final group = item.groupInfoDto;
-                  
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Row(
@@ -173,31 +206,41 @@ class RankedClusterMarker extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        
+
                         // Group Image
                         if (group != null)
                           SizedBox(
-                            width: 16, height: 16,
+                            width: 16,
+                            height: 16,
                             child: RoundImage(
                               size: 16,
-                              imageCallback: ref.watch(groupProfilePictureByIdProvider(group.id)),
+                              imageCallback: ref.watch(
+                                groupProfilePictureByIdProvider(group.id),
+                              ),
                               child: Container(color: Colors.grey[800]),
                             ),
                           ),
                         const SizedBox(width: 6),
-                        
+
                         // Name & Points
                         Expanded(
                           child: Text(
                             group?.name ?? "Unknown",
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Text(
                           "${item.points ?? 0}",
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 9),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 9,
+                          ),
                         ),
                       ],
                     ),
