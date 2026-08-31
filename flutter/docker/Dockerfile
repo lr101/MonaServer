@@ -10,6 +10,9 @@ ARG FLUTTER_SHA256=447878859d01ca9bfdb99a85f245af07ed8a15fedcd9d189c4749e8e92d1f
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PATH=${FLUTTER_ROOT}/bin:${FLUTTER_ROOT}/bin/cache/dart-sdk/bin:${PATH}
 
+# The SDK archive contains a Git repository owned by its archive UID. Extract
+# it without preserving that ownership so Git accepts it when Flutter runs as
+# root during the image build.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -26,7 +29,7 @@ RUN set -eux; \
       "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
       --output "$archive"; \
     echo "${FLUTTER_SHA256}  ${archive}" | sha256sum --check; \
-    tar -xJf "$archive" --directory /opt; \
+    tar --no-same-owner -xJf "$archive" --directory /opt; \
     flutter config --enable-web; \
     flutter precache --web; \
     rm -f "$archive"; \
