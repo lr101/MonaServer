@@ -41,9 +41,9 @@ Future<void> main() async {
 
   const bool isProduction = bool.fromEnvironment('dart.vm.product');
   if (isProduction) {
-    await dotenv.load(fileName: ".config");
+    await dotenv.load(fileName: "config");
   } else {
-    await dotenv.load(fileName: ".config.dev");
+    await dotenv.load(fileName: "config.dev");
   }
 
   final posthogSettings = PosthogSettings.fromEnvironment(

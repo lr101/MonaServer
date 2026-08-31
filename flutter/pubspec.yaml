@@ -104,8 +104,8 @@ flutter:
     - assets/image/
     - assets/achievements/
     - assets/icon/
-    - .config
-    - .config.dev
+    - config
+    - config.dev
   uses-material-design: true
   fonts:
     - family: Signika

@@ -30,6 +30,6 @@ dir = "flutter/api"
 run = "flutter pub get && flutter test"
 
 [tasks.flutter-build-web]
-description = "Build the Flutter web app"
+description = "Build the Flutter web app with Wasm and a JavaScript fallback"
 dir = "flutter"
 run = "flutter pub get && flutter build web --wasm --release --no-pub"

@@ -27,7 +27,7 @@ workflows:
             printf 'APPSTORE_ID=%s\n' "${APPSTORE_ID:-}"
             printf 'POSTHOG_API_KEY=%s\n' "${POSTHOG_API_KEY:-}"
             printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } > .config
+          } > config
 
       - name: Restore Firebase Android configuration
         script: |
