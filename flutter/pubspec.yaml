@@ -55,7 +55,6 @@ dependencies:
   path:
   path_provider:
   permission_handler:
-  posthog_flutter:
   riverpod_annotation: ^4.0.6
   riverpod_generator: ^4.0.8
   select_dialog:

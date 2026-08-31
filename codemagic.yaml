@@ -25,8 +25,6 @@ workflows:
             printf 'INSTAGRAM_URL=%s\n' "$INSTAGRAM_URL"
             printf 'URL_GITHUB_REPO=%s\n' "$URL_GITHUB_REPO"
             printf 'APPSTORE_ID=%s\n' "${APPSTORE_ID:-}"
-            printf 'POSTHOG_API_KEY=%s\n' "${POSTHOG_API_KEY:-}"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
           } > config
 
       - name: Restore Firebase Android configuration
