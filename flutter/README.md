@@ -85,11 +85,9 @@ the Android keystore, Firebase, Google Play, and app configuration variables.
 
 ### Analytics configuration
 
-PostHog is initialized at build time from `POSTHOG_API_KEY` and the optional
-`POSTHOG_HOST` setting. Keep the API key out of the repository: provide it as
-an environment variable in Codemagic, or as the `POSTHOG_API_KEY` GitHub
-Actions secret. The checked-in `config` files intentionally omit it. Builds
-without the key run with analytics disabled.
+Release builds keep optional PostHog analytics disabled. For local development,
+you may opt in with `POSTHOG_API_KEY` and the optional `POSTHOG_HOST` in the
+development config; the checked-in config files intentionally omit both.
 
 ### Generate API (summary)
 1. Activate openapi-generator: `flutter pub global activate openapi_generator_cli`

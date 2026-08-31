@@ -6,16 +6,25 @@ void main() {
     expect(PosthogSettings.fromEnvironment({}, isProduction: false), isNull);
   });
 
+  test('does not configure optional analytics in production', () {
+    expect(
+      PosthogSettings.fromEnvironment({
+        'POSTHOG_API_KEY': 'production-key',
+      }, isProduction: true),
+      isNull,
+    );
+  });
+
   test('loads PostHog settings from the build environment', () {
     final settings = PosthogSettings.fromEnvironment({
       'POSTHOG_API_KEY': 'test-api-key',
       'POSTHOG_HOST': 'https://posthog.example.test',
-    }, isProduction: true);
+    }, isProduction: false);
 
     expect(settings, isNotNull);
     expect(settings!.apiKey, 'test-api-key');
     expect(settings.host, 'https://posthog.example.test');
     expect(settings.captureApplicationLifecycleEvents, isTrue);
-    expect(settings.debug, isFalse);
+    expect(settings.debug, isTrue);
   });
 }

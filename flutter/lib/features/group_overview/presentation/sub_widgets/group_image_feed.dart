@@ -5,30 +5,61 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
-class GroupImageFeed extends ConsumerWidget {
-
+class GroupImageFeed extends ConsumerStatefulWidget {
   const GroupImageFeed({super.key, required this.index, required this.groupId});
 
   final int index;
   final String groupId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupImageFeed> createState() => _GroupImageFeedState();
+}
+
+class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
+  PagingController<int, PinEntity>? _pagingController;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _pagingController?.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pins = ref.watch(sortedGroupPinsProvider(widget.groupId));
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Group images"),
+      appBar: AppBar(title: const Text("Group images")),
+      body: pins.when(
+        data: (data) {
+          final items = data ?? <PinEntity>[];
+          final initialItems = items.take(widget.index + 1).toList();
+          final pagingController = _pagingController ??=
+              PagingController.fromValue(
+                PagingState<int, PinEntity>(
+                  nextPageKey: initialItems.length < items.length
+                      ? initialItems.length
+                      : null,
+                  itemList: initialItems,
+                ),
+                firstPageKey: 0,
+              );
+          return CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              CustomFeed(
+                pinProvider: sortedGroupPinsProvider(widget.groupId),
+                index: widget.index,
+                pagingController: pagingController,
+                scrollController: _scrollController,
+              ),
+            ],
+          );
+        },
+        error: (error, stackTrace) => const Center(child: Icon(Icons.error)),
+        loading: () => const Center(child: CircularProgressIndicator()),
       ),
-        body: ref.read(sortedGroupPinsProvider(groupId)).when(
-              data: (data) => CustomFeed(
-                  pinProvider: sortedGroupPinsProvider(groupId),
-                  index: index,
-                  pagingController: PagingController.fromValue(
-                      PagingState<int, PinEntity>(
-                          nextPageKey: index + 1,
-                          itemList: data?.getRange(0, index + 1).toList(),),
-                      firstPageKey: 0,),),
-              error: (error, stackTrace) => const Icon(Icons.error),
-              loading: () => const Center(child: CircularProgressIndicator()),
-            ),);
+    );
   }
 }

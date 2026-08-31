@@ -23,21 +23,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/config
-
       - name: Add Google services configuration
         env:
           GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
@@ -203,21 +188,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/config
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -245,21 +215,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::warning::POSTHOG_API_KEY is unavailable; the published web image will have PostHog disabled."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/config
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
