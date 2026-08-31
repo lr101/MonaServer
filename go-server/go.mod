@@ -18,7 +18,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.8.1
 	golang.org/x/crypto v0.55.0
-	google.golang.org/api v0.295.0
+	google.golang.org/api v0.296.0
 )
 
 require (
