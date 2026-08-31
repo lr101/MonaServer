@@ -43,8 +43,18 @@ RUN flutter pub get
 # Copy the rest of your app's source code
 COPY . .
 
-# Build the web app for production with WASM
+# Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
+# flutter_bootstrap.js selects the first compatible build in the browser.
 RUN flutter build web --wasm --release
+
+# Fail the image build if a future Flutter/toolchain change drops either
+# browser variant or the runtime configuration assets.
+RUN set -eux; \
+    test -s build/web/main.dart.js; \
+    test -s build/web/main.dart.mjs; \
+    test -s build/web/main.dart.wasm; \
+    test -s build/web/assets/config; \
+    test -s build/web/assets/config.dev
 
 # ==========================================
 # Stage 2: Serve the App with Nginx
