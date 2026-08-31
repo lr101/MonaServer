@@ -1,37 +1,93 @@
 workflows:
-  flutter-ios:
-    name: Flutter IOS Build
+  flutter-android:
+    name: Flutter Android deployment
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
-      flutter: 3.47.1
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.TheGermanApps.buffLisa
+      flutter: 3.47.2
+      android_signing:
+        - android_keystore
+      groups:
+        - app_config
+        - firebase
+        - google_play
+      vars:
+        PACKAGE_NAME: com.TheGermanApps.buff_lisa
+        GOOGLE_PLAY_TRACK: beta
     scripts:
       - name: Create local app configuration
         script: |
+          set -euo pipefail
           cd flutter
           {
-            echo "API_HOST=$API_HOST"
-            echo "DISCORD_INVITE=$DISCORD_INVITE"
-            echo "INSTAGRAM_URL=$INSTAGRAM_URL"
-            echo "URL_GITHUB_REPO=$URL_GITHUB_REPO"
-            echo "APPSTORE_ID=$APPSTORE_ID"
-            echo "POSTHOG_API_KEY=$POSTHOG_API_KEY"
-            echo "POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}"
+            printf 'API_HOST=%s\n' "$API_HOST"
+            printf 'DISCORD_INVITE=%s\n' "$DISCORD_INVITE"
+            printf 'INSTAGRAM_URL=%s\n' "$INSTAGRAM_URL"
+            printf 'URL_GITHUB_REPO=%s\n' "$URL_GITHUB_REPO"
+            printf 'APPSTORE_ID=%s\n' "${APPSTORE_ID:-}"
+            printf 'POSTHOG_API_KEY=%s\n' "${POSTHOG_API_KEY:-}"
+            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
           } > .config
+
+      - name: Restore Firebase Android configuration
+        script: |
+          set -euo pipefail
+          test -n "${GOOGLE_SERVICES:-}" || {
+            echo "GOOGLE_SERVICES is not configured in Codemagic" >&2
+            exit 1
+          }
+          printf '%s' "$GOOGLE_SERVICES" |
+            openssl base64 -d -A > "$CM_BUILD_DIR/flutter/android/app/google-services.json"
+          test -s "$CM_BUILD_DIR/flutter/android/app/google-services.json"
+
+      - name: Configure Android release signing
+        script: |
+          set -euo pipefail
+          : "${CM_KEYSTORE_PATH:?Codemagic Android signing is not configured}"
+          : "${CM_KEYSTORE_PASSWORD:?Codemagic Android signing is not configured}"
+          : "${CM_KEY_ALIAS:?Codemagic Android signing is not configured}"
+          : "${CM_KEY_PASSWORD:?Codemagic Android signing is not configured}"
+          umask 077
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
+            "$CM_KEYSTORE_PASSWORD" \
+            "$CM_KEY_PASSWORD" \
+            "$CM_KEY_ALIAS" \
+            "$CM_KEYSTORE_PATH" \
+            > "$CM_BUILD_DIR/flutter/android/key.properties"
+
       - name: Get Flutter packages
         script: cd flutter && flutter pub get
-      - name: Set up code signing settings on Xcode project
-        script: cd flutter && xcode-project use-profiles
-      - name: Build iOS IPA
-        script: cd flutter && FLUTTER_SWIFT_PACKAGE_MANAGER=false flutter build ipa --release --no-pub
+
+      - name: Determine Android build number
+        script: |
+          set -euo pipefail
+          base_build_number="$(sed -n 's/^version: [^+]*+\([0-9][0-9]*\).*$/\1/p' flutter/pubspec.yaml)"
+          test -n "$base_build_number"
+
+          latest_build_number="$(google-play get-latest-build-number \
+            --package-name "$PACKAGE_NAME")"
+          case "$latest_build_number" in
+            ''|*[!0-9]*)
+              echo "Google Play returned an invalid build number: $latest_build_number" >&2
+              exit 1
+              ;;
+          esac
+
+          build_number=$((base_build_number + 1))
+          if [ "$latest_build_number" -ge "$build_number" ]; then
+            build_number=$((latest_build_number + 1))
+          fi
+          echo "BUILD_NUMBER=$build_number" >> "$CM_ENV"
+
+      - name: Build Android App Bundle
+        script: |
+          cd flutter
+          flutter build appbundle --release --no-pub --build-number="$BUILD_NUMBER"
+
     artifacts:
-      - flutter/build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
+      - flutter/build/**/outputs/**/*.aab
+
     publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: $GOOGLE_PLAY_TRACK

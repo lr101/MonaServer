@@ -4,8 +4,8 @@
 # Install the exact stable SDK used by the repository.
 FROM debian:bookworm-slim AS build
 
-ARG FLUTTER_VERSION=3.47.1
-ARG FLUTTER_SHA256=a1d8166c0309267cb7dc99f1424eecf08b86946ad3b50723c6f59945964aea45
+ARG FLUTTER_VERSION=3.47.2
+ARG FLUTTER_SHA256=447878859d01ca9bfdb99a85f245af07ed8a15fedcd9d189c4749e8e92d1f185
 
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PATH=${FLUTTER_ROOT}/bin:${FLUTTER_ROOT}/bin/cache/dart-sdk/bin:${PATH}
@@ -27,7 +27,6 @@ RUN set -eux; \
       --output "$archive"; \
     echo "${FLUTTER_SHA256}  ${archive}" | sha256sum --check; \
     tar -xJf "$archive" --directory /opt; \
-    git config --global --add safe.directory "$FLUTTER_ROOT"; \
     flutter config --enable-web; \
     flutter precache --web; \
     rm -f "$archive"; \

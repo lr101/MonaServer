@@ -31,7 +31,7 @@ The app is structured as follows:
 ## Quick start (development)
 
 1) Prerequisites
-- Install Flutter: https://flutter.dev/docs/get-started/install
+- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.2 SDK and build tools.
 - Ensure a working Android/iOS development environment (Android Studio / Xcode on macOS for iOS).
 
 2) Install dependencies
@@ -79,7 +79,9 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 
 ### Release app
 
-The app release in Google Play Store and App Store is managed via Codemagic. The pipeline is triggered when a new commit is pushed to the main branch.
+The Android release to Google Play is managed by the root `codemagic.yaml`
+workflow. Start the `flutter-android` workflow from Codemagic after configuring
+the Android keystore, Firebase, Google Play, and app configuration variables.
 
 ### Analytics configuration
 

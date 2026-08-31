@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/camera.dart'
+    as camera_page;
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
-import 'package:flutter/animation.dart';
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -91,6 +95,41 @@ void main() {
     );
   });
 
+  testWidgets('camera preview viewport follows orientation changes', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 320,
+            height: 480,
+            child: camera_page.cameraPreviewViewport(controller),
+          ),
+        ),
+      ),
+    );
+
+    var previewChildSize = _fittedPreviewChildSize(tester);
+    expect(previewChildSize.width, 320);
+    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+
+    controller.value = controller.value.copyWith(
+      deviceOrientation: DeviceOrientation.landscapeRight,
+    );
+    await tester.pump();
+
+    previewChildSize = _fittedPreviewChildSize(tester);
+    expect(previewChildSize.width, 320);
+    expect(previewChildSize.height, closeTo(320 * 9 / 16, 0.001));
+  });
+
   test('static markers do not create an animation controller', () {
     expect(
       createMarkerAnimationController(
@@ -120,6 +159,43 @@ void main() {
 
     expect(calls, [1.2, 2.0]);
   });
+}
+
+Size _fittedPreviewChildSize(WidgetTester tester) {
+  final fittedBox = tester.renderObject<RenderFittedBox>(
+    find.byType(FittedBox),
+  );
+  return fittedBox.child!.size;
+}
+
+class _FakeCameraController extends CameraController {
+  _FakeCameraController({required DeviceOrientation orientation})
+    : super(_description, ResolutionPreset.low, enableAudio: false) {
+    value = CameraValue(
+      isInitialized: true,
+      previewSize: const Size(16, 9),
+      isRecordingVideo: false,
+      isTakingPicture: false,
+      isStreamingImages: false,
+      isRecordingPaused: false,
+      flashMode: FlashMode.auto,
+      exposureMode: ExposureMode.auto,
+      exposurePointSupported: false,
+      focusMode: FocusMode.auto,
+      focusPointSupported: false,
+      deviceOrientation: orientation,
+      description: _description,
+    );
+  }
+
+  static const _description = CameraDescription(
+    name: 'test-camera',
+    lensDirection: CameraLensDirection.back,
+    sensorOrientation: 90,
+  );
+
+  @override
+  Widget buildPreview() => const SizedBox.expand();
 }
 
 class _FakeLocationPermissionGateway implements LocationPermissionGateway {
