@@ -27,6 +27,7 @@ RUN set -eux; \
       --output "$archive"; \
     echo "${FLUTTER_SHA256}  ${archive}" | sha256sum --check; \
     tar -xJf "$archive" --directory /opt; \
+    git config --global --add safe.directory "$FLUTTER_ROOT"; \
     flutter config --enable-web; \
     flutter precache --web; \
     rm -f "$archive"; \

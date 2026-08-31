@@ -53,10 +53,10 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 
 The Codemagic Android workflow writes the app's `.config`, restores the Firebase
 Android configuration, prepares release signing, builds an Android App Bundle,
-and uploads it to Google Play. Configure the `android_keystore` signing
-identity, the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS`
-secrets, and the `app_config` environment group in Codemagic before starting
-the workflow.
+and uploads it to Google Play after a push to `main`. Configure a Codemagic
+repository webhook for push events, the `android_keystore` signing identity,
+the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` secrets,
+and the `app_config` environment group before enabling the workflow.
 
 PostHog is configured at build time with the `POSTHOG_API_KEY` environment
 variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub

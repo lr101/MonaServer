@@ -80,8 +80,9 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 ### Release app
 
 The Android release to Google Play is managed by the root `codemagic.yaml`
-workflow. Start the `flutter-android` workflow from Codemagic after configuring
-the Android keystore, Firebase, Google Play, and app configuration variables.
+workflow. A Codemagic push webhook starts `flutter-android` for updates merged
+into `main`. Configure the Android keystore, Firebase, Google Play, and app
+configuration variables before enabling the webhook.
 
 ### Analytics configuration
 
