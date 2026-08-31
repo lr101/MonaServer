@@ -50,16 +50,16 @@ The current release plan narrows the first target:
 - Web currently deploys directly to production. Staging is a future option,
   not a first-release requirement.
 - Existing user privacy and data-retention requirements remain in force. New
-  telemetry, storage, and retry records must follow applicable German privacy
-  requirements.
+  storage, retry, and operational diagnostic records must follow applicable
+  German privacy requirements.
 
 ## What exists today
 
 The current client has the main technical pieces, but its boundaries are loose.
 
 - `lib/main.dart` performs environment loading, cache migration, Drift setup,
-  map tile setup, secure-storage selection, Firebase setup, analytics setup,
-  and Riverpod overrides before building the app.
+  map tile setup, secure-storage selection, Firebase setup, and Riverpod
+  overrides before building the app.
 - `lib/data/` contains Drift tables, cache entities, repositories, API client
   configuration, application state, feature state, network workflows, image
   loading, sync, and local preferences.
@@ -93,7 +93,7 @@ developer who owns a rule or which dependencies are safe. For example:
 - `util/routing/routing.dart` imports nearly every route screen and passes some
   required values through untyped `extra` data and string parsing.
 - `main.dart` is the composition root, but it also owns product behavior such
-  as cache migration and analytics initialization.
+  as cache migration.
 - The HTTP refresh path, logout cleanup, group synchronization, feed
   composition, and map/camera lifecycle already have concrete follow-up work
   recorded in the current Flutter follow-up backlog.
@@ -124,8 +124,8 @@ the implementations into Riverpod at the composition root.
 | Layer | May depend on | Must not depend on | Owns |
 | --- | --- | --- | --- |
 | `app` | all application layers, platform setup | product behavior hidden in bootstrap code | app startup, dependency wiring, routing, app shell |
-| `presentation` | domain models and use-case APIs, `core/ui`, the `core/observability` analytics port, Flutter, Riverpod | repository ports and implementations, data sources, Drift, generated OpenAPI types, HTTP, secure storage, database rows, platform adapters | widgets, controllers, view state, user-facing effects |
-| `domain` | pure Dart, `core/foundation`, pure capability ports | Flutter, Riverpod, Drift, OpenAPI, `BuildContext`, logging, analytics, platform adapters | business rules, immutable models, repository ports, use cases |
+| `presentation` | domain models and use-case APIs, `core/ui`, Flutter, Riverpod | repository ports and implementations, data sources, Drift, generated OpenAPI types, HTTP, secure storage, database rows, platform adapters | widgets, controllers, view state, user-facing effects |
+| `domain` | pure Dart, `core/foundation`, pure capability ports | Flutter, Riverpod, Drift, OpenAPI, `BuildContext`, platform adapters | business rules, immutable models, repository ports, use cases |
 | `data` | domain ports, `core`, generated API, Drift, platform adapters | widgets, `BuildContext`, snackbars, route changes | remote/local data sources, mappers, repository implementations, cache policy |
 | `shared` | `core/ui`, Flutter, callbacks and display models | feature repositories and feature providers | reusable visual components with no product workflow |
 | generated API | its generator contract | hand-written app behavior | wire models and endpoint clients only |
@@ -136,8 +136,7 @@ Presentation code must never import repository ports or implementations, data
 sources, generated OpenAPI types or clients, Drift tables or rows, HTTP
 clients, secure storage, or platform adapters. It may depend on domain models,
 use-case APIs, `core/ui`, Flutter, Riverpod, and other presentation code within
-its feature. The only observability dependency permitted here is the pure
-`core/observability/analytics_port.dart` port; domain code must not import it.
+its feature.
 
 Repositories and infrastructure are accessed through domain ports and
 use-case/controller boundaries. Enforce this rule in review and with an import
@@ -149,8 +148,7 @@ Platform capability interfaces must be pure Dart and live under
 `core/platform/ports` or the owning feature's domain layer. Their implementations
 belong under `app/adapters` or feature data and may import Flutter plugins.
 Presentation invokes a use case or controller; it does not call a camera,
-location, notification, or storage adapter directly. Analytics is an
-application/presentation concern, never a domain dependency.
+location, notification, or storage adapter directly.
 
 ### Proposed directory layout
 
@@ -192,8 +190,6 @@ lib/
         camera_port.dart
         location_port.dart
         notification_port.dart
-    observability/
-      analytics_port.dart
     ui/
       feedback_controller.dart
       design_system/
@@ -286,8 +282,7 @@ Bootstrap should own only cross-cutting startup concerns:
 - secure storage and preferences
 - database open and migrations
 - API client construction
-- approved redacted observability setup; first-release optional analytics and
-  crash reporting are no-op or disabled
+- minimal redacted operational diagnostics
 - platform plugin setup
 - provider overrides
 
@@ -335,7 +330,7 @@ Similarly, Drift table classes and generated Drift data classes should not
 escape local data sources.
 
 Data code must return typed failures or a typed result. It must not return
-English UI strings, show snackbars, navigate, or send analytics events.
+English UI strings, show snackbars, or navigate.
 
 ### Presentation
 
@@ -350,17 +345,12 @@ values directly for simple reads, but it should expose a view model when the
 screen needs loading, empty, error, pagination, or action state.
 
 Keep side effects out of `build()`. Use controller methods and deliberate
-Riverpod listeners for effects such as navigation, snackbars, and analytics.
-Presentation may report approved analytics through the pure
-`core/observability/analytics_port.dart` port; domain code must not depend on
-that port, and the first-release implementation is a no-op under Option A.
+Riverpod listeners for effects such as navigation and snackbars.
 
 Examples for this codebase:
 
 - Move upload messages out of `PinService`. The upload controller returns a
   typed result; the upload page chooses the message and navigation.
-- Move `Posthog()` calls behind an analytics port. A screen reports an event
-  through the controller or an app-level effect handler.
 - Replace map state containing `Marker` with a domain or presentation model
   such as `MapMarkerModel`. Build `Marker` widgets at the map boundary.
 - Move camera, EXIF, location, and image-cropping calls behind ports. The
@@ -715,10 +705,10 @@ introduced in Phase 4.
 ### Phase 2: establish the composition root
 
 - Split `main.dart` into bootstrap and app rendering.
-- Add typed environment configuration with validation for API, analytics,
-  Firebase, and map settings.
+- Add typed environment configuration with validation for API, Firebase, and
+  map settings.
 - Add a session repository and a single auth state used by the router.
-- Add core error mapping, logging, analytics, and platform ports.
+- Add core error mapping, logging, and platform ports.
 - Make all long-lived resources disposable.
 
 Exit criteria: startup can be tested with fake dependencies, and no feature
@@ -790,12 +780,10 @@ sync pattern used by the rest of the app.
 - Keep production configuration explicit and validated at startup. Add a
   staging environment and smoke-test tenant later if the release process
   requires them.
-- Enable only privacy-approved crash reporting and analytics policies.
+- Keep operational diagnostics minimal and redacted.
 - Add release version checks, artifact retention, rollout ownership, and a
   rollback procedure.
-- If approved, track startup failures, auth failures, sync failures, upload
-  retries, API latency, and image-cache failures without recording sensitive
-  payloads.
+- Keep any operational diagnostics free of sensitive payloads.
 
 ## Testing strategy
 
@@ -857,39 +845,20 @@ The app is ready for a production release when all of these are true:
 
 - Refresh credentials use secure storage and access tokens are never logged.
 - Production logs redact request headers, bodies, image data, and PII.
-- Optional product analytics and third-party crash reporting are disabled for
-  the first production scope. Any later enablement requires documented privacy
-  approval, consent or other lawful-basis analysis, and retention rules.
+- Product analytics and third-party crash reporting are not part of the
+  production client.
 - Build configuration contains no credentials.
 - Account-owned data and image caches are cleared or retained according to an
   explicit account policy.
 
-### Privacy and telemetry options
+### Privacy and diagnostics
 
-These are engineering choices, not a legal determination. The selected option
-needs approval against the applicable German and EU requirements. Use purpose
-limitation, data minimisation, storage limitation, and appropriate security as
-baseline controls; see [GDPR Article 5](https://eur-lex.europa.eu/eli/reg/2016/679/oj).
-The current app already has PostHog and Firebase Messaging integrations, so
-their actual data flows and existing approvals must be inventoried before
-release.
-
-| Option | Approach | Pros | Cons |
-| --- | --- | --- | --- |
-| A. Essential-only | No optional product analytics or third-party crash reporting. Keep only the minimum redacted server and local diagnostics needed to operate the service. | Lowest data exposure, simplest retention model, smallest consent and vendor surface. | Poorer crash diagnosis and little insight into feature usage or performance. |
-| B. Operational-only | Collect sampled crashes, startup/auth/sync/upload outcomes, and aggregate latency. Use pseudonymous identifiers, no images/exact locations/tokens/request bodies, short retention, and an approved EU or self-hosted endpoint. | Good production diagnosis with a limited data set and lower product-tracking risk. | Still needs privacy review, retention controls, vendor due diligence, and careful event design. |
-| C. Consent-based product analytics | Keep approved PostHog-style product analytics and crash reporting behind separate, informed consent/settings. Use an allowlist, regional hosting where appropriate, redaction, and deletion/opt-out handling. | Best product insight and richer debugging. | More consent UX, policy work, implementation complexity, and third-party processing risk. |
-
-Selected first-release direction: Option A. Do not configure `POSTHOG_API_KEY`
-for production and do not add a third-party crash-reporting SDK. Keep only
-minimal, redacted operational logs needed to operate the server and diagnose a
-reported failure. Firebase Messaging may remain for the notification feature,
-but notification tokens and delivery data must follow the existing privacy
-policy and must not be used as product analytics.
+The production client does not include product analytics or third-party crash
+reporting. Keep operational diagnostics minimal and redacted, and follow the
+applicable privacy and data-retention requirements.
 
 Never send image contents, precise coordinates, credentials, headers, or raw
-API payloads to telemetry services. A later move to Option B or C is a new
-privacy decision and release task.
+API payloads to diagnostic services.
 
 ### User experience and performance
 
@@ -919,10 +888,9 @@ support the WebAssembly build; durable offline pin uploads are a main feature;
 uploads run in the background without edit/cancel/discard actions; the first
 Android test target is a Samsung Galaxy S26 running Android 16;
 the Flutter client and Go server may evolve together; web currently deploys
-directly to production; Android goes through testing before production; current
-privacy and data-retention requirements remain unchanged; and the optional
-`Idempotency-Key` header is the approved server direction. Option A is the
-selected first-release telemetry policy.
+directly to production; Android goes through testing before production; and
+current privacy and data-retention requirements remain unchanged. The
+optional `Idempotency-Key` header is the approved server direction.
 
 Please confirm these implementation details:
 

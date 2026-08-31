@@ -64,10 +64,6 @@ identity, the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS`
 secrets, and the `app_config` environment group in Codemagic before starting
 the workflow.
 
-Release builds keep optional PostHog analytics disabled. Do not add a
-`POSTHOG_API_KEY` to release configuration; local development may opt in by
-providing the key through the development config.
-
 ## Repository layout
 
 - `flutter/`: Flutter app, platform projects, assets, and generated Dart API client

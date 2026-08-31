@@ -83,12 +83,6 @@ The Android release to Google Play is managed by the root `codemagic.yaml`
 workflow. Start the `flutter-android` workflow from Codemagic after configuring
 the Android keystore, Firebase, Google Play, and app configuration variables.
 
-### Analytics configuration
-
-Release builds keep optional PostHog analytics disabled. For local development,
-you may opt in with `POSTHOG_API_KEY` and the optional `POSTHOG_HOST` in the
-development config; the checked-in config files intentionally omit both.
-
 ### Generate API (summary)
 1. Activate openapi-generator: `flutter pub global activate openapi_generator_cli`
 2. Run from `flutter/`: `openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api`

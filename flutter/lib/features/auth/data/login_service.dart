@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_login/flutter_login.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:string_validator/string_validator.dart';
 
@@ -17,7 +16,6 @@ class LoginService {
 
   /// Navigates to the NavBar Widget when authentication was successful
   void handleLoginComplete(BuildContext context) {
-    Posthog().screen(screenName: "loginComplete");
     context.goNamed('home');
   }
 
@@ -25,9 +23,10 @@ class LoginService {
   /// return returns null when login was successful and an error message on errors
   Future<String?> authUser(LoginData data) async {
     try {
-      return await ref.read(authServiceProvider.notifier).login(data.name, data.password);
-    } catch (e) {
-      await Posthog().screen(screenName: "signInFailed", properties: {"error": e.toString()});
+      return await ref
+          .read(authServiceProvider.notifier)
+          .login(data.name, data.password);
+    } catch (_) {
       return "cannot connect to server";
     }
   }
@@ -43,11 +42,13 @@ class LoginService {
       } else {
         return await ref
             .read(authServiceProvider.notifier)
-            .signupNewUser(data.name!, data.password!,
-                data.additionalSignupData!["email"]!,);
+            .signupNewUser(
+              data.name!,
+              data.password!,
+              data.additionalSignupData!["email"]!,
+            );
       }
-    } catch (e) {
-      await Posthog().screen(screenName: "signupFailed", properties: {"error": e.toString()});
+    } catch (_) {
       return "cannot connect to server";
     }
   }
@@ -56,22 +57,20 @@ class LoginService {
   /// Returns null on a successful call to the server or an error message on errors
   Future<String?> recoverPassword(String name) {
     try {
-      Posthog().screen(screenName: "recoverPassword");
       return ref.read(authServiceProvider.notifier).recover(name).then((value) {
         return value ? null : 'User does not have an email address';
       });
-    } catch (e) {
-      Posthog().screen(screenName: "recoverPasswordFailed", properties: {"error": e.toString()});
+    } catch (_) {
       return Future<String>.value("cannot connect to server");
     }
-
   }
 
   /// Validator Method for validating password
   /// returns null on success or an error message for an incorrect input
   static String? passwordValidator(String? s) {
-    final alphanumeric =
-        RegExp(r'^[a-zA-Z0-9!@#$%^&*(),.?":{}|<>~`/\\[\]\-_=+]*$');
+    final alphanumeric = RegExp(
+      r'^[a-zA-Z0-9!@#$%^&*(),.?":{}|<>~`/\\[\]\-_=+]*$',
+    );
     if (s == null) {
       return "input is not valid";
     } else if (s.length < 2) {
