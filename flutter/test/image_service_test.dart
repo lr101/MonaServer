@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
@@ -56,6 +57,83 @@ void main() {
     expect(smallRepository.fetches, [('group-1', false)]);
     expect(largeRepository.fetches, isEmpty);
   });
+
+  test('group pin image provider watches before fetching the image', () async {
+    final repository = _RecordingImageRepository(ImageType.groupPin)
+      ..fetchGate = Completer<void>();
+    final firstEmission = Completer<void>();
+    final container = ProviderContainer(
+      overrides: [
+        groupPinImageRepoProvider.overrideWithValue(repository),
+        userGroupServiceProvider.overrideWith(_FakeUserGroupService.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final membershipSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(membershipSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final subscription = container.listen(
+      groupPinImageByIdProvider('group-1'),
+      (_, value) {
+        if (value.hasValue && !firstEmission.isCompleted) {
+          firstEmission.complete();
+        }
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    await firstEmission.future.timeout(const Duration(milliseconds: 100));
+
+    expect(repository.fetchGate!.isCompleted, isFalse);
+    expect(repository.events, ['watch-created', 'watch-listened', 'fetch']);
+    repository.fetchGate!.complete();
+  });
+
+  test('group pin image provider forwards refresh errors', () async {
+    final error = StateError('refresh failed');
+    final repository = _RecordingImageRepository(ImageType.groupPin)
+      ..fetchError = error;
+    final container = ProviderContainer(
+      overrides: [
+        groupPinImageRepoProvider.overrideWithValue(repository),
+        userGroupServiceProvider.overrideWith(_FakeUserGroupService.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final membershipSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(membershipSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final errorFuture = Completer<Object>();
+    final subscription = container.listen(
+      groupPinImageByIdProvider('group-1'),
+      (_, value) {
+        value.whenOrNull(
+          error: (error, _) {
+            if (!errorFuture.isCompleted) errorFuture.complete(error);
+          },
+        );
+      },
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    expect(
+      await errorFuture.future.timeout(const Duration(milliseconds: 100)),
+      same(error),
+    );
+  });
 }
 
 class _FakeUserGroupService extends UserGroupService {
@@ -69,15 +147,28 @@ class _RecordingImageRepository implements IImageRepository {
   @override
   final ImageType type;
   final List<(String, bool)> fetches = [];
+  final List<String> events = [];
+  Completer<void>? fetchGate;
+  Object? fetchError;
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+    events.add('fetch');
     fetches.add((id, keepAlive));
+    await fetchGate?.future;
+    final error = fetchError;
+    if (error != null) throw error;
     return null;
   }
 
   @override
-  Stream<Uint8List?> watchImageBytes(String id) => Stream.value(null);
+  Stream<Uint8List?> watchImageBytes(String id) {
+    events.add('watch-created');
+    return Stream<Uint8List?>.multi((controller) {
+      events.add('watch-listened');
+      controller.add(null);
+    });
+  }
 
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async =>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/database/database.dart';
@@ -145,6 +146,50 @@ void main() {
     await repository.addImage(ids[2], Uint8List.fromList([3]), false);
 
     expect((await repository.get(activeId))!.image, [1]);
+  });
+
+  test('metadata-only updates preserve the watched byte buffer', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = _repository(database, ImageType.groupSmall);
+    final firstImage = Completer<Uint8List>();
+
+    final subscription = repository.watchImageBytes('group-1').listen((image) {
+      if (image == null) return;
+      if (!firstImage.isCompleted) {
+        firstImage.complete(image);
+      }
+    });
+    addTearDown(subscription.cancel);
+
+    await repository.addImage('group-1', Uint8List.fromList([1, 2, 3]), false);
+    final first = await firstImage.future;
+
+    final fetched = await repository.fetchImage('group-1', false);
+
+    expect(identical(first, fetched), isTrue);
+  });
+
+  test('metadata-only updates do not re-emit watched image bytes', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = _repository(database, ImageType.groupSmall);
+    final iterator = StreamIterator<Uint8List?>(
+      repository.watchImageBytes('group-1'),
+    );
+    addTearDown(iterator.cancel);
+
+    await repository.addImage('group-1', Uint8List.fromList([1, 2, 3]), false);
+    while (await iterator.moveNext() && iterator.current == null) {}
+    expect(iterator.current, isNotNull);
+
+    await repository.fetchImage('group-1', false);
+
+    final hasSecondEmission = await iterator.moveNext().timeout(
+      const Duration(milliseconds: 100),
+      onTimeout: () => false,
+    );
+    expect(hasSecondEmission, isFalse);
   });
 }
 

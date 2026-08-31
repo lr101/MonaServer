@@ -11,63 +11,102 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'image_service.g.dart';
 
 @riverpod
-Stream<Uint8List?> getUserProfile(Ref ref, String userId) async* {
+Stream<Uint8List?> getUserProfile(Ref ref, String userId) {
   final repo = ref.watch(userImageRepoProvider);
   final isUser = ref.watch(userIdProvider) == userId;
-  await repo.fetchImage(userId, isUser);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(userId);
+  return _watchAndFetchImage(repo, userId, isUser);
 }
 
 @riverpod
-Stream<Uint8List?> getUserProfileSmall(Ref ref, String userId) async* {
+Stream<Uint8List?> getUserProfileSmall(Ref ref, String userId) {
   final repo = ref.watch(userImageSmallRepoProvider);
   final isUser = ref.watch(userIdProvider) == userId;
-  await repo.fetchImage(userId, isUser);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(userId);
+  return _watchAndFetchImage(repo, userId, isUser);
 }
 
 @riverpod
-Stream<Uint8List?> groupProfilePictureById(Ref ref, String groupId) async* {
+Stream<Uint8List?> groupProfilePictureById(Ref ref, String groupId) {
   final userGroup = ref.watch(
     userGroupServiceProvider.select(
       (e) => e.value?.any((f) => f.groupId == groupId),
     ),
   );
   final repo = ref.watch(groupProfileRepoProvider);
-  await repo.fetchImage(groupId, userGroup ?? false);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(groupId);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
 }
 
 @riverpod
-Stream<Uint8List?> groupProfilePictureSmallById(
-  Ref ref,
-  String groupId,
-) async* {
+Stream<Uint8List?> groupProfilePictureSmallById(Ref ref, String groupId) {
   final userGroup = ref.watch(
     userGroupServiceProvider.select(
       (e) => e.value?.any((f) => f.groupId == groupId),
     ),
   );
   final repo = ref.watch(groupProfileSmallRepoProvider);
-  await repo.fetchImage(groupId, userGroup ?? false);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(groupId);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
 }
 
 @riverpod
-Stream<Uint8List?> groupPinImageById(Ref ref, String groupId) async* {
+Stream<Uint8List?> groupPinImageById(Ref ref, String groupId) {
   final userGroup = ref.watch(
     userGroupServiceProvider.select(
       (e) => e.value?.any((f) => f.groupId == groupId),
     ),
   );
   final repo = ref.watch(groupPinImageRepoProvider);
-  await repo.fetchImage(groupId, userGroup ?? false);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(groupId);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
+}
+
+Stream<Uint8List?> _watchAndFetchImage(
+  IImageRepository repo,
+  String id,
+  bool keepAlive,
+) {
+  late final StreamController<Uint8List?> controller;
+  StreamSubscription<Uint8List?>? watcher;
+  var cancelled = false;
+  controller = StreamController<Uint8List?>(
+    onListen: () {
+      watcher = repo
+          .watchImageBytes(id)
+          .listen(
+            controller.add,
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+      unawaited(
+        _fetchImageInBackground(
+          repo,
+          id,
+          keepAlive,
+          controller,
+          () => !cancelled,
+        ),
+      );
+    },
+    onCancel: () async {
+      cancelled = true;
+      await watcher?.cancel();
+      await controller.close();
+    },
+  );
+  return controller.stream;
+}
+
+Future<void> _fetchImageInBackground(
+  IImageRepository repo,
+  String id,
+  bool keepAlive,
+  StreamController<Uint8List?> controller,
+  bool Function() isActive,
+) async {
+  try {
+    await repo.fetchImage(id, keepAlive);
+  } catch (error, stackTrace) {
+    if (isActive() && !controller.isClosed) {
+      controller.addError(error, stackTrace);
+    }
+  }
 }
 
 class PinImageInfo {
@@ -82,11 +121,9 @@ class PinImageInfo {
 }
 
 @riverpod
-Stream<PinImageInfo?> getPinImageInfo(Ref ref, String pinId) async* {
+Stream<PinImageInfo?> getPinImageInfo(Ref ref, String pinId) {
   final repo = ref.watch(pinImageRepositoryProvider);
-  await repo.fetchImage(pinId, false);
-  if (!ref.mounted) return;
-  yield* repo.watchImageBytes(pinId).asyncMap((e) async {
+  return _watchAndFetchImage(repo, pinId, false).asyncMap((e) async {
     if (e == null) return null;
     final Completer<ui.Image> completer = Completer();
     ui.decodeImageFromList(e, (ui.Image img) {

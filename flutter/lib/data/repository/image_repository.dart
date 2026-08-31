@@ -60,6 +60,13 @@ class ImageRepository extends CacheImpl<ImageEntity>
   void _rememberBytes(String id, Uint8List bytes) {
     if (bytes.isEmpty) return;
 
+    final cachedBytes = _bytesCache[id];
+    if (cachedBytes != null && listEquals(cachedBytes, bytes)) {
+      _bytesCache.remove(id);
+      _bytesCache[id] = cachedBytes;
+      return;
+    }
+
     if (_bytesCache.length >= _maxMemoryCacheItems &&
         !_bytesCache.containsKey(id)) {
       final oldestUnprotected = _bytesCache.keys.firstWhere(
@@ -378,7 +385,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
   @override
   Stream<Uint8List?> watchImageBytes(String id) {
     return Stream.fromFuture(ready)
-        .asyncExpand((_) => _watchBytesByCacheKey(_cacheKey(id)));
+        .asyncExpand((_) => _watchBytesByCacheKey(_cacheKey(id)))
+        .distinct();
   }
 
   // --- NETWORK AND DB CACHE OPERATIONS ---
