@@ -184,8 +184,15 @@ void main() {
       addTearDown(userGroupsSubscription.close);
       await container.read(userGroupServiceProvider.future);
 
+      final readyProvider = groupDetailsReadyProvider('group-id');
+      final readySubscription = container.listen(
+        readyProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(readySubscription.close);
       final group = await container
-          .read(groupDetailsReadyProvider('group-id').future)
+          .read(readyProvider.future)
           .timeout(const Duration(milliseconds: 100));
 
       expect(group?.groupId, 'group-id');
@@ -238,8 +245,15 @@ void main() {
     addTearDown(userGroupsSubscription.close);
     await container.read(userGroupServiceProvider.future);
 
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    final readySubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(readySubscription.close);
     final group = await container
-        .read(groupDetailsReadyProvider('group-id').future)
+        .read(readyProvider.future)
         .timeout(const Duration(milliseconds: 100));
 
     expect(group?.name, 'Remote group');

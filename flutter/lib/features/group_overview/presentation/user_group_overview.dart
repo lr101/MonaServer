@@ -14,53 +14,41 @@ class UserGroupOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupAsync = ref.watch(groupServiceProvider(groupId));
     final detailsReady = ref.watch(groupDetailsReadyProvider(groupId));
-    return groupAsync.when(
-      data: (streamGroup) {
-        if (streamGroup == null) {
+    return detailsReady.when(
+      data: (group) {
+        if (group == null) {
           return const Center(child: CircularProgressIndicator());
+        } else if (group.userIsMember) {
+          return GroupOverview(
+            groupId: groupId,
+            actions: [PopUpMenuLeave(groupDto: group)],
+          );
+        } else if (group.visibility == 0) {
+          return GroupOverview(
+            groupId: group.groupId,
+            floatingActionButton: GroupJoinActionButton(
+              groupDto: group,
+              key: Key("group-join-$groupId"),
+            ),
+          );
         } else {
-          return detailsReady.when(
-            data: (group) {
-              if (group == null) {
-                return const Center(child: Icon(Icons.error));
-              } else if (group.userIsMember) {
-                return GroupOverview(
-                  groupId: groupId,
-                  actions: [PopUpMenuLeave(groupDto: group)],
-                );
-              } else if (group.visibility == 0) {
-                return GroupOverview(
-                  groupId: group.groupId,
-                  floatingActionButton: GroupJoinActionButton(
-                    groupDto: group,
-                    key: Key("group-join-$groupId"),
-                  ),
-                );
-              } else {
-                return CustomAvatarScaffold(
-                  floatingActionButton: GroupJoinActionButton(
-                    groupDto: group,
-                    key: Key("no-user-group-join-$groupId"),
-                  ),
-                  avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
-                  title: Text(
-                    group.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  body: const Center(child: Icon(Icons.lock)),
-                );
-              }
-            },
-            error: (error, stackTrace) =>
-                const Center(child: Icon(Icons.error)),
-            loading: () => const Center(child: CircularProgressIndicator()),
+          return CustomAvatarScaffold(
+            floatingActionButton: GroupJoinActionButton(
+              groupDto: group,
+              key: Key("no-user-group-join-$groupId"),
+            ),
+            avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
+            title: Text(
+              group.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            body: const Center(child: Icon(Icons.lock)),
           );
         }
       },
       error: (error, stackTrace) => const Center(child: Icon(Icons.error)),
-      loading: () => const SizedBox.shrink(),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

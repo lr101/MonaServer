@@ -157,10 +157,12 @@ class GroupService extends _$GroupService {
   }
 }
 
-final groupDetailsReadyProvider = FutureProvider.autoDispose
-    .family<GroupEntity?, String>((ref, groupId) {
+final groupDetailsReadyProvider = StreamProvider.autoDispose
+    .family<GroupEntity?, String>((ref, groupId) async* {
       final groupService = ref.watch(groupServiceProvider(groupId).notifier);
-      return groupService.hydrate();
+      final hydratedGroup = await groupService.hydrate();
+      yield hydratedGroup;
+      yield* ref.read(groupRepositoryProvider).watchById(groupId);
     });
 
 @riverpod

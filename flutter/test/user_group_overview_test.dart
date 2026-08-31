@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
@@ -36,8 +38,9 @@ void main() {
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupServiceProvider('group-id')
               .overrideWith(() => _FakeGroupService(group)),
-          groupDetailsReadyProvider('group-id')
-              .overrideWith((ref) => ready.future),
+          groupDetailsReadyProvider('group-id').overrideWith((ref) async* {
+            yield await ready.future;
+          }),
           groupProfilePictureByIdProvider('group-id')
               .overrideWith((ref) => Stream<Uint8List?>.value(null)),
           memberServiceProvider('group-id')
@@ -88,7 +91,7 @@ void main() {
           groupServiceProvider('group-id')
               .overrideWith(() => _FakeGroupService(cachedGroup)),
           groupDetailsReadyProvider('group-id')
-              .overrideWith((ref) => Future.value(refreshedGroup)),
+              .overrideWith((ref) => Stream.value(refreshedGroup)),
           groupProfilePictureByIdProvider('group-id')
               .overrideWith((ref) => Stream<Uint8List?>.value(null)),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
@@ -101,6 +104,76 @@ void main() {
 
     expect(find.byType(GroupOverview), findsNothing);
     expect(find.byIcon(Icons.lock), findsOneWidget);
+  });
+
+  testWidgets('updates the overview when group details change', (tester) async {
+    final publicGroup = GroupEntity(
+      groupId: 'group-id',
+      name: 'Public group',
+      visibility: 0,
+      userIsMember: false,
+      ttl: DateTime.now(),
+      onlySession: true,
+    );
+    final privateGroup = GroupEntity(
+      groupId: 'group-id',
+      name: 'Private group',
+      visibility: 1,
+      userIsMember: false,
+      ttl: DateTime.now(),
+      onlySession: true,
+    );
+    final memberGroup = GroupEntity(
+      groupId: 'group-id',
+      name: 'Member group',
+      visibility: 0,
+      userIsMember: true,
+      ttl: DateTime.now(),
+      onlySession: false,
+    );
+    final details = StreamController<GroupEntity?>();
+    addTearDown(details.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          groupServiceProvider('group-id')
+              .overrideWith(() => _FakeGroupService(publicGroup)),
+          groupDetailsReadyProvider('group-id')
+              .overrideWith((ref) => details.stream),
+          groupProfilePictureByIdProvider('group-id')
+              .overrideWith((ref) => Stream<Uint8List?>.value(null)),
+          memberServiceProvider('group-id')
+              .overrideWith(_EmptyMemberService.new),
+          sortedGroupPinsProvider('group-id')
+              .overrideWith((ref) => Future<List<PinEntity>?>.value([])),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: const MaterialApp(home: UserGroupOverview(groupId: 'group-id')),
+      ),
+    );
+
+    details.add(publicGroup);
+    await tester.pump();
+    expect(find.byType(GroupOverview), findsOneWidget);
+
+    details.add(privateGroup);
+    await tester.pump();
+    expect(find.byType(GroupOverview), findsNothing);
+    expect(find.byIcon(Icons.lock), findsOneWidget);
+
+    details.add(memberGroup);
+    await tester.pump();
+    expect(find.byType(GroupOverview), findsOneWidget);
   });
 }
 
