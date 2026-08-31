@@ -14,20 +14,29 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'group_service.g.dart';
 
+class _MetadataLoad {
+  const _MetadataLoad({required this.dto, required this.fetched});
+
+  final GroupDto? dto;
+  final bool fetched;
+}
+
 @riverpod
 class GroupService extends _$GroupService {
   Future<GroupEntity?>? _hydration;
+  Future<_MetadataLoad>? _metadataRequest;
+  bool _metadataOnly = false;
 
   @override
   Stream<GroupEntity?> build(String groupId) {
+    final groupRepository = ref.watch(groupRepositoryProvider);
     ref.watch(userGroupServiceProvider);
     unawaited(
-      hydrate().then<void>(
-        (_) {},
-        onError: (Object error, StackTrace stackTrace) {},
-      ),
+      _fetchMetadataIfMissing(
+        consume: false,
+      ).then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
     );
-    return ref.watch(groupRepositoryProvider).watchById(groupId);
+    return groupRepository.watchById(groupId);
   }
 
   Future<GroupEntity?> hydrate() async {
@@ -49,11 +58,16 @@ class GroupService extends _$GroupService {
     final groupsApi = ref.read(groupApiProvider);
     final userGroups = await ref.read(userGroupServiceProvider.future);
     final isUserGroup = userGroups.any((group) => group.groupId == groupId);
+    final metadata = await _fetchMetadataIfMissing(consume: true);
     final group = await groupRepository.get(groupId);
 
-    if (group != null && !group.onlySession) return group;
+    if (group != null && !group.onlySession && !_metadataOnly) {
+      return group;
+    }
 
-    final groupDto = await groupsApi.getGroup(groupId);
+    final groupDto = metadata.fetched
+        ? metadata.dto
+        : await groupsApi.getGroup(groupId);
     if (groupDto == null) return null;
 
     final groupEntity = GroupEntity.fromGroupDto(
@@ -82,17 +96,62 @@ class GroupService extends _$GroupService {
       );
     }
 
+    _metadataOnly = false;
     return groupEntity;
+  }
+
+  Future<_MetadataLoad> _fetchMetadataIfMissing({required bool consume}) async {
+    final activeRequest = _metadataRequest;
+    if (activeRequest != null) {
+      if (!consume) return activeRequest;
+      try {
+        return await activeRequest;
+      } finally {
+        if (identical(_metadataRequest, activeRequest)) {
+          _metadataRequest = null;
+        }
+      }
+    }
+
+    final request = _loadMetadataIfMissing();
+    _metadataRequest = request;
+    if (!consume) return request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_metadataRequest, request)) _metadataRequest = null;
+    }
+  }
+
+  Future<_MetadataLoad> _loadMetadataIfMissing() async {
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final userGroups = await ref.read(userGroupServiceProvider.future);
+    final isUserGroup = userGroups.any((group) => group.groupId == groupId);
+    final group = await groupRepository.get(groupId);
+    if (group != null) return const _MetadataLoad(dto: null, fetched: false);
+
+    final groupDto = await ref.read(groupApiProvider).getGroup(groupId);
+    if (groupDto == null) return const _MetadataLoad(dto: null, fetched: true);
+
+    _metadataOnly = true;
+    await groupRepository.put(
+      GroupEntity.fromGroupDto(
+        groupDto,
+        !isUserGroup,
+        isUserGroup,
+        keepAlive: isUserGroup,
+        isActivated: isUserGroup,
+      ),
+    );
+    return _MetadataLoad(dto: groupDto, fetched: true);
   }
 }
 
-final groupDetailsReadyProvider = FutureProvider.family<GroupEntity?, String>((
-  ref,
-  groupId,
-) {
-  ref.watch(groupServiceProvider(groupId));
-  return ref.read(groupServiceProvider(groupId).notifier).hydrate();
-});
+final groupDetailsReadyProvider = FutureProvider.autoDispose
+    .family<GroupEntity?, String>((ref, groupId) {
+      final groupService = ref.watch(groupServiceProvider(groupId).notifier);
+      return groupService.hydrate();
+    });
 
 @riverpod
 class UserGroupService extends _$UserGroupService {

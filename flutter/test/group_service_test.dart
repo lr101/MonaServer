@@ -145,7 +145,7 @@ void main() {
       final pinRepository = _FakePinRepository();
       final groupsApi = _FakeGroupsApi(_groupWithImages());
       final pinsApi = _FakePinsApi(
-        PinsSyncDto(
+        response: PinsSyncDto(
           items: [
             PinWithOptionalImageDto(
               id: 'pin-id',
@@ -246,17 +246,8 @@ void main() {
     expect(groupsApi.getRequests, 1);
   });
 
-  test('retries group hydration after a transient failure', () async {
-    var attempts = 0;
-    final error = StateError('temporary failure');
-    final groupsApi = _FakeGroupsApi(
-      _groupWithoutImages(),
-      getGroupOverride: () async {
-        attempts++;
-        if (attempts == 1) throw error;
-        return _groupWithoutImages();
-      },
-    );
+  test('refreshes details when the route is opened again', () async {
+    final groupsApi = _FakeGroupsApi(_groupWithoutImages());
     final container = ProviderContainer(
       overrides: [
         userIdProvider.overrideWithValue('user-id'),
@@ -281,16 +272,87 @@ void main() {
     await container.read(userGroupServiceProvider.future);
 
     final readyProvider = groupDetailsReadyProvider('group-id');
+    final firstRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    await container.read(readyProvider.future);
+    expect(groupsApi.getRequests, 1);
+
+    firstRouteSubscription.close();
+    await Future<void>.delayed(Duration.zero);
+
+    final secondRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(secondRouteSubscription.close);
+    await container.read(readyProvider.future);
+
+    expect(groupsApi.getRequests, 2);
+  });
+
+  test('retries group hydration after a transient failure', () async {
+    var attempts = 0;
+    final error = StateError('temporary failure');
+    final groupsApi = _FakeGroupsApi(_groupWithImages());
+    final pinsApi = _FakePinsApi(
+      getPinsOverride: () async {
+        attempts++;
+        if (attempts == 1) throw error;
+        return PinsSyncDto();
+      },
+    );
+    final container = ProviderContainer(
+      retry: (_, _) => null,
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(groupsApi),
+        pinApiProvider.overrideWithValue(pinsApi),
+        groupProfileRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupProfileSmallRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupPinImageRepoProvider.overrideWithValue(_FakeImageRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    final firstRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
     await expectLater(
       container.read(readyProvider.future),
       throwsA(same(error)),
     );
 
-    container.invalidate(readyProvider);
+    firstRouteSubscription.close();
+    await Future<void>.delayed(Duration.zero);
+
+    final secondRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(secondRouteSubscription.close);
     final group = await container.read(readyProvider.future);
 
     expect(group?.name, 'Group');
-    expect(groupsApi.getRequests, 2);
+    expect(pinsApi.requests, 2);
   });
 }
 
@@ -356,16 +418,15 @@ class _FakeMembersApi extends MembersApi {
 }
 
 class _FakeGroupsApi extends GroupsApi {
-  _FakeGroupsApi(this.group, {this.getGroupOverride}) : super(ApiClient());
+  _FakeGroupsApi(this.group) : super(ApiClient());
 
   final GroupDto? group;
-  final Future<GroupDto?> Function()? getGroupOverride;
   int getRequests = 0;
 
   @override
   Future<GroupDto?> getGroup(String groupId) async {
     getRequests++;
-    return getGroupOverride == null ? group : getGroupOverride!();
+    return group;
   }
 
   @override
@@ -376,10 +437,11 @@ class _FakeGroupsApi extends GroupsApi {
 }
 
 class _FakePinsApi extends PinsApi {
-  _FakePinsApi([this.response]) : super(ApiClient());
+  _FakePinsApi({this.response, this.getPinsOverride}) : super(ApiClient());
 
   int requests = 0;
   final PinsSyncDto? response;
+  final Future<PinsSyncDto?> Function()? getPinsOverride;
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -394,7 +456,7 @@ class _FakePinsApi extends PinsApi {
     DateTime? updatedAfter,
   }) async {
     requests++;
-    return response;
+    return getPinsOverride == null ? response : getPinsOverride!();
   }
 }
 
