@@ -18,8 +18,7 @@ class GroupSearch extends ConsumerStatefulWidget {
 }
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
-  final _pagingController =
-      PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
 
   final _textEditController = TextEditingController();
 
@@ -47,35 +46,45 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   @override
   Widget build(BuildContext context) {
     return CustomScaffold<GroupEntity>(
-        title: SizedBox(
-          height: 40,
+      title: SizedBox(
+        height: 40,
         child: SearchBar(
-            controller: _textEditController,
-            shadowColor:  WidgetStateProperty.all(Colors.transparent),
-            leading: const Icon(Icons.search),
-            trailing: <Widget>[
-              Tooltip(
-                message: 'Delete search term',
-                child: IconButton(
-                  onPressed: () => _textEditController.clear(),
-                  icon: const Icon(Icons.delete),
-                ),
+          controller: _textEditController,
+          shadowColor: WidgetStateProperty.all(Colors.transparent),
+          leading: const Icon(Icons.search),
+          trailing: <Widget>[
+            Tooltip(
+              message: 'Delete search term',
+              child: IconButton(
+                onPressed: () => _textEditController.clear(),
+                icon: const Icon(Icons.delete),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        listBuilder: (context, item, index) => GroupTile(groupDto: item, onTap: () => context.pushNamed('groupOverview', pathParameters: {"id": item.groupId})),
-        pagingController: _pagingController,);
+      ),
+      listBuilder: (context, item, index) => GroupTile(
+        groupDto: item,
+        onTap: () => context.pushNamed(
+          'groupOverview',
+          pathParameters: {"id": item.groupId},
+        ),
+      ),
+      pagingController: _pagingController,
+    );
   }
 
   Future<void> updatePage(int pageKey) async {
-    final groups = await ref.watch(groupApiProvider).getGroupsByIds(
-        search: _textEditController.text,
-        withUser: false,
-        userId: ref.watch(globalDataServiceProvider).userId,
-        page: pageKey,
-        size: _pageSize,
-        withImages: true,);
+    final groups = await ref
+        .watch(groupApiProvider)
+        .getGroupsByIds(
+          search: _textEditController.text,
+          withUser: false,
+          userId: ref.watch(globalDataServiceProvider).userId,
+          page: pageKey,
+          size: _pageSize,
+          withImages: false,
+        );
     if (groups == null) {
       _pagingController.error = "Groups could not be fetched";
       return;

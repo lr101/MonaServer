@@ -89,6 +89,7 @@ dev_dependencies:
   riverpod_lint: ^3.1.8
   lint:
   meta:
+  sqlite3: ^3.5.2
 
 dependency_overrides:
   # flutter_map_tile_caching 10.1.1 still pins ObjectBox to 4.x, whose Android
