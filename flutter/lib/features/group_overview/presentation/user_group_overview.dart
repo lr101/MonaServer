@@ -14,38 +14,33 @@ class UserGroupOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupAsync = ref.watch(groupServiceProvider(groupId));
-    final isInUserGroup = ref.watch(
-      userGroupServiceProvider.select(
-        (e) => e.value?.any((t) => t.groupId == groupAsync.value?.groupId),
-      ),
-    );
-    return groupAsync.when(
-      data: (data) {
-        if (data == null) {
+    final detailsReady = ref.watch(groupDetailsReadyProvider(groupId));
+    return detailsReady.when(
+      data: (group) {
+        if (group == null) {
           return const Center(child: CircularProgressIndicator());
-        } else if (isInUserGroup != null && isInUserGroup) {
+        } else if (group.userIsMember) {
           return GroupOverview(
             groupId: groupId,
-            actions: [PopUpMenuLeave(groupDto: data)],
+            actions: [PopUpMenuLeave(groupDto: group)],
           );
-        } else if (data.visibility == 0) {
+        } else if (group.visibility == 0) {
           return GroupOverview(
-            groupId: data.groupId,
+            groupId: group.groupId,
             floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
+              groupDto: group,
               key: Key("group-join-$groupId"),
             ),
           );
         } else {
           return CustomAvatarScaffold(
             floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
+              groupDto: group,
               key: Key("no-user-group-join-$groupId"),
             ),
             avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
             title: Text(
-              data.name,
+              group.name,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             body: const Center(child: Icon(Icons.lock)),
@@ -53,7 +48,7 @@ class UserGroupOverview extends ConsumerWidget {
         }
       },
       error: (error, stackTrace) => const Center(child: Icon(Icons.error)),
-      loading: () => const SizedBox.shrink(),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }
