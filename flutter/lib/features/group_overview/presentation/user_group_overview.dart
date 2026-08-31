@@ -15,6 +15,7 @@ class UserGroupOverview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupAsync = ref.watch(groupServiceProvider(groupId));
+    final detailsReady = ref.watch(groupDetailsReadyProvider(groupId));
     final isInUserGroup = ref.watch(
       userGroupServiceProvider.select(
         (e) => e.value?.any((t) => t.groupId == groupAsync.value?.groupId),
@@ -24,31 +25,40 @@ class UserGroupOverview extends ConsumerWidget {
       data: (data) {
         if (data == null) {
           return const Center(child: CircularProgressIndicator());
-        } else if (isInUserGroup != null && isInUserGroup) {
-          return GroupOverview(
-            groupId: groupId,
-            actions: [PopUpMenuLeave(groupDto: data)],
-          );
-        } else if (data.visibility == 0) {
-          return GroupOverview(
-            groupId: data.groupId,
-            floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
-              key: Key("group-join-$groupId"),
-            ),
-          );
         } else {
-          return CustomAvatarScaffold(
-            floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
-              key: Key("no-user-group-join-$groupId"),
-            ),
-            avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
-            title: Text(
-              data.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            body: const Center(child: Icon(Icons.lock)),
+          return detailsReady.when(
+            data: (_) {
+              if (isInUserGroup == true) {
+                return GroupOverview(
+                  groupId: groupId,
+                  actions: [PopUpMenuLeave(groupDto: data)],
+                );
+              } else if (data.visibility == 0) {
+                return GroupOverview(
+                  groupId: data.groupId,
+                  floatingActionButton: GroupJoinActionButton(
+                    groupDto: data,
+                    key: Key("group-join-$groupId"),
+                  ),
+                );
+              } else {
+                return CustomAvatarScaffold(
+                  floatingActionButton: GroupJoinActionButton(
+                    groupDto: data,
+                    key: Key("no-user-group-join-$groupId"),
+                  ),
+                  avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
+                  title: Text(
+                    data.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  body: const Center(child: Icon(Icons.lock)),
+                );
+              }
+            },
+            error: (error, stackTrace) =>
+                const Center(child: Icon(Icons.error)),
+            loading: () => const Center(child: CircularProgressIndicator()),
           );
         }
       },

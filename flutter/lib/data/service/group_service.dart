@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
@@ -14,31 +16,83 @@ part 'group_service.g.dart';
 
 @riverpod
 class GroupService extends _$GroupService {
+  Future<GroupEntity?>? _hydration;
+
   @override
   Stream<GroupEntity?> build(String groupId) {
-    final userGroups = ref.watch(userGroupServiceProvider).value ?? [];
-
-    _remoteFetchIfNotExist(userGroups);
+    ref.watch(userGroupServiceProvider);
+    unawaited(
+      hydrate().then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {},
+      ),
+    );
     return ref.watch(groupRepositoryProvider).watchById(groupId);
   }
 
-  Future<void> _remoteFetchIfNotExist(List<GroupEntity> userGroups) async {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    final groupsApi = ref.read(groupApiProvider);
+  Future<GroupEntity?> hydrate() async {
+    final activeHydration = _hydration;
+    if (activeHydration != null) return activeHydration;
 
-    final group = await groupRepository.get(groupId);
-    final isUserGroup = userGroups.any((e) => e.groupId == groupId);
-
-    if (group == null) {
-      final groupDto = await groupsApi.getGroup(groupId);
-      if (groupDto != null) {
-        await groupRepository.put(
-          GroupEntity.fromGroupDto(groupDto, !isUserGroup, isUserGroup),
-        );
-      }
+    final hydration = _hydrate();
+    _hydration = hydration;
+    try {
+      return await hydration;
+    } catch (_) {
+      if (identical(_hydration, hydration)) _hydration = null;
+      rethrow;
     }
   }
+
+  Future<GroupEntity?> _hydrate() async {
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final groupsApi = ref.read(groupApiProvider);
+    final userGroups = await ref.read(userGroupServiceProvider.future);
+    final isUserGroup = userGroups.any((group) => group.groupId == groupId);
+    final group = await groupRepository.get(groupId);
+
+    if (group != null && !group.onlySession) return group;
+
+    final groupDto = await groupsApi.getGroup(groupId);
+    if (groupDto == null) return null;
+
+    final groupEntity = GroupEntity.fromGroupDto(
+      groupDto,
+      !isUserGroup,
+      isUserGroup,
+      keepAlive: isUserGroup,
+      isActivated: isUserGroup,
+    );
+    await groupRepository.put(groupEntity);
+
+    if (groupDto.visibility == 0 || isUserGroup) {
+      await _syncGroupPins(
+        ref.read(pinRepositoryProvider),
+        ref.read(pinApiProvider),
+        groupId,
+        onlySession: !isUserGroup,
+        keepAlive: isUserGroup,
+      );
+      await _cacheGroupImages(
+        ref,
+        groupId,
+        groupDto,
+        keepAlive: isUserGroup,
+        ignoreErrors: !isUserGroup,
+      );
+    }
+
+    return groupEntity;
+  }
 }
+
+final groupDetailsReadyProvider = FutureProvider.family<GroupEntity?, String>((
+  ref,
+  groupId,
+) {
+  ref.watch(groupServiceProvider(groupId));
+  return ref.read(groupServiceProvider(groupId).notifier).hydrate();
+});
 
 @riverpod
 class UserGroupService extends _$UserGroupService {
@@ -92,16 +146,16 @@ class UserGroupService extends _$UserGroupService {
     await _groupRepository.put(groupEntity);
 
     // update group pins
-    final pins = await _pinsApi.getPinImagesByIds(
-      groupId: groupId,
-      withImage: false,
+    await _syncGroupPins(
+      _pinRepository,
+      _pinsApi,
+      groupId,
+      onlySession: false,
+      keepAlive: true,
     );
-    final pinEntities =
-        pins?.items.map((e) => PinEntity.fromDto(e, false)).toList() ?? [];
-    await _pinRepository.putMultiple(pinEntities);
 
     // update group pictures
-    await _cacheGroupImages(groupId, groupDto);
+    await _cacheGroupImages(ref, groupId, groupDto, keepAlive: true);
   }
 
   Future<void> _syncLeave(String groupId) async {
@@ -182,7 +236,7 @@ class UserGroupService extends _$UserGroupService {
         );
         await _groupRepository.put(entity);
 
-        await _cacheGroupImages(groupId, result);
+        await _cacheGroupImages(ref, groupId, result, keepAlive: true);
       } else {
         return "Failed to update group remotely";
       }
@@ -191,36 +245,73 @@ class UserGroupService extends _$UserGroupService {
     }
     return null;
   }
+}
 
-  Future<void> _cacheGroupImages(String groupId, GroupDto groupDto) async {
-    final cacheWrites = <Future<Object?>>[];
-    final profileImage = groupDto.profileImage;
-    if (profileImage != null) {
-      cacheWrites.add(
-        ref
-            .read(groupProfileRepoProvider)
-            .overrideUrl(groupId, profileImage, true),
-      );
-    }
+Future<void> _syncGroupPins(
+  IPinRepository pinRepository,
+  PinsApi pinsApi,
+  String groupId, {
+  required bool onlySession,
+  required bool keepAlive,
+}) async {
+  final pins = await pinsApi.getPinImagesByIds(
+    groupId: groupId,
+    withImage: false,
+  );
+  if (pins == null) return;
 
-    final profileImageSmall = groupDto.profileImageSmall;
-    if (profileImageSmall != null) {
-      cacheWrites.add(
-        ref
-            .read(groupProfileSmallRepoProvider)
-            .overrideUrl(groupId, profileImageSmall, true),
-      );
-    }
+  final pinEntities = pins.items
+      .map((pin) => PinEntity.fromDto(pin, onlySession, keepAlive: keepAlive))
+      .toList();
+  await pinRepository.putMultiple(pinEntities);
+}
 
-    final pinImage = groupDto.pinImage;
-    if (pinImage != null) {
-      cacheWrites.add(
-        ref
-            .read(groupPinImageRepoProvider)
-            .overrideUrl(groupId, pinImage, true),
-      );
-    }
+Future<void> _cacheGroupImages(
+  Ref ref,
+  String groupId,
+  GroupDto groupDto, {
+  required bool keepAlive,
+  bool ignoreErrors = false,
+}) async {
+  final cacheWrites = <Future<Object?>>[];
+  final profileImage = groupDto.profileImage;
+  if (profileImage != null) {
+    cacheWrites.add(
+      ref
+          .read(groupProfileRepoProvider)
+          .overrideUrl(groupId, profileImage, keepAlive),
+    );
+  }
 
+  final profileImageSmall = groupDto.profileImageSmall;
+  if (profileImageSmall != null) {
+    cacheWrites.add(
+      ref
+          .read(groupProfileSmallRepoProvider)
+          .overrideUrl(groupId, profileImageSmall, keepAlive),
+    );
+  }
+
+  final pinImage = groupDto.pinImage;
+  if (pinImage != null) {
+    cacheWrites.add(
+      ref
+          .read(groupPinImageRepoProvider)
+          .overrideUrl(groupId, pinImage, keepAlive),
+    );
+  }
+
+  if (ignoreErrors) {
+    await Future.wait(
+      cacheWrites.map((write) async {
+        try {
+          await write;
+        } catch (_) {
+          // The image providers retry failed public image downloads.
+        }
+      }),
+    );
+  } else {
     await Future.wait(cacheWrites);
   }
 }

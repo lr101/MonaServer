@@ -137,6 +137,161 @@ void main() {
       );
     },
   );
+
+  test(
+    'hydrates an unjoined public group before detail readiness completes',
+    () async {
+      final groupRepository = _FakeGroupRepository();
+      final pinRepository = _FakePinRepository();
+      final groupsApi = _FakeGroupsApi(_groupWithImages());
+      final pinsApi = _FakePinsApi(
+        PinsSyncDto(
+          items: [
+            PinWithOptionalImageDto(
+              id: 'pin-id',
+              creationDate: DateTime(2026),
+              latitude: 1.0,
+              longitude: 2.0,
+              creationUser: 'creator-id',
+              groupId: 'group-id',
+              description: 'A public pin',
+            ),
+          ],
+        ),
+      );
+      final profileCache = _FakeImageRepository();
+      final profileSmallCache = _FakeImageRepository();
+      final pinImageCache = _FakeImageRepository();
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(groupRepository),
+          pinRepositoryProvider.overrideWithValue(pinRepository),
+          groupApiProvider.overrideWithValue(groupsApi),
+          pinApiProvider.overrideWithValue(pinsApi),
+          groupProfileRepoProvider.overrideWithValue(profileCache),
+          groupProfileSmallRepoProvider.overrideWithValue(profileSmallCache),
+          groupPinImageRepoProvider.overrideWithValue(pinImageCache),
+        ],
+      );
+      addTearDown(container.dispose);
+      final userGroupsSubscription = container.listen(
+        userGroupServiceProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(userGroupsSubscription.close);
+      await container.read(userGroupServiceProvider.future);
+
+      final group = await container
+          .read(groupDetailsReadyProvider('group-id').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(group?.groupId, 'group-id');
+      expect(group?.onlySession, isTrue);
+      expect(group?.userIsMember, isFalse);
+      expect(groupsApi.getRequests, 1);
+      expect(pinsApi.requests, 1);
+      expect(pinRepository.putItems.map((pin) => pin.pinId), ['pin-id']);
+      expect(profileCache.overrideIds, ['group-id']);
+      expect(profileSmallCache.overrideIds, ['group-id']);
+      expect(pinImageCache.overrideIds, ['group-id']);
+    },
+  );
+
+  test('refreshes a cached session-only group when its details open', () async {
+    final groupRepository = _FakeGroupRepository();
+    await groupRepository.put(
+      GroupEntity(
+        groupId: 'group-id',
+        name: 'Cached group',
+        visibility: 0,
+        userIsMember: false,
+        ttl: DateTime(2025),
+        onlySession: true,
+      ),
+    );
+    final groupsApi = _FakeGroupsApi(
+      GroupDto(id: 'group-id', name: 'Remote group', visibility: 0),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(groupRepository),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(groupsApi),
+        pinApiProvider.overrideWithValue(_FakePinsApi()),
+        groupProfileRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupProfileSmallRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupPinImageRepoProvider.overrideWithValue(_FakeImageRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final group = await container
+        .read(groupDetailsReadyProvider('group-id').future)
+        .timeout(const Duration(milliseconds: 100));
+
+    expect(group?.name, 'Remote group');
+    expect(groupsApi.getRequests, 1);
+  });
+
+  test('retries group hydration after a transient failure', () async {
+    var attempts = 0;
+    final error = StateError('temporary failure');
+    final groupsApi = _FakeGroupsApi(
+      _groupWithoutImages(),
+      getGroupOverride: () async {
+        attempts++;
+        if (attempts == 1) throw error;
+        return _groupWithoutImages();
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(groupsApi),
+        pinApiProvider.overrideWithValue(_FakePinsApi()),
+        groupProfileRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupProfileSmallRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupPinImageRepoProvider.overrideWithValue(_FakeImageRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    await expectLater(
+      container.read(readyProvider.future),
+      throwsA(same(error)),
+    );
+
+    container.invalidate(readyProvider);
+    final group = await container.read(readyProvider.future);
+
+    expect(group?.name, 'Group');
+    expect(groupsApi.getRequests, 2);
+  });
 }
 
 Future<UserGroupService> _createService({
@@ -201,9 +356,17 @@ class _FakeMembersApi extends MembersApi {
 }
 
 class _FakeGroupsApi extends GroupsApi {
-  _FakeGroupsApi(this.group) : super(ApiClient());
+  _FakeGroupsApi(this.group, {this.getGroupOverride}) : super(ApiClient());
 
   final GroupDto? group;
+  final Future<GroupDto?> Function()? getGroupOverride;
+  int getRequests = 0;
+
+  @override
+  Future<GroupDto?> getGroup(String groupId) async {
+    getRequests++;
+    return getGroupOverride == null ? group : getGroupOverride!();
+  }
 
   @override
   Future<GroupDto?> updateGroup(
@@ -213,9 +376,10 @@ class _FakeGroupsApi extends GroupsApi {
 }
 
 class _FakePinsApi extends PinsApi {
-  _FakePinsApi() : super(ApiClient());
+  _FakePinsApi([this.response]) : super(ApiClient());
 
   int requests = 0;
+  final PinsSyncDto? response;
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -230,8 +394,13 @@ class _FakePinsApi extends PinsApi {
     DateTime? updatedAfter,
   }) async {
     requests++;
-    return PinsSyncDto();
+    return response;
   }
+}
+
+class _EmptyUserGroupService extends UserGroupService {
+  @override
+  Stream<List<GroupEntity>> build() => Stream.value([]);
 }
 
 class _FakeGroupRepository implements IGroupRepository {
@@ -293,6 +462,8 @@ class _FakeGroupRepository implements IGroupRepository {
 }
 
 class _FakePinRepository implements IPinRepository {
+  final List<PinEntity> putItems = [];
+
   @override
   Future<void> delete(String id) async {}
 
@@ -327,7 +498,8 @@ class _FakePinRepository implements IPinRepository {
   Future<void> put(PinEntity item) async {}
 
   @override
-  Future<void> putMultiple(List<PinEntity> items) async {}
+  Future<void> putMultiple(List<PinEntity> items) async =>
+      putItems.addAll(items);
 
   @override
   Future<void> replacePin(String oldPinId, PinEntity newPin) async {}
