@@ -285,6 +285,13 @@ void main() {
     addTearDown(userGroupsSubscription.close);
     await container.read(userGroupServiceProvider.future);
 
+    final groupServiceSubscription = container.listen(
+      groupServiceProvider('group-id'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(groupServiceSubscription.close);
+
     final readyProvider = groupDetailsReadyProvider('group-id');
     final firstRouteSubscription = container.listen(
       readyProvider,
@@ -308,6 +315,83 @@ void main() {
     expect(groupsApi.getRequests, 2);
   });
 
+  test('preserves membership changed during hydration', () async {
+    final groupRepository = _FakeGroupRepository();
+    await groupRepository.put(
+      GroupEntity(
+        groupId: 'group-id',
+        name: 'Cached group',
+        visibility: 0,
+        userIsMember: false,
+        ttl: DateTime(2025),
+        onlySession: true,
+      ),
+    );
+    final remoteGroup = _groupWithoutImages();
+    final remoteResponse = Completer<GroupDto?>();
+    final requestStarted = Completer<void>();
+    final groupsApi = _FakeGroupsApi(
+      remoteGroup,
+      getGroupOverride: () {
+        if (!requestStarted.isCompleted) requestStarted.complete();
+        return remoteResponse.future;
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(groupRepository),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(groupsApi),
+        pinApiProvider.overrideWithValue(_FakePinsApi()),
+        groupProfileRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupProfileSmallRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupPinImageRepoProvider.overrideWithValue(_FakeImageRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    final readySubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(readySubscription.close);
+    final hydration = container.read(readyProvider.future);
+    await requestStarted.future;
+
+    await groupRepository.put(
+      GroupEntity(
+        groupId: 'group-id',
+        name: 'Joined group',
+        visibility: 0,
+        userIsMember: true,
+        ttl: DateTime.now(),
+        onlySession: false,
+        keepAlive: true,
+        isActivated: true,
+      ),
+    );
+    remoteResponse.complete(remoteGroup);
+
+    final group = await hydration;
+
+    expect(group?.name, 'Group');
+    expect(group?.userIsMember, isTrue);
+    expect(group?.onlySession, isFalse);
+    expect(group?.keepAlive, isTrue);
+  });
+
   test('retries metadata hydration after a transient failure', () async {
     var attempts = 0;
     final error = StateError('temporary metadata failure');
@@ -315,7 +399,7 @@ void main() {
       _groupWithoutImages(),
       getGroupOverride: () async {
         attempts++;
-        if (attempts == 1) throw error;
+        if (attempts <= 2) throw error;
         return _groupWithoutImages();
       },
     );
@@ -373,7 +457,7 @@ void main() {
     final group = await container.read(readyProvider.future);
 
     expect(group?.name, 'Group');
-    expect(groupsApi.getRequests, 2);
+    expect(groupsApi.getRequests, 3);
   });
 
   test('retries group hydration after a transient failure', () async {

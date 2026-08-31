@@ -47,9 +47,10 @@ class GroupService extends _$GroupService {
     _hydration = hydration;
     try {
       return await hydration;
-    } catch (_) {
-      if (identical(_hydration, hydration)) _hydration = null;
-      rethrow;
+    } finally {
+      if (identical(_hydration, hydration)) {
+        _hydration = null;
+      }
     }
   }
 
@@ -57,7 +58,7 @@ class GroupService extends _$GroupService {
     final groupRepository = ref.read(groupRepositoryProvider);
     final groupsApi = ref.read(groupApiProvider);
     final userGroups = await ref.read(userGroupServiceProvider.future);
-    final isUserGroup = userGroups.any((group) => group.groupId == groupId);
+    final initialGroup = await groupRepository.get(groupId);
     final metadata = await _fetchMetadataIfMissing(consume: true);
     final group = await groupRepository.get(groupId);
 
@@ -70,29 +71,38 @@ class GroupService extends _$GroupService {
         : await groupsApi.getGroup(groupId);
     if (groupDto == null) return null;
 
+    final latestGroup = await groupRepository.get(groupId);
+    final latestUserGroups =
+        ref.read(userGroupServiceProvider).value ?? userGroups;
+    if (initialGroup?.userIsMember == true && latestGroup == null) {
+      return null;
+    }
+    final isCurrentUserGroup =
+        latestGroup?.userIsMember == true ||
+        latestUserGroups.any((group) => group.groupId == groupId);
     final groupEntity = GroupEntity.fromGroupDto(
       groupDto,
-      !isUserGroup,
-      isUserGroup,
-      keepAlive: isUserGroup,
-      isActivated: isUserGroup,
+      !isCurrentUserGroup,
+      isCurrentUserGroup,
+      keepAlive: isCurrentUserGroup,
+      isActivated: latestGroup?.isActivated ?? isCurrentUserGroup,
     );
     await groupRepository.put(groupEntity);
 
-    if (groupDto.visibility == 0 || isUserGroup) {
+    if (groupDto.visibility == 0 || isCurrentUserGroup) {
       await _syncGroupPins(
         ref.read(pinRepositoryProvider),
         ref.read(pinApiProvider),
         groupId,
-        onlySession: !isUserGroup,
-        keepAlive: isUserGroup,
+        onlySession: !isCurrentUserGroup,
+        keepAlive: isCurrentUserGroup,
       );
       await _cacheGroupImages(
         ref,
         groupId,
         groupDto,
-        keepAlive: isUserGroup,
-        ignoreErrors: !isUserGroup,
+        keepAlive: isCurrentUserGroup,
+        ignoreErrors: !isCurrentUserGroup,
       );
     }
 
