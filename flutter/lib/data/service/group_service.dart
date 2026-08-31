@@ -115,6 +115,16 @@ class GroupService extends _$GroupService {
 
     final request = _loadMetadataIfMissing();
     _metadataRequest = request;
+    unawaited(
+      request.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stackTrace) {
+          if (identical(_metadataRequest, request)) {
+            _metadataRequest = null;
+          }
+        },
+      ),
+    );
     if (!consume) return request;
     try {
       return await request;

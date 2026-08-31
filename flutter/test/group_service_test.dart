@@ -294,6 +294,74 @@ void main() {
     expect(groupsApi.getRequests, 2);
   });
 
+  test('retries metadata hydration after a transient failure', () async {
+    var attempts = 0;
+    final error = StateError('temporary metadata failure');
+    final groupsApi = _FakeGroupsApi(
+      _groupWithoutImages(),
+      getGroupOverride: () async {
+        attempts++;
+        if (attempts == 1) throw error;
+        return _groupWithoutImages();
+      },
+    );
+    final container = ProviderContainer(
+      retry: (_, _) => null,
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(groupsApi),
+        pinApiProvider.overrideWithValue(_FakePinsApi()),
+        groupProfileRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupProfileSmallRepoProvider.overrideWithValue(_FakeImageRepository()),
+        groupPinImageRepoProvider.overrideWithValue(_FakeImageRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final groupSubscription = container.listen(
+      groupServiceProvider('group-id'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(groupSubscription.close);
+
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    final firstRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    await expectLater(
+      container.read(readyProvider.future),
+      throwsA(same(error)),
+    );
+
+    firstRouteSubscription.close();
+    await Future<void>.delayed(Duration.zero);
+
+    final secondRouteSubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(secondRouteSubscription.close);
+    final group = await container.read(readyProvider.future);
+
+    expect(group?.name, 'Group');
+    expect(groupsApi.getRequests, 2);
+  });
+
   test('retries group hydration after a transient failure', () async {
     var attempts = 0;
     final error = StateError('temporary failure');
@@ -418,15 +486,16 @@ class _FakeMembersApi extends MembersApi {
 }
 
 class _FakeGroupsApi extends GroupsApi {
-  _FakeGroupsApi(this.group) : super(ApiClient());
+  _FakeGroupsApi(this.group, {this.getGroupOverride}) : super(ApiClient());
 
   final GroupDto? group;
+  final Future<GroupDto?> Function()? getGroupOverride;
   int getRequests = 0;
 
   @override
   Future<GroupDto?> getGroup(String groupId) async {
     getRequests++;
-    return group;
+    return getGroupOverride == null ? group : getGroupOverride!();
   }
 
   @override
