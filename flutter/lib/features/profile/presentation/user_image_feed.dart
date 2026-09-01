@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
-class UserImageFeed extends ConsumerWidget {
+class UserImageFeed extends ConsumerStatefulWidget {
   const UserImageFeed({
     super.key,
     required this.index,
@@ -18,26 +18,53 @@ class UserImageFeed extends ConsumerWidget {
   final ProviderListenable<AsyncValue<List<PinEntity>>> userPinNotifier;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UserImageFeed> createState() => _UserImageFeedState();
+}
+
+class _UserImageFeedState extends ConsumerState<UserImageFeed> {
+  PagingController<int, PinEntity>? _pagingController;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _pagingController?.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pins = ref.watch(widget.userPinNotifier);
     return Scaffold(
       appBar: AppBar(title: const Text("User images")),
-      body: ref
-          .read(userPinNotifier)
-          .when(
-            data: (data) => CustomFeed(
-              pinProvider: userPinNotifier,
-              index: index,
-              pagingController: PagingController.fromValue(
+      body: pins.when(
+        data: (data) {
+          final initialItems = data.take(widget.index + 1).toList();
+          final pagingController = _pagingController ??=
+              PagingController.fromValue(
                 PagingState<int, PinEntity>(
-                  nextPageKey: index + 1,
-                  itemList: data.getRange(0, index + 1).toList(),
+                  nextPageKey: initialItems.length < data.length
+                      ? initialItems.length
+                      : null,
+                  itemList: initialItems,
                 ),
                 firstPageKey: 0,
+              );
+          return CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              CustomFeed(
+                pinProvider: widget.userPinNotifier,
+                index: widget.index,
+                pagingController: pagingController,
+                scrollController: _scrollController,
               ),
-            ),
-            error: (error, stackTrace) => const Icon(Icons.error),
-            loading: () => const Center(child: CircularProgressIndicator()),
-          ),
+            ],
+          );
+        },
+        error: (error, stackTrace) => const Center(child: Icon(Icons.error)),
+        loading: () => const Center(child: CircularProgressIndicator()),
+      ),
     );
   }
 }
