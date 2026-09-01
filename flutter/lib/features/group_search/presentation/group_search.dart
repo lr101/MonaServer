@@ -19,6 +19,7 @@ class GroupSearch extends ConsumerStatefulWidget {
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
   final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _profileImageSmallUrls = <String, String?>{};
 
   final _textEditController = TextEditingController();
 
@@ -65,9 +66,8 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       ),
       listBuilder: (context, item, index) => GroupTile(
         groupDto: item,
-        // Search results are metadata-only; fetch the full-size image after
-        // the group overview is loaded instead of competing with navigation.
-        loadImage: false,
+        imageUrl: _profileImageSmallUrls[item.groupId],
+        loadImage: _profileImageSmallUrls[item.groupId] != null,
         onTap: () => context.pushNamed(
           'groupOverview',
           pathParameters: {"id": item.groupId},
@@ -86,7 +86,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
           userId: ref.watch(globalDataServiceProvider).userId,
           page: pageKey,
           size: _pageSize,
-          withImages: false,
+          withImages: true,
         );
     if (groups == null) {
       _pagingController.error = "Groups could not be fetched";
@@ -94,6 +94,11 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
     }
     final groupDtos = <GroupEntity>[];
     for (final e in groups.items) {
+      final profileImageSmall = e.profileImageSmall;
+      _profileImageSmallUrls[e.id] =
+          profileImageSmall == null || profileImageSmall.isEmpty
+          ? null
+          : profileImageSmall;
       groupDtos.add(GroupEntity.fromGroupDto(e, true, false));
     }
     if (groupDtos.length < _pageSize) {

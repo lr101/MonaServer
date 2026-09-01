@@ -58,6 +58,52 @@ void main() {
     expect(largeRepository.fetches, isEmpty);
   });
 
+  test('search thumbnails use the supplied URL after subscribing', () async {
+    final repository = _RecordingImageRepository(ImageType.groupSmall)
+      ..overrideGate = Completer<void>();
+    final container = ProviderContainer(
+      overrides: [
+        groupProfileSmallRepoProvider.overrideWithValue(repository),
+        userGroupServiceProvider.overrideWith(_FakeUserGroupService.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final membershipSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(membershipSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final subscription = container.listen(
+      groupProfilePictureSmallByUrlProvider((
+        groupId: 'group-1',
+        url: 'https://example.com/group-small.png',
+      )),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await repository.overrideStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+
+    expect(repository.events, [
+      'watch-created',
+      'watch-listened',
+      'get',
+      'override',
+    ]);
+    expect(repository.fetches, isEmpty);
+    expect(repository.overrides, [
+      ('group-1', 'https://example.com/group-small.png', false),
+    ]);
+    repository.overrideGate!.complete();
+  });
+
   test('group pin image provider watches before fetching the image', () async {
     final repository = _RecordingImageRepository(ImageType.groupPin)
       ..fetchGate = Completer<void>();
@@ -147,9 +193,12 @@ class _RecordingImageRepository implements IImageRepository {
   @override
   final ImageType type;
   final List<(String, bool)> fetches = [];
+  final List<(String, String, bool)> overrides = [];
   final List<String> events = [];
   Completer<void>? fetchGate;
   Object? fetchError;
+  Completer<void>? overrideGate;
+  final overrideStarted = Completer<void>();
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
@@ -171,8 +220,13 @@ class _RecordingImageRepository implements IImageRepository {
   }
 
   @override
-  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async =>
-      Uint8List(0);
+  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
+    events.add('override');
+    overrides.add((id, url, keepAlive));
+    if (!overrideStarted.isCompleted) overrideStarted.complete();
+    await overrideGate?.future;
+    return Uint8List(0);
+  }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}
@@ -187,7 +241,10 @@ class _RecordingImageRepository implements IImageRepository {
   Future<void> deleteMultiple(List<String> ids) async {}
 
   @override
-  Future<ImageEntity?> get(String id) async => null;
+  Future<ImageEntity?> get(String id) async {
+    events.add('get');
+    return null;
+  }
 
   @override
   Future<void> delete(String id) async {}
