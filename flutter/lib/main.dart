@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:buff_lisa/data/config/posthog_settings.dart';
-import 'package:buff_lisa/data/config/posthog_web_stub.dart'
-    if (dart.library.js_interop) 'package:buff_lisa/data/config/posthog_web.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
@@ -24,7 +21,6 @@ import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// THIS IS THE START OF THE PROGRAMM
@@ -41,31 +37,9 @@ Future<void> main() async {
 
   const bool isProduction = bool.fromEnvironment('dart.vm.product');
   if (isProduction) {
-    await dotenv.load(fileName: ".config");
+    await dotenv.load(fileName: "config");
   } else {
-    await dotenv.load(fileName: ".config.dev");
-  }
-
-  final posthogSettings = PosthogSettings.fromEnvironment(
-    dotenv.env,
-    isProduction: isProduction,
-  );
-  if (posthogSettings != null) {
-    await initializePosthogWeb(
-      apiKey: posthogSettings.apiKey,
-      host: posthogSettings.host,
-      debug: posthogSettings.debug,
-    );
-    final posthogConfig = PostHogConfig(posthogSettings.apiKey)
-      ..host = posthogSettings.host
-      ..captureApplicationLifecycleEvents =
-          posthogSettings.captureApplicationLifecycleEvents
-      ..debug = posthogSettings.debug;
-    await Posthog().setup(posthogConfig);
-  } else if (isProduction) {
-    debugPrint(
-      'PostHog is disabled because POSTHOG_API_KEY is not configured.',
-    );
+    await dotenv.load(fileName: "config.dev");
   }
 
   // Initialize Drift database (cross-platform)
@@ -119,8 +93,6 @@ Future<void> main() async {
     );
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
   }
-
-  Posthog().screen(screenName: "main");
 
   runApp(
     ProviderScope(

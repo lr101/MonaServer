@@ -55,8 +55,6 @@
 		<string>Stick-It needs access to the gallery so that profile and group images can be picked</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
         <string>Stick-It needs access to your location, to show the users current location live on the map</string>
-		<key>com.posthog.posthog.AUTO_INIT</key>
-		<false/>
 		<key>SKAdNetworkItems</key>
 		<array>
 			<dict>

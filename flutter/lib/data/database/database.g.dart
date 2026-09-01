@@ -935,7 +935,7 @@ class $ImageEntitiesTable extends ImageEntities
     aliasedName,
     false,
     type: DriftSqlType.int,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _ttlMeta = const VerificationMeta('ttl');
   @override
@@ -986,6 +986,17 @@ class $ImageEntitiesTable extends ImageEntities
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _cacheKeyMeta = const VerificationMeta(
+    'cacheKey',
+  );
+  @override
+  late final GeneratedColumn<String> cacheKey = GeneratedColumn<String>(
+    'cache_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -1013,6 +1024,18 @@ class $ImageEntitiesTable extends ImageEntities
     type: DriftSqlType.blob,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAccessedAt =
+      GeneratedColumn<DateTime>(
+        'last_accessed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     isarId,
@@ -1020,9 +1043,11 @@ class $ImageEntitiesTable extends ImageEntities
     hits,
     keepAlive,
     onlySession,
+    cacheKey,
     id,
     type,
     image,
+    lastAccessedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1041,6 +1066,8 @@ class $ImageEntitiesTable extends ImageEntities
         _isarIdMeta,
         isarId.isAcceptableOrUnknown(data['isar_id']!, _isarIdMeta),
       );
+    } else if (isInserting) {
+      context.missing(_isarIdMeta);
     }
     if (data.containsKey('ttl')) {
       context.handle(
@@ -1071,6 +1098,14 @@ class $ImageEntitiesTable extends ImageEntities
         ),
       );
     }
+    if (data.containsKey('cache_key')) {
+      context.handle(
+        _cacheKeyMeta,
+        cacheKey.isAcceptableOrUnknown(data['cache_key']!, _cacheKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cacheKeyMeta);
+    }
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
@@ -1082,11 +1117,20 @@ class $ImageEntitiesTable extends ImageEntities
         image.isAcceptableOrUnknown(data['image']!, _imageMeta),
       );
     }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {isarId};
+  Set<GeneratedColumn> get $primaryKey => {cacheKey};
   @override
   ImageDb map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -1111,6 +1155,10 @@ class $ImageEntitiesTable extends ImageEntities
         DriftSqlType.bool,
         data['${effectivePrefix}only_session'],
       )!,
+      cacheKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cache_key'],
+      )!,
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -1124,6 +1172,10 @@ class $ImageEntitiesTable extends ImageEntities
       image: attachedDatabase.typeMapping.read(
         DriftSqlType.blob,
         data['${effectivePrefix}image'],
+      ),
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_accessed_at'],
       ),
     );
   }
@@ -1143,18 +1195,22 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
   final int hits;
   final bool keepAlive;
   final bool onlySession;
+  final String cacheKey;
   final String id;
   final ImageType type;
   final Uint8List? image;
+  final DateTime? lastAccessedAt;
   const ImageDb({
     required this.isarId,
     required this.ttl,
     required this.hits,
     required this.keepAlive,
     required this.onlySession,
+    required this.cacheKey,
     required this.id,
     required this.type,
     this.image,
+    this.lastAccessedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1164,6 +1220,7 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
     map['hits'] = Variable<int>(hits);
     map['keep_alive'] = Variable<bool>(keepAlive);
     map['only_session'] = Variable<bool>(onlySession);
+    map['cache_key'] = Variable<String>(cacheKey);
     map['id'] = Variable<String>(id);
     {
       map['type'] = Variable<int>(
@@ -1172,6 +1229,9 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
     }
     if (!nullToAbsent || image != null) {
       map['image'] = Variable<Uint8List>(image);
+    }
+    if (!nullToAbsent || lastAccessedAt != null) {
+      map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt);
     }
     return map;
   }
@@ -1183,11 +1243,15 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
       hits: Value(hits),
       keepAlive: Value(keepAlive),
       onlySession: Value(onlySession),
+      cacheKey: Value(cacheKey),
       id: Value(id),
       type: Value(type),
       image: image == null && nullToAbsent
           ? const Value.absent()
           : Value(image),
+      lastAccessedAt: lastAccessedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAccessedAt),
     );
   }
 
@@ -1202,11 +1266,13 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
       hits: serializer.fromJson<int>(json['hits']),
       keepAlive: serializer.fromJson<bool>(json['keepAlive']),
       onlySession: serializer.fromJson<bool>(json['onlySession']),
+      cacheKey: serializer.fromJson<String>(json['cacheKey']),
       id: serializer.fromJson<String>(json['id']),
       type: $ImageEntitiesTable.$convertertype.fromJson(
         serializer.fromJson<int>(json['type']),
       ),
       image: serializer.fromJson<Uint8List?>(json['image']),
+      lastAccessedAt: serializer.fromJson<DateTime?>(json['lastAccessedAt']),
     );
   }
   @override
@@ -1218,11 +1284,13 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
       'hits': serializer.toJson<int>(hits),
       'keepAlive': serializer.toJson<bool>(keepAlive),
       'onlySession': serializer.toJson<bool>(onlySession),
+      'cacheKey': serializer.toJson<String>(cacheKey),
       'id': serializer.toJson<String>(id),
       'type': serializer.toJson<int>(
         $ImageEntitiesTable.$convertertype.toJson(type),
       ),
       'image': serializer.toJson<Uint8List?>(image),
+      'lastAccessedAt': serializer.toJson<DateTime?>(lastAccessedAt),
     };
   }
 
@@ -1232,18 +1300,24 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
     int? hits,
     bool? keepAlive,
     bool? onlySession,
+    String? cacheKey,
     String? id,
     ImageType? type,
     Value<Uint8List?> image = const Value.absent(),
+    Value<DateTime?> lastAccessedAt = const Value.absent(),
   }) => ImageDb(
     isarId: isarId ?? this.isarId,
     ttl: ttl ?? this.ttl,
     hits: hits ?? this.hits,
     keepAlive: keepAlive ?? this.keepAlive,
     onlySession: onlySession ?? this.onlySession,
+    cacheKey: cacheKey ?? this.cacheKey,
     id: id ?? this.id,
     type: type ?? this.type,
     image: image.present ? image.value : this.image,
+    lastAccessedAt: lastAccessedAt.present
+        ? lastAccessedAt.value
+        : this.lastAccessedAt,
   );
   ImageDb copyWithCompanion(ImageEntitiesCompanion data) {
     return ImageDb(
@@ -1254,9 +1328,13 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
       onlySession: data.onlySession.present
           ? data.onlySession.value
           : this.onlySession,
+      cacheKey: data.cacheKey.present ? data.cacheKey.value : this.cacheKey,
       id: data.id.present ? data.id.value : this.id,
       type: data.type.present ? data.type.value : this.type,
       image: data.image.present ? data.image.value : this.image,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
     );
   }
 
@@ -1268,9 +1346,11 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
           ..write('hits: $hits, ')
           ..write('keepAlive: $keepAlive, ')
           ..write('onlySession: $onlySession, ')
+          ..write('cacheKey: $cacheKey, ')
           ..write('id: $id, ')
           ..write('type: $type, ')
-          ..write('image: $image')
+          ..write('image: $image, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
           ..write(')'))
         .toString();
   }
@@ -1282,9 +1362,11 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
     hits,
     keepAlive,
     onlySession,
+    cacheKey,
     id,
     type,
     $driftBlobEquality.hash(image),
+    lastAccessedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1295,9 +1377,11 @@ class ImageDb extends DataClass implements Insertable<ImageDb> {
           other.hits == this.hits &&
           other.keepAlive == this.keepAlive &&
           other.onlySession == this.onlySession &&
+          other.cacheKey == this.cacheKey &&
           other.id == this.id &&
           other.type == this.type &&
-          $driftBlobEquality.equals(other.image, this.image));
+          $driftBlobEquality.equals(other.image, this.image) &&
+          other.lastAccessedAt == this.lastAccessedAt);
 }
 
 class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
@@ -1306,29 +1390,40 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
   final Value<int> hits;
   final Value<bool> keepAlive;
   final Value<bool> onlySession;
+  final Value<String> cacheKey;
   final Value<String> id;
   final Value<ImageType> type;
   final Value<Uint8List?> image;
+  final Value<DateTime?> lastAccessedAt;
+  final Value<int> rowid;
   const ImageEntitiesCompanion({
     this.isarId = const Value.absent(),
     this.ttl = const Value.absent(),
     this.hits = const Value.absent(),
     this.keepAlive = const Value.absent(),
     this.onlySession = const Value.absent(),
+    this.cacheKey = const Value.absent(),
     this.id = const Value.absent(),
     this.type = const Value.absent(),
     this.image = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   ImageEntitiesCompanion.insert({
-    this.isarId = const Value.absent(),
+    required int isarId,
     required DateTime ttl,
     this.hits = const Value.absent(),
     this.keepAlive = const Value.absent(),
     this.onlySession = const Value.absent(),
+    required String cacheKey,
     required String id,
     required ImageType type,
     this.image = const Value.absent(),
-  }) : ttl = Value(ttl),
+    this.lastAccessedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : isarId = Value(isarId),
+       ttl = Value(ttl),
+       cacheKey = Value(cacheKey),
        id = Value(id),
        type = Value(type);
   static Insertable<ImageDb> custom({
@@ -1337,9 +1432,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
     Expression<int>? hits,
     Expression<bool>? keepAlive,
     Expression<bool>? onlySession,
+    Expression<String>? cacheKey,
     Expression<String>? id,
     Expression<int>? type,
     Expression<Uint8List>? image,
+    Expression<DateTime>? lastAccessedAt,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (isarId != null) 'isar_id': isarId,
@@ -1347,9 +1445,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
       if (hits != null) 'hits': hits,
       if (keepAlive != null) 'keep_alive': keepAlive,
       if (onlySession != null) 'only_session': onlySession,
+      if (cacheKey != null) 'cache_key': cacheKey,
       if (id != null) 'id': id,
       if (type != null) 'type': type,
       if (image != null) 'image': image,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
@@ -1359,9 +1460,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
     Value<int>? hits,
     Value<bool>? keepAlive,
     Value<bool>? onlySession,
+    Value<String>? cacheKey,
     Value<String>? id,
     Value<ImageType>? type,
     Value<Uint8List?>? image,
+    Value<DateTime?>? lastAccessedAt,
+    Value<int>? rowid,
   }) {
     return ImageEntitiesCompanion(
       isarId: isarId ?? this.isarId,
@@ -1369,9 +1473,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
       hits: hits ?? this.hits,
       keepAlive: keepAlive ?? this.keepAlive,
       onlySession: onlySession ?? this.onlySession,
+      cacheKey: cacheKey ?? this.cacheKey,
       id: id ?? this.id,
       type: type ?? this.type,
       image: image ?? this.image,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      rowid: rowid ?? this.rowid,
     );
   }
 
@@ -1393,6 +1500,9 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
     if (onlySession.present) {
       map['only_session'] = Variable<bool>(onlySession.value);
     }
+    if (cacheKey.present) {
+      map['cache_key'] = Variable<String>(cacheKey.value);
+    }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
@@ -1403,6 +1513,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
     }
     if (image.present) {
       map['image'] = Variable<Uint8List>(image.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -1415,9 +1531,12 @@ class ImageEntitiesCompanion extends UpdateCompanion<ImageDb> {
           ..write('hits: $hits, ')
           ..write('keepAlive: $keepAlive, ')
           ..write('onlySession: $onlySession, ')
+          ..write('cacheKey: $cacheKey, ')
           ..write('id: $id, ')
           ..write('type: $type, ')
-          ..write('image: $image')
+          ..write('image: $image, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -5637,14 +5756,17 @@ typedef $$GroupEntitiesTableProcessedTableManager =
     >;
 typedef $$ImageEntitiesTableCreateCompanionBuilder =
     ImageEntitiesCompanion Function({
-      Value<int> isarId,
+      required int isarId,
       required DateTime ttl,
       Value<int> hits,
       Value<bool> keepAlive,
       Value<bool> onlySession,
+      required String cacheKey,
       required String id,
       required ImageType type,
       Value<Uint8List?> image,
+      Value<DateTime?> lastAccessedAt,
+      Value<int> rowid,
     });
 typedef $$ImageEntitiesTableUpdateCompanionBuilder =
     ImageEntitiesCompanion Function({
@@ -5653,9 +5775,12 @@ typedef $$ImageEntitiesTableUpdateCompanionBuilder =
       Value<int> hits,
       Value<bool> keepAlive,
       Value<bool> onlySession,
+      Value<String> cacheKey,
       Value<String> id,
       Value<ImageType> type,
       Value<Uint8List?> image,
+      Value<DateTime?> lastAccessedAt,
+      Value<int> rowid,
     });
 
 class $$ImageEntitiesTableFilterComposer
@@ -5692,6 +5817,11 @@ class $$ImageEntitiesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get cacheKey => $composableBuilder(
+    column: $table.cacheKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnFilters(column),
@@ -5705,6 +5835,11 @@ class $$ImageEntitiesTableFilterComposer
 
   ColumnFilters<Uint8List> get image => $composableBuilder(
     column: $table.image,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5743,6 +5878,11 @@ class $$ImageEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get cacheKey => $composableBuilder(
+    column: $table.cacheKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
@@ -5755,6 +5895,11 @@ class $$ImageEntitiesTableOrderingComposer
 
   ColumnOrderings<Uint8List> get image => $composableBuilder(
     column: $table.image,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -5785,6 +5930,9 @@ class $$ImageEntitiesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get cacheKey =>
+      $composableBuilder(column: $table.cacheKey, builder: (column) => column);
+
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
@@ -5793,6 +5941,11 @@ class $$ImageEntitiesTableAnnotationComposer
 
   GeneratedColumn<Uint8List> get image =>
       $composableBuilder(column: $table.image, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
 }
 
 class $$ImageEntitiesTableTableManager
@@ -5831,38 +5984,50 @@ class $$ImageEntitiesTableTableManager
                 Value<int> hits = const Value.absent(),
                 Value<bool> keepAlive = const Value.absent(),
                 Value<bool> onlySession = const Value.absent(),
+                Value<String> cacheKey = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<ImageType> type = const Value.absent(),
                 Value<Uint8List?> image = const Value.absent(),
+                Value<DateTime?> lastAccessedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => ImageEntitiesCompanion(
                 isarId: isarId,
                 ttl: ttl,
                 hits: hits,
                 keepAlive: keepAlive,
                 onlySession: onlySession,
+                cacheKey: cacheKey,
                 id: id,
                 type: type,
                 image: image,
+                lastAccessedAt: lastAccessedAt,
+                rowid: rowid,
               ),
           createCompanionCallback:
               ({
-                Value<int> isarId = const Value.absent(),
+                required int isarId,
                 required DateTime ttl,
                 Value<int> hits = const Value.absent(),
                 Value<bool> keepAlive = const Value.absent(),
                 Value<bool> onlySession = const Value.absent(),
+                required String cacheKey,
                 required String id,
                 required ImageType type,
                 Value<Uint8List?> image = const Value.absent(),
+                Value<DateTime?> lastAccessedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
               }) => ImageEntitiesCompanion.insert(
                 isarId: isarId,
                 ttl: ttl,
                 hits: hits,
                 keepAlive: keepAlive,
                 onlySession: onlySession,
+                cacheKey: cacheKey,
                 id: id,
                 type: type,
                 image: image,
+                lastAccessedAt: lastAccessedAt,
+                rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

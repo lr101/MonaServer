@@ -21,21 +21,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/.config
-
       - name: Add Google services configuration
         env:
           GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
@@ -125,12 +110,16 @@ jobs:
         working-directory: flutter
         run: flutter build web --wasm --release --no-pub
 
+      - name: Verify browser-compatible web artifacts
+        working-directory: flutter
+        run: bash docker/test_web_build.sh build/web
+
       - name: Build Android APK
         working-directory: flutter
         run: flutter build apk --debug --no-pub
 
   validate-web-container:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -145,8 +134,47 @@ jobs:
           context: flutter
           file: flutter/docker/Dockerfile
           push: false
+          load: true
           tags: stick-it-web:ci
 
+      - name: Smoke test web container
+        run: |
+          set -euo pipefail
+          container_name=stick-it-web-ci
+          docker run --detach --name "$container_name" --publish 18080:80 stick-it-web:ci
+          cleanup() {
+            docker rm --force "$container_name" >/dev/null
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:18080/assets/config \
+            | grep -q '^API_HOST='
+          curl --fail --silent --show-error http://127.0.0.1:18080/assets/config.dev \
+            | grep -q '^API_HOST='
+          curl --fail --silent --show-error http://127.0.0.1:18080/main.dart.js >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18080/main.dart.mjs >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18080/main.dart.wasm >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18080/assets/assets/icon/logo-rounded-corners.png >/dev/null
+          curl --fail --silent --show-error --head http://127.0.0.1:18080/main.dart.mjs \
+            | grep -qi '^Content-Type: application/javascript'
+          curl --fail --silent --show-error --head http://127.0.0.1:18080/main.dart.wasm \
+            | grep -qi '^Content-Type: application/wasm'
+
+          for static_path in /assets/missing-config /missing.js /missing.css /missing.map /missing.symbols; do
+            status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              "http://127.0.0.1:18080$static_path")
+            [ "$status_code" = 404 ]
+          done
   build-ios:
     runs-on: macos-15
     env:
@@ -156,21 +184,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::notice::POSTHOG_API_KEY is unavailable; PostHog is disabled for this build."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/.config
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -191,7 +204,7 @@ jobs:
 
   publish-web:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: analyze-and-build
+    needs: [analyze-and-build, validate-web-container]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -199,21 +212,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
-      - name: Add build-time analytics configuration
-        env:
-          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
-        run: |
-          if [ -z "$POSTHOG_API_KEY" ]; then
-            echo "::warning::POSTHOG_API_KEY is unavailable; the published web image will have PostHog disabled."
-            exit 0
-          fi
-          {
-            printf '\n'
-            printf 'POSTHOG_API_KEY=%s\n' "$POSTHOG_API_KEY"
-            printf 'POSTHOG_HOST=%s\n' "${POSTHOG_HOST:-https://eu.i.posthog.com}"
-          } >> flutter/.config
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4

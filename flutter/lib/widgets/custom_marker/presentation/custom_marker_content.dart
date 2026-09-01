@@ -87,6 +87,7 @@ class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
     final markerImage = Image.memory(
       ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
           ref.read(defaultGroupPinImageProvider),
+      gaplessPlayback: true,
     );
     final controller = _controller;
     if (controller == null || isInRange == null) {

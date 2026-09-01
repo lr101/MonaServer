@@ -44,6 +44,12 @@ root as `mise run flutter-analyze`, `mise run flutter-test`, and
 `mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
 build.
 
+The web build uses Flutter's `--wasm` mode. Flutter emits a Wasm build and a
+JavaScript fallback into the same `build/web` directory, and the generated
+`flutter_bootstrap.js` selects the compatible build at runtime. The deployment
+image copies that directory as a whole, so the server does not need brittle
+user-agent routing.
+
 The app uses the generated Dart client in `flutter/api/`. Regenerate it from the shared contract with:
 
 ```bash
@@ -51,16 +57,12 @@ cd flutter
 openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 ```
 
-The Codemagic Android workflow writes the app's `.config`, restores the Firebase
+The Codemagic Android workflow writes the app's `config`, restores the Firebase
 Android configuration, prepares release signing, builds an Android App Bundle,
 and uploads it to Google Play after a push to `main`. Configure a Codemagic
 repository webhook for push events, the `android_keystore` signing identity,
 the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` secrets,
 and the `app_config` environment group before enabling the workflow.
-
-PostHog is configured at build time with the `POSTHOG_API_KEY` environment
-variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub
-Actions rather than committing it to either checked-in Flutter config file.
 
 ## Repository layout
 

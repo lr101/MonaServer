@@ -3,47 +3,50 @@ import 'dart:typed_data';
 import 'package:buff_lisa/data/entity/cache_entity.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 
-
 // 1. Define your entity types
-enum ImageType {
-  pin,
-  user,
-  userSmall,
-  group,
-  groupSmall,
-  groupPin
-}
+enum ImageType { pin, user, userSmall, group, groupSmall, groupPin }
 
 class ImageEntity extends CacheEntity {
+  String get cacheKey => '${type.name}:$id';
+
   @override
-  int get isarId => fastHash('${type.name}_$id');
+  int get isarId => fastHash(cacheKey);
 
   final String id;
-  
+
   final ImageType type;
-  
+
   final Uint8List? image;
+
+  final DateTime? lastAccessedAt;
 
   ImageEntity({
     required this.id,
     required this.type, // Require the type in the constructor
     required this.image,
+    this.lastAccessedAt,
     super.keepAlive = false,
     super.hits,
     required super.ttl,
-    required super.onlySession
+    required super.onlySession,
   });
 
   @override
-  CacheEntity copyWith({DateTime? ttl, int? hits, bool? keepAlive, bool? onlySession}) {
+  CacheEntity copyWith({
+    DateTime? ttl,
+    int? hits,
+    bool? keepAlive,
+    bool? onlySession,
+  }) {
     return ImageEntity(
       id: id,
       type: type, // Ensure type is preserved on copy
       image: image,
+      lastAccessedAt: lastAccessedAt,
       keepAlive: keepAlive ?? this.keepAlive,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,
-      onlySession: onlySession ?? this.onlySession
+      onlySession: onlySession ?? this.onlySession,
     );
   }
 }

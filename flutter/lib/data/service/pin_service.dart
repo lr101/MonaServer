@@ -46,7 +46,7 @@ class PinUserService extends _$PinUserService {
 
   // update non-user pins
   Future<void> _remoteFetch() async {
-    final stream = _pinRepository.getPinsByUser(_userId);
+    final stream = _pinRepository.getPinsByUser(this.userId);
     final pins = await stream.first;
     final isUser = this.userId == _userId;
     if (pins.isEmpty && !isUser) {

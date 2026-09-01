@@ -10,6 +10,9 @@ ARG FLUTTER_SHA256=447878859d01ca9bfdb99a85f245af07ed8a15fedcd9d189c4749e8e92d1f
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PATH=${FLUTTER_ROOT}/bin:${FLUTTER_ROOT}/bin/cache/dart-sdk/bin:${PATH}
 
+# The SDK archive contains a Git repository owned by its archive UID. Extract
+# it without preserving that ownership so Git accepts it when Flutter runs as
+# root during the image build.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -26,8 +29,7 @@ RUN set -eux; \
       "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
       --output "$archive"; \
     echo "${FLUTTER_SHA256}  ${archive}" | sha256sum --check; \
-    tar -xJf "$archive" --directory /opt; \
-    git config --global --add safe.directory "$FLUTTER_ROOT"; \
+    tar --no-same-owner -xJf "$archive" --directory /opt; \
     flutter config --enable-web; \
     flutter precache --web; \
     rm -f "$archive"; \
@@ -44,8 +46,18 @@ RUN flutter pub get
 # Copy the rest of your app's source code
 COPY . .
 
-# Build the web app for production with WASM
+# Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
+# flutter_bootstrap.js selects the first compatible build in the browser.
 RUN flutter build web --wasm --release
+
+# Fail the image build if a future Flutter/toolchain change drops either
+# browser variant or the runtime configuration assets.
+RUN set -eux; \
+    test -s build/web/main.dart.js; \
+    test -s build/web/main.dart.mjs; \
+    test -s build/web/main.dart.wasm; \
+    test -s build/web/assets/config; \
+    test -s build/web/assets/config.dev
 
 # ==========================================
 # Stage 2: Serve the App with Nginx

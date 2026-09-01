@@ -26,7 +26,7 @@ final class GroupProfileRepoProvider
         argument: null,
         retry: null,
         name: r'groupProfileRepoProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -53,7 +53,7 @@ final class GroupProfileRepoProvider
   }
 }
 
-String _$groupProfileRepoHash() => r'4e74ffa8e5d2407176f82c4258125a876d27fada';
+String _$groupProfileRepoHash() => r'8a9fb5f9df048d04e91d1107227756b9f4b1ab05';
 
 @ProviderFor(groupProfileSmallRepo)
 final groupProfileSmallRepoProvider = GroupProfileSmallRepoProvider._();
@@ -72,7 +72,7 @@ final class GroupProfileSmallRepoProvider
         argument: null,
         retry: null,
         name: r'groupProfileSmallRepoProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -100,7 +100,7 @@ final class GroupProfileSmallRepoProvider
 }
 
 String _$groupProfileSmallRepoHash() =>
-    r'45c14ca7c0fa91640e4941065ad18ed4fd1ba81e';
+    r'4f875d533cf91835e4c847c77f7c81bfb6869b0c';
 
 @ProviderFor(groupPinImageRepo)
 final groupPinImageRepoProvider = GroupPinImageRepoProvider._();
@@ -119,7 +119,7 @@ final class GroupPinImageRepoProvider
         argument: null,
         retry: null,
         name: r'groupPinImageRepoProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -146,7 +146,7 @@ final class GroupPinImageRepoProvider
   }
 }
 
-String _$groupPinImageRepoHash() => r'4ea93ac5716bbad9ec664df728152f9d73735859';
+String _$groupPinImageRepoHash() => r'70568120ce8bcc4267debf1b7c76d979bbe8e9d2';
 
 @ProviderFor(userImageSmallRepo)
 final userImageSmallRepoProvider = UserImageSmallRepoProvider._();
@@ -165,7 +165,7 @@ final class UserImageSmallRepoProvider
         argument: null,
         retry: null,
         name: r'userImageSmallRepoProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -193,7 +193,7 @@ final class UserImageSmallRepoProvider
 }
 
 String _$userImageSmallRepoHash() =>
-    r'a0399e8c597082eaf62d4e9d68fd7895d7d383fa';
+    r'14d5f7d0b60bb49c4a86c63197b368107351c677';
 
 @ProviderFor(userImageRepo)
 final userImageRepoProvider = UserImageRepoProvider._();
@@ -212,7 +212,7 @@ final class UserImageRepoProvider
         argument: null,
         retry: null,
         name: r'userImageRepoProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -239,7 +239,7 @@ final class UserImageRepoProvider
   }
 }
 
-String _$userImageRepoHash() => r'01c097396bad5b057277b340f488006424605673';
+String _$userImageRepoHash() => r'073f48715eb3938d88043681777017d2fe2d2738';
 
 @ProviderFor(pinImageRepository)
 final pinImageRepositoryProvider = PinImageRepositoryProvider._();
@@ -258,7 +258,7 @@ final class PinImageRepositoryProvider
         argument: null,
         retry: null,
         name: r'pinImageRepositoryProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -286,4 +286,4 @@ final class PinImageRepositoryProvider
 }
 
 String _$pinImageRepositoryHash() =>
-    r'd089b367b4bc4b18a7bd0d804e510f8f227ada92';
+    r'53ac0e77aae6deaffc19e9b3300fa4db84fdc726';
