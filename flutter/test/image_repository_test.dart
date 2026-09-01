@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
@@ -191,6 +192,171 @@ void main() {
     );
     expect(hasSecondEmission, isFalse);
   });
+
+  test('a late public fetch cannot overwrite a joined image cache', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    final publicRequestStarted = Completer<void>();
+    final releasePublicResponse = Completer<void>();
+    final releaseJoinedResponse = Completer<void>();
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.group,
+      getImageUrl: (_) async => 'https://example.com/public',
+      httpGet: (uri) async {
+        if (uri.path == '/public') {
+          if (!publicRequestStarted.isCompleted) {
+            publicRequestStarted.complete();
+          }
+          await releasePublicResponse.future;
+          return http.Response.bytes([1], 200);
+        }
+        await releaseJoinedResponse.future;
+        return http.Response.bytes([2], 200);
+      },
+      ttlDuration: const Duration(days: 7),
+    );
+    await repository.ready;
+
+    final joinedOverride = repository.overrideUrl(
+      'group-1',
+      'https://example.com/joined',
+      true,
+    );
+    final publicFetch = repository.fetchImage('group-1', false);
+    await publicRequestStarted.future;
+    final joinedFetch = repository.fetchImage('group-1', true);
+
+    releaseJoinedResponse.complete();
+    await joinedOverride;
+    expect((await repository.get('group-1'))!.image, [2]);
+    expect((await repository.get('group-1'))!.keepAlive, isTrue);
+
+    releasePublicResponse.complete();
+    await publicFetch;
+    await joinedFetch;
+
+    final cached = await repository.get('group-1');
+    expect(cached!.image, [2]);
+    expect(cached.keepAlive, isTrue);
+  });
+
+  test('a shared empty fetch promotes the image cache to keep alive', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+
+    final urlLookupStarted = Completer<void>();
+    final releaseUrlLookup = Completer<void>();
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.group,
+      getImageUrl: (_) async {
+        urlLookupStarted.complete();
+        await releaseUrlLookup.future;
+        return null;
+      },
+      ttlDuration: const Duration(days: 7),
+    );
+    await repository.ready;
+
+    final publicFetch = repository.fetchImage('group-1', false);
+    await urlLookupStarted.future;
+    final joinedFetch = repository.fetchImage('group-1', true);
+
+    releaseUrlLookup.complete();
+    await publicFetch;
+    await joinedFetch;
+
+    final cached = await repository.get('group-1');
+    expect(cached!.image, isEmpty);
+    expect(cached.keepAlive, isTrue);
+  });
+
+  test(
+    'a deduplicated stale fetch promotes the image cache to keep alive',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final urlLookupStarted = Completer<void>();
+      final releaseUrlLookup = Completer<void>();
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.group,
+        getImageUrl: (_) async {
+          urlLookupStarted.complete();
+          await releaseUrlLookup.future;
+          return null;
+        },
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.group,
+          image: Uint8List.fromList([1]),
+          ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      final publicFetch = repository.fetchImage('group-1', false);
+      final joinedFetch = repository.fetchImage('group-1', true);
+      await urlLookupStarted.future;
+
+      releaseUrlLookup.complete();
+      await publicFetch;
+      await joinedFetch;
+
+      expect((await repository.get('group-1'))!.keepAlive, isTrue);
+    },
+  );
+
+  test(
+    'a failed override does not discard an image fetch already in flight',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final publicRequestStarted = Completer<void>();
+      final releasePublicResponse = Completer<void>();
+      final releaseOverrideResponse = Completer<void>();
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.group,
+        getImageUrl: (_) async => 'https://example.com/public',
+        httpGet: (uri) async {
+          if (uri.path == '/public') {
+            publicRequestStarted.complete();
+            await releasePublicResponse.future;
+            return http.Response.bytes([1], 200);
+          }
+          await releaseOverrideResponse.future;
+          return http.Response.bytes([], 500);
+        },
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+
+      final publicFetch = repository.fetchImage('group-1', false);
+      await publicRequestStarted.future;
+
+      releasePublicResponse.complete();
+      final failedOverride = repository.overrideUrl(
+        'group-1',
+        'https://example.com/joined',
+        true,
+      );
+      releaseOverrideResponse.complete();
+
+      await expectLater(failedOverride, throwsException);
+      await publicFetch;
+
+      expect((await repository.get('group-1'))!.image, [1]);
+    },
+  );
 }
 
 ImageRepository _repository(

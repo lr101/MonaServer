@@ -201,11 +201,56 @@ void main() {
       expect(groupsApi.getRequests, 1);
       expect(pinsApi.requests, 1);
       expect(pinRepository.putItems.map((pin) => pin.pinId), ['pin-id']);
-      expect(profileCache.overrideIds, ['group-id']);
-      expect(profileSmallCache.overrideIds, ['group-id']);
-      expect(pinImageCache.overrideIds, ['group-id']);
+      expect(profileCache.overrideIds, isEmpty);
+      expect(profileSmallCache.overrideIds, isEmpty);
+      expect(pinImageCache.overrideIds, isEmpty);
     },
   );
+
+  test('does not prefetch public images during detail hydration', () async {
+    final profileCache = _FakeImageRepository.pending();
+    final profileSmallCache = _FakeImageRepository.pending();
+    final pinImageCache = _FakeImageRepository.pending();
+    final container = ProviderContainer(
+      overrides: [
+        userIdProvider.overrideWithValue('user-id'),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+        pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+        groupApiProvider.overrideWithValue(_FakeGroupsApi(_groupWithImages())),
+        pinApiProvider.overrideWithValue(_FakePinsApi()),
+        groupProfileRepoProvider.overrideWithValue(profileCache),
+        groupProfileSmallRepoProvider.overrideWithValue(profileSmallCache),
+        groupPinImageRepoProvider.overrideWithValue(pinImageCache),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final userGroupsSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(userGroupsSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final readyProvider = groupDetailsReadyProvider('group-id');
+    final readySubscription = container.listen(
+      readyProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(readySubscription.close);
+
+    final group = await container
+        .read(readyProvider.future)
+        .timeout(const Duration(milliseconds: 100));
+
+    expect(group?.groupId, 'group-id');
+    expect(profileCache.overrideIds, isEmpty);
+    expect(profileSmallCache.overrideIds, isEmpty);
+    expect(pinImageCache.overrideIds, isEmpty);
+  });
 
   test('refreshes a cached session-only group when its details open', () async {
     final groupRepository = _FakeGroupRepository();

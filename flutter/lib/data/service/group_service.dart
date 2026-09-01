@@ -97,13 +97,12 @@ class GroupService extends _$GroupService {
         onlySession: !isCurrentUserGroup,
         keepAlive: isCurrentUserGroup,
       );
-      await _cacheGroupImages(
-        ref,
-        groupId,
-        groupDto,
-        keepAlive: isCurrentUserGroup,
-        ignoreErrors: !isCurrentUserGroup,
-      );
+      if (isCurrentUserGroup) {
+        // Public image providers fetch group images lazily. Avoid starting
+        // prefetches here because this hydration can race with a join and
+        // overwrite the joined group's cache state.
+        await _cacheGroupImages(ref, groupId, groupDto, keepAlive: true);
+      }
     }
 
     _metadataOnly = false;
@@ -352,7 +351,6 @@ Future<void> _cacheGroupImages(
   String groupId,
   GroupDto groupDto, {
   required bool keepAlive,
-  bool ignoreErrors = false,
 }) async {
   final cacheWrites = <Future<Object?>>[];
   final profileImage = groupDto.profileImage;
@@ -382,19 +380,7 @@ Future<void> _cacheGroupImages(
     );
   }
 
-  if (ignoreErrors) {
-    await Future.wait(
-      cacheWrites.map((write) async {
-        try {
-          await write;
-        } catch (_) {
-          // The image providers retry failed public image downloads.
-        }
-      }),
-    );
-  } else {
-    await Future.wait(cacheWrites);
-  }
+  await Future.wait(cacheWrites);
 }
 
 @riverpod
