@@ -116,14 +116,13 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     }
   }
 
-  // Public group pins are refreshed when a pin consumer is active. Joined
-  // groups are synchronized by UserGroupService instead.
+  // Group pins are refreshed when a pin consumer is active. This also covers
+  // joined groups when their widget is opened after the global sync has run.
   Future<void> _remoteFetch(
     List<GroupEntity> userGroups,
     List<PinEntity> cachedPins,
   ) async {
     final isUserGroup = userGroups.any((e) => e.groupId == groupId);
-    if (isUserGroup) return;
 
     final remotePins = await _pinsApi.getPinImagesByIds(
       groupId: groupId,
@@ -131,26 +130,35 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
       updatedAfter: _oldestSyncTime(cachedPins),
     );
     if (remotePins != null) {
+      final latestUserGroups = ref.read(userGroupServiceProvider).value ?? [];
+      final latestIsUserGroup = latestUserGroups.any(
+        (e) => e.groupId == groupId,
+      );
+      // Do not apply a response using the wrong cache policy if membership
+      // changed while the request was in flight.
+      if (latestIsUserGroup != isUserGroup) return;
+
       if (remotePins.deleted.isNotEmpty) {
         await _pinRepository.deleteMultiple(remotePins.deleted);
       }
 
-      // A join can update the membership cache while the public refresh is
-      // in flight. Never let that stale response downgrade joined pins.
-      final latestUserGroups = ref.read(userGroupServiceProvider).value ?? [];
-      if (latestUserGroups.any((e) => e.groupId == groupId)) return;
-
       final pins = remotePins.items
-          .map((e) => PinEntity.fromDto(e, true))
+          .map(
+            (e) => PinEntity.fromDto(e, !isUserGroup, keepAlive: isUserGroup),
+          )
           .toList();
       await _pinRepository.putMultiple(pins);
 
       // Membership may change while the repository batch is being written.
-      // Promote the batch if the join is visible by the time it completes.
+      // Align the cache policy with the state visible after the write.
       final joinedAfterWrite = (ref.read(userGroupServiceProvider).value ?? [])
           .any((e) => e.groupId == groupId);
-      if (joinedAfterWrite) {
-        await _pinRepository.updateKeepAlive(groupId, true, false);
+      if (joinedAfterWrite != isUserGroup) {
+        await _pinRepository.updateKeepAlive(
+          groupId,
+          joinedAfterWrite,
+          !joinedAfterWrite,
+        );
       }
     }
   }

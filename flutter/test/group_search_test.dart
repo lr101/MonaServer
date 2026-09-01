@@ -8,15 +8,20 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/group_search/presentation/group_search.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
+import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('search rows do not request remote thumbnails', (tester) async {
+  testWidgets('search rows request thumbnails when the tile is loaded', (
+    tester,
+  ) async {
     final groupsApi = _RecordingGroupsApi();
     var thumbnailProviderBuilds = 0;
+    var fallbackProviderBuilds = 0;
 
     await tester.pumpWidget(
       ProviderScope(
@@ -30,10 +35,18 @@ void main() {
           ),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupApiProvider.overrideWithValue(groupsApi),
-          groupProfilePictureSmallByIdProvider('group-id').overrideWith((ref) {
+          groupProfilePictureSmallByUrlProvider((
+            groupId: 'group-id',
+            url: 'https://example.com/group-small.png',
+          )).overrideWith((ref) {
             thumbnailProviderBuilds++;
             return Stream<Uint8List?>.value(null);
           }),
+          groupProfilePictureSmallByIdProvider('group-id').overrideWith((ref) {
+            fallbackProviderBuilds++;
+            return Stream<Uint8List?>.value(null);
+          }),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: const MaterialApp(home: GroupSearch()),
       ),
@@ -46,7 +59,9 @@ void main() {
     await tester.pump();
 
     expect(find.text('Public group'), findsOneWidget);
-    expect(thumbnailProviderBuilds, 0);
+    expect(groupsApi.requestedWithImages, isTrue);
+    expect(thumbnailProviderBuilds, 1);
+    expect(fallbackProviderBuilds, 0);
   });
 }
 
@@ -54,6 +69,7 @@ class _RecordingGroupsApi extends GroupsApi {
   _RecordingGroupsApi() : super(ApiClient());
 
   final requestStarted = Completer<void>();
+  bool? requestedWithImages;
 
   @override
   Future<GroupsSyncDto?> getGroupsByIds({
@@ -66,9 +82,17 @@ class _RecordingGroupsApi extends GroupsApi {
     int? size,
     DateTime? updatedAfter,
   }) async {
-    requestStarted.complete();
+    requestedWithImages = withImages;
+    if (!requestStarted.isCompleted) requestStarted.complete();
     return GroupsSyncDto(
-      items: [GroupDto(id: 'group-id', name: 'Public group', visibility: 0)],
+      items: [
+        GroupDto(
+          id: 'group-id',
+          name: 'Public group',
+          visibility: 0,
+          profileImageSmall: 'https://example.com/group-small.png',
+        ),
+      ],
     );
   }
 }
