@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,9 +41,239 @@ void main() {
       expect(api.requestedUserId, 'profile-user');
     },
   );
+
+  test(
+    'fetches public group pins when the group pin provider is loaded',
+    () async {
+      final repository = FakePinRepository({});
+      final api = RecordingPinsApi();
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(api.requestedGroupId, 'group');
+      expect(api.requestedUserId, isNull);
+    },
+  );
+
+  test(
+    'refreshes cached public group pins when the provider is loaded',
+    () async {
+      final repository = FakePinRepository(
+        {},
+        pinsByGroup: {
+          'group': [
+            _pin('cached-pin', 'creator', lastSynced: DateTime.utc(2024, 1, 1)),
+          ],
+        },
+      );
+      final api = RecordingPinsApi();
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(api.requestedGroupId, 'group');
+      expect(api.requestedUpdatedAfter, DateTime.utc(2024, 1, 1));
+    },
+  );
+
+  test('keeps cached public group pins when refresh fails', () async {
+    final repository = FakePinRepository(
+      {},
+      pinsByGroup: {
+        'group': [
+          _pin('cached-pin', 'creator', lastSynced: DateTime.utc(2024, 1, 1)),
+        ],
+      },
+    );
+    final api = RecordingPinsApi(error: StateError('offline'));
+    final container = ProviderContainer(
+      overrides: [
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinGroupServiceUnfilteredProvider('group'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    final pins = await container.read(
+      pinGroupServiceUnfilteredProvider('group').future,
+    );
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(pins.map((pin) => pin.pinId), ['cached-pin']);
+    expect(
+      container.read(pinGroupServiceUnfilteredProvider('group')).hasError,
+      isFalse,
+    );
+  });
+
+  test('applies deleted public group pins during a lazy refresh', () async {
+    final repository = FakePinRepository(
+      {},
+      pinsByGroup: {
+        'group': [
+          _pin('cached-pin', 'creator', lastSynced: DateTime.utc(2024, 1, 1)),
+        ],
+      },
+    );
+    final api = RecordingPinsApi(
+      response: PinsSyncDto(deleted: ['deleted-pin']),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinGroupServiceUnfilteredProvider('group'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await repository.deleteStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+
+    expect(repository.deletedIds, ['deleted-pin']);
+  });
+
+  test('does not apply a public refresh after the group is joined', () async {
+    final groupUpdates = StreamController<List<GroupEntity>>();
+    addTearDown(groupUpdates.close);
+    final remoteResponse = Completer<PinsSyncDto?>();
+    final repository = FakePinRepository({});
+    final api = RecordingPinsApi(responseOverride: () => remoteResponse.future);
+    final container = ProviderContainer(
+      overrides: [
+        userGroupServiceProvider.overrideWith(
+          () => _ControllableUserGroupService(groupUpdates.stream),
+        ),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinGroupServiceUnfilteredProvider('group'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    groupUpdates.add([_joinedGroup()]);
+    await Future<void>.delayed(Duration.zero);
+    remoteResponse.complete(
+      PinsSyncDto(
+        items: [
+          PinWithOptionalImageDto(
+            id: 'remote-pin',
+            creationDate: DateTime(2024),
+            latitude: 0.0,
+            longitude: 0.0,
+            creationUser: 'creator',
+            groupId: 'group',
+            description: null,
+          ),
+        ],
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(repository.putItems, isEmpty);
+  });
+
+  test(
+    'promotes pins when the group joins during a public refresh write',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = FakePinRepository(
+        {},
+        onPutMultiple: () async {
+          groupUpdates.add([_joinedGroup()]);
+          await Future<void>.delayed(Duration.zero);
+        },
+      );
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(items: [_remotePin()]),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await repository.keepAliveUpdateStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(repository.promotedKeepAlive, isTrue);
+      expect(repository.promotedOnlySession, isFalse);
+    },
+  );
 }
 
-PinEntity _pin(String pinId, String creator) {
+PinEntity _pin(String pinId, String creator, {DateTime? lastSynced}) {
   return PinEntity(
     pinId: pinId,
     latitude: 0,
@@ -49,16 +281,23 @@ PinEntity _pin(String pinId, String creator) {
     creationDate: DateTime(2024),
     creator: creator,
     groupId: 'group',
+    lastSynced: lastSynced,
     ttl: DateTime(2024),
     onlySession: false,
   );
 }
 
 class RecordingPinsApi extends PinsApi {
-  RecordingPinsApi() : super(ApiClient());
+  RecordingPinsApi({this.response, this.error, this.responseOverride})
+    : super(ApiClient());
 
   final requestStarted = Completer<void>();
   String? requestedUserId;
+  String? requestedGroupId;
+  DateTime? requestedUpdatedAfter;
+  final PinsSyncDto? response;
+  final Object? error;
+  final Future<PinsSyncDto?> Function()? responseOverride;
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -73,15 +312,65 @@ class RecordingPinsApi extends PinsApi {
     DateTime? updatedAfter,
   }) async {
     requestedUserId = userId;
-    requestStarted.complete();
-    return PinsSyncDto();
+    requestedGroupId = groupId;
+    requestedUpdatedAfter = updatedAfter;
+    if (!requestStarted.isCompleted) requestStarted.complete();
+    if (error != null) throw error!;
+    if (responseOverride != null) return responseOverride!();
+    return response ?? PinsSyncDto();
   }
 }
 
+class _EmptyUserGroupService extends UserGroupService {
+  @override
+  Stream<List<GroupEntity>> build() => Stream.value([]);
+}
+
+class _ControllableUserGroupService extends UserGroupService {
+  _ControllableUserGroupService(this._groups);
+
+  final Stream<List<GroupEntity>> _groups;
+
+  @override
+  Stream<List<GroupEntity>> build() => _groups;
+}
+
+GroupEntity _joinedGroup() => GroupEntity(
+  groupId: 'group',
+  name: 'Joined group',
+  visibility: 0,
+  userIsMember: true,
+  keepAlive: true,
+  ttl: DateTime(2024),
+  onlySession: false,
+);
+
+PinWithOptionalImageDto _remotePin() => PinWithOptionalImageDto(
+  id: 'remote-pin',
+  creationDate: DateTime(2024),
+  latitude: 0.0,
+  longitude: 0.0,
+  creationUser: 'creator',
+  groupId: 'group',
+);
+
 class FakePinRepository implements IPinRepository {
-  FakePinRepository(this._pinsByUser);
+  FakePinRepository(
+    this._pinsByUser, {
+    this.pinsByGroup = const {},
+    this.onPutMultiple,
+  });
 
   final Map<String, List<PinEntity>> _pinsByUser;
+  final Map<String, List<PinEntity>> pinsByGroup;
+  final Future<void> Function()? onPutMultiple;
+  final List<String> deletedIds = [];
+  final List<PinEntity> putItems = [];
+  final deleteStarted = Completer<void>();
+  final putStarted = Completer<void>();
+  final keepAliveUpdateStarted = Completer<void>();
+  bool? promotedKeepAlive;
+  bool? promotedOnlySession;
 
   @override
   Stream<List<PinEntity>> getPinsByUser(String userId) {
@@ -90,9 +379,12 @@ class FakePinRepository implements IPinRepository {
 
   @override
   Future<void> putMultiple(List<PinEntity> items) async {
+    putItems.addAll(items);
+    if (!putStarted.isCompleted) putStarted.complete();
     for (final item in items) {
       (_pinsByUser[item.creator] ??= []).add(item);
     }
+    await onPutMultiple?.call();
   }
 
   @override
@@ -104,7 +396,10 @@ class FakePinRepository implements IPinRepository {
   Stream<PinEntity?> watchById(String id) => Stream.value(null);
 
   @override
-  Future<void> deleteMultiple(List<String> ids) async {}
+  Future<void> deleteMultiple(List<String> ids) async {
+    deletedIds.addAll(ids);
+    if (!deleteStarted.isCompleted) deleteStarted.complete();
+  }
 
   @override
   Future<PinEntity?> get(String id) async => null;
@@ -126,7 +421,8 @@ class FakePinRepository implements IPinRepository {
   Future<void> deleteOldestItems() async {}
 
   @override
-  Stream<List<PinEntity>> getPinsByGroup(String groupId) => Stream.value([]);
+  Stream<List<PinEntity>> getPinsByGroup(String groupId) =>
+      Stream.value(List.of(pinsByGroup[groupId] ?? const []));
 
   @override
   Future<void> deleteByGroupId(String groupId) async {}
@@ -139,5 +435,11 @@ class FakePinRepository implements IPinRepository {
     String groupId,
     bool keepAlive,
     bool onlySession,
-  ) async {}
+  ) async {
+    promotedKeepAlive = keepAlive;
+    promotedOnlySession = onlySession;
+    if (!keepAliveUpdateStarted.isCompleted) {
+      keepAliveUpdateStarted.complete();
+    }
+  }
 }
