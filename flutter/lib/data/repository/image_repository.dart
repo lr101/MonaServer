@@ -16,6 +16,21 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'image_repository.g.dart';
 
+Future<http.Response> _defaultImageHttpGet(Uri uri) => http.get(uri);
+
+class _ImageWriteQueue {
+  Future<void> tail = Future<void>.value();
+  int pending = 0;
+}
+
+class _ActiveImageRequest {
+  _ActiveImageRequest(this.initialKeepAlive) : keepAlive = initialKeepAlive;
+
+  final bool initialKeepAlive;
+  bool keepAlive;
+  late final Future<Uint8List?> future;
+}
+
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
   Future<Uint8List?> fetchImage(String id, bool keepAlive);
@@ -34,10 +49,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
   /// truth; Flutter's image cache is populated by the presentation layer.
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
+  final Future<http.Response> Function(Uri) _httpGet;
   @override
   final ImageType type;
 
-  final Map<String, Future<Uint8List?>> _activeRequests = {};
+  final Map<String, _ActiveImageRequest> _activeRequests = {};
+  final Map<String, _ImageWriteQueue> _writeQueues = {};
   final Map<String, int> _activeWatchers = {};
   final LinkedHashMap<String, Uint8List> _bytesCache =
       LinkedHashMap<String, Uint8List>();
@@ -48,9 +65,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
     required this.db,
     required this.getImageUrl,
     required this.type,
+    Future<http.Response> Function(Uri)? httpGet,
     super.maxItems,
     super.ttlDuration,
-  });
+  }) : _httpGet = httpGet ?? _defaultImageHttpGet;
 
   String _cacheKey(String id) => '${type.name}:$id';
 
@@ -94,6 +112,22 @@ class ImageRepository extends CacheImpl<ImageEntity>
   bool _isProtected(String cacheKey) {
     return _activeWatchers.containsKey(cacheKey) ||
         _activeRequests.containsKey(cacheKey);
+  }
+
+  Future<T> _enqueueWrite<T>(String cacheKey, Future<T> Function() write) {
+    final queue = _writeQueues.putIfAbsent(cacheKey, _ImageWriteQueue.new);
+    queue.pending++;
+    final operation = queue.tail.then<T>((_) => write());
+    queue.tail = operation.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {},
+    );
+    return operation.whenComplete(() {
+      queue.pending--;
+      if (queue.pending == 0 && identical(_writeQueues[cacheKey], queue)) {
+        _writeQueues.remove(cacheKey);
+      }
+    });
   }
 
   // --- DRIFT DB MAPPERS ---
@@ -396,7 +430,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
     await ready;
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
-    if (activeRequest != null) return activeRequest;
+    if (activeRequest != null) {
+      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
+      final image = await activeRequest.future;
+      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
+      return image;
+    }
 
     final now = DateTime.now();
     final cachedImage = await _getByCacheKey(cacheKey);
@@ -426,14 +465,21 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
-    if (activeRequest != null) return activeRequest;
+    if (activeRequest != null) {
+      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
+      final image = await activeRequest.future;
+      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
+      return image;
+    }
 
-    final request = _fetchAndCacheImage(id, keepAlive, fallback: fallback);
-    _activeRequests[cacheKey] = request;
+    final requestState = _ActiveImageRequest(keepAlive);
+    final request = _fetchAndCacheImage(id, requestState, fallback: fallback);
+    requestState.future = request;
+    _activeRequests[cacheKey] = requestState;
     try {
       return await request;
     } finally {
-      if (identical(_activeRequests[cacheKey], request)) {
+      if (identical(_activeRequests[cacheKey], requestState)) {
         _activeRequests.remove(cacheKey);
       }
     }
@@ -441,29 +487,36 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   Future<Uint8List?> _fetchAndCacheImage(
     String id,
-    bool keepAlive, {
+    _ActiveImageRequest requestState, {
     Uint8List? fallback,
   }) async {
     try {
       final imageUrl = await getImageUrl(id);
       if (imageUrl == null) {
-        if (fallback == null) await _saveEmptyState(id, keepAlive);
+        if (fallback == null) {
+          await _saveEmptyState(id, requestState.initialKeepAlive);
+        }
         return fallback;
       }
 
-      final response = await http
-          .get(Uri.parse(imageUrl))
+      final response = await _httpGet(Uri.parse(imageUrl))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) {
-          if (fallback == null) await _saveEmptyState(id, keepAlive);
+          if (fallback == null) {
+            await _saveEmptyState(id, requestState.initialKeepAlive);
+          }
           return fallback;
         }
-        return await _saveAndPrecacheImage(id, response.bodyBytes, keepAlive);
+        return await _saveAndPrecacheImage(
+          id,
+          response.bodyBytes,
+          requestState.initialKeepAlive,
+        );
       }
 
       if (response.statusCode == 404 && fallback == null) {
-        await _saveEmptyState(id, keepAlive);
+        await _saveEmptyState(id, requestState.initialKeepAlive);
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return fallback;
@@ -473,10 +526,16 @@ class ImageRepository extends CacheImpl<ImageEntity>
     }
   }
 
+  Future<void> _promoteKeepAlive(String id) async {
+    final cachedImage = await _getByCacheKey(_cacheKey(id));
+    if (cachedImage != null && !cachedImage.keepAlive) {
+      await _touch(cachedImage, keepAlive: true);
+    }
+  }
+
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
-    final response = await http
-        .get(Uri.parse(url))
+    final response = await _httpGet(Uri.parse(url))
         .timeout(const Duration(seconds: 15));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
@@ -494,9 +553,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
   // --- ACCESS TRACKING AND PRUNING ---
 
   Future<void> _touch(ImageEntity entity, {bool? keepAlive}) async {
-    final nextKeepAlive = keepAlive == null
-        ? const Value<bool>.absent()
-        : Value(entity.keepAlive || keepAlive);
+    final nextKeepAlive = keepAlive == true
+        ? const Value<bool>(true)
+        : const Value<bool>.absent();
     final nextHits = entity.hits == 0 ? 1 : entity.hits + 1;
     await (db.update(
       db.imageEntities,
@@ -510,36 +569,32 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }
 
   Future<void> _saveEmptyState(String id, bool keepAlive) async {
-    await put(
-      ImageEntity(
-        id: id,
-        type: type,
-        image: Uint8List(0),
-        keepAlive: keepAlive,
-        ttl: _calculateTtl(),
-        onlySession: false,
-        lastAccessedAt: DateTime.now(),
-      ),
-    );
+    await _saveAndPrecacheImage(id, Uint8List(0), keepAlive);
   }
 
   Future<Uint8List> _saveAndPrecacheImage(
     String id,
     Uint8List bytes,
     bool keepAlive,
-  ) async {
-    await put(
-      ImageEntity(
-        id: id,
-        type: type,
-        image: bytes,
-        keepAlive: keepAlive,
-        ttl: _calculateTtl(),
-        onlySession: false,
-        lastAccessedAt: DateTime.now(),
-      ),
-    );
-    return bytes;
+  ) {
+    final cacheKey = _cacheKey(id);
+    return _enqueueWrite(cacheKey, () async {
+      if (!keepAlive) {
+        final cachedImage = await _getByCacheKey(cacheKey);
+        if (cachedImage?.keepAlive == true) return;
+      }
+      await put(
+        ImageEntity(
+          id: id,
+          type: type,
+          image: bytes,
+          keepAlive: keepAlive,
+          ttl: _calculateTtl(),
+          onlySession: false,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+    }).then((_) => bytes);
   }
 
   DateTime _calculateTtl() {
