@@ -48,6 +48,11 @@ PostgreSQL and PostGIS are OS-level test dependencies, not mise tools. If the co
 - Do not mix dependency upgrades or generated-file churn into an unrelated change.
 - Preserve wire compatibility unless the task explicitly changes the API contract. Clients depend on field names, status codes, JWT claims, and object keys.
 
+## Pull request workflow
+
+- Always target `develop` as the base branch for pull requests. Use another base only when explicitly requested.
+- After a coding run reaches a completed state, always create a pull request for its changes before handoff.
+
 ## Checks before handoff
 
 At minimum, run the narrow test for the package you changed, then `mise exec -- go test ./...`. Run `mise exec -- go vet ./...` for code changes. API and database changes also require their generated files and the checks named in their nested guides.

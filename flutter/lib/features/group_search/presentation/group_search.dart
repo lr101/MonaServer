@@ -65,6 +65,9 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       ),
       listBuilder: (context, item, index) => GroupTile(
         groupDto: item,
+        // Search results are metadata-only; fetch the full-size image after
+        // the group overview is loaded instead of competing with navigation.
+        loadImage: false,
         onTap: () => context.pushNamed(
           'groupOverview',
           pathParameters: {"id": item.groupId},

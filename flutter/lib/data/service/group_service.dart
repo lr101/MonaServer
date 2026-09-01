@@ -89,22 +89,9 @@ class GroupService extends _$GroupService {
     );
     await groupRepository.put(groupEntity);
 
-    if (groupDto.visibility == 0 || isCurrentUserGroup) {
-      await _syncGroupPins(
-        ref.read(pinRepositoryProvider),
-        ref.read(pinApiProvider),
-        groupId,
-        onlySession: !isCurrentUserGroup,
-        keepAlive: isCurrentUserGroup,
-      );
-      if (isCurrentUserGroup) {
-        // Public image providers fetch group images lazily. Avoid starting
-        // prefetches here because this hydration can race with a join and
-        // overwrite the joined group's cache state.
-        await _cacheGroupImages(ref, groupId, groupDto, keepAlive: true);
-      }
-    }
-
+    // Detail readiness only depends on group metadata. Pins and images are
+    // loaded by the widgets that display them, while joined-group sync keeps
+    // its existing background synchronization path.
     _metadataOnly = false;
     return groupEntity;
   }
