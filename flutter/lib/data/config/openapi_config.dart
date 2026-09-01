@@ -8,13 +8,14 @@ import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'openapi_config.g.dart';
+
 @Riverpod(keepAlive: true)
 class OpenApiConfig extends _$OpenApiConfig {
   final HttpBearerAuth _authentication = HttpBearerAuth();
-  
+
   // Using an empty string is generally safer than a mock string
-  String _accessToken = ""; 
-  
+  String _accessToken = "";
+
   // Mutex specifically for Auth so we don't spam the refresh endpoint
   final Mutex _authMutex = Mutex();
   DateTime? _lastCheck;
@@ -22,9 +23,12 @@ class OpenApiConfig extends _$OpenApiConfig {
   @override
   ApiClient build() {
     final data = ref.watch(globalDataServiceProvider);
-    
+
     _authentication.accessToken = () => _accessToken;
-    final ApiClient apiClient = ApiClient(basePath: data.host, authentication: _authentication);
+    final ApiClient apiClient = ApiClient(
+      basePath: data.host,
+      authentication: _authentication,
+    );
 
     // 1. Create our custom client that handles Rate Limiting & Pre-Request Auth
     final interceptorClient = _RateLimitedAuthClient(
@@ -38,12 +42,14 @@ class OpenApiConfig extends _$OpenApiConfig {
       interceptorClient,
       delay: (_) => Duration.zero,
       retries: 1,
-      when: (response) => response.statusCode == 403 || response.statusCode == 401,
+      when: (response) =>
+          response.statusCode == 403 || response.statusCode == 401,
       onRetry: (req, res, retryCount) async {
-        if (retryCount == 0 && (res?.statusCode == 401 || res?.statusCode == 403)) {
+        if (retryCount == 0 &&
+            (res?.statusCode == 401 || res?.statusCode == 403)) {
           // Force a refresh when a 401 is encountered
-          await provideAccessToken(force: true); 
-          
+          await provideAccessToken(force: true);
+
           // Inject the newly fetched token into the retried request
           req.headers['Authorization'] = 'Bearer $_accessToken';
         }
@@ -62,19 +68,25 @@ class OpenApiConfig extends _$OpenApiConfig {
   Future<void> provideAccessToken({bool force = false}) async {
     await _authMutex.protect(() async {
       // Use ref.read() inside async callbacks to prevent the "Async Gap" crash!
-      final data = ref.read(globalDataServiceProvider); 
-      
-      final needsRefresh = force || 
-                           _lastCheck == null || 
-                           DateTime.now().difference(_lastCheck!) > const Duration(minutes: 1);
+      final data = ref.read(globalDataServiceProvider);
+
+      final needsRefresh =
+          force ||
+          _lastCheck == null ||
+          DateTime.now().difference(_lastCheck!) > const Duration(minutes: 1);
 
       if (data.refreshToken != null && needsRefresh) {
         // Create a basic ApiClient here so AuthApi doesn't trigger our rate-limiter loop
         final authApi = AuthApi(ApiClient(basePath: data.host));
-        final refreshTokenDto = RefreshTokenRequestDto(refreshToken: data.refreshToken, userId: data.userId);
-        
+        final refreshTokenDto = RefreshTokenRequestDto(
+          refreshToken: data.refreshToken,
+          userId: data.userId,
+        );
+
         try {
-          final response = await authApi.refreshToken(refreshTokenRequestDto: refreshTokenDto);
+          final response = await authApi.refreshToken(
+            refreshTokenRequestDto: refreshTokenDto,
+          );
           if (response != null) {
             _accessToken = response.accessToken;
             _lastCheck = DateTime.now();
@@ -89,13 +101,13 @@ class OpenApiConfig extends _$OpenApiConfig {
   }
 }
 
-/// Custom HTTP Client that forces single-file execution (CrowdSec fix) 
+/// Custom HTTP Client that forces single-file execution (CrowdSec fix)
 /// and verifies tokens BEFORE the request is sent.
 class _RateLimitedAuthClient extends http.BaseClient {
   final http.Client inner;
   final Future<void> Function() ensureToken;
   final String Function() getToken;
-  
+
   // Mutex specifically for the request queue (Rate Limiting)
   final Mutex _requestMutex = Mutex();
 
@@ -108,12 +120,11 @@ class _RateLimitedAuthClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     return await _requestMutex.protect(() async {
-      
       // 1. Await token generation if it's missing.
       await ensureToken();
 
-      // 2. Overwrite the header natively. 
-      // If `ensureToken` just fetched a new token, we MUST inject it here 
+      // 2. Overwrite the header natively.
+      // If `ensureToken` just fetched a new token, we MUST inject it here
       // because OpenAPI already built this request object with the old header.
       final currentToken = getToken();
       if (currentToken.isNotEmpty) {

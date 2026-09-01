@@ -1,9 +1,8 @@
-
-
 import 'dart:convert';
 
 import 'package:buff_lisa/data/dto/current_user_dto.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
+import 'package:buff_lisa/data/service/account_data_session.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -40,7 +39,6 @@ class WebSecureStorage implements ISecureStorage {
   }
 }
 
-
 @Riverpod(keepAlive: true)
 ISecureStorage secureStorage(Ref ref) {
   if (kIsWeb) {
@@ -69,19 +67,18 @@ class MobileSecureStorage implements ISecureStorage {
 }
 
 class GlobalDataRepository {
-
   final Ref ref;
 
   late SharedPreferences sharedPreferences;
 
-
-
-
   static const String usernameKey = "username";
   static const String userIdKey = "userId";
   static const String tokenKey = "auth";
+  static const String accountCleanupPendingKey = "accountCleanupPending";
+  static const String accountCleanupPendingStorageKey = "accountCleanupPending";
   static const String pinFileNameKey = 'pin_new';
   static const String groupFileNameKey = 'groups';
+  static const String groupOrderKey = 'groupOrder';
   static const String hiddenUsersKey = "hiddenUsers";
   static const String hiddenPostsKey = "hiddenPosts";
   static const String activeGroupKey = "activeGroups";
@@ -109,26 +106,73 @@ class GlobalDataRepository {
   static const String lastReviewKey = "lastReviewKey";
   static const String isNotificationEnabledKey = "isNotificationEnabledKey";
 
+  static const List<String> accountPreferenceKeys = [
+    pinFileNameKey,
+    groupFileNameKey,
+    groupOrderKey,
+    hiddenUsersKey,
+    hiddenPostsKey,
+    activeGroupKey,
+    offlineKeyValue,
+    lastSeenKey,
+    lastSeenPinKey,
+    descriptionKey,
+    profileImageKey,
+    profileImageSmallKey,
+    selectedBatchKey,
+    xpKey,
+    currentLevelKey,
+    currentLevelXpKey,
+    nextLevelXpKey,
+  ];
+
   GlobalDataRepository({required this.ref}) {
     sharedPreferences = ref.watch(sharedPreferencesProvider);
   }
 
-  static Future<GlobalDataDto> get(SharedPreferences sharedPreferences, ISecureStorage storage) async{
-    return GlobalDataDto(
-        userId: await storage.read(key: userIdKey),
-        refreshToken: await storage.read(key: tokenKey),
+  static Future<GlobalDataDto> get(
+    SharedPreferences sharedPreferences,
+    ISecureStorage storage,
+  ) async {
+    var cleanupPending =
+        sharedPreferences.getBool(accountCleanupPendingKey) == true;
+    if (!cleanupPending) {
+      try {
+        cleanupPending =
+            await storage.read(key: accountCleanupPendingStorageKey) == "true";
+      } catch (_) {
+        // If the recovery marker cannot be read, fail closed instead of
+        // exposing the previous account's cache to a new session.
+        cleanupPending = true;
+      }
+    }
+    if (cleanupPending) {
+      return GlobalDataDto(
+        userId: null,
+        refreshToken: null,
         cameras: await availableCameras(),
+      );
+    }
+    return GlobalDataDto(
+      userId: await storage.read(key: userIdKey),
+      refreshToken: await storage.read(key: tokenKey),
+      cameras: await availableCameras(),
     );
   }
 
-  static Future<CurrentUserDto> getUser(SharedPreferences sharedPreferences, ISecureStorage storage) async{
+  static Future<CurrentUserDto> getUser(
+    SharedPreferences sharedPreferences,
+    ISecureStorage storage,
+  ) async {
     final prImage = sharedPreferences.getString(profileImageKey);
     final prImageSmall = sharedPreferences.getString(profileImageSmallKey);
     return CurrentUserDto(
       username: await storage.read(key: usernameKey),
       description: sharedPreferences.getString(descriptionKey),
       profileImage: prImage != null ? base64Decode(prImage) : null,
-      profileImageSmall: prImageSmall != null ? base64Decode(prImageSmall) : null,
+      profileImageSmall: prImageSmall != null
+          ? base64Decode(prImageSmall)
+          : null,
       selectedBatch: sharedPreferences.getInt(selectedBatchKey),
       xp: UserXpDto(
         totalXp: sharedPreferences.getInt(xpKey) ?? 0,
@@ -140,11 +184,23 @@ class GlobalDataRepository {
   }
 
   Future<void> logout() async {
-    sharedPreferences.clear();
     final storage = ref.watch(secureStorageProvider);
-    await storage.delete(key: usernameKey);
-    await storage.delete(key: userIdKey);
-    await storage.delete(key: tokenKey);
+    final removedPreferences = await Future.wait(
+      accountPreferenceKeys.map(sharedPreferences.remove),
+    );
+    for (var i = 0; i < removedPreferences.length; i++) {
+      if (!removedPreferences[i] &&
+          sharedPreferences.containsKey(accountPreferenceKeys[i])) {
+        throw StateError(
+          'Failed to remove account preference ${accountPreferenceKeys[i]}',
+        );
+      }
+    }
+    await Future.wait([
+      storage.delete(key: usernameKey),
+      storage.delete(key: userIdKey),
+      storage.delete(key: tokenKey),
+    ]);
   }
 
   Future<void> login(String username, String userId, String token) async {
@@ -155,33 +211,57 @@ class GlobalDataRepository {
   }
 
   Future<void> updateCurrentUser({
-      String? username,
-      String? description,
-      Uint8List? profileImage,
-      Uint8List? profileImageSmall,
+    String? username,
+    String? description,
+    Uint8List? profileImage,
+    Uint8List? profileImageSmall,
     int? selectedBatch,
   }) async {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
     final storage = ref.watch(secureStorageProvider);
-    if (description != null) await sharedPrefs.setString(descriptionKey, description);
-    if (username != null) await storage.write(key: usernameKey, value: username);
-    if (profileImage != null) await sharedPrefs.setString(profileImageKey, base64Encode(profileImage));
-    if (profileImageSmall != null) await sharedPrefs.setString(profileImageSmallKey, base64Encode(profileImageSmall));
-    if (selectedBatch != null) await sharedPrefs.setInt(selectedBatchKey, selectedBatch);
+    final sessionGuard = ref.read(accountDataSessionGuardProvider);
+    final generation = sessionGuard.generation;
+    await sessionGuard.runIfCurrent(generation, () async {
+      if (description != null) {
+        await sharedPrefs.setString(descriptionKey, description);
+      }
+      if (username != null) {
+        await storage.write(key: usernameKey, value: username);
+      }
+      if (profileImage != null) {
+        await sharedPrefs.setString(
+          profileImageKey,
+          base64Encode(profileImage),
+        );
+      }
+      if (profileImageSmall != null) {
+        await sharedPrefs.setString(
+          profileImageSmallKey,
+          base64Encode(profileImageSmall),
+        );
+      }
+      if (selectedBatch != null) {
+        await sharedPrefs.setInt(selectedBatchKey, selectedBatch);
+      }
+    });
   }
 
   Future<void> setXp(UserXpDto xp) async {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
-    await sharedPrefs.setInt(xpKey, xp.totalXp);
-    await sharedPrefs.setInt(currentLevelKey, xp.currentLevel);
-    await sharedPrefs.setInt(currentLevelXpKey, xp.currentLevelXp);
-    await sharedPrefs.setInt(nextLevelXpKey, xp.nextLevelXp);
+    final sessionGuard = ref.read(accountDataSessionGuardProvider);
+    final generation = sessionGuard.generation;
+    await sessionGuard.runIfCurrent(generation, () async {
+      await sharedPrefs.setInt(xpKey, xp.totalXp);
+      await sharedPrefs.setInt(currentLevelKey, xp.currentLevel);
+      await sharedPrefs.setInt(currentLevelXpKey, xp.currentLevelXp);
+      await sharedPrefs.setInt(nextLevelXpKey, xp.nextLevelXp);
+    });
   }
-
 }
 
 @Riverpod(keepAlive: true)
-GlobalDataRepository globalDataRepository(Ref ref) => GlobalDataRepository(ref: ref);
+GlobalDataRepository globalDataRepository(Ref ref) =>
+    GlobalDataRepository(ref: ref);
 
 @Riverpod(keepAlive: true)
 GlobalDataDto globalDataOnce(Ref ref) => throw UnimplementedError();

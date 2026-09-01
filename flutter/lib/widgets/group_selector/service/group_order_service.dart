@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:buff_lisa/data/service/account_data_session.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:collection/collection.dart';
@@ -11,7 +14,9 @@ class GroupOrderService extends _$GroupOrderService {
   @override
   List<String> build() {
     final userGroupList = ref.watch(
-      userGroupServiceProvider.select((e) => e.value?.map((e) => e.groupId).toList() ?? [],),
+      userGroupServiceProvider.select(
+        (e) => e.value?.map((e) => e.groupId).toList() ?? [],
+      ),
     );
     if (userGroupList.isEmpty) {
       return [];
@@ -22,18 +27,35 @@ class GroupOrderService extends _$GroupOrderService {
 
   List<String> _syncGroupsWithUserList(List<String> userGroupList) {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
+    final sessionGuard = ref.read(accountDataSessionGuardProvider);
+    final generation = sessionGuard.generation;
     final orderedGroups = sharedPrefs.getStringList('groupOrder') ?? [];
     final userGroupSet = Set<String>.from(userGroupList);
-    final List<String> updatedGroups = orderedGroups.where(userGroupSet.contains).toList();
-    updatedGroups.addAll(userGroupList.where((id) => !updatedGroups.contains(id)));
-    sharedPrefs.setStringList('groupOrder', updatedGroups);
+    final List<String> updatedGroups = orderedGroups
+        .where(userGroupSet.contains)
+        .toList();
+    updatedGroups.addAll(
+      userGroupList.where((id) => !updatedGroups.contains(id)),
+    );
+    unawaited(
+      sessionGuard.runIfCurrent(generation, () async {
+        await sharedPrefs.setStringList('groupOrder', updatedGroups);
+      }),
+    );
     return updatedGroups;
   }
 
   void setList(List<String> groupIds) {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
-    sharedPrefs.setStringList('groupOrder', groupIds);
-    state = groupIds;
+    final sessionGuard = ref.read(accountDataSessionGuardProvider);
+    final generation = sessionGuard.generation;
+    final newOrder = List<String>.from(groupIds);
+    unawaited(
+      sessionGuard.runIfCurrent(generation, () async {
+        await sharedPrefs.setStringList('groupOrder', newOrder);
+        state = newOrder;
+      }),
+    );
   }
 }
 
@@ -42,7 +64,6 @@ String roundGroupId(Ref ref) => throw UnimplementedError();
 
 @riverpod
 class GroupActiveService extends _$GroupActiveService {
-  
   @override
   List<String> build() {
     final userGroups = ref.read(userGroupServiceProvider).value ?? [];
@@ -50,9 +71,7 @@ class GroupActiveService extends _$GroupActiveService {
 
     final backendActiveIds = <String>[];
     for (final id in orderedIds) {
-      final group = userGroups.firstWhereOrNull(
-        (g) => g.groupId == id
-      );
+      final group = userGroups.firstWhereOrNull((g) => g.groupId == id);
       if (group != null && group.isActivated) {
         backendActiveIds.add(id);
       }
