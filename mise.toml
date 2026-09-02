@@ -1,5 +1,5 @@
 [tools]
-go = "1.27.0"
+go = "1.27.1"
 flutter = "3.47.2"
 oapi-codegen = "2.8.0"
 sqlc = "1.31.1"
