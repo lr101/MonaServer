@@ -96,62 +96,70 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   Stream<List<PinEntity>> build(String groupId) async* {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
-    final userGroups = ref.watch(userGroupServiceProvider).value ?? [];
+    ref.watch(userGroupServiceProvider);
 
     final cachedPins = await _pinRepository.getPinsByGroup(groupId).first;
     yield cachedPins;
 
-    unawaited(_refreshInBackground(userGroups, cachedPins));
+    unawaited(_refreshInBackground(cachedPins));
     yield* _pinRepository.getPinsByGroup(groupId);
   }
 
-  Future<void> _refreshInBackground(
-    List<GroupEntity> userGroups,
-    List<PinEntity> cachedPins,
-  ) async {
+  Future<void> _refreshInBackground(List<PinEntity> cachedPins) async {
     try {
-      await _remoteFetch(userGroups, cachedPins);
+      await _remoteFetch(cachedPins);
     } catch (_) {
       // Keep cached pins available when a background refresh is unavailable.
     }
   }
 
-  // Public group pins are refreshed when a pin consumer is active. Joined
-  // groups are synchronized by UserGroupService instead.
-  Future<void> _remoteFetch(
-    List<GroupEntity> userGroups,
-    List<PinEntity> cachedPins,
-  ) async {
-    final isUserGroup = userGroups.any((e) => e.groupId == groupId);
-    if (isUserGroup) return;
+  // Group pins are refreshed when a pin consumer is active. The global sync
+  // may already have populated joined groups, but the details view uses this
+  // same refresh path for every membership state.
+  Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
+    final results = await Future.wait<Object?>([
+      _pinsApi.getPinImagesByIds(
+        groupId: groupId,
+        withImage: false,
+        updatedAfter: _oldestSyncTime(cachedPins),
+      ),
+      // Do not classify pins until membership has produced its first value.
+      // The API request can still run in parallel with that lookup.
+      ref.read(userGroupServiceProvider.future),
+    ]);
+    final remotePins = results[0] as PinsSyncDto?;
+    final loadedUserGroups = results[1]! as List<GroupEntity>;
+    if (remotePins == null) return;
 
-    final remotePins = await _pinsApi.getPinImagesByIds(
-      groupId: groupId,
-      withImage: false,
-      updatedAfter: _oldestSyncTime(cachedPins),
-    );
-    if (remotePins != null) {
-      if (remotePins.deleted.isNotEmpty) {
-        await _pinRepository.deleteMultiple(remotePins.deleted);
-      }
+    if (remotePins.deleted.isNotEmpty) {
+      await _pinRepository.deleteMultiple(remotePins.deleted);
+    }
 
-      // A join can update the membership cache while the public refresh is
-      // in flight. Never let that stale response downgrade joined pins.
-      final latestUserGroups = ref.read(userGroupServiceProvider).value ?? [];
-      if (latestUserGroups.any((e) => e.groupId == groupId)) return;
+    final latestUserGroups =
+        ref.read(userGroupServiceProvider).value ?? loadedUserGroups;
+    final latestIsUserGroup = latestUserGroups.any((e) => e.groupId == groupId);
 
-      final pins = remotePins.items
-          .map((e) => PinEntity.fromDto(e, true))
-          .toList();
-      await _pinRepository.putMultiple(pins);
+    final pins = remotePins.items
+        .map(
+          (e) => PinEntity.fromDto(
+            e,
+            !latestIsUserGroup,
+            keepAlive: latestIsUserGroup,
+          ),
+        )
+        .toList();
+    await _pinRepository.putMultiple(pins);
 
-      // Membership may change while the repository batch is being written.
-      // Promote the batch if the join is visible by the time it completes.
-      final joinedAfterWrite = (ref.read(userGroupServiceProvider).value ?? [])
-          .any((e) => e.groupId == groupId);
-      if (joinedAfterWrite) {
-        await _pinRepository.updateKeepAlive(groupId, true, false);
-      }
+    // Membership may change while the repository batch is being written.
+    // Align the cache policy with the state visible after the write.
+    final joinedAfterWrite = (ref.read(userGroupServiceProvider).value ?? [])
+        .any((e) => e.groupId == groupId);
+    if (joinedAfterWrite != latestIsUserGroup) {
+      await _pinRepository.updateKeepAlive(
+        groupId,
+        joinedAfterWrite,
+        !joinedAfterWrite,
+      );
     }
   }
 }

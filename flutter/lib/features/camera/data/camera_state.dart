@@ -14,7 +14,8 @@ double cameraPreviewAspectRatio({
   required double sensorAspectRatio,
   required DeviceOrientation orientation,
 }) {
-  final isLandscape = orientation == DeviceOrientation.landscapeLeft ||
+  final isLandscape =
+      orientation == DeviceOrientation.landscapeLeft ||
       orientation == DeviceOrientation.landscapeRight;
   return isLandscape ? sensorAspectRatio : 1 / sensorAspectRatio;
 }
@@ -176,7 +177,7 @@ Future<GroupEntity?> cameraSelectedGroup(Ref ref) async {
   if (groupId == null) {
     return null;
   }
-  return await ref.watch(groupServiceProvider(groupId).future);
+  return await ref.watch(groupMetadataProvider(groupId).future);
 }
 
 @Riverpod(keepAlive: true)
