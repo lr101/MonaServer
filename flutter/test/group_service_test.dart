@@ -9,12 +9,318 @@ import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  test(
+    'shared group details expose metadata without waiting for pins or media',
+    () async {
+      final pendingPins = Completer<List<PinEntity>>();
+      final pendingProfile = StreamController<Uint8List?>();
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(
+            _FakeGroupsApi(_groupWithImages()),
+          ),
+          pinGroupServiceProvider('group-id')
+              .overrideWith((ref) => pendingPins.future),
+          groupProfilePictureByIdProvider('group-id')
+              .overrideWith((ref) => pendingProfile.stream),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(() {
+        if (!pendingPins.isCompleted) pendingPins.complete([]);
+        if (!pendingProfile.isClosed) pendingProfile.close();
+      });
+
+      final subscription = container.listen(
+        groupDetailsProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final details = await container
+          .read(groupDetailsProvider('group-id').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(details.group?.groupId, 'group-id');
+      expect(details.pins.isLoading, isTrue);
+      expect(details.mediaStatus, GroupMediaStatus.loading);
+    },
+  );
+
+  test(
+    'watching group metadata does not start an untracked network request',
+    () async {
+      final groupsApi = _FakeGroupsApi(_groupWithImages());
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(groupsApi),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        groupServiceProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(groupsApi.getRequests, 0);
+    },
+  );
+
+  test(
+    'shared group details replays data when dependencies are already warm',
+    () async {
+      final group = GroupEntity(
+        groupId: 'group-id',
+        name: 'Group',
+        visibility: 0,
+        userIsMember: false,
+        ttl: DateTime.now(),
+        onlySession: true,
+      );
+      final pins = [
+        PinEntity(
+          pinId: 'pin-id',
+          latitude: 0,
+          longitude: 0,
+          creationDate: DateTime(2025),
+          creator: 'user-id',
+          groupId: 'group-id',
+          ttl: DateTime.now(),
+          onlySession: true,
+        ),
+      ];
+      final container = ProviderContainer(
+        overrides: [
+          groupMetadataProvider('group-id')
+              .overrideWith((ref) => Stream.value(group)),
+          pinGroupServiceProvider('group-id')
+              .overrideWith((ref) => Future.value(pins)),
+          groupProfilePictureByIdProvider('group-id')
+              .overrideWith((ref) => Stream.value(Uint8List.fromList([1]))),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final metadataSubscription = container.listen(
+        groupMetadataProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      final pinsSubscription = container.listen(
+        pinGroupServiceProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      final profileSubscription = container.listen(
+        groupProfilePictureByIdProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(metadataSubscription.close);
+      addTearDown(pinsSubscription.close);
+      addTearDown(profileSubscription.close);
+
+      await container.read(groupMetadataProvider('group-id').future);
+      await container.read(pinGroupServiceProvider('group-id').future);
+      await container.read(groupProfilePictureByIdProvider('group-id').future);
+
+      final states = <GroupDetailsState>[];
+      final detailsSubscription = container.listen(
+        groupDetailsProvider('group-id'),
+        (_, next) {
+          if (next.hasValue) states.add(next.value!);
+        },
+        fireImmediately: true,
+      );
+      addTearDown(detailsSubscription.close);
+      final details = await container
+          .read(groupDetailsProvider('group-id').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(details.group?.groupId, 'group-id');
+      await Future<void>.delayed(Duration.zero);
+      expect(states.last.pins.value, pins);
+      expect(states.last.profileImage.value, isNotNull);
+    },
+  );
+
+  test('shared group pin state remains newest-first', () async {
+    final older = PinEntity(
+      pinId: 'older',
+      latitude: 0,
+      longitude: 0,
+      creationDate: DateTime(2024),
+      creator: 'user-id',
+      groupId: 'group-id',
+      ttl: DateTime.now(),
+      onlySession: true,
+    );
+    final newer = PinEntity(
+      pinId: 'newer',
+      latitude: 0,
+      longitude: 0,
+      creationDate: DateTime(2025),
+      creator: 'user-id',
+      groupId: 'group-id',
+      ttl: DateTime.now(),
+      onlySession: true,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        groupDetailsProvider('group-id').overrideWith(
+          (ref) => Stream.value(
+            GroupDetailsState(
+              group: null,
+              pins: AsyncData([older, newer]),
+              profileImage: const AsyncData(null),
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      groupDetailsPinsProvider('group-id'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      container
+          .read(groupDetailsPinsProvider('group-id'))
+          .value
+          ?.map((pin) => pin.pinId),
+      ['newer', 'older'],
+    );
+  });
+
+  test(
+    'metadata requests are explicit and return the canonical group entity',
+    () async {
+      final groupsApi = _FakeGroupsApi(_groupWithImages());
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(groupsApi),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final metadataStates = <GroupEntity?>[];
+      final metadataSubscription = container.listen(
+        groupMetadataProvider('group-id'),
+        (_, next) {
+          if (next.hasValue) metadataStates.add(next.value);
+        },
+        fireImmediately: true,
+      );
+      addTearDown(metadataSubscription.close);
+
+      final group = await container.read(
+        groupMetadataProvider('group-id').future,
+      );
+
+      expect(group?.groupId, 'group-id');
+      expect(groupsApi.getRequests, 1);
+      expect(metadataStates, hasLength(1));
+    },
+  );
+
+  test(
+    'emits a terminal empty value when group metadata is unavailable',
+    () async {
+      final groupsApi = _FakeGroupsApi(null);
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(groupsApi),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        groupMetadataProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final group = await container.read(
+        groupMetadataProvider('group-id').future,
+      );
+
+      expect(group, isNull);
+      expect(groupsApi.getRequests, 1);
+    },
+  );
+
+  test(
+    'removes a stale session-only group when metadata is unavailable',
+    () async {
+      final groupRepository = _FakeGroupRepository();
+      await groupRepository.put(
+        GroupEntity(
+          groupId: 'group-id',
+          name: 'Stale group',
+          visibility: 0,
+          userIsMember: false,
+          ttl: DateTime(2025),
+          onlySession: true,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('user-id'),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupRepositoryProvider.overrideWithValue(groupRepository),
+          groupApiProvider.overrideWithValue(_FakeGroupsApi(null)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        groupMetadataProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final group = await container.read(
+        groupMetadataProvider('group-id').future,
+      );
+
+      expect(group, isNull);
+      expect(await groupRepository.get('group-id'), isNull);
+    },
+  );
+
   test('joins a group with one pin synchronization request', () async {
     final pinsApi = _FakePinsApi();
     final service = await _createService(
@@ -28,79 +334,90 @@ void main() {
     expect(pinsApi.requests, 1);
   });
 
-  test(
-    'waits for every group image cache write before joining completes',
-    () async {
-      final profileCache = _FakeImageRepository.pending();
-      final profileSmallCache = _FakeImageRepository.pending();
-      final pinImageCache = _FakeImageRepository.pending();
-      final service = await _createService(
-        membersApi: _FakeMembersApi(_groupWithImages()),
-        profileCache: profileCache,
-        profileSmallCache: profileSmallCache,
-        pinImageCache: pinImageCache,
-      );
-      var completed = false;
+  test('prefetches joined group media after joining completes', () async {
+    final profileCache = _FakeImageRepository.pending();
+    final profileSmallCache = _FakeImageRepository.pending();
+    final pinImageCache = _FakeImageRepository.pending();
+    final service = await _createService(
+      membersApi: _FakeMembersApi(_groupWithImages()),
+      profileCache: profileCache,
+      profileSmallCache: profileSmallCache,
+      pinImageCache: pinImageCache,
+    );
+    var completed = false;
 
-      final join = service.joinGroup('group-id').then((_) => completed = true);
-      await _nextEventLoop();
+    final join = service.joinGroup('group-id').then((_) => completed = true);
+    await _nextEventLoop();
 
-      expect(profileCache.overrideIds, ['group-id']);
-      expect(profileSmallCache.overrideIds, ['group-id']);
-      expect(pinImageCache.overrideIds, ['group-id']);
-      expect(completed, isFalse);
+    expect(profileCache.overrideIds, ['group-id']);
+    expect(profileSmallCache.overrideIds, ['group-id']);
+    expect(pinImageCache.overrideIds, ['group-id']);
+    expect(completed, isTrue);
 
-      profileCache.complete();
-      await _nextEventLoop();
-      expect(completed, isFalse);
+    profileCache.complete();
+    await _nextEventLoop();
+    profileSmallCache.complete();
+    await _nextEventLoop();
+    pinImageCache.complete();
+    await join;
+    expect(completed, isTrue);
+  });
 
-      profileSmallCache.complete();
-      await _nextEventLoop();
-      expect(completed, isFalse);
+  test('joining a group does not wait for background media prefetch', () async {
+    final profileCache = _FakeImageRepository.pending();
+    final profileSmallCache = _FakeImageRepository.pending();
+    final pinImageCache = _FakeImageRepository.pending();
+    final service = await _createService(
+      membersApi: _FakeMembersApi(_groupWithImages()),
+      profileCache: profileCache,
+      profileSmallCache: profileSmallCache,
+      pinImageCache: pinImageCache,
+    );
 
-      pinImageCache.complete();
-      await join;
-      expect(completed, isTrue);
-    },
-  );
+    final result = await service
+        .joinGroup('group-id')
+        .timeout(const Duration(milliseconds: 100));
 
-  test(
-    'waits for group image cache writes before an update completes',
-    () async {
-      final profileCache = _FakeImageRepository.pending();
-      final profileSmallCache = _FakeImageRepository.pending();
-      final pinImageCache = _FakeImageRepository.pending();
-      final service = await _createService(
-        groupsApi: _FakeGroupsApi(_groupWithImages()),
-        profileCache: profileCache,
-        profileSmallCache: profileSmallCache,
-        pinImageCache: pinImageCache,
-      );
-      var completed = false;
+    expect(result, isNull);
+    expect(profileCache.overrideIds, ['group-id']);
+    expect(profileSmallCache.overrideIds, ['group-id']);
+    expect(pinImageCache.overrideIds, ['group-id']);
 
-      final update = service
-          .updateGroup(UpdateGroupDto(name: 'Updated'), 'group-id')
-          .then((_) => completed = true);
-      await _nextEventLoop();
+    profileCache.complete();
+    profileSmallCache.complete();
+    pinImageCache.complete();
+  });
 
-      expect(profileCache.overrideIds, ['group-id']);
-      expect(profileSmallCache.overrideIds, ['group-id']);
-      expect(pinImageCache.overrideIds, ['group-id']);
-      expect(completed, isFalse);
+  test('prefetches group media after an update completes', () async {
+    final profileCache = _FakeImageRepository.pending();
+    final profileSmallCache = _FakeImageRepository.pending();
+    final pinImageCache = _FakeImageRepository.pending();
+    final service = await _createService(
+      groupsApi: _FakeGroupsApi(_groupWithImages()),
+      profileCache: profileCache,
+      profileSmallCache: profileSmallCache,
+      pinImageCache: pinImageCache,
+    );
+    var completed = false;
 
-      profileCache.complete();
-      await _nextEventLoop();
-      expect(completed, isFalse);
+    final update = service
+        .updateGroup(UpdateGroupDto(name: 'Updated'), 'group-id')
+        .then((_) => completed = true);
+    await _nextEventLoop();
 
-      profileSmallCache.complete();
-      await _nextEventLoop();
-      expect(completed, isFalse);
+    expect(profileCache.overrideIds, ['group-id']);
+    expect(profileSmallCache.overrideIds, ['group-id']);
+    expect(pinImageCache.overrideIds, ['group-id']);
+    expect(completed, isTrue);
 
-      pinImageCache.complete();
-      await update;
-      expect(completed, isTrue);
-    },
-  );
+    profileCache.complete();
+    await _nextEventLoop();
+    profileSmallCache.complete();
+    await _nextEventLoop();
+    pinImageCache.complete();
+    await update;
+    expect(completed, isTrue);
+  });
 
   test('joins a group without image URLs', () async {
     final profileCache = _FakeImageRepository();
@@ -121,22 +438,18 @@ void main() {
     expect(pinImageCache.overrideIds, isEmpty);
   });
 
-  test(
-    'returns a synchronization failure when a group image cache write fails',
-    () async {
-      final service = await _createService(
-        membersApi: _FakeMembersApi(_groupWithImages()),
-        profileCache: _FakeImageRepository.failure(
-          Exception('cache write failed'),
-        ),
-      );
+  test('does not fail a group synchronization when background media prefetch fails', () async {
+    final service = await _createService(
+      membersApi: _FakeMembersApi(_groupWithImages()),
+      profileCache: _FakeImageRepository.failure(
+        Exception('cache write failed'),
+      ),
+    );
 
-      await expectLater(
-        service.joinGroup('group-id'),
-        completion('Failed to sync joined group'),
-      );
-    },
-  );
+    final result = await service.joinGroup('group-id');
+
+    expect(result, isNull);
+  });
 
   test(
     'hydrates an unjoined public group without synchronizing pins',
@@ -548,7 +861,7 @@ void main() {
       _groupWithoutImages(),
       getGroupOverride: () async {
         attempts++;
-        if (attempts <= 2) throw error;
+        if (attempts <= 1) throw error;
         return _groupWithoutImages();
       },
     );
@@ -606,7 +919,7 @@ void main() {
     final group = await container.read(readyProvider.future);
 
     expect(group?.name, 'Group');
-    expect(groupsApi.getRequests, 3);
+    expect(groupsApi.getRequests, 2);
   });
 }
 

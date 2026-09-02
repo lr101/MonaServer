@@ -183,7 +183,7 @@ void main() {
     expect(repository.deletedIds, ['deleted-pin']);
   });
 
-  test('does not apply a public refresh after the group is joined', () async {
+  test('refreshes group pins even when the group is joined', () async {
     final groupUpdates = StreamController<List<GroupEntity>>();
     addTearDown(groupUpdates.close);
     final remoteResponse = Completer<PinsSyncDto?>();
@@ -225,10 +225,55 @@ void main() {
         ],
       ),
     );
-    await Future<void>.delayed(Duration.zero);
+    await repository.putStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
 
-    expect(repository.putItems, isEmpty);
+    expect(repository.putItems.single.pinId, 'remote-pin');
+    expect(repository.putItems.single.keepAlive, isTrue);
+    expect(repository.putItems.single.onlySession, isFalse);
   });
+
+  test(
+    'waits for membership before choosing the group pin cache policy',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = FakePinRepository({});
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(items: [_remotePin()]),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+      groupUpdates.add([_joinedGroup()]);
+      await repository.putStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(repository.putItems.single.keepAlive, isTrue);
+      expect(repository.putItems.single.onlySession, isFalse);
+    },
+  );
 
   test(
     'promotes pins when the group joins during a public refresh write',
@@ -263,6 +308,10 @@ void main() {
       );
       addTearDown(subscription.close);
 
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      groupUpdates.add([]);
       await repository.keepAliveUpdateStarted.future.timeout(
         const Duration(milliseconds: 100),
       );

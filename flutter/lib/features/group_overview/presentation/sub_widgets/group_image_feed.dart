@@ -1,5 +1,5 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +28,7 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
 
   @override
   Widget build(BuildContext context) {
-    final pins = ref.watch(sortedGroupPinsProvider(widget.groupId));
+    final pins = ref.watch(groupDetailsPinsProvider(widget.groupId));
     return Scaffold(
       appBar: AppBar(title: const Text("Group images")),
       body: pins.when(
@@ -49,7 +49,7 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
             controller: _scrollController,
             slivers: [
               CustomFeed(
-                pinProvider: sortedGroupPinsProvider(widget.groupId),
+                pinProvider: groupDetailsPinsProvider(widget.groupId),
                 index: widget.index,
                 pagingController: pagingController,
                 scrollController: _scrollController,

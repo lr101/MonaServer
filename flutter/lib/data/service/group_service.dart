@@ -14,28 +14,91 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'group_service.g.dart';
 
-class _MetadataLoad {
-  const _MetadataLoad({required this.dto, required this.fetched});
+final groupMetadataLoaderProvider = Provider<GroupMetadataLoader>(
+  (ref) => GroupMetadataLoader(ref),
+);
 
-  final GroupDto? dto;
-  final bool fetched;
+class GroupMetadataLoader {
+  GroupMetadataLoader(this.ref);
+
+  final Ref ref;
+  final Map<String, Future<GroupEntity?>> _activeLoads = {};
+
+  Future<GroupEntity?> load(
+    String groupId, {
+    required Future<List<GroupEntity>> userGroups,
+  }) {
+    final activeLoad = _activeLoads[groupId];
+    if (activeLoad != null) return activeLoad;
+
+    final load = _load(groupId, userGroups: userGroups);
+    _activeLoads[groupId] = load;
+    unawaited(
+      load.then<void>(
+        (_) {
+          if (identical(_activeLoads[groupId], load)) {
+            _activeLoads.remove(groupId);
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (identical(_activeLoads[groupId], load)) {
+            _activeLoads.remove(groupId);
+          }
+        },
+      ),
+    );
+    return load;
+  }
+
+  Future<GroupEntity?> _load(
+    String groupId, {
+    required Future<List<GroupEntity>> userGroups,
+  }) async {
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final groupsApi = ref.read(groupApiProvider);
+    final loadedUserGroups = await userGroups;
+    final initialGroup = await groupRepository.get(groupId);
+
+    if (initialGroup != null && !initialGroup.onlySession) {
+      return initialGroup;
+    }
+
+    final groupDto = await groupsApi.getGroup(groupId);
+    if (groupDto == null) {
+      if (initialGroup?.onlySession == true) {
+        await groupRepository.delete(groupId);
+      }
+      return null;
+    }
+
+    final latestGroup = await groupRepository.get(groupId);
+    final latestUserGroups =
+        ref.read(userGroupServiceProvider).value ?? loadedUserGroups;
+    if (initialGroup?.userIsMember == true && latestGroup == null) {
+      return null;
+    }
+    final isCurrentUserGroup =
+        latestGroup?.userIsMember == true ||
+        latestUserGroups.any((group) => group.groupId == groupId);
+    final groupEntity = GroupEntity.fromGroupDto(
+      groupDto,
+      !isCurrentUserGroup,
+      isCurrentUserGroup,
+      keepAlive: isCurrentUserGroup,
+      isActivated: latestGroup?.isActivated ?? isCurrentUserGroup,
+    );
+    await groupRepository.put(groupEntity);
+    return groupEntity;
+  }
 }
 
 @riverpod
 class GroupService extends _$GroupService {
   Future<GroupEntity?>? _hydration;
-  Future<_MetadataLoad>? _metadataRequest;
-  bool _metadataOnly = false;
 
   @override
   Stream<GroupEntity?> build(String groupId) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    ref.watch(userGroupServiceProvider);
-    unawaited(
-      _fetchMetadataIfMissing(
-        consume: false,
-      ).then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
-    );
     return groupRepository.watchById(groupId);
   }
 
@@ -54,111 +117,33 @@ class GroupService extends _$GroupService {
     }
   }
 
-  Future<GroupEntity?> _hydrate() async {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    final groupsApi = ref.read(groupApiProvider);
-    final userGroups = await ref.read(userGroupServiceProvider.future);
-    final initialGroup = await groupRepository.get(groupId);
-    final metadata = await _fetchMetadataIfMissing(consume: true);
-    final group = await groupRepository.get(groupId);
-
-    if (group != null && !group.onlySession && !_metadataOnly) {
-      return group;
-    }
-
-    final groupDto = metadata.fetched
-        ? metadata.dto
-        : await groupsApi.getGroup(groupId);
-    if (groupDto == null) return null;
-
-    final latestGroup = await groupRepository.get(groupId);
-    final latestUserGroups =
-        ref.read(userGroupServiceProvider).value ?? userGroups;
-    if (initialGroup?.userIsMember == true && latestGroup == null) {
-      return null;
-    }
-    final isCurrentUserGroup =
-        latestGroup?.userIsMember == true ||
-        latestUserGroups.any((group) => group.groupId == groupId);
-    final groupEntity = GroupEntity.fromGroupDto(
-      groupDto,
-      !isCurrentUserGroup,
-      isCurrentUserGroup,
-      keepAlive: isCurrentUserGroup,
-      isActivated: latestGroup?.isActivated ?? isCurrentUserGroup,
-    );
-    await groupRepository.put(groupEntity);
-
-    // Detail readiness only depends on group metadata. Pins and images are
-    // loaded by the widgets that display them, while joined-group sync keeps
-    // its existing background synchronization path.
-    _metadataOnly = false;
-    return groupEntity;
-  }
-
-  Future<_MetadataLoad> _fetchMetadataIfMissing({required bool consume}) async {
-    final activeRequest = _metadataRequest;
-    if (activeRequest != null) {
-      if (!consume) return activeRequest;
-      try {
-        return await activeRequest;
-      } finally {
-        if (identical(_metadataRequest, activeRequest)) {
-          _metadataRequest = null;
-        }
-      }
-    }
-
-    final request = _loadMetadataIfMissing();
-    _metadataRequest = request;
-    unawaited(
-      request.then<void>(
-        (_) {},
-        onError: (Object error, StackTrace stackTrace) {
-          if (identical(_metadataRequest, request)) {
-            _metadataRequest = null;
-          }
-        },
-      ),
-    );
-    if (!consume) return request;
-    try {
-      return await request;
-    } finally {
-      if (identical(_metadataRequest, request)) _metadataRequest = null;
-    }
-  }
-
-  Future<_MetadataLoad> _loadMetadataIfMissing() async {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    final userGroups = await ref.read(userGroupServiceProvider.future);
-    final isUserGroup = userGroups.any((group) => group.groupId == groupId);
-    final group = await groupRepository.get(groupId);
-    if (group != null) return const _MetadataLoad(dto: null, fetched: false);
-
-    final groupDto = await ref.read(groupApiProvider).getGroup(groupId);
-    if (groupDto == null) return const _MetadataLoad(dto: null, fetched: true);
-
-    _metadataOnly = true;
-    await groupRepository.put(
-      GroupEntity.fromGroupDto(
-        groupDto,
-        !isUserGroup,
-        isUserGroup,
-        keepAlive: isUserGroup,
-        isActivated: isUserGroup,
-      ),
-    );
-    return _MetadataLoad(dto: groupDto, fetched: true);
+  Future<GroupEntity?> _hydrate() {
+    return ref
+        .read(groupMetadataLoaderProvider)
+        .load(groupId, userGroups: ref.read(userGroupServiceProvider.future));
   }
 }
 
-final groupDetailsReadyProvider = StreamProvider.autoDispose
+/// Explicit metadata loading for consumers that do not need the full details
+/// state. Watching the group stream alone never starts a network request.
+final groupMetadataProvider = StreamProvider.autoDispose
     .family<GroupEntity?, String>((ref, groupId) async* {
-      final groupService = ref.watch(groupServiceProvider(groupId).notifier);
-      final hydratedGroup = await groupService.hydrate();
-      yield hydratedGroup;
-      yield* ref.read(groupRepositoryProvider).watchById(groupId);
+      final keepAlive = ref.keepAlive();
+      try {
+        final group = await ref
+            .read(groupMetadataLoaderProvider)
+            .load(
+              groupId,
+              userGroups: ref.watch(userGroupServiceProvider.future),
+            );
+        if (group == null) {
+          yield null;
+          return;
+        }
+        yield* ref.read(groupRepositoryProvider).watchById(groupId);
+      } finally {
+        keepAlive.close();
+      }
     });
 
 @riverpod
@@ -221,8 +206,8 @@ class UserGroupService extends _$UserGroupService {
       keepAlive: true,
     );
 
-    // update group pictures
-    await _cacheGroupImages(ref, groupId, groupDto, keepAlive: true);
+    // Media is an offline cache concern, not part of the join transaction.
+    prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
   }
 
   Future<void> _syncLeave(String groupId) async {
@@ -303,7 +288,7 @@ class UserGroupService extends _$UserGroupService {
         );
         await _groupRepository.put(entity);
 
-        await _cacheGroupImages(ref, groupId, result, keepAlive: true);
+        prefetchGroupMediaInBackground(ref, result, keepAlive: true);
       } else {
         return "Failed to update group remotely";
       }
@@ -333,12 +318,26 @@ Future<void> _syncGroupPins(
   await pinRepository.putMultiple(pinEntities);
 }
 
-Future<void> _cacheGroupImages(
+void prefetchGroupMediaInBackground(
   Ref ref,
-  String groupId,
+  GroupDto groupDto, {
+  required bool keepAlive,
+}) {
+  unawaited(
+    prefetchGroupMedia(
+      ref,
+      groupDto,
+      keepAlive: keepAlive,
+    ).then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
+  );
+}
+
+Future<void> prefetchGroupMedia(
+  Ref ref,
   GroupDto groupDto, {
   required bool keepAlive,
 }) async {
+  final groupId = groupDto.id;
   final cacheWrites = <Future<Object?>>[];
   final profileImage = groupDto.profileImage;
   if (profileImage != null) {
@@ -393,6 +392,6 @@ Future<List<GroupEntity>> orderedGroups(Ref ref) async {
 @riverpod
 Future<bool> groupByIdActivated(Ref ref, String groupId) async {
   return await ref.watch(
-    groupServiceProvider(groupId).selectAsync((group) => group!.isActivated),
+    groupMetadataProvider(groupId).selectAsync((group) => group!.isActivated),
   );
 }

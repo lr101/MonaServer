@@ -209,7 +209,7 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
                 final groupId = orderedIds[index];
 
                 final groupData = ref
-                    .watch(groupServiceProvider(groupId))
+                    .watch(groupMetadataProvider(groupId))
                     .value;
 
                 if (groupData == null) {

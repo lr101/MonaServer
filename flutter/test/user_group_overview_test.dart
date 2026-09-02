@@ -6,10 +6,9 @@ import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
+import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -30,23 +29,17 @@ void main() {
       ttl: DateTime.now(),
       onlySession: true,
     );
-    final ready = Completer<GroupEntity?>();
+    final ready = Completer<GroupDetailsState>();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
-          groupServiceProvider('group-id')
-              .overrideWith(() => _FakeGroupService(group)),
-          groupDetailsReadyProvider('group-id').overrideWith((ref) async* {
+          groupDetailsProvider('group-id').overrideWith((ref) async* {
             yield await ready.future;
           }),
-          groupProfilePictureByIdProvider('group-id')
-              .overrideWith((ref) => Stream<Uint8List?>.value(null)),
           memberServiceProvider('group-id')
               .overrideWith(_EmptyMemberService.new),
-          sortedGroupPinsProvider('group-id')
-              .overrideWith((ref) => Future<List<PinEntity>?>.value([])),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
         ],
@@ -58,7 +51,7 @@ void main() {
     expect(find.byType(GroupOverview), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    ready.complete(group);
+    ready.complete(_details(group));
     await tester.pump();
 
     expect(find.byType(GroupOverview), findsOneWidget);
@@ -67,14 +60,6 @@ void main() {
   testWidgets('uses refreshed visibility when the cached row is stale', (
     tester,
   ) async {
-    final cachedGroup = GroupEntity(
-      groupId: 'group-id',
-      name: 'Cached public group',
-      visibility: 0,
-      userIsMember: false,
-      ttl: DateTime.now(),
-      onlySession: true,
-    );
     final refreshedGroup = GroupEntity(
       groupId: 'group-id',
       name: 'Private group',
@@ -88,12 +73,8 @@ void main() {
       ProviderScope(
         overrides: [
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
-          groupServiceProvider('group-id')
-              .overrideWith(() => _FakeGroupService(cachedGroup)),
-          groupDetailsReadyProvider('group-id')
-              .overrideWith((ref) => Stream.value(refreshedGroup)),
-          groupProfilePictureByIdProvider('group-id')
-              .overrideWith((ref) => Stream<Uint8List?>.value(null)),
+          groupDetailsProvider('group-id')
+              .overrideWith((ref) => Stream.value(_details(refreshedGroup))),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
         ],
@@ -131,7 +112,7 @@ void main() {
       ttl: DateTime.now(),
       onlySession: false,
     );
-    final details = StreamController<GroupEntity?>();
+    final details = StreamController<GroupDetailsState>();
     addTearDown(details.close);
 
     await tester.pumpWidget(
@@ -145,16 +126,10 @@ void main() {
               cameras: [],
             ),
           ),
-          groupServiceProvider('group-id')
-              .overrideWith(() => _FakeGroupService(publicGroup)),
-          groupDetailsReadyProvider('group-id')
+          groupDetailsProvider('group-id')
               .overrideWith((ref) => details.stream),
-          groupProfilePictureByIdProvider('group-id')
-              .overrideWith((ref) => Stream<Uint8List?>.value(null)),
           memberServiceProvider('group-id')
               .overrideWith(_EmptyMemberService.new),
-          sortedGroupPinsProvider('group-id')
-              .overrideWith((ref) => Future<List<PinEntity>?>.value([])),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
         ],
@@ -162,36 +137,55 @@ void main() {
       ),
     );
 
-    details.add(publicGroup);
+    details.add(_details(publicGroup));
     await tester.pump();
     expect(find.byType(GroupOverview), findsOneWidget);
 
-    details.add(privateGroup);
+    details.add(_details(privateGroup));
     await tester.pump();
     expect(find.byType(GroupOverview), findsNothing);
     expect(find.byIcon(Icons.lock), findsOneWidget);
 
-    details.add(memberGroup);
+    details.add(_details(memberGroup));
     await tester.pump();
     expect(find.byType(GroupOverview), findsOneWidget);
   });
+
+  testWidgets('renders a terminal state when a group is unavailable', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          groupDetailsProvider('group-id').overrideWith(
+            (ref) => Stream.value(
+              const GroupDetailsState(
+                group: null,
+                pins: AsyncData<List<PinEntity>>([]),
+                profileImage: AsyncData<Uint8List?>(null),
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: UserGroupOverview(groupId: 'group-id')),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Group not found'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
 }
+
+GroupDetailsState _details(GroupEntity group) => GroupDetailsState(
+  group: group,
+  pins: const AsyncData<List<PinEntity>>([]),
+  profileImage: const AsyncData<Uint8List?>(null),
+);
 
 class _EmptyUserGroupService extends UserGroupService {
   @override
   Stream<List<GroupEntity>> build() => Stream.value([]);
-}
-
-class _FakeGroupService extends GroupService {
-  _FakeGroupService(this.group);
-
-  final GroupEntity group;
-
-  @override
-  Stream<GroupEntity?> build(String groupId) => Stream.value(group);
-
-  @override
-  Future<GroupEntity?> hydrate() async => group;
 }
 
 class _EmptyMemberService extends MemberService {
