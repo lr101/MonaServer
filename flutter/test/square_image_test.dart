@@ -44,6 +44,13 @@ class _UnavailableImageRepository implements IImageRepository {
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async => null;
 
   @override
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive,
+  ) async => null;
+
+  @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}
 
   @override

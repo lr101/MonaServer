@@ -62,6 +62,97 @@ void main() {
     expect(urlLookups, 1);
   });
 
+  test(
+    'URL image loads revalidate expired bytes and promote keep alive',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      var endpointLookups = 0;
+      final requestedPaths = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.groupSmall,
+        getImageUrl: (_) async {
+          endpointLookups++;
+          return 'https://example.com/endpoint';
+        },
+        httpGet: (uri) async {
+          requestedPaths.add(uri.path);
+          return http.Response.bytes([2], 200);
+        },
+        maxItems: 10,
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.groupSmall,
+          image: Uint8List.fromList([1]),
+          ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      final image = await repository.fetchImageFromUrl(
+        'group-1',
+        'https://example.com/search',
+        true,
+      );
+
+      expect(image, [2]);
+      expect(requestedPaths, ['/search']);
+      expect(endpointLookups, 0);
+      expect((await repository.get('group-1'))!.keepAlive, isTrue);
+    },
+  );
+
+  test(
+    'URL failures bypass fresh empty cache rows for endpoint fallback',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      var endpointLookups = 0;
+      final requestedPaths = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.groupSmall,
+        getImageUrl: (_) async {
+          endpointLookups++;
+          return 'https://example.com/endpoint';
+        },
+        httpGet: (uri) async {
+          requestedPaths.add(uri.path);
+          if (uri.path == '/search') return http.Response.bytes([], 500);
+          return http.Response.bytes([3], 200);
+        },
+        maxItems: 10,
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.groupSmall,
+          image: Uint8List(0),
+          ttl: DateTime.now().add(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      final image = await repository.fetchImageFromUrl(
+        'group-1',
+        'https://example.com/search',
+        false,
+      );
+
+      expect(image, [3]);
+      expect(requestedPaths, ['/search', '/endpoint']);
+      expect(endpointLookups, 1);
+      expect((await repository.get('group-1'))!.image, [3]);
+    },
+  );
+
   test('migrates legacy image rows to stable composite keys', () async {
     final nativeDatabase = sqlite3.openInMemory();
     final initialDatabase = AppDatabase(

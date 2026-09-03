@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
+import 'package:openapi/api.dart';
 
 class GroupSearch extends ConsumerStatefulWidget {
   const GroupSearch({super.key});
@@ -19,6 +20,7 @@ class GroupSearch extends ConsumerStatefulWidget {
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
   final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _profileImageSmallUrls = <String, String?>{};
 
   final _textEditController = TextEditingController();
 
@@ -65,9 +67,8 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       ),
       listBuilder: (context, item, index) => GroupTile(
         groupDto: item,
-        // Search results are metadata-only; fetch the full-size image after
-        // the group overview is loaded instead of competing with navigation.
-        loadImage: false,
+        imageUrl: _profileImageSmallUrls[item.groupId],
+        loadImage: _profileImageSmallUrls[item.groupId] != null,
         onTap: () => context.pushNamed(
           'groupOverview',
           pathParameters: {"id": item.groupId},
@@ -78,22 +79,32 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   }
 
   Future<void> updatePage(int pageKey) async {
-    final groups = await ref
-        .watch(groupApiProvider)
-        .getGroupsByIds(
-          search: _textEditController.text,
-          withUser: false,
-          userId: ref.watch(globalDataServiceProvider).userId,
-          page: pageKey,
-          size: _pageSize,
-          withImages: false,
-        );
+    GroupsSyncDto? groups;
+    try {
+      groups = await _fetchPage(pageKey, withImages: true);
+    } catch (_) {
+      // Search results remain useful if object storage cannot presign an
+      // image. Retry metadata-only rather than leaving the paging spinner up.
+    }
+    if (groups == null) {
+      try {
+        groups = await _fetchPage(pageKey, withImages: false);
+      } catch (_) {
+        _pagingController.error = "Groups could not be fetched";
+        return;
+      }
+    }
     if (groups == null) {
       _pagingController.error = "Groups could not be fetched";
       return;
     }
     final groupDtos = <GroupEntity>[];
     for (final e in groups.items) {
+      final profileImageSmall = e.profileImageSmall;
+      _profileImageSmallUrls[e.id] =
+          profileImageSmall == null || profileImageSmall.isEmpty
+          ? null
+          : profileImageSmall;
       groupDtos.add(GroupEntity.fromGroupDto(e, true, false));
     }
     if (groupDtos.length < _pageSize) {
@@ -101,6 +112,19 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
     } else {
       _pagingController.appendPage(groupDtos, pageKey + 1);
     }
+  }
+
+  Future<GroupsSyncDto?> _fetchPage(int pageKey, {required bool withImages}) {
+    return ref
+        .watch(groupApiProvider)
+        .getGroupsByIds(
+          search: _textEditController.text,
+          withUser: false,
+          userId: ref.watch(globalDataServiceProvider).userId,
+          page: pageKey,
+          size: _pageSize,
+          withImages: withImages,
+        );
   }
 
   void listener() {

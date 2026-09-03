@@ -5,16 +5,19 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/group_search/presentation/group_search.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
+import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('search rows do not request remote thumbnails', (tester) async {
+  testWidgets('search rows load the returned small thumbnail', (tester) async {
     final groupsApi = _RecordingGroupsApi();
     var thumbnailProviderBuilds = 0;
 
@@ -30,10 +33,14 @@ void main() {
           ),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupApiProvider.overrideWithValue(groupsApi),
-          groupProfilePictureSmallByIdProvider('group-id').overrideWith((ref) {
+          groupProfilePictureSmallByUrlProvider((
+            groupId: 'group-id',
+            url: 'https://example.com/group-small.png',
+          )).overrideWith((ref) {
             thumbnailProviderBuilds++;
-            return Stream<Uint8List?>.value(null);
+            return Stream<Uint8List?>.value(Uint8List.fromList([1]));
           }),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: const MaterialApp(home: GroupSearch()),
       ),
@@ -46,14 +53,48 @@ void main() {
     await tester.pump();
 
     expect(find.text('Public group'), findsOneWidget);
-    expect(thumbnailProviderBuilds, 0);
+    expect(groupsApi.requestedWithImages, [true]);
+    expect(thumbnailProviderBuilds, 1);
   });
+
+  testWidgets(
+    'search retries without images when image URLs cannot be generated',
+    (tester) async {
+      final groupsApi = _RecordingGroupsApi(failImageRequest: true);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            globalDataServiceProvider.overrideWithValue(
+              const GlobalDataDto(
+                userId: 'user-id',
+                refreshToken: null,
+                cameras: [],
+              ),
+            ),
+            userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+            groupApiProvider.overrideWithValue(groupsApi),
+          ],
+          child: const MaterialApp(home: GroupSearch()),
+        ),
+      );
+
+      await groupsApi.requestStarted.future;
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Public group'), findsOneWidget);
+      expect(groupsApi.requestedWithImages, [true, false]);
+    },
+  );
 }
 
 class _RecordingGroupsApi extends GroupsApi {
-  _RecordingGroupsApi() : super(ApiClient());
+  _RecordingGroupsApi({this.failImageRequest}) : super(ApiClient());
 
   final requestStarted = Completer<void>();
+  final bool? failImageRequest;
+  final requestedWithImages = <bool?>[];
 
   @override
   Future<GroupsSyncDto?> getGroupsByIds({
@@ -66,9 +107,22 @@ class _RecordingGroupsApi extends GroupsApi {
     int? size,
     DateTime? updatedAfter,
   }) async {
-    requestStarted.complete();
+    requestedWithImages.add(withImages);
+    if (!requestStarted.isCompleted) requestStarted.complete();
+    if (failImageRequest == true && withImages == true) {
+      throw StateError('image URL generation failed');
+    }
     return GroupsSyncDto(
-      items: [GroupDto(id: 'group-id', name: 'Public group', visibility: 0)],
+      items: [
+        GroupDto(
+          id: 'group-id',
+          name: 'Public group',
+          visibility: 0,
+          profileImageSmall: withImages == true
+              ? 'https://example.com/group-small.png'
+              : null,
+        ),
+      ],
     );
   }
 }
