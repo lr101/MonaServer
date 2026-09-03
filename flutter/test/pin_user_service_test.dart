@@ -317,15 +317,19 @@ void main() {
   });
 
   test(
-    'promotes cached pins when membership arrives after a public refresh',
+    'promotes cached pins when a later incremental refresh is empty',
     () async {
       final groupUpdates = StreamController<List<GroupEntity>>();
       addTearDown(groupUpdates.close);
       final repository = _LivePinRepository();
+      final secondRequestStarted = Completer<void>();
       var requestCount = 0;
       final api = RecordingPinsApi(
         responseOverride: () async {
           requestCount++;
+          if (requestCount == 2 && !secondRequestStarted.isCompleted) {
+            secondRequestStarted.complete();
+          }
           return requestCount == 1
               ? PinsSyncDto(items: [_remotePin()])
               : PinsSyncDto();
@@ -357,10 +361,14 @@ void main() {
       expect(repository.keepAliveUpdateStarted.isCompleted, isFalse);
 
       groupUpdates.add([_joinedGroup()]);
+      await secondRequestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
       await repository.keepAliveUpdateStarted.future.timeout(
         const Duration(milliseconds: 100),
       );
 
+      expect(requestCount, 2);
       expect(repository.promotedKeepAlive, isTrue);
       expect(repository.promotedOnlySession, isFalse);
     },
