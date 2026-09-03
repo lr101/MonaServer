@@ -1,16 +1,48 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:drift/native.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:openapi/api.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('image repository providers use four times the cache capacity', () {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final apiClient = ApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        driftRepoProvider.overrideWithValue(database),
+        groupApiProvider.overrideWithValue(GroupsApi(apiClient)),
+        userApiProvider.overrideWithValue(UsersApi(apiClient)),
+        pinApiProvider.overrideWithValue(PinsApi(apiClient)),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final expectedLimits = <IImageRepository, int>{
+      container.read(groupProfileRepoProvider): 400,
+      container.read(groupProfileSmallRepoProvider): 400,
+      container.read(groupPinImageRepoProvider): 200,
+      container.read(userImageSmallRepoProvider): 2000,
+      container.read(userImageRepoProvider): 200,
+      container.read(pinImageRepositoryProvider): 800,
+    };
+
+    for (final entry in expectedLimits.entries) {
+      expect((entry.key as ImageRepository).maxItems, entry.value);
+    }
+  });
 
   test('image cache operations keep image types isolated', () async {
     final database = AppDatabase(NativeDatabase.memory());

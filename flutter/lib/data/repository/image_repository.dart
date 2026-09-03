@@ -768,7 +768,7 @@ IImageRepository groupProfileRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.group,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
-    maxItems: 100,
+    maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -779,7 +779,7 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupSmall,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
-    maxItems: 100,
+    maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -790,7 +790,7 @@ IImageRepository groupPinImageRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupPin,
     getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
-    maxItems: 50,
+    maxItems: 200,
     ttlDuration: const Duration(days: 30),
   );
 }
@@ -801,7 +801,7 @@ IImageRepository userImageSmallRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.userSmall,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
-    maxItems: 500,
+    maxItems: 2000,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -812,7 +812,7 @@ IImageRepository userImageRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.user,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
-    maxItems: 50,
+    maxItems: 200,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -823,7 +823,7 @@ IImageRepository pinImageRepository(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.pin,
     getImageUrl: ref.watch(pinApiProvider).getPinImage,
-    maxItems: 200,
+    maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
 }
