@@ -20,7 +20,6 @@ class GroupSearch extends ConsumerStatefulWidget {
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
   final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
-  final _profileImageSmallUrls = <String, String?>{};
 
   final _textEditController = TextEditingController();
 
@@ -67,8 +66,6 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       ),
       listBuilder: (context, item, index) => GroupTile(
         groupDto: item,
-        imageUrl: _profileImageSmallUrls[item.groupId],
-        loadImage: _profileImageSmallUrls[item.groupId] != null,
         onTap: () => context.pushNamed(
           'groupOverview',
           pathParameters: {"id": item.groupId},
@@ -79,51 +76,35 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   }
 
   Future<void> updatePage(int pageKey) async {
-    GroupsSyncDto? groups;
     try {
-      groups = await _fetchPage(pageKey, withImages: true);
-    } catch (_) {
-      // Search results remain useful if object storage cannot presign an
-      // image. Retry metadata-only rather than leaving the paging spinner up.
-    }
-    if (groups == null) {
-      try {
-        groups = await _fetchPage(pageKey, withImages: false);
-      } catch (_) {
+      final groups = await _fetchPage(pageKey);
+      if (groups == null) {
         _pagingController.error = "Groups could not be fetched";
         return;
       }
-    }
-    if (groups == null) {
+      final groupDtos = groups.items
+          .map((e) => GroupEntity.fromGroupDto(e, true, false))
+          .toList();
+      if (groupDtos.length < _pageSize) {
+        _pagingController.appendLastPage(groupDtos);
+      } else {
+        _pagingController.appendPage(groupDtos, pageKey + 1);
+      }
+    } catch (_) {
       _pagingController.error = "Groups could not be fetched";
-      return;
-    }
-    final groupDtos = <GroupEntity>[];
-    for (final e in groups.items) {
-      final profileImageSmall = e.profileImageSmall;
-      _profileImageSmallUrls[e.id] =
-          profileImageSmall == null || profileImageSmall.isEmpty
-          ? null
-          : profileImageSmall;
-      groupDtos.add(GroupEntity.fromGroupDto(e, true, false));
-    }
-    if (groupDtos.length < _pageSize) {
-      _pagingController.appendLastPage(groupDtos);
-    } else {
-      _pagingController.appendPage(groupDtos, pageKey + 1);
     }
   }
 
-  Future<GroupsSyncDto?> _fetchPage(int pageKey, {required bool withImages}) {
+  Future<GroupsSyncDto?> _fetchPage(int pageKey) {
     return ref
-        .watch(groupApiProvider)
+        .read(groupApiProvider)
         .getGroupsByIds(
           search: _textEditController.text,
           withUser: false,
-          userId: ref.watch(globalDataServiceProvider).userId,
+          userId: ref.read(globalDataServiceProvider).userId,
           page: pageKey,
           size: _pageSize,
-          withImages: withImages,
+          withImages: false,
         );
   }
 
