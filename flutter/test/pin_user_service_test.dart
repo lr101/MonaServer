@@ -317,6 +317,56 @@ void main() {
   });
 
   test(
+    'promotes cached pins when membership arrives after a public refresh',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = _LivePinRepository();
+      var requestCount = 0;
+      final api = RecordingPinsApi(
+        responseOverride: () async {
+          requestCount++;
+          return requestCount == 1
+              ? PinsSyncDto(items: [_remotePin()])
+              : PinsSyncDto();
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(repository.close);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await repository.putCompleted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.keepAliveUpdateStarted.isCompleted, isFalse);
+
+      groupUpdates.add([_joinedGroup()]);
+      await repository.keepAliveUpdateStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(repository.promotedKeepAlive, isTrue);
+      expect(repository.promotedOnlySession, isFalse);
+    },
+  );
+
+  test(
     'promotes pins when the group joins during a public refresh write',
     () async {
       final groupUpdates = StreamController<List<GroupEntity>>();

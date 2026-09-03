@@ -116,6 +116,9 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   // may already have populated joined groups, but the details view uses this
   // same refresh path for every membership state.
   Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
+    final membershipBeforeFetch = _currentMembership();
+    await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
+
     final remotePins = await _pinsApi.getPinImagesByIds(
       groupId: groupId,
       withImage: false,
@@ -127,9 +130,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
       await _pinRepository.deleteMultiple(remotePins.deleted);
     }
 
-    final latestUserGroups = ref.read(userGroupServiceProvider).value;
-    final latestIsUserGroup =
-        latestUserGroups?.any((e) => e.groupId == groupId) ?? false;
+    final latestIsUserGroup = _currentMembership() ?? false;
 
     final pins = remotePins.items
         .map(
@@ -145,18 +146,34 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     // Membership may change while the repository batch is being written.
     // Align the cache policy with the state visible after the write.
     await Future<void>.delayed(Duration.zero);
-    final joinedAfterWrite =
-        ref
-            .read(userGroupServiceProvider)
-            .value
-            ?.any((e) => e.groupId == groupId) ??
-        false;
-    if (joinedAfterWrite != latestIsUserGroup) {
+    final joinedAfterWrite = _currentMembership();
+    if (joinedAfterWrite != null && joinedAfterWrite != latestIsUserGroup) {
       await _pinRepository.updateKeepAlive(
         groupId,
         joinedAfterWrite,
         !joinedAfterWrite,
       );
+    }
+  }
+
+  bool? _currentMembership() {
+    final userGroups = ref.read(userGroupServiceProvider).value;
+    if (userGroups == null) return null;
+    return userGroups.any((group) => group.groupId == groupId);
+  }
+
+  Future<void> _reconcileCachePolicy(
+    List<PinEntity> cachedPins,
+    bool? isUserGroup,
+  ) async {
+    if (isUserGroup == null || cachedPins.isEmpty) return;
+
+    final onlySession = !isUserGroup;
+    final needsUpdate = cachedPins.any(
+      (pin) => pin.keepAlive != isUserGroup || pin.onlySession != onlySession,
+    );
+    if (needsUpdate) {
+      await _pinRepository.updateKeepAlive(groupId, isUserGroup, onlySession);
     }
   }
 }
