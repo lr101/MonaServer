@@ -34,6 +34,7 @@ class _ActiveImageRequest {
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
   Future<Uint8List?> fetchImage(String id, bool keepAlive);
+  Future<Uint8List?> fetchImageFromUrl(String id, String url, bool keepAlive);
   Stream<Uint8List?> watchImageBytes(String id);
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive);
   Future<void> addImage(String id, Uint8List image, bool keepAlive);
@@ -458,10 +459,54 @@ class ImageRepository extends CacheImpl<ImageEntity>
     return _fetchWithDedup(id, keepAlive);
   }
 
+  @override
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive,
+  ) async {
+    await ready;
+    final cacheKey = _cacheKey(id);
+    final activeRequest = _activeRequests[cacheKey];
+    if (activeRequest != null) {
+      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
+      final image = await activeRequest.future;
+      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
+      return image;
+    }
+
+    final now = DateTime.now();
+    final cachedImage = await _getByCacheKey(cacheKey);
+    Uint8List? fallback;
+    var effectiveKeepAlive = keepAlive;
+    if (cachedImage != null) {
+      effectiveKeepAlive = keepAlive || cachedImage.keepAlive;
+      final image = cachedImage.image;
+      if (image != null && image.isNotEmpty) {
+        _rememberBytes(id, image);
+        await _touch(cachedImage, keepAlive: keepAlive);
+        fallback = _readMemoryBytes(id)!;
+        if (cachedImage.ttl.isAfter(now)) return fallback;
+      } else if (image != null && image.isEmpty) {
+        // A search response can provide a newly valid URL after a previous
+        // request cached a temporary missing-image result.
+        await _touch(cachedImage, keepAlive: keepAlive);
+      }
+    }
+
+    return _fetchWithDedup(
+      id,
+      effectiveKeepAlive,
+      fallback: fallback,
+      imageUrl: url,
+    );
+  }
+
   Future<Uint8List?> _fetchWithDedup(
     String id,
     bool keepAlive, {
     Uint8List? fallback,
+    String? imageUrl,
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
@@ -473,7 +518,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
     }
 
     final requestState = _ActiveImageRequest(keepAlive);
-    final request = _fetchAndCacheImage(id, requestState, fallback: fallback);
+    final request = _fetchAndCacheImage(
+      id,
+      requestState,
+      fallback: fallback,
+      imageUrl: imageUrl,
+    );
     requestState.future = request;
     _activeRequests[cacheKey] = requestState;
     try {
@@ -486,6 +536,47 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }
 
   Future<Uint8List?> _fetchAndCacheImage(
+    String id,
+    _ActiveImageRequest requestState, {
+    Uint8List? fallback,
+    String? imageUrl,
+  }) async {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      final image = await _fetchAndCacheFromUrl(
+        id,
+        imageUrl,
+        requestState.initialKeepAlive,
+      );
+      if (image != null) return image;
+    }
+
+    return _fetchAndCacheFromEndpoint(id, requestState, fallback: fallback);
+  }
+
+  Future<Uint8List?> _fetchAndCacheFromUrl(
+    String id,
+    String imageUrl,
+    bool keepAlive,
+  ) async {
+    try {
+      final response = await _httpGet(Uri.parse(imageUrl))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.bodyBytes.isEmpty) return null;
+        return await _saveAndPrecacheImage(id, response.bodyBytes, keepAlive);
+      }
+      debugPrint(
+        'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
+      );
+    } catch (error) {
+      debugPrint(
+        'Network exception fetching image $id from supplied URL: $error',
+      );
+    }
+    return null;
+  }
+
+  Future<Uint8List?> _fetchAndCacheFromEndpoint(
     String id,
     _ActiveImageRequest requestState, {
     Uint8List? fallback,
@@ -677,7 +768,7 @@ IImageRepository groupProfileRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.group,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
-    maxItems: 100,
+    maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -688,7 +779,7 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupSmall,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
-    maxItems: 100,
+    maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -699,7 +790,7 @@ IImageRepository groupPinImageRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupPin,
     getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
-    maxItems: 50,
+    maxItems: 200,
     ttlDuration: const Duration(days: 30),
   );
 }
@@ -710,7 +801,7 @@ IImageRepository userImageSmallRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.userSmall,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
-    maxItems: 500,
+    maxItems: 2000,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -721,7 +812,7 @@ IImageRepository userImageRepo(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.user,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
-    maxItems: 50,
+    maxItems: 200,
     ttlDuration: const Duration(days: 7),
   );
 }
@@ -732,7 +823,7 @@ IImageRepository pinImageRepository(Ref ref) {
     db: ref.watch(driftRepoProvider),
     type: ImageType.pin,
     getImageUrl: ref.watch(pinApiProvider).getPinImage,
-    maxItems: 200,
+    maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
 }

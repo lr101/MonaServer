@@ -58,6 +58,83 @@ void main() {
     expect(largeRepository.fetches, isEmpty);
   });
 
+  test(
+    'unjoined group profile images load without a membership snapshot',
+    () async {
+      final repository = _RecordingImageRepository(ImageType.group);
+      final container = ProviderContainer(
+        overrides: [
+          groupProfileRepoProvider.overrideWithValue(repository),
+          userGroupServiceProvider.overrideWith(
+            _UserGroupServiceWithoutInitialValue.new,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final membershipSubscription = container.listen(
+        userGroupServiceProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(membershipSubscription.close);
+
+      final subscription = container.listen(
+        groupProfilePictureByIdProvider('group-1'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await container
+          .read(groupProfilePictureByIdProvider('group-1').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(repository.fetches, [('group-1', false)]);
+    },
+  );
+
+  test('search thumbnails use the supplied URL after subscribing', () async {
+    final repository = _RecordingImageRepository(ImageType.groupSmall)
+      ..urlFetchGate = Completer<void>();
+    final container = ProviderContainer(
+      overrides: [
+        groupProfileSmallRepoProvider.overrideWithValue(repository),
+        userGroupServiceProvider.overrideWith(_FakeUserGroupService.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final membershipSubscription = container.listen(
+      userGroupServiceProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(membershipSubscription.close);
+    await container.read(userGroupServiceProvider.future);
+
+    final subscription = container.listen(
+      groupProfilePictureSmallByUrlProvider((
+        groupId: 'group-1',
+        url: 'https://example.com/group-small.png',
+      )),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await repository.urlFetchStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+
+    expect(repository.events, ['watch-created', 'watch-listened', 'fetch-url']);
+    expect(repository.fetches, isEmpty);
+    expect(repository.urlFetches, [
+      ('group-1', 'https://example.com/group-small.png', false),
+    ]);
+    repository.urlFetchGate!.complete();
+  });
+
   test('group pin image provider watches before fetching the image', () async {
     final repository = _RecordingImageRepository(ImageType.groupPin)
       ..fetchGate = Completer<void>();
@@ -141,15 +218,24 @@ class _FakeUserGroupService extends UserGroupService {
   Stream<List<GroupEntity>> build() => Stream.value([]);
 }
 
+class _UserGroupServiceWithoutInitialValue extends UserGroupService {
+  @override
+  Stream<List<GroupEntity>> build() => const Stream<List<GroupEntity>>.empty();
+}
+
 class _RecordingImageRepository implements IImageRepository {
   _RecordingImageRepository(this.type);
 
   @override
   final ImageType type;
   final List<(String, bool)> fetches = [];
+  final List<(String, String, bool)> overrides = [];
+  final List<(String, String, bool)> urlFetches = [];
   final List<String> events = [];
   Completer<void>? fetchGate;
   Object? fetchError;
+  Completer<void>? urlFetchGate;
+  final urlFetchStarted = Completer<void>();
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
@@ -158,6 +244,19 @@ class _RecordingImageRepository implements IImageRepository {
     await fetchGate?.future;
     final error = fetchError;
     if (error != null) throw error;
+    return null;
+  }
+
+  @override
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive,
+  ) async {
+    events.add('fetch-url');
+    urlFetches.add((id, url, keepAlive));
+    if (!urlFetchStarted.isCompleted) urlFetchStarted.complete();
+    await urlFetchGate?.future;
     return null;
   }
 
@@ -171,8 +270,11 @@ class _RecordingImageRepository implements IImageRepository {
   }
 
   @override
-  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async =>
-      Uint8List(0);
+  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
+    events.add('override');
+    overrides.add((id, url, keepAlive));
+    return Uint8List(0);
+  }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}
@@ -187,7 +289,10 @@ class _RecordingImageRepository implements IImageRepository {
   Future<void> deleteMultiple(List<String> ids) async {}
 
   @override
-  Future<ImageEntity?> get(String id) async => null;
+  Future<ImageEntity?> get(String id) async {
+    events.add('get');
+    return null;
+  }
 
   @override
   Future<void> delete(String id) async {}

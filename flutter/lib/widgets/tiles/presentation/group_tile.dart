@@ -10,6 +10,7 @@ class GroupTile extends ConsumerWidget {
   final VoidCallback? onTap;
   final bool userCachedImage;
   final bool loadImage;
+  final String? imageUrl;
   final Widget? tailing;
 
   const GroupTile({
@@ -18,6 +19,7 @@ class GroupTile extends ConsumerWidget {
     this.onTap,
     this.userCachedImage = false,
     this.loadImage = true,
+    this.imageUrl,
     this.tailing,
   });
 
@@ -45,27 +47,31 @@ class GroupTile extends ConsumerWidget {
           ),
         ],
       ),
-      leading: !loadImage
-          ? const CircleAvatar(radius: 25.0)
-          : !userCachedImage
-          ? RoundImage(
-              imageCallback: ref.watch(
-                groupProfilePictureSmallByIdProvider(groupDto.groupId),
-              ),
-              size: 25.0,
-              child: Container(),
-            )
-          : RoundCachedImage(
-              image: ref
-                  .watch(groupProfilePictureSmallByIdProvider(groupDto.groupId))
-                  .value,
-              size: 25.0,
-            ),
+      leading: !loadImage ? const CircleAvatar(radius: 25.0) : _image(ref),
     );
     if (onTap == null) {
       return listTile;
     } else {
       return GestureDetector(onTap: onTap, child: listTile);
     }
+  }
+
+  Widget _image(WidgetRef ref) {
+    final imageCallback = imageUrl == null || imageUrl!.isEmpty
+        ? ref.watch(groupProfilePictureSmallByIdProvider(groupDto.groupId))
+        : ref.watch(
+            groupProfilePictureSmallByUrlProvider((
+              groupId: groupDto.groupId,
+              url: imageUrl!,
+            )),
+          );
+    if (!userCachedImage) {
+      return RoundImage(
+        imageCallback: imageCallback,
+        size: 25.0,
+        child: Container(),
+      );
+    }
+    return RoundCachedImage(image: imageCallback.value, size: 25.0);
   }
 }

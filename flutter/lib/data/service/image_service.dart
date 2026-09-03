@@ -46,6 +46,23 @@ Stream<Uint8List?> groupProfilePictureSmallById(Ref ref, String groupId) {
   return _watchAndFetchImage(repo, groupId, userGroup ?? false);
 }
 
+/// Uses a presigned URL already returned by a group search response.
+final groupProfilePictureSmallByUrlProvider = StreamProvider.autoDispose
+    .family<Uint8List?, ({String groupId, String url})>((ref, image) {
+      final userGroup = ref.watch(
+        userGroupServiceProvider.select(
+          (e) => e.value?.any((f) => f.groupId == image.groupId),
+        ),
+      );
+      final repo = ref.watch(groupProfileSmallRepoProvider);
+      return _watchAndFetchImage(
+        repo,
+        image.groupId,
+        userGroup ?? false,
+        imageUrl: image.url,
+      );
+    });
+
 @riverpod
 Stream<Uint8List?> groupPinImageById(Ref ref, String groupId) {
   final userGroup = ref.watch(
@@ -60,8 +77,9 @@ Stream<Uint8List?> groupPinImageById(Ref ref, String groupId) {
 Stream<Uint8List?> _watchAndFetchImage(
   IImageRepository repo,
   String id,
-  bool keepAlive,
-) {
+  bool keepAlive, {
+  String? imageUrl,
+}) {
   late final StreamController<Uint8List?> controller;
   StreamSubscription<Uint8List?>? watcher;
   var cancelled = false;
@@ -81,6 +99,7 @@ Stream<Uint8List?> _watchAndFetchImage(
           keepAlive,
           controller,
           () => !cancelled,
+          imageUrl: imageUrl,
         ),
       );
     },
@@ -98,10 +117,16 @@ Future<void> _fetchImageInBackground(
   String id,
   bool keepAlive,
   StreamController<Uint8List?> controller,
-  bool Function() isActive,
-) async {
+  bool Function() isActive, {
+  String? imageUrl,
+}) async {
   try {
-    await repo.fetchImage(id, keepAlive);
+    if (imageUrl == null || imageUrl.isEmpty) {
+      await repo.fetchImage(id, keepAlive);
+      return;
+    }
+
+    await repo.fetchImageFromUrl(id, imageUrl, keepAlive);
   } catch (error, stackTrace) {
     if (isActive() && !controller.isClosed) {
       controller.addError(error, stackTrace);

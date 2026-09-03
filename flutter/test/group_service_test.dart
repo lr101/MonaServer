@@ -19,6 +19,79 @@ import 'package:openapi/api.dart';
 
 void main() {
   test(
+    'unjoined group details do not wait for the user group stream',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            _UserGroupServiceWithoutInitialValue.new,
+          ),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(
+            _FakeGroupsApi(_groupWithoutImages()),
+          ),
+          pinGroupServiceProvider('group-id')
+              .overrideWith((ref) => Future.value(<PinEntity>[])),
+          groupProfilePictureByIdProvider('group-id')
+              .overrideWith((ref) => Stream.value(null)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        groupDetailsProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final details = await container
+          .read(groupDetailsProvider('group-id').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(details.group?.groupId, 'group-id');
+      expect(details.group?.userIsMember, isFalse);
+    },
+  );
+
+  test(
+    'unjoined private group details do not wait for the user group stream',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            _UserGroupServiceWithoutInitialValue.new,
+          ),
+          groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+          groupApiProvider.overrideWithValue(
+            _FakeGroupsApi(_privateGroupWithoutImages()),
+          ),
+          pinGroupServiceProvider('group-id')
+              .overrideWith((ref) => Future.value(<PinEntity>[])),
+          groupProfilePictureByIdProvider('group-id')
+              .overrideWith((ref) => Stream.value(null)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        groupDetailsProvider('group-id'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final details = await container
+          .read(groupDetailsProvider('group-id').future)
+          .timeout(const Duration(milliseconds: 100));
+
+      expect(details.group?.groupId, 'group-id');
+      expect(details.group?.visibility, 1);
+      expect(details.group?.userIsMember, isFalse);
+    },
+  );
+
+  test(
     'shared group details expose metadata without waiting for pins or media',
     () async {
       final pendingPins = Completer<List<PinEntity>>();
@@ -971,6 +1044,9 @@ GroupDto _groupWithImages() => GroupDto(
 GroupDto _groupWithoutImages() =>
     GroupDto(id: 'group-id', name: 'Group', visibility: 0);
 
+GroupDto _privateGroupWithoutImages() =>
+    GroupDto(id: 'group-id', name: 'Private group', visibility: 1);
+
 class _FakeMembersApi extends MembersApi {
   _FakeMembersApi(this.group) : super(ApiClient());
 
@@ -1030,6 +1106,11 @@ class _FakePinsApi extends PinsApi {
 class _EmptyUserGroupService extends UserGroupService {
   @override
   Stream<List<GroupEntity>> build() => Stream.value([]);
+}
+
+class _UserGroupServiceWithoutInitialValue extends UserGroupService {
+  @override
+  Stream<List<GroupEntity>> build() => const Stream<List<GroupEntity>>.empty();
 }
 
 class _FakeGroupRepository implements IGroupRepository {
@@ -1179,6 +1260,13 @@ class _FakeImageRepository implements IImageRepository {
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async => null;
+
+  @override
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive,
+  ) async => null;
 
   @override
   Future<ImageEntity?> get(String id) async => null;

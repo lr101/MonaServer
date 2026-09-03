@@ -24,14 +24,11 @@ class GroupMetadataLoader {
   final Ref ref;
   final Map<String, Future<GroupEntity?>> _activeLoads = {};
 
-  Future<GroupEntity?> load(
-    String groupId, {
-    required Future<List<GroupEntity>> userGroups,
-  }) {
+  Future<GroupEntity?> load(String groupId) {
     final activeLoad = _activeLoads[groupId];
     if (activeLoad != null) return activeLoad;
 
-    final load = _load(groupId, userGroups: userGroups);
+    final load = _load(groupId);
     _activeLoads[groupId] = load;
     unawaited(
       load.then<void>(
@@ -50,13 +47,9 @@ class GroupMetadataLoader {
     return load;
   }
 
-  Future<GroupEntity?> _load(
-    String groupId, {
-    required Future<List<GroupEntity>> userGroups,
-  }) async {
+  Future<GroupEntity?> _load(String groupId) async {
     final groupRepository = ref.read(groupRepositoryProvider);
     final groupsApi = ref.read(groupApiProvider);
-    final loadedUserGroups = await userGroups;
     final initialGroup = await groupRepository.get(groupId);
 
     if (initialGroup != null && !initialGroup.onlySession) {
@@ -72,8 +65,11 @@ class GroupMetadataLoader {
     }
 
     final latestGroup = await groupRepository.get(groupId);
+    // Unjoined groups can be opened before the first user-group snapshot is
+    // available. Use the state that is already loaded and let the repository
+    // stream reconcile membership when that snapshot arrives.
     final latestUserGroups =
-        ref.read(userGroupServiceProvider).value ?? loadedUserGroups;
+        ref.read(userGroupServiceProvider).value ?? const <GroupEntity>[];
     if (initialGroup?.userIsMember == true && latestGroup == null) {
       return null;
     }
@@ -118,9 +114,7 @@ class GroupService extends _$GroupService {
   }
 
   Future<GroupEntity?> _hydrate() {
-    return ref
-        .read(groupMetadataLoaderProvider)
-        .load(groupId, userGroups: ref.read(userGroupServiceProvider.future));
+    return ref.read(groupMetadataLoaderProvider).load(groupId);
   }
 }
 
@@ -130,12 +124,7 @@ final groupMetadataProvider = StreamProvider.autoDispose
     .family<GroupEntity?, String>((ref, groupId) async* {
       final keepAlive = ref.keepAlive();
       try {
-        final group = await ref
-            .read(groupMetadataLoaderProvider)
-            .load(
-              groupId,
-              userGroups: ref.watch(userGroupServiceProvider.future),
-            );
+        final group = await ref.read(groupMetadataLoaderProvider).load(groupId);
         if (group == null) {
           yield null;
           return;

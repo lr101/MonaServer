@@ -1,16 +1,48 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:drift/native.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:openapi/api.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('image repository providers use four times the cache capacity', () {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final apiClient = ApiClient();
+    final container = ProviderContainer(
+      overrides: [
+        driftRepoProvider.overrideWithValue(database),
+        groupApiProvider.overrideWithValue(GroupsApi(apiClient)),
+        userApiProvider.overrideWithValue(UsersApi(apiClient)),
+        pinApiProvider.overrideWithValue(PinsApi(apiClient)),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final expectedLimits = <IImageRepository, int>{
+      container.read(groupProfileRepoProvider): 400,
+      container.read(groupProfileSmallRepoProvider): 400,
+      container.read(groupPinImageRepoProvider): 200,
+      container.read(userImageSmallRepoProvider): 2000,
+      container.read(userImageRepoProvider): 200,
+      container.read(pinImageRepositoryProvider): 800,
+    };
+
+    for (final entry in expectedLimits.entries) {
+      expect((entry.key as ImageRepository).maxItems, entry.value);
+    }
+  });
 
   test('image cache operations keep image types isolated', () async {
     final database = AppDatabase(NativeDatabase.memory());
@@ -61,6 +93,97 @@ void main() {
 
     expect(urlLookups, 1);
   });
+
+  test(
+    'URL image loads revalidate expired bytes and promote keep alive',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      var endpointLookups = 0;
+      final requestedPaths = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.groupSmall,
+        getImageUrl: (_) async {
+          endpointLookups++;
+          return 'https://example.com/endpoint';
+        },
+        httpGet: (uri) async {
+          requestedPaths.add(uri.path);
+          return http.Response.bytes([2], 200);
+        },
+        maxItems: 10,
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.groupSmall,
+          image: Uint8List.fromList([1]),
+          ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      final image = await repository.fetchImageFromUrl(
+        'group-1',
+        'https://example.com/search',
+        true,
+      );
+
+      expect(image, [2]);
+      expect(requestedPaths, ['/search']);
+      expect(endpointLookups, 0);
+      expect((await repository.get('group-1'))!.keepAlive, isTrue);
+    },
+  );
+
+  test(
+    'URL failures bypass fresh empty cache rows for endpoint fallback',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      var endpointLookups = 0;
+      final requestedPaths = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.groupSmall,
+        getImageUrl: (_) async {
+          endpointLookups++;
+          return 'https://example.com/endpoint';
+        },
+        httpGet: (uri) async {
+          requestedPaths.add(uri.path);
+          if (uri.path == '/search') return http.Response.bytes([], 500);
+          return http.Response.bytes([3], 200);
+        },
+        maxItems: 10,
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.groupSmall,
+          image: Uint8List(0),
+          ttl: DateTime.now().add(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      final image = await repository.fetchImageFromUrl(
+        'group-1',
+        'https://example.com/search',
+        false,
+      );
+
+      expect(image, [3]);
+      expect(requestedPaths, ['/search', '/endpoint']);
+      expect(endpointLookups, 1);
+      expect((await repository.get('group-1'))!.image, [3]);
+    },
+  );
 
   test('migrates legacy image rows to stable composite keys', () async {
     final nativeDatabase = sqlite3.openInMemory();
