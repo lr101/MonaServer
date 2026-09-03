@@ -17,7 +17,9 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('search rows load the returned small thumbnail', (tester) async {
+  testWidgets('search rows load thumbnails without preloading image metadata', (
+    tester,
+  ) async {
     final groupsApi = _RecordingGroupsApi();
     var thumbnailProviderBuilds = 0;
 
@@ -33,10 +35,7 @@ void main() {
           ),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupApiProvider.overrideWithValue(groupsApi),
-          groupProfilePictureSmallByUrlProvider((
-            groupId: 'group-id',
-            url: 'https://example.com/group-small.png',
-          )).overrideWith((ref) {
+          groupProfilePictureSmallByIdProvider('group-id').overrideWith((ref) {
             thumbnailProviderBuilds++;
             return Stream<Uint8List?>.value(Uint8List.fromList([1]));
           }),
@@ -53,40 +52,40 @@ void main() {
     await tester.pump();
 
     expect(find.text('Public group'), findsOneWidget);
-    expect(groupsApi.requestedWithImages, [true]);
+    expect(groupsApi.requestedWithImages, [false]);
     expect(thumbnailProviderBuilds, 1);
   });
 
-  testWidgets(
-    'search retries without images when image URLs cannot be generated',
-    (tester) async {
-      final groupsApi = _RecordingGroupsApi(failImageRequest: true);
+  testWidgets('search results do not depend on image URL generation', (
+    tester,
+  ) async {
+    final groupsApi = _RecordingGroupsApi(failImageRequest: true);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            globalDataServiceProvider.overrideWithValue(
-              const GlobalDataDto(
-                userId: 'user-id',
-                refreshToken: null,
-                cameras: [],
-              ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataServiceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
             ),
-            userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
-            groupApiProvider.overrideWithValue(groupsApi),
-          ],
-          child: const MaterialApp(home: GroupSearch()),
-        ),
-      );
+          ),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupApiProvider.overrideWithValue(groupsApi),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: const MaterialApp(home: GroupSearch()),
+      ),
+    );
 
-      await groupsApi.requestStarted.future;
-      await tester.pump();
-      await tester.pump();
+    await groupsApi.requestStarted.future;
+    await tester.pump();
+    await tester.pump();
 
-      expect(find.text('Public group'), findsOneWidget);
-      expect(groupsApi.requestedWithImages, [true, false]);
-    },
-  );
+    expect(find.text('Public group'), findsOneWidget);
+    expect(groupsApi.requestedWithImages, [false]);
+  });
 }
 
 class _RecordingGroupsApi extends GroupsApi {

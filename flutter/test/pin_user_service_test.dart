@@ -196,6 +196,8 @@ void main() {
         ),
         pinRepositoryProvider.overrideWithValue(repository),
         pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
       ],
     );
     addTearDown(container.dispose);
@@ -235,7 +237,7 @@ void main() {
   });
 
   test(
-    'waits for membership before choosing the group pin cache policy',
+    'loads unjoined group pins without waiting for a membership snapshot',
     () async {
       final groupUpdates = StreamController<List<GroupEntity>>();
       addTearDown(groupUpdates.close);
@@ -261,17 +263,114 @@ void main() {
       );
       addTearDown(subscription.close);
 
-      await api.requestStarted.future.timeout(
-        const Duration(milliseconds: 100),
-      );
-      await Future<void>.delayed(Duration.zero);
-      groupUpdates.add([_joinedGroup()]);
       await repository.putStarted.future.timeout(
         const Duration(milliseconds: 100),
       );
 
-      expect(repository.putItems.single.keepAlive, isTrue);
-      expect(repository.putItems.single.onlySession, isFalse);
+      expect(repository.putItems.single.keepAlive, isFalse);
+      expect(repository.putItems.single.onlySession, isTrue);
+    },
+  );
+
+  test('publishes fetched unjoined pins to the group tab provider', () async {
+    final repository = _LivePinRepository();
+    final api = RecordingPinsApi(response: PinsSyncDto(items: [_remotePin()]));
+    final container = ProviderContainer(
+      overrides: [
+        userGroupServiceProvider.overrideWith(
+          () => _ControllableUserGroupService(const Stream.empty()),
+        ),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(repository.close);
+
+    final fetchedPins = Completer<List<PinEntity>>();
+    final subscription = container.listen(pinGroupServiceProvider('group'), (
+      _,
+      next,
+    ) {
+      final pins = next.value;
+      if (pins != null && pins.isNotEmpty && !fetchedPins.isCompleted) {
+        fetchedPins.complete(pins);
+      }
+    }, fireImmediately: true);
+    addTearDown(subscription.close);
+
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    await repository.putStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+    await repository.putCompleted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+    final pins = await fetchedPins.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+
+    expect(pins.single.pinId, 'remote-pin');
+    expect(pins.single.onlySession, isTrue);
+  });
+
+  test(
+    'promotes cached pins when a later incremental refresh is empty',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = _LivePinRepository();
+      final secondRequestStarted = Completer<void>();
+      var requestCount = 0;
+      final api = RecordingPinsApi(
+        responseOverride: () async {
+          requestCount++;
+          if (requestCount == 2 && !secondRequestStarted.isCompleted) {
+            secondRequestStarted.complete();
+          }
+          return requestCount == 1
+              ? PinsSyncDto(items: [_remotePin()])
+              : PinsSyncDto();
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(repository.close);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await repository.putCompleted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.keepAliveUpdateStarted.isCompleted, isFalse);
+
+      groupUpdates.add([_joinedGroup()]);
+      await secondRequestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await repository.keepAliveUpdateStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(requestCount, 2);
+      expect(repository.promotedKeepAlive, isTrue);
+      expect(repository.promotedOnlySession, isFalse);
     },
   );
 
@@ -402,6 +501,50 @@ PinWithOptionalImageDto _remotePin() => PinWithOptionalImageDto(
   creationUser: 'creator',
   groupId: 'group',
 );
+
+class _LivePinRepository extends FakePinRepository {
+  _LivePinRepository() : super({}, pinsByGroup: {});
+
+  final _groupStreams = <String, StreamController<List<PinEntity>>>{};
+  final putCompleted = Completer<void>();
+
+  @override
+  Stream<List<PinEntity>> getPinsByGroup(String groupId) {
+    final updates = _groupStreams.putIfAbsent(
+      groupId,
+      () => StreamController<List<PinEntity>>.broadcast(),
+    );
+    return Stream.multi((controller) {
+      controller.add(List.of(pinsByGroup[groupId] ?? const []));
+      final subscription = updates.stream.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = subscription.cancel;
+    });
+  }
+
+  @override
+  Future<void> putMultiple(List<PinEntity> items) async {
+    await super.putMultiple(items);
+    for (final item in items) {
+      (pinsByGroup[item.groupId] ??= []).add(item);
+    }
+    for (final item in items) {
+      _groupStreams[item.groupId]?.add(
+        List.of(pinsByGroup[item.groupId] ?? const []),
+      );
+    }
+    if (!putCompleted.isCompleted) putCompleted.complete();
+  }
+
+  Future<void> close() async {
+    for (final stream in _groupStreams.values) {
+      await stream.close();
+    }
+  }
+}
 
 class FakePinRepository implements IPinRepository {
   FakePinRepository(
