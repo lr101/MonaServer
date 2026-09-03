@@ -15,7 +15,7 @@ services:
         condition: service_healthy
 
   db:
-    image: postgis/postgis:17-master
+    image: postgis/postgis:18-master
     restart: unless-stopped
     container_name: stick-it-db-dev
     env_file:

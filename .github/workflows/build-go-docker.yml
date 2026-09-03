@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:17-master
+        image: postgis/postgis:18-master
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: testpw
