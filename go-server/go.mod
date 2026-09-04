@@ -1,6 +1,6 @@
 module github.com/lrprojects/monaserver
 
-go 1.25.8
+go 1.26.0
 
 require (
 	firebase.google.com/go/v4 v4.21.0
@@ -17,7 +17,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.8.1
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	google.golang.org/api v0.296.0
 )
 
