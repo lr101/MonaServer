@@ -49,7 +49,7 @@ func main() {
 
 	q := db.New(pool)
 	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
-	mailSvc := service.NewEmail(cfg, nil)
+	mailSvc := newMailService(cfg)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
 
@@ -208,6 +208,13 @@ func main() {
 		log.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func newMailService(cfg *config.Config) *service.Email {
+	if cfg.MailHost == "" {
+		return nil
+	}
+	return service.NewEmail(cfg, nil)
 }
 
 // registerRoutes registers controller routes into r, filtered by predicate on the pattern.

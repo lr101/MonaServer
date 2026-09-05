@@ -37,24 +37,65 @@ The app is structured as follows:
 2) Install dependencies
 Run these commands from the monorepo root:
 ```
-cd flutter
-flutter pub get
+mise run flutter-setup
 ```
 
 3) Generate code (Freezed, Json Serializable, Riverpod)
 ```
 # Generates all code
+cd flutter
 dart run build_runner build
 ```
 
 4) Run the app
 ```
 # Android
-flutter run -d android
+mise run flutter-run -- -d android
 
 # iOS (requires macOS)
-flutter run -d ios
+mise run flutter-run -- -d ios
 ```
+
+Build from the monorepo root with `mise run flutter-build-web` or
+`mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
+requires macOS and Xcode.
+
+### Browser verification and Playwright MCP
+
+For changes that affect the web UI or startup path, run the disposable
+Chromium flow against a local API:
+
+```bash
+E2E_API_URL=http://127.0.0.1:8080 mise run flutter-verify-web
+```
+
+The check builds `flutter/build/web`, starts a static server on port 4173,
+creates or reuses an E2E user and group through the API, and verifies login and
+the Groups screen. Its data is kept in the ignored
+`flutter/e2e/.auth/test-data.json`. Use `E2E_TEST_USERNAME`,
+`E2E_TEST_PASSWORD`, `E2E_TEST_GROUP`, and `E2E_TEST_EMAIL` for a known
+disposable account. `E2E_DATA_PATH` may point inside `flutter/e2e/.auth/` or to
+an external path that you protect yourself; repository paths outside the
+ignored auth directory are rejected. For a remote API with SMTP enabled,
+provide an accepted disposable email address; the default `.invalid` address
+is intended for local/CI APIs without mail. The default API is loopback-only;
+set
+`E2E_ALLOW_REMOTE_API=1` only when intentionally using a disposable remote
+test API.
+
+The root `.mcp.json` registers Playwright MCP. For an interactive agent
+session, build and serve the app, then navigate the MCP browser to
+`http://localhost:4173/`:
+
+```bash
+E2E_API_URL=http://127.0.0.1:8080 mise run flutter-build-web
+cd flutter/e2e && npm ci && npm run install:browsers
+python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+```
+
+Enable Flutter web accessibility by activating the `Enable accessibility`
+control before using DOM locators. Run the one-shot verifier once to seed the
+test account/group. See `flutter/AGENTS.md` for the agent-specific workflow.
 
 ### Optional: API generator setup
 The shared OpenAPI contract lives at `../api/openapi.yaml` when these commands run from `flutter/`.

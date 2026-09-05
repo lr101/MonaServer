@@ -1,5 +1,3 @@
-
-
 import 'dart:convert';
 
 import 'package:buff_lisa/data/dto/current_user_dto.dart';
@@ -7,7 +5,6 @@ import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -40,7 +37,6 @@ class WebSecureStorage implements ISecureStorage {
   }
 }
 
-
 @Riverpod(keepAlive: true)
 ISecureStorage secureStorage(Ref ref) {
   if (kIsWeb) {
@@ -68,14 +64,22 @@ class MobileSecureStorage implements ISecureStorage {
   }
 }
 
-class GlobalDataRepository {
+Future<List<CameraDescription>> loadAvailableCameras({
+  required bool isWeb,
+  Future<List<CameraDescription>> Function()? loader,
+}) async {
+  if (isWeb) return const <CameraDescription>[];
+  try {
+    return await (loader ?? availableCameras)();
+  } catch (_) {
+    return const <CameraDescription>[];
+  }
+}
 
+class GlobalDataRepository {
   final Ref ref;
 
   late SharedPreferences sharedPreferences;
-
-
-
 
   static const String usernameKey = "username";
   static const String userIdKey = "userId";
@@ -113,22 +117,30 @@ class GlobalDataRepository {
     sharedPreferences = ref.watch(sharedPreferencesProvider);
   }
 
-  static Future<GlobalDataDto> get(SharedPreferences sharedPreferences, ISecureStorage storage) async{
+  static Future<GlobalDataDto> get(
+    SharedPreferences sharedPreferences,
+    ISecureStorage storage,
+  ) async {
     return GlobalDataDto(
-        userId: await storage.read(key: userIdKey),
-        refreshToken: await storage.read(key: tokenKey),
-        cameras: await availableCameras(),
+      userId: await storage.read(key: userIdKey),
+      refreshToken: await storage.read(key: tokenKey),
+      cameras: await loadAvailableCameras(isWeb: kIsWeb),
     );
   }
 
-  static Future<CurrentUserDto> getUser(SharedPreferences sharedPreferences, ISecureStorage storage) async{
+  static Future<CurrentUserDto> getUser(
+    SharedPreferences sharedPreferences,
+    ISecureStorage storage,
+  ) async {
     final prImage = sharedPreferences.getString(profileImageKey);
     final prImageSmall = sharedPreferences.getString(profileImageSmallKey);
     return CurrentUserDto(
       username: await storage.read(key: usernameKey),
       description: sharedPreferences.getString(descriptionKey),
       profileImage: prImage != null ? base64Decode(prImage) : null,
-      profileImageSmall: prImageSmall != null ? base64Decode(prImageSmall) : null,
+      profileImageSmall: prImageSmall != null
+          ? base64Decode(prImageSmall)
+          : null,
       selectedBatch: sharedPreferences.getInt(selectedBatchKey),
       xp: UserXpDto(
         totalXp: sharedPreferences.getInt(xpKey) ?? 0,
@@ -155,19 +167,32 @@ class GlobalDataRepository {
   }
 
   Future<void> updateCurrentUser({
-      String? username,
-      String? description,
-      Uint8List? profileImage,
-      Uint8List? profileImageSmall,
+    String? username,
+    String? description,
+    Uint8List? profileImage,
+    Uint8List? profileImageSmall,
     int? selectedBatch,
   }) async {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
     final storage = ref.watch(secureStorageProvider);
-    if (description != null) await sharedPrefs.setString(descriptionKey, description);
-    if (username != null) await storage.write(key: usernameKey, value: username);
-    if (profileImage != null) await sharedPrefs.setString(profileImageKey, base64Encode(profileImage));
-    if (profileImageSmall != null) await sharedPrefs.setString(profileImageSmallKey, base64Encode(profileImageSmall));
-    if (selectedBatch != null) await sharedPrefs.setInt(selectedBatchKey, selectedBatch);
+    if (description != null) {
+      await sharedPrefs.setString(descriptionKey, description);
+    }
+    if (username != null) {
+      await storage.write(key: usernameKey, value: username);
+    }
+    if (profileImage != null) {
+      await sharedPrefs.setString(profileImageKey, base64Encode(profileImage));
+    }
+    if (profileImageSmall != null) {
+      await sharedPrefs.setString(
+        profileImageSmallKey,
+        base64Encode(profileImageSmall),
+      );
+    }
+    if (selectedBatch != null) {
+      await sharedPrefs.setInt(selectedBatchKey, selectedBatch);
+    }
   }
 
   Future<void> setXp(UserXpDto xp) async {
@@ -177,11 +202,11 @@ class GlobalDataRepository {
     await sharedPrefs.setInt(currentLevelXpKey, xp.currentLevelXp);
     await sharedPrefs.setInt(nextLevelXpKey, xp.nextLevelXp);
   }
-
 }
 
 @Riverpod(keepAlive: true)
-GlobalDataRepository globalDataRepository(Ref ref) => GlobalDataRepository(ref: ref);
+GlobalDataRepository globalDataRepository(Ref ref) =>
+    GlobalDataRepository(ref: ref);
 
 @Riverpod(keepAlive: true)
 GlobalDataDto globalDataOnce(Ref ref) => throw UnimplementedError();

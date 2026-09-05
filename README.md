@@ -28,21 +28,44 @@ docker compose -f docker-compose.dev.yml up --build
 
 The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
 
-To work on the Flutter app, install the pinned toolchain with `mise install`,
-then run these commands from the repository root:
+To work on the Flutter app, install the pinned toolchain and Flutter packages
+from the repository root:
+
+```bash
+mise install
+mise run flutter-setup
+```
+
+Run the app on a connected or emulated device by passing Flutter options after
+`--`:
+
+```bash
+mise run flutter-run -- -d <device-id>
+```
+
+Build the app with:
+
+```bash
+mise run flutter-build-web
+mise run flutter-build-apk
+E2E_API_URL=http://127.0.0.1:8080 mise run flutter-verify-web
+```
+
+For local checks:
 
 ```bash
 cd flutter
-flutter pub get
 dart run build_runner build
 flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
 
-The repository pins Go 1.27.0, Flutter 3.47.2, and the API tooling in
-[`mise.toml`](mise.toml). The same checks are available from the repository
-root as `mise run flutter-analyze`, `mise run flutter-test`, and
+The repository pins Go 1.27.1, Flutter 3.47.2, Node.js 24.20.0, and the API
+tooling in [`mise.toml`](mise.toml). The same checks are available from the
+repository root as `mise run flutter-analyze`, `mise run flutter-test`, and
 `mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
-build.
+build. Use `mise run flutter-verify-web` when a web UI or startup change needs
+browser-level validation; the complete workflow is documented in
+[`flutter/AGENTS.md`](flutter/AGENTS.md).
 
 The web build uses Flutter's `--wasm` mode. Flutter emits a Wasm build and a
 JavaScript fallback into the same `build/web` directory, and the generated
@@ -67,6 +90,7 @@ and the `app_config` environment group before enabling the workflow.
 ## Repository layout
 
 - `flutter/`: Flutter app, platform projects, assets, and generated Dart API client
+- `flutter/e2e/`: Playwright tests and MCP browser configuration for Flutter web
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `docker-compose.dev.yml`: local PostGIS, object storage, and server stack
