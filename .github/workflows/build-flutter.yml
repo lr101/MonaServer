@@ -8,6 +8,9 @@ on:
     paths:
       - "flutter/**"
       - "api/**"
+      - "go-server/**"
+      - "mise.toml"
+      - ".mcp.json"
       - ".github/workflows/build-flutter.yml"
   workflow_dispatch:
 
@@ -17,9 +20,56 @@ permissions:
 jobs:
   analyze-and-build:
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgis/postgis:17-master@sha256:d47fe8c1bf27fa2a498899e7a2bc572af002a7f882b91c07795f0509f96ef027
+        env:
+          POSTGRES_DB: monaserver_test
+          POSTGRES_USER: monaserver
+          POSTGRES_PASSWORD: monaserver
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U monaserver -d monaserver_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: go-server/go.sum
+
+      - name: Start disposable test API
+        working-directory: go-server
+        env:
+          DATABASE_URL: postgres://monaserver:monaserver@127.0.0.1:5432/monaserver_test?sslmode=disable
+          JWT_SECRET: ci-only-test-secret
+          PORT: "8080"
+          TOKEN_ADMIN_USERNAME: __ci_admin_disabled__
+        run: |
+          set -euo pipefail
+          go run ./cmd/server > "$RUNNER_TEMP/stick-it-api.log" 2>&1 &
+          api_pid=$!
+          echo "$api_pid" > "$RUNNER_TEMP/stick-it-api.pid"
+
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/public/api-docs >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/stick-it-api.log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          cat "$RUNNER_TEMP/stick-it-api.log"
+          exit 1
 
       - name: Add Google services configuration
         env:
@@ -108,11 +158,28 @@ jobs:
 
       - name: Build web release
         working-directory: flutter
-        run: flutter build web --wasm --release --no-pub
+        run: flutter build web --wasm --release --no-pub --dart-define=API_HOST=http://127.0.0.1:8080
 
       - name: Verify browser-compatible web artifacts
         working-directory: flutter
         run: bash docker/test_web_build.sh build/web
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.20.0
+          cache: npm
+          cache-dependency-path: flutter/e2e/package-lock.json
+
+      - name: Install Playwright dependencies
+        working-directory: flutter/e2e
+        run: npm ci && npm run install:browsers
+
+      - name: Verify Flutter web user flow in Chromium
+        working-directory: flutter/e2e
+        env:
+          E2E_API_URL: http://127.0.0.1:8080
+        run: npm test
 
       - name: Build Android APK
         working-directory: flutter
