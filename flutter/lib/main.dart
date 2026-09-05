@@ -36,10 +36,14 @@ Future<void> main() async {
   await cacheMigrator.noDatabaseMigrate();
 
   const bool isProduction = bool.fromEnvironment('dart.vm.product');
+  const apiHostOverride = String.fromEnvironment('API_HOST');
   if (isProduction) {
     await dotenv.load(fileName: "config");
   } else {
     await dotenv.load(fileName: "config.dev");
+  }
+  if (apiHostOverride.isNotEmpty) {
+    dotenv.env['API_HOST'] = apiHostOverride;
   }
 
   // Initialize Drift database (cross-platform)

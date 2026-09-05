@@ -39,6 +39,10 @@ go run ./cmd/server
 Migrations run automatically at startup; the server begins accepting traffic
 only after they succeed.
 
+For a disposable PostGIS database, RustFS instance, and Go server with
+reusable app scenarios, use the repository-level test stack and fixture guide:
+[`../testdata/README.md`](../testdata/README.md).
+
 ## Configuration (environment variables)
 
 | Variable | Default | Notes |
