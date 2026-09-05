@@ -26,6 +26,11 @@ For a complete local stack, create an ignored `.env.dev` as described in the Go 
 docker compose -f docker-compose.dev.yml up --build
 ```
 
+Agents should use [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md) for
+the disposable full-stack workflow. It includes a Dockerless native profile
+for environments such as this one, where PostgreSQL/PostGIS is available but a
+container runtime is not.
+
 The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
 
 For a disposable app test environment with seeded users, groups, pins, likes,
@@ -45,7 +50,8 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
-TESTDATA_PASSWORD='replace-with-a-local-only-password' mise run testdata-seed
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
 set -a
 source testdata/.env.test
 set +a
@@ -120,6 +126,7 @@ and the `app_config` environment group before enabling the workflow.
 - `flutter/`: Flutter app, platform projects, assets, and generated Dart API client
 - `flutter/e2e/`: Playwright tests and MCP browser configuration for Flutter web
 - `testdata/`: disposable integration stack, fixture scenarios, and seed command
+- `docs/AGENT_LOCAL_STACK.md`: agent runbook for Compose and Dockerless local services
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `docker-compose.dev.yml`: local PostGIS, object storage, and server stack

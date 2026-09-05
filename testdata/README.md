@@ -5,6 +5,10 @@ for testing the Flutter app against the Go API. The fixture is created through
 the API, so group images, pin images, authentication, visibility, and RustFS
 presigned URLs are exercised together.
 
+For the complete agent runbook, including setup when Docker or Podman is not
+available, read [`docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md).
+This file is the fixture reference and keeps the Compose commands handy.
+
 ## Start the test stack
 
 From the repository root, start the isolated PostGIS database, RustFS object
@@ -40,11 +44,14 @@ The services use these host ports:
 | RustFS console | `http://127.0.0.1:9101` |
 
 The Go server runs database migrations on startup and creates the `monaserver`
-bucket in RustFS. Seed the fixture with a local-only password; it is written
-only to the ignored `testdata/.env.test` file and is never printed:
+bucket in RustFS. Seed the fixture with a local-only password. It must be
+2–29 characters and use characters accepted by Flutter's login validator;
+`openssl rand -hex 12` produces a valid 24-character value. The password is
+written only to the ignored `testdata/.env.test` file and is never printed:
 
 ```bash
-TESTDATA_PASSWORD='replace-with-a-local-only-password' mise run testdata-seed
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
 set -a
 source testdata/.env.test
 set +a

@@ -80,7 +80,8 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
-TESTDATA_PASSWORD='replace-with-a-local-only-password' mise run testdata-seed
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
 set -a
 source testdata/.env.test
 set +a

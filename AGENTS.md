@@ -37,7 +37,20 @@ mise exec -- go test ./...
 
 Tests that need PostGIS skip when `TEST_DATABASE_URL` is unset. A passing plain test run does not mean the database tests ran. Database tests truncate shared tables, so point them only at a disposable test database and run them serially.
 
-PostgreSQL and PostGIS are OS-level test dependencies, not mise tools. If the container has no database or container runtime, follow the native Debian setup in `go-server/internal/db/AGENTS.md`. Do not stop at the plain test suite when database behavior changed.
+PostgreSQL and PostGIS are OS-level test dependencies, not mise tools. For the
+complete agent-friendly service lifecycle, including the Dockerless native path
+used by this environment, read [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md).
+If only database setup is needed, also follow `go-server/internal/db/AGENTS.md`.
+Do not stop at the plain test suite when database behavior changed.
+
+## Agent-local service stack
+
+When a change needs API, database, object storage, or Flutter Web validation,
+follow [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md) before starting
+services. Choose its Compose profile only when Docker or Podman is actually
+available; otherwise use its native PostgreSQL/PostGIS and foreground RustFS
+profile. Report which services were running and which capabilities were not
+available in the verification summary.
 
 ## Change rules
 

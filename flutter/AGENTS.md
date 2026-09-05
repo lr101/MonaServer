@@ -30,6 +30,11 @@ server, and verifies the login/group flow with Playwright. GitHub Actions keeps
 the web build and artifact checks lightweight; it does not start this test
 stack or run the browser E2E suite.
 
+For the complete service lifecycle, first read
+[`../docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md). It has both the
+Compose profile and the Dockerless native profile used in agent containers;
+the commands below are the short Compose-oriented version.
+
 ### Start the disposable API stack
 
 For functionality checks that need realistic server data, start the isolated
@@ -49,7 +54,8 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
-TESTDATA_PASSWORD='replace-with-a-local-only-password' mise run testdata-seed
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
 set -a
 source testdata/.env.test
 set +a
