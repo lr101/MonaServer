@@ -367,6 +367,8 @@ async function seed() {
       `E2E_TEST_USERNAME=${shellQuote(users[plan.defaultUser].username)}`,
       `E2E_TEST_PASSWORD=${shellQuote(password)}`,
       `E2E_TEST_GROUP=${shellQuote(groups['member-public'].name)}`,
+      `E2E_TEST_PUBLIC_UNJOINED_GROUP=${shellQuote(groups['public-unjoined'].name)}`,
+      `E2E_TEST_PUBLIC_UNJOINED_GROUP_ID=${shellQuote(groups['public-unjoined'].id)}`,
       '',
     ].join('\n'),
   );

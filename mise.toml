@@ -39,7 +39,7 @@ run = "flutter pub get && flutter test"
 description = "Build the Flutter web app with Wasm and a JavaScript fallback"
 dir = "flutter"
 run = """
-set -euo pipefail
+set -eu
 flutter pub get
 if [ -n "${E2E_API_URL:-}" ]; then
   flutter build web --wasm --release --no-pub --dart-define=API_HOST="$E2E_API_URL"

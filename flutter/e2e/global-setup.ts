@@ -23,6 +23,8 @@ type StoredTestData = {
   groupName: string;
   userId: string;
   groupId: string;
+  publicUnjoinedGroupName?: string;
+  publicUnjoinedGroupId?: string;
 };
 
 const tinyPng =
@@ -214,6 +216,8 @@ export default async function globalSetup(): Promise<void> {
     groupName: group.name,
     userId: tokens.userId,
     groupId: group.id,
+    publicUnjoinedGroupName: process.env.E2E_TEST_PUBLIC_UNJOINED_GROUP,
+    publicUnjoinedGroupId: process.env.E2E_TEST_PUBLIC_UNJOINED_GROUP_ID,
   };
 
   await mkdir(dirname(testDataPath), { recursive: true, mode: 0o700 });

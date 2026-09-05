@@ -159,7 +159,10 @@ extensions.
 ### Start RustFS
 
 RustFS is required for image uploads, presigned URLs, and the complete pin/group
-flow. Keep the listener on loopback. The official Linux installer creates a
+flow. Keep the listener on loopback. The test web server downloads presigned
+objects directly from RustFS, so its browser origin must be included in
+`RUSTFS_CORS_ALLOWED_ORIGINS`; the commands below allow both loopback spellings
+used by the local Playwright server. The official Linux installer creates a
 systemd service; this container has no systemd, so use the foreground binary
 mode here.
 
@@ -175,6 +178,7 @@ export RUSTFS_SECRET_KEY="$TEST_RUSTFS_SECRET_KEY"
 export RUSTFS_ADDRESS='127.0.0.1:9100'
 export RUSTFS_CONSOLE_ADDRESS='127.0.0.1:9101'
 export RUSTFS_CONSOLE_ENABLE='true'
+export RUSTFS_CORS_ALLOWED_ORIGINS="${TEST_RUSTFS_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:4173,http://localhost:4173}"
 rustfs server /tmp/monaserver-rustfs-data
 ```
 
@@ -182,8 +186,9 @@ Leave that terminal running. Press `Ctrl+C` when the test session is finished.
 
 If the binary is not installed and systemd is available, use the [RustFS Linux
 quick start](https://docs.rustfs.com/en/installation/linux/quick-start), then
-set `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `RUSTFS_ADDRESS`, and
-`RUSTFS_CONSOLE_ADDRESS` in `/etc/default/rustfs` and restart the service.
+set `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `RUSTFS_ADDRESS`,
+`RUSTFS_CONSOLE_ADDRESS`, and `RUSTFS_CORS_ALLOWED_ORIGINS` in
+`/etc/default/rustfs` and restart the service.
 
 For a container without systemd, download the current x86_64 Linux release
 from the [official RustFS releases](https://github.com/rustfs/rustfs/releases),
