@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/quotedprintable"
 	"net"
+	"net/http"
 	stdmail "net/mail"
 	"strconv"
 	"strings"
@@ -22,6 +23,34 @@ import (
 type smtpMessage struct {
 	recipient string
 	body      string
+}
+
+func TestCreateReportReturnsUnavailableWithoutMail(t *testing.T) {
+	servicer := NewReportServicer(nil, nil)
+	resp, err := servicer.CreateReport(context.Background(), genserver.ReportDto{
+		UserId: "00000000-0000-0000-0000-000000000001",
+		Report: "spam", Message: "details",
+	})
+	if err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("report status = %d, want %d", resp.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestSendAdminMailReturnsUnavailableWithoutMail(t *testing.T) {
+	recipients := []string{"test@example.com"}
+	servicer := NewAdminServicer(nil, nil, nil)
+	resp, err := servicer.SendAdminMail(context.Background(), genserver.AdminMailDto{
+		Mails: &recipients, Subject: "subject", Message: "message",
+	})
+	if err != nil {
+		t.Fatalf("send admin mail: %v", err)
+	}
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("admin mail status = %d, want %d", resp.Code, http.StatusServiceUnavailable)
+	}
 }
 
 func TestCreateReportRejectsUnknownUser(t *testing.T) {

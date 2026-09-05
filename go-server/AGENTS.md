@@ -34,6 +34,12 @@ Run `mise exec -- gofmt` on every changed Go file. Use `mise exec -- go mod tidy
 
 The process needs a reachable PostGIS database. It applies embedded migrations before opening the HTTP listener and exits if the database connection or migration fails. RustFS, Firebase, and SMTP are optional. Their dependent features remain unavailable when they are not configured.
 
+For the complete service setup, including the Dockerless native PostgreSQL and
+foreground RustFS path used by agents, follow
+[`../docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md). It also
+documents the Flutter Web and Playwright verification flow and the boundary
+between a database/API check and a full-stack check.
+
 For the full development stack, create an ignored `.env.dev` in the repository root. This is the minimum useful starting point:
 
 ```dotenv

@@ -23,6 +23,9 @@ func NewAdminServicer(q *db.Queries, email *service.Email, notif *service.Notifi
 }
 
 func (s *AdminServicer) SendAdminMail(ctx context.Context, dto genserver.AdminMailDto) (genserver.ImplResponse, error) {
+	if s.email == nil {
+		return genserver.Response(http.StatusServiceUnavailable, nil), nil
+	}
 	var htmlBody string
 	if dto.MessageHtml != nil && *dto.MessageHtml != "" {
 		b, err := base64.StdEncoding.DecodeString(*dto.MessageHtml)
@@ -67,6 +70,9 @@ func NewReportServicer(email *service.Email, q *db.Queries) *ReportServicer {
 }
 
 func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportDto) (genserver.ImplResponse, error) {
+	if s.email == nil {
+		return genserver.Response(http.StatusServiceUnavailable, nil), nil
+	}
 	username := dto.UserId
 	if s.q != nil {
 		userID, err := uuid.Parse(dto.UserId)

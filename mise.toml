@@ -1,6 +1,7 @@
 [tools]
 go = "1.27.1"
 flutter = "3.47.2"
+node = "24.20.0"
 oapi-codegen = "2.8.0"
 sqlc = "1.31.1"
 
@@ -19,6 +20,11 @@ description = "Analyze the Flutter app"
 dir = "flutter"
 run = "flutter pub get && flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings"
 
+[tasks.flutter-setup]
+description = "Install Flutter app and API client dependencies"
+dir = "flutter"
+run = "flutter pub get && cd api && flutter pub get"
+
 [tasks.flutter-test]
 description = "Run Flutter app tests"
 dir = "flutter"
@@ -32,4 +38,45 @@ run = "flutter pub get && flutter test"
 [tasks.flutter-build-web]
 description = "Build the Flutter web app with Wasm and a JavaScript fallback"
 dir = "flutter"
-run = "flutter pub get && flutter build web --wasm --release --no-pub"
+run = """
+set -eu
+flutter pub get
+if [ -n "${E2E_API_URL:-}" ]; then
+  flutter build web --wasm --release --no-pub --dart-define=API_HOST="$E2E_API_URL"
+else
+  flutter build web --wasm --release --no-pub
+fi
+"""
+
+[tasks.flutter-playwright-setup]
+description = "Install Playwright dependencies and Chromium for Flutter web checks"
+dir = "flutter/e2e"
+run = "npm ci && npm run install:browsers"
+
+[tasks.flutter-web-e2e]
+description = "Run Playwright against the built Flutter web app"
+dir = "flutter/e2e"
+run = "npm ci && npm test"
+
+[tasks.testdata-test]
+description = "Validate the reusable local test scenarios"
+run = "node --test testdata/seed.test.mjs"
+
+[tasks.testdata-seed]
+description = "Seed the disposable API with reusable users, groups, pins, and likes"
+run = "node testdata/seed.mjs"
+
+[tasks.flutter-verify-web]
+description = "Build Flutter web and verify the login/group flow with Playwright"
+dir = "flutter"
+run = "flutter pub get && E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && npm test"
+
+[tasks.flutter-build-apk]
+description = "Build a debug Android APK"
+dir = "flutter"
+run = "flutter pub get && flutter build apk --debug --no-pub"
+
+[tasks.flutter-run]
+description = "Run the Flutter app (pass Flutter options after --)"
+dir = "flutter"
+run = "flutter pub get && flutter run"
