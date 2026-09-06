@@ -1,0 +1,7 @@
+{
+  "name": "stick-it-local-image-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node image_probe.mjs" },
+  "devDependencies": { "playwright-core": "1.63.0" }
+}
