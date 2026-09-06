@@ -100,15 +100,26 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final cachedPins = await _pinRepository.getPinsByGroup(groupId).first;
     yield cachedPins;
 
-    unawaited(_refreshInBackground(cachedPins));
+    unawaited(_refreshInBackground(cachedPins, groupId));
     yield* _pinRepository.getPinsByGroup(groupId);
   }
 
-  Future<void> _refreshInBackground(List<PinEntity> cachedPins) async {
+  Future<void> _refreshInBackground(
+    List<PinEntity> cachedPins,
+    String groupId,
+  ) async {
     try {
       await _remoteFetch(cachedPins);
-    } catch (_) {
+      if (ref.mounted) {
+        ref.read(pinGroupRefreshErrorStateProvider(groupId).notifier).clear();
+      }
+    } catch (error, stackTrace) {
       // Keep cached pins available when a background refresh is unavailable.
+      if (cachedPins.isEmpty && ref.mounted) {
+        ref
+            .read(pinGroupRefreshErrorStateProvider(groupId).notifier)
+            .setError(error, stackTrace);
+      }
     }
   }
 
@@ -178,6 +189,25 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   }
 }
 
+class PinGroupRefreshError {
+  const PinGroupRefreshError(this.error, this.stackTrace);
+
+  final Object error;
+  final StackTrace stackTrace;
+}
+
+@riverpod
+class PinGroupRefreshErrorState extends _$PinGroupRefreshErrorState {
+  @override
+  PinGroupRefreshError? build(String groupId) => null;
+
+  void clear() => state = null;
+
+  void setError(Object error, StackTrace stackTrace) {
+    state = PinGroupRefreshError(error, stackTrace);
+  }
+}
+
 DateTime? _oldestSyncTime(List<PinEntity> pins) {
   DateTime? oldest;
   for (final pin in pins) {
@@ -191,9 +221,19 @@ DateTime? _oldestSyncTime(List<PinEntity> pins) {
 @riverpod
 Future<List<PinEntity>> pinGroupService(Ref ref, String groupId) async {
   final rawPinsAsync = ref.watch(pinGroupServiceUnfilteredProvider(groupId));
+  final refreshError = ref.watch(pinGroupRefreshErrorStateProvider(groupId));
   final hiddenUsers = ref.watch(hiddenUserServiceProvider);
   final hiddenPosts = ref.watch(hiddenPostsServiceProvider);
 
+  if (refreshError != null) {
+    Error.throwWithStackTrace(refreshError.error, refreshError.stackTrace);
+  }
+  if (rawPinsAsync.hasError) {
+    Error.throwWithStackTrace(
+      rawPinsAsync.error!,
+      rawPinsAsync.stackTrace ?? StackTrace.current,
+    );
+  }
   final pins = rawPinsAsync.value ?? [];
 
   return pins
