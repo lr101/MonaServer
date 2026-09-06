@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
@@ -17,6 +18,44 @@ part 'group_service.g.dart';
 final groupMetadataLoaderProvider = Provider<GroupMetadataLoader>(
   (ref) => GroupMetadataLoader(ref),
 );
+
+final _groupMediaPrefetchQueueProvider = Provider<_SerialAsyncTaskQueue>(
+  (ref) => _SerialAsyncTaskQueue(),
+);
+
+class _SerialAsyncTaskQueue {
+  final Queue<_QueuedAsyncTask> _tasks = Queue<_QueuedAsyncTask>();
+  bool _running = false;
+
+  Future<void> add(Future<void> Function() task) {
+    final queued = _QueuedAsyncTask(task);
+    _tasks.add(queued);
+    _startNext();
+    return queued.completer.future;
+  }
+
+  void _startNext() {
+    if (_running || _tasks.isEmpty) return;
+    _running = true;
+    final queued = _tasks.removeFirst();
+    Future<void>.sync(queued.task)
+        .then<void>(
+          queued.completer.complete,
+          onError: queued.completer.completeError,
+        )
+        .whenComplete(() {
+          _running = false;
+          _startNext();
+        });
+  }
+}
+
+class _QueuedAsyncTask {
+  _QueuedAsyncTask(this.task);
+
+  final Future<void> Function() task;
+  final Completer<void> completer = Completer<void>();
+}
 
 class GroupMetadataLoader {
   GroupMetadataLoader(this.ref);
@@ -312,12 +351,11 @@ void prefetchGroupMediaInBackground(
   GroupDto groupDto, {
   required bool keepAlive,
 }) {
+  final queue = ref.read(_groupMediaPrefetchQueueProvider);
   unawaited(
-    prefetchGroupMedia(
-      ref,
-      groupDto,
-      keepAlive: keepAlive,
-    ).then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
+    queue
+        .add(() => prefetchGroupMedia(ref, groupDto, keepAlive: keepAlive))
+        .then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
   );
 }
 

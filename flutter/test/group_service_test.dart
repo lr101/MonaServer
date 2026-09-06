@@ -461,6 +461,44 @@ void main() {
     pinImageCache.complete();
   });
 
+  test(
+    'background media prefetch limits work to one group at a time',
+    () async {
+      final profileCache = _FakeImageRepository.pending();
+      final profileSmallCache = _FakeImageRepository.pending();
+      final pinImageCache = _FakeImageRepository.pending();
+      final trigger = Provider.family<void, GroupDto>((ref, group) {
+        prefetchGroupMediaInBackground(ref, group, keepAlive: true);
+      });
+      final container = ProviderContainer(
+        overrides: [
+          groupProfileRepoProvider.overrideWithValue(profileCache),
+          groupProfileSmallRepoProvider.overrideWithValue(profileSmallCache),
+          groupPinImageRepoProvider.overrideWithValue(pinImageCache),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(trigger(_groupWithImages(id: 'group-1')));
+      container.read(trigger(_groupWithImages(id: 'group-2')));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(profileCache.overrideIds, ['group-1']);
+      expect(profileSmallCache.overrideIds, ['group-1']);
+      expect(pinImageCache.overrideIds, ['group-1']);
+
+      profileCache.complete();
+      profileSmallCache.complete();
+      pinImageCache.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(profileCache.overrideIds, ['group-1', 'group-2']);
+      expect(profileSmallCache.overrideIds, ['group-1', 'group-2']);
+      expect(pinImageCache.overrideIds, ['group-1', 'group-2']);
+    },
+  );
+
   test('prefetches group media after an update completes', () async {
     final profileCache = _FakeImageRepository.pending();
     final profileSmallCache = _FakeImageRepository.pending();
@@ -1032,8 +1070,8 @@ Future<UserGroupService> _createService({
 
 Future<void> _nextEventLoop() => Future<void>.delayed(Duration.zero);
 
-GroupDto _groupWithImages() => GroupDto(
-  id: 'group-id',
+GroupDto _groupWithImages({String id = 'group-id'}) => GroupDto(
+  id: id,
   name: 'Group',
   visibility: 0,
   profileImage: 'https://example.com/profile.jpg',

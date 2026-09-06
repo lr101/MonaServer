@@ -8,8 +8,30 @@ import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:transparent_image/transparent_image.dart';
 
 void main() {
+  test('pin image stream forwards encoded bytes without predecoding', () async {
+    final bytes = Uint8List.fromList(kTransparentImage);
+    final repository = _RecordingImageRepository(ImageType.pin)
+      ..watchedBytes = bytes;
+    final container = ProviderContainer(
+      overrides: [pinImageRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinImageBytesProvider('pin-1'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    final image = await container.read(pinImageBytesProvider('pin-1').future);
+
+    expect(image, same(bytes));
+  });
+
   test('small group profile images use the small image repository', () async {
     final largeRepository = _RecordingImageRepository(ImageType.group);
     final smallRepository = _RecordingImageRepository(ImageType.groupSmall);
@@ -236,6 +258,7 @@ class _RecordingImageRepository implements IImageRepository {
   Object? fetchError;
   Completer<void>? urlFetchGate;
   final urlFetchStarted = Completer<void>();
+  Uint8List? watchedBytes;
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
@@ -265,7 +288,7 @@ class _RecordingImageRepository implements IImageRepository {
     events.add('watch-created');
     return Stream<Uint8List?>.multi((controller) {
       events.add('watch-listened');
-      controller.add(null);
+      controller.add(watchedBytes);
     });
   }
 
