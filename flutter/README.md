@@ -37,24 +37,82 @@ The app is structured as follows:
 2) Install dependencies
 Run these commands from the monorepo root:
 ```
-cd flutter
-flutter pub get
+mise run flutter-setup
 ```
 
 3) Generate code (Freezed, Json Serializable, Riverpod)
 ```
 # Generates all code
+cd flutter
 dart run build_runner build
 ```
 
 4) Run the app
 ```
 # Android
-flutter run -d android
+mise run flutter-run -- -d android
 
 # iOS (requires macOS)
-flutter run -d ios
+mise run flutter-run -- -d ios
 ```
+
+Build from the monorepo root with `mise run flutter-build-web` or
+`mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
+requires macOS and Xcode.
+
+### Browser verification and Playwright MCP
+
+For changes that affect the web UI or startup path, first start the disposable
+PostGIS, RustFS, and Go API stack and seed its reusable scenarios from the
+repository root:
+
+```bash
+test -f .env.test || cp .env.test.example .env.test
+# Replace the placeholder values in .env.test with local-only values.
+docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
+for attempt in $(seq 1 60); do
+  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 60 ]; then
+    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
+    exit 1
+  fi
+  sleep 1
+done
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
+set -a
+source testdata/.env.test
+set +a
+E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
+```
+
+The check builds `flutter/build/web`, starts a static server on port 4173,
+and verifies login and the Groups screen. The reusable accounts, groups, pins,
+likes, and scenario IDs are documented in [`../testdata/README.md`](../testdata/README.md)
+and generated under ignored `testdata/` files. The default test API is
+loopback-only; set `TESTDATA_ALLOW_REMOTE_API=1` only when intentionally using
+a disposable remote test API. The Playwright fallback setup has its separate
+`E2E_ALLOW_REMOTE_API=1` opt-in.
+
+The root `.mcp.json` registers Playwright MCP. For an interactive agent
+session, build and serve the app, then navigate the MCP browser to
+`http://localhost:4173/`:
+
+```bash
+E2E_API_URL=http://127.0.0.1:8081 mise run flutter-build-web
+cd flutter/e2e && npm ci && npm run install:browsers
+python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+```
+
+Enable Flutter web accessibility by activating the `Enable accessibility`
+control before using DOM locators. Log in as `stickitviewer` and use the
+scenario groups from `testdata/scenarios.json` to inspect joined, public
+unjoined, private, and empty states. GitHub Actions performs the build and
+artifact checks but does not run this browser E2E suite; agents run it locally
+when UI behavior needs verification. See `flutter/AGENTS.md` for the
+agent-specific workflow.
 
 ### Optional: API generator setup
 The shared OpenAPI contract lives at `../api/openapi.yaml` when these commands run from `flutter/`.
@@ -80,16 +138,9 @@ openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 ### Release app
 
 The Android release to Google Play is managed by the root `codemagic.yaml`
-workflow. Start the `flutter-android` workflow from Codemagic after configuring
-the Android keystore, Firebase, Google Play, and app configuration variables.
-
-### Analytics configuration
-
-PostHog is initialized at build time from `POSTHOG_API_KEY` and the optional
-`POSTHOG_HOST` setting. Keep the API key out of the repository: provide it as
-an environment variable in Codemagic, or as the `POSTHOG_API_KEY` GitHub
-Actions secret. The checked-in `.config` files intentionally omit it. Builds
-without the key run with analytics disabled.
+workflow. A Codemagic push webhook starts `flutter-android` for updates merged
+into `main`. Configure the Android keystore, Firebase, Google Play, and app
+configuration variables before enabling the webhook.
 
 ### Generate API (summary)
 1. Activate openapi-generator: `flutter pub global activate openapi_generator_cli`

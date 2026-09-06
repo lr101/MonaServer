@@ -23,7 +23,7 @@ class GroupEdit extends ConsumerStatefulWidget {
 class _GroupEditState extends ConsumerState<GroupEdit> {
   @override
   Widget build(BuildContext context) {
-    final groupDto = ref.watch(groupServiceProvider(widget.groupid)).value;
+    final groupDto = ref.watch(groupMetadataProvider(widget.groupid)).value;
     final global = ref.watch(globalDataServiceProvider);
     final adminId = ref.watch(groupEditServiceProvider);
     if (groupDto == null)

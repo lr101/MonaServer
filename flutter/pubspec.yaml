@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 3.0.19+64
+version: 3.0.20+64
 
 
 environment:
@@ -35,12 +35,12 @@ dependencies:
   flutter_native_splash:
   flutter_riverpod: ^3.4.2
   flutter_secure_storage: ^10.0.0
-  fluttertoast:
+  fluttertoast: ^10.0.0
   freezed_annotation:
   geocoding:
-  geolocator:
+  geolocator: ^14.0.3
   http:
-  image_cropper:
+  image_cropper: ^12.0.0
   image_picker:
   in_app_review:
   infinite_scroll_pagination: 4.1.0
@@ -55,7 +55,6 @@ dependencies:
   path:
   path_provider:
   permission_handler:
-  posthog_flutter:
   riverpod_annotation: ^4.0.6
   riverpod_generator: ^4.0.8
   select_dialog:
@@ -67,8 +66,8 @@ dependencies:
   transparent_image:
   url_launcher:
   uuid:
-  webview_flutter:
-  shared_preferences:
+  webview_flutter: ^4.14.1
+  shared_preferences: ^2.5.5
   firebase_messaging:
   firebase_core: ^4.4.0
   logger: 
@@ -89,6 +88,7 @@ dev_dependencies:
   riverpod_lint: ^3.1.8
   lint:
   meta:
+  sqlite3: ^3.5.2
 
 dependency_overrides:
   # flutter_map_tile_caching 10.1.1 still pins ObjectBox to 4.x, whose Android
@@ -103,8 +103,8 @@ flutter:
     - assets/image/
     - assets/achievements/
     - assets/icon/
-    - .config
-    - .config.dev
+    - config
+    - config.dev
   uses-material-design: true
   fonts:
     - family: Signika

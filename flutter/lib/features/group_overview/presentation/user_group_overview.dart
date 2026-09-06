@@ -1,5 +1,4 @@
-import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_join_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/pop_up_menu_leave.dart';
@@ -14,38 +13,36 @@ class UserGroupOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupAsync = ref.watch(groupServiceProvider(groupId));
-    final isInUserGroup = ref.watch(
-      userGroupServiceProvider.select(
-        (e) => e.value?.any((t) => t.groupId == groupAsync.value?.groupId),
-      ),
-    );
-    return groupAsync.when(
-      data: (data) {
-        if (data == null) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (isInUserGroup != null && isInUserGroup) {
+    final detailsAsync = ref.watch(groupDetailsProvider(groupId));
+    return detailsAsync.when(
+      data: (details) {
+        final group = details.group;
+        if (group == null) {
+          return const Center(child: Text('Group not found'));
+        } else if (group.userIsMember) {
           return GroupOverview(
             groupId: groupId,
-            actions: [PopUpMenuLeave(groupDto: data)],
+            details: details,
+            actions: [PopUpMenuLeave(groupDto: group)],
           );
-        } else if (data.visibility == 0) {
+        } else if (group.visibility == 0) {
           return GroupOverview(
-            groupId: data.groupId,
+            groupId: group.groupId,
+            details: details,
             floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
+              groupDto: group,
               key: Key("group-join-$groupId"),
             ),
           );
         } else {
           return CustomAvatarScaffold(
             floatingActionButton: GroupJoinActionButton(
-              groupDto: data,
+              groupDto: group,
               key: Key("no-user-group-join-$groupId"),
             ),
-            avatar: ref.watch(groupProfilePictureByIdProvider(groupId)),
+            avatar: details.profileImage,
             title: Text(
-              data.name,
+              group.name,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             body: const Center(child: Icon(Icons.lock)),
@@ -53,7 +50,7 @@ class UserGroupOverview extends ConsumerWidget {
         }
       },
       error: (error, stackTrace) => const Center(child: Icon(Icons.error)),
-      loading: () => const SizedBox.shrink(),
+      loading: () => const Center(child: CircularProgressIndicator()),
     );
   }
 }

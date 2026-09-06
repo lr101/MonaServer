@@ -119,24 +119,7 @@ class SyncingService extends _$SyncingService {
         );
       }
 
-      final profileImage = groupDto.profileImage;
-      if (profileImage != null) {
-        await ref
-            .read(groupProfileRepoProvider)
-            .overrideUrl(groupDto.id, profileImage, true);
-      }
-      final profileImageSmall = groupDto.profileImageSmall;
-      if (profileImageSmall != null) {
-        await ref
-            .read(groupProfileSmallRepoProvider)
-            .overrideUrl(groupDto.id, profileImageSmall, true);
-      }
-      final pinImage = groupDto.pinImage;
-      if (pinImage != null) {
-        await ref
-            .read(groupPinImageRepoProvider)
-            .overrideUrl(groupDto.id, pinImage, true);
-      }
+      prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
     }
   }
 

@@ -1,6 +1,7 @@
+import 'dart:async';
+import 'dart:collection';
+
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
 import 'package:mutex/mutex.dart';
@@ -8,127 +9,334 @@ import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'openapi_config.g.dart';
+
+typedef RefreshAccessToken = Future<String?> Function();
+typedef HttpClientFactory = http.Client Function();
+
+/// Signals that a refresh token is no longer accepted by the server.
+class InvalidRefreshCredentialsException implements Exception {
+  const InvalidRefreshCredentialsException();
+
+  @override
+  String toString() => 'Invalid refresh credentials';
+}
+
+/// Owns the in-memory access token and serializes refresh attempts.
+class AccessTokenManager {
+  factory AccessTokenManager({
+    required RefreshAccessToken refreshAccessToken,
+    String initialAccessToken = '',
+    DateTime? lastRefreshAt,
+    DateTime Function()? now,
+  }) {
+    return AccessTokenManager._(
+      refreshAccessToken,
+      initialAccessToken,
+      lastRefreshAt,
+      now ?? DateTime.now,
+    );
+  }
+
+  AccessTokenManager._(
+    this._refreshAccessToken,
+    this._accessToken,
+    this._lastRefreshAt,
+    this._now,
+  );
+
+  static const _refreshInterval = Duration(minutes: 1);
+
+  final RefreshAccessToken _refreshAccessToken;
+  final DateTime Function() _now;
+  final Mutex _mutex = Mutex();
+
+  String _accessToken;
+  DateTime? _lastRefreshAt;
+
+  String get accessToken => _accessToken;
+
+  bool get needsRefresh {
+    final lastRefreshAt = _lastRefreshAt;
+    return lastRefreshAt == null ||
+        _now().difference(lastRefreshAt) > _refreshInterval;
+  }
+
+  Future<void> refresh({bool force = false}) async {
+    final accessTokenBeforeWait = _accessToken;
+    if (!force && !needsRefresh) {
+      return;
+    }
+
+    await _mutex.protect(() async {
+      if (!force && !needsRefresh) {
+        return;
+      }
+      if (force && _accessToken != accessTokenBeforeWait) {
+        return;
+      }
+
+      try {
+        final accessToken = await _refreshAccessToken();
+        if (accessToken == null || accessToken.isEmpty) {
+          _clearCredentials();
+          throw const InvalidRefreshCredentialsException();
+        }
+        _accessToken = accessToken;
+        _lastRefreshAt = _now();
+      } on ApiException catch (error, stackTrace) {
+        if (error.code == 401 || error.code == 403) {
+          _clearCredentials();
+          Error.throwWithStackTrace(
+            const InvalidRefreshCredentialsException(),
+            stackTrace,
+          );
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    });
+  }
+
+  void _clearCredentials() {
+    _accessToken = '';
+    _lastRefreshAt = null;
+  }
+}
+
 @Riverpod(keepAlive: true)
 class OpenApiConfig extends _$OpenApiConfig {
   final HttpBearerAuth _authentication = HttpBearerAuth();
-  
-  // Using an empty string is generally safer than a mock string
-  String _accessToken = ""; 
-  
-  // Mutex specifically for Auth so we don't spam the refresh endpoint
-  final Mutex _authMutex = Mutex();
-  DateTime? _lastCheck;
+  final OpenApiClientFactory _clientFactory = OpenApiClientFactory();
+  late final AccessTokenManager _tokenManager = AccessTokenManager(
+    refreshAccessToken: _refreshAccessToken,
+  );
+
+  OpenApiClientResources? _resources;
 
   @override
   ApiClient build() {
     final data = ref.watch(globalDataServiceProvider);
-    
-    _authentication.accessToken = () => _accessToken;
-    final ApiClient apiClient = ApiClient(basePath: data.host, authentication: _authentication);
+    _resources?.close();
 
-    // 1. Create our custom client that handles Rate Limiting & Pre-Request Auth
-    final interceptorClient = _RateLimitedAuthClient(
-      inner: http.Client(),
+    _authentication.accessToken = () => _tokenManager.accessToken;
+    final resources = _clientFactory.create(
+      basePath: data.host,
+      authentication: _authentication,
+      tokenManager: _tokenManager,
       ensureToken: _ensureTokenExists,
-      getToken: () => _accessToken,
     );
-
-    // 2. Wrap the custom client in the RetryClient to catch expired tokens
-    apiClient.client = RetryClient(
-      interceptorClient,
-      delay: (_) => Duration.zero,
-      retries: 1,
-      when: (response) => response.statusCode == 403 || response.statusCode == 401,
-      onRetry: (req, res, retryCount) async {
-        if (retryCount == 0 && (res?.statusCode == 401 || res?.statusCode == 403)) {
-          // Force a refresh when a 401 is encountered
-          await provideAccessToken(force: true); 
-          
-          // Inject the newly fetched token into the retried request
-          req.headers['Authorization'] = 'Bearer $_accessToken';
-        }
-      },
-    );
-    return apiClient;
+    _resources = resources;
+    ref.onDispose(_disposeResources);
+    return resources.apiClient;
   }
 
-  /// Halts the HTTP pipeline to fetch a token if one does not exist
   Future<void> _ensureTokenExists() async {
-    if (_accessToken.isEmpty || _accessToken == "NOTANACCESSTOKEN") {
+    if (_tokenManager.accessToken.isEmpty || _tokenManager.needsRefresh) {
       await provideAccessToken();
     }
   }
 
   Future<void> provideAccessToken({bool force = false}) async {
-    await _authMutex.protect(() async {
-      // Use ref.read() inside async callbacks to prevent the "Async Gap" crash!
-      final data = ref.read(globalDataServiceProvider); 
-      
-      final needsRefresh = force || 
-                           _lastCheck == null || 
-                           DateTime.now().difference(_lastCheck!) > const Duration(minutes: 1);
+    final refreshToken = ref.read(globalDataServiceProvider).refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return;
+    }
+    await _tokenManager.refresh(force: force);
+  }
 
-      if (data.refreshToken != null && needsRefresh) {
-        // Create a basic ApiClient here so AuthApi doesn't trigger our rate-limiter loop
-        final authApi = AuthApi(ApiClient(basePath: data.host));
-        final refreshTokenDto = RefreshTokenRequestDto(refreshToken: data.refreshToken, userId: data.userId);
-        
-        try {
-          final response = await authApi.refreshToken(refreshTokenRequestDto: refreshTokenDto);
-          if (response != null) {
-            _accessToken = response.accessToken;
-            _lastCheck = DateTime.now();
-          } else {
-            // TODO: Token is dead. Log the user out.
-          }
-        } catch (e) {
-          // Handle network errors during refresh
-        }
-      }
-    });
+  Future<String?> _refreshAccessToken() async {
+    final data = ref.read(globalDataServiceProvider);
+    final refreshToken = data.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return null;
+    }
+
+    final refreshApiClient = ApiClient(basePath: data.host);
+    final generatedClient = refreshApiClient.client;
+    final refreshHttpClient = http.Client();
+    refreshApiClient.client = refreshHttpClient;
+    generatedClient.close();
+
+    try {
+      final response = await AuthApi(refreshApiClient).refreshToken(
+        refreshTokenRequestDto: RefreshTokenRequestDto(
+          refreshToken: refreshToken,
+          userId: data.userId,
+        ),
+      );
+      return response?.accessToken;
+    } finally {
+      refreshHttpClient.close();
+    }
+  }
+
+  void _disposeResources() {
+    _resources?.close();
+    _resources = null;
   }
 }
 
-/// Custom HTTP Client that forces single-file execution (CrowdSec fix) 
-/// and verifies tokens BEFORE the request is sent.
-class _RateLimitedAuthClient extends http.BaseClient {
-  final http.Client inner;
-  final Future<void> Function() ensureToken;
-  final String Function() getToken;
-  
-  // Mutex specifically for the request queue (Rate Limiting)
-  final Mutex _requestMutex = Mutex();
+/// Builds the OpenAPI HTTP stack and owns the client it creates.
+class OpenApiClientFactory {
+  OpenApiClientFactory({
+    HttpClientFactory? httpClientFactory,
+    this.maxConcurrentRequests = 1,
+    this.rateLimitDelay = const Duration(milliseconds: 50),
+  }) : _httpClientFactory = httpClientFactory ?? http.Client.new;
 
-  _RateLimitedAuthClient({
+  final HttpClientFactory _httpClientFactory;
+  final int maxConcurrentRequests;
+  final Duration rateLimitDelay;
+
+  OpenApiClientResources create({
+    required String basePath,
+    required HttpBearerAuth authentication,
+    required AccessTokenManager tokenManager,
+    Future<void> Function()? ensureToken,
+  }) {
+    final apiClient = ApiClient(
+      basePath: basePath,
+      authentication: authentication,
+    );
+    final generatedClient = apiClient.client;
+    final authenticatedClient = createRetryingAuthClient(
+      inner: _httpClientFactory(),
+      tokenManager: tokenManager,
+      ensureToken: ensureToken,
+      maxConcurrentRequests: maxConcurrentRequests,
+      rateLimitDelay: rateLimitDelay,
+    );
+    apiClient.client = authenticatedClient;
+    generatedClient.close();
+    return OpenApiClientResources(apiClient);
+  }
+}
+
+/// Closes the complete HTTP stack created for an [ApiClient].
+class OpenApiClientResources {
+  OpenApiClientResources(this.apiClient);
+
+  final ApiClient apiClient;
+
+  void close() {
+    apiClient.client.close();
+  }
+}
+
+http.Client createRetryingAuthClient({
+  required http.Client inner,
+  required AccessTokenManager tokenManager,
+  Future<void> Function()? ensureToken,
+  int maxConcurrentRequests = 1,
+  Duration rateLimitDelay = const Duration(milliseconds: 50),
+}) {
+  final interceptorClient = RateLimitedAuthClient(
+    inner: inner,
+    ensureToken: ensureToken ?? tokenManager.refresh,
+    getToken: () => tokenManager.accessToken,
+    maxConcurrentRequests: maxConcurrentRequests,
+    rateLimitDelay: rateLimitDelay,
+  );
+  return RetryClient(
+    interceptorClient,
+    delay: (_) => Duration.zero,
+    retries: 1,
+    when: (response) => response.statusCode == 401,
+    onRetry: (request, response, retryCount) async {
+      if (retryCount != 0 || response == null) {
+        return;
+      }
+      await tokenManager.refresh(force: true);
+      final accessToken = tokenManager.accessToken;
+      if (accessToken.isEmpty) {
+        request.headers.remove('Authorization');
+      } else {
+        request.headers['Authorization'] = 'Bearer $accessToken';
+      }
+    },
+  );
+}
+
+/// Adds authentication and a bounded concurrency limit to API requests.
+class RateLimitedAuthClient extends http.BaseClient {
+  RateLimitedAuthClient({
     required this.inner,
     required this.ensureToken,
     required this.getToken,
-  });
+    int maxConcurrentRequests = 1,
+    this.rateLimitDelay = const Duration(milliseconds: 50),
+  }) : _requestLimiter = _RequestLimiter(maxConcurrentRequests);
+
+  final http.Client inner;
+  final Future<void> Function() ensureToken;
+  final String Function() getToken;
+  final Duration rateLimitDelay;
+  final _RequestLimiter _requestLimiter;
 
   @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    return await _requestMutex.protect(() async {
-      
-      // 1. Await token generation if it's missing.
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return _requestLimiter.run(() async {
       await ensureToken();
 
-      // 2. Overwrite the header natively. 
-      // If `ensureToken` just fetched a new token, we MUST inject it here 
-      // because OpenAPI already built this request object with the old header.
-      final currentToken = getToken();
-      if (currentToken.isNotEmpty) {
-        request.headers['Authorization'] = 'Bearer $currentToken';
+      final accessToken = getToken();
+      if (accessToken.isEmpty) {
+        request.headers.remove('Authorization');
+      } else {
+        request.headers['Authorization'] = 'Bearer $accessToken';
       }
 
-      // 3. Send the request
-      debugPrint("---------------------->>>>>>> ${request}");
       final response = await inner.send(request);
-
-      // 4. Rate-limit delay (150ms) to bypass CrowdSec probing heuristics
-      await Future.delayed(const Duration(milliseconds: 50));
-
+      await Future<void>.delayed(rateLimitDelay);
       return response;
     });
+  }
+
+  @override
+  void close() {
+    inner.close();
+  }
+}
+
+class _RequestLimiter {
+  _RequestLimiter(this._maximumConcurrentRequests) {
+    if (_maximumConcurrentRequests <= 0) {
+      throw RangeError.range(
+        _maximumConcurrentRequests,
+        1,
+        null,
+        'maxConcurrentRequests',
+      );
+    }
+  }
+
+  final int _maximumConcurrentRequests;
+  final Queue<Completer<void>> _waitingRequests = Queue<Completer<void>>();
+  var _activeRequests = 0;
+
+  Future<T> run<T>(Future<T> Function() action) async {
+    await _acquire();
+    try {
+      return await action();
+    } finally {
+      _release();
+    }
+  }
+
+  Future<void> _acquire() {
+    if (_activeRequests < _maximumConcurrentRequests) {
+      _activeRequests++;
+      return Future<void>.value();
+    }
+    final request = Completer<void>();
+    _waitingRequests.add(request);
+    return request.future;
+  }
+
+  void _release() {
+    if (_waitingRequests.isEmpty) {
+      _activeRequests--;
+      return;
+    }
+    _waitingRequests.removeFirst().complete();
   }
 }
 

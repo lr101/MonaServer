@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "--prefix=flutter/e2e",
+        "--no-install",
+        "playwright-mcp",
+        "--browser=chromium",
+        "--allowed-hosts=localhost,127.0.0.1",
+        "--headless"
+      ]
+    }
+  }
+}

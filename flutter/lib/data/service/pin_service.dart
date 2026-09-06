@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
-import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
@@ -46,7 +47,7 @@ class PinUserService extends _$PinUserService {
 
   // update non-user pins
   Future<void> _remoteFetch() async {
-    final stream = _pinRepository.getPinsByUser(_userId);
+    final stream = _pinRepository.getPinsByUser(this.userId);
     final pins = await stream.first;
     final isUser = this.userId == _userId;
     if (pins.isEmpty && !isUser) {
@@ -94,33 +95,97 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   Stream<List<PinEntity>> build(String groupId) async* {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
-    final userGroups = ref.watch(userGroupServiceProvider).value ?? [];
+    ref.watch(userGroupServiceProvider);
 
-    yield await _pinRepository.getPinsByGroup(groupId).first;
+    final cachedPins = await _pinRepository.getPinsByGroup(groupId).first;
+    yield cachedPins;
 
-    await _remoteFetch(userGroups);
-
+    unawaited(_refreshInBackground(cachedPins));
     yield* _pinRepository.getPinsByGroup(groupId);
   }
 
-  // update non user groups
-  Future<void> _remoteFetch(List<GroupEntity> userGroups) async {
-    final stream = _pinRepository.getPinsByGroup(groupId);
-    final pins = await stream.first;
-    final isUserGroup = userGroups.any((e) => e.groupId == groupId);
-    if (pins.isEmpty && !isUserGroup) {
-      final remotePins = await _pinsApi.getPinImagesByIds(
-        groupId: groupId,
-        withImage: false,
-      );
-      if (remotePins != null) {
-        final pins = remotePins.items
-            .map((e) => PinEntity.fromDto(e, !isUserGroup))
-            .toList();
-        await _pinRepository.putMultiple(pins);
-      }
+  Future<void> _refreshInBackground(List<PinEntity> cachedPins) async {
+    try {
+      await _remoteFetch(cachedPins);
+    } catch (_) {
+      // Keep cached pins available when a background refresh is unavailable.
     }
   }
+
+  // Group pins are refreshed when a pin consumer is active. The global sync
+  // may already have populated joined groups, but the details view uses this
+  // same refresh path for every membership state.
+  Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
+    final membershipBeforeFetch = _currentMembership();
+    await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
+
+    final remotePins = await _pinsApi.getPinImagesByIds(
+      groupId: groupId,
+      withImage: false,
+      updatedAfter: _oldestSyncTime(cachedPins),
+    );
+    if (remotePins == null) return;
+
+    if (remotePins.deleted.isNotEmpty) {
+      await _pinRepository.deleteMultiple(remotePins.deleted);
+    }
+
+    final latestIsUserGroup = _currentMembership() ?? false;
+
+    final pins = remotePins.items
+        .map(
+          (e) => PinEntity.fromDto(
+            e,
+            !latestIsUserGroup,
+            keepAlive: latestIsUserGroup,
+          ),
+        )
+        .toList();
+    await _pinRepository.putMultiple(pins);
+
+    // Membership may change while the repository batch is being written.
+    // Align the cache policy with the state visible after the write.
+    await Future<void>.delayed(Duration.zero);
+    final joinedAfterWrite = _currentMembership();
+    if (joinedAfterWrite != null && joinedAfterWrite != latestIsUserGroup) {
+      await _pinRepository.updateKeepAlive(
+        groupId,
+        joinedAfterWrite,
+        !joinedAfterWrite,
+      );
+    }
+  }
+
+  bool? _currentMembership() {
+    final userGroups = ref.read(userGroupServiceProvider).value;
+    if (userGroups == null) return null;
+    return userGroups.any((group) => group.groupId == groupId);
+  }
+
+  Future<void> _reconcileCachePolicy(
+    List<PinEntity> cachedPins,
+    bool? isUserGroup,
+  ) async {
+    if (isUserGroup == null || cachedPins.isEmpty) return;
+
+    final onlySession = !isUserGroup;
+    final needsUpdate = cachedPins.any(
+      (pin) => pin.keepAlive != isUserGroup || pin.onlySession != onlySession,
+    );
+    if (needsUpdate) {
+      await _pinRepository.updateKeepAlive(groupId, isUserGroup, onlySession);
+    }
+  }
+}
+
+DateTime? _oldestSyncTime(List<PinEntity> pins) {
+  DateTime? oldest;
+  for (final pin in pins) {
+    final lastSynced = pin.lastSynced;
+    if (lastSynced == null) return null;
+    if (oldest == null || lastSynced.isBefore(oldest)) oldest = lastSynced;
+  }
+  return oldest;
 }
 
 @riverpod

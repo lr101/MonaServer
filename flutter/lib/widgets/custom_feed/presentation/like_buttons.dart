@@ -19,7 +19,7 @@ class FeedCardSubtitle extends ConsumerWidget {
     final pinLike = ref.watch(likeServiceProvider(pin.pinId));
     final userId = ref.watch(globalDataServiceProvider).userId!;
     // Watch the group data to display the name
-    final groupAsync = ref.watch(groupServiceProvider(pin.groupId));
+    final groupAsync = ref.watch(groupMetadataProvider(pin.groupId));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,23 +28,34 @@ class FeedCardSubtitle extends ConsumerWidget {
         Row(
           children: [
             LikeButtonAnimated(
-              isLikedProvider: likeServiceProvider(pin.pinId).select((e) => e.value?.likedByUser),
+              isLikedProvider: likeServiceProvider(pin.pinId)
+                  .select((e) => e.value?.likedByUser),
               isLiked: pinLike.value?.likedByUser ?? false,
               likeBuilder: (isLiked) {
                 return Icon(
                   isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                  color: isLiked
+                      ? Colors.red
+                      : Theme.of(context).colorScheme.onSurface,
                   size: 26,
                 );
               },
               likeCount: pinLike.value?.likeCount ?? 0,
               onTap: (isLiked) async {
                 try {
-                  final service = ref.read(likeServiceProvider(pin.pinId).notifier);
+                  final service = ref.read(
+                    likeServiceProvider(pin.pinId).notifier,
+                  );
                   if (isLiked) {
-                    await service.addLike(pin.creator, CreateLikeDto(userId: userId, like: false));
+                    await service.addLike(
+                      pin.creator,
+                      CreateLikeDto(userId: userId, like: false),
+                    );
                   } else {
-                    await service.addLike(pin.creator, CreateLikeDto(userId: userId, like: true));
+                    await service.addLike(
+                      pin.creator,
+                      CreateLikeDto(userId: userId, like: true),
+                    );
                   }
                 } catch (e) {
                   return false;
@@ -52,46 +63,53 @@ class FeedCardSubtitle extends ConsumerWidget {
                 return true;
               },
             ),
-      
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text("•", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text(
+                "•",
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
-            
+
             groupAsync.when(
-              data: (group) => ClickableGroup(groupId: group?.groupId ?? "", child:  Text(
-                group?.name ?? "",
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12
-                    ),
-              )),
+              data: (group) => ClickableGroup(
+                groupId: group?.groupId ?? "",
+                child: Text(
+                  group?.name ?? "",
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
               loading: () => const SizedBox.shrink(),
               error: (_, _) => const Text("Unknown Group"),
             ),
-            
+
             // Separator dot
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text("•", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text(
+                "•",
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
 
             // Time Ago
             Text(
-              _formatTimeAgo(pin.creationDate), 
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.grey, fontSize: 12),
+              _formatTimeAgo(pin.creationDate),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: Colors.grey, fontSize: 12),
             ),
-                
-
-          ]
+          ],
         ),
         if (pin.description != null && pin.description!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: FeedDescriptionExpandable(pin: pin),
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: FeedDescriptionExpandable(pin: pin),
+          ),
       ],
     );
   }

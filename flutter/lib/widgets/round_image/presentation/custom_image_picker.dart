@@ -98,7 +98,6 @@ class CustomImagePicker {
             ),
             IOSUiSettings(
               title: 'Cropper',
-              aspectRatioLockEnabled: true,
               aspectRatioPickerButtonHidden: true,
               resetAspectRatioEnabled: false,
             ),

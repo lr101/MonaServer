@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -15,56 +14,141 @@ part 'image_service.g.dart';
 Stream<Uint8List?> getUserProfile(Ref ref, String userId) {
   final repo = ref.watch(userImageRepoProvider);
   final isUser = ref.watch(userIdProvider) == userId;
-  repo.fetchImage(userId, isUser); // async
-  return repo.watchImageBytes(userId);
+  return _watchAndFetchImage(repo, userId, isUser);
 }
 
 @riverpod
-Stream<Uint8List?> getUserProfileSmall(Ref ref, String userId)  {
+Stream<Uint8List?> getUserProfileSmall(Ref ref, String userId) {
   final repo = ref.watch(userImageSmallRepoProvider);
   final isUser = ref.watch(userIdProvider) == userId;
-  repo.fetchImage(userId, isUser);
-  return repo.watchImageBytes(userId);
+  return _watchAndFetchImage(repo, userId, isUser);
 }
 
 @riverpod
-Stream<Uint8List?> groupProfilePictureById(Ref ref, String groupId)  {
-  final userGroup = ref.watch(userGroupServiceProvider.select((e) => e.value?.any((f) => f.groupId == groupId)));
+Stream<Uint8List?> groupProfilePictureById(Ref ref, String groupId) {
+  final userGroup = ref.watch(
+    userGroupServiceProvider.select(
+      (e) => e.value?.any((f) => f.groupId == groupId),
+    ),
+  );
   final repo = ref.watch(groupProfileRepoProvider);
-  if (userGroup != null) repo.fetchImage(groupId, userGroup);
-  return repo.watchImageBytes(groupId);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
 }
 
-
 @riverpod
-Stream<Uint8List?> groupProfilePictureSmallById(Ref ref, String groupId)  {
-  final userGroup = ref.watch(userGroupServiceProvider.select((e) => e.value?.any((f) => f.groupId == groupId)));
-  final repo = ref.watch(groupProfileRepoProvider);
-  if (userGroup != null) repo.fetchImage(groupId, userGroup);
-  return repo.watchImageBytes(groupId);
+Stream<Uint8List?> groupProfilePictureSmallById(Ref ref, String groupId) {
+  final userGroup = ref.watch(
+    userGroupServiceProvider.select(
+      (e) => e.value?.any((f) => f.groupId == groupId),
+    ),
+  );
+  final repo = ref.watch(groupProfileSmallRepoProvider);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
 }
 
+/// Uses a presigned URL already returned by a group search response.
+final groupProfilePictureSmallByUrlProvider = StreamProvider.autoDispose
+    .family<Uint8List?, ({String groupId, String url})>((ref, image) {
+      final userGroup = ref.watch(
+        userGroupServiceProvider.select(
+          (e) => e.value?.any((f) => f.groupId == image.groupId),
+        ),
+      );
+      final repo = ref.watch(groupProfileSmallRepoProvider);
+      return _watchAndFetchImage(
+        repo,
+        image.groupId,
+        userGroup ?? false,
+        imageUrl: image.url,
+      );
+    });
 
 @riverpod
-Stream<Uint8List?> groupPinImageById(Ref ref, String groupId)  {
-  final userGroup = ref.watch(userGroupServiceProvider.select((e) => e.value?.any((f) => f.groupId == groupId)));
+Stream<Uint8List?> groupPinImageById(Ref ref, String groupId) {
+  final userGroup = ref.watch(
+    userGroupServiceProvider.select(
+      (e) => e.value?.any((f) => f.groupId == groupId),
+    ),
+  );
   final repo = ref.watch(groupPinImageRepoProvider);
-  if (userGroup != null) repo.fetchImage(groupId, userGroup);
-  return repo.watchImageBytes(groupId);
+  return _watchAndFetchImage(repo, groupId, userGroup ?? false);
+}
+
+Stream<Uint8List?> _watchAndFetchImage(
+  IImageRepository repo,
+  String id,
+  bool keepAlive, {
+  String? imageUrl,
+}) {
+  late final StreamController<Uint8List?> controller;
+  StreamSubscription<Uint8List?>? watcher;
+  var cancelled = false;
+  controller = StreamController<Uint8List?>(
+    onListen: () {
+      watcher = repo
+          .watchImageBytes(id)
+          .listen(
+            controller.add,
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+      unawaited(
+        _fetchImageInBackground(
+          repo,
+          id,
+          keepAlive,
+          controller,
+          () => !cancelled,
+          imageUrl: imageUrl,
+        ),
+      );
+    },
+    onCancel: () async {
+      cancelled = true;
+      await watcher?.cancel();
+      await controller.close();
+    },
+  );
+  return controller.stream;
+}
+
+Future<void> _fetchImageInBackground(
+  IImageRepository repo,
+  String id,
+  bool keepAlive,
+  StreamController<Uint8List?> controller,
+  bool Function() isActive, {
+  String? imageUrl,
+}) async {
+  try {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      await repo.fetchImage(id, keepAlive);
+      return;
+    }
+
+    await repo.fetchImageFromUrl(id, imageUrl, keepAlive);
+  } catch (error, stackTrace) {
+    if (isActive() && !controller.isClosed) {
+      controller.addError(error, stackTrace);
+    }
+  }
 }
 
 class PinImageInfo {
-  PinImageInfo({required this.image, required this.width, required this.height});
+  PinImageInfo({
+    required this.image,
+    required this.width,
+    required this.height,
+  });
   final Uint8List image;
   final int width;
   final int height;
 }
 
 @riverpod
-Stream<PinImageInfo?> getPinImageInfo(Ref ref, String pinId) async*  {
+Stream<PinImageInfo?> getPinImageInfo(Ref ref, String pinId) {
   final repo = ref.watch(pinImageRepositoryProvider);
-  await repo.fetchImage(pinId, false);
-  yield* repo.watchImageBytes(pinId).asyncMap((e) async {
+  return _watchAndFetchImage(repo, pinId, false).asyncMap((e) async {
     if (e == null) return null;
     final Completer<ui.Image> completer = Completer();
     ui.decodeImageFromList(e, (ui.Image img) {

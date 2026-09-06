@@ -26,23 +26,86 @@ For a complete local stack, create an ignored `.env.dev` as described in the Go 
 docker compose -f docker-compose.dev.yml up --build
 ```
 
+Agents should use [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md) for
+the disposable full-stack workflow. It includes a Dockerless native profile
+for environments such as this one, where PostgreSQL/PostGIS is available but a
+container runtime is not.
+
 The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
 
-To work on the Flutter app, install the pinned toolchain with `mise install`,
-then run these commands from the repository root:
+For a disposable app test environment with seeded users, groups, pins, likes,
+and RustFS objects, use the dedicated test stack:
+
+```bash
+test -f .env.test || cp .env.test.example .env.test
+# Replace the placeholder values in .env.test with local-only values.
+docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
+for attempt in $(seq 1 60); do
+  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 60 ]; then
+    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
+    exit 1
+  fi
+  sleep 1
+done
+export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
+mise run testdata-seed
+set -a
+source testdata/.env.test
+set +a
+```
+
+The fixture scenarios and ports are documented in
+[`testdata/README.md`](testdata/README.md). Reset the disposable environment
+with `docker compose --env-file .env.test -f docker-compose.test.yml down -v` when a clean dataset
+is required.
+
+To work on the Flutter app, install the pinned toolchain and Flutter packages
+from the repository root:
+
+```bash
+mise install
+mise run flutter-setup
+```
+
+Run the app on a connected or emulated device by passing Flutter options after
+`--`:
+
+```bash
+mise run flutter-run -- -d <device-id>
+```
+
+Build the app with:
+
+```bash
+mise run flutter-build-web
+mise run flutter-build-apk
+E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
+```
+
+For local checks:
 
 ```bash
 cd flutter
-flutter pub get
 dart run build_runner build
 flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
 
-The repository pins Go 1.27.0, Flutter 3.47.2, and the API tooling in
-[`mise.toml`](mise.toml). The same checks are available from the repository
-root as `mise run flutter-analyze`, `mise run flutter-test`, and
+The repository pins Go 1.27.1, Flutter 3.47.2, Node.js 24.20.0, and the API
+tooling in [`mise.toml`](mise.toml). The same checks are available from the
+repository root as `mise run flutter-analyze`, `mise run flutter-test`, and
 `mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
-build.
+build. Use `mise run flutter-verify-web` when a web UI or startup change needs
+browser-level validation; the complete workflow is documented in
+[`flutter/AGENTS.md`](flutter/AGENTS.md).
+
+The web build uses Flutter's `--wasm` mode. Flutter emits a Wasm build and a
+JavaScript fallback into the same `build/web` directory, and the generated
+`flutter_bootstrap.js` selects the compatible build at runtime. The deployment
+image copies that directory as a whole, so the server does not need brittle
+user-agent routing.
 
 The app uses the generated Dart client in `flutter/api/`. Regenerate it from the shared contract with:
 
@@ -51,20 +114,19 @@ cd flutter
 openapi-generator generate -i ../api/openapi.yaml -g dart -o ./api
 ```
 
-The Codemagic Android workflow writes the app's `.config`, restores the Firebase
+The Codemagic Android workflow writes the app's `config`, restores the Firebase
 Android configuration, prepares release signing, builds an Android App Bundle,
-and uploads it to Google Play. Configure the `android_keystore` signing
-identity, the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS`
-secrets, and the `app_config` environment group in Codemagic before starting
-the workflow.
-
-PostHog is configured at build time with the `POSTHOG_API_KEY` environment
-variable and optional `POSTHOG_HOST`; configure the key in Codemagic and GitHub
-Actions rather than committing it to either checked-in Flutter config file.
+and uploads it to Google Play after a push to `main`. Configure a Codemagic
+repository webhook for push events, the `android_keystore` signing identity,
+the `GOOGLE_SERVICES` and `GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS` secrets,
+and the `app_config` environment group before enabling the workflow.
 
 ## Repository layout
 
 - `flutter/`: Flutter app, platform projects, assets, and generated Dart API client
+- `flutter/e2e/`: Playwright tests and MCP browser configuration for Flutter web
+- `testdata/`: disposable integration stack, fixture scenarios, and seed command
+- `docs/AGENT_LOCAL_STACK.md`: agent runbook for Compose and Dockerless local services
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `docker-compose.dev.yml`: local PostGIS, object storage, and server stack

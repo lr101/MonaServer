@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "defaultUser": "viewer",
+  "users": [
+    {
+      "key": "viewer",
+      "username": "stickitviewer",
+      "description": "Fixture account used to inspect public and joined content"
+    },
+    {
+      "key": "owner",
+      "username": "stickitowner",
+      "description": "Fixture account that owns the seeded groups"
+    },
+    {
+      "key": "member",
+      "username": "stickitmember",
+      "description": "Fixture account that belongs to selected groups"
+    }
+  ],
+  "groups": [
+    {
+      "key": "member-public",
+      "name": "Stick-It Fixture - Public Member Group",
+      "description": "Public group where the viewer is a member",
+      "visibility": 0,
+      "admin": "owner",
+      "members": ["viewer", "member"]
+    },
+    {
+      "key": "public-unjoined",
+      "name": "Stick-It Fixture - Public Unjoined Pins",
+      "description": "Public group with pins visible to a non-member viewer",
+      "visibility": 0,
+      "admin": "owner",
+      "members": ["member"]
+    },
+    {
+      "key": "private-unjoined",
+      "name": "Stick-It Fixture - Private Unjoined Group",
+      "description": "Private group that the viewer is not allowed to inspect",
+      "visibility": 1,
+      "admin": "owner",
+      "members": ["member"]
+    },
+    {
+      "key": "empty-public",
+      "name": "Stick-It Fixture - Empty Public Group",
+      "description": "Public group without pins for empty-state checks",
+      "visibility": 0,
+      "admin": "owner",
+      "members": []
+    }
+  ],
+  "pins": [
+    {
+      "key": "member-public-viewer-pin",
+      "group": "member-public",
+      "creator": "viewer",
+      "latitude": 48.137154,
+      "longitude": 11.576124,
+      "creationDate": "2024-01-01T12:00:00Z",
+      "description": "fixture: joined group pin created by viewer"
+    },
+    {
+      "key": "member-public-member-pin",
+      "group": "member-public",
+      "creator": "member",
+      "latitude": 48.138154,
+      "longitude": 11.577124,
+      "creationDate": "2024-01-02T12:00:00Z",
+      "description": "fixture: joined group pin created by member"
+    },
+    {
+      "key": "public-unjoined-owner-pin",
+      "group": "public-unjoined",
+      "creator": "owner",
+      "latitude": 48.139154,
+      "longitude": 11.578124,
+      "creationDate": "2024-01-03T12:00:00Z",
+      "description": "fixture: public pin visible to a non-member viewer"
+    },
+    {
+      "key": "public-unjoined-member-pin",
+      "group": "public-unjoined",
+      "creator": "member",
+      "latitude": 48.140154,
+      "longitude": 11.579124,
+      "creationDate": "2024-01-04T12:00:00Z",
+      "description": "fixture: second public pin visible to a non-member viewer"
+    },
+    {
+      "key": "private-unjoined-owner-pin",
+      "group": "private-unjoined",
+      "creator": "owner",
+      "latitude": 48.141154,
+      "longitude": 11.580124,
+      "creationDate": "2024-01-05T12:00:00Z",
+      "description": "fixture: private pin hidden from a non-member viewer"
+    }
+  ],
+  "likes": [
+    {
+      "pin": "member-public-viewer-pin",
+      "user": "member",
+      "like": true,
+      "likeLocation": true
+    },
+    {
+      "pin": "public-unjoined-owner-pin",
+      "user": "viewer",
+      "like": true,
+      "likeArt": true
+    }
+  ]
+}

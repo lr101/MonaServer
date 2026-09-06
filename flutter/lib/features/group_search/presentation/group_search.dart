@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
+import 'package:openapi/api.dart';
 
 class GroupSearch extends ConsumerStatefulWidget {
   const GroupSearch({super.key});
@@ -18,8 +19,7 @@ class GroupSearch extends ConsumerStatefulWidget {
 }
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
-  final _pagingController =
-      PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
 
   final _textEditController = TextEditingController();
 
@@ -47,48 +47,65 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   @override
   Widget build(BuildContext context) {
     return CustomScaffold<GroupEntity>(
-        title: SizedBox(
-          height: 40,
+      title: SizedBox(
+        height: 40,
         child: SearchBar(
-            controller: _textEditController,
-            shadowColor:  WidgetStateProperty.all(Colors.transparent),
-            leading: const Icon(Icons.search),
-            trailing: <Widget>[
-              Tooltip(
-                message: 'Delete search term',
-                child: IconButton(
-                  onPressed: () => _textEditController.clear(),
-                  icon: const Icon(Icons.delete),
-                ),
+          controller: _textEditController,
+          shadowColor: WidgetStateProperty.all(Colors.transparent),
+          leading: const Icon(Icons.search),
+          trailing: <Widget>[
+            Tooltip(
+              message: 'Delete search term',
+              child: IconButton(
+                onPressed: () => _textEditController.clear(),
+                icon: const Icon(Icons.delete),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        listBuilder: (context, item, index) => GroupTile(groupDto: item, onTap: () => context.pushNamed('groupOverview', pathParameters: {"id": item.groupId})),
-        pagingController: _pagingController,);
+      ),
+      listBuilder: (context, item, index) => GroupTile(
+        groupDto: item,
+        onTap: () => context.pushNamed(
+          'groupOverview',
+          pathParameters: {"id": item.groupId},
+        ),
+      ),
+      pagingController: _pagingController,
+    );
   }
 
   Future<void> updatePage(int pageKey) async {
-    final groups = await ref.watch(groupApiProvider).getGroupsByIds(
-        search: _textEditController.text,
-        withUser: false,
-        userId: ref.watch(globalDataServiceProvider).userId,
-        page: pageKey,
-        size: _pageSize,
-        withImages: true,);
-    if (groups == null) {
+    try {
+      final groups = await _fetchPage(pageKey);
+      if (groups == null) {
+        _pagingController.error = "Groups could not be fetched";
+        return;
+      }
+      final groupDtos = groups.items
+          .map((e) => GroupEntity.fromGroupDto(e, true, false))
+          .toList();
+      if (groupDtos.length < _pageSize) {
+        _pagingController.appendLastPage(groupDtos);
+      } else {
+        _pagingController.appendPage(groupDtos, pageKey + 1);
+      }
+    } catch (_) {
       _pagingController.error = "Groups could not be fetched";
-      return;
     }
-    final groupDtos = <GroupEntity>[];
-    for (final e in groups.items) {
-      groupDtos.add(GroupEntity.fromGroupDto(e, true, false));
-    }
-    if (groupDtos.length < _pageSize) {
-      _pagingController.appendLastPage(groupDtos);
-    } else {
-      _pagingController.appendPage(groupDtos, pageKey + 1);
-    }
+  }
+
+  Future<GroupsSyncDto?> _fetchPage(int pageKey) {
+    return ref
+        .read(groupApiProvider)
+        .getGroupsByIds(
+          search: _textEditController.text,
+          withUser: false,
+          userId: ref.read(globalDataServiceProvider).userId,
+          page: pageKey,
+          size: _pageSize,
+          withImages: false,
+        );
   }
 
   void listener() {
