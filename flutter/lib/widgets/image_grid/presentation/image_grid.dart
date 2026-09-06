@@ -26,6 +26,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   List<PinEntity> _images = [];
 
   bool isInitial = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -34,22 +35,15 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
       _fetchPage(pageKey);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.watch(widget.pinProvider).whenData((data) {
-        if (data != null) {
-          _images = data;
-          isInitial = false;
-          _pagingController.refresh();
-        }
-      });
+      if (!mounted) return;
+      _applyProviderValue(ref.read(widget.pinProvider));
     });
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(widget.pinProvider, (previous, next) {
-      if (next.value != null && next.value!.isEmpty) isInitial = false;
-      _images = next.value ?? [];
-      _pagingController.refresh();
+      _applyProviderValue(next);
     });
     return PagedGridView<int, PinEntity>(
       pagingController: _pagingController,
@@ -67,6 +61,8 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         noItemsFoundIndicatorBuilder: (context) => Center(
           child: isInitial
               ? const CircularProgressIndicator()
+              : _errorMessage != null
+              ? Text(_errorMessage!)
               : const Text("No images found"),
         ),
       ),
@@ -76,6 +72,25 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         mainAxisSpacing: 5.0,
       ),
     );
+  }
+
+  void _applyProviderValue(AsyncValue<List<PinEntity>?> next) {
+    if (next.hasError) {
+      isInitial = false;
+      if (_images.isEmpty) {
+        _errorMessage = "Unable to load images";
+      }
+      _pagingController.refresh();
+      return;
+    }
+
+    final data = next.value;
+    if (data == null) return;
+
+    _errorMessage = null;
+    _images = data;
+    isInitial = false;
+    _pagingController.refresh();
   }
 
   Future<void> _fetchPage(int pageKey) async {

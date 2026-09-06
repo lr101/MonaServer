@@ -407,6 +407,25 @@ void main() {
     expect(pinsApi.requests, 1);
   });
 
+  test(
+    'keeps a successful membership when pin synchronization fails',
+    () async {
+      final groupRepository = _FakeGroupRepository();
+      final service = await _createService(
+        groupRepository: groupRepository,
+        membersApi: _FakeMembersApi(_groupWithImages()),
+        pinsApi: _FakePinsApi(
+          getPinsOverride: () async => throw StateError('pin sync failed'),
+        ),
+      );
+
+      final result = await service.joinGroup('group-id');
+
+      expect(result, isNull);
+      expect((await groupRepository.get('group-id'))?.userIsMember, isTrue);
+    },
+  );
+
   test('prefetches joined group media after joining completes', () async {
     final profileCache = _FakeImageRepository.pending();
     final profileSmallCache = _FakeImageRepository.pending();
@@ -1038,6 +1057,8 @@ Future<UserGroupService> _createService({
   MembersApi? membersApi,
   GroupsApi? groupsApi,
   PinsApi? pinsApi,
+  IGroupRepository? groupRepository,
+  IPinRepository? pinRepository,
   IImageRepository? profileCache,
   IImageRepository? profileSmallCache,
   IImageRepository? pinImageCache,
@@ -1045,8 +1066,12 @@ Future<UserGroupService> _createService({
   final container = ProviderContainer(
     overrides: [
       userIdProvider.overrideWithValue('user-id'),
-      groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
-      pinRepositoryProvider.overrideWithValue(_FakePinRepository()),
+      groupRepositoryProvider.overrideWithValue(
+        groupRepository ?? _FakeGroupRepository(),
+      ),
+      pinRepositoryProvider.overrideWithValue(
+        pinRepository ?? _FakePinRepository(),
+      ),
       memberApiProvider.overrideWithValue(membersApi ?? _FakeMembersApi(null)),
       groupApiProvider.overrideWithValue(groupsApi ?? _FakeGroupsApi(null)),
       pinApiProvider.overrideWithValue(pinsApi ?? _FakePinsApi()),

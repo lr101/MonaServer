@@ -213,7 +213,10 @@ class UserGroupService extends _$UserGroupService {
     }
   }
 
-  Future<void> _syncJoin(GroupDto groupDto) async {
+  Future<void> _syncJoin(
+    GroupDto groupDto, {
+    bool toleratePinSyncErrors = false,
+  }) async {
     // update group entity
     final groupId = groupDto.id;
     final groupEntity = GroupEntity.fromGroupDto(
@@ -226,13 +229,17 @@ class UserGroupService extends _$UserGroupService {
     await _groupRepository.put(groupEntity);
 
     // update group pins
-    await _syncGroupPins(
-      _pinRepository,
-      _pinsApi,
-      groupId,
-      onlySession: false,
-      keepAlive: true,
-    );
+    try {
+      await _syncGroupPins(
+        _pinRepository,
+        _pinsApi,
+        groupId,
+        onlySession: false,
+        keepAlive: true,
+      );
+    } catch (_) {
+      if (!toleratePinSyncErrors) rethrow;
+    }
 
     // Media is an offline cache concern, not part of the join transaction.
     prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
@@ -252,7 +259,7 @@ class UserGroupService extends _$UserGroupService {
         inviteUrl: inviteUrl,
       );
       if (result != null) {
-        await _syncJoin(result);
+        await _syncJoin(result, toleratePinSyncErrors: true);
       } else {
         return "Failed to join group remotely";
       }

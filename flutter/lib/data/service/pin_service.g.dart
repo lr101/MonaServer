@@ -50,7 +50,7 @@ final class PinUserServiceProvider
   }
 }
 
-String _$pinUserServiceHash() => r'3ceeccb0d3448a828b9fd43e59df617481807386';
+String _$pinUserServiceHash() => r'244c447d39009706c2377b27e16dd099d0923e8e';
 
 final class PinUserServiceFamily extends $Family
     with
@@ -216,7 +216,7 @@ final class PinGroupServiceUnfilteredProvider
 }
 
 String _$pinGroupServiceUnfilteredHash() =>
-    r'f0a1441e54da70e5463a8f25e1bb84cd733a85ca';
+    r'2a9439a1f28cf3589ec6212b6a97864d2578cad0';
 
 final class PinGroupServiceUnfilteredFamily extends $Family
     with
@@ -258,6 +258,107 @@ abstract class _$PinGroupServiceUnfiltered
             as $ClassProviderElement<
               AnyNotifier<AsyncValue<List<PinEntity>>, List<PinEntity>>,
               AsyncValue<List<PinEntity>>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
+@ProviderFor(PinGroupRefreshErrorState)
+final pinGroupRefreshErrorStateProvider = PinGroupRefreshErrorStateFamily._();
+
+final class PinGroupRefreshErrorStateProvider
+    extends
+        $NotifierProvider<PinGroupRefreshErrorState, PinGroupRefreshError?> {
+  PinGroupRefreshErrorStateProvider._({
+    required PinGroupRefreshErrorStateFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'pinGroupRefreshErrorStateProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$pinGroupRefreshErrorStateHash();
+
+  @override
+  String toString() {
+    return r'pinGroupRefreshErrorStateProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  PinGroupRefreshErrorState create() => PinGroupRefreshErrorState();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(PinGroupRefreshError? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<PinGroupRefreshError?>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is PinGroupRefreshErrorStateProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$pinGroupRefreshErrorStateHash() =>
+    r'673e04a14be1a5a110fb74dfdceb322e3ee858a0';
+
+final class PinGroupRefreshErrorStateFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          PinGroupRefreshErrorState,
+          PinGroupRefreshError?,
+          PinGroupRefreshError?,
+          PinGroupRefreshError?,
+          String
+        > {
+  PinGroupRefreshErrorStateFamily._()
+    : super(
+        retry: null,
+        name: r'pinGroupRefreshErrorStateProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  PinGroupRefreshErrorStateProvider call(String groupId) =>
+      PinGroupRefreshErrorStateProvider._(argument: groupId, from: this);
+
+  @override
+  String toString() => r'pinGroupRefreshErrorStateProvider';
+}
+
+abstract class _$PinGroupRefreshErrorState
+    extends $Notifier<PinGroupRefreshError?> {
+  late final _$args = ref.$arg as String;
+  String get groupId => _$args;
+
+  PinGroupRefreshError? build(String groupId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<PinGroupRefreshError?, PinGroupRefreshError?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<PinGroupRefreshError?, PinGroupRefreshError?>,
+              PinGroupRefreshError?,
               Object?,
               Object?
             >;
@@ -320,7 +421,7 @@ final class PinGroupServiceProvider
   }
 }
 
-String _$pinGroupServiceHash() => r'37003f81c4300d8798348010009c40c471231218';
+String _$pinGroupServiceHash() => r'acde6184a0d650393955897329c71312d2aa8d81';
 
 final class PinGroupServiceFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<List<PinEntity>>, String> {

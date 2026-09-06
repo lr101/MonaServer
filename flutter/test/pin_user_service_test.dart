@@ -148,6 +148,34 @@ void main() {
     );
   });
 
+  test('surfaces an empty group refresh failure from the pin stream', () async {
+    final error = StateError('pin refresh failed');
+    final api = RecordingPinsApi(error: error);
+    final container = ProviderContainer(
+      overrides: [
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        pinRepositoryProvider.overrideWithValue(FakePinRepository({})),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinGroupServiceProvider('group'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(pinGroupServiceProvider('group'));
+    expect(state.error, same(error));
+  });
+
   test('applies deleted public group pins during a lazy refresh', () async {
     final repository = FakePinRepository(
       {},
