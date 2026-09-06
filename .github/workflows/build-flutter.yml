@@ -8,6 +8,7 @@ on:
     paths:
       - "flutter/**"
       - "api/**"
+      - ".github/scripts/**"
       - "mise.toml"
       - ".github/workflows/build-flutter.yml"
   workflow_dispatch:
@@ -21,6 +22,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Test container image promotion
+        run: bash .github/scripts/test_promote_image_channel.sh
 
       - name: Add Google services configuration
         env:
@@ -120,7 +124,7 @@ jobs:
         run: flutter build apk --debug --no-pub
 
   validate-web-container:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -204,7 +208,7 @@ jobs:
         run: flutter build ios --release --no-codesign --no-pub
 
   publish-web:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     needs: [analyze-and-build, validate-web-container]
     runs-on: ubuntu-latest
     permissions:
@@ -239,13 +243,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   promote-web-image:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     needs: publish-web
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -256,25 +263,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Promote current main image to :main
+      - name: Promote current branch image
         env:
           GH_TOKEN: ${{ github.token }}
           WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/stick-it-web
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          CHANNEL_TAG: ${{ github.ref == 'refs/heads/main' && 'main' || 'snapshot' }}
         run: |
-          set -euo pipefail
-          for attempt in 1 2 3 4 5 6; do
-            current_sha="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
-            if docker buildx imagetools inspect "$WEB_IMAGE:$current_sha" >/dev/null 2>&1; then
-              docker buildx imagetools create --tag "$WEB_IMAGE:main" "$WEB_IMAGE:$current_sha"
-              verified_sha="$(gh api "repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')"
-              if [ "$verified_sha" = "$current_sha" ]; then
-                echo "Promoted $WEB_IMAGE:$current_sha to :main"
-                exit 0
-              fi
-              echo "::notice::main advanced during promotion; retrying with its current image."
-            else
-              echo "::notice::The current main image is not available yet; retrying."
-            fi
-            sleep 10
-          done
-          echo "::notice::No stable current main image was available; leaving :main unchanged."
+          bash .github/scripts/promote_image_channel.sh \
+            "$WEB_IMAGE" \
+            "$SOURCE_BRANCH" \
+            "$CHANNEL_TAG"

@@ -8,7 +8,9 @@ on:
     paths:
       - 'go-server/**'
       - 'api/**'
+      - '.github/scripts/**'
       - '.github/workflows/build-go-docker.yml'
+      - '.github/workflows/publish-go-docker.yml'
 
 jobs:
   build-and-test:
@@ -27,6 +29,9 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - uses: actions/checkout@v7
+
+      - name: Test container image promotion
+        run: bash .github/scripts/test_promote_image_channel.sh
 
       - name: Set up Go
         uses: actions/setup-go@v7
