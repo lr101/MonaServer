@@ -22,4 +22,21 @@ void main() {
     expect(normalized!.width, 720);
     expect(normalized.height, 960);
   });
+
+  test('auto crop normalizes smaller pin photos to 720 by 960', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'small-pin-image-processing-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final source = img.Image(width: 600, height: 800);
+    final file = File('${directory.path}/source.jpg');
+    await file.writeAsBytes(img.encodeJpg(source));
+
+    final encoded = await CustomImagePicker.autoCrop(res: XFile(file.path));
+    final normalized = img.decodeJpg(encoded!);
+
+    expect(normalized, isNotNull);
+    expect(normalized!.width, 720);
+    expect(normalized.height, 960);
+  });
 }

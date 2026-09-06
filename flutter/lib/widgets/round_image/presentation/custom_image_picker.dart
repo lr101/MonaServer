@@ -137,7 +137,7 @@ Uint8List? _normalizePinImage(Uint8List bytes) {
     width: cropWidth,
     height: cropHeight,
   );
-  if (normalized.width > targetWidth || normalized.height > targetHeight) {
+  if (normalized.width != targetWidth || normalized.height != targetHeight) {
     normalized = img.copyResize(
       normalized,
       width: targetWidth,
