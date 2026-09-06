@@ -19,14 +19,14 @@ for attempt in 1 2 3 4 5 6; do
       --jq '.object.sha'
   )"
   if docker buildx imagetools inspect "$image:$current_sha" >/dev/null 2>&1; then
-    docker buildx imagetools create \
-      --tag "$image:$channel_tag" \
-      "$image:$current_sha"
     verified_sha="$(
       gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$source_branch" \
         --jq '.object.sha'
     )"
     if [ "$verified_sha" = "$current_sha" ]; then
+      docker buildx imagetools create \
+        --tag "$image:$channel_tag" \
+        "$image:$current_sha"
       echo "Promoted $image:$current_sha to :$channel_tag"
       exit 0
     fi
