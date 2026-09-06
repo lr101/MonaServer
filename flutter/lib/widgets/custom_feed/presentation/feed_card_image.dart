@@ -45,7 +45,7 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
 
   @override
   Widget build(BuildContext context) {
-    final data = ref.watch(getPinImageInfoProvider(widget.item.pinId));
+    final data = ref.watch(pinImageBytesProvider(widget.item.pinId));
     // Determine which view is currently active in the main area
     final isMainViewShowingImage = ref.watch(
       feedMapStateProvider(widget.item.pinId),
