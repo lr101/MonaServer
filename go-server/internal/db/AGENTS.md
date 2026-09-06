@@ -45,6 +45,12 @@ Do not add `t.Parallel()` to tests that share this database. Test both the SQL b
 
 ### Native PostGIS setup for agent containers
 
+For the complete service lifecycle, read
+`../../../docs/AGENT_LOCAL_STACK.md`. The runbook uses the same disposable
+database variables as the Compose fixture and also covers RustFS and the Go
+server. The database-only details below are retained for SQL and migration
+work.
+
 PostgreSQL and PostGIS are OS services, so they do not belong in `mise.toml`. When Docker or Podman is unavailable in a Debian-based agent container, install and start a disposable local instance with:
 
 ```bash

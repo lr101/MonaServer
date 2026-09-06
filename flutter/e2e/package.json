@@ -1,0 +1,15 @@
+{
+  "name": "stick-it-flutter-web-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "node --test test-data-path.test.js test-config.test.js",
+    "test": "npm run test:unit && playwright test",
+    "test:headed": "playwright test --headed",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/mcp": "0.0.80",
+    "@playwright/test": "1.63.0"
+  }
+}

@@ -1,0 +1,72 @@
+name: monaserver-test
+
+# Supply TEST_* values with --env-file .env.test; no credential defaults are used.
+services:
+  go-server:
+    build:
+      context: ./go-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      DATABASE_URL: "postgres://${TEST_DB_USER}:${TEST_DB_PASSWORD}@db:5432/${TEST_DB_NAME}?sslmode=disable"
+      JWT_SECRET: "${TEST_JWT_SECRET}"
+      TOKEN_ADMIN_USERNAME: __test_admin_disabled__
+      PORT: "8080"
+      RUSTFS_ENDPOINT: rustfs:9000
+      RUSTFS_EXTERNAL_ENDPOINT: 127.0.0.1:9100
+      RUSTFS_ACCESS_KEY: "${TEST_RUSTFS_ACCESS_KEY}"
+      RUSTFS_SECRET_KEY: "${TEST_RUSTFS_SECRET_KEY}"
+      RUSTFS_BUCKET: monaserver
+      RUSTFS_USE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/monaserver", "healthcheck"]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 20
+
+  db:
+    image: postgis/postgis:17-master
+    environment:
+      POSTGRES_DB: "${TEST_DB_NAME}"
+      POSTGRES_USER: "${TEST_DB_USER}"
+      POSTGRES_PASSWORD: "${TEST_DB_PASSWORD}"
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: "${TEST_RUSTFS_ACCESS_KEY}"
+      RUSTFS_SECRET_KEY: "${TEST_RUSTFS_SECRET_KEY}"
+      RUSTFS_VOLUMES: /data
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CORS_ALLOWED_ORIGINS: "${TEST_RUSTFS_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:4173,http://localhost:4173}"
+    ports:
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
+    volumes:
+      - test-rustfs-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  test-db-data:
+  test-rustfs-data:

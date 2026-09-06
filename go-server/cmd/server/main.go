@@ -31,6 +31,14 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := runHealthcheck(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(log)
 
@@ -49,7 +57,7 @@ func main() {
 
 	q := db.New(pool)
 	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
-	mailSvc := service.NewEmail(cfg, nil)
+	mailSvc := newMailService(cfg)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
 
@@ -208,6 +216,33 @@ func main() {
 		log.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func runHealthcheck() error {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	return checkHealth(&http.Client{Timeout: 2 * time.Second}, "http://127.0.0.1:"+port+"/public/api-docs")
+}
+
+func checkHealth(client *http.Client, target string) error {
+	response, err := client.Get(target)
+	if err != nil {
+		return fmt.Errorf("healthcheck request failed: %w", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthcheck returned %s", response.Status)
+	}
+	return nil
+}
+
+func newMailService(cfg *config.Config) *service.Email {
+	if cfg.MailHost == "" {
+		return nil
+	}
+	return service.NewEmail(cfg, nil)
 }
 
 // registerRoutes registers controller routes into r, filtered by predicate on the pattern.

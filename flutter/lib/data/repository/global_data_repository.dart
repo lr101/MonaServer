@@ -5,7 +5,6 @@ import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -65,6 +64,18 @@ class MobileSecureStorage implements ISecureStorage {
   }
 }
 
+Future<List<CameraDescription>> loadAvailableCameras({
+  required bool isWeb,
+  Future<List<CameraDescription>> Function()? loader,
+}) async {
+  if (isWeb) return const <CameraDescription>[];
+  try {
+    return await (loader ?? availableCameras)();
+  } catch (_) {
+    return const <CameraDescription>[];
+  }
+}
+
 class GlobalDataRepository {
   final Ref ref;
 
@@ -106,16 +117,6 @@ class GlobalDataRepository {
     sharedPreferences = ref.watch(sharedPreferencesProvider);
   }
 
-  static Future<List<CameraDescription>> loadAvailableCameras({
-    Future<List<CameraDescription>> Function()? loader,
-  }) async {
-    try {
-      return await (loader ?? availableCameras)();
-    } catch (_) {
-      return const [];
-    }
-  }
-
   static Future<GlobalDataDto> get(
     SharedPreferences sharedPreferences,
     ISecureStorage storage,
@@ -123,7 +124,7 @@ class GlobalDataRepository {
     return GlobalDataDto(
       userId: await storage.read(key: userIdKey),
       refreshToken: await storage.read(key: tokenKey),
-      cameras: await loadAvailableCameras(),
+      cameras: await loadAvailableCameras(isWeb: kIsWeb),
     );
   }
 
@@ -174,19 +175,24 @@ class GlobalDataRepository {
   }) async {
     final sharedPrefs = ref.watch(sharedPreferencesProvider);
     final storage = ref.watch(secureStorageProvider);
-    if (description != null)
+    if (description != null) {
       await sharedPrefs.setString(descriptionKey, description);
-    if (username != null)
+    }
+    if (username != null) {
       await storage.write(key: usernameKey, value: username);
-    if (profileImage != null)
+    }
+    if (profileImage != null) {
       await sharedPrefs.setString(profileImageKey, base64Encode(profileImage));
-    if (profileImageSmall != null)
+    }
+    if (profileImageSmall != null) {
       await sharedPrefs.setString(
         profileImageSmallKey,
         base64Encode(profileImageSmall),
       );
-    if (selectedBatch != null)
+    }
+    if (selectedBatch != null) {
       await sharedPrefs.setInt(selectedBatchKey, selectedBatch);
+    }
   }
 
   Future<void> setXp(UserXpDto xp) async {
