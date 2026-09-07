@@ -63,6 +63,55 @@ void main() {
     expect(await smallRepository.get('group-1'), isNotNull);
   });
 
+  for (final initialBytes in [
+    <int>[],
+    <int>[1],
+  ]) {
+    test(
+      'refresh publishes bytes for a retained expired cache ($initialBytes)',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.groupSmall,
+          getImageUrl: (_) async => 'https://example.com/image',
+          httpGet: (_) async => http.Response.bytes([2], 200),
+        );
+        await repository.ready;
+        await repository.doPut(
+          ImageEntity(
+            id: 'group-1',
+            type: ImageType.groupSmall,
+            image: Uint8List.fromList(initialBytes),
+            keepAlive: true,
+            ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+            onlySession: false,
+          ),
+        );
+        final updated = Completer<Uint8List>();
+        final subscription = repository.watchImageBytes('group-1').listen((
+          bytes,
+        ) {
+          if (bytes != null &&
+              bytes.length == 1 &&
+              bytes.single == 2 &&
+              !updated.isCompleted) {
+            updated.complete(bytes);
+          }
+        });
+        addTearDown(subscription.cancel);
+
+        expect(await repository.fetchImage('group-1', false), [2]);
+
+        final cached = await repository.get('group-1');
+        expect(cached!.image, [2]);
+        expect(cached.keepAlive, isTrue);
+        expect(await updated.future.timeout(const Duration(seconds: 2)), [2]);
+      },
+    );
+  }
+
   test('expired empty entries are fetched again', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
@@ -316,54 +365,72 @@ void main() {
     expect(hasSecondEmission, isFalse);
   });
 
-  test('a late public fetch cannot overwrite a joined image cache', () async {
-    final database = AppDatabase(NativeDatabase.memory());
-    addTearDown(database.close);
+  for (final retainedBeforeFetch in [false, true]) {
+    test(
+      'a late public fetch cannot overwrite a joined image cache (retained: $retainedBeforeFetch)',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
 
-    final publicRequestStarted = Completer<void>();
-    final releasePublicResponse = Completer<void>();
-    final releaseJoinedResponse = Completer<void>();
-    final repository = ImageRepository(
-      db: database,
-      type: ImageType.group,
-      getImageUrl: (_) async => 'https://example.com/public',
-      httpGet: (uri) async {
-        if (uri.path == '/public') {
-          if (!publicRequestStarted.isCompleted) {
-            publicRequestStarted.complete();
-          }
-          await releasePublicResponse.future;
-          return http.Response.bytes([1], 200);
+        final publicRequestStarted = Completer<void>();
+        final releasePublicResponse = Completer<void>();
+        final releaseJoinedResponse = Completer<void>();
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.group,
+          getImageUrl: (_) async => 'https://example.com/public',
+          httpGet: (uri) async {
+            if (uri.path == '/public') {
+              if (!publicRequestStarted.isCompleted) {
+                publicRequestStarted.complete();
+              }
+              await releasePublicResponse.future;
+              return http.Response.bytes([1], 200);
+            }
+            await releaseJoinedResponse.future;
+            return http.Response.bytes([2], 200);
+          },
+          ttlDuration: const Duration(days: 7),
+        );
+        await repository.ready;
+
+        if (retainedBeforeFetch) {
+          await repository.doPut(
+            ImageEntity(
+              id: 'group-1',
+              type: ImageType.group,
+              image: Uint8List.fromList([0]),
+              keepAlive: true,
+              ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+              onlySession: false,
+            ),
+          );
         }
-        await releaseJoinedResponse.future;
-        return http.Response.bytes([2], 200);
+
+        final joinedOverride = repository.overrideUrl(
+          'group-1',
+          'https://example.com/joined',
+          true,
+        );
+        final publicFetch = repository.fetchImage('group-1', false);
+        await publicRequestStarted.future;
+        final joinedFetch = repository.fetchImage('group-1', true);
+
+        releaseJoinedResponse.complete();
+        await joinedOverride;
+        expect((await repository.get('group-1'))!.image, [2]);
+        expect((await repository.get('group-1'))!.keepAlive, isTrue);
+
+        releasePublicResponse.complete();
+        await publicFetch;
+        await joinedFetch;
+
+        final cached = await repository.get('group-1');
+        expect(cached!.image, [2]);
+        expect(cached.keepAlive, isTrue);
       },
-      ttlDuration: const Duration(days: 7),
     );
-    await repository.ready;
-
-    final joinedOverride = repository.overrideUrl(
-      'group-1',
-      'https://example.com/joined',
-      true,
-    );
-    final publicFetch = repository.fetchImage('group-1', false);
-    await publicRequestStarted.future;
-    final joinedFetch = repository.fetchImage('group-1', true);
-
-    releaseJoinedResponse.complete();
-    await joinedOverride;
-    expect((await repository.get('group-1'))!.image, [2]);
-    expect((await repository.get('group-1'))!.keepAlive, isTrue);
-
-    releasePublicResponse.complete();
-    await publicFetch;
-    await joinedFetch;
-
-    final cached = await repository.get('group-1');
-    expect(cached!.image, [2]);
-    expect(cached.keepAlive, isTrue);
-  });
+  }
 
   test('a shared empty fetch promotes the image cache to keep alive', () async {
     final database = AppDatabase(NativeDatabase.memory());

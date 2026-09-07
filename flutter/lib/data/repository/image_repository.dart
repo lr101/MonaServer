@@ -24,9 +24,11 @@ class _ImageWriteQueue {
 }
 
 class _ActiveImageRequest {
-  _ActiveImageRequest(this.initialKeepAlive) : keepAlive = initialKeepAlive;
+  _ActiveImageRequest(this.initialKeepAlive, {this.retainedImage})
+    : keepAlive = initialKeepAlive;
 
   final bool initialKeepAlive;
+  final ImageEntity? retainedImage;
   bool keepAlive;
   late final Future<Uint8List?> future;
 }
@@ -440,6 +442,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
     final now = DateTime.now();
     final cachedImage = await _getByCacheKey(cacheKey);
+    final retainedImage = cachedImage?.keepAlive == true ? cachedImage : null;
     if (cachedImage != null) {
       final image = cachedImage.image;
       if (image != null && image.isNotEmpty) {
@@ -447,7 +450,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
         await _touch(cachedImage, keepAlive: keepAlive);
         final bytes = _readMemoryBytes(id)!;
         if (cachedImage.ttl.isAfter(now)) return bytes;
-        return _fetchWithDedup(id, keepAlive, fallback: bytes);
+        return _fetchWithDedup(
+          id,
+          keepAlive,
+          fallback: bytes,
+          retainedImage: retainedImage,
+        );
       }
 
       if (image != null && image.isEmpty && cachedImage.ttl.isAfter(now)) {
@@ -456,7 +464,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
     }
 
-    return _fetchWithDedup(id, keepAlive);
+    return _fetchWithDedup(id, keepAlive, retainedImage: retainedImage);
   }
 
   @override
@@ -507,6 +515,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     bool keepAlive, {
     Uint8List? fallback,
     String? imageUrl,
+    ImageEntity? retainedImage,
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
@@ -517,7 +526,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
       return image;
     }
 
-    final requestState = _ActiveImageRequest(keepAlive);
+    final requestState = _ActiveImageRequest(
+      keepAlive,
+      retainedImage: retainedImage,
+    );
     final request = _fetchAndCacheImage(
       id,
       requestState,
@@ -585,7 +597,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
       final imageUrl = await getImageUrl(id);
       if (imageUrl == null) {
         if (fallback == null) {
-          await _saveEmptyState(id, requestState.initialKeepAlive);
+          await _saveAndPrecacheImage(
+            id,
+            Uint8List(0),
+            requestState.initialKeepAlive,
+            retainedImage: requestState.retainedImage,
+          );
         }
         return fallback;
       }
@@ -595,7 +612,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) {
           if (fallback == null) {
-            await _saveEmptyState(id, requestState.initialKeepAlive);
+            await _saveAndPrecacheImage(
+              id,
+              Uint8List(0),
+              requestState.initialKeepAlive,
+              retainedImage: requestState.retainedImage,
+            );
           }
           return fallback;
         }
@@ -603,11 +625,17 @@ class ImageRepository extends CacheImpl<ImageEntity>
           id,
           response.bodyBytes,
           requestState.initialKeepAlive,
+          retainedImage: requestState.retainedImage,
         );
       }
 
       if (response.statusCode == 404 && fallback == null) {
-        await _saveEmptyState(id, requestState.initialKeepAlive);
+        await _saveAndPrecacheImage(
+          id,
+          Uint8List(0),
+          requestState.initialKeepAlive,
+          retainedImage: requestState.retainedImage,
+        );
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return fallback;
@@ -659,27 +687,35 @@ class ImageRepository extends CacheImpl<ImageEntity>
     );
   }
 
-  Future<void> _saveEmptyState(String id, bool keepAlive) async {
-    await _saveAndPrecacheImage(id, Uint8List(0), keepAlive);
-  }
-
   Future<Uint8List> _saveAndPrecacheImage(
     String id,
     Uint8List bytes,
-    bool keepAlive,
-  ) {
+    bool keepAlive, {
+    ImageEntity? retainedImage,
+  }) {
     final cacheKey = _cacheKey(id);
     return _enqueueWrite(cacheKey, () async {
+      var effectiveKeepAlive = keepAlive;
       if (!keepAlive) {
         final cachedImage = await _getByCacheKey(cacheKey);
-        if (cachedImage?.keepAlive == true) return;
+        if (cachedImage?.keepAlive == true) {
+          // A refresh may replace the retained row it read, but not a newer
+          // retained image saved while its download was in flight. Access-only
+          // updates do not change image bytes or the expiry time.
+          if (retainedImage == null ||
+              retainedImage.ttl != cachedImage!.ttl ||
+              !listEquals(retainedImage.image, cachedImage.image)) {
+            return;
+          }
+          effectiveKeepAlive = true;
+        }
       }
       await put(
         ImageEntity(
           id: id,
           type: type,
           image: bytes,
-          keepAlive: keepAlive,
+          keepAlive: effectiveKeepAlive,
           ttl: _calculateTtl(),
           onlySession: false,
           lastAccessedAt: DateTime.now(),
