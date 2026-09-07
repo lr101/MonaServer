@@ -1,10 +1,12 @@
 # Flutter architecture plan
 
-Status: revised proposal; product decisions below remain open.
+Status: architecture proposal with confirmed product decisions; performance
+priorities and numeric targets remain provisional.
 
 Reviewed on 2026-09-07 against `develop` at `5e95a8c`. This is a planning
 revision, not evidence that the target architecture or release checks are
-implemented. Existing constraints remain in force until explicitly changed.
+implemented. The decision record below incorporates the owner's answers; existing
+constraints remain in force except where those answers explicitly change them.
 
 Scope: the client in `flutter/`, with Android and web as the first production
 targets. Existing iOS code and checks are outside this first release scope.
@@ -15,8 +17,8 @@ the team to rewrite the app in one change.
 
 ## Decisions to use as the default
 
-Unless an open question at the end of this document changes the direction, use
-these defaults:
+Use the confirmed constraints and decision record below with these architecture
+defaults:
 
 - Keep Flutter, Riverpod, Drift, and the generated OpenAPI client.
 - Keep a single Flutter package for now. Enforce boundaries with directories,
@@ -25,7 +27,7 @@ these defaults:
 - Treat the server as the remote source of truth. Use Drift for local reads,
   offline drafts, and cache data with an explicit freshness policy.
 - Keep access tokens in memory. Android refresh credentials use platform secure
-  storage; the web credential mechanism is a separate unresolved decision.
+  storage; web keeps its existing `WebSecureStorage` mechanism.
 - Adopt the target structure one vertical slice at a time. Move behavior and
   tests together.
 
@@ -40,14 +42,22 @@ The current release plan narrows the first target:
 - Android and web are the first-class platforms. iOS is outside the first
   production scope.
 - Support the lowest Android and browser versions allowed by the current
-  Flutter and package constraints. Keep the WebAssembly build. Whether native
-  Wasm execution is mandatory, or the tested JavaScript fallback is supported,
-  needs clarification; compilation mode is not a browser support matrix.
-- Use a Samsung Galaxy S26 running Android 16 as the first Android testing
-  target. Record the exact installed build and One UI patch in test evidence.
+  Flutter and package constraints. Include as many browsers as practical in the
+  same deployment, using Wasm where supported and the JavaScript fallback
+  otherwise. Include mobile browsers, including Safari, in compatibility work;
+  record tested support rather than claim every version works.
+- Use the Samsung Galaxy S26 running Android 16 for both native-app and browser
+  testing. Record the installed build, One UI patch, browser, and runtime mode.
+  No additional weaker physical device is required for the initial baseline.
 - Durable offline pin uploads are a main product feature. A pending upload must
-  survive an app restart and retry later. Upload processing happens in the
-  background; no edit, cancel, or discard workflow is required.
+  survive an app restart and retry later. Process uploads asynchronously while
+  the app is open and resume on next launch; execution while closed is not
+  required on either platform. No edit, cancel, or discard workflow is required.
+- Pending uploads have no time-based expiry. Explicit logout erases their
+  pictures and payloads; permanently failed uploads may also be deleted.
+  Confirmed account deletion erases account-owned local payloads as before.
+- The owner is the solo developer and owns release operations. Formal rollback
+  timing, backup ownership, and additional operational process are deferred.
 - The Go server and OpenAPI contract in this repository may change with the
   Flutter client.
 - Web can deploy as soon as its own checks pass. Android has a separate build
@@ -476,16 +486,18 @@ An outbox record should contain:
 - a client-generated operation ID
 - an immutable copy of the draft fields and a durable image-store key
 - the target group and account ID
-- status: pending, uploading, blockedAuth, failed, expired, or completed
+- status: pending, uploading, blockedAuth, failed, or completed
 - attempt count and the next retry time
 - an upload lease or lease expiry for crash recovery
 - a unique upload lease owner/token for conditional state updates
 - the last typed failure
 - the server pin ID once the operation succeeds
-- creation, update, and expiry timestamps
+- creation and update timestamps; no operation expiry timestamp
 
-The sync coordinator processes the outbox with bounded retries and idempotent
-behavior. It must survive an app restart, process death, token expiry,
+The sync coordinator processes the outbox with bounded per-run retry work and
+idempotent behavior. Retryable items have no lifetime or total-attempt cutoff;
+backoff caps the attempt frequency, not how long the item may remain queued.
+It must survive an app restart, process death, token expiry,
 transient network failure, and a partially completed image upload. The server
 change below provides the stable identity needed to recognize a retry as a
 duplicate.
@@ -503,18 +515,22 @@ limits before accepting work. A full queue rejects a new submission with a
 clear result; it must not evict an accepted pending upload. See
 [MDN storage limits](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria).
 
-Store the media type, size, and checksum with the image metadata. Completion
-and confirmed account deletion permit payload cleanup. Permanent-failure,
-expiry, and explicit-logout cleanup follow D2; resolve that decision before
-implementing destructive outbox cleanup.
+Store the media type, size, and checksum with the image metadata. Delete outbox
+payloads and images after completion, permanent failure, explicit logout, or
+confirmed account deletion. Keep a minimal read-only failure notice long enough
+to show the outcome on the next view, without retaining the photo or raw request.
+Pending and authentication-blocked items must not be deleted merely because of
+age or a large attempt count. No-expiry is an application retention policy, not
+a guarantee against browser eviction, user-cleared storage, or uninstall.
 
 The image write and database insert are coordinated as a recoverable two-step
 operation: write the image with an operation-specific key, insert the outbox
 row in a transaction, then reconcile unreferenced image files and rows with
 missing images at startup. A missing image becomes a typed permanent failure;
-an unexpired row in `uploading` state whose lease has expired returns to
-`pending`. Reconciliation must coordinate with active image writers across
-workers/tabs and allow a staging grace period; an image awaiting its outbox
+a row in `uploading` state whose lease has expired returns to `pending`.
+Lease expiry recovers claim ownership; it never expires the queued upload.
+Reconciliation must coordinate with active image writers across
+app instances/tabs and allow a staging grace period; an image awaiting its outbox
 insert is not an orphan merely because a concurrent scan finds no row.
 
 Use this state machine:
@@ -525,7 +541,6 @@ pending -> uploading -> completed
                     -> blockedAuth   (session cannot be restored)
                     -> failed        (permanent failure)
 blockedAuth -> pending                (same account authenticates)
-any nonterminal state -> expired     (operation deadline reached)
 ```
 
 A transport timeout is an unknown server outcome, so retry the same operation
@@ -533,55 +548,52 @@ ID. Do not mint a new ID to escape a conflict. Retry network errors, throttling,
 and transient server errors with capped exponential backoff and jitter; honor
 `Retry-After`. Validation, lost membership, missing images, and key conflicts
 are terminal. Authentication recovery is bounded and does not loop on invalid
-credentials. Cleanup must run for failed and expired rows even while signed out;
-photo deletion and the lifetime of a minimal failure notice require decision D2.
-If the app never runs again, local physical deletion cannot occur on schedule.
-Expiry stops new attempts; it cannot undo an in-flight remote commit. Preserve
-an unknown-outcome notice when appropriate and reconcile through server sync;
-do not describe a timed-out or expired attempt as proof that no pin was posted.
+credentials. Cleanup of permanently failed payloads is recoverable on next
+launch if interrupted. Explicit logout awaits account cleanup before completing.
+A timeout or exhausted per-run retry budget is not a permanent failure. Preserve
+an unknown-outcome notice when appropriate and reconcile through keyed retry
+and server sync; do not describe a timeout as proof that no pin was posted.
 
-The background scheduler claims only due, unexpired `pending` rows. Claiming is
-a transactional conditional update that sets `uploading`, a unique lease owner,
-and a lease expiry, then returns the claimed row. Foreground work and an
-Android worker must compete through this same claim, so they cannot upload the
-same row while the lease is valid. A timed-out request can still be executing
-when a lease expires, so server idempotency remains necessary. Browser tabs
-must use the same transactional claim too. Completion, retry, failure, and
-lease extension update the row only when the caller still owns the lease; a stale worker
-must discard its result. An expired lease may be reclaimed by a new owner.
+The active-session scheduler claims only due `pending` rows. Claiming is a
+transactional conditional update that sets `uploading`, a unique lease owner,
+and a lease expiry, then returns the claimed row. Overlapping triggers and
+browser tabs compete through this same claim. A timed-out request can still be
+executing when a lease expires, so server idempotency remains necessary.
+Completion, retry, failure, and lease extension update the row only when the
+caller still owns the lease; a stale task must discard its result. An expired
+lease may be reclaimed by a new owner.
 
-Android should use a WorkManager-backed adapter if closed-app retries are
-required (D1). Validate plugin initialization, shared Drift access, credential
-access, and cross-isolate refresh coordination in an early device spike. An
-in-memory Riverpod singleton or mutex does not coordinate isolates or tabs.
-Scheduling is subject to OS constraints, not an exact execution deadline; test
-process death, reboot, stopped work, and force-stop/relaunch recovery. See
-[Android persistent work](https://developer.android.com/develop/background-work/background-tasks/persistent).
-Web retries while active and on next launch, resume, authentication, or online
-transition; closed-browser execution is outside the proposed guarantee.
-While a process is alive, schedule the next due attempt without creating an
-unmanaged timer in a provider `build()` method.
+Use the same app-owned scheduling model on Android and web: next launch,
+resume, successful authentication, online transition, and the next due retry
+while active. There is no WorkManager integration or closed-app scheduler in
+this release. A stopped process or suspended tab may leave a request with an
+unknown outcome; recover its lease and retry the same ID after reopening.
+Own timers and subscriptions in the coordinator, dispose them with the app
+lifecycle, and avoid unmanaged timers in provider `build()` methods. Browser
+claims, refresh, and logout still require cross-tab coordination; an in-memory
+Riverpod singleton or mutex is not shared between tabs.
 
-Because uploads run in the background, the coordinator must pause when there
-is no valid session. The existing plan selected removal of account-owned pending
-payloads and images on explicit logout, with a new outbox on later login. Keep
-that as the proposal for D2; confirm its data-loss consequence before introducing
-the durable outbox cleanup. Regardless of D2, logout stops further sync, and
-confirmed account deletion removes all pending local payloads and image files. A token expiry or
-transient refresh failure pauses the row without deleting it. No pending item
-may reuse credentials from the previous session.
+The coordinator pauses when there is no valid session. Explicit logout stops
+sync and erases account-owned pending payloads and image files; a later login
+starts a new outbox for that account. Confirmed account deletion also erases
+those payloads. Token expiry, invalid refresh credentials, or a transient
+refresh failure pauses the item without deleting it; the same account can
+reauthenticate and resume later with no age cutoff. No pending item may reuse
+credentials from the previous session.
 
 Before cleanup, invalidate the session generation and stop new claims. All
-worker completions check lease ownership and session identity; refresh
-completions check session identity before publishing credentials. Await cleanup and invalidate
-account-scoped providers; an old response must not repopulate erased caches.
+upload completions check lease ownership and session identity; refresh
+completions check session identity before publishing credentials. Await cleanup
+and invalidate account-scoped providers; an old response must not repopulate
+erased caches.
 Logout cannot undo a request already committed remotely. Define that outcome
 in the UI and test logout during a request. Account deletion must serialize with
 server mutations so an old authenticated request cannot recreate deleted data.
 Deletion performed on another device requires an authoritative server signal
 before local cleanup; a generic invalid refresh response alone cannot distinguish
 deletion from credential revocation. Specify that signal in the account contract.
-Until deletion is confirmed, pause account work and apply the outbox expiry policy.
+Until deletion is confirmed, pause account work and retain its pending uploads
+without time-based expiry, unless the user explicitly logs out.
 
 ### Server support for idempotent pin creation
 
@@ -611,8 +623,9 @@ Use an optional `Idempotency-Key` header on `POST /api/v2/pins`:
 
 Use a dedicated `pin_creation_idempotency` table rather than columns on
 `pins`. It should contain the authenticated caller ID, idempotency key, request
-hash, state, resulting pin ID, creation time, expiry time, and a deletion
-tombstone. Enforce uniqueness on `(authenticated_caller_id, idempotency_key)`.
+hash, hash version, state, resulting pin ID, creation time, and a deletion
+tombstone; it has no time-based expiry. Enforce uniqueness on
+`(authenticated_caller_id, idempotency_key)`.
 Do not store the image or raw request in this table; include an image checksum
 in the normalized request hash instead. The target creator, group, coordinates,
 description, date, and image checksum must all be covered by the hash.
@@ -623,18 +636,31 @@ UTC timestamps, the agreed coordinate precision, and the image checksum. Store
 the hash version with the row so a future normalization change cannot silently
 turn a retry into a different request.
 
-Keep the idempotency row after pin deletion until its retention deadline. A
-retry for a deleted result returns a permanent `409` or equivalent conflict;
-it must not recreate the pin or award XP. The retention deadline must cover
-the maximum client outbox lifetime plus the maximum accepted request delay.
-Measure server retention from first receipt; client expiry runs from local
-queue creation. The server window must conservatively cover the client lifetime
-plus an agreed in-flight delay and clock-skew allowance. Never extend client
-expiry on retry, reload, or authentication. A device clock change must not revive
-an expired operation. Retention alone cannot reject an arbitrary replay after
-its row is deleted: the proposed guarantee covers conforming clients within the
-window. If rejection of every late replay is required, design a server-verifiable
-operation deadline or longer-lived tombstone before implementation (D2).
+Because queued uploads never expire, successful operation keys cannot have a
+finite time-to-live. Retain the minimal idempotency record for the lifetime of
+the authenticated caller account, including after client completion, logout,
+or pin deletion. Keep a tombstone after result deletion: retrying a deleted
+result returns a permanent `409` or equivalent conflict, never a recreated pin
+or another XP award. Do not cascade pin deletion into idempotency deletion.
+The client can lose the success response and return arbitrarily later with the
+same key, so neither pin existence nor operation age permits key cleanup.
+
+Account deletion still erases account-linked records according to the existing
+account policy. Serialize deletion with in-flight creation, revoke the deleted
+caller's credentials, and never reuse its account identity. A request from that
+deleted caller must be rejected before key lookup or creation. If an admin's
+operation targets a subsequently deleted user, retain only the necessary
+caller-scoped tombstone and prevent replay from recreating the deleted target.
+No-expiry applies to duplicate-prevention metadata, not indefinite storage of
+raw request bodies or deleted photos. Include database growth in capacity
+planning; do not silently introduce a retention cutoff as an optimization.
+
+Old operation IDs, normalized payloads, and hash versions remain retryable
+across app/API upgrades. Preserve canonicalizers for stored hash versions and
+migrate local payloads without changing request meaning. An old draft that the
+server can no longer validly accept needs a typed permanent failure, not an
+age-based expiry or a retry loop. Test a lost response followed by a retry
+months or years later, including after pin deletion.
 
 The insert, idempotency state transition, pin creation, and XP update must be
 atomic. If an identical request arrives while the first request is processing,
@@ -648,7 +674,8 @@ the database work; commit failure may leave an orphan. Preserve the existing
 pin UUID; a committed keyed replay reuses the recorded UUID. Reconcile old
 unreferenced candidate objects after a grace period longer than a live request.
 An ambiguous commit must be resolved from database/idempotency state before
-cleanup; never delete an object that a successful attempt references. Never acknowledge a completed upload with a missing required image.
+cleanup; never delete an object that a successful attempt references. Never
+acknowledge a completed upload with a missing required image.
 
 The server work belongs in a new migration, the named sqlc queries and facade,
 the pin service, and the pin handler. Add the optional header to both the
@@ -680,9 +707,9 @@ The first server tests should prove that:
 - the browser preflight and generated clients preserve the header
 
 This design gives the Flutter outbox a reliable mapping from its local
-operation ID to the server pin ID. Its duplicate guarantee is bounded by the
-documented idempotency retention period. It does not make object storage
-transactional, so image orphan cleanup still needs a separate failure policy.
+operation ID to the server pin ID without a time-based retry cutoff, while
+the caller account remains valid. It does not make object storage transactional,
+so image orphan cleanup still needs a separate failure policy.
 
 ### Synchronization
 
@@ -693,14 +720,12 @@ Create one `SyncCoordinator` with explicit triggers:
 - user-initiated refresh
 - successful authentication
 - an online transition
-- the next due retry while the app process is alive
-- an Android background-worker wake-up for due rows
+- the next due retry while the app is active
 
 The coordinator calls feature use cases. It does not make widgets subscribe to
 one another or depend on route lifetime. Each sync operation should be
-idempotent, awaited, observable, and safe to run once at a time. Web does not
-promise execution while the browser is closed; the next launch is a required
-recovery trigger.
+idempotent, awaited, observable, and safe to run once at a time. Neither platform
+requires execution while closed; next launch is a required recovery trigger.
 
 ## Authentication and networking
 
@@ -718,7 +743,7 @@ Recommended ownership:
 - `SessionRepository` restores and clears credentials.
 - `AuthRemoteDataSource` calls the generated auth endpoints.
 - On Android, `SecureTokenStore` persists only the refresh credential and account
-  identity required to restore a session. Web persistence follows D4.
+  identity required to restore a session. Web keeps its existing storage adapter.
 - `AuthInterceptor` supplies the in-memory access token.
 - One refresh operation is shared by concurrent requests.
 - A 401 allows one refresh and at most one replay, only for a replayable
@@ -736,17 +761,16 @@ Recommended ownership:
 - Every client and stream subscription has an owned lifecycle and a clear
   disposal path.
 
-### Web session decision
+### Web session storage
 
 The current `WebSecureStorage` wraps `flutter_secure_storage`, whose web
 implementation uses browser storage; it does not provide an HttpOnly credential
 boundary. See the [package documentation](https://pub.dev/packages/flutter_secure_storage).
-Choose D4 before the auth slice: retain this model explicitly, use a same-origin
-server-managed HttpOnly refresh cookie, or require sign-in after restart. The
-cookie proposal needs a web-specific refresh/logout contract, Secure/SameSite
-settings, CSRF and origin checks, credentialed requests, and a verified deployment
-origin. Keep Android bearer authentication compatible. Coordinate refresh and
-logout across tabs for whichever model is selected.
+Keep this existing model as confirmed by the owner. Session restoration keeps
+using the stored refresh credential and existing bearer-token contract; no
+HttpOnly cookie flow or same-origin deployment change is planned. Continue
+credential redaction and coordinate refresh/logout across tabs. Keep the Android
+bearer flow compatible too.
 
 The router observes session state and redirects from it. Route builders should
 parse typed arguments and show a controlled error for an invalid deep link.
@@ -782,9 +806,9 @@ adapter, then move the behavior with tests.
 
 - Record the confirmed platform, offline, API, release, and privacy
   constraints in this document.
-- Assign each remaining decision below to its dependent slice. Resolve platform
-  feasibility early and retention before implementing the outbox; baseline
-  performance before accepting release budgets.
+- Apply the confirmed decisions below. Prove browser storage and cross-tab
+  coordination early; baseline Samsung app/browser performance before accepting
+  numeric budgets.
 - Capture a baseline for `flutter analyze`, `flutter test`, generated API
   tests, Android builds, and web release builds in an environment with Flutter
   installed.
@@ -854,7 +878,8 @@ sync pattern used by the rest of the app.
 
 Order this work as independently reviewable prerequisites:
 
-1. Resolve D1/D2 and prove worker/database and browser-storage feasibility.
+1. Prove active-session scheduling, browser storage, and cross-tab claim
+   feasibility using the confirmed no-expiry and erase-on-logout policy.
 2. Implement server idempotency, migration, contract, CORS, generators, and
    disposable PostGIS/object-store failure tests.
 3. Deploy backward-compatible server support and verify keyed replay on the
@@ -871,22 +896,26 @@ rolling back to an unkeyed server is not a safe outbox rollback.
 - Copy images into the durable `ImageStore` before queueing and reconcile
   orphaned files or missing image references on startup.
 - Implement the outbox state machine, lease recovery, due-time scheduling,
-  Android worker trigger, web active-session/next-launch trigger, and account
+  active-session/next-launch triggers on both platforms, and logout/account
   deletion cleanup.
 - Split pin reads, pin mutations, likes, image storage, and feed composition.
 - Keep filtering and sorting as pure domain functions or explicit query
   policies.
 - Make upload status visible as read-only state and retry automatically in the
-  background.
+  open app.
 - Add tests for app restart, expired upload leases, missing images, duplicate
-  retries, concurrent claim ownership, stale-worker completion, idempotency
+  retries, concurrent claim ownership, stale-task completion, idempotency
   retention, image cleanup, hidden users/posts, paging, logout, account
   deletion, account-scoped data, browser multi-tab claims, quota failure,
-  persistence denial, clock changes, and expiry while signed out.
+  persistence denial, clock changes affecting retry scheduling, permanent-failure
+  photo deletion, and indefinite retention while authentication is blocked.
+- Test long-delayed retries and pin-deletion tombstones across app/API upgrades;
+  no time-based cleanup may erase the operation's duplicate-prevention record.
 
 Exit criteria: an accepted upload survives supported restart scenarios; lost
 responses produce one pin and one XP award; unsupported storage never reports
-successful queueing; failures and expiry follow the agreed user-visible policy.
+successful queueing; permanent failure and logout delete payloads, while
+retryable/authentication-blocked items survive without an age cutoff.
 
 ### Phase 5: migrate map, camera, ranking, and platform flows
 
@@ -916,27 +945,36 @@ successful queueing; failures and expiry follow the agreed user-visible policy.
 - Preserve local browser E2E verification under the current agent guide. Run it
   against the exact candidate artifact as release evidence; moving it into CI
   is a separate workflow decision. Pin the generator as well as Flutter.
-- Use this first release smoke matrix:
+- Use these initial checks and browser compatibility targets:
 
-  | Target | Required baseline |
+  | Target | Initial check or compatibility target |
   | --- | --- |
   | Android real device | Samsung Galaxy S26 on Android 16 |
+  | Samsung browser | Chrome and Samsung Internet on the same S26; record browser version and Wasm/JavaScript mode |
   | Android lower bound | An emulator or device at the numeric `minSdk` resolved by the Flutter/package dependency set |
-  | Web lower bound | The lowest tested versions of each supported engine that pass startup, media, auth, and persistent-storage checks; record actual Wasm or JavaScript execution and exact versions in release evidence (D3) |
-  | Web current stable | Current stable Chrome, Edge, Firefox, and Safari versions, in addition to the lower-bound matrix |
+  | Web lower bound | Establish tested lower bounds as browser environments are available; record startup, media, auth, storage, and actual Wasm/JavaScript execution rather than assume support |
+  | Web current stable | Expand compatibility evidence to Chrome, Edge, Firefox, and desktop/mobile Safari as environments are available; the initial device baseline remains the Samsung |
 
+- Browser coverage beyond the Samsung baseline is a practical compatibility
+  target, not a requirement to acquire additional hardware or test every engine
+  before release. Record untested combinations explicitly and add coverage as
+  environments become available.
 - Distinguish Wasm build compatibility from runtime support. Flutter's
   [Wasm build includes a JavaScript fallback](https://docs.flutter.dev/platform-integration/web/wasm).
-  Preserve and test both outputs until D3 changes that policy. Record browser
-  OS as well as engine; a browser brand alone is insufficient. If durable storage
-  is unavailable, explain the upload limitation before accepting an offline pin.
-  Native iOS scope does not by itself decide whether mobile Safari is supported.
+  Preserve and test both outputs for broad browser support. Include Chrome,
+  Edge, Firefox, Safari (desktop and mobile), and Samsung Internet in compatibility
+  work; distinguish tested versions from best-effort coverage. Record browser OS
+  and engine. A missing capability should disable only the affected feature where
+  possible; if durable storage is unavailable, allow compatible online use and
+  explain the upload limitation before accepting an offline pin. Native iOS
+  remains outside scope; mobile Safari is part of the web compatibility target.
 - Keep production configuration explicit and validated at startup. Add a
   staging environment and smoke-test tenant later if the release process
   requires them.
 - Keep operational diagnostics minimal and redacted.
-- Add release version checks, artifact retention, rollout ownership, and a
-  rollback procedure.
+- Keep release version and artifact records. The solo developer owns promotion
+  and recovery; formal rollback timing and additional ownership process are
+  deferred. Preserve backend idempotency and schema compatibility regardless.
 - Keep any operational diagnostics free of sensitive payloads.
 
 ## Testing strategy
@@ -1031,16 +1069,18 @@ API payloads to diagnostic services.
 - Production configuration is explicit and validated at startup. If staging
   is introduced, its configuration is separate.
 - A smoke test runs against the release artifact.
-- Server availability/API failure alerts and support reports have an owner.
-  Do not assume automatic client crash alerts while third-party crash reporting
-  is excluded; use reproducible local diagnostics and user-initiated reports.
-- Versioning, rollout, rollback, and data-migration procedures are written
-  down.
+- The solo developer owns releases, support, and recovery. A backup owner,
+  rollback-time target, and formal alerting/runbook expansion are deferred and
+  do not gate this architecture migration.
+- Keep version/artifact records and safe data-migration behavior; any rollback
+  preserves the idempotency support needed by existing queued uploads.
 
 ## Proposed performance acceptance criteria
 
-These are starting budgets for decision D5, not measured results or confirmed
-product requirements. Measure release/profile builds, never debug builds.
+The Samsung is confirmed for native-app and browser testing. These numeric
+budgets and queue limits remain proposals, not measured results or approved
+requirements. Map/feed stability is the proposed starting priority pending the
+owner's answer. Measure release/profile builds, never debug builds.
 Record OS/browser, refresh rate, fixture size, cache state, network profile,
 and at least 30 repeat runs for latency percentiles.
 
@@ -1049,35 +1089,47 @@ and at least 30 repeat runs for latency percentiles.
 | Map and feed | At least 95% of frames within one refresh interval during a 60-second pan/scroll with 500 visible pin records and 100 feed items; no marker blanking on metadata updates |
 | Cached startup | p95 at most 2 seconds to usable cached screen on S26; record network bootstrap separately |
 | Cold web startup | p95 at most 5 seconds to usable shell on a fixed 10 Mbps / 100 ms RTT profile; remote data readiness measured separately |
-| Upload recovery | While active, start a due attempt within 5 seconds of session/network recovery when no server backoff applies; no completion deadline under arbitrary network or OS scheduling |
+| Upload recovery | While active, start a due attempt within 5 seconds of session/network recovery when no server backoff applies; no completion deadline under arbitrary network conditions or while closed |
 | Storage | Provisional queue ceiling of 100 items or 250 MiB, whichever comes first; decide image normalization limits from server constraints before implementation |
 
-Repeat map/feed measurements on a representative constrained Android device;
-an API-minimum emulator verifies compatibility, not real-device performance.
-Measure image-cache memory and disk use before choosing eviction budgets. D5
-must identify the lower-performance device and browser hardware used for gates.
+Use the S26 for the initial native and browser performance baseline; record
+Chrome and Samsung Internet results separately. No weaker physical device or
+separate browser hardware is required now. An API-minimum emulator remains a
+compatibility check. Measure image-cache memory and disk use before choosing
+budgets. A queue capacity limit controls acceptance of new work and never expires
+or evicts an already accepted pending upload.
 
-## Remaining decisions
+## Confirmed decision record
 
-Previously recorded constraints remain: Android/web first, durable uploads,
-no edit/cancel/discard workflow, coordinated Go/API evolution, independent web
-and Android promotion, direct production web deployment, no product analytics
-or third-party crash reporting, and unchanged privacy requirements. The optional
-`Idempotency-Key` header remains the approved server direction. The Samsung
-Galaxy S26 / Android 16 remains the first Android test target.
+The owner's answers supersede the earlier proposals. Previously confirmed
+constraints remain: Android/web first, no edit/cancel/discard workflow,
+coordinated Go/API evolution, independent web and Android promotion, direct
+production web deployment, no product analytics or third-party crash reporting,
+and existing account-deletion/privacy obligations. The optional
+`Idempotency-Key` header remains the approved server direction.
 
-The following need explicit answers. Recommendations are proposals only; an
-unanswered decision is not approval. Resolve each before its dependent slice,
-without blocking independent documentation and existing-behavior fixes.
+| ID | Confirmed choice | Architecture consequence |
+| --- | --- | --- |
+| D1 | No upload execution required while closed; retry after reopening | Use an active-session coordinator on both platforms, with durable lease recovery on next launch; omit WorkManager integration |
+| D2 | No pending-upload expiry; logout erases pictures; permanently failed pictures may be deleted | No operation TTL or attempt-count expiry; delete terminal/logout payloads and retain server keys/tombstones for the caller account lifetime |
+| D3 | Include as many browsers as practical in deployment | Ship Wasm and JavaScript fallback together, include mobile browsers, and document tested versions and capability limitations |
+| D4 | Keep web authentication as it is | Preserve `WebSecureStorage` and the existing refresh/bearer contract; no cookie migration |
+| D5 | Test Samsung in the browser and native app | Use the S26 / Android 16 baseline for both; additional weaker hardware is not required now |
+| D6 | The solo developer owns everything; operational planning is not a current priority | Ownership is resolved; defer formal rollback timing, backup-owner requirements, and expanded operational process |
 
-| ID | Decision and concrete question | Proposal / consequence | Needed before |
-| --- | --- | --- | --- |
-| D1 | Must Android upload while the app is closed, or only while active and on next launch? Is OS-delayed execution acceptable? | WorkManager retries when permitted, next-launch recovery always; web active/next-launch only | Worker feasibility spike and outbox scheduling |
-| D2 | How long may an unsent photo survive? Does logout still erase it? Is automatic deletion after permanent failure/expiry acceptable, with only a visible failure notice? | Propose 7-day queue lifetime, preserve the existing erase-on-logout policy pending an explicit change; agree server delay/skew allowance, terminal-notice retention, and whether every late replay must be rejected | Outbox schema, deletion UX, and server retention migration |
-| D3 | Should a browser that passes storage and behavior tests be supported through JavaScript fallback? Is mobile Safari included despite native iOS being out of scope? | Keep the tested fallback; publish an OS/engine/runtime matrix rather than require native Wasm everywhere | Browser support promise and release matrix |
-| D4 | May web refresh credentials remain accessible to app JavaScript, or should the server use an HttpOnly cookie? Can web and API be served under one origin? | Prefer same-origin HttpOnly refresh cookie if deployment supports it; retain Android bearer flow | Auth slice and deployment contract |
-| D5 | Which performance failures block release first: map, startup, feed, or upload recovery? Which constrained device and browser hardware are available? Are the proposed queue limits acceptable? | Prioritize map/media stability; baseline the proposed budgets above before accepting them | Performance gate and storage limits |
-| D6 | Who owns production smoke evidence, alerts, and rollback, and what is the maximum acceptable rollback time? | Identify one named release owner and backup; preserve idempotency and schema compatibility during rollback | Independent publication/promotion changes |
+## Remaining measurements and one product priority
+
+The remaining product question is performance priority: prioritize smooth map
+and feed interaction, startup, or upload speed? The proposed starting point is
+map/feed stability. Device selection is already confirmed; do not reopen it as
+a prerequisite. Numeric performance targets and queue capacity are provisional
+until the Samsung baseline is measured. Choose implementation limits from those
+measurements and the server's accepted image sizes, preserving no-expiry behavior.
+
+Browser version lower bounds, storage quotas, claim/retry timings, and minimal
+failure-notice cleanup are engineering validation work, not additional product
+approval gates. Failures should remain visible long enough to explain the
+outcome without indefinitely retaining failed photos or raw payloads.
 
 The first useful delivery is the Phase 1 gap audit plus lifecycle/account cleanup,
 followed by composition-root/auth work and the server-backed upload slice. Move
