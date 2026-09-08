@@ -96,7 +96,7 @@ func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username str
 func (s *AuthServicer) UserLogin(ctx context.Context, req genserver.UserLoginRequest) (genserver.ImplResponse, error) {
 	pair, err := s.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }
@@ -109,7 +109,7 @@ func (s *AuthServicer) CreateUser(ctx context.Context, req genserver.UserRequest
 	}
 	pair, err := s.auth.Signup(ctx, req.Name, req.Password, email)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, toTokenResponseDto(pair)), nil
 }
@@ -125,7 +125,7 @@ func (s *AuthServicer) RefreshToken(ctx context.Context, req genserver.RefreshTo
 	}
 	pair, err := s.auth.Refresh(ctx, tok, uid)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }
