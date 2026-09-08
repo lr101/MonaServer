@@ -10,7 +10,7 @@ SQL used by sqlc lives in `queries/*.sql`. `sqlc.yaml` writes generated pgx code
 
 ## Migrations
 
-- Add the next zero-padded migration number. The current sequence ends at `000022`.
+- Add the next zero-padded migration number. The current sequence ends at `000023`.
 - Add a new migration for every deployed schema change. Never change an existing migration to repair a later state.
 - Keep migrations safe for startup. The HTTP server does not listen until every pending migration succeeds.
 - This repository currently stores forward migrations only. Do not invent a down migration unless the project adopts that policy.

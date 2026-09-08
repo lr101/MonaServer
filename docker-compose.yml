@@ -3,9 +3,11 @@ services:
     image: ghcr.io/lr101/stick-it-server-go:latest
     restart: unless-stopped
     ports:
-      - ${PORT}:8080
+      - "${HOST_PORT:-8080}:8080"
     env_file:
       - ./.env
+    environment:
+      PORT: "8080"
     depends_on:
       - db
       - minio
