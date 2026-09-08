@@ -31,11 +31,14 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   double basScaleFactor = 1.0;
   final _m = Mutex();
   late final ZoomUpdateCoalescer _zoomUpdates;
+  bool _discoveringCameras = true;
+  Object? _discoveryError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_discoverCameras());
     _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
       final controller = ref.read(cameraControllerProvider).value;
       if (controller == null || !controller.value.isInitialized) {
@@ -43,6 +46,23 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       }
       await controller.setZoomLevel(zoom);
     });
+  }
+
+  Future<void> _discoverCameras() async {
+    try {
+      await ref.read(globalDataServiceProvider.notifier).refreshCameraList();
+    } catch (error) {
+      if (!mounted) return;
+      _discoveryError = error;
+    }
+    if (!mounted) return;
+    setState(() => _discoveringCameras = false);
+  }
+
+  Widget _cameraDiscoveryStatus(Widget child) {
+    return Scaffold(
+      body: SafeArea(child: Center(child: child)),
+    );
   }
 
   @override
@@ -57,7 +77,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     super.didChangeDependencies();
 
     final route = ModalRoute.of(context);
-    if (route?.isCurrent ?? false) {
+    if (!_discoveringCameras &&
+        _discoveryError == null &&
+        (route?.isCurrent ?? false)) {
       final controller = ref.read(cameraControllerProvider).value;
       if (controller != null && controller.value.isInitialized) {
         controller.resumePreview();
@@ -67,6 +89,39 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (_discoveringCameras) {
+      return _cameraDiscoveryStatus(const CircularProgressIndicator());
+    }
+    if (_discoveryError != null) {
+      final error = _discoveryError;
+      final denied =
+          error is CameraException &&
+          (error.code == 'NotAllowedError' ||
+              error.code.startsWith('CameraAccessDenied') ||
+              error.code == 'CameraAccessRestricted');
+      return _cameraDiscoveryStatus(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              denied
+                  ? 'Allow camera access in your browser or device settings, then retry.'
+                  : 'Could not access the camera. Check that it is connected and available.',
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _discoveryError = null;
+                  _discoveringCameras = true;
+                });
+                unawaited(_discoverCameras());
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
     ref.listen(cameraTorchProvider, (_, next) {
       ref
           .read(cameraControllerProvider)
