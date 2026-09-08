@@ -34,7 +34,7 @@ func (s *LikesServicer) GetPinLikes(ctx context.Context, pinID string) (genserve
 	}
 	dto, err := s.like.CountByPin(ctx, pid, uid)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, toLikesDto(dto)), nil
 }
@@ -66,7 +66,7 @@ func (s *LikesServicer) CreateOrUpdateLike(ctx context.Context, pinID string, dt
 		LikeArt:         dto.LikeArt,
 	})
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, toLikesDto(result)), nil
 }
@@ -78,7 +78,7 @@ func (s *LikesServicer) GetUserLikes(ctx context.Context, userID string) (genser
 	}
 	dto, err := s.like.UserLikes(ctx, uid)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, genserver.UserLikesDto{
 		LikeCount:            int32(dto.LikeCount),

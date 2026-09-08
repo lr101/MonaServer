@@ -43,18 +43,18 @@ func (s *AdminServicer) SendAdminMail(ctx context.Context, dto genserver.AdminMa
 		var err error
 		recipients, err = s.q.ListAllUserEmails(ctx)
 		if err != nil {
-			return serviceErrResp(err), nil
+			return serviceErrResp(ctx, err), nil
 		}
 	}
 	if err := s.email.SendBulk(ctx, recipients, dto.Subject, htmlBody); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
 
 func (s *AdminServicer) SendNotification(ctx context.Context, dto genserver.NotificationDto) (genserver.ImplResponse, error) {
 	if err := s.notif.SendToTopic(ctx, dto.Topic, dto.Title, dto.Body); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, nil), nil
 }
@@ -81,7 +81,7 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 		}
 		user, err := s.q.GetUserByID(ctx, userID)
 		if err != nil {
-			return serviceErrResp(err), nil
+			return serviceErrResp(ctx, err), nil
 		}
 		if user == nil {
 			return genserver.Response(http.StatusNotFound, nil), nil
@@ -89,7 +89,7 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 		username = user.Username
 	}
 	if err := s.email.SendReport(ctx, username, dto.Report, dto.Message); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }

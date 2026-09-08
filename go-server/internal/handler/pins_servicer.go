@@ -69,7 +69,7 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 		UpdatedAfter: after, Limit: limit, Offset: offset,
 	})
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	items := make([]genserver.PinWithOptionalImageDto, 0, len(pins))
 	for _, p := range pins {
@@ -86,7 +86,7 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 	if after != nil {
 		deletedIDs, err := s.q.ListDeletedPinsAfter(ctx, *after)
 		if err != nil {
-			return serviceErrResp(err), nil
+			return serviceErrResp(ctx, err), nil
 		}
 		for _, id := range deletedIDs {
 			deleted = append(deleted, id.String())
@@ -133,7 +133,7 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 		Image:        imgBytes,
 	})
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, pinDTOtoDto(result)), nil
 }
@@ -152,7 +152,7 @@ func (s *PinsServicer) GetPin(ctx context.Context, pinID string, withImage bool)
 	}
 	dto, err := s.pin.Get(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	result := pinDTOtoDto(dto)
 	if !withImage {
@@ -181,7 +181,7 @@ func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.I
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.pin.Delete(ctx, id); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
@@ -200,7 +200,7 @@ func (s *PinsServicer) GetPinImage(ctx context.Context, pinID string, redirect b
 	}
 	u, err := s.pin.ImageURL(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -221,7 +221,7 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 	// longer joined, so it must not be truncated by the paginated group API.
 	groups, err := s.group.Search(ctx, nil, &uid, &withUser, true, 0, 0, nil)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	groupIDs := make([]uuid.UUID, 0, len(groups.Groups))
 	for _, g := range groups.Groups {
@@ -229,7 +229,7 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 	}
 	deletedPins, err := s.q.ListDeletedPinsAfter(ctx, since)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	deletedStrs := make([]string, 0, len(deletedPins))
 	for _, id := range deletedPins {
@@ -237,7 +237,7 @@ func (s *PinsServicer) Sync(ctx context.Context, since time.Time) (genserver.Imp
 	}
 	updatedPins, err := s.q.ListUpdatedPinsForGroups(ctx, groupIDs, &since)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	pinsByGroup := make(map[uuid.UUID][]genserver.PinWithOptionalImageDto)
 	for _, p := range updatedPins {
