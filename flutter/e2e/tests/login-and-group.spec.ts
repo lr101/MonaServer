@@ -144,3 +144,43 @@ async function login(
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+// Full Chromium supports the simulated camera; headless shell rejects media capture.
+test.use({
+  channel: 'chromium',
+  launchOptions: { args: ['--use-fake-device-for-media-stream'] },
+});
+
+test.describe('web camera access', () => {
+  test.use({
+    permissions: ['camera'],
+  });
+
+  test('requests video only when camera opens and starts a preview', async ({ page }) => {
+    await page.addInitScript(() => {
+      const mediaDevices = navigator.mediaDevices;
+      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+      mediaDevices.getUserMedia = async (constraints) => {
+        document.documentElement.dataset.cameraRequested = 'true';
+        if (constraints?.audio) {
+          throw new Error('Photo capture must not request microphone access');
+        }
+        try {
+          return await getUserMedia(constraints);
+        } catch (error) {
+          document.documentElement.dataset.cameraError = String(error);
+          throw error;
+        }
+      };
+    });
+    await login(page, readE2eData());
+    await expect(page.locator('html')).not.toHaveAttribute('data-camera-requested', 'true');
+    await page.getByRole('tab', { name: 'Camera', exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-camera-requested', 'true');
+    await expect(page.locator('html')).not.toHaveAttribute('data-camera-error', /.+/);
+    await expect.poll(() => page.locator('video').evaluateAll((videos) =>
+      videos.some((video) => video.readyState >= 2 && video.videoWidth > 0),
+    ), { timeout: 30_000 }).toBe(true);
+    await expect(page.locator('body')).not.toContainText('No cameras are available');
+  });
+});

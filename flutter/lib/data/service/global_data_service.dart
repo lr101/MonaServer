@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
@@ -30,7 +31,9 @@ class GlobalDataService  extends _$GlobalDataService {
   }
 
   Future<void> refreshCameraList() async {
-    final cameras = await loadAvailableCameras(isWeb: kIsWeb);
+    // Explicit camera-page discovery also requests video permission on web.
+    final cameras = await availableCameras();
+    if (!ref.mounted) return;
     state = state.copyWith(cameras: cameras);
   }
 
