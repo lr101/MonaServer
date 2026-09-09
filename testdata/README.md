@@ -126,7 +126,7 @@ mise run flutter-build-web
 cd flutter/e2e
 npm ci
 npm run install:browsers
-API_UPSTREAM=http://127.0.0.1:8081 node ../flutter/e2e/dev_server.mjs
+API_UPSTREAM=http://127.0.0.1:8081 node dev_server.mjs
 ```
 
 Use the Playwright MCP server against `http://localhost:4173/` and log in as
