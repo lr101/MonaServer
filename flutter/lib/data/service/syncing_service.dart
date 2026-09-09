@@ -77,6 +77,7 @@ class SyncingService extends _$SyncingService {
       state = SyncState.finished;
       _logger.i("Successfully finished syncing");
     } catch (e) {
+      if (!isCurrentSessionUser(ref, sessionUserId)) return;
       state = SyncState.failed;
       _logger.i("Failed syncing with error: $e");
       rethrow;
@@ -101,6 +102,7 @@ class SyncingService extends _$SyncingService {
     )) {
       if (!isCurrentSessionUser(ref, expectedUserId)) return;
       await _groupRepository.delete(groupId);
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       await _pinRepository.updateKeepAlive(groupId, false, true);
     }
 
@@ -124,6 +126,7 @@ class SyncingService extends _$SyncingService {
           isActivated: existingGroup?.isActivated ?? true,
         ),
       );
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
 
       if (groupUpdate.pinsAdded.isNotEmpty) {
         if (!isCurrentSessionUser(ref, expectedUserId)) return;
@@ -136,6 +139,7 @@ class SyncingService extends _$SyncingService {
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
+        if (!isCurrentSessionUser(ref, expectedUserId)) return;
       }
 
       prefetchGroupMediaInBackground(

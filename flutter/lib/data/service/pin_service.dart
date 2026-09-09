@@ -23,7 +23,11 @@ final pinUserRefreshCoordinatorProvider = Provider<_PinUserRefreshCoordinator>((
   // The completion set is valid only for one authenticated session. A new
   // account or token receives a fresh coordinator and therefore cannot reuse
   // another account's gallery completeness state.
-  ref.watch(userIdProvider);
+  ref.watch(
+    globalDataServiceProvider.select(
+      (data) => (userId: data.userId, refreshToken: data.refreshToken),
+    ),
+  );
   final coordinator = _PinUserRefreshCoordinator();
   ref.onDispose(coordinator.dispose);
   return coordinator;
@@ -122,6 +126,7 @@ class PinUserService extends _$PinUserService {
           .toList();
       if (!isCurrentSessionUser(ref, sessionUserId)) return;
       await _pinRepository.putMultiple(newPins);
+      if (!isCurrentSessionUser(ref, sessionUserId)) return;
       if (remotePins.items.length < pageSize || newPins.isEmpty) break;
     }
   }
@@ -241,6 +246,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
 
       if (remotePins.deleted.isNotEmpty) {
         await _pinRepository.deleteMultiple(remotePins.deleted);
+        if (!isCurrentSessionUser(ref, sessionUserId)) return;
       }
 
       latestIsUserGroup = _currentMembership() ?? false;

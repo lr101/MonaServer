@@ -413,6 +413,7 @@ Future<void> _syncGroupPins(
         .toList();
     if (!isCurrentSessionUser(ref, expectedUserId)) return;
     await pinRepository.putMultiple(pinEntities);
+    if (!isCurrentSessionUser(ref, expectedUserId)) return;
     if (pins.items.length < pageSize || pinEntities.isEmpty) break;
   }
 }
