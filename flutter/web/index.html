@@ -6,6 +6,8 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A Sticker App.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
 
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -23,11 +25,16 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.3/cropper.min.js"></script>
 
   <style>
+    html {
+      height: 100%;
+    }
+
     body {
-      background-color: #e1a064; /* Match this to your app's background color */
+      background-color: #000000; /* Match the Flutter web gutter and safe-area fallback */
       margin: 0;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
       display: flex;
       justify-content: center;
       align-items: center;
