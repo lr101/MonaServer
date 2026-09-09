@@ -126,7 +126,6 @@ and the `app_config` environment group before enabling the workflow.
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `docker-compose.dev.yml`: local PostGIS, object storage, and server stack
-- `docker-compose.yml`: deployment stack
 - `codemagic.yaml`: mobile release workflow
 - `mise.toml`: pinned development tools and tasks
 

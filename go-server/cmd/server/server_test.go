@@ -154,7 +154,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	notifSvc := service.NewNotification(context.Background(), "")
 	achCfg := db.AchievementConfig{}
 
-	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc, "")
+	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
@@ -504,9 +504,26 @@ func TestEndpointAuth(t *testing.T) {
 		ar := c.signup(t, "status_user", "pw123")
 		authed := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 		resp = authed.do(t, "GET", "/api/v2/status", nil)
-		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			t.Fatalf("authenticated status: expected 200, got %d", resp.StatusCode)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatalf("read authenticated status: %v", err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(body, &fields); err != nil {
+			t.Fatalf("decode authenticated status: %v", err)
+		}
+		if len(fields) != 2 {
+			t.Fatalf("status response has %d fields, want exactly 2", len(fields))
+		}
+		for _, field := range []string{"notifications", "token-validity"} {
+			if _, ok := fields[field]; !ok {
+				t.Fatalf("status response is missing %q", field)
+			}
 		}
 	})
 

@@ -47,7 +47,7 @@ services:
     volumes:
       - rustfs-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || curl -sf -o /dev/null -w '%{http_code}' http://localhost:9000/ | grep -qE '^(200|403|404)'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/health/ready >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 15

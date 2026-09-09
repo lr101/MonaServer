@@ -48,9 +48,7 @@ buildDocker.bat
 /postgres-data/
 /src/main/resources/application-secrets.yml
 /backup/
-/docker-compose-local.yml
 /batch-mail-templates/
-/minio/
 /stick-it-map-firebase-*.json
 /secrets/
 /go-server/bin/

@@ -1520,16 +1520,16 @@ components:
             rank: 2
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             points: 5
-          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          profileImageSmall: https://storage.example.com/stick-it/1/1.png
           visibility: 0
           group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           invite_url: invite_url
           name: name
           link: link
-          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          pinImage: https://storage.example.com/stick-it/1/1.png
           description: description
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          profileImage: https://minio.lr-projects/stick-it/1/1.png
+          profileImage: https://storage.example.com/stick-it/1/1.png
         - lastUpdated: 2017-01-10T14:55:32+01:00
           bestSeason:
             season:
@@ -1540,16 +1540,16 @@ components:
             rank: 2
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             points: 5
-          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          profileImageSmall: https://storage.example.com/stick-it/1/1.png
           visibility: 0
           group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           invite_url: invite_url
           name: name
           link: link
-          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          pinImage: https://storage.example.com/stick-it/1/1.png
           description: description
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          profileImage: https://minio.lr-projects/stick-it/1/1.png
+          profileImage: https://storage.example.com/stick-it/1/1.png
       properties:
         items:
           items:
@@ -1606,16 +1606,16 @@ components:
           rank: 2
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           points: 5
-        profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+        profileImageSmall: https://storage.example.com/stick-it/1/1.png
         visibility: 0
         group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         invite_url: invite_url
         name: name
         link: link
-        pinImage: https://minio.lr-projects/stick-it/1/1.png
+        pinImage: https://storage.example.com/stick-it/1/1.png
         description: description
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        profileImage: https://minio.lr-projects/stick-it/1/1.png
+        profileImage: https://storage.example.com/stick-it/1/1.png
       properties:
         id:
           format: uuid
@@ -1643,15 +1643,15 @@ components:
           format: date-time
           type: string
         profileImage:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         profileImageSmall:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         pinImage:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         bestSeason:
@@ -1695,13 +1695,13 @@ components:
           type: string
       type: object
     imageUrl:
-      example: https://minio.lr-projects/stick-it/1/1.png
+      example: https://storage.example.com/stick-it/1/1.png
       format: url
       type: string
     memberResponseDto:
       example:
         ranking: 0
-        profile_image_small: https://minio.lr-projects/stick-it/1/1.png
+        profile_image_small: https://storage.example.com/stick-it/1/1.png
         userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         username: username
         selectedBatch: 6
@@ -1715,7 +1715,7 @@ components:
         ranking:
           type: integer
         profile_image_small:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         selectedBatch:
@@ -1794,7 +1794,7 @@ components:
         - null
         - null
         items:
-        - image: https://minio.lr-projects/stick-it/1/1.png
+        - image: https://storage.example.com/stick-it/1/1.png
           creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           latitude: -75.5850925717018
           groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -1802,7 +1802,7 @@ components:
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           creationDate: 2017-01-10T14:55:32+01:00
           longitude: 36.988422590534526
-        - image: https://minio.lr-projects/stick-it/1/1.png
+        - image: https://storage.example.com/stick-it/1/1.png
           creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           latitude: -75.5850925717018
           groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -1860,7 +1860,7 @@ components:
       type: object
     pinWithOptionalImageDto:
       example:
-        image: https://minio.lr-projects/stick-it/1/1.png
+        image: https://storage.example.com/stick-it/1/1.png
         creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         latitude: -75.5850925717018
         groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -1888,7 +1888,7 @@ components:
           format: uuid
           type: string
         image:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         groupId:
@@ -2077,8 +2077,8 @@ components:
           userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           username: username
           selectedBatch: 0
-        profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
-        profileImage: https://minio.lr-projects/stick-it/1/1.png
+        profileImageSmall: https://storage.example.com/stick-it/1/1.png
+        profileImage: https://storage.example.com/stick-it/1/1.png
         userTokenDto:
           accessToken: accessToken
           userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2087,11 +2087,11 @@ components:
         userTokenDto:
           $ref: "#/components/schemas/tokenResponseDto"
         profileImageSmall:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         profileImage:
-          example: https://minio.lr-projects/stick-it/1/1.png
+          example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
         userInfoDto:
@@ -2205,7 +2205,6 @@ components:
         - notifications
         - notifications
         token-validity: 2017-01-10T14:55:32+01:00
-        minio-endpoint: minio-endpoint
       properties:
         notifications:
           items:
@@ -2215,9 +2214,6 @@ components:
         token-validity:
           example: 2017-01-10T14:55:32+01:00
           format: date-time
-          type: string
-        minio-endpoint:
-          maxLength: 256
           type: string
       required:
       - notifications
@@ -2271,7 +2267,7 @@ components:
       example:
         groupUpdates:
         - pinsAdded:
-          - image: https://minio.lr-projects/stick-it/1/1.png
+          - image: https://storage.example.com/stick-it/1/1.png
             creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2279,7 +2275,7 @@ components:
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
             longitude: 36.988422590534526
-          - image: https://minio.lr-projects/stick-it/1/1.png
+          - image: https://storage.example.com/stick-it/1/1.png
             creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2298,18 +2294,18 @@ components:
               rank: 2
               id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
               points: 5
-            profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+            profileImageSmall: https://storage.example.com/stick-it/1/1.png
             visibility: 0
             group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             invite_url: invite_url
             name: name
             link: link
-            pinImage: https://minio.lr-projects/stick-it/1/1.png
+            pinImage: https://storage.example.com/stick-it/1/1.png
             description: description
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-            profileImage: https://minio.lr-projects/stick-it/1/1.png
+            profileImage: https://storage.example.com/stick-it/1/1.png
         - pinsAdded:
-          - image: https://minio.lr-projects/stick-it/1/1.png
+          - image: https://storage.example.com/stick-it/1/1.png
             creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2317,7 +2313,7 @@ components:
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
             longitude: 36.988422590534526
-          - image: https://minio.lr-projects/stick-it/1/1.png
+          - image: https://storage.example.com/stick-it/1/1.png
             creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2336,16 +2332,16 @@ components:
               rank: 2
               id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
               points: 5
-            profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+            profileImageSmall: https://storage.example.com/stick-it/1/1.png
             visibility: 0
             group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             invite_url: invite_url
             name: name
             link: link
-            pinImage: https://minio.lr-projects/stick-it/1/1.png
+            pinImage: https://storage.example.com/stick-it/1/1.png
             description: description
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-            profileImage: https://minio.lr-projects/stick-it/1/1.png
+            profileImage: https://storage.example.com/stick-it/1/1.png
         deletedPins:
         - null
         - null
@@ -2476,16 +2472,16 @@ components:
             rank: 2
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             points: 5
-          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          profileImageSmall: https://storage.example.com/stick-it/1/1.png
           visibility: 0
           group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           invite_url: invite_url
           name: name
           link: link
-          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          pinImage: https://storage.example.com/stick-it/1/1.png
           description: description
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          profileImage: https://minio.lr-projects/stick-it/1/1.png
+          profileImage: https://storage.example.com/stick-it/1/1.png
         rankNr: 0
         points: 0
       properties:
@@ -2556,7 +2552,7 @@ components:
       description: A group and its respective pin changes
       example:
         pinsAdded:
-        - image: https://minio.lr-projects/stick-it/1/1.png
+        - image: https://storage.example.com/stick-it/1/1.png
           creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           latitude: -75.5850925717018
           groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2564,7 +2560,7 @@ components:
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           creationDate: 2017-01-10T14:55:32+01:00
           longitude: 36.988422590534526
-        - image: https://minio.lr-projects/stick-it/1/1.png
+        - image: https://storage.example.com/stick-it/1/1.png
           creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           latitude: -75.5850925717018
           groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
@@ -2583,16 +2579,16 @@ components:
             rank: 2
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             points: 5
-          profileImageSmall: https://minio.lr-projects/stick-it/1/1.png
+          profileImageSmall: https://storage.example.com/stick-it/1/1.png
           visibility: 0
           group_admin: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           invite_url: invite_url
           name: name
           link: link
-          pinImage: https://minio.lr-projects/stick-it/1/1.png
+          pinImage: https://storage.example.com/stick-it/1/1.png
           description: description
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          profileImage: https://minio.lr-projects/stick-it/1/1.png
+          profileImage: https://storage.example.com/stick-it/1/1.png
       properties:
         group:
           $ref: "#/components/schemas/groupDto"
