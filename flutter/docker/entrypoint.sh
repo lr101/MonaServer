@@ -16,8 +16,8 @@ case "$upstream" in
   */) upstream=${upstream%/} ;;
 esac
 authority=${upstream#*://}
-if [ -z "$authority" ] || printf '%s' "$authority" | grep -Eq '[/\?#@[:space:]|&\\$]'; then
-  echo 'API_UPSTREAM must be an origin without credentials, a path, or shell/Nginx metacharacters' >&2
+if [ -z "$authority" ] || ! printf '%s' "$authority" | grep -Eq '^[A-Za-z0-9.-]+(:[0-9]+)?$'; then
+  echo 'API_UPSTREAM must be an HTTP(S) origin with a hostname and optional port' >&2
   exit 1
 fi
 
