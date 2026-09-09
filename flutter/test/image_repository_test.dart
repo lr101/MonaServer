@@ -6,6 +6,8 @@ import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +24,7 @@ void main() {
     final apiClient = ApiClient();
     final container = ProviderContainer(
       overrides: [
-        driftRepoProvider.overrideWithValue(database),
+        accountDatabaseProvider.overrideWithValue(database),
         groupApiProvider.overrideWithValue(GroupsApi(apiClient)),
         userApiProvider.overrideWithValue(UsersApi(apiClient)),
         pinApiProvider.overrideWithValue(PinsApi(apiClient)),
@@ -43,6 +45,33 @@ void main() {
       expect((entry.key as ImageRepository).maxItems, entry.value);
     }
   });
+
+  for (final suppliedUrl in [false, true]) {
+    test(
+      'retiring an image repository during a cache read returns no bytes ($suppliedUrl)',
+      () async {
+        final pause = _PauseImageTouch();
+        final database = AppDatabase(
+          NativeDatabase.memory().interceptWith(pause),
+        );
+        addTearDown(database.close);
+        final repository = _repository(database, ImageType.pin);
+        await repository.addImage('pin', Uint8List.fromList([1, 2]), true);
+        pause.enabled = true;
+        final read = suppliedUrl
+            ? repository.fetchImageFromUrl(
+                'pin',
+                'https://example.com/image',
+                true,
+              )
+            : repository.fetchImage('pin', true);
+        await pause.started.future;
+        repository.dispose();
+        pause.release.complete();
+        expect(await read, isNull);
+      },
+    );
+  }
 
   test('image cache operations keep image types isolated', () async {
     final database = AppDatabase(NativeDatabase.memory());
@@ -561,4 +590,23 @@ ImageRepository _repository(
     maxItems: maxItems,
     ttlDuration: const Duration(days: 7),
   );
+}
+
+class _PauseImageTouch extends QueryInterceptor {
+  bool enabled = false;
+  final started = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<int> runUpdate(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (enabled) {
+      if (!started.isCompleted) started.complete();
+      await release.future;
+    }
+    return executor.runUpdate(statement, args);
+  }
 }

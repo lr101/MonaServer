@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -130,8 +131,11 @@ class MapStates extends _$MapStates {
 
 @Riverpod(keepAlive: true)
 Stream<Position> currentLocation(Ref ref) async* {
+  final session = ref.watch(accountSessionProvider);
+  if (!session.isActive) return;
   final sharedPrefs = ref.watch(sharedPreferencesProvider);
   if (!await hasLocationPermission(GeolocatorLocationPermissionGateway())) {
+    if (!session.isActive) return;
     CustomErrorSnackBar.message(
       message: 'Some functions do not work without location permission',
       type: CustomErrorSnackBarType.error,
@@ -139,17 +143,23 @@ Stream<Position> currentLocation(Ref ref) async* {
     return;
   }
 
+  if (!session.isActive) return;
   final positionStream = Geolocator.getPositionStream(
     locationSettings: const LocationSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 100,
     ),
   );
-  positionStream.first.then((position) {
-    sharedPrefs.setDouble('lastKnownLong', position.longitude);
-    sharedPrefs.setDouble('lastKnownLat', position.latitude);
-  });
-  yield* positionStream;
+  var first = true;
+  await for (final position in positionStream) {
+    if (!session.isActive) return;
+    if (first) {
+      first = false;
+      sharedPrefs.setDouble('lastKnownLong', position.longitude);
+      sharedPrefs.setDouble('lastKnownLat', position.latitude);
+    }
+    yield position;
+  }
 }
 
 @Riverpod(keepAlive: true)

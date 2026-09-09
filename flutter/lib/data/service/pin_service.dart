@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
@@ -24,6 +26,10 @@ class PinUserService extends _$PinUserService {
 
   @override
   Stream<List<PinEntity>> build(String userId) async* {
+    if (!ref.watch(accountSessionProvider).isActive) {
+      yield [];
+      return;
+    }
     final hiddenUsers = ref.watch(hiddenUserServiceProvider);
     final hiddenPosts = ref.watch(hiddenPostsServiceProvider);
     _pinRepository = ref.watch(pinRepositoryProvider);
@@ -47,11 +53,17 @@ class PinUserService extends _$PinUserService {
 
   // update non-user pins
   Future<void> _remoteFetch() async {
-    final stream = _pinRepository.getPinsByUser(this.userId);
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
+    final pinRepository = _pinRepository;
+    final pinsApi = _pinsApi;
+    final userId = _userId;
+    final stream = pinRepository.getPinsByUser(this.userId);
     final pins = await stream.first;
-    final isUser = this.userId == _userId;
+    if (!isCurrent()) return;
+    final isUser = this.userId == userId;
     if (pins.isEmpty && !isUser) {
-      final remotePins = await _pinsApi.getPinImagesByIds(
+      final remotePins = await pinsApi.getPinImagesByIds(
         userId: this.userId,
         withImage: false,
       );
@@ -59,7 +71,7 @@ class PinUserService extends _$PinUserService {
         final pins = remotePins.items
             .map((e) => PinEntity.fromDto(e, true))
             .toList();
-        await _pinRepository.putMultiple(pins);
+        await pinRepository.putMultiple(pins);
       }
     }
   }
@@ -93,6 +105,10 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
 
   @override
   Stream<List<PinEntity>> build(String groupId) async* {
+    if (!ref.watch(accountSessionProvider).isActive) {
+      yield [];
+      return;
+    }
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
     ref.watch(userGroupServiceProvider);
@@ -127,20 +143,25 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   // may already have populated joined groups, but the details view uses this
   // same refresh path for every membership state.
   Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
+    final pinRepository = _pinRepository;
+    final pinsApi = _pinsApi;
     final membershipBeforeFetch = _currentMembership();
     await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
 
-    final remotePins = await _pinsApi.getPinImagesByIds(
+    final remotePins = await pinsApi.getPinImagesByIds(
       groupId: groupId,
       withImage: false,
       updatedAfter: _oldestSyncTime(cachedPins),
     );
-    if (remotePins == null) return;
+    if (!isCurrent() || remotePins == null) return;
 
     if (remotePins.deleted.isNotEmpty) {
-      await _pinRepository.deleteMultiple(remotePins.deleted);
+      await pinRepository.deleteMultiple(remotePins.deleted);
     }
 
+    if (!isCurrent()) return;
     final latestIsUserGroup = _currentMembership() ?? false;
 
     final pins = remotePins.items
@@ -152,14 +173,15 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
           ),
         )
         .toList();
-    await _pinRepository.putMultiple(pins);
+    await pinRepository.putMultiple(pins);
 
     // Membership may change while the repository batch is being written.
     // Align the cache policy with the state visible after the write.
     await Future<void>.delayed(Duration.zero);
+    if (!isCurrent()) return;
     final joinedAfterWrite = _currentMembership();
     if (joinedAfterWrite != null && joinedAfterWrite != latestIsUserGroup) {
-      await _pinRepository.updateKeepAlive(
+      await pinRepository.updateKeepAlive(
         groupId,
         joinedAfterWrite,
         !joinedAfterWrite,

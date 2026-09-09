@@ -10,13 +10,17 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_repository.g.dart';
 
-abstract class IUserRepository implements CacheApi<UserEntity>{}
-abstract class IUserLikeRepository implements CacheApi<UserLikeEntity>{}
+abstract class IUserRepository implements CacheApi<UserEntity> {}
 
+abstract class IUserLikeRepository implements CacheApi<UserLikeEntity> {}
 
 class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
   final AppDatabase db;
-  UserRepository(this.db, {super.maxItems = 500, super.ttlDuration = const Duration(days: 1)});
+  UserRepository(
+    this.db, {
+    super.maxItems = 500,
+    super.ttlDuration = const Duration(days: 1),
+  });
 
   UserEntitiesCompanion _toCompanion(UserEntity entity) {
     return UserEntitiesCompanion(
@@ -49,7 +53,9 @@ class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.userEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.userEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -59,12 +65,16 @@ class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.userEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.userEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<UserEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.userEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.userEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -76,7 +86,9 @@ class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
 
   @override
   Future<List<UserEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.userEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.userEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -84,13 +96,15 @@ class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
   Future<int> doGetSize() async {
     final countExp = db.userEntities.isarId.count();
     final query = db.selectOnly(db.userEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<UserEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.userEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.userEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
@@ -102,19 +116,30 @@ class UserRepository extends CacheImpl<UserEntity> implements IUserRepository {
   @override
   Future<void> doPutMultiple(List<UserEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.userEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.userEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<UserEntity?> doWatchById(int isarId) {
-    return (db.select(db.userEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.userEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 }
 
-class UserLikeRepository extends CacheImpl<UserLikeEntity> implements IUserLikeRepository{
+class UserLikeRepository extends CacheImpl<UserLikeEntity>
+    implements IUserLikeRepository {
   final AppDatabase db;
-  UserLikeRepository(this.db, {super.maxItems = 50, super.ttlDuration = const Duration(days: 1)});
+  UserLikeRepository(
+    this.db, {
+    super.maxItems = 50,
+    super.ttlDuration = const Duration(days: 1),
+  });
 
   UserLikeEntitiesCompanion _toCompanion(UserLikeEntity entity) {
     return UserLikeEntitiesCompanion(
@@ -146,7 +171,9 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity> implements IUserLikeR
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.userLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.userLikeEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -156,12 +183,16 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity> implements IUserLikeR
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.userLikeEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.userLikeEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<UserLikeEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.userLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.userLikeEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -173,7 +204,9 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity> implements IUserLikeR
 
   @override
   Future<List<UserLikeEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.userLikeEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.userLikeEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -181,40 +214,50 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity> implements IUserLikeR
   Future<int> doGetSize() async {
     final countExp = db.userLikeEntities.isarId.count();
     final query = db.selectOnly(db.userLikeEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<UserLikeEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.userLikeEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.userLikeEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
   @override
   Future<void> doPut(UserLikeEntity item) async {
-    await db.into(db.userLikeEntities).insertOnConflictUpdate(_toCompanion(item));
+    await db
+        .into(db.userLikeEntities)
+        .insertOnConflictUpdate(_toCompanion(item));
   }
 
   @override
   Future<void> doPutMultiple(List<UserLikeEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.userLikeEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.userLikeEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<UserLikeEntity?> doWatchById(int isarId) {
-    return (db.select(db.userLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.userLikeEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 }
 
 @Riverpod(keepAlive: true)
 IUserRepository userRepository(Ref ref) {
-  return UserRepository(ref.watch(driftRepoProvider)); 
+  return UserRepository(ref.watch(accountDatabaseProvider));
 }
 
 @Riverpod(keepAlive: true)
 IUserLikeRepository userLikeRepository(Ref ref) {
-  return UserLikeRepository(ref.watch(driftRepoProvider));
+  return UserLikeRepository(ref.watch(accountDatabaseProvider));
 }

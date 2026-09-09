@@ -53,4 +53,4 @@ final class GroupRepositoryProvider
   }
 }
 
-String _$groupRepositoryHash() => r'3c079b77e2a63859054c11e9e28fd277d6e8e7b0';
+String _$groupRepositoryHash() => r'be8f89165d0154a5f662ec8dc66829247351e96a';
