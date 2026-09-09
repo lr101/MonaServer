@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Triage report for open GitHub issues and pull requests in lr101/MonaServer.">
+  <title>MonaServer — open GitHub work-items report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212b;
+      --muted: #5d6b78;
+      --line: #dce4ea;
+      --panel: #ffffff;
+      --canvas: #f4f7f9;
+      --blue: #1769aa;
+      --blue-soft: #e7f2fb;
+      --green: #176b45;
+      --green-soft: #e5f5ec;
+      --amber: #875b00;
+      --amber-soft: #fff4d6;
+      --red: #9b2c2c;
+      --red-soft: #fdeaea;
+      --shadow: 0 12px 36px rgba(26, 46, 66, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--blue); }
+    a:hover { color: #0d4779; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .wrap { width: min(1500px, calc(100% - 36px)); margin: 0 auto; }
+    header {
+      padding: 54px 0 42px;
+      background:
+        radial-gradient(circle at 85% 0%, rgba(74, 144, 194, .27), transparent 35%),
+        linear-gradient(135deg, #122638, #1a405b 58%, #236481);
+      color: #f5fbff;
+    }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #a9d6ef;
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(30px, 4vw, 54px); line-height: 1.06; letter-spacing: -.035em; }
+    .lede { max-width: 870px; margin: 18px 0 0; color: #d8ebf6; font-size: 17px; }
+    .capture { margin: 18px 0 0; color: #a9d6ef; font-size: 13px; }
+    main { padding: 28px 0 64px; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 12px;
+      margin: 0 0 24px;
+    }
+    .stat, .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .stat { padding: 17px 18px; }
+    .stat strong { display: block; font-size: 29px; line-height: 1; }
+    .stat span { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .stat.merge strong { color: var(--green); }
+    .stat.close strong { color: var(--red); }
+    .stat.progress strong { color: var(--amber); }
+    .panel { padding: 22px; margin-bottom: 24px; }
+    h2 { margin: 0 0 10px; font-size: 21px; letter-spacing: -.02em; }
+    h3 { margin: 0 0 7px; font-size: 16px; }
+    p { margin: 8px 0; }
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: var(--blue-soft);
+      border-radius: 10px;
+      padding: 13px 16px;
+    }
+    .callout strong { color: #104c7c; }
+    .next-steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .next-steps section { padding: 16px; border-radius: 12px; background: #f8fafb; border: 1px solid var(--line); }
+    .next-steps p { color: var(--muted); font-size: 14px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+    .badge, .kind, .label {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .035em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .badge { padding: 7px 9px; text-transform: uppercase; }
+    .badge.merge { color: var(--green); background: var(--green-soft); }
+    .badge.close { color: var(--red); background: var(--red-soft); }
+    .badge.progress { color: var(--amber); background: var(--amber-soft); }
+    .kind { padding: 6px 8px; color: #435463; background: #edf1f4; text-transform: uppercase; }
+    .label { margin: 2px 4px 2px 0; padding: 5px 7px; color: #526371; background: #eef2f5; font-weight: 650; letter-spacing: 0; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 7px; }
+    button, input {
+      border: 1px solid #cbd7df;
+      border-radius: 9px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+    button { cursor: pointer; padding: 8px 11px; font-size: 13px; }
+    button:hover, button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+    input { min-width: min(360px, 100%); padding: 9px 11px; }
+    .result-count { margin-left: auto; color: var(--muted); font-size: 13px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 13px; }
+    table { width: 100%; min-width: 1120px; border-collapse: collapse; background: #fff; }
+    th, td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #edf3f7;
+      color: #425565;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #fbfdfe; }
+    td.number { width: 54px; color: var(--muted); font-weight: 750; }
+    td.title { min-width: 255px; }
+    td.title a { display: block; font-weight: 700; text-decoration: none; }
+    td.title small { display: block; margin-top: 4px; color: var(--muted); }
+    td.date { min-width: 105px; color: var(--muted); white-space: nowrap; }
+    td.signals { min-width: 220px; color: #425565; font-size: 13px; }
+    td.recommendation { min-width: 168px; }
+    td.reason { min-width: 330px; color: #304250; }
+    td.reason strong { color: var(--ink); }
+    .good { color: var(--green); font-weight: 700; }
+    .bad { color: var(--red); font-weight: 700; }
+    .warn { color: var(--amber); font-weight: 700; }
+    .muted { color: var(--muted); }
+    .footnote { color: var(--muted); font-size: 13px; }
+    footer { padding: 0 0 36px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 980px) {
+      .stats { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+      .next-steps { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .wrap { width: min(100% - 22px, 1500px); }
+      header { padding-top: 38px; }
+      .stats { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .panel { padding: 16px; }
+      .result-count { width: 100%; margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <p class="eyebrow">lr101 / MonaServer · GitHub triage</p>
+      <h1>Open work-items report</h1>
+      <p class="lede">A point-in-time review of every open issue and pull request, with a recommendation to merge, close/recreate, or advance the work.</p>
+      <p class="capture">Snapshot captured <time datetime="2026-09-09T15:04:40Z">2026-09-09 15:04 UTC</time> · default branch: <code>develop</code></p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="stats" aria-label="Snapshot totals">
+      <div class="stat"><strong>40</strong><span>open work-items</span></div>
+      <div class="stat"><strong>22</strong><span>issues</span></div>
+      <div class="stat"><strong>18</strong><span>pull requests</span></div>
+      <div class="stat merge"><strong>7</strong><span>merge candidates</span></div>
+      <div class="stat close"><strong>8</strong><span>close / recreate candidates</span></div>
+      <div class="stat progress"><strong>25</strong><span>need further progress</span></div>
+    </section>
+
+    <section class="panel">
+      <h2>Executive readout</h2>
+      <div class="callout">
+        <strong>Recommended order:</strong> review and merge the seven clean, green PRs where the change is understood; repair the three failing dependency PRs and rebase the conflicted branches; close/recreate #489 because generated Playwright dependencies account for 491 of its 501 changed files; then refresh or close the old blank backlog tickets.
+      </div>
+      <div class="next-steps">
+        <section>
+          <h3>Merge candidates</h3>
+          <p><a href="https://github.com/lr101/MonaServer/pulls?q=is%3Apr+is%3Aopen+315%2C418%2C441%2C448%2C478%2C485%2C491" target="_blank" rel="noopener">#315, #418, #441, #448, #478, #485, #491</a> are <code>MERGEABLE/CLEAN</code> with green visible checks at capture. Human review is still required, especially for major dependency changes and #491's missing local Traefik smoke test.</p>
+        </section>
+        <section>
+          <h3>Remove dead weight</h3>
+          <p>Close or refresh stale, underspecified issues <a href="https://github.com/lr101/MonaServer/issues/28" target="_blank" rel="noopener">#28</a>, <a href="https://github.com/lr101/MonaServer/issues/78" target="_blank" rel="noopener">#78</a>, <a href="https://github.com/lr101/MonaServer/issues/79" target="_blank" rel="noopener">#79</a>, <a href="https://github.com/lr101/MonaServer/issues/109" target="_blank" rel="noopener">#109</a>, <a href="https://github.com/lr101/MonaServer/issues/179" target="_blank" rel="noopener">#179</a>, <a href="https://github.com/lr101/MonaServer/issues/184" target="_blank" rel="noopener">#184</a>, and <a href="https://github.com/lr101/MonaServer/issues/199" target="_blank" rel="noopener">#199</a>. Close/recreate <a href="https://github.com/lr101/MonaServer/pull/489" target="_blank" rel="noopener">#489</a> without committed <code>node_modules</code>.</p>
+        </section>
+        <section>
+          <h3>Do not auto-close</h3>
+          <p>Keep the Renovate dashboard <a href="https://github.com/lr101/MonaServer/issues/7" target="_blank" rel="noopener">#7</a>, the storage migration <a href="https://github.com/lr101/MonaServer/issues/251" target="_blank" rel="noopener">#251</a>, and the detailed Flutter audit issues <a href="https://github.com/lr101/MonaServer/issues/419" target="_blank" rel="noopener">#419–#430</a> open: each still has actionable or operationally meaningful work.</p>
+        </section>
+      </div>
+      <div class="legend" aria-label="Recommendation legend">
+        <span class="badge merge">Merge candidate</span>
+        <span class="badge close">Close / recreate candidate</span>
+        <span class="badge progress">Further progress</span>
+        <span class="footnote">A recommendation is not an automatic GitHub action. No issue or pull request was changed while producing this report.</span>
+      </div>
+    </section>
+
+    <section class="panel" id="work-items">
+      <h2>All open work-items</h2>
+      <p class="footnote">“Merge candidate” means the pull request was clean and its visible checks were green in the captured GitHub state. It does not imply an approval, release decision, or production smoke test.</p>
+      <div class="toolbar" aria-label="Report filters">
+        <div class="filters">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="merge" aria-pressed="false">Merge candidates</button>
+          <button type="button" data-filter="close" aria-pressed="false">Close / recreate</button>
+          <button type="button" data-filter="progress" aria-pressed="false">Further progress</button>
+          <button type="button" data-filter="issue" aria-pressed="false">Issues</button>
+          <button type="button" data-filter="pr" aria-pressed="false">Pull requests</button>
+        </div>
+        <label>
+          <span class="muted">Search</span>
+          <input id="search" type="search" placeholder="number, title, or reason" autocomplete="off">
+        </label>
+        <span id="result-count" class="result-count" role="status">Showing 40 of 40</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Kind / work-item</th>
+              <th scope="col">Opened</th>
+              <th scope="col">GitHub signals</th>
+              <th scope="col">Recommendation</th>
+              <th scope="col">Why / next action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-category="merge" data-kind="pr" data-search="315 chore deps postgis docker tag v18 renovate mergeable clean checks green postgis 17 master 18 major">
+              <td class="number">315</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/315" target="_blank" rel="noopener">chore(deps): update postgis/postgis docker tag to v18</a><small>Renovate · develop</small></td>
+              <td class="date">2026-04-23</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 5 files · +5 / −5<br><span class="label">major dependency</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after maintainer review.</strong> The update is a major PostGIS image change from <code>17-master</code> to <code>18-master</code>. Validate database-image compatibility and rollback expectations before merging.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="418 chore deps cropperjs v2 renovate mergeable clean checks green major dependency">
+              <td class="number">418</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/418" target="_blank" rel="noopener">chore(deps): update dependency cropperjs to v2</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-28</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 1 file · +2 / −2<br><span class="label">major dependency</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after compatibility review.</strong> CropperJS moves from 1.6.3 to 2.2.0, so verify the web cropper integration against the v2 custom-element/API changes even though CI is green.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="441 fix deps go router v18 renovate mergeable clean checks green flutter dart major dependency">
+              <td class="number">441</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/441" target="_blank" rel="noopener">fix(deps): update dependency go_router to v18</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 2 files · +19 / −3<br><span class="label">major dependency</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after toolchain review.</strong> go_router moves from 17.1.0 to 18.0.0 and its release notes require Flutter 3.44 / Dart 3.12. Confirm the supported toolchain and route behavior.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="448 chore deps phonenumberkit v4 renovate mergeable clean checks green ios major dependency">
+              <td class="number">448</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/448" target="_blank" rel="noopener">chore(deps): update dependency phonenumberkit to v4</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-30</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green, iOS green</span> · 1 file · +1 / −1<br><span class="label">major dependency</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after native API review.</strong> PhoneNumberKit moves from 3.8.0 to 4.3.0. The current iOS checks pass, but review the native integration and release support before accepting a major update.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="478 docs revise flutter architecture decision gates mergeable clean checks green documentation">
+              <td class="number">478</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/478" target="_blank" rel="noopener">docs: revise Flutter architecture and decision gates</a><small>Documentation · develop</small></td>
+              <td class="date">2026-09-07</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 1 file · +374 / −145<br><span class="label">docs only</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after a content review.</strong> This is documentation-only, records confirmed architecture decisions, and has green validation. Check that the decision gates still reflect the intended product direction.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="485 docs request reduction opportunities client server report mergeable clean checks green documentation csv">
+              <td class="number">485</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/485" target="_blank" rel="noopener">docs: report client-server request reduction opportunities</a><small>Investigation report · develop</small></td>
+              <td class="date">2026-09-08</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 2 files · +350 / −0<br><span class="label">docs + CSV</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after report review.</strong> The PR says application behavior is unchanged and includes measured request counts, projected savings, and acceptance checks. Validate the sanitized data and links, then merge as an actionable follow-up record.</td>
+            </tr>
+            <tr data-category="merge" data-kind="pr" data-search="491 feat dev traefik worktree stacks mergeable clean checks green docker smoke test rustfs">
+              <td class="number">491</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/491" target="_blank" rel="noopener">feat(dev): expose worktree stacks through Traefik</a><small>Development tooling · develop</small></td>
+              <td class="date">2026-09-09</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 16 files · +389 / −13<br><span class="label">runtime smoke gap</span></td>
+              <td class="recommendation"><span class="badge merge">Merge candidate</span></td>
+              <td class="reason"><strong>Merge after one runtime smoke test.</strong> CI covers the build and validation jobs, but the PR explicitly says Docker/Traefik smoke testing was unavailable locally. Verify unique routing, generated Flutter config, and RustFS TLS/presigned URLs in a disposable stack.</td>
+            </tr>
+
+            <tr data-category="close" data-kind="issue" data-search="28 social login oauth2 stale blank enhancement close refresh">
+              <td class="number">28</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/28" target="_blank" rel="noopener">Add social login support (Oauth2)</a><small>enhancement</small></td>
+              <td class="date">2024-07-17</td>
+              <td class="signals"><code>OPEN</code><br>last update 2024-07-17 · no body · no comments<br><span class="label">enhancement</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close as a stale placeholder unless still on the roadmap.</strong> It has no provider choice, account-linking model, security requirements, or acceptance criteria. If retained, rewrite it around concrete providers and flows.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="78 password encoder migration delegator stale future blank close refresh">
+              <td class="number">78</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/78" target="_blank" rel="noopener">Remove password encoder migration delegator</a><small>future · assigned to lr101</small></td>
+              <td class="date">2024-11-20</td>
+              <td class="signals"><code>OPEN</code><br>last update 2024-11-20 · no body · no comments<br><span class="label">future</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close if the cleanup is no longer needed; otherwise specify the remaining symbol and migration risk.</strong> The current server has a focused bcrypt/password package and compatibility logic, but this ticket does not identify the delegator or a safe removal condition.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="79 unit testing stale documentation existing tests close refresh">
+              <td class="number">79</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/79" target="_blank" rel="noopener">Add unit testing</a><small>documentation</small></td>
+              <td class="date">2024-11-20</td>
+              <td class="signals"><code>OPEN</code><br>last update 2024-11-20 · no body · no comments<br><span class="label">documentation</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close as superseded, subject to a coverage check.</strong> The repository already contains substantial Go and Flutter test suites, while this ticket has no target package or coverage bar. Replace it with focused coverage gaps if work remains.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="109 collection box nearby sticker stale enhancement close refresh">
+              <td class="number">109</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/109" target="_blank" rel="noopener">Create collection box of nearby sticker</a><small>enhancement</small></td>
+              <td class="date">2024-12-14</td>
+              <td class="signals"><code>OPEN</code><br>last update 2025-02-09 · one-sentence body · no comments<br><span class="label">enhancement</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close as an unowned, underspecified feature or rewrite it.</strong> The desired nearby-sticker collection flow needs product rules, privacy/location behavior, storage changes, and acceptance criteria before it is actionable.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="179 country names slow load stale bug enhancement close refresh reproduction">
+              <td class="number">179</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/179" target="_blank" rel="noopener">Country names slow to load</a><small>bug · enhancement</small></td>
+              <td class="date">2025-03-09</td>
+              <td class="signals"><code>OPEN</code><br>last update 2025-04-01 · no body · no comments<br><span class="label">bug</span> <span class="label">enhancement</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close as stale unless the problem can be reproduced.</strong> Add a timing trace, affected screen, expected threshold, and proposed cache/data source if this remains a real user-facing issue.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="184 email queue tech stack stale enhancement close refresh architecture">
+              <td class="number">184</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/184" target="_blank" rel="noopener">Add email queue to tech stack</a><small>enhancement</small></td>
+              <td class="date">2025-03-19</td>
+              <td class="signals"><code>OPEN</code><br>last update 2025-04-01 · no body · no comments<br><span class="label">enhancement</span></td>
+              <td class="recommendation"><span class="badge close">Close / refresh</span></td>
+              <td class="reason"><strong>Close as a stale architecture placeholder or refresh it.</strong> There is no queue choice, delivery guarantee, retry/dead-letter policy, or workload that justifies the new component.</td>
+            </tr>
+            <tr data-category="close" data-kind="issue" data-search="199 token path env readme documentation appears complete close done">
+              <td class="number">199</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/199" target="_blank" rel="noopener">Add token path to .env in readme</a><small>documentation · assigned to lr101</small></td>
+              <td class="date">2025-05-04</td>
+              <td class="signals"><code>OPEN</code><br>last update 2025-05-04 · no body · no comments<br><span class="label">documentation</span></td>
+              <td class="recommendation"><span class="badge close">Close as done</span></td>
+              <td class="reason"><strong>Close after a quick maintainer spot-check.</strong> The current <a href="https://github.com/lr101/MonaServer/blob/develop/go-server/README.md#configuration-environment-variables" target="_blank" rel="noopener">Go server README</a> documents the token environment variables and includes them in the example <code>.env</code> block.</td>
+            </tr>
+            <tr data-category="close" data-kind="pr" data-search="489 restore deleted members node modules playwright huge generated files close recreate tests not run">
+              <td class="number">489</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/489" target="_blank" rel="noopener">Restore deleted members</a><small>develop · 2 commits</small></td>
+              <td class="date">2026-09-09</td>
+              <td class="signals"><code>MERGEABLE/CLEAN</code><br><span class="good">visible checks green</span> · 501 files · +933,859 / −349<br><span class="label">491 node_modules files</span></td>
+              <td class="recommendation"><span class="badge close">Close / recreate</span></td>
+              <td class="reason"><strong>Do not merge this shape.</strong> The PR contains 491 committed <code>node_modules</code> files, including Playwright bundles, and its body says testing was not run. Preserve the member-restoration intent, close this PR, remove generated dependencies, and reopen a clean focused change with tests.</td>
+            </tr>
+
+            <tr data-category="progress" data-kind="issue" data-search="7 dependency dashboard renovate maven plugin lookup active progress">
+              <td class="number">7</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/7" target="_blank" rel="noopener">Dependency Dashboard</a><small>Renovate operations</small></td>
+              <td class="date">2024-07-17</td>
+              <td class="signals"><code>OPEN</code><br>updated 2026-09-09 · 7 update PRs listed · lookup warning<br><span class="label">update</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Keep open and process it.</strong> Renovate still reports an unresolved Maven <code>dev.flutter.flutter-plugin-loader</code> lookup and has seven open update PRs linked from the dashboard. Resolve the lookup, then merge, fix, or intentionally defer each update.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="174 tokenized search postgres assigned progress enhancement">
+              <td class="number">174</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/174" target="_blank" rel="noopener">Add tokanized search</a><small>enhancement · assigned to lr101 · 1 comment</small></td>
+              <td class="date">2025-02-17</td>
+              <td class="signals"><code>OPEN</code><br>updated 2025-05-20 · owner direction: use PostgreSQL features<br><span class="label">enhancement</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Turn the stated direction into an implementation slice.</strong> The only comment says to use existing PostgreSQL search features. Define ranking, tokenization/language behavior, indexes, endpoints, and a benchmark before implementing.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="251 migrate away minio rustfs storage future progress">
+              <td class="number">251</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/251" target="_blank" rel="noopener">Migrate away from Minio</a><small>enhancement · future</small></td>
+              <td class="date">2025-12-04</td>
+              <td class="signals"><code>OPEN</code><br>last update 2025-12-04 · no body · no comments<br><span class="label">future</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Keep open, but define the migration.</strong> The current stack already supports RustFS-compatible configuration while retaining MinIO naming/client compatibility. Decide the target service, compatibility guarantees, data migration/rollback plan, and deployment cutover criteria.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="431 profile pin cache lookup conflicting dirty rebase tests codex">
+              <td class="number">431</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/431" target="_blank" rel="noopener">fix: scope profile pin cache lookup</a><small>codex/profile-pin-scope · main</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 2 files · +144 / −1<br><span class="label">needs rebase</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase before review.</strong> GitHub reports conflicts against <code>main</code>, so the green checks are not enough to validate the current integration. Rebase, rerun the profile-cache regression test, and confirm the intended target branch.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="432 account cache cleanup conflicting dirty flutter tests not run codex">
+              <td class="number">432</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/432" target="_blank" rel="noopener">fix: isolate account cache cleanup</a><small>codex/account-cache-cleanup · main</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 23 files · +2,845 / −456<br><span class="label">tests not run locally</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase and validate the large lifecycle change.</strong> The branch conflicts with <code>main</code>, changes 23 files, and explicitly says Flutter tests were not run because the SDK was unavailable. Resolve the conflict, run the cleanup/repository/image/logout tests, then request review.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="433 auth tokens client rebuilds conflicting dirty flutter tests not run codex">
+              <td class="number">433</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/433" target="_blank" rel="noopener">fix: isolate auth tokens across client rebuilds</a><small>codex/auth-lifecycle · main</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 2 files · +492 / −93<br><span class="label">tests not run locally</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase and validate the auth lifecycle.</strong> GitHub reports a conflict against <code>main</code>; the PR also records that Flutter tests were not run locally. Reconcile the OpenAPI/config changes, run auth/token lifecycle tests, and obtain a fresh review.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="434 compose feeds owned scroll state conflicting dirty flutter tests not run codex">
+              <td class="number">434</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/434" target="_blank" rel="noopener">fix: compose feeds with owned scroll state</a><small>codex/feed-layout · main</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 5 files · +219 / −70<br><span class="label">needs rebase</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase and rerun feed layout validation.</strong> The PR conflicts with <code>main</code>; its claimed Flutter tests were not run locally. Resolve the current feed/widget changes and verify scroll ownership, image-grid behavior, and widget tests on the rebased head.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="435 group image cache synchronization conflicting dirty flutter tests not run codex">
+              <td class="number">435</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/435" target="_blank" rel="noopener">fix: await group image cache synchronization</a><small>codex/group-sync · main</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 2 files · +493 / −39<br><span class="label">needs rebase</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase and validate synchronization behavior.</strong> The branch is conflicted against <code>main</code>, and local Flutter tests were not run. Reconcile the service changes, run the group synchronization coverage, and confirm there is no stale-cache regression.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="440 flutter secure storage v11 failed compile sdk 37 unstable dependency">
+              <td class="number">440</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/440" target="_blank" rel="noopener">fix(deps): update dependency flutter_secure_storage to v11</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>MERGEABLE/UNSTABLE</code><br><span class="bad">analyze-and-build failed</span> · 2 files · +9 / −9<br><span class="label">compileSdk mismatch</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Fix the Android toolchain break.</strong> CI reports that v11 requires compileSdk 37 while the app is compiled against 36. Raise the compile SDK with an intentional toolchain review, or pin a compatible package version, then rerun all checks.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="446 infinite scroll pagination v5 failed breaking api unstable dependency">
+              <td class="number">446</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/446" target="_blank" rel="noopener">fix(deps): update dependency infinite_scroll_pagination to v5</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-30</td>
+              <td class="signals"><code>MERGEABLE/UNSTABLE</code><br><span class="bad">analyze, web, and iOS checks failed</span> · 2 files · +3 / −3<br><span class="label">breaking API</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Complete the v4→v5 migration or defer it.</strong> CI shows removed APIs such as <code>firstPageKey</code>, <code>addPageRequestListener</code>, <code>appendPage</code>, and <code>error</code>. Update the feed/grid code and tests to the v5 model, or pin v4 until that work is ready.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="447 macos 26 failed ios xcode invalid developer directory unstable dependency">
+              <td class="number">447</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/447" target="_blank" rel="noopener">chore(deps): update dependency macos to v26</a><small>Renovate · develop</small></td>
+              <td class="date">2026-08-30</td>
+              <td class="signals"><code>MERGEABLE/UNSTABLE</code><br><span class="bad">iOS checks failed</span> · 1 file · +1 / −1<br><span class="label">runner/toolchain</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Repair or verify the macOS runner change.</strong> The failing iOS job reports an invalid <code>/Applications/Xcode_16.4.app/Contents/Developer</code> path. Confirm the runner image/Xcode mapping, rerun the workflow, and ensure the action image is supported before merging.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="464 group search media lazily conflicting dirty rebase checks green flutter">
+              <td class="number">464</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/464" target="_blank" rel="noopener">fix: load group search media lazily</a><small>follow-up · develop</small></td>
+              <td class="date">2026-09-01</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br>checks green on captured head · 7 files · +288 / −88<br><span class="label">needs rebase</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Rebase before accepting the follow-up.</strong> GitHub reports conflicts with <code>develop</code>, so the green checks are stale relative to the target branch. Reconcile the lazy media/pin synchronization behavior and rerun browser or Flutter coverage.</td>
+            </tr>
+            <tr data-category="progress" data-kind="pr" data-search="484 enhance flutter architecture performance media conflicting dirty develop main huge 164 files">
+              <td class="number">484</td>
+              <td class="title"><span class="kind">PR</span><a href="https://github.com/lr101/MonaServer/pull/484">Enhance Flutter architecture, performance, and media handling</a><small>develop → main · 34 commits</small></td>
+              <td class="date">2026-09-08</td>
+              <td class="signals"><code>CONFLICTING/DIRTY</code><br><span class="good">visible checks green</span> · 164 files · +13,774 / −2,262<br><span class="label">release integration</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Clarify intent and resolve the integration.</strong> This empty-description PR promotes <code>develop</code> into <code>main</code>, is 34 commits ahead and 2 behind in the current comparison, and conflicts. Decide whether it is a release promotion, update the base, and split or document the broad scope before merging.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="419 flutter group profile image cache bug progress acceptance criteria">
+              <td class="number">419</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/419" target="_blank" rel="noopener">[Flutter] Use the correct small group-profile image cache</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · provider/repository regression required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Implement the cache-boundary fix.</strong> The issue identifies the wrong repository and generic byte lookup, with explicit acceptance criteria for separate small/large keys and a regression test. It is recent and actionable, not a stale placeholder.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="420 drift cache collision safe query efficient bug progress migration indexes pruning">
+              <td class="number">420</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/420">[Flutter] Make the Drift cache collision-safe and query-efficient</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · migration/index/startup/pruning scope<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Do a design/migration slice first.</strong> The issue calls out hash collisions, missing indexes, async startup, and whole-cache pruning. Define a collision-safe identity migration and add focused tests before changing the cache schema.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="421 remote synchronization provider builds riverpod duplicate requests cancellation bug progress">
+              <td class="number">421</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/421">[Flutter] Move remote synchronization out of provider builds</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · coalescing/cancellation tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Refactor side effects around explicit lifecycle commands.</strong> The issue describes duplicate requests and stale cache writes caused by provider rebuilds. Implement coalescing/cancellation and prove it with rebuild, disposal, and stale-result tests.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="422 async dialog actions report navigation future dialog route bug progress">
+              <td class="number">422</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/422">[Flutter] Await async dialog actions and fix report navigation</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · success/failure/navigation tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Fix the async UI contract.</strong> Destructive dialogs must remain open on failure, and report payloads must use one route-compatible mechanism. Implement the state handling and widget/navigation tests listed in the issue.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="423 achievement missing zero progress retry flutter bug progress">
+              <td class="number">423</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/423">[Flutter] Handle missing achievement data and zero progress safely</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · defensive UI and retry tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Add defensive states before changing the screen.</strong> Missing records and zero/invalid values can crash or produce invalid progress. Implement locked/unknown, bounded calculations, loading/error, and retry coverage.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="424 private flutter imports dependency constraints analyzer diagnostics bug progress">
+              <td class="number">424</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/424">[Flutter] Remove private Flutter imports and stabilize dependency constraints</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · 38 analyzer infos called out<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Make this a toolchain/dependency cleanup milestone.</strong> Replace private imports, constrain versions deliberately, explain or remove analyzer noise, and pin the CI toolchain so future dependency updates are diagnosable.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="425 password change api contract current password security flutter api bug progress">
+              <td class="number">425</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/425">[Flutter/API] Align password-change UX with the API contract</a><small>bug · security-sensitive contract gap</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · client/API/server synchronization required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Resolve the security/product decision first.</strong> The UI asks for a current password while the API sends only the new password. Choose the contract, update OpenAPI/generated clients/handler validation together, and test rejection plus successful change without logging the secret.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="426 dispose navigation subscriptions controllers flutter lifecycle memory bug progress">
+              <td class="number">426</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/426">[Flutter] Dispose navigation subscriptions and controllers</a><small>bug · detailed acceptance criteria</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · lifecycle coverage required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Audit ownership and disposal paths.</strong> The issue names messaging subscriptions, page controllers, and text controllers that can survive navigation. Add explicit lifecycle ownership and a mount/remount/dispose regression test.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="427 image cache resources decoded images timeout flutter bug progress">
+              <td class="number">427</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/427">[Flutter] Bound image-cache resources and dispose decoded images</a><small>bug · performance/resource safety</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · timeout/eviction/decode tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Set explicit resource budgets.</strong> Add request timeouts/cancellation, byte or pixel-based cache limits, and clear decoded-image ownership. Cover timeout, oversized image, eviction, and decode failures.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="428 group filter hidden posts clear all accessibility flutter bug progress">
+              <td class="number">428</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/428">[Flutter] Improve group filter and hidden-post management</a><small>bug · UX/accessibility</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · reactive filter and clear-all behavior required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Implement the state and recovery UX.</strong> Make active-group selection react to membership changes, add accessible clear-all/undo behavior for hidden posts, and replace placeholder copy with localized text and tests.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="429 optimistic likes durable rollback errors cache flutter bug progress">
+              <td class="number">429</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/429">[Flutter] Make optimistic like updates durable and error-aware</a><small>bug · data consistency</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · rollback/retry/persistence tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Define the optimistic-update state machine.</strong> Await or queue cache writes, distinguish transport/auth failures from empty data, and make success/rollback/retry behavior consistent across add and remove operations.</td>
+            </tr>
+            <tr data-category="progress" data-kind="issue" data-search="430 language notification settings permission firebase token flutter bug progress">
+              <td class="number">430</td>
+              <td class="title"><span class="kind">Issue</span><a href="https://github.com/lr101/MonaServer/issues/430">[Flutter] Make language and notification settings truthful</a><small>bug · platform behavior</small></td>
+              <td class="date">2026-08-29</td>
+              <td class="signals"><code>OPEN</code><br>last update 2026-08-29 · permission/token state tests required<br><span class="label">bug</span></td>
+              <td class="recommendation"><span class="badge progress">Further progress</span></td>
+              <td class="reason"><strong>Choose one authoritative permission model.</strong> Make language settings functional or clearly inactive, align OS/Firebase permission state, and keep backend token registration consistent for granted, denied, and permanently denied cases.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Method and limitations</h2>
+      <p>Open items were collected from <a href="https://github.com/lr101/MonaServer/issues?q=is%3Aissue+is%3Aopen" target="_blank" rel="noopener">GitHub open issues</a> and <a href="https://github.com/lr101/MonaServer/pulls?q=is%3Apr+is%3Aopen" target="_blank" rel="noopener">GitHub open pull requests</a> for <code>lr101/MonaServer</code>. GitHub’s open-issues endpoint includes pull requests, so the two kinds were separated before counting.</p>
+      <p>Pull-request recommendations use the captured mergeability state, visible check conclusions, target branch, diff size, and PR description. Issue recommendations use age, update activity, labels, body/comments, and a small read-only check of the current repository documentation/tests. No merge, close, comment, label, or branch operation was performed.</p>
+      <p class="footnote">GitHub state can change after this snapshot. Recheck the linked item immediately before taking action; in particular, mergeability and checks are asynchronous.</p>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    Generated for the MonaServer repository. Use the linked GitHub item as the source of truth for current state.
+  </footer>
+
+  <script>
+    (() => {
+      const rows = [...document.querySelectorAll('tbody tr')];
+      const buttons = [...document.querySelectorAll('[data-filter]')];
+      const search = document.querySelector('#search');
+      const resultCount = document.querySelector('#result-count');
+      let filter = 'all';
+
+      const update = () => {
+        const term = search.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach((row) => {
+          const matchesFilter = filter === 'all' || row.dataset.category === filter || row.dataset.kind === filter;
+          const matchesSearch = !term || row.dataset.search.includes(term);
+          const show = matchesFilter && matchesSearch;
+          row.hidden = !show;
+          if (show) visible += 1;
+        });
+        resultCount.textContent = `Showing ${visible} of ${rows.length}`;
+      };
+
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          filter = button.dataset.filter;
+          buttons.forEach((candidate) => candidate.setAttribute('aria-pressed', String(candidate === button)));
+          update();
+        });
+      });
+      search.addEventListener('input', update);
+    })();
+  </script>
+</body>
+</html>
