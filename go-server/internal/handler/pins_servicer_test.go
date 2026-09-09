@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -61,7 +62,7 @@ func TestPinSyncAppliesVisibilityAndFilters(t *testing.T) {
 	}
 
 	outsiderCtx := middleware.WithUser(ctx, outsider.UserID, middleware.RoleUser)
-	resp, err := servicer.GetPinImagesByIds(outsiderCtx, nil, privateGroup.ID.String(), "", false, 0, 0, 0, 20, time.Time{})
+	resp, err := servicer.GetPinImagesByIds(outsiderCtx, nil, privateGroup.ID.String(), "", false, 0, 0, 0, 20, time.Time{}, time.Time{}, "")
 	if err != nil {
 		t.Fatalf("private group sync: %v", err)
 	}
@@ -73,7 +74,7 @@ func TestPinSyncAppliesVisibilityAndFilters(t *testing.T) {
 		t.Fatalf("non-member received %d private pins", len(privateResult.Items))
 	}
 
-	resp, err = servicer.GetPinImagesByIds(outsiderCtx, []string{publicPin.ID.String()}, "", "", false, 0, 0, 0, 20, time.Time{})
+	resp, err = servicer.GetPinImagesByIds(outsiderCtx, []string{publicPin.ID.String()}, "", "", false, 0, 0, 0, 20, time.Time{}, time.Time{}, "")
 	if err != nil {
 		t.Fatalf("id-filtered sync: %v", err)
 	}
@@ -91,6 +92,131 @@ func TestPinSyncAppliesVisibilityAndFilters(t *testing.T) {
 		if item.Id == privatePin.ID.String() {
 			t.Fatal("id filter leaked a private pin")
 		}
+	}
+}
+
+func TestPinSyncCursorPaginatesSameCreationDate(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	groupSvc := service.NewGroup(q, nil, service.NewUser(q, nil, nil, auth, nil))
+	servicer := NewPinsServicer(
+		service.NewPin(q, nil),
+		groupSvc,
+		service.NewGuard(q),
+		q,
+	)
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "pin_sync_cursor_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "pin_sync_cursor_group", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	createdAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+	wantIDs := []uuid.UUID{
+		uuid.MustParse("00000000-0000-0000-0000-000000000013"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000012"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000011"),
+	}
+	for i, id := range wantIDs {
+		if _, err := q.CreatePin(ctx, db.Pin{
+			ID:           id,
+			Latitude:     float64(i + 1),
+			Longitude:    float64(i + 1),
+			CreationDate: &createdAt,
+			CreatorID:    owner.UserID,
+			GroupID:      group.ID,
+		}); err != nil {
+			t.Fatalf("create pin %d: %v", i, err)
+		}
+	}
+
+	caller := middleware.WithUser(ctx, owner.UserID, middleware.RoleUser)
+	first, err := servicer.GetPinImagesByIds(
+		caller,
+		nil,
+		group.ID.String(),
+		"",
+		false,
+		0,
+		0,
+		0,
+		1,
+		time.Time{},
+		time.Time{},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	firstResult, ok := first.Body.(genserver.PinsSyncDto)
+	if !ok || len(firstResult.Items) != 1 {
+		t.Fatalf("first page response = %#v, want one item", first.Body)
+	}
+	if firstResult.Items[0].Id != wantIDs[0].String() {
+		t.Fatalf("first page id = %s, want %s", firstResult.Items[0].Id, wantIDs[0])
+	}
+	if err := q.SoftDeletePin(ctx, wantIDs[1]); err != nil {
+		t.Fatalf("delete intervening pin: %v", err)
+	}
+	insertedID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	if _, err := q.CreatePin(ctx, db.Pin{
+		ID:           insertedID,
+		Latitude:     9,
+		Longitude:    9,
+		CreationDate: &createdAt,
+		CreatorID:    owner.UserID,
+		GroupID:      group.ID,
+	}); err != nil {
+		t.Fatalf("create inserted pin: %v", err)
+	}
+
+	var cursorDate time.Time
+	var cursorID string
+	seen := map[string]struct{}{firstResult.Items[0].Id: {}}
+	cursorDate = firstResult.Items[0].CreationDate
+	cursorID = firstResult.Items[0].Id
+	for page := 1; page < 3; page++ {
+		resp, err := servicer.GetPinImagesByIds(
+			caller,
+			nil,
+			group.ID.String(),
+			"",
+			false,
+			0,
+			0,
+			int32(page),
+			1,
+			time.Time{},
+			cursorDate,
+			cursorID,
+		)
+		if err != nil {
+			t.Fatalf("page %d: %v", page, err)
+		}
+		result, ok := resp.Body.(genserver.PinsSyncDto)
+		if !ok || len(result.Items) != 1 {
+			t.Fatalf("page %d response = %#v, want one item", page, resp.Body)
+		}
+		item := result.Items[0]
+		if _, duplicate := seen[item.Id]; duplicate {
+			t.Fatalf("page %d repeated pin %s", page, item.Id)
+		}
+		seen[item.Id] = struct{}{}
+		cursorDate = item.CreationDate
+		cursorID = item.Id
+	}
+	wantSeen := map[string]struct{}{
+		wantIDs[0].String(): {},
+		wantIDs[2].String(): {},
+		insertedID.String(): {},
+	}
+	if !reflect.DeepEqual(seen, wantSeen) {
+		t.Fatalf("saw pins %v, want %v", seen, wantSeen)
 	}
 }
 

@@ -199,7 +199,7 @@ type MembersAPIServicer interface {
 // while the service implementation can be ignored with the .openapi-generator-ignore file
 // and updated with the logic required for the API.
 type PinsAPIServicer interface {
-	GetPinImagesByIds(context.Context, []string, string, string, bool, int32, int32, int32, int32, time.Time) (ImplResponse, error)
+	GetPinImagesByIds(context.Context, []string, string, string, bool, int32, int32, int32, int32, time.Time, time.Time, string) (ImplResponse, error)
 	CreatePin(context.Context, PinRequestDto) (ImplResponse, error)
 	GetPin(context.Context, string, bool) (ImplResponse, error)
 	DeletePin(context.Context, string) (ImplResponse, error)

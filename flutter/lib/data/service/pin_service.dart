@@ -20,38 +20,38 @@ part 'pin_service.g.dart';
 final pinUserRefreshCoordinatorProvider = Provider<_PinUserRefreshCoordinator>((
   ref,
 ) {
-  // The completion set is valid only for one authenticated session. A new
-  // account or token receives a fresh coordinator and therefore cannot reuse
-  // another account's gallery completeness state.
-  ref.watch(
-    globalDataServiceProvider.select(
-      (data) => (userId: data.userId, refreshToken: data.refreshToken),
-    ),
-  );
+  // Keep the coordinator reactive to token rotation while tolerating the
+  // lightweight provider tests that override only userIdProvider.
+  watchSession(ref);
   final coordinator = _PinUserRefreshCoordinator();
   ref.onDispose(coordinator.dispose);
   return coordinator;
 });
 
 class _PinUserRefreshCoordinator {
-  final Map<String, Future<void>> _active = {};
-  final Set<String> _complete = {};
+  final Map<_PinUserRefreshKey, Future<void>> _active = {};
+  final Set<_PinUserRefreshKey> _complete = {};
 
-  Future<void> ensure(String userId, Future<void> Function() refresh) {
-    if (_complete.contains(userId)) return Future<void>.value();
-    final active = _active[userId];
+  Future<void> ensure(
+    String userId,
+    SessionIdentity session,
+    Future<void> Function() refresh,
+  ) {
+    final key = _PinUserRefreshKey(userId, session);
+    if (_complete.contains(key)) return Future<void>.value();
+    final active = _active[key];
     if (active != null) return active;
 
     final future = Future<void>.sync(refresh);
-    final tracked = future.then<void>((_) => _complete.add(userId));
-    _active[userId] = tracked;
+    final tracked = future.then<void>((_) => _complete.add(key));
+    _active[key] = tracked;
     unawaited(
       tracked.then<void>(
         (_) {
-          if (identical(_active[userId], tracked)) _active.remove(userId);
+          if (identical(_active[key], tracked)) _active.remove(key);
         },
         onError: (Object _, StackTrace __) {
-          if (identical(_active[userId], tracked)) _active.remove(userId);
+          if (identical(_active[key], tracked)) _active.remove(key);
         },
       ),
     );
@@ -64,11 +64,28 @@ class _PinUserRefreshCoordinator {
   }
 }
 
+class _PinUserRefreshKey {
+  const _PinUserRefreshKey(this.userId, this.session);
+
+  final String userId;
+  final SessionIdentity session;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PinUserRefreshKey &&
+      other.userId == userId &&
+      other.session == session;
+
+  @override
+  int get hashCode => Object.hash(userId, session);
+}
+
 @riverpod
 class PinUserService extends _$PinUserService {
   late IPinRepository _pinRepository;
   late PinsApi _pinsApi;
   late String _userId;
+  late SessionIdentity _session;
 
   @override
   Stream<List<PinEntity>> build(String userId) async* {
@@ -77,44 +94,60 @@ class PinUserService extends _$PinUserService {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
     _userId = ref.watch(userIdProvider);
+    _session = watchSession(ref);
 
-    final pinStream = _pinRepository.getPinsByUser(userId).map((e) {
-      e.removeWhere(
+    List<PinEntity>? initialPins;
+    final pinStream = _pinRepository.getPinsByUser(userId).map((pins) {
+      initialPins ??= List<PinEntity>.of(pins);
+      final visiblePins = List<PinEntity>.of(pins);
+      visiblePins.removeWhere(
         (e) => hiddenUsers.contains(e.creator) || hiddenPosts.contains(e.pinId),
       );
-      e.sort((a, b) => b.creationDate.compareTo(a.creationDate));
-      return e;
+      visiblePins.sort((a, b) => b.creationDate.compareTo(a.creationDate));
+      return visiblePins;
     });
 
-    yield await pinStream.first;
+    final visibleCachedPins = await pinStream.first;
+    yield visibleCachedPins;
 
-    await _remoteFetch();
+    await _remoteFetch(initialPins ?? visibleCachedPins);
 
     yield* pinStream;
   }
 
   // update non-user pins
-  Future<void> _remoteFetch() async {
+  Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
     final isUser = this.userId == _userId;
     if (isUser) return;
-    final sessionUserId = _userId;
+    final session = _session;
     await ref
         .read(pinUserRefreshCoordinatorProvider)
-        .ensure(this.userId, () => _fetchAllRemotePages(sessionUserId));
+        .ensure(
+          this.userId,
+          session,
+          () => _fetchAllRemotePages(session, cachedPins),
+        );
   }
 
-  Future<void> _fetchAllRemotePages(String sessionUserId) async {
+  Future<void> _fetchAllRemotePages(
+    SessionIdentity session,
+    List<PinEntity> cachedPins,
+  ) async {
     const pageSize = 20;
     final received = <String>{};
+    DateTime? beforeCreationDate;
+    String? beforeId;
     for (var page = 0; ; page++) {
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       final remotePins = await _pinsApi.getPinImagesByIds(
         userId: this.userId,
         withImage: false,
         page: page,
         size: pageSize,
+        beforeCreationDate: beforeCreationDate,
+        beforeId: beforeId,
       );
-      if (remotePins == null || !isCurrentSessionUser(ref, sessionUserId)) {
+      if (remotePins == null || !isCurrentSession(ref, session)) {
         return;
       }
       for (final pin in remotePins.items) {
@@ -124,10 +157,26 @@ class PinUserService extends _$PinUserService {
           .where((pin) => received.add(pin.id))
           .map((e) => PinEntity.fromDto(e, true))
           .toList();
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       await _pinRepository.putMultiple(newPins);
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
-      if (remotePins.items.length < pageSize || newPins.isEmpty) break;
+      if (!isCurrentSession(ref, session)) return;
+      if (remotePins.items.isEmpty) break;
+      final last = remotePins.items.last;
+      final cursorRepeated =
+          beforeCreationDate == last.creationDate && beforeId == last.id;
+      beforeCreationDate = last.creationDate;
+      beforeId = last.id;
+      if (remotePins.items.length < pageSize || cursorRepeated) break;
+    }
+
+    if (!isCurrentSession(ref, session)) return;
+    final stalePins = cachedPins
+        .where((pin) => !received.contains(pin.pinId))
+        .map((pin) => pin.pinId)
+        .toList();
+    if (stalePins.isNotEmpty) {
+      await _pinRepository.deleteMultiple(stalePins);
+      if (!isCurrentSession(ref, session)) return;
     }
   }
 }
@@ -136,14 +185,14 @@ class PinUserService extends _$PinUserService {
 Stream<PinEntity?> pinById(Ref ref, String pinId) async* {
   final repo = ref.watch(pinRepositoryProvider);
   final api = ref.watch(pinApiProvider);
-  final sessionUserId = captureSessionUserId(ref);
+  final session = captureSession(ref);
 
   bool hasFetched = false;
   await for (final pin in repo.watchById(pinId)) {
     if (pin == null && !hasFetched) {
       hasFetched = true;
       api.getPin(pinId).then((pinDto) async {
-        if (pinDto != null && isCurrentSessionUser(ref, sessionUserId)) {
+        if (pinDto != null && isCurrentSession(ref, session)) {
           registerPinImageUrl(ref, pinDto);
           await repo.put(
             PinEntity.fromDto(pinDto, true),
@@ -159,14 +208,14 @@ Stream<PinEntity?> pinById(Ref ref, String pinId) async* {
 class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   late IPinRepository _pinRepository;
   late PinsApi _pinsApi;
-  String? _sessionUserId;
+  SessionIdentity? _session;
   Future<void>? _refreshInProgress;
 
   @override
   Stream<List<PinEntity>> build(String groupId) async* {
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
-    _sessionUserId = captureSessionUserId(ref);
+    _session = watchSession(ref);
     // Only a membership transition for this group changes the cache policy.
     // Group metadata or another group's update must not restart a full pin
     // refresh for this provider.
@@ -182,7 +231,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
 
     final activeRefresh = _refreshInProgress;
     if (activeRefresh == null) {
-      final refresh = _refreshInBackground(cachedPins, groupId, _sessionUserId);
+      final refresh = _refreshInBackground(cachedPins, groupId, _session);
       _refreshInProgress = refresh;
       unawaited(
         refresh.whenComplete(() {
@@ -198,16 +247,16 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   Future<void> _refreshInBackground(
     List<PinEntity> cachedPins,
     String groupId,
-    String? sessionUserId,
+    SessionIdentity? session,
   ) async {
     try {
-      await _remoteFetch(cachedPins, sessionUserId);
-      if (isCurrentSessionUser(ref, sessionUserId)) {
+      await _remoteFetch(cachedPins, session);
+      if (isCurrentSession(ref, session)) {
         ref.read(pinGroupRefreshErrorStateProvider(groupId).notifier).clear();
       }
     } catch (error, stackTrace) {
       // Keep cached pins available when a background refresh is unavailable.
-      if (cachedPins.isEmpty && isCurrentSessionUser(ref, sessionUserId)) {
+      if (cachedPins.isEmpty && isCurrentSession(ref, session)) {
         ref
             .read(pinGroupRefreshErrorStateProvider(groupId).notifier)
             .setError(error, stackTrace);
@@ -220,9 +269,9 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
   // same refresh path for every membership state.
   Future<void> _remoteFetch(
     List<PinEntity> cachedPins,
-    String? sessionUserId,
+    SessionIdentity? session,
   ) async {
-    if (!isCurrentSessionUser(ref, sessionUserId)) return;
+    if (!isCurrentSession(ref, session)) return;
     final membershipBeforeFetch = _currentMembership();
     await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
 
@@ -231,22 +280,26 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final updatedAfter = _oldestSyncTime(cachedPins);
     const pageSize = 20;
     final received = <String>{};
+    DateTime? beforeCreationDate;
+    String? beforeId;
     var latestIsUserGroup = _currentMembership() ?? false;
     for (var page = 0; ; page++) {
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       final remotePins = await _pinsApi.getPinImagesByIds(
         groupId: groupId,
         withImage: false,
         page: page,
         size: pageSize,
         updatedAfter: updatedAfter,
+        beforeCreationDate: beforeCreationDate,
+        beforeId: beforeId,
       );
       if (remotePins == null) return;
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
 
       if (remotePins.deleted.isNotEmpty) {
         await _pinRepository.deleteMultiple(remotePins.deleted);
-        if (!isCurrentSessionUser(ref, sessionUserId)) return;
+        if (!isCurrentSession(ref, session)) return;
       }
 
       latestIsUserGroup = _currentMembership() ?? false;
@@ -263,9 +316,15 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
             ),
           )
           .toList();
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       await _pinRepository.putMultiple(pins);
-      if (remotePins.items.length < pageSize || pins.isEmpty) break;
+      if (remotePins.items.isEmpty) break;
+      final last = remotePins.items.last;
+      final cursorRepeated =
+          beforeCreationDate == last.creationDate && beforeId == last.id;
+      beforeCreationDate = last.creationDate;
+      beforeId = last.id;
+      if (remotePins.items.length < pageSize || cursorRepeated) break;
     }
 
     // Membership may change while the repository batch is being written.
@@ -274,7 +333,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final joinedAfterWrite = _currentMembership();
     if (joinedAfterWrite != null &&
         joinedAfterWrite != latestIsUserGroup &&
-        isCurrentSessionUser(ref, sessionUserId)) {
+        isCurrentSession(ref, session)) {
       await _pinRepository.updateKeepAlive(
         groupId,
         joinedAfterWrite,

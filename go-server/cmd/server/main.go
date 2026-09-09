@@ -388,7 +388,9 @@ func validateCoupledQueryParameters(next http.Handler) http.Handler {
 		query := r.URL.Query()
 		invalidGroupFilter := r.URL.Path == "/api/v2/groups" && query.Has("withUser") != query.Has("userId")
 		invalidMapPoint := r.URL.Path == "/api/v2/map" && query.Has("latitude") != query.Has("longitude")
-		if invalidGroupFilter || invalidMapPoint {
+		invalidPinCursor := r.URL.Path == "/api/v2/pins" &&
+			query.Has("beforeCreationDate") != query.Has("beforeId")
+		if invalidGroupFilter || invalidMapPoint || invalidPinCursor {
 			http.Error(w, "coupled query parameters must be provided together", http.StatusBadRequest)
 			return
 		}

@@ -6,7 +6,6 @@ import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
@@ -919,17 +918,8 @@ IImageRepository pinImageRepository(Ref ref) {
 }
 
 bool Function() _sessionGuard(Ref ref) {
-  final session = ref.watch(
-    globalDataServiceProvider.select(
-      (data) => (userId: data.userId, refreshToken: data.refreshToken),
-    ),
-  );
-  return () {
-    if (!ref.mounted) return false;
-    final current = ref.read(globalDataServiceProvider);
-    return current.userId == session.userId &&
-        current.refreshToken == session.refreshToken;
-  };
+  final session = watchSession(ref);
+  return () => isCurrentSession(ref, session);
 }
 
 Future<String?> _resolveImageUrl(Ref ref, BatchReadKind kind, String id) async {

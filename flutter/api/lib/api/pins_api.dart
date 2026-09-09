@@ -322,14 +322,20 @@ class PinsApi {
   ///   Height for images (optional)
   ///
   /// * [int] page:
-  ///   page number (can only be used when ids is not set). Sorted by creation date descending
+  ///   page number (can only be used when ids is not set). Sorted by creation date descending. Use beforeCreationDate and beforeId for stable cursor pagination.
   ///
   /// * [int] size:
   ///   page size. Defaults to 20
   ///
   /// * [DateTime] updatedAfter:
   ///   only include pins that have been updated after this date.If set all deleted pins after this time are returned.
-  Future<Response> getPinImagesByIdsWithHttpInfo({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, }) async {
+  ///
+  /// * [DateTime] beforeCreationDate:
+  ///   stable pagination cursor; provide with beforeId; return pins created before this date, with beforeId breaking ties
+  ///
+  /// * [String] beforeId:
+  ///   stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together
+  Future<Response> getPinImagesByIdsWithHttpInfo({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, DateTime? beforeCreationDate, String? beforeId, }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/pins';
 
@@ -366,6 +372,12 @@ class PinsApi {
     }
     if (updatedAfter != null) {
       queryParams.addAll(_queryParams('', 'updatedAfter', updatedAfter));
+    }
+    if (beforeCreationDate != null) {
+      queryParams.addAll(_queryParams('', 'beforeCreationDate', beforeCreationDate));
+    }
+    if (beforeId != null) {
+      queryParams.addAll(_queryParams('', 'beforeId', beforeId));
     }
 
     const contentTypes = <String>[];
@@ -405,15 +417,21 @@ class PinsApi {
   ///   Height for images (optional)
   ///
   /// * [int] page:
-  ///   page number (can only be used when ids is not set). Sorted by creation date descending
+  ///   page number (can only be used when ids is not set). Sorted by creation date descending. Use beforeCreationDate and beforeId for stable cursor pagination.
   ///
   /// * [int] size:
   ///   page size. Defaults to 20
   ///
   /// * [DateTime] updatedAfter:
   ///   only include pins that have been updated after this date.If set all deleted pins after this time are returned.
-  Future<PinsSyncDto?> getPinImagesByIds({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, }) async {
-    final response = await getPinImagesByIdsWithHttpInfo( ids: ids, groupId: groupId, userId: userId, withImage: withImage, compression: compression, height: height, page: page, size: size, updatedAfter: updatedAfter, );
+  ///
+  /// * [DateTime] beforeCreationDate:
+  ///   stable pagination cursor; provide with beforeId; return pins created before this date, with beforeId breaking ties
+  ///
+  /// * [String] beforeId:
+  ///   stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together
+  Future<PinsSyncDto?> getPinImagesByIds({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, DateTime? beforeCreationDate, String? beforeId, }) async {
+    final response = await getPinImagesByIdsWithHttpInfo( ids: ids, groupId: groupId, userId: userId, withImage: withImage, compression: compression, height: height, page: page, size: size, updatedAfter: updatedAfter, beforeCreationDate: beforeCreationDate, beforeId: beforeId, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

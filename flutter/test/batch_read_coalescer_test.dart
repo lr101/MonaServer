@@ -5,6 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  test('session identity changes when the refresh token rotates', () {
+    const oldSession = SessionIdentity(
+      userId: 'user',
+      refreshToken: 'secret-refresh-token',
+    );
+    expect(
+      oldSession,
+      isNot(const SessionIdentity(userId: 'user', refreshToken: 'new')),
+    );
+    expect(oldSession.toString(), isNot(contains('secret-refresh-token')));
+  });
+
   test(
     'uses the generated transport and deserializes image URL results',
     () async {

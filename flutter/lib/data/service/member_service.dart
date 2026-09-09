@@ -2,7 +2,6 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/repository/member_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -12,23 +11,23 @@ part 'member_service.g.dart';
 class MemberService extends _$MemberService {
   late IMemberRepository _memberRepository;
   late MembersApi _membersApi;
-  late String _sessionUserId;
+  late SessionIdentity _session;
 
   @override
   Stream<List<MemberEntity>> build(String groupId) {
     _memberRepository = ref.watch(memberRepositoryProvider);
     _membersApi = ref.watch(memberApiProvider);
-    _sessionUserId = ref.watch(userIdProvider);
+    _session = watchSession(ref);
 
-    fetchRemote(sessionUserId: _sessionUserId);
+    fetchRemote(session: _session);
 
     final stream = _memberRepository.watchById(groupId);
     return stream.map(sortMembers);
   }
 
-  Future<void> fetchRemote({required String sessionUserId}) async {
+  Future<void> fetchRemote({required SessionIdentity session}) async {
     final members = await _membersApi.getGroupMembers(groupId);
-    if (!isCurrentSessionUser(ref, sessionUserId) || members == null) return;
+    if (!isCurrentSession(ref, session) || members == null) return;
     for (final member in members) {
       registerUserImageSmallUrl(ref, member.userId, member.profileImageSmall);
     }
@@ -38,7 +37,7 @@ class MemberService extends _$MemberService {
       members: members.map(MemberEntity.fromRanking).toList(),
       ttl: DateTime.now(),
     );
-    if (!isCurrentSessionUser(ref, sessionUserId)) return;
+    if (!isCurrentSession(ref, session)) return;
     await _memberRepository.put(entity);
   }
 

@@ -36,6 +36,7 @@ class SyncingService extends _$SyncingService {
   late IGroupRepository _groupRepository;
   late IPinRepository _pinRepository;
   late String userId;
+  late SessionIdentity _session;
   final Logger _logger = Logger();
 
   @override
@@ -45,6 +46,7 @@ class SyncingService extends _$SyncingService {
     _groupRepository = ref.watch(groupRepositoryProvider);
     _pinRepository = ref.watch(pinRepositoryProvider);
     userId = ref.watch(userIdProvider);
+    _session = watchSession(ref);
     ref.listen(
       lastSeenProvider(GlobalDataRepository.lastSeenKey),
       (_, _) => (),
@@ -65,19 +67,20 @@ class SyncingService extends _$SyncingService {
     state = SyncState.syncing;
     const key = GlobalDataRepository.lastSeenKey;
     final lastSeen = ref.read(lastSeenProvider(key));
-    final sessionUserId = ref.read(userIdProvider);
+    final session = _session;
+    final sessionUserId = session.userId ?? ref.read(userIdProvider);
     try {
       _logger.i(
         "Syncing groups of user $sessionUserId and lastSeen: $lastSeen",
       );
-      await syncFromBackend(lastSeen, sessionUserId: sessionUserId);
-      await syncOfflinePins(sessionUserId: sessionUserId);
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      await syncFromBackend(lastSeen, session: session);
+      await syncOfflinePins(session: session);
+      if (!isCurrentSession(ref, session)) return;
       ref.read(lastSeenProvider(key).notifier).setLastSeenNow();
       state = SyncState.finished;
       _logger.i("Successfully finished syncing");
     } catch (e) {
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       state = SyncState.failed;
       _logger.i("Failed syncing with error: $e");
       rethrow;
@@ -86,11 +89,16 @@ class SyncingService extends _$SyncingService {
 
   Future<void> syncFromBackend(
     DateTime? lastSeen, {
+    SessionIdentity? session,
     String? sessionUserId,
   }) async {
-    final expectedUserId = sessionUserId ?? captureSessionUserId(ref);
+    final expectedSession =
+        session ??
+        (sessionUserId == null
+            ? captureSession(ref)
+            : SessionIdentity(userId: sessionUserId, refreshToken: null));
     final response = await _pinsApi.callSync(lastSeen: lastSeen);
-    if (!isCurrentSessionUser(ref, expectedUserId)) return;
+    if (!isCurrentSession(ref, expectedSession)) return;
     if (response == null) {
       throw Exception("no sync possible");
     }
@@ -100,23 +108,24 @@ class SyncingService extends _$SyncingService {
       localUserGroups.map((group) => group.groupId),
       response,
     )) {
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       await _groupRepository.delete(groupId);
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       await _pinRepository.updateKeepAlive(groupId, false, true);
     }
 
     if (response.deletedPins.isNotEmpty) {
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       await _pinRepository.deleteMultiple(response.deletedPins);
+      if (!isCurrentSession(ref, expectedSession)) return;
     }
 
     for (final groupUpdate in response.groupUpdates) {
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       final groupDto = groupUpdate.group;
       registerGroupImageUrls(ref, groupDto);
       final existingGroup = await _groupRepository.get(groupDto.id);
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       await _groupRepository.put(
         GroupEntity.fromGroupDto(
           groupDto,
@@ -126,53 +135,63 @@ class SyncingService extends _$SyncingService {
           isActivated: existingGroup?.isActivated ?? true,
         ),
       );
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
 
       if (groupUpdate.pinsAdded.isNotEmpty) {
-        if (!isCurrentSessionUser(ref, expectedUserId)) return;
+        if (!isCurrentSession(ref, expectedSession)) return;
         for (final pin in groupUpdate.pinsAdded) {
           registerPinImageUrl(ref, pin);
         }
-        if (!isCurrentSessionUser(ref, expectedUserId)) return;
+        if (!isCurrentSession(ref, expectedSession)) return;
         await _pinRepository.putMultiple(
           groupUpdate.pinsAdded
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
-        if (!isCurrentSessionUser(ref, expectedUserId)) return;
+        if (!isCurrentSession(ref, expectedSession)) return;
       }
 
       prefetchGroupMediaInBackground(
         ref,
         groupDto,
         keepAlive: true,
-        sessionUserId: expectedUserId,
+        session: expectedSession,
       );
     }
   }
 
-  Future<void> syncOfflinePins({String? sessionUserId}) async {
-    final expectedUserId = sessionUserId ?? captureSessionUserId(ref);
+  Future<void> syncOfflinePins({
+    SessionIdentity? session,
+    String? sessionUserId,
+  }) async {
+    final expectedSession =
+        session ??
+        (sessionUserId == null
+            ? captureSession(ref)
+            : SessionIdentity(userId: sessionUserId, refreshToken: null));
     final offlinePins = (await _pinRepository.getAll()).where(
       (e) => e.lastSynced == null,
     );
     for (final pin in offlinePins) {
-      if (!isCurrentSessionUser(ref, expectedUserId)) return;
+      if (!isCurrentSession(ref, expectedSession)) return;
       final image = await ref
           .read(pinImageRepositoryProvider)
           .fetchImage(pin.pinId, true);
       try {
-        if (!isCurrentSessionUser(ref, expectedUserId)) return;
+        if (!isCurrentSession(ref, expectedSession)) return;
         _logger.i("Trying to sync $pin to online backend");
         final newPin = await _pinsApi.createPin(pin.toRequestDto(image!));
-        if (!isCurrentSessionUser(ref, expectedUserId)) return;
+        if (!isCurrentSession(ref, expectedSession)) return;
         await _pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
         );
+        if (!isCurrentSession(ref, expectedSession)) return;
         await _pinRepository.delete(pin.pinId);
+        if (!isCurrentSession(ref, expectedSession)) return;
       } on ApiException catch (e) {
-        if (e.code == 409) {
+        if (e.code == 409 && isCurrentSession(ref, expectedSession)) {
           _logger.i("Pin $pin already exists on online backend");
+          if (!isCurrentSession(ref, expectedSession)) return;
           await _pinRepository.delete(pin.pinId);
         }
       } catch (e) {

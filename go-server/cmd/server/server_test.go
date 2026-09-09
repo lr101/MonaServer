@@ -251,6 +251,9 @@ func TestValidateCoupledQueryParameters(t *testing.T) {
 		{path: "/api/v2/map", query: "longitude=1", want: http.StatusBadRequest},
 		{path: "/api/v2/map", query: "latitude=1&longitude=2", want: http.StatusOK},
 		{path: "/api/v2/pins", query: "userId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
+		{path: "/api/v2/pins", query: "beforeCreationDate=2026-01-01T00:00:00Z", want: http.StatusBadRequest},
+		{path: "/api/v2/pins", query: "beforeId=00000000-0000-0000-0000-000000000000", want: http.StatusBadRequest},
+		{path: "/api/v2/pins", query: "beforeCreationDate=2026-01-01T00:00:00Z&beforeId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {

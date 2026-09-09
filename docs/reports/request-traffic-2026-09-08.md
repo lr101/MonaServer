@@ -302,10 +302,14 @@ The follow-up implementation is on `perf/request-batching`:
   results, and batch responses are retained in a bounded session registry.
   Image bytes remain lazy and cache-aware, with endpoint fallback when a
   supplied URL is expired or unavailable.
+- Group search requests signed thumbnails with each page and retries the page
+  without images if signing or object storage is unavailable, so search rows
+  remain usable without per-row URL fan-out.
 - Feed, gallery/grid, ranking, search, member, and user metadata consumers now
   prime bounded pages through the shared loader. User and group pin hydration
-  walks all server pages, while group refreshes are coalesced and limited to
-  relevant membership changes.
+  walks all server pages with a stable creation-date/ID cursor, while group
+  refreshes are coalesced and limited to relevant membership changes. Completed
+  user-gallery snapshots reconcile cached pins that the server no longer has.
 - Flutter Web resolves the API to its current origin. The local development
   server and production Nginx image proxy `/api/` to the configured backend,
   so browser API requests are same-origin and do not emit CORS preflights.

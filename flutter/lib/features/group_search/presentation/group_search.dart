@@ -97,17 +97,34 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
     }
   }
 
-  Future<GroupsSyncDto?> _fetchPage(int pageKey) {
-    return ref
-        .read(groupApiProvider)
-        .getGroupsByIds(
-          search: _textEditController.text,
-          withUser: false,
-          userId: ref.read(globalDataServiceProvider).userId,
-          page: pageKey,
-          size: _pageSize,
-          withImages: false,
-        );
+  Future<GroupsSyncDto?> _fetchPage(int pageKey) async {
+    final api = ref.read(groupApiProvider);
+    try {
+      // The list response already contains signed thumbnail URLs. Reuse them
+      // through the shared image registry instead of issuing one URL
+      // resolution request per visible row.
+      return await _requestPage(api, pageKey, withImages: true);
+    } catch (_) {
+      // Image signing is an optional optimization. Keep search usable when
+      // object storage is unavailable, and let visible rows resolve through
+      // the normal cache-aware image path instead.
+      return _requestPage(api, pageKey, withImages: false);
+    }
+  }
+
+  Future<GroupsSyncDto?> _requestPage(
+    GroupsApi api,
+    int pageKey, {
+    required bool withImages,
+  }) {
+    return api.getGroupsByIds(
+      search: _textEditController.text,
+      withUser: false,
+      userId: ref.read(globalDataServiceProvider).userId,
+      page: pageKey,
+      size: _pageSize,
+      withImages: withImages,
+    );
   }
 
   void listener() {

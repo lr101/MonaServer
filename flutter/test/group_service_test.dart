@@ -1176,6 +1176,8 @@ class _FakePinsApi extends PinsApi {
     int? page,
     int? size,
     DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
   }) async {
     requests++;
     requestedPages.add(page);

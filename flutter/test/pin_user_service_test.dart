@@ -74,6 +74,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(api.requestedPages, [0, 1]);
+    expect(api.requestedBeforeIds, [null, '19']);
     expect(repository.putItems, hasLength(21));
   });
 
@@ -111,6 +112,37 @@ void main() {
 
     expect(api.requestedPages, [0, 1]);
   });
+
+  test(
+    'removes cached gallery pins absent from the completed snapshot',
+    () async {
+      final repository = FakePinRepository({
+        'profile-user': [_pin('stale-pin', 'profile-user')],
+      });
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(
+          items: [_remotePin(id: 'fresh-pin', userId: 'profile-user')],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          userIdProvider.overrideWithValue('current-user'),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+          hiddenUserServiceProvider.overrideWithValue(const []),
+          hiddenPostsServiceProvider.overrideWithValue(const []),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.listen(pinUserServiceProvider('profile-user'), (_, _) {});
+      await repository.deleteStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(repository.deletedIds, ['stale-pin']);
+    },
+  );
 
   test(
     'fetches public group pins when the group pin provider is loaded',
@@ -621,6 +653,7 @@ class RecordingPinsApi extends PinsApi {
   String? requestedGroupId;
   DateTime? requestedUpdatedAfter;
   final List<int?> requestedPages = [];
+  final List<String?> requestedBeforeIds = [];
   final PinsSyncDto? response;
   final Object? error;
   final Future<PinsSyncDto?> Function()? responseOverride;
@@ -637,11 +670,14 @@ class RecordingPinsApi extends PinsApi {
     int? page,
     int? size,
     DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
   }) async {
     requestedUserId = userId;
     requestedGroupId = groupId;
     requestedUpdatedAfter = updatedAfter;
     requestedPages.add(page);
+    requestedBeforeIds.add(beforeId);
     if (!requestStarted.isCompleted) requestStarted.complete();
     if (error != null) throw error!;
     if (responseOverride != null) return responseOverride!();

@@ -101,6 +101,29 @@ class BatchReadDisposedException implements Exception {
   const BatchReadDisposedException();
 }
 
+/// Identifies one authenticated client session.
+///
+/// User IDs alone are insufficient: logging out and back in as the same
+/// account must invalidate work started with the old token.
+class SessionIdentity {
+  const SessionIdentity({required this.userId, required this.refreshToken});
+
+  final String? userId;
+  final String? refreshToken;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SessionIdentity &&
+      other.userId == userId &&
+      other.refreshToken == refreshToken;
+
+  @override
+  int get hashCode => Object.hash(userId, refreshToken);
+
+  @override
+  String toString() => 'SessionIdentity(userId: $userId)';
+}
+
 /// Coalesces independent cache misses for the lifetime of one authenticated
 /// API client. Results deliberately are not cached here: each repository owns
 /// its own cache policy, including negative and stale-value behavior.
@@ -277,25 +300,82 @@ final suppliedImageUrlRegistryProvider = Provider<SuppliedImageUrlRegistry>((
 ) {
   // A URL is an authenticated, short-lived credential. Rebuild the registry
   // whenever the account session changes so it cannot cross account bounds.
-  ref.watch(
-    globalDataServiceProvider.select(
-      (data) => (userId: data.userId, refreshToken: data.refreshToken),
-    ),
-  );
+  watchSession(ref);
   return SuppliedImageUrlRegistry();
 });
 
-/// Captures the account that started a background cache operation. A few
-/// lightweight provider tests intentionally omit the application bootstrap
-/// override for [globalDataOnceProvider], so these helpers tolerate an
-/// unavailable user provider there while remaining strict in a running app.
-String? captureSessionUserId(Ref ref) {
+/// Watches the authenticated session and safely falls back to the user ID in
+/// lightweight provider tests that omit application bootstrap. The watched
+/// global provider makes production providers rebuild when a token rotates for
+/// the same account.
+SessionIdentity watchSession(Ref ref) {
   try {
-    return ref.read(userIdProvider);
+    final data = ref.watch(
+      globalDataServiceProvider.select(
+        (data) => (userId: data.userId, refreshToken: data.refreshToken),
+      ),
+    );
+    return SessionIdentity(
+      userId: data.userId,
+      refreshToken: data.refreshToken,
+    );
   } catch (_) {
-    return null;
+    try {
+      return SessionIdentity(
+        userId: ref.watch(userIdProvider),
+        refreshToken: null,
+      );
+    } catch (_) {
+      return const SessionIdentity(userId: null, refreshToken: null);
+    }
   }
 }
+
+/// Captures the session that started a background cache operation. A few
+/// lightweight provider tests intentionally omit the application bootstrap
+/// override for [globalDataOnceProvider], so this helper tolerates an
+/// unavailable global provider while remaining strict in a running app.
+SessionIdentity captureSession(Ref ref) {
+  try {
+    final data = ref.read(globalDataServiceProvider);
+    return SessionIdentity(
+      userId: data.userId,
+      refreshToken: data.refreshToken,
+    );
+  } catch (_) {
+    try {
+      return SessionIdentity(
+        userId: ref.read(userIdProvider),
+        refreshToken: null,
+      );
+    } catch (_) {
+      return const SessionIdentity(userId: null, refreshToken: null);
+    }
+  }
+}
+
+bool isCurrentSession(Ref ref, SessionIdentity? capturedSession) {
+  if (!ref.mounted) return false;
+  if (capturedSession == null) return true;
+  try {
+    final data = ref.read(globalDataServiceProvider);
+    return data.userId == capturedSession.userId &&
+        data.refreshToken == capturedSession.refreshToken;
+  } catch (_) {
+    try {
+      // An isolated test can provide only userIdProvider. There is no token
+      // generation to compare in that mode, so retain the account guard.
+      return capturedSession.refreshToken == null &&
+          ref.read(userIdProvider) == capturedSession.userId;
+    } catch (_) {
+      return true;
+    }
+  }
+}
+
+/// Compatibility helpers for consumers that only need an account ID. New
+/// background work must use [captureSession] and [isCurrentSession].
+String? captureSessionUserId(Ref ref) => captureSession(ref).userId;
 
 bool isCurrentSessionUser(Ref ref, String? capturedUserId) {
   if (!ref.mounted) return false;

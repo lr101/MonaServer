@@ -835,7 +835,8 @@ paths:
           type: integer
         style: form
       - description: page number (can only be used when ids is not set). Sorted by
-          creation date descending
+          creation date descending. Use beforeCreationDate and beforeId for stable
+          cursor pagination.
         explode: true
         in: query
         name: page
@@ -860,6 +861,24 @@ paths:
         required: false
         schema:
           $ref: "#/components/schemas/date"
+        style: form
+      - description: "stable pagination cursor; provide with beforeId; return pins\
+          \ created before this date, with beforeId breaking ties"
+        explode: true
+        in: query
+        name: beforeCreationDate
+        required: false
+        schema:
+          $ref: "#/components/schemas/date"
+        style: form
+      - description: stable pagination cursor tie-breaker for beforeCreationDate;
+          provide both cursor parameters together
+        explode: true
+        in: query
+        name: beforeId
+        required: false
+        schema:
+          $ref: "#/components/schemas/id"
         style: form
       responses:
         "200":

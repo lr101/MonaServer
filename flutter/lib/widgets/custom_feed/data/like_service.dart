@@ -3,7 +3,6 @@ import 'package:buff_lisa/data/entity/pin_like_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mutex/mutex.dart';
 import 'package:openapi/api.dart';
@@ -16,13 +15,13 @@ class LikeService extends _$LikeService {
   final Mutex _mutex = Mutex();
 
   late LikesApi _likesApi;
-  late String _sessionUserId;
+  late SessionIdentity _session;
 
   @override
   Future<PinLikeDto> build(String pinId) async {
     _likesApi = ref.watch(likeApiProvider);
-    final sessionUserId = ref.watch(userIdProvider);
-    _sessionUserId = sessionUserId;
+    final session = watchSession(ref);
+    _session = session;
     try {
       await _mutex.acquire();
       final pinLikeRepo = ref.watch(pinLikeRepositoryProvider);
@@ -32,7 +31,7 @@ class LikeService extends _$LikeService {
       } else {
         try {
           final pinLikeDto = await _fetchLike(pinId);
-          if (!isCurrentSessionUser(ref, sessionUserId)) {
+          if (!isCurrentSession(ref, session)) {
             return PinLikeDto();
           }
           await pinLikeRepo.put(PinLikeEntity.fromDto(pinLikeDto, pinId));
@@ -59,7 +58,7 @@ class LikeService extends _$LikeService {
 
   Future<void> addLike(String creatorId, CreateLikeDto createLikeDto) async {
     final pinLikeRepo = ref.read(pinLikeRepositoryProvider);
-    final sessionUserId = _sessionUserId;
+    final session = _session;
     await _mutex.acquire();
     final currentState = state.value ?? PinLikeDto();
     try {
@@ -96,15 +95,17 @@ class LikeService extends _$LikeService {
             false,
         likedByUser: createLikeDto.like ?? currentState.likedByUser ?? false,
       );
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       state = AsyncData(pinDto);
       await pinLikeRepo.put(PinLikeEntity.fromDto(pinDto, pinId));
+      if (!isCurrentSession(ref, session)) return;
       await _likesApi.createOrUpdateLike(pinId, createLikeDto);
-      if (!isCurrentSessionUser(ref, sessionUserId)) return;
+      if (!isCurrentSession(ref, session)) return;
       ref
           .read(userLikeServiceProvider(creatorId).notifier)
           .updateLikeCount(createLikeDto);
     } on ApiException catch (_) {
+      if (!isCurrentSession(ref, session)) return;
       state = AsyncData(currentState);
     } finally {
       _mutex.release();
