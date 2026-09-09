@@ -149,7 +149,10 @@ export function createDevServer({ staticRoot, upstream }) {
   const root = fileURLToPath(staticRoot instanceof URL ? staticRoot : pathToFileURL(staticRoot));
   const parsedUpstream = new URL(normalizeUpstream(upstream));
   return http.createServer((request, response) => {
-    if (request.url?.startsWith('/api/')) {
+    if (
+      request.url?.startsWith('/api/') ||
+      request.url?.startsWith('/public/')
+    ) {
       proxyApi(request, response, parsedUpstream);
     } else {
       serveStatic(request, response, root);

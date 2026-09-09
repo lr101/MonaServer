@@ -27,14 +27,19 @@ test('rejects an upstream without an HTTP(S) origin', () => {
   );
 });
 
-test('proxies API method, query, body, headers, and upstream status', async () => {
+test('proxies API and public paths with method, query, body, headers, and status', async () => {
   const upstream = http.createServer((request, response) => {
+    if (request.url === '/public/agb') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('<p>terms</p>');
+      return;
+    }
     let body = '';
     request.setEncoding('utf8');
     request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
       assert.equal(request.method, 'POST');
-      assert.equal(request.url, '/api/v3/batch?cursor=next');
+    assert.equal(request.url, '/api/v3/batch?cursor=next');
       assert.equal(request.headers.authorization, 'Bearer test-token');
       assert.equal(body, '{"requests":[]}');
       response.writeHead(422, { 'content-type': 'application/json' });
@@ -79,6 +84,21 @@ test('proxies API method, query, body, headers, and upstream status', async () =
   });
 
   assert.deepEqual(result, { status: 422, body: '{"error":"invalid"}' });
+
+  const publicResult = await new Promise((resolve, reject) => {
+    http.get(
+      {
+        hostname: '127.0.0.1',
+        port: proxyAddress.port,
+        path: '/public/agb',
+      },
+      (response) => {
+        response.resume();
+        response.on('end', () => resolve(response.statusCode));
+      },
+    ).on('error', reject);
+  });
+  assert.equal(publicResult, 200);
 });
 
 test('does not turn a missing static asset into the Flutter shell', async () => {
