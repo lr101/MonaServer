@@ -27,4 +27,11 @@ grep -Fxq 'storage_port=23102' <<<"$output"
 grep -Fxq 'storage_console_port=23103' <<<"$output"
 grep -Fxq "nginx_runtime_dir=$runtime_dir" <<<"$output"
 
+if DEV_STACK_MAX_SECONDS=86401 \
+  "$repo_root/scripts/dev/start-nginx-worktree.sh" \
+    --repo-root "$repo_root" --dry-run >/dev/null 2>&1; then
+  echo 'launcher accepted a duration longer than 24 hours' >&2
+  exit 1
+fi
+
 echo 'nginx worktree launcher checks passed'

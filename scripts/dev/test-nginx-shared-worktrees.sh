@@ -49,6 +49,10 @@ curl --fail --silent --show-error \
   --header 'Host: web-feature-b.dev.dell.lr-projects.de' \
   http://127.0.0.1:18081/ | grep -Fxq 'worktree-b'
 
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  --header 'Host: web-missing.dev.dell.lr-projects.de' \
+  http://127.0.0.1:18081/)" = 404
+
 rm -f -- "$runtime_dir/worktrees/feature-a.conf"
 nginx -t -c "$runtime_dir/nginx.conf" -p "$runtime_dir" >/dev/null
 nginx -s reload -p "$runtime_dir" -c "$runtime_dir/nginx.conf" >/dev/null

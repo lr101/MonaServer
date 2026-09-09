@@ -112,8 +112,8 @@ ACHIEVEMENT_CREATED_BEFORE=2023-12-10T02:43:44.402768+00:00
 `RUSTFS_ENDPOINT` is the address used by the server. The external endpoint is
 written into presigned URLs returned to clients. Both use `host:port` without
 a URL scheme. The deployment Compose service is `minio`; use `rustfs:9000`
-instead with `docker-compose.dev.yml`. Set `RUSTFS_USE_SSL=true` only when both
-endpoints use TLS.
+instead with `docker-compose.dev.yml`. `RUSTFS_USE_SSL` controls the internal
+client, while `RUSTFS_EXTERNAL_USE_SSL` controls the scheme in presigned URLs.
 
 `HOST_PORT` controls the published Compose port. The container always listens
 on `8080`. Keep the achievement values above when replacing a Spring deployment

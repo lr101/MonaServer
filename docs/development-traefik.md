@@ -88,6 +88,6 @@ DEV_SLUG=feature-a \
 
 The helper is foreground-oriented and stops at most 24 hours later. Set
 `DEV_STACK_MAX_SECONDS` to a shorter value when appropriate. The default shared
-nginx runtime is under `/tmp/serve-dev-worktree/nginx`; use
-`DEV_NGINX_RUNTIME_DIR` and `DEV_PORT_STATE_DIR` to choose another shared
-location when several dev containers do not share `/tmp`.
+nginx runtime is under `${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/nginx`;
+use `DEV_NGINX_RUNTIME_DIR` and `DEV_PORT_STATE_DIR` to choose another shared
+location when several dev containers do not share that runtime directory.

@@ -68,6 +68,13 @@ http {
     sendfile on;
     client_max_body_size 25m;
     access_log $log_dir/access.log;
+
+    server {
+        listen $nginx_port default_server;
+        server_name _;
+        return 404;
+    }
+
     include $worktree_dir/*.conf;
 }
 EOF

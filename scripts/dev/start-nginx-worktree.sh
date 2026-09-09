@@ -4,6 +4,7 @@ set -Eeuo pipefail
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd -- "$script_dir/../.." && pwd)
 dry_run=false
+original_args=("$@")
 
 usage() {
   cat >&2 <<'EOF'
@@ -152,7 +153,15 @@ case "$stack_max_seconds" in
 esac
 stack_max_seconds=$(printf '%s' "$stack_max_seconds" | sed 's/^0*//')
 stack_max_seconds=${stack_max_seconds:-0}
-((stack_max_seconds > 0 && stack_max_seconds <= 86400)) || die 'DEV_STACK_MAX_SECONDS must be between 1 and 86400'
+if [[ "$stack_max_seconds" == 0 || ${#stack_max_seconds} -gt 5 || ( ${#stack_max_seconds} -eq 5 && "$stack_max_seconds" > 86400 ) ]]; then
+  die 'DEV_STACK_MAX_SECONDS must be between 1 and 86400'
+fi
+
+if [[ "${DEV_STACK_TIMEOUT_ACTIVE:-false}" != true ]]; then
+  command -v timeout >/dev/null 2>&1 || die 'required command is missing: timeout'
+  DEV_STACK_TIMEOUT_ACTIVE=true exec timeout --foreground --signal=TERM --kill-after=30s \
+    "$stack_max_seconds" "$0" "${original_args[@]}"
+fi
 
 api_url="$public_scheme://$api_host"
 web_url="$public_scheme://$web_host"
@@ -205,7 +214,8 @@ require_command() {
 for command_name in curl flock mise nginx pg_isready python3 sha256sum setsid timeout; do
   require_command "$command_name"
 done
-[[ -f "$repo_root/.env.dev" ]] || die "missing $repo_root/.env.dev"
+env_file=${DEV_ENV_FILE:-$repo_root/.env.dev}
+[[ -f "$env_file" ]] || die "missing $env_file"
 
 rustfs_bin=${DEV_RUSTFS_BIN:-}
 if [[ -z "$rustfs_bin" ]]; then
@@ -215,7 +225,7 @@ fi
 
 set -a
 # shellcheck disable=SC1091
-source "$repo_root/.env.dev"
+source "$env_file"
 set +a
 
 [[ -n "${DATABASE_URL:-}" ]] || die 'DATABASE_URL is required in .env.dev'
@@ -246,7 +256,7 @@ snippet_owner_file="$worktree_dir/$slug.owner"
 nginx_log_file="$log_dir/nginx.log"
 api_log_file="$log_dir/$slug-api.log"
 rustfs_log_file="$log_dir/$slug-rustfs.log"
-web_root="$repo_root/flutter/build/web"
+web_root=${DEV_WEB_ROOT:-$repo_root/flutter/build/web}
 
 port_state_dir=${DEV_PORT_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/ports}
 mkdir -p -- "$port_state_dir"
@@ -275,7 +285,7 @@ reservation_is_live() {
   local reservation=$1
   [[ -f "$reservation" ]] || return 1
   local owner_pid
-  owner_pid=$(sed -n '1p' "$reservation")
+  read -r owner_pid _ < "$reservation" || return 1
   [[ "$owner_pid" =~ ^[0-9]+$ ]] || return 1
   kill -0 "$owner_pid" >/dev/null 2>&1
 }
@@ -321,15 +331,18 @@ PY
   printf '%s %s\n' "$$" "$slug" > "$port_state_dir/$candidate"
   seen_ports[$candidate]=1
   reserved_ports+=("$candidate")
+  reserved_port=$candidate
   flock -u "$port_lock_fd"
-  printf '%s\n' "$candidate"
 }
 
 release_ports() {
-  local port
+  local reservation port owner_pid
   flock "$port_lock_fd"
-  for port in "${reserved_ports[@]:-}"; do
-    if [[ -f "$port_state_dir/$port" ]] && [[ "$(sed -n '1p' "$port_state_dir/$port")" == "$$" ]]; then
+  for reservation in "$port_state_dir"/[0-9]*; do
+    [[ -f "$reservation" ]] || continue
+    port=$(basename -- "$reservation")
+    read -r owner_pid _ < "$reservation" || continue
+    if [[ "$owner_pid" == "$$" ]]; then
       rm -f -- "$port_state_dir/$port"
     fi
   done
@@ -337,10 +350,13 @@ release_ports() {
 }
 
 trap release_ports EXIT
-api_port=$(reserve_port "$requested_api_port" DEV_API_PORT)
-storage_port=$(reserve_port "$requested_storage_port" DEV_STORAGE_PORT)
-storage_console_port=$(reserve_port "$requested_console_port" DEV_STORAGE_CONSOLE_PORT)
-trap - EXIT
+reserved_port=
+reserve_port "$requested_api_port" DEV_API_PORT
+api_port=$reserved_port
+reserve_port "$requested_storage_port" DEV_STORAGE_PORT
+storage_port=$reserved_port
+reserve_port "$requested_console_port" DEV_STORAGE_CONSOLE_PORT
+storage_console_port=$reserved_port
 
 nginx_process_alive() {
   [[ -s "$nginx_pid_file" ]] || return 1
