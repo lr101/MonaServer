@@ -46,6 +46,7 @@ RUSTFS_SECRET_KEY=local-secret-change-me
 RUSTFS_ENDPOINT=rustfs:9000
 RUSTFS_EXTERNAL_ENDPOINT=localhost:9000
 RUSTFS_USE_SSL=false
+RUSTFS_EXTERNAL_USE_SSL=false
 ```
 
 Then run this from the repository root:
@@ -69,7 +70,7 @@ mise exec -- go run ./cmd/server
 
 The config loader reads process environment variables. It does not load `.env` files itself. Compose loads `.env.dev` through `env_file`.
 
-Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL`, `JWT_SECRET`, and `TOKEN_ADMIN_USERNAME` are required for a useful server. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint.
+Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL`, `JWT_SECRET`, and `TOKEN_ADMIN_USERNAME` are required for a useful server. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint. `RUSTFS_EXTERNAL_USE_SSL` defaults to `RUSTFS_USE_SSL` and changes only the scheme used for presigned URLs.
 
 ## Database-backed tests
 

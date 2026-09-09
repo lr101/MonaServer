@@ -60,7 +60,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
 | `RUSTFS_BUCKET` | `monaserver` | bucket name |
-| `RUSTFS_USE_SSL` | `false` | |
+| `RUSTFS_USE_SSL` | `false` | TLS scheme used by the internal S3 client |
+| `RUSTFS_EXTERNAL_USE_SSL` | same as `RUSTFS_USE_SSL` | TLS scheme used for presigned URLs; useful when a proxy terminates public TLS |
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
@@ -94,6 +95,7 @@ RUSTFS_ACCESS_KEY=<application-access-key>
 RUSTFS_SECRET_KEY=<application-secret-key>
 RUSTFS_BUCKET=<bucket-name>
 RUSTFS_USE_SSL=false
+RUSTFS_EXTERNAL_USE_SSL=false
 RUSTFS_URL_EXPIRY=60m
 
 MAIL_HOST=
