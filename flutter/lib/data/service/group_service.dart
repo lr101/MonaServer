@@ -5,9 +5,9 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
-import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -219,6 +219,7 @@ class UserGroupService extends _$UserGroupService {
   }) async {
     // update group entity
     final groupId = groupDto.id;
+    registerGroupImageUrls(ref, groupDto);
     final groupEntity = GroupEntity.fromGroupDto(
       groupDto,
       false,
@@ -231,6 +232,7 @@ class UserGroupService extends _$UserGroupService {
     // update group pins
     try {
       await _syncGroupPins(
+        ref,
         _pinRepository,
         _pinsApi,
         groupId,
@@ -335,6 +337,7 @@ class UserGroupService extends _$UserGroupService {
 }
 
 Future<void> _syncGroupPins(
+  Ref ref,
   IPinRepository pinRepository,
   PinsApi pinsApi,
   String groupId, {
@@ -347,6 +350,9 @@ Future<void> _syncGroupPins(
   );
   if (pins == null) return;
 
+  for (final pin in pins.items) {
+    registerPinImageUrl(ref, pin);
+  }
   final pinEntities = pins.items
       .map((pin) => PinEntity.fromDto(pin, onlySession, keepAlive: keepAlive))
       .toList();
@@ -370,37 +376,9 @@ Future<void> prefetchGroupMedia(
   Ref ref,
   GroupDto groupDto, {
   required bool keepAlive,
-}) async {
-  final groupId = groupDto.id;
-  final cacheWrites = <Future<Object?>>[];
-  final profileImage = groupDto.profileImage;
-  if (profileImage != null) {
-    cacheWrites.add(
-      ref
-          .read(groupProfileRepoProvider)
-          .overrideUrl(groupId, profileImage, keepAlive),
-    );
-  }
-
-  final profileImageSmall = groupDto.profileImageSmall;
-  if (profileImageSmall != null) {
-    cacheWrites.add(
-      ref
-          .read(groupProfileSmallRepoProvider)
-          .overrideUrl(groupId, profileImageSmall, keepAlive),
-    );
-  }
-
-  final pinImage = groupDto.pinImage;
-  if (pinImage != null) {
-    cacheWrites.add(
-      ref
-          .read(groupPinImageRepoProvider)
-          .overrideUrl(groupId, pinImage, keepAlive),
-    );
-  }
-
-  await Future.wait(cacheWrites);
+}) {
+  registerGroupImageUrls(ref, groupDto);
+  return Future<void>.value();
 }
 
 @riverpod

@@ -40,6 +40,7 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
     final groupPinImageRepo = ref.read(groupPinImageRepoProvider);
     final memberRepo = ref.read(memberRepositoryProvider);
     final pinRepo = ref.read(pinRepositoryProvider);
+    final pinLikeRepo = ref.read(pinLikeRepositoryProvider);
     final userImageRepo = ref.read(userImageRepoProvider);
     final userImageSmallRepo = ref.read(userImageSmallRepoProvider);
     final userLikeRepo = ref.read(userLikeRepositoryProvider);
@@ -56,6 +57,7 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
       groupPinImageRepo.deleteAll(),
       memberRepo.deleteAll(),
       pinRepo.deleteAll(),
+      pinLikeRepo.deleteAll(),
       userImageRepo.deleteAll(),
       userImageSmallRepo.deleteAll(),
       userLikeRepo.deleteAll(),
@@ -76,10 +78,10 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
 
     // 4. Invalidate the syncing service last (it depends on userId)
     ref.invalidate(lastSeenProvider);
-    
+
     if (widget.isCacheOnly) {
-       ref.read(syncingServiceProvider.notifier).toInit();
-       await ref.read(syncingServiceProvider.notifier).syncToBackend();
+      ref.read(syncingServiceProvider.notifier).toInit();
+      await ref.read(syncingServiceProvider.notifier).syncToBackend();
     } else {
       // 5. Finally, logout in GlobalDataService
       await ref.read(globalDataServiceProvider.notifier).logout();
@@ -99,7 +101,9 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 15),
             Text(
-              widget.isCacheOnly ? "Deleting cache... Please wait." : "Logging out... Please wait.",
+              widget.isCacheOnly
+                  ? "Deleting cache... Please wait."
+                  : "Logging out... Please wait.",
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),

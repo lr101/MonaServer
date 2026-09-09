@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
+import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,17 +117,39 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       final idList = _pins.getRange(pageKey, end).toList();
       for (final pin in idList) {
         // prefetch data
-        ref.read(pinImageRepositoryProvider).fetchImage(pin.pinId, false);
+        unawaited(
+          ref.read(pinImageRepositoryProvider).fetchImage(pin.pinId, false),
+        );
         ref.read(userServiceProvider(pin.creator));
         ref.read(getUserProfileSmallProvider(pin.creator));
+        ref.read(likeServiceProvider(pin.pinId));
       }
+      _prefetchNextPageMetadata(end, pageSize);
+      if (!mounted) return;
       if (end == _pins.length) {
         widget.pagingController.appendLastPage(idList);
       } else {
         widget.pagingController.appendPage(idList, pageKey + pageSize);
       }
     } catch (error) {
-      widget.pagingController.error = error;
+      if (mounted) widget.pagingController.error = error;
     }
+  }
+
+  void _prefetchNextPageMetadata(int start, int pageSize) {
+    final end = (start + pageSize).clamp(0, _pins.length);
+    final coalescer = ref.read(batchReadCoalescerProvider);
+    for (final pin in _pins.getRange(start, end)) {
+      // Metadata only: resolving a URL does not download object bytes.
+      _ignorePrefetchError(
+        coalescer.readKey(BatchReadKey(BatchReadKind.pinImage, pin.pinId)),
+      );
+      ref.read(userServiceProvider(pin.creator));
+      ref.read(likeServiceProvider(pin.pinId));
+    }
+  }
+
+  void _ignorePrefetchError(Future<Object?> future) {
+    unawaited(future.then<void>((_) {}, onError: (_, _) {}));
   }
 }

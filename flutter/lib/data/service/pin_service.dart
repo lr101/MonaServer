@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -51,15 +52,25 @@ class PinUserService extends _$PinUserService {
     final pins = await stream.first;
     final isUser = this.userId == _userId;
     if (pins.isEmpty && !isUser) {
-      final remotePins = await _pinsApi.getPinImagesByIds(
-        userId: this.userId,
-        withImage: false,
-      );
-      if (remotePins != null) {
-        final pins = remotePins.items
+      const pageSize = 20;
+      final received = <String>{};
+      for (var page = 0; ; page++) {
+        final remotePins = await _pinsApi.getPinImagesByIds(
+          userId: this.userId,
+          withImage: false,
+          page: page,
+          size: pageSize,
+        );
+        if (remotePins == null) return;
+        for (final pin in remotePins.items) {
+          registerPinImageUrl(ref, pin);
+        }
+        final newPins = remotePins.items
+            .where((pin) => received.add(pin.id))
             .map((e) => PinEntity.fromDto(e, true))
             .toList();
-        await _pinRepository.putMultiple(pins);
+        await _pinRepository.putMultiple(newPins);
+        if (remotePins.items.length < pageSize || newPins.isEmpty) break;
       }
     }
   }
@@ -130,29 +141,41 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final membershipBeforeFetch = _currentMembership();
     await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
 
-    final remotePins = await _pinsApi.getPinImagesByIds(
-      groupId: groupId,
-      withImage: false,
-      updatedAfter: _oldestSyncTime(cachedPins),
-    );
-    if (remotePins == null) return;
+    // Keep a fixed watermark for the whole walk. Advancing it after each page
+    // would skip rows that changed while the refresh was in progress.
+    final updatedAfter = _oldestSyncTime(cachedPins);
+    const pageSize = 20;
+    var latestIsUserGroup = _currentMembership() ?? false;
+    for (var page = 0; ; page++) {
+      final remotePins = await _pinsApi.getPinImagesByIds(
+        groupId: groupId,
+        withImage: false,
+        page: page,
+        size: pageSize,
+        updatedAfter: updatedAfter,
+      );
+      if (remotePins == null) return;
 
-    if (remotePins.deleted.isNotEmpty) {
-      await _pinRepository.deleteMultiple(remotePins.deleted);
+      if (remotePins.deleted.isNotEmpty) {
+        await _pinRepository.deleteMultiple(remotePins.deleted);
+      }
+
+      latestIsUserGroup = _currentMembership() ?? false;
+      for (final pin in remotePins.items) {
+        registerPinImageUrl(ref, pin);
+      }
+      final pins = remotePins.items
+          .map(
+            (e) => PinEntity.fromDto(
+              e,
+              !latestIsUserGroup,
+              keepAlive: latestIsUserGroup,
+            ),
+          )
+          .toList();
+      await _pinRepository.putMultiple(pins);
+      if (remotePins.items.length < pageSize) break;
     }
-
-    final latestIsUserGroup = _currentMembership() ?? false;
-
-    final pins = remotePins.items
-        .map(
-          (e) => PinEntity.fromDto(
-            e,
-            !latestIsUserGroup,
-            keepAlive: latestIsUserGroup,
-          ),
-        )
-        .toList();
-    await _pinRepository.putMultiple(pins);
 
     // Membership may change while the repository batch is being written.
     // Align the cache policy with the state visible after the write.

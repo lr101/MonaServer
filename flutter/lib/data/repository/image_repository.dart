@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 
-import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
@@ -52,6 +52,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   /// truth; Flutter's image cache is populated by the presentation layer.
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
+  final String? Function(String)? getSuppliedImageUrl;
   final Future<http.Response> Function(Uri) _httpGet;
   @override
   final ImageType type;
@@ -67,6 +68,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   ImageRepository({
     required this.db,
     required this.getImageUrl,
+    this.getSuppliedImageUrl,
     required this.type,
     Future<http.Response> Function(Uri)? httpGet,
     super.maxItems,
@@ -464,7 +466,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
     }
 
-    return _fetchWithDedup(id, keepAlive, retainedImage: retainedImage);
+    return _fetchWithDedup(
+      id,
+      keepAlive,
+      imageUrl: getSuppliedImageUrl?.call(id),
+      retainedImage: retainedImage,
+    );
   }
 
   @override
@@ -803,7 +810,10 @@ IImageRepository groupProfileRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.group,
-    getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupImage, id),
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
@@ -814,7 +824,11 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupSmall,
-    getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
+    getImageUrl: (id) =>
+        _resolveImageUrl(ref, BatchReadKind.groupImageSmall, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupImageSmall, id),
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
@@ -825,7 +839,10 @@ IImageRepository groupPinImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupPin,
-    getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupPinImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupPinImage, id),
     maxItems: 200,
     ttlDuration: const Duration(days: 30),
   );
@@ -836,7 +853,11 @@ IImageRepository userImageSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.userSmall,
-    getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
+    getImageUrl: (id) =>
+        _resolveImageUrl(ref, BatchReadKind.userImageSmall, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.userImageSmall, id),
     maxItems: 2000,
     ttlDuration: const Duration(days: 7),
   );
@@ -847,7 +868,10 @@ IImageRepository userImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.user,
-    getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.userImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.userImage, id),
     maxItems: 200,
     ttlDuration: const Duration(days: 7),
   );
@@ -858,8 +882,18 @@ IImageRepository pinImageRepository(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.pin,
-    getImageUrl: ref.watch(pinApiProvider).getPinImage,
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.pinImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.pinImage, id),
     maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
+}
+
+Future<String?> _resolveImageUrl(Ref ref, BatchReadKind kind, String id) async {
+  final result = await ref
+      .read(batchReadCoalescerProvider)
+      .readKey(BatchReadKey(kind, id));
+  return result.imageUrl;
 }
