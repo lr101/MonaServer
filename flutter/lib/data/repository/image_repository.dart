@@ -6,11 +6,13 @@ import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -53,6 +55,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
   final String? Function(String)? getSuppliedImageUrl;
+  final bool Function()? isSessionCurrent;
   final Future<http.Response> Function(Uri) _httpGet;
   @override
   final ImageType type;
@@ -69,6 +72,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     required this.db,
     required this.getImageUrl,
     this.getSuppliedImageUrl,
+    this.isSessionCurrent,
     required this.type,
     Future<http.Response> Function(Uri)? httpGet,
     super.maxItems,
@@ -456,13 +460,21 @@ class ImageRepository extends CacheImpl<ImageEntity>
           id,
           keepAlive,
           fallback: bytes,
+          imageUrl: getSuppliedImageUrl?.call(id),
           retainedImage: retainedImage,
         );
       }
 
       if (image != null && image.isEmpty && cachedImage.ttl.isAfter(now)) {
         await _touch(cachedImage, keepAlive: keepAlive);
-        return null;
+        final suppliedUrl = getSuppliedImageUrl?.call(id);
+        if (suppliedUrl == null || suppliedUrl.isEmpty) return null;
+        return _fetchWithDedup(
+          id,
+          keepAlive,
+          imageUrl: suppliedUrl,
+          retainedImage: retainedImage,
+        );
       }
     }
 
@@ -561,11 +573,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String? imageUrl,
   }) async {
     if (imageUrl != null && imageUrl.isNotEmpty) {
-      final image = await _fetchAndCacheFromUrl(
-        id,
-        imageUrl,
-        requestState.initialKeepAlive,
-      );
+      final image = await _fetchAndCacheFromUrl(id, imageUrl, requestState);
       if (image != null) return image;
     }
 
@@ -575,14 +583,19 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Future<Uint8List?> _fetchAndCacheFromUrl(
     String id,
     String imageUrl,
-    bool keepAlive,
+    _ActiveImageRequest requestState,
   ) async {
     try {
       final response = await _httpGet(Uri.parse(imageUrl))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) return null;
-        return await _saveAndPrecacheImage(id, response.bodyBytes, keepAlive);
+        return await _saveAndPrecacheImage(
+          id,
+          response.bodyBytes,
+          requestState.initialKeepAlive,
+          retainedImage: requestState.retainedImage,
+        );
       }
       debugPrint(
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
@@ -702,6 +715,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }) {
     final cacheKey = _cacheKey(id);
     return _enqueueWrite(cacheKey, () async {
+      // A request can outlive logout or an account switch. Return the
+      // downloaded bytes to its caller, but never let an old session repopulate
+      // the shared byte/database cache after the session has changed.
+      if (isSessionCurrent != null && !isSessionCurrent!()) return bytes;
       var effectiveKeepAlive = keepAlive;
       if (!keepAlive) {
         final cachedImage = await _getByCacheKey(cacheKey);
@@ -712,11 +729,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
           if (retainedImage == null ||
               retainedImage.ttl != cachedImage!.ttl ||
               !listEquals(retainedImage.image, cachedImage.image)) {
-            return;
+            return bytes;
           }
           effectiveKeepAlive = true;
         }
       }
+      // The cache lookup above can yield while logout is in progress. Check
+      // again immediately before the write so an old request cannot win a
+      // race with cache cleanup.
+      if (isSessionCurrent != null && !isSessionCurrent!()) return bytes;
       await put(
         ImageEntity(
           id: id,
@@ -810,6 +831,7 @@ IImageRepository groupProfileRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.group,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupImage, id),
     getSuppliedImageUrl: (id) => ref
         .read(suppliedImageUrlRegistryProvider)
@@ -824,6 +846,7 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupSmall,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) =>
         _resolveImageUrl(ref, BatchReadKind.groupImageSmall, id),
     getSuppliedImageUrl: (id) => ref
@@ -839,6 +862,7 @@ IImageRepository groupPinImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.groupPin,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupPinImage, id),
     getSuppliedImageUrl: (id) => ref
         .read(suppliedImageUrlRegistryProvider)
@@ -853,6 +877,7 @@ IImageRepository userImageSmallRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.userSmall,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) =>
         _resolveImageUrl(ref, BatchReadKind.userImageSmall, id),
     getSuppliedImageUrl: (id) => ref
@@ -868,6 +893,7 @@ IImageRepository userImageRepo(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.user,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.userImage, id),
     getSuppliedImageUrl: (id) => ref
         .read(suppliedImageUrlRegistryProvider)
@@ -882,6 +908,7 @@ IImageRepository pinImageRepository(Ref ref) {
   return ImageRepository(
     db: ref.watch(driftRepoProvider),
     type: ImageType.pin,
+    isSessionCurrent: _sessionGuard(ref),
     getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.pinImage, id),
     getSuppliedImageUrl: (id) => ref
         .read(suppliedImageUrlRegistryProvider)
@@ -889,6 +916,20 @@ IImageRepository pinImageRepository(Ref ref) {
     maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
+}
+
+bool Function() _sessionGuard(Ref ref) {
+  final session = ref.watch(
+    globalDataServiceProvider.select(
+      (data) => (userId: data.userId, refreshToken: data.refreshToken),
+    ),
+  );
+  return () {
+    if (!ref.mounted) return false;
+    final current = ref.read(globalDataServiceProvider);
+    return current.userId == session.userId &&
+        current.refreshToken == session.refreshToken;
+  };
 }
 
 Future<String?> _resolveImageUrl(Ref ref, BatchReadKind kind, String id) async {

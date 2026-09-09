@@ -65,11 +65,14 @@ class SyncingService extends _$SyncingService {
     state = SyncState.syncing;
     const key = GlobalDataRepository.lastSeenKey;
     final lastSeen = ref.read(lastSeenProvider(key));
-    final userId = ref.read(userIdProvider);
+    final sessionUserId = ref.read(userIdProvider);
     try {
-      _logger.i("Syncing groups of user $userId and lastSeen: $lastSeen");
-      await syncFromBackend(lastSeen);
-      await syncOfflinePins();
+      _logger.i(
+        "Syncing groups of user $sessionUserId and lastSeen: $lastSeen",
+      );
+      await syncFromBackend(lastSeen, sessionUserId: sessionUserId);
+      await syncOfflinePins(sessionUserId: sessionUserId);
+      if (!isCurrentSessionUser(ref, sessionUserId)) return;
       ref.read(lastSeenProvider(key).notifier).setLastSeenNow();
       state = SyncState.finished;
       _logger.i("Successfully finished syncing");
@@ -80,8 +83,13 @@ class SyncingService extends _$SyncingService {
     }
   }
 
-  Future<void> syncFromBackend(DateTime? lastSeen) async {
+  Future<void> syncFromBackend(
+    DateTime? lastSeen, {
+    String? sessionUserId,
+  }) async {
+    final expectedUserId = sessionUserId ?? captureSessionUserId(ref);
     final response = await _pinsApi.callSync(lastSeen: lastSeen);
+    if (!isCurrentSessionUser(ref, expectedUserId)) return;
     if (response == null) {
       throw Exception("no sync possible");
     }
@@ -91,18 +99,22 @@ class SyncingService extends _$SyncingService {
       localUserGroups.map((group) => group.groupId),
       response,
     )) {
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       await _groupRepository.delete(groupId);
       await _pinRepository.updateKeepAlive(groupId, false, true);
     }
 
     if (response.deletedPins.isNotEmpty) {
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       await _pinRepository.deleteMultiple(response.deletedPins);
     }
 
     for (final groupUpdate in response.groupUpdates) {
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       final groupDto = groupUpdate.group;
       registerGroupImageUrls(ref, groupDto);
       final existingGroup = await _groupRepository.get(groupDto.id);
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       await _groupRepository.put(
         GroupEntity.fromGroupDto(
           groupDto,
@@ -114,9 +126,11 @@ class SyncingService extends _$SyncingService {
       );
 
       if (groupUpdate.pinsAdded.isNotEmpty) {
+        if (!isCurrentSessionUser(ref, expectedUserId)) return;
         for (final pin in groupUpdate.pinsAdded) {
           registerPinImageUrl(ref, pin);
         }
+        if (!isCurrentSessionUser(ref, expectedUserId)) return;
         await _pinRepository.putMultiple(
           groupUpdate.pinsAdded
               .map((pin) => PinEntity.fromDto(pin, false))
@@ -124,21 +138,30 @@ class SyncingService extends _$SyncingService {
         );
       }
 
-      prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
+      prefetchGroupMediaInBackground(
+        ref,
+        groupDto,
+        keepAlive: true,
+        sessionUserId: expectedUserId,
+      );
     }
   }
 
-  Future<void> syncOfflinePins() async {
+  Future<void> syncOfflinePins({String? sessionUserId}) async {
+    final expectedUserId = sessionUserId ?? captureSessionUserId(ref);
     final offlinePins = (await _pinRepository.getAll()).where(
       (e) => e.lastSynced == null,
     );
     for (final pin in offlinePins) {
+      if (!isCurrentSessionUser(ref, expectedUserId)) return;
       final image = await ref
           .read(pinImageRepositoryProvider)
           .fetchImage(pin.pinId, true);
       try {
+        if (!isCurrentSessionUser(ref, expectedUserId)) return;
         _logger.i("Trying to sync $pin to online backend");
         final newPin = await _pinsApi.createPin(pin.toRequestDto(image!));
+        if (!isCurrentSessionUser(ref, expectedUserId)) return;
         await _pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
         );

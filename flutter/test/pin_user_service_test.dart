@@ -77,6 +77,41 @@ void main() {
     expect(repository.putItems, hasLength(21));
   });
 
+  test('completes a partially populated user gallery', () async {
+    final repository = FakePinRepository({
+      'profile-user': [_pin('cached-user-pin', 'profile-user')],
+    });
+    final api = RecordingPinsApi(
+      pagedResponse: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(
+                20,
+                (index) =>
+                    _remotePin(id: 'user-$index', userId: 'profile-user'),
+              ),
+            )
+          : PinsSyncDto(
+              items: [_remotePin(id: 'user-20', userId: 'profile-user')],
+            ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        userIdProvider.overrideWithValue('current-user'),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.listen(pinUserServiceProvider('profile-user'), (_, _) {});
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(api.requestedPages, [0, 1]);
+  });
+
   test(
     'fetches public group pins when the group pin provider is loaded',
     () async {
@@ -336,6 +371,45 @@ void main() {
   });
 
   test(
+    'does not start a second group refresh for an unrelated membership update',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = FakePinRepository({});
+      final api = RecordingPinsApi(responseOverride: () async => PinsSyncDto());
+      final container = ProviderContainer(
+        overrides: [
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      groupUpdates.add([]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      api.requestedPages.clear();
+      groupUpdates.add([_otherGroup()]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(api.requestedPages, isEmpty);
+    },
+  );
+
+  test(
     'loads unjoined group pins without waiting for a membership snapshot',
     () async {
       final groupUpdates = StreamController<List<GroupEntity>>();
@@ -593,6 +667,16 @@ class _ControllableUserGroupService extends UserGroupService {
 GroupEntity _joinedGroup() => GroupEntity(
   groupId: 'group',
   name: 'Joined group',
+  visibility: 0,
+  userIsMember: true,
+  keepAlive: true,
+  ttl: DateTime(2024),
+  onlySession: false,
+);
+
+GroupEntity _otherGroup() => GroupEntity(
+  groupId: 'other-group',
+  name: 'Other group',
   visibility: 0,
   userIsMember: true,
   keepAlive: true,

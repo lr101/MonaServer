@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
@@ -115,13 +113,13 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         end = pageKey + pageSize;
       }
       final idList = _pins.getRange(pageKey, end).toList();
+      final coalescer = ref.read(batchReadCoalescerProvider);
       for (final pin in idList) {
-        // prefetch data
-        unawaited(
-          ref.read(pinImageRepositoryProvider).fetchImage(pin.pinId, false),
-        );
+        // Hydrate metadata while the page is assembled. Object bytes remain
+        // lazy and are fetched only by the image widget that needs them.
+        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+        _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
         ref.read(userServiceProvider(pin.creator));
-        ref.read(getUserProfileSmallProvider(pin.creator));
         ref.read(likeServiceProvider(pin.pinId));
       }
       _prefetchNextPageMetadata(end, pageSize);
@@ -141,9 +139,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final coalescer = ref.read(batchReadCoalescerProvider);
     for (final pin in _pins.getRange(start, end)) {
       // Metadata only: resolving a URL does not download object bytes.
-      _ignorePrefetchError(
-        coalescer.readKey(BatchReadKey(BatchReadKind.pinImage, pin.pinId)),
-      );
+      _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+      _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
       ref.read(userServiceProvider(pin.creator));
       ref.read(likeServiceProvider(pin.pinId));
     }
@@ -151,5 +148,22 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
 
   void _ignorePrefetchError(Future<Object?> future) {
     unawaited(future.then<void>((_) {}, onError: (_, _) {}));
+  }
+
+  void _prefetchKey(
+    BatchReadCoalescer coalescer,
+    BatchReadKind kind,
+    String id,
+  ) {
+    try {
+      final suppliedUrl = ref
+          .read(suppliedImageUrlRegistryProvider)
+          .lookup(kind, id);
+      if (suppliedUrl != null) return;
+      _ignorePrefetchError(coalescer.readKey(BatchReadKey(kind, id)));
+    } catch (_) {
+      // Prefetch is an optimization; page assembly must remain usable while
+      // the application bootstrap is still being installed.
+    }
   }
 }

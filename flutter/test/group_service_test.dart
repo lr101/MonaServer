@@ -241,8 +241,8 @@ void main() {
   test('shared group pin state remains newest-first', () async {
     final older = PinEntity(
       pinId: 'older',
-      latitude: 0,
-      longitude: 0,
+      latitude: 0.0,
+      longitude: 0.0,
       creationDate: DateTime(2024),
       creator: 'user-id',
       groupId: 'group-id',
@@ -406,6 +406,23 @@ void main() {
 
     expect(result, isNull);
     expect(pinsApi.requests, 1);
+  });
+
+  test('paginates all pins when joining a group', () async {
+    final pinsApi = _FakePinsApi(
+      getPinsPageOverride: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(20, (index) => _groupPin(id: 'pin-$index')),
+            )
+          : PinsSyncDto(items: [_groupPin(id: 'pin-20')]),
+    );
+    final service = await _createService(
+      membersApi: _FakeMembersApi(_groupWithImages()),
+      pinsApi: pinsApi,
+    );
+
+    expect(await service.joinGroup('group-id'), isNull);
+    expect(pinsApi.requestedPages, [0, 1]);
   });
 
   test(
@@ -1096,6 +1113,16 @@ GroupDto _groupWithoutImages() =>
 GroupDto _privateGroupWithoutImages() =>
     GroupDto(id: 'group-id', name: 'Private group', visibility: 1);
 
+PinWithOptionalImageDto _groupPin({required String id}) =>
+    PinWithOptionalImageDto(
+      id: id,
+      creationDate: DateTime(2024),
+      latitude: 0.0,
+      longitude: 0.0,
+      creationUser: 'creator',
+      groupId: 'group-id',
+    );
+
 class _FakeMembersApi extends MembersApi {
   _FakeMembersApi(this.group) : super(ApiClient());
 
@@ -1130,10 +1157,13 @@ class _FakeGroupsApi extends GroupsApi {
 }
 
 class _FakePinsApi extends PinsApi {
-  _FakePinsApi({this.getPinsOverride}) : super(ApiClient());
+  _FakePinsApi({this.getPinsOverride, this.getPinsPageOverride})
+    : super(ApiClient());
 
   int requests = 0;
   final Future<PinsSyncDto?> Function()? getPinsOverride;
+  final Future<PinsSyncDto?> Function(int? page)? getPinsPageOverride;
+  final requestedPages = <int?>[];
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -1148,6 +1178,8 @@ class _FakePinsApi extends PinsApi {
     DateTime? updatedAfter,
   }) async {
     requests++;
+    requestedPages.add(page);
+    if (getPinsPageOverride != null) return getPinsPageOverride!(page);
     return getPinsOverride == null ? null : getPinsOverride!();
   }
 }

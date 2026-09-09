@@ -107,3 +107,30 @@ test('does not turn a missing static asset into the Flutter shell', async () => 
 
   assert.equal(result, 404);
 });
+
+test('serves module and Wasm assets with browser-compatible MIME types', async () => {
+  const proxy = createDevServer({
+    staticRoot: new URL('../build/web/', import.meta.url),
+    upstream: 'http://127.0.0.1:8181',
+  });
+  proxy.listen(0, '127.0.0.1');
+  await once(proxy, 'listening');
+  servers.push(proxy);
+  const address = proxy.address();
+
+  const getHeaders = (path) =>
+    new Promise((resolve, reject) => {
+      http.get(
+        { hostname: '127.0.0.1', port: address.port, path },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve(response.headers));
+        },
+      ).on('error', reject);
+    });
+
+  const moduleHeaders = await getHeaders('/main.dart.mjs');
+  assert.match(moduleHeaders['content-type'], /^application\/javascript/);
+  const wasmHeaders = await getHeaders('/main.dart.wasm');
+  assert.equal(wasmHeaders['content-type'], 'application/wasm');
+});

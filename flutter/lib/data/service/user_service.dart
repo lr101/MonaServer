@@ -33,14 +33,16 @@ class UserService extends _$UserService {
     IUserRepository repo,
     GlobalDataDto global,
   ) async {
-    final localUser = await _repo.get(this.userId);
+    final localUser = await repo.get(this.userId);
     if (localUser != null) return;
-    final bool isCurrentUser = this.userId == _global.userId;
+    final bool isCurrentUser = this.userId == global.userId;
     final result = await ref
         .read(batchReadCoalescerProvider)
         .readKey(BatchReadKey(BatchReadKind.user, this.userId));
     final userDto = result.user;
-    if (userDto != null) {
+    if (userDto != null &&
+        ref.mounted &&
+        ref.read(userIdProvider) == global.userId) {
       await _repo.put(
         UserEntity.fromDto(userDto, !isCurrentUser, keepAlive: isCurrentUser),
       );
@@ -55,6 +57,7 @@ class UserService extends _$UserService {
     String? username,
     int? selectedBatch,
   }) async {
+    final sessionUserId = _global.userId;
     try {
       final userApi = ref.watch(userApiProvider);
       final result = await userApi.updateUser(
@@ -70,7 +73,10 @@ class UserService extends _$UserService {
       );
 
       final userEntity = state.value;
-      if (result != null && userEntity != null) {
+      if (result != null &&
+          userEntity != null &&
+          ref.mounted &&
+          ref.read(userIdProvider) == sessionUserId) {
         final userDto = userEntity.copyUserWith(result, selectedBatch);
         await _repo.put(userDto);
         if (profilePicture != null) {

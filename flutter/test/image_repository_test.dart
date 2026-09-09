@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
+import 'package:buff_lisa/data/dto/global_data_dto.dart';
+import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
@@ -23,6 +25,13 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         driftRepoProvider.overrideWithValue(database),
+        globalDataOnceProvider.overrideWithValue(
+          const GlobalDataDto(
+            userId: 'user-id',
+            refreshToken: null,
+            cameras: [],
+          ),
+        ),
         groupApiProvider.overrideWithValue(GroupsApi(apiClient)),
         userApiProvider.overrideWithValue(UsersApi(apiClient)),
         pinApiProvider.overrideWithValue(PinsApi(apiClient)),
@@ -141,6 +150,109 @@ void main() {
     await repository.fetchImage('group-1', false);
 
     expect(urlLookups, 1);
+  });
+
+  test(
+    'expired bytes try the supplied URL before batched endpoint lookup',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      var endpointLookups = 0;
+      final requestedPaths = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.groupSmall,
+        getImageUrl: (_) async {
+          endpointLookups++;
+          return 'https://example.com/endpoint';
+        },
+        getSuppliedImageUrl: (_) => 'https://example.com/supplied',
+        httpGet: (uri) async {
+          requestedPaths.add(uri.path);
+          return http.Response.bytes([4], 200);
+        },
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+      await repository.doPut(
+        ImageEntity(
+          id: 'group-1',
+          type: ImageType.groupSmall,
+          image: Uint8List.fromList([1]),
+          keepAlive: true,
+          ttl: DateTime.now().subtract(const Duration(minutes: 1)),
+          onlySession: false,
+        ),
+      );
+
+      expect(await repository.fetchImage('group-1', false), [4]);
+      expect(requestedPaths, ['/supplied']);
+      expect(endpointLookups, 0);
+      expect((await repository.get('group-1'))!.image, [4]);
+      expect((await repository.get('group-1'))!.keepAlive, isTrue);
+    },
+  );
+
+  test('does not persist an image after its session becomes stale', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final requestStarted = Completer<void>();
+    final releaseResponse = Completer<void>();
+    var sessionActive = true;
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.groupSmall,
+      getImageUrl: (_) async => 'https://example.com/image',
+      isSessionCurrent: () => sessionActive,
+      httpGet: (_) async {
+        requestStarted.complete();
+        await releaseResponse.future;
+        return http.Response.bytes([5], 200);
+      },
+    );
+
+    final fetch = repository.fetchImage('group-1', false);
+    await requestStarted.future;
+    sessionActive = false;
+    releaseResponse.complete();
+
+    expect(await fetch, [5]);
+    expect(await repository.get('group-1'), isNull);
+  });
+
+  test('a supplied URL can recover a fresh negative cache row', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    var endpointLookups = 0;
+    final requestedPaths = <String>[];
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.groupSmall,
+      getImageUrl: (_) async {
+        endpointLookups++;
+        return 'https://example.com/endpoint';
+      },
+      getSuppliedImageUrl: (_) => 'https://example.com/supplied',
+      httpGet: (uri) async {
+        requestedPaths.add(uri.path);
+        return http.Response.bytes([6], 200);
+      },
+      ttlDuration: const Duration(days: 7),
+    );
+    await repository.ready;
+    await repository.doPut(
+      ImageEntity(
+        id: 'group-1',
+        type: ImageType.groupSmall,
+        image: Uint8List(0),
+        ttl: DateTime.now().add(const Duration(minutes: 1)),
+        onlySession: false,
+      ),
+    );
+
+    expect(await repository.fetchImage('group-1', false), [6]);
+    expect(requestedPaths, ['/supplied']);
+    expect(endpointLookups, 0);
   });
 
   test(

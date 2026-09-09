@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:flutter/foundation.dart';
@@ -48,6 +49,15 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
     final userPinsRepo = ref.read(userPinsRepositoryProvider);
     final sharedPreferences = ref.read(sharedPreferencesProvider);
 
+    // Invalidate the authenticated session before waiting on any cache work.
+    // This disposes pending batch reads and makes all old-session write guards
+    // fail while the database is being cleared.
+    if (!widget.isCacheOnly) {
+      await ref.read(globalDataServiceProvider.notifier).logout();
+      ref.invalidate(batchReadCoalescerProvider);
+      ref.invalidate(suppliedImageUrlRegistryProvider);
+    }
+
     // 2. Clear all repositories
     await Future.wait([
       pinImageRepo.deleteAll(),
@@ -82,11 +92,7 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
     if (widget.isCacheOnly) {
       ref.read(syncingServiceProvider.notifier).toInit();
       await ref.read(syncingServiceProvider.notifier).syncToBackend();
-    } else {
-      // 5. Finally, logout in GlobalDataService
-      await ref.read(globalDataServiceProvider.notifier).logout();
     }
-
     if (!mounted) return;
     context.goNamed(widget.isCacheOnly ? "home" : "login");
   }

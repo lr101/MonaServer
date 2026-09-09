@@ -15,6 +15,23 @@ const hopByHopHeaders = new Set([
   'transfer-encoding',
   'upgrade',
 ]);
+const contentTypes = new Map([
+  ['.css', 'text/css; charset=utf-8'],
+  ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'application/javascript; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.mjs', 'application/javascript; charset=utf-8'],
+  ['.wasm', 'application/wasm'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.gif', 'image/gif'],
+  ['.svg', 'image/svg+xml'],
+  ['.ico', 'image/x-icon'],
+  ['.woff', 'font/woff'],
+  ['.woff2', 'font/woff2'],
+  ['.ttf', 'font/ttf'],
+]);
 
 export function normalizeUpstream(value) {
   let url;
@@ -80,7 +97,8 @@ function serveStatic(request, response, staticRoot) {
     return;
   }
 
-  response.writeHead(200);
+  const contentType = contentTypes.get(extname(file).toLowerCase());
+  response.writeHead(200, contentType ? { 'content-type': contentType } : {});
   if (request.method === 'HEAD') {
     response.end();
   } else {

@@ -3,6 +3,7 @@ import 'package:buff_lisa/data/entity/pin_like_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mutex/mutex.dart';
 import 'package:openapi/api.dart';
@@ -15,10 +16,13 @@ class LikeService extends _$LikeService {
   final Mutex _mutex = Mutex();
 
   late LikesApi _likesApi;
+  late String _sessionUserId;
 
   @override
   Future<PinLikeDto> build(String pinId) async {
     _likesApi = ref.watch(likeApiProvider);
+    final sessionUserId = ref.watch(userIdProvider);
+    _sessionUserId = sessionUserId;
     try {
       await _mutex.acquire();
       final pinLikeRepo = ref.watch(pinLikeRepositoryProvider);
@@ -26,9 +30,20 @@ class LikeService extends _$LikeService {
       if (pinLike != null) {
         return pinLike.toDto();
       } else {
-        final pinLikeDto = await _fetchLike(pinId);
-        pinLikeRepo.put(PinLikeEntity.fromDto(pinLikeDto, pinId));
-        return pinLikeDto;
+        try {
+          final pinLikeDto = await _fetchLike(pinId);
+          if (!isCurrentSessionUser(ref, sessionUserId)) {
+            return PinLikeDto();
+          }
+          await pinLikeRepo.put(PinLikeEntity.fromDto(pinLikeDto, pinId));
+          return pinLikeDto;
+        } catch (error) {
+          // Keep retryable transport/item failures out of the negative cache.
+          // A later consumer should be able to retry the batch read instead of
+          // observing a fabricated all-zero like result.
+          if (kDebugMode) print(error);
+          return PinLikeDto();
+        }
       }
     } finally {
       _mutex.release();
@@ -36,19 +51,15 @@ class LikeService extends _$LikeService {
   }
 
   Future<PinLikeDto> _fetchLike(String pinId) async {
-    try {
-      final result = await ref
-          .read(batchReadCoalescerProvider)
-          .readKey(BatchReadKey(BatchReadKind.pinLikes, pinId));
-      return result.likes ?? PinLikeDto();
-    } catch (e) {
-      if (kDebugMode) print(e);
-      return PinLikeDto();
-    }
+    final result = await ref
+        .read(batchReadCoalescerProvider)
+        .readKey(BatchReadKey(BatchReadKind.pinLikes, pinId));
+    return result.likes ?? PinLikeDto();
   }
 
   Future<void> addLike(String creatorId, CreateLikeDto createLikeDto) async {
     final pinLikeRepo = ref.read(pinLikeRepositoryProvider);
+    final sessionUserId = _sessionUserId;
     await _mutex.acquire();
     final currentState = state.value ?? PinLikeDto();
     try {
@@ -85,9 +96,11 @@ class LikeService extends _$LikeService {
             false,
         likedByUser: createLikeDto.like ?? currentState.likedByUser ?? false,
       );
+      if (!isCurrentSessionUser(ref, sessionUserId)) return;
       state = AsyncData(pinDto);
-      pinLikeRepo.put(PinLikeEntity.fromDto(pinDto, pinId));
+      await pinLikeRepo.put(PinLikeEntity.fromDto(pinDto, pinId));
       await _likesApi.createOrUpdateLike(pinId, createLikeDto);
+      if (!isCurrentSessionUser(ref, sessionUserId)) return;
       ref
           .read(userLikeServiceProvider(creatorId).notifier)
           .updateLikeCount(createLikeDto);

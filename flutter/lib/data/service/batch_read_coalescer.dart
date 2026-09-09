@@ -285,20 +285,47 @@ final suppliedImageUrlRegistryProvider = Provider<SuppliedImageUrlRegistry>((
   return SuppliedImageUrlRegistry();
 });
 
-void registerPinImageUrl(Ref ref, PinWithOptionalImageDto pin) {
-  if (pin.image == null || pin.image!.isEmpty) return;
-  ref
-      .read(suppliedImageUrlRegistryProvider)
-      .register(BatchReadKind.pinImage, pin.id, pin.image);
+/// Captures the account that started a background cache operation. A few
+/// lightweight provider tests intentionally omit the application bootstrap
+/// override for [globalDataOnceProvider], so these helpers tolerate an
+/// unavailable user provider there while remaining strict in a running app.
+String? captureSessionUserId(Ref ref) {
+  try {
+    return ref.read(userIdProvider);
+  } catch (_) {
+    return null;
+  }
 }
 
-void registerGroupImageUrls(Ref ref, GroupDto group) {
+bool isCurrentSessionUser(Ref ref, String? capturedUserId) {
+  if (!ref.mounted) return false;
+  if (capturedUserId == null) return true;
+  try {
+    return ref.read(userIdProvider) == capturedUserId;
+  } catch (_) {
+    return true;
+  }
+}
+
+void registerPinImageUrl(Object reader, PinWithOptionalImageDto pin) {
+  if (pin.image == null || pin.image!.isEmpty) return;
+  final registry = _readSuppliedImageUrlRegistry(reader);
+  if (registry == null) {
+    // The application supplies globalDataOnce during bootstrap. Keep model
+    // hydration usable in isolated service tests that intentionally omit it.
+    return;
+  }
+  registry.register(BatchReadKind.pinImage, pin.id, pin.image);
+}
+
+void registerGroupImageUrls(Object reader, GroupDto group) {
   if (group.profileImage == null &&
       group.profileImageSmall == null &&
       group.pinImage == null) {
     return;
   }
-  final registry = ref.read(suppliedImageUrlRegistryProvider);
+  final registry = _readSuppliedImageUrlRegistry(reader);
+  if (registry == null) return;
   registry.register(BatchReadKind.groupImage, group.id, group.profileImage);
   registry.register(
     BatchReadKind.groupImageSmall,
@@ -306,4 +333,22 @@ void registerGroupImageUrls(Ref ref, GroupDto group) {
     group.profileImageSmall,
   );
   registry.register(BatchReadKind.groupPinImage, group.id, group.pinImage);
+}
+
+void registerUserImageSmallUrl(Object reader, String userId, String? url) {
+  if (url == null || url.isEmpty) return;
+  _readSuppliedImageUrlRegistry(reader)
+      ?.register(BatchReadKind.userImageSmall, userId, url);
+}
+
+SuppliedImageUrlRegistry? _readSuppliedImageUrlRegistry(Object reader) {
+  try {
+    return switch (reader) {
+      Ref ref => ref.read(suppliedImageUrlRegistryProvider),
+      WidgetRef ref => ref.read(suppliedImageUrlRegistryProvider),
+      _ => null,
+    };
+  } catch (_) {
+    return null;
+  }
 }

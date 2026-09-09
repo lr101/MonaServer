@@ -1,7 +1,8 @@
 # Client–server request investigation
 
 Date: 2026-09-08. Baseline: `origin/develop` at `e03c64f`.
-Branch: `investigate/request-traffic-report`.
+Baseline branch: `investigate/request-traffic-report`; implementation branch:
+`perf/request-batching`.
 
 ## Findings
 
@@ -15,7 +16,8 @@ client currently drops these URLs, then requests them individually when displayi
 pins. Batch or embed the visible pins' likes next. Also remove redundant group
 refreshes and cache-bypassing group image prefetches.
 
-No application behavior was changed during this investigation.
+The traffic table is the unchanged baseline captured during the investigation.
+The implementation addendum at the end records the follow-up changes.
 
 ## Live setup and measurement
 
@@ -284,3 +286,37 @@ No Go/API/database source was changed, so no generated files or DB test mutation
 were needed for this report. The investigation API, RustFS, and static web server
 were stopped afterward; the disposable fixture database and ignored local
 credentials remain available for a follow-up run.
+
+## Implemented follow-up
+
+The follow-up implementation is on `perf/request-batching`:
+
+- An authenticated `POST /api/v3/batch` endpoint accepts up to 100 typed reads
+  and returns per-item status and data. It reuses the existing authorization
+  and visibility checks for image, user, group, and pin-like resources.
+- Flutter uses one session-scoped coalescer for image URLs, user metadata, and
+  pin likes. It deduplicates concurrent keys, batches within a short window,
+  splits requests at 100 items, bounds concurrent batches, and leaves failed
+  items retryable.
+- Image URLs included in sync, pin lists, group lists, member lists, ranking
+  results, and batch responses are retained in a bounded session registry.
+  Image bytes remain lazy and cache-aware, with endpoint fallback when a
+  supplied URL is expired or unavailable.
+- Feed, gallery/grid, ranking, search, member, and user metadata consumers now
+  prime bounded pages through the shared loader. User and group pin hydration
+  walks all server pages, while group refreshes are coalesced and limited to
+  relevant membership changes.
+- Flutter Web resolves the API to its current origin. The local development
+  server and production Nginx image proxy `/api/` to the configured backend,
+  so browser API requests are same-origin and do not emit CORS preflights.
+  Server CORS remains available for legacy cross-origin clients.
+- Logout invalidates the in-memory session before cache cleanup; late work from
+  the old session cannot repopulate the next session's cache.
+
+Validation on this branch includes the full Flutter unit/widget suite, Flutter
+analysis with no errors, Go vet/tests/build, the Node development-proxy unit
+tests, and the Playwright login/group/camera smoke flow through the local
+same-origin proxy (two scenarios passed; the optional fixture-only scenario
+was skipped). The baseline request table above remains the before-change
+measurement; a production-equivalent browser trace should be captured after
+deployment to quantify the optimized counts.

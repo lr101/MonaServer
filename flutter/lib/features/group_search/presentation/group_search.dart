@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_scaffold.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
@@ -82,9 +83,10 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
         _pagingController.error = "Groups could not be fetched";
         return;
       }
-      final groupDtos = groups.items
-          .map((e) => GroupEntity.fromGroupDto(e, true, false))
-          .toList();
+      final groupDtos = groups.items.map((e) {
+        registerGroupImageUrls(ref, e);
+        return GroupEntity.fromGroupDto(e, true, false);
+      }).toList();
       if (groupDtos.length < _pageSize) {
         _pagingController.appendLastPage(groupDtos);
       } else {
