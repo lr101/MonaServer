@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
@@ -23,6 +24,7 @@ void main() {
       final api = RecordingPinsApi();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('current-user'),
           pinRepositoryProvider.overrideWithValue(repository),
           pinApiProvider.overrideWithValue(api),
@@ -49,6 +51,7 @@ void main() {
       final api = RecordingPinsApi();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           pinRepositoryProvider.overrideWithValue(repository),
           pinApiProvider.overrideWithValue(api),
@@ -86,6 +89,7 @@ void main() {
       final api = RecordingPinsApi();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           pinRepositoryProvider.overrideWithValue(repository),
           pinApiProvider.overrideWithValue(api),
@@ -121,6 +125,7 @@ void main() {
     final api = RecordingPinsApi(error: StateError('offline'));
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         pinRepositoryProvider.overrideWithValue(repository),
         pinApiProvider.overrideWithValue(api),
@@ -153,6 +158,7 @@ void main() {
     final api = RecordingPinsApi(error: error);
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         pinRepositoryProvider.overrideWithValue(FakePinRepository({})),
         pinApiProvider.overrideWithValue(api),
@@ -190,6 +196,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         pinRepositoryProvider.overrideWithValue(repository),
         pinApiProvider.overrideWithValue(api),
@@ -219,6 +226,7 @@ void main() {
     final api = RecordingPinsApi(responseOverride: () => remoteResponse.future);
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userGroupServiceProvider.overrideWith(
           () => _ControllableUserGroupService(groupUpdates.stream),
         ),
@@ -275,6 +283,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(
             () => _ControllableUserGroupService(groupUpdates.stream),
           ),
@@ -305,6 +314,7 @@ void main() {
     final api = RecordingPinsApi(response: PinsSyncDto(items: [_remotePin()]));
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userGroupServiceProvider.overrideWith(
           () => _ControllableUserGroupService(const Stream.empty()),
         ),
@@ -365,6 +375,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(
             () => _ControllableUserGroupService(groupUpdates.stream),
           ),
@@ -419,6 +430,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(
             () => _ControllableUserGroupService(groupUpdates.stream),
           ),

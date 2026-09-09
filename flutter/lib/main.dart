@@ -11,6 +11,7 @@ import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:buff_lisa/util/theme/data/material_theme.dart';
 import 'package:buff_lisa/util/theme/service/theme_state.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -45,6 +46,10 @@ Future<void> main() async {
   if (apiHostOverride.isNotEmpty) {
     dotenv.env['API_HOST'] = apiHostOverride;
   }
+
+  // Account facades share the bootstrap executor and its migration owner.
+  // Their overlap during provider disposal is intentional.
+  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
   // Initialize Drift database (cross-platform)
   final database = AppDatabase();

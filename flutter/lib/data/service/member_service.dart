@@ -8,7 +8,6 @@ part 'member_service.g.dart';
 
 @riverpod
 class MemberService extends _$MemberService {
-
   late IMemberRepository _memberRepository;
   late MembersApi _membersApi;
 
@@ -24,16 +23,21 @@ class MemberService extends _$MemberService {
   }
 
   Future<void> fetchRemote() async {
+    final repository = _memberRepository;
     final members = await _membersApi.getGroupMembers(groupId);
-    final entity = MembersEntity(groupId: groupId, onlySession: true, members: members!.map(MemberEntity.fromRanking).toList(), ttl: DateTime.now());
-    await _memberRepository.put(entity);
+    final entity = MembersEntity(
+      groupId: groupId,
+      onlySession: true,
+      members: members!.map(MemberEntity.fromRanking).toList(),
+      ttl: DateTime.now(),
+    );
+    await repository.put(entity);
   }
 
   List<MemberEntity> sortMembers(MembersEntity? memberList) {
     final list = memberList?.members;
     if (list == null) return [];
-    list.sort((a,b) => b.points - a.points);
+    list.sort((a, b) => b.points - a.points);
     return list;
   }
-
 }

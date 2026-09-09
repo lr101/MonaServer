@@ -42,6 +42,10 @@ final routerProvider = Provider<GoRouter>(
       final bool isGoingToLogin = state.matchedLocation == '/login';
       final bool isWeb = state.matchedLocation == "/web";
       final bool isLogout = state.matchedLocation == "/logout";
+      if (ref.read(globalDataServiceProvider.notifier).cleanupRequired &&
+          !isLogout) {
+        return '/logout';
+      }
       if (!isLoggedIn && !isGoingToLogin && !isWeb && !isLogout) {
         return '/login';
       }

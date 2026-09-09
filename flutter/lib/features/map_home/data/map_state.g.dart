@@ -92,7 +92,7 @@ final class CurrentLocationProvider
   }
 }
 
-String _$currentLocationHash() => r'd5de2759b915419e2ede395268475714aae4e37a';
+String _$currentLocationHash() => r'68c4be51fc8bbef97b0ad33652b722f52fdf37e7';
 
 @ProviderFor(MapZoomLevel)
 final mapZoomLevelProvider = MapZoomLevelProvider._();

@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
@@ -16,7 +18,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'group_service.g.dart';
 
 final groupMetadataLoaderProvider = Provider<GroupMetadataLoader>(
-  (ref) => GroupMetadataLoader(ref),
+  (ref) => GroupMetadataLoader(ref, ref.watch(accountSessionProvider)),
 );
 
 final _groupMediaPrefetchQueueProvider = Provider<_SerialAsyncTaskQueue>(
@@ -58,12 +60,15 @@ class _QueuedAsyncTask {
 }
 
 class GroupMetadataLoader {
-  GroupMetadataLoader(this.ref);
+  GroupMetadataLoader(this.ref, this.session);
+
+  final AccountSession session;
 
   final Ref ref;
   final Map<String, Future<GroupEntity?>> _activeLoads = {};
 
   Future<GroupEntity?> load(String groupId) {
+    if (!session.isActive) return Future.value();
     final activeLoad = _activeLoads[groupId];
     if (activeLoad != null) return activeLoad;
 
@@ -90,12 +95,14 @@ class GroupMetadataLoader {
     final groupRepository = ref.read(groupRepositoryProvider);
     final groupsApi = ref.read(groupApiProvider);
     final initialGroup = await groupRepository.get(groupId);
+    if (!session.isActive) return null;
 
     if (initialGroup != null && !initialGroup.onlySession) {
       return initialGroup;
     }
 
     final groupDto = await groupsApi.getGroup(groupId);
+    if (!session.isActive) return null;
     if (groupDto == null) {
       if (initialGroup?.onlySession == true) {
         await groupRepository.delete(groupId);
@@ -104,6 +111,7 @@ class GroupMetadataLoader {
     }
 
     final latestGroup = await groupRepository.get(groupId);
+    if (!session.isActive) return null;
     // Unjoined groups can be opened before the first user-group snapshot is
     // available. Use the state that is already loaded and let the repository
     // stream reconcile membership when that snapshot arrives.
@@ -123,7 +131,7 @@ class GroupMetadataLoader {
       isActivated: latestGroup?.isActivated ?? isCurrentUserGroup,
     );
     await groupRepository.put(groupEntity);
-    return groupEntity;
+    return session.isActive ? groupEntity : null;
   }
 }
 
@@ -198,17 +206,22 @@ class UserGroupService extends _$UserGroupService {
   }
 
   Future<void> sync(DateTime? lastSeen) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
     final remoteGroups = await _groupsApi.getGroupsByIds(
       userId: _userId,
       withUser: true,
       withImages: true,
       updatedAfter: lastSeen,
     );
+    if (!isCurrent()) return;
     if (remoteGroups == null) throw Exception("no sync possible");
     for (final groupId in remoteGroups.deleted) {
+      if (!isCurrent()) return;
       await _syncLeave(groupId);
     }
     for (final group in remoteGroups.items) {
+      if (!isCurrent()) return;
       await _syncJoin(group);
     }
   }
@@ -217,6 +230,11 @@ class UserGroupService extends _$UserGroupService {
     GroupDto groupDto, {
     bool toleratePinSyncErrors = false,
   }) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
+    final groupRepository = _groupRepository;
+    final pinRepository = _pinRepository;
+    final pinsApi = _pinsApi;
     // update group entity
     final groupId = groupDto.id;
     final groupEntity = GroupEntity.fromGroupDto(
@@ -226,13 +244,13 @@ class UserGroupService extends _$UserGroupService {
       keepAlive: true,
       isActivated: true,
     );
-    await _groupRepository.put(groupEntity);
+    await groupRepository.put(groupEntity);
 
     // update group pins
     try {
       await _syncGroupPins(
-        _pinRepository,
-        _pinsApi,
+        pinRepository,
+        pinsApi,
         groupId,
         onlySession: false,
         keepAlive: true,
@@ -241,23 +259,31 @@ class UserGroupService extends _$UserGroupService {
       if (!toleratePinSyncErrors) rethrow;
     }
 
+    if (!isCurrent()) return;
     // Media is an offline cache concern, not part of the join transaction.
     prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
   }
 
   Future<void> _syncLeave(String groupId) async {
-    await _groupRepository.delete(groupId);
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
+    final groupRepository = _groupRepository;
+    final pinRepository = _pinRepository;
+    await groupRepository.delete(groupId);
     // make group pins not keepAlive and onlySession
-    await _pinRepository.updateKeepAlive(groupId, false, true);
+    await pinRepository.updateKeepAlive(groupId, false, true);
   }
 
   Future<String?> joinGroup(String groupId, {String? inviteUrl}) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return "Session ended";
     try {
       final result = await _membersApi.joinGroup(
         groupId,
         _userId,
         inviteUrl: inviteUrl,
       );
+      if (!isCurrent()) return "Session ended";
       if (result != null) {
         await _syncJoin(result, toleratePinSyncErrors: true);
       } else {
@@ -272,8 +298,11 @@ class UserGroupService extends _$UserGroupService {
   }
 
   Future<String?> leaveGroup(String groupId) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return "Session ended";
     try {
       await _membersApi.deleteMemberFromGroup(groupId, _userId);
+      if (!isCurrent()) return "Session ended";
       await _syncLeave(groupId);
     } on ApiException catch (_) {
       return "Failed ro leave group";
@@ -282,7 +311,10 @@ class UserGroupService extends _$UserGroupService {
   }
 
   Future<void> setIsActive(String groupId, bool active) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return;
     final group = await _groupRepository.get(groupId);
+    if (!isCurrent()) return;
     if (group != null) {
       group.isActivated = active;
       await _groupRepository.put(group);
@@ -290,8 +322,12 @@ class UserGroupService extends _$UserGroupService {
   }
 
   Future<String?> createGroup(CreateGroupDto data) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return "Session ended";
+    final groupRepository = _groupRepository;
     try {
       final result = await _groupsApi.addGroup(data);
+      if (!isCurrent()) return "Session ended";
       if (result != null) {
         final entity = GroupEntity.fromGroupDto(
           result,
@@ -300,7 +336,7 @@ class UserGroupService extends _$UserGroupService {
           isActivated: true,
           keepAlive: true,
         );
-        await _groupRepository.put(entity);
+        await groupRepository.put(entity);
         return null;
       } else {
         return "Failed to create group remotely unexpectedly";
@@ -311,8 +347,12 @@ class UserGroupService extends _$UserGroupService {
   }
 
   Future<String?> updateGroup(UpdateGroupDto data, String groupId) async {
+    final isCurrent = accountOperation(ref);
+    if (!isCurrent()) return "Session ended";
+    final groupRepository = _groupRepository;
     try {
       final result = await _groupsApi.updateGroup(groupId, data);
+      if (!isCurrent()) return "Session ended";
       if (result != null) {
         final entity = GroupEntity.fromGroupDto(
           result,
@@ -321,8 +361,9 @@ class UserGroupService extends _$UserGroupService {
           isActivated: true,
           keepAlive: true,
         );
-        await _groupRepository.put(entity);
+        await groupRepository.put(entity);
 
+        if (!isCurrent()) return "Session ended";
         prefetchGroupMediaInBackground(ref, result, keepAlive: true);
       } else {
         return "Failed to update group remotely";
@@ -359,9 +400,14 @@ void prefetchGroupMediaInBackground(
   required bool keepAlive,
 }) {
   final queue = ref.read(_groupMediaPrefetchQueueProvider);
+  final isCurrent = accountOperation(ref);
   unawaited(
     queue
-        .add(() => prefetchGroupMedia(ref, groupDto, keepAlive: keepAlive))
+        .add(() async {
+          if (isCurrent() && ref.mounted) {
+            await prefetchGroupMedia(ref, groupDto, keepAlive: keepAlive);
+          }
+        })
         .then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {}),
   );
 }

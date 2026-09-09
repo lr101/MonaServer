@@ -56,6 +56,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
   @override
   final ImageType type;
 
+  bool _disposed = false;
+
+  void dispose() {
+    _disposed = true;
+    db.session?.removeListener(dispose);
+    _bytesCache.clear();
+    _activeRequests.clear();
+  }
+
   final Map<String, _ActiveImageRequest> _activeRequests = {};
   final Map<String, _ImageWriteQueue> _writeQueues = {};
   final Map<String, int> _activeWatchers = {};
@@ -71,7 +80,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
     Future<http.Response> Function(Uri)? httpGet,
     super.maxItems,
     super.ttlDuration,
-  }) : _httpGet = httpGet ?? _defaultImageHttpGet;
+  }) : _httpGet = httpGet ?? _defaultImageHttpGet {
+    db.session?.onRevoke(dispose);
+  }
 
   String _cacheKey(String id) => '${type.name}:$id';
 
@@ -79,7 +90,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   int cacheIdFor(String id) => fastHash(_cacheKey(id));
 
   void _rememberBytes(String id, Uint8List bytes) {
-    if (bytes.isEmpty) return;
+    if (_disposed || bytes.isEmpty) return;
 
     final cachedBytes = _bytesCache[id];
     if (cachedBytes != null && listEquals(cachedBytes, bytes)) {
@@ -311,8 +322,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
     final query = db.selectOnly(db.imageEntities)
       ..where(db.imageEntities.type.equalsValue(type))
       ..addColumns([count]);
-    final result = await query.getSingle();
-    return result.read(count) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(count) ?? 0;
   }
 
   @override
@@ -431,13 +442,14 @@ class ImageRepository extends CacheImpl<ImageEntity>
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
     await ready;
+    if (_disposed) return null;
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
     if (activeRequest != null) {
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return image;
+      return _disposed ? null : image;
     }
 
     final now = DateTime.now();
@@ -448,6 +460,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       if (image != null && image.isNotEmpty) {
         _rememberBytes(id, image);
         await _touch(cachedImage, keepAlive: keepAlive);
+        if (_disposed) return null;
         final bytes = _readMemoryBytes(id)!;
         if (cachedImage.ttl.isAfter(now)) return bytes;
         return _fetchWithDedup(
@@ -474,13 +487,14 @@ class ImageRepository extends CacheImpl<ImageEntity>
     bool keepAlive,
   ) async {
     await ready;
+    if (_disposed) return null;
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
     if (activeRequest != null) {
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return image;
+      return _disposed ? null : image;
     }
 
     final now = DateTime.now();
@@ -493,6 +507,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       if (image != null && image.isNotEmpty) {
         _rememberBytes(id, image);
         await _touch(cachedImage, keepAlive: keepAlive);
+        if (_disposed) return null;
         fallback = _readMemoryBytes(id)!;
         if (cachedImage.ttl.isAfter(now)) return fallback;
       } else if (image != null && image.isEmpty) {
@@ -523,7 +538,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return image;
+      return _disposed ? null : image;
     }
 
     final requestState = _ActiveImageRequest(
@@ -539,7 +554,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
     requestState.future = request;
     _activeRequests[cacheKey] = requestState;
     try {
-      return await request;
+      final bytes = await request;
+      return _disposed ? null : bytes;
     } finally {
       if (identical(_activeRequests[cacheKey], requestState)) {
         _activeRequests.remove(cacheKey);
@@ -559,6 +575,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
         imageUrl,
         requestState.initialKeepAlive,
       );
+      if (_disposed) return null;
       if (image != null) return image;
     }
 
@@ -604,7 +621,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
             retainedImage: requestState.retainedImage,
           );
         }
-        return fallback;
+        return _disposed ? null : fallback;
       }
 
       final response = await _httpGet(Uri.parse(imageUrl))
@@ -619,7 +636,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
               retainedImage: requestState.retainedImage,
             );
           }
-          return fallback;
+          return _disposed ? null : fallback;
         }
         return await _saveAndPrecacheImage(
           id,
@@ -638,10 +655,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
         );
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
-      return fallback;
+      return _disposed ? null : fallback;
     } catch (error) {
       debugPrint('Network exception fetching image $id: $error');
-      return fallback;
+      return _disposed ? null : fallback;
     }
   }
 
@@ -695,6 +712,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }) {
     final cacheKey = _cacheKey(id);
     return _enqueueWrite(cacheKey, () async {
+      if (_disposed) return;
       var effectiveKeepAlive = keepAlive;
       if (!keepAlive) {
         final cachedImage = await _getByCacheKey(cacheKey);
@@ -721,7 +739,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           lastAccessedAt: DateTime.now(),
         ),
       );
-    }).then((_) => bytes);
+    }).then((_) => _disposed ? Uint8List(0) : bytes);
   }
 
   DateTime _calculateTtl() {
@@ -800,66 +818,78 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
 @Riverpod(keepAlive: true)
 IImageRepository groupProfileRepo(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.group,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }
 
 @Riverpod(keepAlive: true)
 IImageRepository groupProfileSmallRepo(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupSmall,
     getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }
 
 @Riverpod(keepAlive: true)
 IImageRepository groupPinImageRepo(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupPin,
     getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
     maxItems: 200,
     ttlDuration: const Duration(days: 30),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }
 
 @Riverpod(keepAlive: true)
 IImageRepository userImageSmallRepo(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.userSmall,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
     maxItems: 2000,
     ttlDuration: const Duration(days: 7),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }
 
 @Riverpod(keepAlive: true)
 IImageRepository userImageRepo(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.user,
     getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
     maxItems: 200,
     ttlDuration: const Duration(days: 7),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }
 
 @Riverpod(keepAlive: true)
 IImageRepository pinImageRepository(Ref ref) {
-  return ImageRepository(
-    db: ref.watch(driftRepoProvider),
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
     type: ImageType.pin,
     getImageUrl: ref.watch(pinApiProvider).getPinImage,
     maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }

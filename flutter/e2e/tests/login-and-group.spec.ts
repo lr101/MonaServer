@@ -16,6 +16,50 @@ function readE2eData(): E2eData {
   return JSON.parse(readFileSync(dataPath(), 'utf8')) as E2eData;
 }
 
+const uiErrors = new WeakMap<Page, string[]>();
+
+test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  uiErrors.set(page, errors);
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+});
+
+test.afterEach(async ({ page }) => {
+  expect(uiErrors.get(page), 'browser UI errors').toEqual([]);
+});
+
+test('logout clears the session and allows a clean login again', async ({ page }) => {
+  test.setTimeout(90_000);
+  const data = readE2eData();
+  await login(page, data);
+  await logout(page);
+
+  // Reuse this running app to exercise a newly created account scope.
+  await submitLogin(page, data);
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+  await logout(page);
+
+  // A full reload must remain signed out, then still allow a fresh login.
+  await login(page, data);
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+async function logout(page: Page): Promise<void> {
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.mouse.move(225, 650);
+  await page.mouse.wheel(0, 1600);
+  await page.getByRole('button', { name: 'Logout', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Logout', exact: true }).click();
+  await page.waitForURL(/#\/login/, { timeout: 30_000 });
+  await expect(page.locator('input[aria-label="Name"]')).toBeVisible();
+}
+
 test('logs in and renders the seeded group', async ({ page }) => {
   const data = readE2eData();
 
@@ -131,6 +175,10 @@ async function login(
   await accessibilityPlaceholder.focus();
   await page.keyboard.press('Enter');
 
+  await submitLogin(page, data);
+}
+
+async function submitLogin(page: Page, data: E2eData): Promise<void> {
   await page.locator('input[aria-label="Name"]').fill(data.username);
   await page.locator('input[aria-label="Password"]').fill(data.password);
   await page
