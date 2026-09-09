@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:unit": "node --test test-data-path.test.js test-config.test.js",
+    "test:unit": "node --test test-data-path.test.js test-config.test.js dev_server.test.mjs",
     "test": "npm run test:unit && playwright test",
     "test:headed": "playwright test --headed",
     "install:browsers": "playwright install --with-deps chromium"

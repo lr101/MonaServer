@@ -66,7 +66,9 @@ RUN set -eux; \
 FROM nginx:alpine
 
 # Copy the custom nginx.conf
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/nginx.conf.template
+COPY docker/entrypoint.sh /usr/local/bin/stickit-nginx-entrypoint
+RUN chmod 0755 /usr/local/bin/stickit-nginx-entrypoint
 
 # Copy the compiled web files from the 'build' stage to Nginx's public folder
 COPY --from=build /app/build/web /usr/share/nginx/html
@@ -74,5 +76,7 @@ COPY --from=build /app/build/web /usr/share/nginx/html
 # Expose port 80 to the outside world
 EXPOSE 80
 
-# Start Nginx
+# Generate the proxy target from the deployment-owned API_UPSTREAM value and
+# start Nginx through the official image entrypoint.
+ENTRYPOINT ["/usr/local/bin/stickit-nginx-entrypoint"]
 CMD ["nginx", "-g", "daemon off;"]

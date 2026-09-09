@@ -21,8 +21,8 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command:
-          'python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web',
+      command:
+          'node dev_server.mjs',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
