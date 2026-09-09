@@ -6,6 +6,11 @@ analysis_options.yaml
 doc/AdminApi.md
 doc/AdminMailDto.md
 doc/AuthApi.md
+doc/BatchApi.md
+doc/BatchReadItem.md
+doc/BatchReadRequest.md
+doc/BatchReadResponse.md
+doc/BatchReadResult.md
 doc/CreateGroupDto.md
 doc/CreateLikeDto.md
 doc/GroupDto.md
@@ -50,6 +55,7 @@ git_push.sh
 lib/api.dart
 lib/api/admin_api.dart
 lib/api/auth_api.dart
+lib/api/batch_api.dart
 lib/api/groups_api.dart
 lib/api/likes_api.dart
 lib/api/members_api.dart
@@ -67,6 +73,10 @@ lib/auth/http_basic_auth.dart
 lib/auth/http_bearer_auth.dart
 lib/auth/oauth.dart
 lib/model/admin_mail_dto.dart
+lib/model/batch_read_item.dart
+lib/model/batch_read_request.dart
+lib/model/batch_read_response.dart
+lib/model/batch_read_result.dart
 lib/model/create_group_dto.dart
 lib/model/create_like_dto.dart
 lib/model/group_dto.dart
@@ -103,6 +113,11 @@ pubspec.yaml
 test/admin_api_test.dart
 test/admin_mail_dto_test.dart
 test/auth_api_test.dart
+test/batch_api_test.dart
+test/batch_read_item_test.dart
+test/batch_read_request_test.dart
+test/batch_read_response_test.dart
+test/batch_read_result_test.dart
 test/create_group_dto_test.dart
 test/create_like_dto_test.dart
 test/group_dto_test.dart

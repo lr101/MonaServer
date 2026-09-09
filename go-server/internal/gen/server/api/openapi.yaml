@@ -26,7 +26,34 @@ tags:
   name: admin
 - description: Everything about user rankings
   name: ranking
+- description: Bounded authenticated resource reads
+  name: Batch
 paths:
+  /api/v3/batch:
+    post:
+      operationId: batchRead
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/batchReadRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/batchReadResponse"
+          description: Per-resource results in request order
+        "400":
+          description: Invalid batch request
+        "401":
+          description: Authentication required
+      security:
+      - token: []
+      summary: Read several authenticated resources in one request
+      tags:
+      - Batch
   /api/v2/groups:
     get:
       operationId: getGroupsByIds
@@ -1693,6 +1720,101 @@ paths:
       - pins
 components:
   schemas:
+    batchReadItem:
+      properties:
+        kind:
+          enum:
+          - pinImage
+          - userImageSmall
+          - userImage
+          - groupImageSmall
+          - groupImage
+          - groupPinImage
+          - user
+          - pinLikes
+          type: string
+        id:
+          format: uuid
+          type: string
+      required:
+      - id
+      - kind
+      type: object
+    batchReadRequest:
+      properties:
+        requests:
+          items:
+            $ref: "#/components/schemas/batchReadItem"
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+      - requests
+      type: object
+    batchReadResponse:
+      example:
+        results:
+        - kind: pinImage
+          imageUrl: imageUrl
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          user: ""
+          status: 0
+          likes: ""
+        - kind: pinImage
+          imageUrl: imageUrl
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          user: ""
+          status: 0
+          likes: ""
+      properties:
+        results:
+          items:
+            $ref: "#/components/schemas/batchReadResult"
+          type: array
+      required:
+      - results
+      type: object
+    batchReadResult:
+      example:
+        kind: pinImage
+        imageUrl: imageUrl
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        user: ""
+        status: 0
+        likes: ""
+      properties:
+        kind:
+          enum:
+          - pinImage
+          - userImageSmall
+          - userImage
+          - groupImageSmall
+          - groupImage
+          - groupPinImage
+          - user
+          - pinLikes
+          type: string
+        id:
+          format: uuid
+          type: string
+        status:
+          format: int32
+          type: integer
+        imageUrl:
+          type: string
+        user:
+          allOf:
+          - $ref: "#/components/schemas/userInfoDto"
+          nullable: true
+        likes:
+          allOf:
+          - $ref: "#/components/schemas/pinLikeDto"
+          nullable: true
+      required:
+      - id
+      - kind
+      - status
+      type: object
     id:
       format: uuid
       type: string

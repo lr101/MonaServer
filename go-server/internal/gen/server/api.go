@@ -36,6 +36,11 @@ type AuthAPIRouter interface {
 	GetStatus(http.ResponseWriter, *http.Request)
 }
 
+// BatchAPIRouter defines the HTTP binding for authenticated batch reads.
+type BatchAPIRouter interface {
+	BatchRead(http.ResponseWriter, *http.Request)
+}
+
 // GroupsAPIRouter defines the required methods for binding the api requests to a responses for the GroupsAPI
 // The GroupsAPIRouter implementation should parse necessary information from the http request,
 // pass the data to a GroupsAPIServicer to perform the required actions, then write the service results to the http response.
@@ -143,6 +148,11 @@ type AuthAPIServicer interface {
 	CreateUser(context.Context, UserRequestDto) (ImplResponse, error)
 	RefreshToken(context.Context, RefreshTokenRequestDto) (ImplResponse, error)
 	GetStatus(context.Context) (ImplResponse, error)
+}
+
+// BatchAPIServicer defines the bounded authenticated batch read operation.
+type BatchAPIServicer interface {
+	BatchRead(context.Context, BatchReadRequest) (ImplResponse, error)
 }
 
 // GroupsAPIServicer defines the api actions for the GroupsAPI service
