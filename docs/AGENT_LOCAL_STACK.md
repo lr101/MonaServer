@@ -301,8 +301,8 @@ The API URL is compiled into Flutter Web, so rebuild after changing
 E2E_API_URL='http://127.0.0.1:8081' mise run flutter-verify-web
 ```
 
-This builds the Wasm web app, starts a local same-origin API proxy when needed, and runs
-the Playwright login/group smoke test against the seeded API. It is the normal
+This builds the Wasm web app, starts a local static file server, and runs the
+Playwright login/group smoke test against the configured API origin. It is the normal
 agent check for startup, routing, authentication, group visibility, and other
 web UI changes.
 
@@ -311,7 +311,7 @@ For interactive inspection through the configured Playwright MCP server:
 ```bash
 E2E_API_URL='http://127.0.0.1:8081' mise run flutter-build-web
 cd flutter/e2e
-API_UPSTREAM='http://127.0.0.1:8081' node dev_server.mjs
+node static_server.mjs
 ```
 
 The repository `.mcp.json` starts Chromium with only `localhost` and loopback

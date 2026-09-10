@@ -21,8 +21,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-      command:
-          'node dev_server.mjs',
+      command: 'node static_server.mjs',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

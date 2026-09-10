@@ -48,7 +48,8 @@ COPY . .
 
 # Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
 # flutter_bootstrap.js selects the first compatible build in the browser.
-RUN flutter build web --wasm --release
+ARG API_HOST=https://stick-it.lr-projects.de
+RUN flutter build web --wasm --release --dart-define=API_HOST="${API_HOST}"
 
 # Fail the image build if a future Flutter/toolchain change drops either
 # browser variant or the runtime configuration assets.
@@ -65,10 +66,8 @@ RUN set -eux; \
 # Use a lightweight Nginx image
 FROM nginx:alpine
 
-# Copy the custom nginx.conf
-COPY docker/nginx.conf /etc/nginx/nginx.conf.template
-COPY docker/entrypoint.sh /usr/local/bin/stickit-nginx-entrypoint
-RUN chmod 0755 /usr/local/bin/stickit-nginx-entrypoint
+# Copy the static-file Nginx configuration.
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy the compiled web files from the 'build' stage to Nginx's public folder
 COPY --from=build /app/build/web /usr/share/nginx/html
@@ -76,7 +75,4 @@ COPY --from=build /app/build/web /usr/share/nginx/html
 # Expose port 80 to the outside world
 EXPOSE 80
 
-# Generate the proxy target from the deployment-owned API_UPSTREAM value and
-# start Nginx through the official image entrypoint.
-ENTRYPOINT ["/usr/local/bin/stickit-nginx-entrypoint"]
 CMD ["nginx", "-g", "daemon off;"]

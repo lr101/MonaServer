@@ -62,19 +62,11 @@ async function logout(page: Page): Promise<void> {
 
 test('logs in and renders the seeded group', async ({ page }) => {
   const data = readE2eData();
-  const apiPreflights: string[] = [];
-  page.on('request', (request) => {
-    const url = new URL(request.url());
-    if (request.method() === 'OPTIONS' && url.pathname.startsWith('/api/')) {
-      apiPreflights.push(url.pathname);
-    }
-  });
 
   await login(page, data);
   await page.locator('[role="tab"][aria-label="Groups"]').click();
   await expect(page.locator('body')).toContainText('Your groups', { timeout: 30_000 });
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
-  expect(apiPreflights, 'same-origin API requests must not preflight').toEqual([]);
 });
 
 test('loads pins for a public group opened through group search', async ({ page }) => {

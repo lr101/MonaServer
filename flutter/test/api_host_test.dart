@@ -2,36 +2,31 @@ import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('web resolves the API host to the current page origin', () {
+  test('resolves the API host to the configured backend origin', () {
     expect(
-      resolveApiHost(
-        isWeb: true,
-        currentUri: Uri.parse('https://app.example.test/groups/123'),
-        configuredHost: 'https://api.example.test',
-      ),
-      'https://app.example.test',
-    );
-  });
-
-  test('web preserves a development port on the current page origin', () {
-    expect(
-      resolveApiHost(
-        isWeb: true,
-        currentUri: Uri.parse('http://127.0.0.1:4173/'),
-        configuredHost: 'http://127.0.0.1:8181',
-      ),
-      'http://127.0.0.1:4173',
-    );
-  });
-
-  test('native uses the configured host and removes trailing slashes', () {
-    expect(
-      resolveApiHost(
-        isWeb: false,
-        currentUri: Uri.parse('file:///app'),
-        configuredHost: 'https://api.example.test///',
-      ),
+      resolveApiHost(configuredHost: 'https://api.example.test'),
       'https://api.example.test',
+    );
+  });
+
+  test('preserves the configured development port', () {
+    expect(
+      resolveApiHost(configuredHost: 'http://127.0.0.1:8181'),
+      'http://127.0.0.1:8181',
+    );
+  });
+
+  test('removes trailing slashes from the configured host', () {
+    expect(
+      resolveApiHost(configuredHost: 'https://api.example.test///'),
+      'https://api.example.test',
+    );
+  });
+
+  test('falls back to the production origin when configuration is empty', () {
+    expect(
+      resolveApiHost(configuredHost: '  '),
+      'https://stick-it.lr-projects.de',
     );
   });
 }

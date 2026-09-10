@@ -310,17 +310,16 @@ The follow-up implementation is on `perf/request-batching`:
   walks all server pages with a stable creation-date/ID cursor, while group
   refreshes are coalesced and limited to relevant membership changes. Completed
   user-gallery snapshots reconcile cached pins that the server no longer has.
-- Flutter Web resolves the API to its current origin. The local development
-  server and production Nginx image proxy `/api/` to the configured backend,
-  so browser API requests are same-origin and do not emit CORS preflights.
-  Server CORS remains available for legacy cross-origin clients.
+- Flutter Web resolves the API to the configured backend origin. The local
+  development server and production Nginx image serve only static files; the
+  browser calls the API and object storage directly. Server and object-storage
+  CORS remain enabled for these cross-origin web requests.
 - Logout invalidates the in-memory session before cache cleanup; late work from
   the old session cannot repopulate the next session's cache.
 
 Validation on this branch includes the full Flutter unit/widget suite, Flutter
-analysis with no errors, Go vet/tests/build, the Node development-proxy unit
-tests, and the Playwright login/group/camera smoke flow through the local
-same-origin proxy (two scenarios passed; the optional fixture-only scenario
-was skipped). The baseline request table above remains the before-change
-measurement; a production-equivalent browser trace should be captured after
-deployment to quantify the optimized counts.
+analysis with no errors, Go vet/tests/build, the Node static-server unit tests,
+and the Playwright login/group/camera smoke flow against the configured API
+origin. The baseline request table above remains the before-change measurement;
+a production-equivalent browser trace should be captured after deployment to
+quantify the optimized counts.

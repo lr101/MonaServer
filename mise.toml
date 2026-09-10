@@ -69,7 +69,7 @@ run = "node testdata/seed.mjs"
 [tasks.flutter-verify-web]
 description = "Build Flutter web and verify the login/group flow with Playwright"
 dir = "flutter"
-run = "flutter pub get && E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && API_UPSTREAM=\"$E2E_WEB_API_HOST\" npm test"
+run = "flutter pub get && E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && npm test"
 
 [tasks.flutter-build-apk]
 description = "Build a debug Android APK"
