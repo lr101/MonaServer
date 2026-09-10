@@ -450,16 +450,31 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   }
 }
 
-Widget cameraPreviewViewport(CameraController controller) {
+Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
+  final useWebPreview = isWeb ?? kIsWeb;
+
   return ValueListenableBuilder<CameraValue>(
     valueListenable: controller,
     builder: (context, value, _) {
+      final previewSize = value.previewSize;
+      if (!isValidCameraPreviewSize(previewSize)) {
+        return const SizedBox.shrink();
+      }
+
       return LayoutBuilder(
         builder: (context, constraints) {
-          final aspectRatio = cameraPreviewAspectRatio(
-            sensorAspectRatio: value.aspectRatio,
-            orientation: value.deviceOrientation,
-          );
+          final aspectRatio = useWebPreview
+              ? cameraPreviewDisplayAspectRatio(
+                  previewSize: previewSize!,
+                  orientation: value.deviceOrientation,
+                )
+              : cameraPreviewAspectRatio(
+                  sensorAspectRatio: value.aspectRatio,
+                  orientation: value.deviceOrientation,
+                );
+          final preview = useWebPreview
+              ? _webCameraPreview(controller, value)
+              : CameraPreview(controller);
 
           return ClipRect(
             child: FittedBox(
@@ -467,12 +482,40 @@ Widget cameraPreviewViewport(CameraController controller) {
               child: SizedBox(
                 width: constraints.maxWidth,
                 height: constraints.maxWidth / aspectRatio,
-                child: CameraPreview(controller),
+                child: preview,
               ),
             ),
           );
         },
       );
     },
+  );
+}
+
+Widget _webCameraPreview(CameraController controller, CameraValue value) {
+  final previewSize = value.previewSize;
+  if (!isValidCameraPreviewSize(previewSize)) {
+    return const SizedBox.shrink();
+  }
+
+  final cameraTurns = cameraPreviewQuarterTurns(
+    previewSize: previewSize!,
+    orientation: value.deviceOrientation,
+  );
+  // camera_web mirrors non-back cameras inside the HTML video element. Add a
+  // half-turn before an odd quarter-turn so that the final mirror remains
+  // horizontal after the platform view is rotated.
+  final quarterTurns =
+      value.description.lensDirection != CameraLensDirection.back &&
+          cameraTurns.isOdd
+      ? (cameraTurns + 2) % 4
+      : cameraTurns;
+
+  return RotatedBox(
+    quarterTurns: quarterTurns,
+    child: AspectRatio(
+      aspectRatio: previewSize.width / previewSize.height,
+      child: controller.buildPreview(),
+    ),
   );
 }
