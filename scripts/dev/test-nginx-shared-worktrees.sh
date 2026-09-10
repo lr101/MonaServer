@@ -21,15 +21,15 @@ chmod 0755 "$test_root" "$web_a" "$web_b"
 printf '%s\n' 'worktree-a' > "$web_a/index.html"
 printf '%s\n' 'worktree-b' > "$web_b/index.html"
 
-DEV_NGINX_RUNTIME_DIR="$runtime_dir" DEV_NGINX_PORT=18081 \
+DEV_NGINX_RUNTIME_DIR="$runtime_dir" DEV_NGINX_PORT=18080 \
   "$script_dir/render-nginx-master-config.sh" "$runtime_dir/nginx.conf"
 
 DEV_SLUG=feature-a DEV_DOMAIN_SUFFIX=dev.dell.lr-projects.de \
-DEV_NGINX_PORT=18081 DEV_API_PORT=23200 DEV_STORAGE_PORT=23202 \
+DEV_NGINX_PORT=18080 DEV_API_PORT=23200 DEV_STORAGE_PORT=23202 \
 DEV_STORAGE_CONSOLE_PORT=23203 DEV_WEB_ROOT="$web_a" \
   "$script_dir/render-nginx-worktree-config.sh" "$runtime_dir/worktrees/feature-a.conf"
 DEV_SLUG=feature-b DEV_DOMAIN_SUFFIX=dev.dell.lr-projects.de \
-DEV_NGINX_PORT=18081 DEV_API_PORT=23300 DEV_STORAGE_PORT=23302 \
+DEV_NGINX_PORT=18080 DEV_API_PORT=23300 DEV_STORAGE_PORT=23302 \
 DEV_STORAGE_CONSOLE_PORT=23303 DEV_WEB_ROOT="$web_b" \
   "$script_dir/render-nginx-worktree-config.sh" "$runtime_dir/worktrees/feature-b.conf"
 
@@ -44,20 +44,20 @@ done
 
 curl --fail --silent --show-error \
   --header 'Host: web-feature-a.dev.dell.lr-projects.de' \
-  http://127.0.0.1:18081/ | grep -Fxq 'worktree-a'
+  http://127.0.0.1:18080/ | grep -Fxq 'worktree-a'
 curl --fail --silent --show-error \
   --header 'Host: web-feature-b.dev.dell.lr-projects.de' \
-  http://127.0.0.1:18081/ | grep -Fxq 'worktree-b'
+  http://127.0.0.1:18080/ | grep -Fxq 'worktree-b'
 
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --header 'Host: web-missing.dev.dell.lr-projects.de' \
-  http://127.0.0.1:18081/)" = 404
+  http://127.0.0.1:18080/)" = 404
 
 rm -f -- "$runtime_dir/worktrees/feature-a.conf"
 nginx -t -c "$runtime_dir/nginx.conf" -p "$runtime_dir" >/dev/null
 nginx -s reload -p "$runtime_dir" -c "$runtime_dir/nginx.conf" >/dev/null
 curl --fail --silent --show-error \
   --header 'Host: web-feature-b.dev.dell.lr-projects.de' \
-  http://127.0.0.1:18081/ | grep -Fxq 'worktree-b'
+  http://127.0.0.1:18080/ | grep -Fxq 'worktree-b'
 
 echo 'nginx shared worktree checks passed'

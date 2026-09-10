@@ -137,7 +137,7 @@ case "$public_scheme" in
   *) die 'DEV_PUBLIC_SCHEME must be http or https' ;;
 esac
 
-nginx_port=$(normalize_port "${DEV_NGINX_PORT:-8080}" DEV_NGINX_PORT)
+nginx_port=$(normalize_port "${DEV_NGINX_PORT:-18080}" DEV_NGINX_PORT)
 runtime_dir=${DEV_NGINX_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/nginx}
 case "$runtime_dir" in
   /*) ;;

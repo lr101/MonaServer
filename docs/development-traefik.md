@@ -1,7 +1,7 @@
 # Development worktree routing
 
 The native development stack has one stable ingress point per dev container:
-the nginx gateway listens on `0.0.0.0:8080` by default. Each worktree starts
+the nginx gateway listens on `0.0.0.0:18080`. Each worktree starts
 its API and RustFS listeners on random loopback ports, then writes one temporary
 nginx snippet containing the four host routes:
 
@@ -38,7 +38,7 @@ labels:
   - traefik.http.routers.dev-worktrees.entrypoints=websecure
   - traefik.http.routers.dev-worktrees.tls=true
   - traefik.http.routers.dev-worktrees.service=dev-worktrees
-  - traefik.http.services.dev-worktrees.loadbalancer.server.port=8080
+  - traefik.http.services.dev-worktrees.loadbalancer.server.port=18080
 ```
 
 If the outer Traefik uses the v2 named-capture rule syntax, use this router
@@ -65,7 +65,7 @@ http:
     dev-worktrees:
       loadBalancer:
         servers:
-          - url: http://DEV_CONTAINER_REACHABLE_ADDRESS:8080
+          - url: http://DEV_CONTAINER_REACHABLE_ADDRESS:18080
 ```
 
 The nginx gateway preserves the public host and forwarded scheme for the API,

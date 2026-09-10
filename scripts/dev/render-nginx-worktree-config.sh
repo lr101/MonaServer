@@ -17,7 +17,7 @@ storage_host=${DEV_STORAGE_HOST:-storage-${slug}.${domain_suffix}}
 console_host=${DEV_CONSOLE_HOST:-console-${slug}.${domain_suffix}}
 web_root=${DEV_WEB_ROOT:-}
 public_scheme=${DEV_PUBLIC_SCHEME:-https}
-nginx_port=${DEV_NGINX_PORT:-8080}
+nginx_port=${DEV_NGINX_PORT:-18080}
 
 [[ -n "$slug" ]] || die 'DEV_SLUG must be set'
 case "$slug" in

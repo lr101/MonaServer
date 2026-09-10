@@ -18,7 +18,7 @@ case "$runtime_dir" in
   *[!A-Za-z0-9_./-]*) die 'DEV_NGINX_RUNTIME_DIR contains shell-special characters' ;;
 esac
 
-nginx_port=${DEV_NGINX_PORT:-8080}
+nginx_port=${DEV_NGINX_PORT:-18080}
 case "$nginx_port" in
   ''|*[!0-9]*) die 'DEV_NGINX_PORT must be a TCP port' ;;
 esac

@@ -21,7 +21,7 @@ check_web_route() {
   local host=$1
   for _ in $(seq 1 20); do
     if curl --fail --silent --show-error \
-      --header "Host: $host" "http://127.0.0.1:18082/" | grep -Fxq 'fake flutter worktree'; then
+      --header "Host: $host" "http://127.0.0.1:18080/" | grep -Fxq 'fake flutter worktree'; then
       return 0
     fi
     sleep 0.1
@@ -59,7 +59,7 @@ export DEV_ENV_FILE="$env_file"
 export DEV_RUSTFS_BIN="$script_dir/test-fixtures/fake-rustfs.sh"
 export DEV_NGINX_RUNTIME_DIR="$runtime_dir"
 export DEV_PORT_STATE_DIR="$port_state_dir"
-export DEV_NGINX_PORT=18082
+export DEV_NGINX_PORT=18080
 export DEV_WEB_ROOT="$test_root/web"
 export DEV_STACK_MAX_SECONDS=120
 # The timeout wrapper is tested by the launcher validation below. Running the
