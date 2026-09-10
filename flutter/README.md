@@ -31,7 +31,7 @@ The app is structured as follows:
 ## Quick start (development)
 
 1) Prerequisites
-- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.2 SDK and build tools.
+- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.3 SDK and build tools.
 - Ensure a working Android/iOS development environment (Android Studio / Xcode on macOS for iOS).
 
 2) Install dependencies
@@ -59,6 +59,23 @@ mise run flutter-run -- -d ios
 Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
+
+### Faster local iteration
+
+Use `mise run flutter-run -- -d chrome` (or a connected device ID) and hot
+reload during UI work. Keep release/Wasm builds for artifact and browser
+verification. The mise Flutter tasks run `flutter-setup` automatically when
+pubspecs, lockfiles, or tool pins change, or after `.dart_tool` is removed.
+Use `mise run --force flutter-setup` to refresh dependencies explicitly.
+
+Keep `.dart_tool/`, `build/`, the Pub cache, and Gradle caches between builds.
+Use `flutter clean` for a diagnosed stale-build problem, not as a routine
+build step. Gradle task-output caching is enabled in `android/gradle.properties`.
+
+CI compiles web once, passes that artifact to `docker/Dockerfile.runtime`,
+smoke-tests the image, and publishes the same image without rebuilding it.
+`docker/Dockerfile` remains the standalone source-to-image build. See
+[`../docs/BUILD_SPEED.md`](../docs/BUILD_SPEED.md) for cache and timing details.
 
 ### Browser verification and Playwright MCP
 
