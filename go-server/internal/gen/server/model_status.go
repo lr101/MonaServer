@@ -18,8 +18,6 @@ type Status struct {
 	Notifications []string `json:"notifications"`
 
 	TokenValidity time.Time `json:"token-validity"`
-
-	MinioEndpoint string `json:"minio-endpoint,omitempty"`
 }
 
 // AssertStatusRequired checks if the required fields are not zero-ed
