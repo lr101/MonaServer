@@ -193,42 +193,42 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Full Chromium supports the simulated camera; headless shell rejects media capture.
+// Keep the camera flow covered in a full Chromium browser. The web app uses
+// the browser's user-initiated image capture input instead of camera_web's
+// repeated getUserMedia device probing.
 test.use({
   channel: 'chromium',
-  launchOptions: { args: ['--use-fake-device-for-media-stream'] },
 });
 
 test.describe('web camera access', () => {
-  test.use({
-    permissions: ['camera'],
-  });
-
-  test('requests video only when camera opens and starts a preview', async ({ page }) => {
+  test('does not probe every camera when the camera page opens', async ({ page }) => {
     await page.addInitScript(() => {
       const mediaDevices = navigator.mediaDevices;
-      const getUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
-      mediaDevices.getUserMedia = async (constraints) => {
+      if (!mediaDevices) return;
+      mediaDevices.getUserMedia = async () => {
         document.documentElement.dataset.cameraRequested = 'true';
-        if (constraints?.audio) {
-          throw new Error('Photo capture must not request microphone access');
-        }
-        try {
-          return await getUserMedia(constraints);
-        } catch (error) {
-          document.documentElement.dataset.cameraError = String(error);
-          throw error;
-        }
+        throw new Error('The camera page should use image capture input');
       };
     });
     await login(page, readE2eData());
-    await expect(page.locator('html')).not.toHaveAttribute('data-camera-requested', 'true');
+    await expect(page.locator('html')).not.toHaveAttribute(
+      'data-camera-requested',
+      'true',
+    );
     await page.getByRole('tab', { name: 'Camera', exact: true }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-camera-requested', 'true');
-    await expect(page.locator('html')).not.toHaveAttribute('data-camera-error', /.+/);
-    await expect.poll(() => page.locator('video').evaluateAll((videos) =>
-      videos.some((video) => video.readyState >= 2 && video.videoWidth > 0),
-    ), { timeout: 30_000 }).toBe(true);
-    await expect(page.locator('body')).not.toContainText('No cameras are available');
+    const takePhoto = page.getByRole('button', { name: 'Take photo' });
+    await expect(takePhoto).toBeVisible();
+    const fileChooserPromise = page.waitForEvent('filechooser');
+    await takePhoto.click();
+    const fileChooser = await fileChooserPromise;
+    expect(await fileChooser.element().getAttribute('accept')).toBe(
+      'image/*',
+    );
+    expect(await fileChooser.element().getAttribute('capture')).toBe(
+      'environment',
+    );
+    await expect(page.locator('body')).not.toContainText(
+      'Could not access the camera',
+    );
   });
 });

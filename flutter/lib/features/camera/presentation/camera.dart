@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/camera_selector.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/custom_image_picker.dart';
@@ -13,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mutex/mutex.dart';
 import 'package:native_exif/native_exif.dart';
@@ -33,12 +35,15 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   late final ZoomUpdateCoalescer _zoomUpdates;
   bool _discoveringCameras = true;
   Object? _discoveryError;
+  bool _webCaptureInProgress = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_discoverCameras());
+    if (!kIsWeb) {
+      unawaited(_discoverCameras());
+    }
     _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
       final controller = ref.read(cameraControllerProvider).value;
       if (controller == null || !controller.value.isInitialized) {
@@ -89,6 +94,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return _buildWebCameraFallback(context);
+    }
     if (_discoveringCameras) {
       return _cameraDiscoveryStatus(const CircularProgressIndicator());
     }
@@ -223,27 +231,21 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                                 ),
                               ),
                             ),
-                            ListView.builder(
-                              shrinkWrap: true,
-                              scrollDirection: Axis.horizontal,
-                              itemCount: cameras.length,
-                              itemBuilder: (context, index) => Padding(
-                                padding: const EdgeInsets.all(2.5),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 1,
+                              ),
+                              child: SizedBox.square(
+                                dimension: 48,
                                 child: CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: cameraIndex == index
-                                      ? Colors.grey.withValues(alpha: 0.8)
-                                      : Colors.grey.withValues(alpha: 0.5),
-                                  child: Center(
-                                    child: IconButton(
-                                      onPressed: () =>
-                                          handleCameraChange(index),
-                                      icon:
-                                          cameras[index].lensDirection ==
-                                              CameraLensDirection.back
-                                          ? const Icon(Icons.landscape)
-                                          : const Icon(Icons.person),
-                                    ),
+                                  radius: 24,
+                                  backgroundColor: Colors.grey.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  child: CameraSelectorButton(
+                                    cameras: cameras,
+                                    selectedIndex: cameraIndex,
+                                    onSelected: handleCameraChange,
                                   ),
                                 ),
                               ),
@@ -312,6 +314,118 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildWebCameraFallback(BuildContext context) {
+    final groupIds = ref.watch(groupOrderServiceProvider);
+    final groupIndex = ref.watch(cameraGroupIndexProvider);
+    final selectedGroupId = groupIdAt(groupIds, groupIndex);
+
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.camera_alt_outlined, size: 64),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Use your device camera to take a photo.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: selectedGroupId == null
+                            ? null
+                            : _takeWebCameraPicture,
+                        icon: const Icon(Icons.camera_alt),
+                        label: const Text('Take photo'),
+                      ),
+                      if (selectedGroupId == null)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text('Join a group before taking a photo.'),
+                        ),
+                      TextButton.icon(
+                        onPressed: selectedGroupId == null
+                            ? null
+                            : uploadFileImage,
+                        icon: const Icon(Icons.upload),
+                        label: const Text('Choose from gallery'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (groupIds.isNotEmpty)
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.15,
+                child: Stack(
+                  children: [
+                    Center(
+                      child: SnappingPageScroll(
+                        controller: pageController,
+                        onPageChanged: onPageChange,
+                        children: List.generate(
+                          groupIds.length,
+                          (index) => groupCard(groupIds[index], index),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              width: 5,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          height: MediaQuery.of(context).size.height * 0.07 * 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 5),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _takeWebCameraPicture() async {
+    if (_webCaptureInProgress) return;
+    _webCaptureInProgress = true;
+    ref.read(cameraCapturingProvider.notifier).setCapturing(true);
+    try {
+      // image_picker uses a single user-initiated file input with capture=environment
+      // on mobile browsers. This avoids camera_web.availableCameras(), which opens
+      // and closes every camera and can fail with AbortError in Firefox for Android.
+      final pickedFile = await pickCameraImage(context: context);
+      if (pickedFile != null && mounted) {
+        await _handleImage(pickedFile, fromGallery: false);
+      }
+    } catch (error) {
+      if (mounted) {
+        CustomErrorSnackBar.message(message: 'Could not capture image');
+      }
+      debugPrint('Web camera capture error: $error');
+    } finally {
+      _webCaptureInProgress = false;
+      if (mounted) {
+        ref.read(cameraCapturingProvider.notifier).setCapturing(false);
+      }
+    }
+  }
+
   void handleZoom(ScaleUpdateDetails scale, CameraState state) {
     if (scale.scale * basScaleFactor <= state.maxZoom &&
         scale.scale * basScaleFactor >= state.minZoom) {
@@ -372,6 +486,10 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       );
       return;
     }
+    if (kIsWeb) {
+      await _takeWebCameraPicture();
+      return;
+    }
     final controller = ref.read(cameraControllerProvider).value;
     if (_m.isLocked || controller == null) return;
     await _m.acquire();
@@ -389,7 +507,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   }
 
   Future<void> _handleImage(XFile file, {required bool fromGallery}) async {
-    final controller = ref.read(cameraControllerProvider).value;
+    final controller = kIsWeb ? null : ref.read(cameraControllerProvider).value;
     try {
       if (controller != null && controller.value.isInitialized) {
         await controller.pausePreview().catchError((_) {});
@@ -450,9 +568,12 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   }
 }
 
+Future<XFile?> pickCameraImage({required BuildContext context}) {
+  return CustomImagePicker.pick(context: context, source: ImageSource.camera);
+}
+
 Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
   final useWebPreview = isWeb ?? kIsWeb;
-
   return ValueListenableBuilder<CameraValue>(
     valueListenable: controller,
     builder: (context, value, _) {
