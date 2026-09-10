@@ -9,7 +9,6 @@ The main repository areas are:
 - `go-server/`: Go module, server source, tests, generators, and container image.
 - `api/`: API contract. `api/openapi.yaml` is the bundled specification consumed by the Go generators.
 - `docker-compose.dev.yml`: local Go server, PostGIS, and RustFS stack.
-- `docker-compose.yml`: deployment stack using the published Go image.
 - `mise.toml`: pinned local Go version and common build tasks.
 
 Nested guides are conditional references: consult `api/AGENTS.md` when a
@@ -62,7 +61,7 @@ available in the verification summary.
 - Keep API behavior, `api/openapi.yaml`, generated API code, handlers, and route authorization in sync.
 - Do not edit files below `go-server/internal/gen/` by hand except the explicitly preserved compatibility adapters listed in `go-server/internal/gen/server/.openapi-generator-ignore`. Change generator sources whenever they can represent the required behavior.
 - Add database changes as new migrations. Do not rewrite a migration that may have run in another environment.
-- Keep credentials out of commits and command output. `.env` and `.env.dev` are ignored for this reason.
+- Keep credentials out of commits and command output. `.env`, `.env.dev`, and `.env.test` are ignored for this reason.
 - Do not mix dependency upgrades or generated-file churn into an unrelated change.
 - Preserve wire compatibility unless the task explicitly changes the API contract. Clients depend on field names, status codes, JWT claims, and object keys.
 

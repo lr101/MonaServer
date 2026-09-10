@@ -95,6 +95,95 @@ void main() {
     );
   });
 
+  test(
+    'web camera preview rotation follows the stream and display orientations',
+    () {
+      const landscapePreview = Size(1280, 720);
+      const portraitPreview = Size(720, 1280);
+
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: landscapePreview,
+          orientation: DeviceOrientation.portraitUp,
+        ),
+        1,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: landscapePreview,
+          orientation: DeviceOrientation.landscapeRight,
+        ),
+        0,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: landscapePreview,
+          orientation: DeviceOrientation.landscapeLeft,
+        ),
+        2,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: landscapePreview,
+          orientation: DeviceOrientation.portraitDown,
+        ),
+        3,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: portraitPreview,
+          orientation: DeviceOrientation.portraitUp,
+        ),
+        0,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: portraitPreview,
+          orientation: DeviceOrientation.landscapeRight,
+        ),
+        1,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: portraitPreview,
+          orientation: DeviceOrientation.portraitDown,
+        ),
+        2,
+      );
+      expect(
+        cameraPreviewQuarterTurns(
+          previewSize: portraitPreview,
+          orientation: DeviceOrientation.landscapeLeft,
+        ),
+        3,
+      );
+    },
+  );
+
+  test('web camera preview ratio follows the rotated stream dimensions', () {
+    expect(
+      cameraPreviewDisplayAspectRatio(
+        previewSize: const Size(1280, 720),
+        orientation: DeviceOrientation.portraitUp,
+      ),
+      closeTo(9 / 16, 0.001),
+    );
+    expect(
+      cameraPreviewDisplayAspectRatio(
+        previewSize: const Size(720, 1280),
+        orientation: DeviceOrientation.portraitUp,
+      ),
+      closeTo(9 / 16, 0.001),
+    );
+    expect(
+      cameraPreviewDisplayAspectRatio(
+        previewSize: const Size(720, 1280),
+        orientation: DeviceOrientation.landscapeRight,
+      ),
+      closeTo(16 / 9, 0.001),
+    );
+  });
+
   testWidgets('camera preview viewport follows orientation changes', (
     tester,
   ) async {
@@ -128,6 +217,111 @@ void main() {
     previewChildSize = _fittedPreviewChildSize(tester);
     expect(previewChildSize.width, 320);
     expect(previewChildSize.height, closeTo(320 * 9 / 16, 0.001));
+  });
+
+  testWidgets('web camera preview preserves the stream ratio before rotating', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 320,
+            height: 480,
+            child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CameraPreview), findsNothing);
+    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
+    expect(
+      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
+      closeTo(16 / 9, 0.001),
+    );
+    final previewChildSize = _fittedPreviewChildSize(tester);
+    expect(previewChildSize.width, closeTo(320, 0.001));
+    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+  });
+
+  testWidgets('web front camera keeps its mirror horizontal after rotating', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+      lensDirection: CameraLensDirection.front,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 320,
+            height: 480,
+            child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 3);
+  });
+
+  testWidgets('web camera preview frames a portrait stream as portrait', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+      previewSize: const Size(9, 16),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 320,
+            height: 480,
+            child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 0);
+    final previewChildSize = _fittedPreviewChildSize(tester);
+    expect(previewChildSize.width, closeTo(320, 0.001));
+    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+  });
+
+  testWidgets('camera preview ignores invalid preview dimensions safely', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+      previewSize: Size.zero,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(CameraPreview), findsNothing);
   });
 
   test('static markers do not create an animation controller', () {
@@ -169,11 +363,19 @@ Size _fittedPreviewChildSize(WidgetTester tester) {
 }
 
 class _FakeCameraController extends CameraController {
-  _FakeCameraController({required DeviceOrientation orientation})
-    : super(_description, ResolutionPreset.low, enableAudio: false) {
+  _FakeCameraController({
+    required DeviceOrientation orientation,
+    this.previewSize = const Size(16, 9),
+    CameraLensDirection lensDirection = CameraLensDirection.back,
+  }) : super(
+         _description(lensDirection),
+         ResolutionPreset.low,
+         enableAudio: false,
+       ) {
+    final description = _description(lensDirection);
     value = CameraValue(
       isInitialized: true,
-      previewSize: const Size(16, 9),
+      previewSize: previewSize,
       isRecordingVideo: false,
       isTakingPicture: false,
       isStreamingImages: false,
@@ -184,15 +386,19 @@ class _FakeCameraController extends CameraController {
       focusMode: FocusMode.auto,
       focusPointSupported: false,
       deviceOrientation: orientation,
-      description: _description,
+      description: description,
     );
   }
 
-  static const _description = CameraDescription(
-    name: 'test-camera',
-    lensDirection: CameraLensDirection.back,
-    sensorOrientation: 90,
-  );
+  final Size? previewSize;
+
+  static CameraDescription _description(CameraLensDirection lensDirection) {
+    return CameraDescription(
+      name: 'test-camera',
+      lensDirection: lensDirection,
+      sensorOrientation: 90,
+    );
+  }
 
   @override
   Widget buildPreview() => const SizedBox.expand();

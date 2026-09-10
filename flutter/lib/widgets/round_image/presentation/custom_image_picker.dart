@@ -7,11 +7,14 @@ import 'package:image_picker/image_picker.dart';
 
 // ignore: avoid_classes_with_only_static_members
 class CustomImagePicker {
-  static Future<XFile?> pick({required BuildContext context}) async {
+  static Future<XFile?> pick({
+    required BuildContext context,
+    ImageSource source = ImageSource.gallery,
+  }) async {
     try {
       final picker = ImagePicker();
       XFile? pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 25,
       );
       final LostDataResponse response = await picker.retrieveLostData();

@@ -171,7 +171,7 @@ type Date = time.Time
 // Email defines model for email.
 type Email = openapi_types.Email
 
-// GroupDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0}
+// GroupDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0}
 type GroupDto struct {
 	BestSeason  *SeasonItemDto      `json:"bestSeason,omitempty"`
 	Description *string             `json:"description,omitempty"`
@@ -184,13 +184,13 @@ type GroupDto struct {
 	Link        *string    `json:"link,omitempty"`
 	Name        string     `json:"name"`
 
-	// PinImage Example: https://minio.lr-projects/stick-it/1/1.png
+	// PinImage Example: https://storage.example.com/stick-it/1/1.png
 	PinImage *string `json:"pinImage,omitempty"`
 
-	// ProfileImage Example: https://minio.lr-projects/stick-it/1/1.png
+	// ProfileImage Example: https://storage.example.com/stick-it/1/1.png
 	ProfileImage *string `json:"profileImage,omitempty"`
 
-	// ProfileImageSmall Example: https://minio.lr-projects/stick-it/1/1.png
+	// ProfileImageSmall Example: https://storage.example.com/stick-it/1/1.png
 	ProfileImageSmall *string `json:"profileImageSmall,omitempty"`
 
 	// Visibility The visibility of the group. 0 for public, 1 for private
@@ -200,15 +200,15 @@ type GroupDto struct {
 // GroupRankingDto An array of sorted groups by rank and points
 type GroupRankingDto = []GroupRankingDtoInner
 
-// GroupRankingDtoInner Example: {"groupInfoDto":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0},"points":0,"rankNr":0}
+// GroupRankingDtoInner Example: {"groupInfoDto":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0},"points":0,"rankNr":0}
 type GroupRankingDtoInner struct {
-	// GroupInfoDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0}
+	// GroupInfoDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0}
 	GroupInfoDto *GroupDto `json:"groupInfoDto,omitempty"`
 	Points       *int      `json:"points,omitempty"`
 	RankNr       *int      `json:"rankNr,omitempty"`
 }
 
-// GroupsSyncDto Example: {"deleted":[null,null],"items":[{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0},{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0}]}
+// GroupsSyncDto Example: {"deleted":[null,null],"items":[{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0},{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0}]}
 type GroupsSyncDto struct {
 	Deleted []Id       `json:"deleted"`
 	Items   []GroupDto `json:"items"`
@@ -220,7 +220,7 @@ type Id = openapi_types.UUID
 // Image Example: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
 type Image = []byte
 
-// ImageUrl Example: https://minio.lr-projects/stick-it/1/1.png
+// ImageUrl Example: https://storage.example.com/stick-it/1/1.png
 type ImageUrl = string
 
 // InfoDto Example: {"num-groups":6.027456183070403,"num-pins":1.4658129805029452,"num-users":0.8008281904610115}
@@ -263,9 +263,9 @@ type MapInfoDto struct {
 	Name2 *string `json:"name2"`
 }
 
-// MemberResponseDto Example: {"profile_image_small":"https://minio.lr-projects/stick-it/1/1.png","ranking":0,"selectedBatch":6,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"}
+// MemberResponseDto Example: {"profile_image_small":"https://storage.example.com/stick-it/1/1.png","ranking":0,"selectedBatch":6,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"}
 type MemberResponseDto struct {
-	// ProfileImageSmall Example: https://minio.lr-projects/stick-it/1/1.png
+	// ProfileImageSmall Example: https://storage.example.com/stick-it/1/1.png
 	ProfileImageSmall *string            `json:"profile_image_small,omitempty"`
 	Ranking           int                `json:"ranking"`
 	SelectedBatch     *int               `json:"selectedBatch,omitempty"`
@@ -317,7 +317,7 @@ type PinRequestDto struct {
 	UserId    openapi_types.UUID `json:"userId"`
 }
 
-// PinWithOptionalImageDto Example: {"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}
+// PinWithOptionalImageDto Example: {"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}
 type PinWithOptionalImageDto struct {
 	// CreationDate Example: 2017-01-10T14:55:32+01:00
 	CreationDate time.Time          `json:"creationDate"`
@@ -326,13 +326,13 @@ type PinWithOptionalImageDto struct {
 	GroupId      openapi_types.UUID `json:"groupId"`
 	Id           openapi_types.UUID `json:"id"`
 
-	// Image Example: https://minio.lr-projects/stick-it/1/1.png
+	// Image Example: https://storage.example.com/stick-it/1/1.png
 	Image     *string `json:"image,omitempty"`
 	Latitude  float32 `json:"latitude"`
 	Longitude float32 `json:"longitude"`
 }
 
-// PinsSyncDto Example: {"deleted":[null,null],"items":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}
+// PinsSyncDto Example: {"deleted":[null,null],"items":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}
 type PinsSyncDto struct {
 	Deleted []Id                      `json:"deleted"`
 	Items   []PinWithOptionalImageDto `json:"items"`
@@ -397,16 +397,15 @@ type SeasonItemDto struct {
 // ShortString defines model for shortString.
 type ShortString = string
 
-// Status Example: {"minio-endpoint":"minio-endpoint","notifications":["notifications","notifications"],"token-validity":"2017-01-10T14:55:32+01:00"}
+// Status Example: {"notifications":["notifications","notifications"],"token-validity":"2017-01-10T14:55:32+01:00"}
 type Status struct {
-	MinioEndpoint *string  `json:"minio-endpoint,omitempty"`
 	Notifications []string `json:"notifications"`
 
 	// TokenValidity Example: 2017-01-10T14:55:32+01:00
 	TokenValidity time.Time `json:"token-validity"`
 }
 
-// SyncDto Example: {"deletedPins":[null,null],"groupUpdates":[{"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]},{"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}]}
+// SyncDto Example: {"deletedPins":[null,null],"groupUpdates":[{"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]},{"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}]}
 type SyncDto struct {
 	// DeletedPins List of ids of deleted pins (unspecific of group)
 	DeletedPins []Id `json:"deletedPins"`
@@ -417,9 +416,9 @@ type SyncDto struct {
 
 // SyncDtoGroupUpdatesInner A group and its respective pin changes
 //
-// Example: {"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://minio.lr-projects/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}
+// Example: {"group":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0},"pinsAdded":[{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526},{"creationDate":"2017-01-10T14:55:32+01:00","creationUser":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","description":"description","groupId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","image":"https://storage.example.com/stick-it/1/1.png","latitude":-75.5850925717018,"longitude":36.988422590534526}]}
 type SyncDtoGroupUpdatesInner struct {
-	// Group Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://minio.lr-projects/stick-it/1/1.png","profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","visibility":0}
+	// Group Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0}
 	Group     GroupDto                  `json:"group"`
 	PinsAdded []PinWithOptionalImageDto `json:"pinsAdded"`
 }
@@ -515,12 +514,12 @@ type UserUpdateDto struct {
 	Username       *string `json:"username,omitempty"`
 }
 
-// UserUpdateResponseDto Example: {"profileImage":"https://minio.lr-projects/stick-it/1/1.png","profileImageSmall":"https://minio.lr-projects/stick-it/1/1.png","userInfoDto":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","isMessagingRegistered":true,"selectedBatch":0,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"},"userTokenDto":{"accessToken":"accessToken","refreshToken":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91"}}
+// UserUpdateResponseDto Example: {"profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","userInfoDto":{"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","isMessagingRegistered":true,"selectedBatch":0,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"},"userTokenDto":{"accessToken":"accessToken","refreshToken":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91"}}
 type UserUpdateResponseDto struct {
-	// ProfileImage Example: https://minio.lr-projects/stick-it/1/1.png
+	// ProfileImage Example: https://storage.example.com/stick-it/1/1.png
 	ProfileImage *string `json:"profileImage,omitempty"`
 
-	// ProfileImageSmall Example: https://minio.lr-projects/stick-it/1/1.png
+	// ProfileImageSmall Example: https://storage.example.com/stick-it/1/1.png
 	ProfileImageSmall *string `json:"profileImageSmall,omitempty"`
 
 	// UserInfoDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","isMessagingRegistered":true,"selectedBatch":0,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"}
@@ -3294,121 +3293,121 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"7D1rc9s2tn8Fw3tnbntXlij5Ecc7O3MVp816N01cu2670/FkIBGSsCFBBgCdaDP673fwIkESfEiW5CTV",
+	"l8Qi8TjEeeKcg4PP3jSOkpggwpl38dlj0wWKoPwTBhEmP0EcvuSx+J3QOEGUYyTfRhCH8o8AsSnFCccx",
+	"8S6815hxEM8Aku/BxwUigKRhCGAYgpQhysBHHIZgjjjgC8yAaOf1PMxRJIebxTSC3LvwkH7DlwnyLjzG",
+	"KSZzb9XzxHBwEiLvgtMUZQ0gpXAp3keIMThHVdiuQ4gJR584ME0co+tXf+dRWB1BPLU610CSD8bSyb/R",
+	"lKv1+vQakTlfeBej07NK21XPo+hDiikKvIs/9Orm35IPdZ91jdWDVc+bQD5d3CAYXHEUVVGFg8LCpikO",
+	"XF/+HhPZEJE0EjAkmFxFanKBOPn3bQTD0H7g9bw5jdOk8DZ/Yn5cF8fyemL01/g9Yt59BZTSWki4euIr",
+	"Gr/9Bn1IEePVz6fqhfw7I7P/pmjmXXj/NcjJf6Bpf1BcTkET8NOV6jj0/Z4XYWJ+lqmvBHo2dQvkLIkJ",
+	"Qy7QWRpuAvmN7Oitsmnr4FPjt4EnxtqUrLDA+x2V3PTl0lzPC+UbIffC8O3Mu/ijean1WEI2ru7LokCw",
+	"Poc8LUo0TPjxKF8iIYvmiHorDV/nqeVCkFlcM3ct+2RAudA9jQNUklNnktStX1XApxRBjl6J5XZqiYL4",
+	"bBWCGnFjoXg60VaIyftO4xIYoU4NExrPcIgU4QjC/ASjJJRf/euLtzcf/X++msfj8Xj85vZu8cPdXPz5",
+	"g/jnxeX45/F4fDn8+/jjpXhw6Yc//PzrzckoevP+L+Pz8fjnuxfj2+m/Tkb/Eq/Ht3e/vr355+nlv66u",
+	"/ub18m+dLLlTMUmsd2O5B8zwBIeYL6sq7JcFAvl7oar5AgG57n3gg1lMQZJOQjztgaH6RfEDtEHK0F8i",
+	"NHueAib18pcWtwCmkyIlbRkmq5CW4Ffxf40SnsRxiCAxnD2mvHvj1/EUGpLt1uN6EfN4TmGyWHbr1Bmb",
+	"pUXW/VzrFUBeItmRP3x25A+Phv4vw5OL09OL49Ff/OGF79v0JrodcRw5iU4ZYS6zLIKfcCSE9ujstI6R",
+	"Nd4ygD57E8T4LYIsJkaDeP7J2eRs+mx25E/O4dHJ8eT50eT4NDg6Ozl/js4CiNDzoaCdGEsT9bTnUSi4",
+	"ftTz2EYjRTHR8kz1f5NGE0TlyEsEqXcxFIte5BoHbb+DSkx1nXYdEDF5wBy9S4XWtH/0vBAyfpcInAUt",
+	"CFayUf1nBGDGiEY1XngLzhN2MRgwHlM4R32NrP40jgaM4+n7I8wHw8Gwn5B5mYUf1Vsp7rWHsGWbv+qV",
+	"hEKRvrqpU0UFwqKrVeYbqTFDIF1spI6mlEUWHaAo0Mp25cIOFG9GkjakaxJHvoLUuXWs1+47nEgT+g5n",
+	"exp9L2lUC5QWVS6nu4HkPSZzrRSKUI4JkDsUAR+LKUeBApGByRIIeQ8gCYDWAb1um6HSpO8wIcpoLTsM",
+	"3A2LikttL7TRfVBkB0W2fUWm6cJXdPGGuvRbmQxb6V+qtHzwz16EibLbfNd+zszc3G5Vx+LsdkmmVasv",
+	"QCGSeP5DaNae+Oc+Y+I/Dsx0YKYtM9OBpA4ktV2Suq+I4kyodfTN4sBle2Rdu5s0WqQ3OnYNcGYCl1G2",
+	"jv/2y3KF2S7lnRnVONeyliojaXSkVJ13cdb3R89OTs+G58f+M//EP+7J1wkmIjTQPzk7PR+Onp/7p/7o",
+	"+cnpSL2VMTDvwu+f+/756Hz43D85G/rD4WmFwOypMtc5UTJkZU9V81LPVHlbIhVrGmtQewgX8YSQY55m",
+	"LmNlKjxXwRH14+i53ytP3fPCmMxv1RoXd4Wnvu/aZ8ZkXp1neF6YaHied81nimBy5UThHAe+d6H+64n/",
+	"hurXUP0aqV+jNSWpEHi+Fny+/j3Uv837kf498qqGnQSqvC26jFPC6RK8unrZ7xJvVB9THuVHTBk/CtED",
+	"CoHUJZhxCjl+QOsMPKoOfIumMQkeNzIOquOOQUrwhxQBHCDC8QwjKremCE4XYIYgTynqe7122aWRUres",
+	"4nUnIDUy11jYtYZec2k7jl3ic5veexaFCxBQTsEGIhfTR0gwlwlXVjlLa913Uj6/Y5vpXao24nLjwVCI",
+	"phwFL0QsUlpSxm/elS1Fe22SZH9WmM8J9w5VS/aJnx1bsNI31wYTSuHDjqGhfD3WTUkwQGfTWYO5iIXE",
+	"gnNVIMUZwJnEQY2/Srwxnip7GK9n4eQXkT2CWaWR7O36dI55iNwTyledZ4TlJtWp4gRPa6YSrwCPAUMk",
+	"qALP48KUwghpjQmZD5bfZyZ3ocSKWRcZV0fIpFyUbCYe6F9+MSamnw4rcS/94lS9CMaUv1jeybi2Ilv5",
+	"1PHIDOx4ZY1uv63wbxF8F1NZ31P3uvSBdc2qX1zX0l6CzzVxw6C1QXl5ahs6FqvaduWmCp0742RTGYYV",
+	"PLyD8GJ9XGXoj0662CXSH/bVbmQeY0VvaBZvGng2K23W0QLehqfXFKFOMPkN88VbiXAYyt15VRgVCa6R",
+	"ykxTRe5dbYJWj8s6BsZa3pbNnBk5lRw9O+2fnp/6z0enz4bP/OF5gRSOz/rPz89PRqPT5/7p8cnp6Kwi",
+	"KXfJzEVkdGDI/XL/xkJiy8bf3nm+xMgFEihhrWezeVDH4zWsvaHz/8DuW2T3w3Juczm/DKdvndbchg9Y",
+	"b+puEaTThebdTkCVO9ZH12taFoWE9HC8Fs4OueGYS7p4+UMeT3iFaATJsrp3t3uW91v+BdCunh4YXoBb",
+	"DjnqgZF+uhxcYr60t1u+ndbWawmVzl2eq6uXZhc5NRMzMSuIqXpSmE99YW3OTHHoNzBCaw1ulqzNsrNW",
+	"UH2VhsBJL2hGEVv8Er9HjZsGu11nv0RXs9QBVRJTNyDWYZAMtae+09esRumUrLSpEZ0f59CTNZrLKmpY",
+	"1ahbjkH2Nsvr1yO7XVj2VK4Wau7PnVKM1ESlUfUQ9ctm8vk2X7p9B4I3wkKe2FGSFnIKmU4lVCLz6rI9",
+	"ql1FJhSgwteOAgC5FDjCV6Vlj16CXi3e21RHTtZOdGdJXhK6bFAnphcx5c5okptt8zMZdkTPcr8Ji7T0",
+	"oFf6LeAQUu3oAYY4kNHhBiOrGtQrzmZp23IIxG5pzpyBEDMunIcTBNgi/ij8hRIp+oBL5YvLyrgM+jZ3",
+	"gOW4YmkZS1M78dm0gbiWsc7CJkKamypJQe0l5INDet4h/WMH6XmYsHEQSNo+7LIOm9YvedN6EIQHQXgQ",
+	"hAdB+GcXhLX+u2udN+euXYEDJv7TbYEgePBdSliCpsKiFe/kUn3v9R7jBSxar3XA6GMwUCULYAooEoDI",
+	"RKAEEzBdQDJHrN8VFm1jv7Nnr3PeuR2K1yo/sAB+gzXvmsmx3ZGt5Gdizmo+0nZvHXTcQccddNxBxx0i",
+	"VI4TYmsdDctpfccBKQWaPaNLbXAVW6jLMYXTKWJMBxYKv3qlqMM6KaLdKaIagLIB6pDSvtPQSCGuU782",
+	"jWGHNAkeU9OlW9ZGbY2X1u51R887ZVpv1PGLqQnTCumODoK3ZSC7YnKCwMbTBUYPKBLSY53gsqNvfXy5",
+	"vnFZcGRtBDf5PW8aQhyhwHzVNKUUEf4rDFOkSnstBMfEYXCXZF9uHulWZw5xUJjGFfzK5nXlchahcHUv",
+	"gOUaogxka5itCHMOYAma4tSVee5rqMB9CufbMNox+0lGZjCZ36A5ZhzRnKBKmfz+jk4v7L3miVuv1SxF",
+	"5cxMCOdSvHxcIL5ANAtfAZr1ElEtiqZIbv9StjDhL9YHb0m4BAxxOYToqilUDtFwKMZijy/1gEW3YxXi",
+	"pSxit9ss/i8+x760eAXwbFhcE9fMUrvc8RyTd7SuvmQCGfsY06Bz5kh38nCCs2YdFVV0dfMyKsUpm/Vw",
+	"SxEVV4mLio44KIZNFUP1XNtWq35UMNW5RmUtJTdkkG1cea57xanufFsSNgYS4/gyA9UJEOVbW3Mz5day",
+	"Gy/LF3j6JTIc4to8PxpnGyv6R4pnhezWQ7JP5+w8yNutGeLib0m8ei2f3DlVd7T5W6t4t6kmqqKsqWvF",
+	"FVnL9L87ap3qnUme1W4/+D2Rjwj6VPjNYw7V39WjW4Xh2lR1ea629gVA2hpnULaWCSscPLI/oAJhEYR8",
+	"DpdOfUB0+TorJPImk+qbnCHbX+1EhqYpxXx5K6hL4ZQbxTdBkCL6o6H6f/z2i9dTdzHIzat8m48qmMlb",
+	"rXSRGjmQOtvu3UpWuuLg5ofbazC+vvLkajH1PcO+35ce7DhBBCbYu/CO+37/WNowfCFBGsAEDx5GAxmI",
+	"HBhrI4nVzkcQpNxISZl0i0gwNrdEeD1T7v6FPtg/jQlHavcGkyTUuaCDf2sFobisjQcLt1CsVoqoFEdK",
+	"eEe+o8DHbSpF7ywNpbeAcHnNxHfse/HxJ64eP0IcphQVECW9KBpFf9wLJwlLowjSpf50AIkqzWEuseBw",
+	"zrITFd69GKu4nIW6Adaylu6piBkvFRkAHzFfAAjm+AERXa5AbOVkpQQeAwiy7AR1/L/nQNUbe/bdYKtc",
+	"9GFVFALatVRCoKOyig2qRKBCnLslgClfxBT/BwVZYYVi9vGq5526sH5FuFDmIWCIPiAKEKUx7UwDLjy5",
+	"cdFAGHmFpzlysNgrxGUkhr1YXgVMMiqFEeKytNMf1cI2UQSPGBKNxN4/tJNIwNVLJtMAvAvvQ4roMo/g",
+	"Yzl0juKNs1pWvTJITJ77AhzRSLgiJIZmWDCPhkpvolxgqb4FyJoAso8DOCDhVsEQZVYpgOQdNYK/RJRZ",
+	"NBDuRR4DQaziaNUMhqwOwsxn1w1CHLgASxlSkwA8U65QnfTDFnEaBiLZH5NpmAYoUHlANG1oij7ppjMa",
+	"RyBbQhf05qML8FdLRjTCq+0+kOApTykygJCYC2Ao4iklJbgx16364CWaQXEDiaSKhnUWkErTskingeru",
+	"Xci+vQ6wJ+IUBTFniFxTJfq+nfKCWKrcOSjD/0HFDxr5dXSN/4Pc3zFymlHl+WLhBNckYQiALyAHC/iA",
+	"wAQhAlQQNwBwxqWPHTMgHvTB1UzSt7iOySS46RGsphxHCECa469fR/9qmrHo2pkLRBdvtbqvKAJ/a3qo",
+	"WI12Vd095hYCMEB0lvuvELeqUyupaiS8eu7JvAynzTQOglc6D2IXCrh0IUsn/bvlZV9nxTNrzJqeo098",
+	"kIQQk7+KxD/KEP9bymdH593hsKoMOiCRggRMITFSSqqBWMp+8YR9SOEapuClXHJhCKCPwOS4VOihovIH",
+	"n3Uu0ipPTK2Sy0v53FBMSfljJXz4ImfIvH5DEetraaj7Lja2gixQODzZNw7lioAgRgpl6BNmvDPGFOiZ",
+	"BSKZ2M3DjTbZkyPk6Xj268K3ENgdkJ2kDmTf5dlQe8b39pVDKbProBweoRy+Pi5QlNzOCA2aapBdadMo",
+	"GM21X417VQWFTKJ4OrG5BYwVd53ftAiVvi7jTliXdEqRzkYCelmI7RzI6JsiI2u4jYmpeBNWIy1dyaZ3",
+	"NDxQ0rdGSYoKQErDjQnJZJM3ktBrTN4fqOdbox6B+o3pRpVCZ+1b959kwx9pHO15D+Fy2ypfdaMj+8/g",
+	"Noip8p2XiUeA9LwKsowLTCERLUMkXKyQmfOq0iSSEYQsNGx2CihK+LIzRaqB5wY+RVT6dzZ+qiMU4m9x",
+	"aFO/V8RokbChzlYXxk+64VfjyegUmareU1ANVH3Lkk2jXwi3ut2eTSFuR/U/YkyeWmRhWXVMF7faldiq",
+	"zmosRhnNNbFlABX78Rj8O8YEQJPtkSkQF4DYsj43UcD37mj5n8gh0y6yj6siO0dh1iGSyX9ftNrZJ0gm",
+	"2A1DimCwBNBoka6CZhwEWSeV9tAmaZrsqQSTd1mKcqPKujZlBp7eIK9Ijt+kohbDqDgqIoFMkgUUBZii",
+	"KWdA/R8uTeU+DulcbGWk2zEWJ6I+YobkK/Xs7ua1wJOJxNbIGTPBeuHxdm0sYRgkqsBix6Uxt7N1FyvH",
+	"rsyeQlv1dWLR5PBfq2ZOMDGo3nDjUbirqJ1Z7PTfA8PsjWH+98AuW2EXnVy0FWbJL/bqzDIqkf3ANwe+",
+	"+br4RlJ6xj0KvWt4SSOYNLHJT+pmzTa++CWeqxPeMnc5q2MjsqZF2joIeGxS6pOYYdFLxl1l2qAMftfn",
+	"nVn3knRccNPBwUwlQCHfIpzWxUjdKcNAuh9nSX5PagcviXQvqB4yu7g2of5nsRAgJxCVmygW8SONiSwB",
+	"EMH6tO47IjbeiHDxdSio3ej9GNMJDgJEWvjDkLu5xbBM74M5is0CarqvfLjyu+mGijbimZ3urS5PqKoV",
+	"FP+DtUcy1aUU4OqlrnIQEyTSNOOPtbJYX+JZSVVltTnQ8gqMNacYrjeFuVx1vUn8xkm2xggtBdKr9P72",
+	"n5YOcH+oENGzOCXBY0jQ3ORcJ3PNrvdx5wCUJniScwCSFMRXKlmKMw+6lWVcRx6ZCfUYk6kKgHTGdJh/",
+	"K0n+KqVhgpjIgM+MLpZpFgFYnsRvIAI8jttS4h+ZEX8ZRwlFjAm1pq4bFifZNHTfxbrI2/c1UEzz3gU4",
+	"8gvKfL/XckqwDNHfEZ4v+FpgLGSXWgjWh8E6JwC+E9pe5tybdDAZkMEBy5LCEP++D25VwY3JEpi6hTLn",
+	"XiY8IBJgMu+DOyYS9GcxRZdWGUR1lks+vgrkhzMuTi2K6jZMnCsUB5tl6/43cmpB0nvHMwuOIwuy+74P",
+	"LFS+SCMpx47G11+F6f2AA6QsSoPYv2roFPSSRpBBe/65vWInMKEICn0B5EFg91dVKWpn3ybAOJIw6UvZ",
+	"q3Pnnz+J+SKn4cwU5NrgbvyadSXuLnOk7dsNd3CYREu5ymESMW1DhE6uObrGuzrMWbwYeM/ZwrVFRre7",
+	"/IXDGwkm1dUvGWmDz6LOcZdDG9euHFiHh0iOt4fMC2Yfig6eNA3jGpNHn90QrvRyrCljmAYzel846WgB",
+	"WgbgXuy/+y+YZ782WswiOkR5M3BcS5I1UmTQGsapD3fuiWwPruZdu5rt5fo6mSDHLGQsnmJp2OqSFQle",
+	"mylEdUbW5ImTg6pWPSfLvNbvnlL7bkukim+pkaLGO+XQ9i9gYNzTLU5WVTmji4e1xhEmiKerE6wqPA0a",
+	"DW2o37bVW/JXKItNJNOYA02iS4UQVLu3uh7ba9Vkf/Swq6PdBWroVFllD3R4qfeyGVKCr5cu6+mrTKG2",
+	"+JJloAbKqj6axgEafDaF4lYN6p2In0jZtJdx0JqjUczhLlKumW9j4u2UeejK5gbig8Fcf40q9iGrLtm3",
+	"k9YRxA9HoroTmNplQxgiwRrUcfIkyXMb60u1TCDI184iLvFtTtoSRmZjiOBW1jDSkdndxw1x96Bh7Qa9",
+	"qAzkd5pSTIxDjhnH04JDRDZxLk8YzzGpL1V2Z+o478hXUq0TvWd/iaNWYRMe1HI9TUbvbzIAbEq51qbF",
+	"FghEclyoEdjKKxRN4wdEa7lFu7WuNQg3qvmyxkBwhIP2LWcNhEBW+7Uqou0deU3i+tSlp+8I/pBqFVHo",
+	"lemLPriMCYdTtY8IRAxKoAukJBBIp/0APfQTGovyj+z/5mIFRN3QEoVonOZ0RXOsdiAYWZy1viafGV05",
+	"ClVlVyB5zuxz9BDqYcUavSlev7MLEWQXmC36bXdpGK4nd8IlkFOhoLKOtYbeFZGXhhcXGIjIexjPRcFf",
+	"IE5jzCEmNRRRxVkXkmB4TtLEpgjX/kKXT9uVSlnX/75fvN6Vru2wPcy19p4qz6wWEswgDlFgHYGoTiBE",
+	"bXZKQaoG5tIN1Bq2Eb06/WKQXZTmtqfEW32dQafEHZ3xIr1lQsCJwrNSnun5ZFhYN8SsNU7ZmhLTkNqz",
+	"RRg2yf3Z+kJ0yHFKKFJ5YloRO1I/CpFnGASCXjGZ6sircmliIiPJBnoBuUyklF1oXoaxNkJOpo+PvFah",
+	"lZUcJZiqPPrG8Mnef8IKijuvn2XdydLRPbJ5qph+ONClPesk2K18XSvCOtZbbWX5AzmUrDC14Gr1a+jB",
+	"3O2sxCBGrCe3u0hd8yyfYlTWcmpEmXIBQRhPy5qukVakB6aOUu7ym3sOqu6g6g6q7iDbulwFtgdNh5KY",
+	"8rYt2I1qtatNtRj8MaXsFXiApZMIc951lyT3NFbwosa58pPyBtEHPEUAKgdKFEfC9y46UwSnC3n9RVfv",
+	"tIbWrJ2FIPmiiB+htNJmn7RqsUOa1DBsPytPnfZQw5skHe2bFlpauiyzkx9WBkjj5lP0Yio01CmHTLsX",
+	"2sOWW6vfs4O4ZSwPM3W7ueNpywM9Jq6TJaZJypgsQYYSQw4S+Y3paftH9w41RX79n/MUmSUGv8ooHu+G",
+	"6oaiwt8CcxevN9xzzMt93Z4L07LRV05y+iMkzZUyDmvpr1b1DKw7vxs1+F3pevVvRjyVL6dvi1tkKbmi",
+	"8/8wUFjAutiFDMZIXMez/LSwlRBx0m76rSGRXKBtShSDz4Vr4VcNZngIcVSik72RSc85cvlG+/oJGo+F",
+	"3a992Zi+Ot9GQa2NL66umqXhDIchEm4fEuDsuqqnpiaJU3nBWQGn3UmpnMPpFCzd0zS/BomSXcu+rihR",
+	"a7UBo9flTtajxVRE0dc1tSGouX7Q7lj6kIL+56l28lgzXOC0fAuZrMvQap13ZpP20kFlZqmpHHTgmAPH",
+	"fBkcUywRtC2++ZS0McnvyTej739PNlH2n5IuufH5celulXJakuWfZh/yKWkinuPBxFzM795XyOvabxAM",
+	"duTbn5jxb54mZdeaP3NPV09mIXpEEYtTOkVCWMl4ESYZncQ0aEiuN7lzcqrWcxfjvOSScCxkK9E9eABF",
+	"4v8DojAEhfpNwHyChD0mWeksi0AkuosEwpZkWp/gIF62xKtFm7zUgvDb11WQCFTRBHexMcZvESJf0gWX",
+	"bDfVCMR6WXFWkl0OOoHyGiyiys4zhIhZsfKZPjmTCJMofMgrWqzr/9VV//2QHpmM3n4g9Kjd8mIwEAkO",
+	"4SJm/OLcP/c9K1RYOT8icnz5QoTb4SROtT2ozhLABP+Y41E99Fa91iGKjJCPIGi6S391ZXOpghHr0vMa",
+	"E6ufXNMOve4YolY3JWo79NPl/xfYBtYUbO7QX0ULmW39iQddupqtv+Ex+bOxn6wfowuJCfNE3jJmDaHu",
+	"JuswtbRvdMDZhl09cYzwQihAIT+cIk1EWQNrHCXHVver/x8A",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
