@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -20,7 +21,7 @@ part 'pin_service.g.dart';
 final pinUserRefreshCoordinatorProvider = Provider<_PinUserRefreshCoordinator>((
   ref,
 ) {
-  // Keep the coordinator reactive to token rotation while tolerating the
+  // Keep the coordinator reactive to token rotation while tolerating
   // lightweight provider tests that override only userIdProvider.
   watchSession(ref);
   final coordinator = _PinUserRefreshCoordinator();
@@ -89,6 +90,10 @@ class PinUserService extends _$PinUserService {
 
   @override
   Stream<List<PinEntity>> build(String userId) async* {
+    if (!ref.watch(accountSessionProvider).isActive) {
+      yield [];
+      return;
+    }
     final hiddenUsers = ref.watch(hiddenUserServiceProvider);
     final hiddenPosts = ref.watch(hiddenPostsServiceProvider);
     _pinRepository = ref.watch(pinRepositoryProvider);
@@ -147,9 +152,7 @@ class PinUserService extends _$PinUserService {
         beforeCreationDate: beforeCreationDate,
         beforeId: beforeId,
       );
-      if (remotePins == null || !isCurrentSession(ref, session)) {
-        return;
-      }
+      if (remotePins == null || !isCurrentSession(ref, session)) return;
       for (final pin in remotePins.items) {
         registerPinImageUrl(ref, pin);
       }
@@ -213,6 +216,10 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
 
   @override
   Stream<List<PinEntity>> build(String groupId) async* {
+    if (!ref.watch(accountSessionProvider).isActive) {
+      yield [];
+      return;
+    }
     _pinRepository = ref.watch(pinRepositoryProvider);
     _pinsApi = ref.watch(pinApiProvider);
     _session = watchSession(ref);
@@ -294,8 +301,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         beforeCreationDate: beforeCreationDate,
         beforeId: beforeId,
       );
-      if (remotePins == null) return;
-      if (!isCurrentSession(ref, session)) return;
+      if (remotePins == null || !isCurrentSession(ref, session)) return;
 
       if (remotePins.deleted.isNotEmpty) {
         await _pinRepository.deleteMultiple(remotePins.deleted);
@@ -318,6 +324,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
           .toList();
       if (!isCurrentSession(ref, session)) return;
       await _pinRepository.putMultiple(pins);
+      if (!isCurrentSession(ref, session)) return;
       if (remotePins.items.isEmpty) break;
       final last = remotePins.items.last;
       final cursorRepeated =
@@ -330,10 +337,9 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     // Membership may change while the repository batch is being written.
     // Align the cache policy with the state visible after the write.
     await Future<void>.delayed(Duration.zero);
+    if (!isCurrentSession(ref, session)) return;
     final joinedAfterWrite = _currentMembership();
-    if (joinedAfterWrite != null &&
-        joinedAfterWrite != latestIsUserGroup &&
-        isCurrentSession(ref, session)) {
+    if (joinedAfterWrite != null && joinedAfterWrite != latestIsUserGroup) {
       await _pinRepository.updateKeepAlive(
         groupId,
         joinedAfterWrite,

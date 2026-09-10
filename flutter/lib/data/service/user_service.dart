@@ -1,13 +1,15 @@
 import 'dart:convert';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/season_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -22,9 +24,12 @@ class UserService extends _$UserService {
 
   @override
   Stream<UserEntity?> build(String userId) {
+    if (!ref.watch(accountSessionProvider).isActive) return Stream.value(null);
     _repo = ref.watch(userRepositoryProvider);
     _global = ref.watch(globalDataServiceProvider);
-    _updateRemoteIfMissing(_repo, _global);
+    final userApi = ref.watch(userApiProvider);
+
+    _updateRemoteIfMissing(_repo, _global, userApi);
 
     return _repo.watchById(userId);
   }
@@ -32,22 +37,32 @@ class UserService extends _$UserService {
   Future<void> _updateRemoteIfMissing(
     IUserRepository repo,
     GlobalDataDto global,
+    UsersApi userApi,
   ) async {
-    final session = SessionIdentity(
-      userId: global.userId,
-      refreshToken: global.refreshToken,
-    );
-    final localUser = await repo.get(this.userId);
-    if (localUser != null) return;
-    final bool isCurrentUser = this.userId == global.userId;
-    final result = await ref
-        .read(batchReadCoalescerProvider)
-        .readKey(BatchReadKey(BatchReadKind.user, this.userId));
-    final userDto = result.user;
-    if (userDto != null && isCurrentSession(ref, session)) {
-      await _repo.put(
+    final isCurrent = accountOperation(ref);
+    try {
+      final localUser = await repo.get(this.userId);
+      if (!isCurrent() || localUser != null) return;
+      final bool isCurrentUser = this.userId == global.userId;
+      UserInfoDto? userDto;
+      try {
+        final result = await ref
+            .read(batchReadCoalescerProvider)
+            .readKey(BatchReadKey(BatchReadKind.user, this.userId));
+        userDto = result.user;
+      } catch (_) {
+        // Keep profile hydration available while an older server is being
+        // upgraded or when a batch item is temporarily unavailable. The
+        // fallback is only used after the coalesced request fails.
+        if (!isCurrent()) return;
+        userDto = await userApi.getUser(this.userId);
+      }
+      if (!isCurrent() || userDto == null) return;
+      await repo.put(
         UserEntity.fromDto(userDto, !isCurrentUser, keepAlive: isCurrentUser),
       );
+    } catch (_) {
+      if (isCurrent()) rethrow;
     }
   }
 
@@ -59,10 +74,11 @@ class UserService extends _$UserService {
     String? username,
     int? selectedBatch,
   }) async {
-    final session = SessionIdentity(
-      userId: _global.userId,
-      refreshToken: _global.refreshToken,
-    );
+    final repo = _repo;
+    final operationRef = ref;
+    final isCurrent = accountOperation(ref);
+    final images = ref.read(userImageRepoProvider);
+    final smallImages = ref.read(userImageSmallRepoProvider);
     try {
       final userApi = ref.watch(userApiProvider);
       final result = await userApi.updateUser(
@@ -77,20 +93,15 @@ class UserService extends _$UserService {
         ),
       );
 
+      if (!operationRef.mounted || !isCurrent()) return "Session ended";
       final userEntity = state.value;
-      if (result != null &&
-          userEntity != null &&
-          isCurrentSession(ref, session)) {
+      if (result != null && userEntity != null) {
         final userDto = userEntity.copyUserWith(result, selectedBatch);
-        await _repo.put(userDto);
-        if (!isCurrentSession(ref, session)) return null;
+        await repo.put(userDto);
+        if (!isCurrent()) return null;
         if (profilePicture != null) {
-          ref
-              .read(userImageRepoProvider)
-              .overrideUrl(this.userId, result.profileImage!, true);
-          ref
-              .read(userImageSmallRepoProvider)
-              .overrideUrl(this.userId, result.profileImageSmall!, true);
+          images.overrideUrl(this.userId, result.profileImage!, true);
+          smallImages.overrideUrl(this.userId, result.profileImageSmall!, true);
         }
       }
       return null;

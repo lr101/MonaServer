@@ -81,6 +81,7 @@ class GlobalDataRepository {
 
   late SharedPreferences sharedPreferences;
 
+  static const String accountCleanupPending = 'accountCleanupPending';
   static const String usernameKey = "username";
   static const String userIdKey = "userId";
   static const String tokenKey = "auth";
@@ -122,8 +123,12 @@ class GlobalDataRepository {
     ISecureStorage storage,
   ) async {
     return GlobalDataDto(
-      userId: await storage.read(key: userIdKey),
-      refreshToken: await storage.read(key: tokenKey),
+      userId: sharedPreferences.getBool(accountCleanupPending) == true
+          ? null
+          : await storage.read(key: userIdKey),
+      refreshToken: sharedPreferences.getBool(accountCleanupPending) == true
+          ? null
+          : await storage.read(key: tokenKey),
       cameras: await loadAvailableCameras(isWeb: kIsWeb),
     );
   }
@@ -151,12 +156,31 @@ class GlobalDataRepository {
     );
   }
 
+  static Future<void> requirePreferenceWrite(Future<bool> result) async {
+    if (!await result) {
+      throw StateError('Could not persist account preferences');
+    }
+  }
+
   Future<void> logout() async {
-    sharedPreferences.clear();
-    final storage = ref.watch(secureStorageProvider);
-    await storage.delete(key: usernameKey);
-    await storage.delete(key: userIdKey);
-    await storage.delete(key: tokenKey);
+    final storage = ref.read(secureStorageProvider);
+    Future<void> clearPreferences() async {
+      // SharedPreferences updates its in-memory map even when a platform write
+      // fails. Reload durable keys so a retry cannot overlook a failed removal.
+      await sharedPreferences.reload();
+      await Future.wait([
+        for (final key in sharedPreferences.getKeys())
+          if (key != accountCleanupPending)
+            requirePreferenceWrite(sharedPreferences.remove(key)),
+      ]);
+    }
+
+    await Future.wait([
+      clearPreferences(),
+      storage.delete(key: usernameKey),
+      storage.delete(key: userIdKey),
+      storage.delete(key: tokenKey),
+    ]);
   }
 
   Future<void> login(String username, String userId, String token) async {

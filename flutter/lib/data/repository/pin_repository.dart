@@ -18,7 +18,11 @@ abstract class IPinRepository implements CacheApi<PinEntity> {
   Stream<List<PinEntity>> getPinsByUser(String userId);
   Future<void> deleteByGroupId(String groupId);
   Future<void> replacePin(String oldPinId, PinEntity newPin);
-  Future<void> updateKeepAlive(String groupId, bool keepAlive, bool onlySession);
+  Future<void> updateKeepAlive(
+    String groupId,
+    bool keepAlive,
+    bool onlySession,
+  );
 }
 
 abstract class IPinLikeRepository implements CacheApi<PinLikeEntity> {}
@@ -67,7 +71,9 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.pinEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.pinEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -77,12 +83,16 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.pinEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.pinEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<PinEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.pinEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.pinEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -94,7 +104,9 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
 
   @override
   Future<List<PinEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.pinEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.pinEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -102,13 +114,15 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
   Future<int> doGetSize() async {
     final countExp = db.pinEntities.isarId.count();
     final query = db.selectOnly(db.pinEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<PinEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.pinEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.pinEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
@@ -120,48 +134,79 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
   @override
   Future<void> doPutMultiple(List<PinEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.pinEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.pinEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<PinEntity?> doWatchById(int isarId) {
-    return (db.select(db.pinEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.pinEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 
   @override
   Stream<List<PinEntity>> getPinsByGroup(String groupId) {
-    return (db.select(db.pinEntities)..where((tbl) => tbl.groupId.equals(groupId))).watch().map((res) => res.map(_fromDb).toList());
+    return (db.select(db.pinEntities)
+          ..where((tbl) => tbl.groupId.equals(groupId)))
+        .watch()
+        .map((res) => res.map(_fromDb).toList());
   }
 
   @override
   Stream<List<PinEntity>> getPinsByUser(String userId) {
-    return (db.select(db.pinEntities)..where((tbl) => tbl.creator.equals(userId))).watch().map((res) => res.map(_fromDb).toList());
+    return (db.select(db.pinEntities)
+          ..where((tbl) => tbl.creator.equals(userId)))
+        .watch()
+        .map((res) => res.map(_fromDb).toList());
   }
 
   @override
   Future<void> deleteByGroupId(String groupId) async {
-    await (db.delete(db.pinEntities)..where((tbl) => tbl.groupId.equals(groupId))).go();
+    await (db.delete(
+      db.pinEntities,
+    )..where((tbl) => tbl.groupId.equals(groupId))).go();
   }
 
   @override
   Future<void> replacePin(String oldPinId, PinEntity newPin) async {
     await db.transaction(() async {
-      await (db.delete(db.pinEntities)..where((tbl) => tbl.isarId.equals(fastHash(oldPinId)))).go();
-      await db.into(db.pinEntities).insertOnConflictUpdate(_toCompanion(newPin));
+      await (db.delete(
+        db.pinEntities,
+      )..where((tbl) => tbl.isarId.equals(fastHash(oldPinId)))).go();
+      await db
+          .into(db.pinEntities)
+          .insertOnConflictUpdate(_toCompanion(newPin));
     });
   }
 
   @override
-  Future<void> updateKeepAlive(String groupId, bool keepAlive, bool onlySession) async {
-    final items = await (db.select(db.pinEntities)..where((tbl) => tbl.groupId.equals(groupId))).get();
-    final updated = items.map((e) => _fromDb(e).copyWith(keepAlive: keepAlive, onlySession: onlySession) as PinEntity).toList();
+  Future<void> updateKeepAlive(
+    String groupId,
+    bool keepAlive,
+    bool onlySession,
+  ) async {
+    final items = await (db.select(
+      db.pinEntities,
+    )..where((tbl) => tbl.groupId.equals(groupId))).get();
+    final updated = items
+        .map(
+          (e) =>
+              _fromDb(e)
+                      .copyWith(keepAlive: keepAlive, onlySession: onlySession)
+                  as PinEntity,
+        )
+        .toList();
     await putMultiple(updated);
   }
 }
 
-
-class PinLikeRepository extends CacheImpl<PinLikeEntity> implements IPinLikeRepository {
+class PinLikeRepository extends CacheImpl<PinLikeEntity>
+    implements IPinLikeRepository {
   final AppDatabase db;
 
   PinLikeRepository(this.db, {super.maxItems, super.ttlDuration});
@@ -204,7 +249,9 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity> implements IPinLikeRepo
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.pinLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.pinLikeEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -214,12 +261,16 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity> implements IPinLikeRepo
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.pinLikeEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.pinLikeEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<PinLikeEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.pinLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.pinLikeEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -231,7 +282,9 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity> implements IPinLikeRepo
 
   @override
   Future<List<PinLikeEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.pinLikeEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.pinLikeEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -239,42 +292,56 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity> implements IPinLikeRepo
   Future<int> doGetSize() async {
     final countExp = db.pinLikeEntities.isarId.count();
     final query = db.selectOnly(db.pinLikeEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<PinLikeEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.pinLikeEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.pinLikeEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
   @override
   Future<void> doPut(PinLikeEntity item) async {
-    await db.into(db.pinLikeEntities).insertOnConflictUpdate(_toCompanion(item));
+    await db
+        .into(db.pinLikeEntities)
+        .insertOnConflictUpdate(_toCompanion(item));
   }
 
   @override
   Future<void> doPutMultiple(List<PinLikeEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.pinLikeEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.pinLikeEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<PinLikeEntity?> doWatchById(int isarId) {
-    return (db.select(db.pinLikeEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.pinLikeEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 }
 
 @Riverpod(keepAlive: true)
 IPinRepository pinRepository(Ref ref) {
-  final db = ref.watch(driftRepoProvider);
+  final db = ref.watch(accountDatabaseProvider);
   return PinRepository(db);
 }
 
 @Riverpod(keepAlive: true)
-IPinLikeRepository pinLikeRepository(Ref ref) { 
-  final db = ref.watch(driftRepoProvider);
-  return PinLikeRepository(db, maxItems: 50, ttlDuration: const Duration(hours: 1));
+IPinLikeRepository pinLikeRepository(Ref ref) {
+  final db = ref.watch(accountDatabaseProvider);
+  return PinLikeRepository(
+    db,
+    maxItems: 50,
+    ttlDuration: const Duration(hours: 1),
+  );
 }

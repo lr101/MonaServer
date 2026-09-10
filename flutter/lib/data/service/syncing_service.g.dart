@@ -41,7 +41,7 @@ final class SyncingServiceProvider
   }
 }
 
-String _$syncingServiceHash() => r'db21f137377b8b9e6dfa0eca6a14a3ef4ae631e3';
+String _$syncingServiceHash() => r'bbea3e6c26e8cfd055df7147d52bcff21fc27295';
 
 abstract class _$SyncingService extends $Notifier<SyncState> {
   SyncState build();

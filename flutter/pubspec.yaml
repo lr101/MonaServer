@@ -88,6 +88,7 @@ dev_dependencies:
   riverpod_lint: ^3.1.8
   lint:
   meta:
+  shared_preferences_platform_interface: ^2.4.2
   sqlite3: ^3.5.2
 
 dependency_overrides:

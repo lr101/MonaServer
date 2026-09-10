@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/repository/member_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
@@ -11,21 +12,22 @@ part 'member_service.g.dart';
 class MemberService extends _$MemberService {
   late IMemberRepository _memberRepository;
   late MembersApi _membersApi;
-  late SessionIdentity _session;
 
   @override
   Stream<List<MemberEntity>> build(String groupId) {
+    if (!ref.watch(accountSessionProvider).isActive) return Stream.value([]);
     _memberRepository = ref.watch(memberRepositoryProvider);
     _membersApi = ref.watch(memberApiProvider);
-    _session = watchSession(ref);
+    final session = watchSession(ref);
 
-    fetchRemote(session: _session);
+    fetchRemote(session: session);
 
     final stream = _memberRepository.watchById(groupId);
     return stream.map(sortMembers);
   }
 
   Future<void> fetchRemote({required SessionIdentity session}) async {
+    final repository = _memberRepository;
     final members = await _membersApi.getGroupMembers(groupId);
     if (!isCurrentSession(ref, session) || members == null) return;
     for (final member in members) {
@@ -38,7 +40,7 @@ class MemberService extends _$MemberService {
       ttl: DateTime.now(),
     );
     if (!isCurrentSession(ref, session)) return;
-    await _memberRepository.put(entity);
+    await repository.put(entity);
   }
 
   List<MemberEntity> sortMembers(MembersEntity? memberList) {

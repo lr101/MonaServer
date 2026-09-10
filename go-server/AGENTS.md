@@ -4,15 +4,8 @@
 
 This directory is the Go module. The required version is declared in `go.mod` and pinned in the repository `mise.toml`.
 
-From the repository root:
-
-```bash
-mise install
-mise run build
-mise run test
-```
-
-From this directory, the equivalent commands are:
+Use the repository root's safe local checks when they are relevant. From this
+directory, the package-level equivalents are:
 
 ```bash
 mise exec -- go build -o bin/server ./cmd/server

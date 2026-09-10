@@ -9,12 +9,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_pins_repository.g.dart';
 
-abstract class IUserPinsRepository implements CacheApi<UserPinsEntity>{}
+abstract class IUserPinsRepository implements CacheApi<UserPinsEntity> {}
 
-class UserPinsRepository extends CacheImpl<UserPinsEntity> implements IUserPinsRepository {
+class UserPinsRepository extends CacheImpl<UserPinsEntity>
+    implements IUserPinsRepository {
   final AppDatabase db;
 
-  UserPinsRepository(this.db): super(ttlDuration: const Duration(minutes: 10));
+  UserPinsRepository(this.db) : super(ttlDuration: const Duration(minutes: 10));
 
   UserPinsEntitiesCompanion _toCompanion(UserPinsEntity entity) {
     return UserPinsEntitiesCompanion(
@@ -41,7 +42,9 @@ class UserPinsRepository extends CacheImpl<UserPinsEntity> implements IUserPinsR
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.userPinsEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.userPinsEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -51,12 +54,16 @@ class UserPinsRepository extends CacheImpl<UserPinsEntity> implements IUserPinsR
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.userPinsEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.userPinsEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<UserPinsEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.userPinsEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.userPinsEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -68,7 +75,9 @@ class UserPinsRepository extends CacheImpl<UserPinsEntity> implements IUserPinsR
 
   @override
   Future<List<UserPinsEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.userPinsEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.userPinsEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -76,35 +85,45 @@ class UserPinsRepository extends CacheImpl<UserPinsEntity> implements IUserPinsR
   Future<int> doGetSize() async {
     final countExp = db.userPinsEntities.isarId.count();
     final query = db.selectOnly(db.userPinsEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<UserPinsEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.userPinsEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.userPinsEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
   @override
   Future<void> doPut(UserPinsEntity item) async {
-    await db.into(db.userPinsEntities).insertOnConflictUpdate(_toCompanion(item));
+    await db
+        .into(db.userPinsEntities)
+        .insertOnConflictUpdate(_toCompanion(item));
   }
 
   @override
   Future<void> doPutMultiple(List<UserPinsEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.userPinsEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.userPinsEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<UserPinsEntity?> doWatchById(int isarId) {
-    return (db.select(db.userPinsEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.userPinsEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 }
 
 @Riverpod(keepAlive: true)
 IUserPinsRepository userPinsRepository(Ref ref) {
-  return UserPinsRepository(ref.watch(driftRepoProvider));
+  return UserPinsRepository(ref.watch(accountDatabaseProvider));
 }

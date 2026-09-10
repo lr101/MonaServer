@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
@@ -19,11 +20,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  test('group metadata requests cannot be reused across accounts', () async {
+    var session = AccountSession(true);
+    final started = Completer<void>();
+    final oldResponse = Completer<GroupDto?>();
+    var first = true;
+    final container = ProviderContainer(
+      overrides: [
+        accountSessionProvider.overrideWith((ref) => session),
+        groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        groupApiProvider.overrideWithValue(
+          _FakeGroupsApi(
+            null,
+            getGroupOverride: () {
+              if (first) {
+                first = false;
+                started.complete();
+                return oldResponse.future;
+              }
+              return Future.value(
+                GroupDto(id: 'group-id', name: 'Bob group', visibility: 0),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final oldLoad = container
+        .read(groupMetadataLoaderProvider)
+        .load('group-id');
+    await started.future;
+    session.revoke();
+    session = AccountSession(true);
+    container.invalidate(accountSessionProvider);
+    final newLoad = container
+        .read(groupMetadataLoaderProvider)
+        .load('group-id');
+    oldResponse.complete(
+      GroupDto(id: 'group-id', name: 'Alice private group', visibility: 1),
+    );
+    expect((await newLoad)?.name, 'Bob group');
+    expect(await oldLoad, isNull);
+  });
+
   test(
     'unjoined group details do not wait for the user group stream',
     () async {
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(
             _UserGroupServiceWithoutInitialValue.new,
           ),
@@ -60,6 +107,7 @@ void main() {
     () async {
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userGroupServiceProvider.overrideWith(
             _UserGroupServiceWithoutInitialValue.new,
           ),
@@ -99,6 +147,7 @@ void main() {
       final pendingProfile = StreamController<Uint8List?>();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -140,6 +189,7 @@ void main() {
       final groupsApi = _FakeGroupsApi(_groupWithImages());
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -185,6 +235,7 @@ void main() {
       ];
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           groupMetadataProvider('group-id')
               .overrideWith((ref) => Stream.value(group)),
           pinGroupServiceProvider('group-id')
@@ -261,6 +312,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         groupDetailsProvider('group-id').overrideWith(
           (ref) => Stream.value(
             GroupDetailsState(
@@ -297,6 +349,7 @@ void main() {
       final groupsApi = _FakeGroupsApi(_groupWithImages());
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -331,6 +384,7 @@ void main() {
       final groupsApi = _FakeGroupsApi(null);
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -371,6 +425,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(groupRepository),
@@ -500,6 +555,7 @@ void main() {
       });
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           groupProfileRepoProvider.overrideWithValue(profileCache),
           groupProfileSmallRepoProvider.overrideWithValue(profileSmallCache),
           groupPinImageRepoProvider.overrideWithValue(pinImageCache),
@@ -593,6 +649,7 @@ void main() {
       final pinImageCache = _FakeImageRepository();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(groupRepository),
@@ -643,6 +700,7 @@ void main() {
       final pinsApi = _FakePinsApi(getPinsOverride: () => releasePins.future);
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -694,6 +752,7 @@ void main() {
     final pinImageCache = _FakeImageRepository.pending();
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userIdProvider.overrideWithValue('user-id'),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -754,6 +813,7 @@ void main() {
       final pinsApi = _FakePinsApi();
       final container = ProviderContainer(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('user-id'),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupRepositoryProvider.overrideWithValue(groupRepository),
@@ -816,6 +876,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userIdProvider.overrideWithValue('user-id'),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         groupRepositoryProvider.overrideWithValue(groupRepository),
@@ -856,6 +917,7 @@ void main() {
     final groupsApi = _FakeGroupsApi(_groupWithoutImages());
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userIdProvider.overrideWithValue('user-id'),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -931,6 +993,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userIdProvider.overrideWithValue('user-id'),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         groupRepositoryProvider.overrideWithValue(groupRepository),
@@ -998,6 +1061,7 @@ void main() {
     final container = ProviderContainer(
       retry: (_, _) => null,
       overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
         userIdProvider.overrideWithValue('user-id'),
         userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
         groupRepositoryProvider.overrideWithValue(_FakeGroupRepository()),
@@ -1065,6 +1129,7 @@ Future<UserGroupService> _createService({
 }) async {
   final container = ProviderContainer(
     overrides: [
+      accountSessionProvider.overrideWithValue(AccountSession(true)),
       userIdProvider.overrideWithValue('user-id'),
       groupRepositoryProvider.overrideWithValue(
         groupRepository ?? _FakeGroupRepository(),

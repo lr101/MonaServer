@@ -50,7 +50,7 @@ final class PinUserServiceProvider
   }
 }
 
-String _$pinUserServiceHash() => r'244c447d39009706c2377b27e16dd099d0923e8e';
+String _$pinUserServiceHash() => r'b594d9812be847038f8c997bbe100f67e525dda7';
 
 final class PinUserServiceFamily extends $Family
     with
@@ -216,7 +216,7 @@ final class PinGroupServiceUnfilteredProvider
 }
 
 String _$pinGroupServiceUnfilteredHash() =>
-    r'2a9439a1f28cf3589ec6212b6a97864d2578cad0';
+    r'ba920c4dd64165eadd4c46d6e58983a4da9ec20d';
 
 final class PinGroupServiceUnfilteredFamily extends $Family
     with
