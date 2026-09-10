@@ -29,7 +29,8 @@ random API or RustFS ports.
 
 For a Docker-provider setup where the outer Traefik can see the dev container,
 these are the labels to put on that container. This example uses Traefik v3
-rule syntax:
+rule syntax and assumes the outer Traefik has a DNS-01 ACME resolver named
+`letsencrypt-dns`:
 
 ```yaml
 labels:
@@ -37,9 +38,42 @@ labels:
   - traefik.http.routers.dev-worktrees.rule=HostRegexp(`^((api|web|storage|console)-[a-z0-9-]+)\.dev\.dell\.lr-projects\.de$`)
   - traefik.http.routers.dev-worktrees.entrypoints=websecure
   - traefik.http.routers.dev-worktrees.tls=true
+  - traefik.http.routers.dev-worktrees.tls.certresolver=letsencrypt-dns
+  - traefik.http.routers.dev-worktrees.tls.domains[0].main=dev.dell.lr-projects.de
+  - "traefik.http.routers.dev-worktrees.tls.domains[0].sans=*.dev.dell.lr-projects.de"
   - traefik.http.routers.dev-worktrees.service=dev-worktrees
   - traefik.http.services.dev-worktrees.loadbalancer.server.port=18080
 ```
+
+`tls=true` only enables TLS termination; it does not create a certificate.
+The resolver name in the label must exactly match a resolver in Traefik's
+static configuration. For example, the resolver above needs an outer
+Traefik configuration similar to this, with the DNS provider's credentials
+passed through the provider-specific environment variables:
+
+```yaml
+certificatesResolvers:
+  letsencrypt-dns:
+    acme:
+      email: ops@example.invalid
+      storage: /letsencrypt/acme.json
+      dnsChallenge:
+        provider: <your-dns-provider>
+```
+
+The wildcard certificate must be issued with a DNS-01 challenge. If only the
+generated subdomains are needed and `dev.dell.lr-projects.de` itself has no
+DNS record, use the wildcard as the main domain and omit the apex SAN:
+
+```yaml
+- traefik.http.routers.dev-worktrees.tls.domains[0].main=*.dev.dell.lr-projects.de
+```
+
+If the outer Traefik already has a wildcard certificate managed outside ACME,
+load its certificate and key through Traefik's file provider instead. Labels
+cannot load certificate files. The certificate must be in the global
+`default` TLS store and contain `*.dev.dell.lr-projects.de`; a certificate for
+`dev.dell.lr-projects.de` alone does not cover the generated hostnames.
 
 If the outer Traefik uses the v2 named-capture rule syntax, use this router
 rule instead:
@@ -59,7 +93,12 @@ http:
       rule: "HostRegexp(`^((api|web|storage|console)-[a-z0-9-]+)\\.dev\\.dell\\.lr-projects\\.de$`)"
       entryPoints:
         - websecure
-      tls: {}
+      tls:
+        certResolver: letsencrypt-dns
+        domains:
+          - main: dev.dell.lr-projects.de
+            sans:
+              - '*.dev.dell.lr-projects.de'
       service: dev-worktrees
   services:
     dev-worktrees:
