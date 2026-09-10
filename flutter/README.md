@@ -20,18 +20,16 @@ Key features:
 
 The Stick-It app is built using the **Flutter** framework, which allows for cross-platform development on Android, iOS, and web platforms. Here's a high-level overview of how the app works:
 
-### Project structure
+### Architecture
 
-The app is structured as follows:
- - **data**: contains data models, repositories, and services. Repositories handles and provides database operations. Services provide business logic for the app, including holding global state values and making api calls.
- - **features**: contains the app's features (mostly widgets where a route leads to), such as the main screen, group screen, and profile screen. Each directory is split into representation (UI) and data (screen specific logic and states).
- - **util**: contains utility classes, such as the app's theme, routing, and error handling.
- - **widgets**: contains reusable widgets that are used across the app. Each directory is split into representation (UI) and data (screen specific logic and states).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the current code map, implemented
+reliability work, dependency rules and remaining migration plan.
+[AGENTS.md](AGENTS.md) adds agent verification guidance.
 
 ## Quick start (development)
 
 1) Prerequisites
-- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.2 SDK and build tools.
+- Install `mise`, then run `mise install` from the monorepo root to install the Flutter SDK pinned in `mise.toml` and build tools.
 - Ensure a working Android/iOS development environment (Android Studio / Xcode on macOS for iOS).
 
 2) Install dependencies
