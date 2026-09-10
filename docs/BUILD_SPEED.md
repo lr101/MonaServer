@@ -22,7 +22,8 @@ Flutter publishing and Go publishing run on relevant pushes to `main` and
 push and PR jobs. Superseded PR validation is cancelled. Publishing and channel
 promotion are not cancelled.
 
-Flutter analysis/tests, Android, web, and iOS run independently. Flutter SDK
+Flutter analysis/tests, Android, web, and iOS run independently. Web publishing
+waits for its analysis/tests and container validation, independent of mobile builds. Flutter SDK
 and Pub caches are enabled on every Flutter job; Android also uses setup-gradle
 and Gradle's task-output cache. Codemagic restores Pub and Gradle caches too.
 Caches reduce repeat downloads/compilation; they do not replace dependency

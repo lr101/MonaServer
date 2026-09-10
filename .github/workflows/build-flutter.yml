@@ -340,7 +340,7 @@ jobs:
 
   publish-web:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-    needs: [analyze-and-build, build-android, validate-web-container]
+    needs: [analyze-and-build, validate-web-container]
     runs-on: ubuntu-latest
     permissions:
       contents: read
