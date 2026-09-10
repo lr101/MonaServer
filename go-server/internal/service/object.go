@@ -35,6 +35,14 @@ type Object struct {
 // are both computed over the external address, so the signature remains valid
 // when the client actually fetches the URL.
 func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
+	return NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket, useSSL, useSSL, urlExpiry)
+}
+
+// NewObjectWithExternalSSL creates an Object service with independent TLS
+// settings for the internal S3 client and externally returned presigned URLs.
+// This is useful when a reverse proxy terminates TLS for clients while the
+// server reaches a local RustFS listener over HTTP.
+func NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL, externalUseSSL bool, urlExpiry time.Duration) (*Object, error) {
 	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
@@ -53,7 +61,9 @@ func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, 
 	if extEndpoint == "" {
 		extEndpoint = endpoint
 	}
-	presignClient, err := minio.New(extEndpoint, opts)
+	externalOpts := *opts
+	externalOpts.Secure = externalUseSSL
+	presignClient, err := minio.New(extEndpoint, &externalOpts)
 	if err != nil {
 		return nil, err
 	}

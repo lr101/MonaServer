@@ -63,9 +63,9 @@ func main() {
 
 	var objSvc *service.Object
 	if cfg.RustfsEndpoint != "" {
-		o, err := service.NewObject(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
+		o, err := service.NewObjectWithExternalSSL(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
 			cfg.RustfsAccessKey, cfg.RustfsSecretKey,
-			cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsURLExpiry)
+			cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsExternalUseSSL, cfg.RustfsURLExpiry)
 		if err != nil {
 			log.Error("rustfs init", "err", err)
 		} else if err := o.EnsureBucket(ctx); err != nil {

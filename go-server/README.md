@@ -60,7 +60,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
 | `RUSTFS_BUCKET` | `monaserver` | bucket name |
-| `RUSTFS_USE_SSL` | `false` | |
+| `RUSTFS_USE_SSL` | `false` | TLS scheme used by the internal S3 client |
+| `RUSTFS_EXTERNAL_USE_SSL` | same as `RUSTFS_USE_SSL` | TLS scheme used for presigned URLs; useful when a proxy terminates public TLS |
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
@@ -94,6 +95,7 @@ RUSTFS_ACCESS_KEY=<application-access-key>
 RUSTFS_SECRET_KEY=<application-secret-key>
 RUSTFS_BUCKET=<bucket-name>
 RUSTFS_USE_SSL=false
+RUSTFS_EXTERNAL_USE_SSL=false
 RUSTFS_URL_EXPIRY=60m
 
 MAIL_HOST=
@@ -110,8 +112,8 @@ ACHIEVEMENT_CREATED_BEFORE=2023-12-10T02:43:44.402768+00:00
 `RUSTFS_ENDPOINT` is the address used by the server. The external endpoint is
 written into presigned URLs returned to clients. Both use `host:port` without
 a URL scheme. The deployment Compose service is `minio`; use `rustfs:9000`
-instead with `docker-compose.dev.yml`. Set `RUSTFS_USE_SSL=true` only when both
-endpoints use TLS.
+instead with `docker-compose.dev.yml`. `RUSTFS_USE_SSL` controls the internal
+client, while `RUSTFS_EXTERNAL_USE_SSL` controls the scheme in presigned URLs.
 
 `HOST_PORT` controls the published Compose port. The container always listens
 on `8080`. Keep the achievement values above when replacing a Spring deployment
