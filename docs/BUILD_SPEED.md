@@ -40,11 +40,13 @@ The Dart regeneration check runs when API sources, the generated client, or its
 workflow change (and on manual dispatch). It uses checksum-verified OpenAPI
 Generator 7.9.0, matching `flutter/api/.openapi-generator/VERSION`.
 
-Go host tests use setup-go's cache. Docker has a separate compiled-package cache
-at `/root/.cache/go-build`; the composite cache action injects/extracts it because
+Go host tests use setup-go's cache, keyed by dependencies and the validation
+workflow so the old publish-only job's empty cache cannot remain an exact hit.
+Docker has a separate compiled-package cache at `/root/.cache/go-build`; the composite cache action injects/extracts it because
 BuildKit's `gha` layer exporter does not export cache mounts. Cache keys include
 OS, architecture, build inputs, and commit, with restore prefixes for reuse
-across edits. Module downloads remain in a cached Docker layer. Both Linux
+across edits. Exact cache hits skip extraction because Actions cache entries
+are immutable. Module downloads remain in a cached Docker layer. Both Linux
 architectures compile on the native build platform with CGO disabled.
 
 Docker layer cache scopes are `go-server` and `flutter-web-runtime`. GitHub's

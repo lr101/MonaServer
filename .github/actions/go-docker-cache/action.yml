@@ -4,6 +4,7 @@ runs:
   using: composite
   steps:
     - name: Restore Go compiler cache
+      id: compiler-cache
       uses: actions/cache@v5
       with:
         path: ${{ runner.temp }}/go-docker-build-cache
@@ -17,3 +18,5 @@ runs:
       uses: reproducible-containers/buildkit-cache-dance@e475a9cbcb5052f85fd3830f1266fa0c91ef8595
       with:
         cache-map: '{"${{ runner.temp }}/go-docker-build-cache": "/root/.cache/go-build"}'
+        # Exact reruns cannot update an immutable Actions cache entry.
+        skip-extraction: ${{ steps.compiler-cache.outputs.cache-hit == 'true' }}
