@@ -1,5 +1,9 @@
 # Flutter guidance
 
+Read [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership, implemented
+behavior, dependency rules and remaining migration work. Update it when a slice
+changes those boundaries; distinguish implemented behavior from planned design.
+
 ## Rebuild-sensitive providers
 
 Providers that feed map markers, images, or other media need stable rebuild

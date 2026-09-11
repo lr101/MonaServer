@@ -2,22 +2,29 @@ name: Build and test Flutter app
 
 on:
   push:
-    branches:
-      - "**"
+    branches: [main, develop]
+    # Promotion requires an image for the exact branch HEAD, even after docs pushes.
   pull_request:
     paths:
       - "flutter/**"
       - "api/**"
       - ".github/scripts/**"
       - "mise.toml"
+      - "codemagic.yaml"
       - ".github/workflows/build-flutter.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Superseded PR checks can stop; publishing/channel promotion must finish.
+concurrency:
+  group: flutter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze-and-build:
+    name: Analyze and test
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -25,6 +32,126 @@ jobs:
 
       - name: Test container image promotion
         run: bash .github/scripts/test_promote_image_channel.sh
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+          cache: true
+
+      - name: Detect API generator changes
+        id: generator
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            if git diff --quiet "$BASE_SHA" HEAD -- api/ flutter/api/ .github/workflows/build-flutter.yml; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Set up Java for API generation
+        if: steps.generator.outputs.changed == 'true'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache pinned OpenAPI generator
+        if: steps.generator.outputs.changed == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/openapi-generator
+          key: openapi-generator-7.9.0
+
+      - name: Check generated Dart API client
+        if: steps.generator.outputs.changed == 'true'
+        working-directory: flutter
+        run: |
+          generator="$HOME/.cache/openapi-generator/openapi-generator-cli-7.9.0.jar"
+          mkdir -p "$(dirname "$generator")"
+          if [ ! -f "$generator" ]; then
+            curl --fail --silent --show-error --location \
+              https://repo.maven.apache.org/maven2/org/openapitools/openapi-generator-cli/7.9.0/openapi-generator-cli-7.9.0.jar \
+              --output "$generator"
+          fi
+          echo "f0cb7839a2ead9040b204519b03f1473b39c7725fd1f43134bb550515cb3dbee  $generator" | sha256sum --check
+          generated_api="$(mktemp -d)"
+          trap 'rm -rf "$generated_api"' EXIT
+          java -jar "$generator" generate \
+            -i ../api/openapi.yaml \
+            -g dart \
+            -o "$generated_api" \
+            --skip-validate-spec
+          diff -ru \
+            --exclude=pubspec.yaml \
+            --exclude=pubspec.lock \
+            --exclude=.dart_tool \
+            --exclude=build \
+            api "$generated_api"
+
+      - name: Install dependencies
+        run: |
+          cd flutter
+          flutter pub get
+          cd api
+          flutter pub get
+
+      - name: Analyze Dart code
+        working-directory: flutter
+        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+
+      - name: Test Flutter app
+        working-directory: flutter
+        run: flutter test --no-pub
+
+      - name: Test generated Dart API client
+        working-directory: flutter/api
+        run: flutter test --no-pub
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.3
+          cache: true
+
+      - name: Build web release
+        working-directory: flutter
+        run: |
+          flutter pub get
+          flutter build web --wasm --release --no-pub
+
+      - name: Verify browser-compatible web artifacts
+        working-directory: flutter
+        run: bash docker/test_web_build.sh build/web
+
+      - name: Upload compiled web app
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutter-web
+          path: flutter/build/web
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
 
       - name: Add Google services configuration
         env:
@@ -69,7 +196,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.3
+          cache: true
 
       - name: Set up Java
         uses: actions/setup-java@v6
@@ -77,70 +205,51 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Check generated Dart API client
-        working-directory: flutter
-        run: |
-          flutter pub global activate openapi_generator_cli
-          generated_api="$(mktemp -d)"
-          trap 'rm -rf "$generated_api"' EXIT
-          flutter pub global run openapi_generator_cli:main generate \
-            -i ../api/openapi.yaml \
-            -g dart \
-            -o "$generated_api" \
-            --skip-validate-spec
-          diff -ru \
-            --exclude=pubspec.yaml \
-            --exclude=pubspec.lock \
-            --exclude=.dart_tool \
-            --exclude=build \
-            api "$generated_api"
-
-      - name: Install dependencies
-        working-directory: flutter
-        run: flutter pub get
-
-      - name: Analyze Dart code
-        working-directory: flutter
-        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
-
-      - name: Test Flutter app
-        working-directory: flutter
-        run: flutter test --no-pub
-
-      - name: Test generated Dart API client
-        working-directory: flutter/api
-        run: flutter pub get && flutter test
-
-      - name: Build web release
-        working-directory: flutter
-        run: flutter build web --wasm --release --no-pub
-
-      - name: Verify browser-compatible web artifacts
-        working-directory: flutter
-        run: bash docker/test_web_build.sh build/web
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
       - name: Build Android APK
         working-directory: flutter
-        run: flutter build apk --debug --no-pub
+        run: |
+          flutter pub get
+          flutter build apk --debug --no-pub
 
   validate-web-container:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'))
+    needs: build-web
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Download compiled web app
+        uses: actions/download-artifact@v8
+        with:
+          name: flutter-web
+          path: flutter/build/web
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build web container
+      - name: Extract web image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: stick-it-web
+          tags: type=raw,value=ci
+
+      - name: Package compiled web app
         uses: docker/build-push-action@v7
         with:
           context: flutter
-          file: flutter/docker/Dockerfile
+          file: flutter/docker/Dockerfile.runtime
           push: false
           load: true
           tags: stick-it-web:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=flutter-web-runtime
+          cache-to: type=gha,mode=max,scope=flutter-web-runtime
 
       - name: Smoke test web container
         run: |
@@ -180,6 +289,21 @@ jobs:
               "http://127.0.0.1:18080$static_path")
             [ "$status_code" = 404 ]
           done
+
+      - name: Save tested web image
+        if: github.event_name == 'push'
+        run: docker save --output "$RUNNER_TEMP/flutter-web-image.tar" stick-it-web:ci
+
+      - name: Upload tested web image
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutter-web-image
+          path: ${{ runner.temp }}/flutter-web-image.tar
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 1
+
   build-ios:
     runs-on: macos-15
     env:
@@ -194,7 +318,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.3
+          cache: true
 
       - name: Select Xcode 16.4
         run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
@@ -215,8 +340,11 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - name: Download tested web image
+        uses: actions/download-artifact@v8
+        with:
+          name: flutter-web-image
+          path: ${{ runner.temp }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -225,22 +353,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract web image metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/stick-it-web
-          tags: |
-            type=raw,value=${{ github.sha }}
-
-      - name: Build and push immutable web image
-        uses: docker/build-push-action@v7
-        with:
-          context: flutter
-          file: flutter/docker/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Publish tested image without rebuilding
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/stick-it-web
+        run: |
+          docker load --input "$RUNNER_TEMP/flutter-web-image.tar"
+          docker tag stick-it-web:ci "$IMAGE_NAME:$GITHUB_SHA"
+          docker push "$IMAGE_NAME:$GITHUB_SHA"
 
   promote-web-image:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')

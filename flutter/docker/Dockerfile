@@ -4,8 +4,8 @@
 # Install the exact stable SDK used by the repository.
 FROM debian:bookworm-slim AS build
 
-ARG FLUTTER_VERSION=3.47.2
-ARG FLUTTER_SHA256=447878859d01ca9bfdb99a85f245af07ed8a15fedcd9d189c4749e8e92d1f185
+ARG FLUTTER_VERSION=3.47.3
+ARG FLUTTER_SHA256=988665565cad9091db1baa54bf6d3868bb40e29719592f3c3a164deefd4208e1
 
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PATH=${FLUTTER_ROOT}/bin:${FLUTTER_ROOT}/bin/cache/dart-sdk/bin:${PATH}
@@ -49,7 +49,7 @@ COPY . .
 # Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
 # flutter_bootstrap.js selects the first compatible build in the browser.
 ARG API_HOST=https://stick-it.lr-projects.de
-RUN flutter build web --wasm --release --dart-define=API_HOST="${API_HOST}"
+RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST="${API_HOST}"
 
 # Fail the image build if a future Flutter/toolchain change drops either
 # browser variant or the runtime configuration assets.
