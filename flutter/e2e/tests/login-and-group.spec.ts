@@ -172,15 +172,26 @@ async function login(
 }
 
 async function submitLogin(page: Page, data: E2eData): Promise<void> {
-  await page.locator('input[aria-label="Name"]').click();
-  await page.locator('input[aria-label="Name"]').fill(data.username);
-  await page.locator('input[aria-label="Password"]').fill(data.password);
+  await enterFlutterText(page, 'Name', data.username);
+  await enterFlutterText(page, 'Password', data.password);
   await page
     .locator('flt-semantics[role="button"]')
     .filter({ hasText: /^LOGIN$/ })
     .click();
 
   await page.waitForURL(/#\/home/, { timeout: 30_000 });
+}
+
+async function enterFlutterText(page: Page, label: string, value: string): Promise<void> {
+  const input = page.locator(`input[aria-label="${label}"]`);
+  await input.click();
+  await expect(input).toBeFocused();
+  // Flutter attaches its editing client after DOM focus. Typing in that same
+  // frame can lose the first character, especially after a logout transition.
+  await page.waitForTimeout(150);
+  await input.fill('');
+  await input.pressSequentially(value, { delay: 30 });
+  await expect(input).toHaveValue(value);
 }
 
 function escapeRegExp(value: string): string {

@@ -1,4 +1,4 @@
-# Merge and UI exploration — 2026-09-10
+# Merge and UI exploration — 2026-09-10–11
 
 PR #495 (`perf/request-batching`) merged `origin/develop` at `4fe7790`.
 The sole conflict was the embedded/generated Go API specification. Regenerating
@@ -36,10 +36,16 @@ five baseline pins and 45 additional viewer pins in the joined group.
   OPTIONS preflights. Wildcard storage CORS permits direct image loads; it does
   not eliminate API preflights.
 
-- **Remaining finding:** the isolated logout/relogin browser regression timed
-  out returning to the home route and recorded two HTTP 401 errors. A batch
-  request returned 401 during that flow in the API logs. The cause has not been
-  established; do not treat session reuse across logout as verified.
+- **Fixed:** during logout, still-mounted widgets rebuilt the coalescer after
+  credentials were cleared and sent anonymous batch requests (401). The
+  coalescer now rejects signed-out reads before transport. A regression test
+  proves signed-in reads work, signed-out reads send nothing, and a new session
+  resumes reads.
+- **Fixed test interaction:** immediate browser text entry could lose the first
+  password character or the username when Flutter's editing client attached
+  after DOM focus. The test now focuses the field, allows the editor to attach,
+  types through keyboard events, and verifies the value before submitting.
+  The focused logout/relogin test passes, including a full reload.
 
 ## Limits
 
@@ -54,7 +60,7 @@ TLS, production storage policy, email, or push notifications.
 - Go package checks, full unit suite, and `go vet ./...`: passed.
 - Fresh database-backed Go suite (`-count=1 -p 1 ./...`), using separate
   disposable database `mona_merge_checks`: passed.
-- Flutter: 155 tests passed; release Wasm/JavaScript build passed. Analyzer
+- Flutter: 156 tests passed; release Wasm/JavaScript build passed. Analyzer
   completed with no errors under the repository's nonfatal warning/info policy
   (41 warnings/information messages).
 - Exploratory joined-group gallery and profile: all 47 distinct pin images
@@ -68,17 +74,23 @@ TLS, production storage policy, email, or push notifications.
 The image fixtures are one-pixel PNGs: these checks validate loading, pagination,
 and caching, not photographic rendering quality.
 
-The final isolated Playwright run completed with **3 passed, 1 failed**:
-login/group rendering, public-unjoined group search/gallery, and camera capture
-chooser passed; logout/relogin failed. All seven Node test-harness tests passed.
-The search interaction now clicks the input before filling it, allowing
-Playwright's stability checks to settle the Flutter route transition.
+The final isolated Playwright run completed with **4 passed, 0 skipped** in
+1.2 minutes: logout/relogin (including a full reload), login/group rendering,
+public-unjoined group search/gallery, and camera capture chooser. All seven
+Node test-harness tests passed. The browser error assertions passed for every
+flow. Earlier failures were investigated and addressed as described above.
 
-## PR status
+## Security check investigation
 
-The merge and coordinate fix are pushed to PR #495 (fix commit `645f085`).
-GitHub reports the PR as mergeable. At the audit handoff, build checks were
-running and GitGuardian reported one secret across the PR history. The GitHub
-check exposed no file/line annotations; its details link points to the
-GitGuardian dashboard. That finding remains unresolved and is not evidence
-that the coordinate fix introduced a credential.
+GitGuardian was green at `329b184` and turned red after the merge. Its GitHub
+check reports one secret across the PR history but exposes no file/line
+annotations; its details link requires the GitGuardian dashboard.
+
+A local Gitleaks 8.30.1 scan of `329b184..HEAD`, with all values redacted, found
+one match: `generic-api-key` in `go-server/internal/gen/api/api.gen.go:413` in
+upstream commit `4fe7790`. This is the generated `UserUpdateResponseDto` example:
+the sample refresh token equals the sample user ID and is the same placeholder
+UUID repeated 73 times in the OpenAPI contract. That local finding is a
+documentation false positive, not a credential. It plausibly explains the
+GitGuardian failure, but that cannot be confirmed without GitGuardian's own
+finding details. No scanner bypass or history rewrite was added.

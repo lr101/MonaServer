@@ -1,10 +1,73 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  test(
+    'logout rebuilds reject batch reads without sending anonymous requests',
+    () async {
+      dotenv.loadFromString(envString: 'API_HOST=https://example.test');
+      var batches = 0;
+      await http.runWithClient(
+        () async {
+          final container = ProviderContainer(
+            overrides: [
+              globalDataServiceProvider.overrideWith(_BatchSession.new),
+            ],
+          );
+          addTearDown(container.dispose);
+          const key = BatchReadKey(BatchReadKind.user, 'user');
+          final session = container.read(
+            globalDataServiceProvider.notifier,
+          ) as _BatchSession;
+          await container.read(batchReadCoalescerProvider).readKey(key);
+          expect(batches, 1);
+          session.setUser(null);
+          await expectLater(
+            container.read(batchReadCoalescerProvider).readKey(key),
+            throwsA(isA<BatchReadDisposedException>()),
+          );
+          expect(batches, 1);
+          session.setUser('user');
+          await container.read(batchReadCoalescerProvider).readKey(key);
+          expect(batches, 2);
+        },
+        () => MockClient((request) async {
+          if (request.url.path.endsWith('/refresh')) {
+            return http.Response(
+              jsonEncode({
+                'accessToken': 'test-access',
+                'refreshToken': 'test-refresh',
+                'userId': 'user',
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          batches++;
+          return http.Response(
+            jsonEncode({
+              'results': [
+                {'kind': 'user', 'id': 'user', 'status': 200},
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+    },
+  );
+
   test('session identity changes when the refresh token rotates', () {
     const oldSession = SessionIdentity(
       userId: 'user',
@@ -228,5 +291,21 @@ class _BatchApi extends BatchApi {
         },
       ],
     });
+  }
+}
+
+class _BatchSession extends GlobalDataService {
+  @override
+  GlobalDataDto build() => const GlobalDataDto(
+    userId: 'user',
+    refreshToken: 'test-refresh',
+    cameras: [],
+  );
+  void setUser(String? userId) {
+    state = GlobalDataDto(
+      userId: userId,
+      refreshToken: userId == null ? null : 'test-refresh',
+      cameras: const [],
+    );
   }
 }

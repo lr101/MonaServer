@@ -282,12 +282,20 @@ class SuppliedImageUrlRegistry {
 }
 
 final batchReadCoalescerProvider = Provider<BatchReadCoalescer>((ref) {
+  final session = watchSession(ref);
   final transport = BatchReadApiTransport(
     BatchApi(ref.watch(openApiConfigProvider)),
   );
   final suppliedUrls = ref.watch(suppliedImageUrlRegistryProvider);
   final coalescer = BatchReadCoalescer(
-    read: transport.call,
+    read: (items) {
+      // Widgets can rebuild while logout is still clearing local data. Those
+      // reads belong to no account and must not reach the protected endpoint.
+      if (session.userId?.isNotEmpty != true) {
+        return Future.error(const BatchReadDisposedException());
+      }
+      return transport.call(items);
+    },
     onResult: (key, result) =>
         suppliedUrls.register(key.kind, key.id, result.imageUrl),
   );
