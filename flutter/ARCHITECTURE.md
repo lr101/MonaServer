@@ -212,8 +212,11 @@ relevant web/APK build for platform changes. Analysis tasks currently allow
 warnings/infos; report them rather than treating the task as a strict lint gate.
 For docs-only changes, check links, source accuracy and `git diff --check`.
 
-CI runs analysis, app/generated API tests, Android debug and web release builds
-with web artifact/serving checks; an iOS release compilation job also remains.
+CI runs analysis/app/generated API tests, Android debug, web release, and iOS
+release compilation in independent jobs. Web compiles once, and its packaged
+image passes artifact/serving checks before that same image is published.
+Dependency and compiler caches reduce repeat setup/build work; see
+[BUILD_SPEED.md](../docs/BUILD_SPEED.md).
 Browser flow tests run locally through
 `mise run flutter-verify-web`; follow [AGENTS.md](AGENTS.md) and the local stack
 guide first. The [browser image probe](test/browser/README.md) covers browser
@@ -228,9 +231,9 @@ Flutter/package build; use Samsung Galaxy S26 on Android 16 as the first real
 Android target and record its installed build/One UI patch. Also test the resolved
 Android lower bound and supported browser lower/current versions.
 
-Use pinned build configuration, but check pins across workflows: currently
-`mise.toml` uses Flutter 3.47.3 while GitHub Actions uses 3.47.2. Web production
-release remains independent of Android testing/promotion; staging is optional.
+Use pinned build configuration: `mise.toml`, GitHub Actions, Codemagic, and the
+standalone web Dockerfile use Flutter 3.47.3. Web production release remains
+independent of Android testing/promotion; staging is optional.
 Existing German privacy and retention requirements remain in force.
 
 Open product decisions: the first-release performance budget (startup, map,

@@ -1,16 +1,23 @@
 name: Build Go Docker Image
 
 on:
-  push:
-    branches-ignore:
-      - main
-      - develop
+  pull_request:
     paths:
       - 'go-server/**'
       - 'api/**'
+      - 'mise.toml'
+      - '.github/actions/go-docker-cache/**'
       - '.github/scripts/**'
       - '.github/workflows/build-go-docker.yml'
       - '.github/workflows/publish-go-docker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:
@@ -36,8 +43,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27'
-          cache-dependency-path: go-server/go.sum
+          go-version: '1.27.1'
+          # Separate validation caches from the old publish job's empty cache.
+          cache-dependency-path: |
+            go-server/go.sum
+            .github/workflows/build-go-docker.yml
 
       - name: Go vet
         working-directory: go-server
@@ -52,10 +62,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Set up Go Docker compiler cache
+        uses: ./.github/actions/go-docker-cache
+
       - name: Build Docker image (no push)
         uses: docker/build-push-action@v7
         with:
           context: go-server
           file: go-server/Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: false
+          cache-from: type=gha,scope=go-server
+          cache-to: type=gha,mode=max,scope=go-server
           tags: ghcr.io/${{ github.repository_owner }}/stick-it-server-go:pr

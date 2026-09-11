@@ -10,6 +10,11 @@ description = "Run the Go server test suite"
 dir = "go-server"
 run = "go test ./..."
 
+[tasks.run]
+description = "Run Go directly with the configured local database and object store"
+dir = "go-server"
+run = "go run ./cmd/server"
+
 [tasks.build]
 description = "Build the Go server"
 dir = "go-server"
@@ -17,30 +22,36 @@ run = "go build -o bin/server ./cmd/server"
 
 [tasks.flutter-analyze]
 description = "Analyze the Flutter app"
+depends = ["flutter-setup"]
 dir = "flutter"
-run = "flutter pub get && flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings"
+run = "flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings"
 
 [tasks.flutter-setup]
-description = "Install Flutter app and API client dependencies"
+description = "Install Flutter dependencies when manifests or SDK pins change"
 dir = "flutter"
-run = "flutter pub get && cd api && flutter pub get"
+sources = ["pubspec.yaml", "pubspec.lock", "api/pubspec.yaml", "api/pubspec.lock", "../mise.toml"]
+outputs = [".dart_tool/package_config.json", "api/.dart_tool/package_config.json"]
+# Pub preserves unchanged config mtimes; mark successful setup for mise's check.
+run = "flutter pub get && (cd api && flutter pub get) && touch .dart_tool/package_config.json api/.dart_tool/package_config.json"
 
 [tasks.flutter-test]
 description = "Run Flutter app tests"
+depends = ["flutter-setup"]
 dir = "flutter"
-run = "flutter pub get && flutter test --no-pub"
+run = "flutter test --no-pub"
 
 [tasks.flutter-api-test]
 description = "Test the generated Dart API client"
+depends = ["flutter-setup"]
 dir = "flutter/api"
-run = "flutter pub get && flutter test"
+run = "flutter test --no-pub"
 
 [tasks.flutter-build-web]
 description = "Build the Flutter web app with Wasm and a JavaScript fallback"
+depends = ["flutter-setup"]
 dir = "flutter"
 run = """
 set -eu
-flutter pub get
 if [ -n "${E2E_API_URL:-}" ]; then
   flutter build web --wasm --release --no-pub --dart-define=API_HOST="$E2E_API_URL"
 else
@@ -68,15 +79,18 @@ run = "node testdata/seed.mjs"
 
 [tasks.flutter-verify-web]
 description = "Build Flutter web and verify the login/group flow with Playwright"
+depends = ["flutter-setup"]
 dir = "flutter"
-run = "flutter pub get && E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && npm test"
+run = "E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && npm test"
 
 [tasks.flutter-build-apk]
 description = "Build a debug Android APK"
+depends = ["flutter-setup"]
 dir = "flutter"
-run = "flutter pub get && flutter build apk --debug --no-pub"
+run = "flutter build apk --debug --no-pub"
 
 [tasks.flutter-run]
 description = "Run the Flutter app (pass Flutter options after --)"
+depends = ["flutter-setup"]
 dir = "flutter"
-run = "flutter pub get && flutter run"
+run = "flutter run --no-pub"

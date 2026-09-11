@@ -181,3 +181,15 @@ go-server/
 │   └── token/               HS256 JWT helpers
 └── Dockerfile               multi-stage, distroless runtime
 ```
+
+## Faster local builds
+
+Keep the local database/object store running and use `mise run run` from the
+repository root with the runtime environment above. This runs Go directly and
+reuses its module and compiler caches. Use `mise run build` when a binary is
+needed; avoid clearing Go caches between edits.
+
+Container builds cache module downloads in a layer and compiled packages in a
+BuildKit cache mount. CI restores/exports that mount separately from the image
+layers and cross-compiles Linux amd64/arm64 on the native builder. See
+[`../docs/BUILD_SPEED.md`](../docs/BUILD_SPEED.md).
