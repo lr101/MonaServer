@@ -58,6 +58,12 @@ Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
 
+The web container serves only static files. Its API origin is compiled into
+the Flutter build; pass `--build-arg API_HOST=https://api.example.test` when
+building the image for a backend other than the default production origin.
+That backend and the object-storage origin must allow the web app's origin
+through CORS.
+
 ### Faster local iteration
 
 Use `mise run flutter-run -- -d chrome` (or a connected device ID) and hot
@@ -103,8 +109,9 @@ set +a
 E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
 ```
 
-The check builds `flutter/build/web`, starts a static server on port 4173,
-and verifies login and the Groups screen. The reusable accounts, groups, pins,
+The check builds `flutter/build/web`, starts a static file server on port 4173,
+and verifies login and the Groups screen against the configured API origin.
+The reusable accounts, groups, pins,
 likes, and scenario IDs are documented in [`../testdata/README.md`](../testdata/README.md)
 and generated under ignored `testdata/` files. The default test API is
 loopback-only; set `TESTDATA_ALLOW_REMOTE_API=1` only when intentionally using
@@ -118,7 +125,7 @@ session, build and serve the app, then navigate the MCP browser to
 ```bash
 E2E_API_URL=http://127.0.0.1:8081 mise run flutter-build-web
 cd flutter/e2e && npm ci && npm run install:browsers
-python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+node static_server.mjs
 ```
 
 Enable Flutter web accessibility by activating the `Enable accessibility`

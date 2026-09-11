@@ -44,6 +44,111 @@ void main() {
     },
   );
 
+  test('loads every server page for a user gallery', () async {
+    final repository = FakePinRepository({'profile-user': []});
+    final api = RecordingPinsApi(
+      pagedResponse: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(
+                20,
+                (index) => _remotePin(id: '$index', userId: 'profile-user'),
+              ),
+            )
+          : PinsSyncDto(
+              items: [_remotePin(id: '20', userId: 'profile-user')],
+            ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
+        userIdProvider.overrideWithValue('current-user'),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.listen(pinUserServiceProvider('profile-user'), (_, _) {});
+    await repository.putStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(api.requestedPages, [0, 1]);
+    expect(api.requestedBeforeIds, [null, '19']);
+    expect(repository.putItems, hasLength(21));
+  });
+
+  test('completes a partially populated user gallery', () async {
+    final repository = FakePinRepository({
+      'profile-user': [_pin('cached-user-pin', 'profile-user')],
+    });
+    final api = RecordingPinsApi(
+      pagedResponse: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(
+                20,
+                (index) =>
+                    _remotePin(id: 'user-$index', userId: 'profile-user'),
+              ),
+            )
+          : PinsSyncDto(
+              items: [_remotePin(id: 'user-20', userId: 'profile-user')],
+            ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
+        userIdProvider.overrideWithValue('current-user'),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.listen(pinUserServiceProvider('profile-user'), (_, _) {});
+    await api.requestStarted.future.timeout(const Duration(milliseconds: 100));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(api.requestedPages, [0, 1]);
+  });
+
+  test(
+    'removes cached gallery pins absent from the completed snapshot',
+    () async {
+      final repository = FakePinRepository({
+        'profile-user': [_pin('stale-pin', 'profile-user')],
+      });
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(
+          items: [_remotePin(id: 'fresh-pin', userId: 'profile-user')],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
+          userIdProvider.overrideWithValue('current-user'),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+          hiddenUserServiceProvider.overrideWithValue(const []),
+          hiddenPostsServiceProvider.overrideWithValue(const []),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.listen(pinUserServiceProvider('profile-user'), (_, _) {});
+      await repository.deleteStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+
+      expect(repository.deletedIds, ['stale-pin']);
+    },
+  );
+
   test(
     'fetches public group pins when the group pin provider is loaded',
     () async {
@@ -74,6 +179,43 @@ void main() {
       expect(api.requestedUserId, isNull);
     },
   );
+
+  test('loads every server page for an unjoined group', () async {
+    final repository = FakePinRepository({});
+    final api = RecordingPinsApi(
+      pagedResponse: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(20, (index) => _remotePin(id: '$index')),
+            )
+          : page == 1
+          ? PinsSyncDto(items: [_remotePin(id: '20')])
+          : PinsSyncDto(),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final subscription = container.listen(
+      pinGroupServiceUnfilteredProvider('group'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await repository.putStarted.future.timeout(
+      const Duration(milliseconds: 100),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(api.requestedPages, [0, 1]);
+    expect(repository.putItems.map((pin) => pin.pinId), hasLength(21));
+  });
 
   test(
     'refreshes cached public group pins when the provider is loaded',
@@ -271,6 +413,46 @@ void main() {
     expect(repository.putItems.single.keepAlive, isTrue);
     expect(repository.putItems.single.onlySession, isFalse);
   });
+
+  test(
+    'does not start a second group refresh for an unrelated membership update',
+    () async {
+      final groupUpdates = StreamController<List<GroupEntity>>();
+      addTearDown(groupUpdates.close);
+      final repository = FakePinRepository({});
+      final api = RecordingPinsApi(responseOverride: () async => PinsSyncDto());
+      final container = ProviderContainer(
+        overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
+          userGroupServiceProvider.overrideWith(
+            () => _ControllableUserGroupService(groupUpdates.stream),
+          ),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await api.requestStarted.future.timeout(
+        const Duration(milliseconds: 100),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      groupUpdates.add([]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      api.requestedPages.clear();
+      groupUpdates.add([_otherGroup()]);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(api.requestedPages, isEmpty);
+    },
+  );
 
   test(
     'loads unjoined group pins without waiting for a membership snapshot',
@@ -476,16 +658,23 @@ PinEntity _pin(String pinId, String creator, {DateTime? lastSynced}) {
 }
 
 class RecordingPinsApi extends PinsApi {
-  RecordingPinsApi({this.response, this.error, this.responseOverride})
-    : super(ApiClient());
+  RecordingPinsApi({
+    this.response,
+    this.error,
+    this.responseOverride,
+    this.pagedResponse,
+  }) : super(ApiClient());
 
   final requestStarted = Completer<void>();
   String? requestedUserId;
   String? requestedGroupId;
   DateTime? requestedUpdatedAfter;
+  final List<int?> requestedPages = [];
+  final List<String?> requestedBeforeIds = [];
   final PinsSyncDto? response;
   final Object? error;
   final Future<PinsSyncDto?> Function()? responseOverride;
+  final Future<PinsSyncDto?> Function(int? page)? pagedResponse;
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -498,13 +687,18 @@ class RecordingPinsApi extends PinsApi {
     int? page,
     int? size,
     DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
   }) async {
     requestedUserId = userId;
     requestedGroupId = groupId;
     requestedUpdatedAfter = updatedAfter;
+    requestedPages.add(page);
+    requestedBeforeIds.add(beforeId);
     if (!requestStarted.isCompleted) requestStarted.complete();
     if (error != null) throw error!;
     if (responseOverride != null) return responseOverride!();
+    if (pagedResponse != null) return pagedResponse!(page);
     return response ?? PinsSyncDto();
   }
 }
@@ -533,12 +727,25 @@ GroupEntity _joinedGroup() => GroupEntity(
   onlySession: false,
 );
 
-PinWithOptionalImageDto _remotePin() => PinWithOptionalImageDto(
-  id: 'remote-pin',
+GroupEntity _otherGroup() => GroupEntity(
+  groupId: 'other-group',
+  name: 'Other group',
+  visibility: 0,
+  userIsMember: true,
+  keepAlive: true,
+  ttl: DateTime(2024),
+  onlySession: false,
+);
+
+PinWithOptionalImageDto _remotePin({
+  String id = 'remote-pin',
+  String userId = 'creator',
+}) => PinWithOptionalImageDto(
+  id: id,
   creationDate: DateTime(2024),
   latitude: 0.0,
   longitude: 0.0,
-  creationUser: 'creator',
+  creationUser: userId,
   groupId: 'group',
 );
 

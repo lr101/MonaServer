@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:typed_data';
 
-import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
@@ -52,6 +52,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
   /// truth; Flutter's image cache is populated by the presentation layer.
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
+  final String? Function(String)? getSuppliedImageUrl;
+  final bool Function()? isSessionCurrent;
   final Future<http.Response> Function(Uri) _httpGet;
   @override
   final ImageType type;
@@ -76,6 +78,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
   ImageRepository({
     required this.db,
     required this.getImageUrl,
+    this.getSuppliedImageUrl,
+    this.isSessionCurrent,
     required this.type,
     Future<http.Response> Function(Uri)? httpGet,
     super.maxItems,
@@ -467,17 +471,30 @@ class ImageRepository extends CacheImpl<ImageEntity>
           id,
           keepAlive,
           fallback: bytes,
+          imageUrl: getSuppliedImageUrl?.call(id),
           retainedImage: retainedImage,
         );
       }
 
       if (image != null && image.isEmpty && cachedImage.ttl.isAfter(now)) {
         await _touch(cachedImage, keepAlive: keepAlive);
-        return null;
+        final suppliedUrl = getSuppliedImageUrl?.call(id);
+        if (suppliedUrl == null || suppliedUrl.isEmpty) return null;
+        return _fetchWithDedup(
+          id,
+          keepAlive,
+          imageUrl: suppliedUrl,
+          retainedImage: retainedImage,
+        );
       }
     }
 
-    return _fetchWithDedup(id, keepAlive, retainedImage: retainedImage);
+    return _fetchWithDedup(
+      id,
+      keepAlive,
+      imageUrl: getSuppliedImageUrl?.call(id),
+      retainedImage: retainedImage,
+    );
   }
 
   @override
@@ -712,7 +729,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }) {
     final cacheKey = _cacheKey(id);
     return _enqueueWrite(cacheKey, () async {
-      if (_disposed) return;
+      // A request can outlive logout or an account switch. Return the
+      // downloaded bytes to its caller, but never let an old session repopulate
+      // the shared byte/database cache after the session has changed.
+      if (_disposed || (isSessionCurrent != null && !isSessionCurrent!())) {
+        return;
+      }
       var effectiveKeepAlive = keepAlive;
       if (!keepAlive) {
         final cachedImage = await _getByCacheKey(cacheKey);
@@ -727,6 +749,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
           }
           effectiveKeepAlive = true;
         }
+      }
+      if (_disposed || (isSessionCurrent != null && !isSessionCurrent!())) {
+        return;
       }
       await put(
         ImageEntity(
@@ -821,7 +846,11 @@ IImageRepository groupProfileRepo(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.group,
-    getImageUrl: ref.watch(groupApiProvider).getGroupProfileImage,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupImage, id),
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
@@ -834,7 +863,12 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupSmall,
-    getImageUrl: ref.watch(groupApiProvider).getGroupProfileImageSmall,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) =>
+        _resolveImageUrl(ref, BatchReadKind.groupImageSmall, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupImageSmall, id),
     maxItems: 400,
     ttlDuration: const Duration(days: 7),
   );
@@ -847,7 +881,11 @@ IImageRepository groupPinImageRepo(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupPin,
-    getImageUrl: ref.watch(groupApiProvider).getGroupPinImage,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.groupPinImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.groupPinImage, id),
     maxItems: 200,
     ttlDuration: const Duration(days: 30),
   );
@@ -860,7 +898,12 @@ IImageRepository userImageSmallRepo(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.userSmall,
-    getImageUrl: ref.watch(userApiProvider).getUserProfileImageSmall,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) =>
+        _resolveImageUrl(ref, BatchReadKind.userImageSmall, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.userImageSmall, id),
     maxItems: 2000,
     ttlDuration: const Duration(days: 7),
   );
@@ -873,7 +916,11 @@ IImageRepository userImageRepo(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.user,
-    getImageUrl: ref.watch(userApiProvider).getUserProfileImage,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.userImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.userImage, id),
     maxItems: 200,
     ttlDuration: const Duration(days: 7),
   );
@@ -886,10 +933,26 @@ IImageRepository pinImageRepository(Ref ref) {
   final repository = ImageRepository(
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.pin,
-    getImageUrl: ref.watch(pinApiProvider).getPinImage,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) => _resolveImageUrl(ref, BatchReadKind.pinImage, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.pinImage, id),
     maxItems: 800,
     ttlDuration: const Duration(days: 14),
   );
   ref.onDispose(repository.dispose);
   return repository;
+}
+
+bool Function() _sessionGuard(Ref ref) {
+  final session = watchSession(ref);
+  return () => isCurrentSession(ref, session);
+}
+
+Future<String?> _resolveImageUrl(Ref ref, BatchReadKind kind, String id) async {
+  final result = await ref
+      .read(batchReadCoalescerProvider)
+      .readKey(BatchReadKey(kind, id));
+  return result.imageUrl;
 }

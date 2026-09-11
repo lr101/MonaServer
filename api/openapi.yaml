@@ -26,7 +26,34 @@ tags:
   name: admin
 - description: Everything about user rankings
   name: ranking
+- description: Bounded authenticated resource reads
+  name: Batch
 paths:
+  /api/v3/batch:
+    post:
+      operationId: batchRead
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/batchReadRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/batchReadResponse"
+          description: Per-resource results in request order
+        "400":
+          description: Invalid batch request
+        "401":
+          description: Authentication required
+      security:
+      - token: []
+      summary: Read several authenticated resources in one request
+      tags:
+      - Batch
   /api/v2/groups:
     get:
       operationId: getGroupsByIds
@@ -723,7 +750,8 @@ paths:
           minimum: 0
           type: integer
       - description: page number (can only be used when ids is not set). Sorted by
-          creation date descending
+          creation date descending. Use beforeCreationDate and beforeId for stable
+          cursor pagination.
         in: query
         name: page
         schema:
@@ -740,6 +768,18 @@ paths:
         name: updatedAfter
         schema:
           $ref: "#/components/schemas/date"
+      - description: stable pagination cursor; provide with beforeId; return pins
+          created before this date, with beforeId breaking ties
+        in: query
+        name: beforeCreationDate
+        schema:
+          $ref: "#/components/schemas/date"
+      - description: stable pagination cursor tie-breaker for beforeCreationDate;
+          provide both cursor parameters together
+        in: query
+        name: beforeId
+        schema:
+          $ref: "#/components/schemas/id"
       responses:
         "200":
           content:
@@ -1494,6 +1534,80 @@ paths:
       - pins
 components:
   schemas:
+    batchReadItem:
+      properties:
+        kind:
+          enum:
+          - pinImage
+          - userImageSmall
+          - userImage
+          - groupImageSmall
+          - groupImage
+          - groupPinImage
+          - user
+          - pinLikes
+          type: string
+        id:
+          format: uuid
+          type: string
+      required:
+      - kind
+      - id
+      type: object
+    batchReadRequest:
+      properties:
+        requests:
+          items:
+            $ref: "#/components/schemas/batchReadItem"
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+      - requests
+      type: object
+    batchReadResponse:
+      properties:
+        results:
+          items:
+            $ref: "#/components/schemas/batchReadResult"
+          type: array
+      required:
+      - results
+      type: object
+    batchReadResult:
+      properties:
+        kind:
+          enum:
+          - pinImage
+          - userImageSmall
+          - userImage
+          - groupImageSmall
+          - groupImage
+          - groupPinImage
+          - user
+          - pinLikes
+          type: string
+        id:
+          format: uuid
+          type: string
+        status:
+          format: int32
+          type: integer
+        imageUrl:
+          type: string
+        user:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/userInfoDto"
+        likes:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/pinLikeDto"
+      required:
+      - kind
+      - id
+      - status
+      type: object
     id:
       format: uuid
       type: string

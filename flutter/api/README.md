@@ -72,6 +72,7 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**refreshToken**](doc//AuthApi.md#refreshtoken) | **POST** /api/v2/public/refresh | Request a new access token
 *AuthApi* | [**requestPasswordRecovery**](doc//AuthApi.md#requestpasswordrecovery) | **GET** /api/v2/public/recover | Request password recovery
 *AuthApi* | [**userLogin**](doc//AuthApi.md#userlogin) | **POST** /api/v2/public/login | User login
+*BatchApi* | [**batchRead**](doc//BatchApi.md#batchread) | **POST** /api/v3/batch | Read several authenticated resources in one request
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
 *GroupsApi* | [**deleteGroup**](doc//GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 *GroupsApi* | [**getGroup**](doc//GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
@@ -116,6 +117,10 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [AdminMailDto](doc//AdminMailDto.md)
+ - [BatchReadItem](doc//BatchReadItem.md)
+ - [BatchReadRequest](doc//BatchReadRequest.md)
+ - [BatchReadResponse](doc//BatchReadResponse.md)
+ - [BatchReadResult](doc//BatchReadResult.md)
  - [CreateGroupDto](doc//CreateGroupDto.md)
  - [CreateLikeDto](doc//CreateLikeDto.md)
  - [GroupDto](doc//GroupDto.md)

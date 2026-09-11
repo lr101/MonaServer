@@ -96,6 +96,8 @@ test('loads pins for a public group opened through group search', async ({ page 
       response.ok()
     );
   });
+  // Click waits for the Flutter route transition to settle before editing.
+  await page.locator('input').first().click();
   await page.locator('input').first().fill(groupName);
   await searchRequest;
 
@@ -114,16 +116,13 @@ test('loads pins for a public group opened through group search', async ({ page 
     );
   });
 
-  const loadedPinImages = new Set<string>();
+  // Metadata and batch reads can supply URLs without per-pin image API calls.
+  // Verify the browser actually downloads every visible pin image.
   const loadedObjectImages = new Set<string>();
   page.on('response', (response) => {
     const url = new URL(response.url());
-    const apiMatch = url.pathname.match(/^\/api\/v2\/pins\/([^/]+)\/image$/);
-    if (apiMatch && response.ok()) {
-      loadedPinImages.add(apiMatch[1]);
-    }
     const objectMatch = url.pathname.match(/^\/monaserver\/pins\/([^/]+)\.png$/);
-    if (url.port === '9100' && objectMatch && response.ok()) {
+    if (objectMatch && response.ok()) {
       loadedObjectImages.add(objectMatch[1]);
     }
   });
@@ -141,12 +140,6 @@ test('loads pins for a public group opened through group search', async ({ page 
   });
 
   await page.getByRole('tab').nth(1).click();
-  await expect
-    .poll(
-      () => [...pinIds].filter((pinId) => loadedPinImages.has(pinId)).length,
-      { timeout: 30_000 },
-    )
-    .toBe(pinIds.size);
   await expect
     .poll(
       () => [...pinIds].filter((pinId) => loadedObjectImages.has(pinId)).length,
@@ -179,14 +172,26 @@ async function login(
 }
 
 async function submitLogin(page: Page, data: E2eData): Promise<void> {
-  await page.locator('input[aria-label="Name"]').fill(data.username);
-  await page.locator('input[aria-label="Password"]').fill(data.password);
+  await enterFlutterText(page, 'Name', data.username);
+  await enterFlutterText(page, 'Password', data.password);
   await page
     .locator('flt-semantics[role="button"]')
     .filter({ hasText: /^LOGIN$/ })
     .click();
 
   await page.waitForURL(/#\/home/, { timeout: 30_000 });
+}
+
+async function enterFlutterText(page: Page, label: string, value: string): Promise<void> {
+  const input = page.locator(`input[aria-label="${label}"]`);
+  await input.click();
+  await expect(input).toBeFocused();
+  // Flutter attaches its editing client after DOM focus. Typing in that same
+  // frame can lose the first character, especially after a logout transition.
+  await page.waitForTimeout(150);
+  await input.fill('');
+  await input.pressSequentially(value, { delay: 30 });
+  await expect(input).toHaveValue(value);
 }
 
 function escapeRegExp(value: string): string {

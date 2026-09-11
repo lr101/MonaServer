@@ -100,6 +100,7 @@ func main() {
 	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	// Generated controllers (handle HTTP param parsing).
 	authCtrl := genserver.NewAuthAPIController(authServicer)
@@ -112,6 +113,7 @@ func main() {
 	reportCtrl := genserver.NewReportAPIController(reportServicer)
 	publicCtrl := genserver.NewPublicAPIController(publicServicer)
 	usersCtrl := genserver.NewUsersAPIController(usersServicer)
+	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
 	viewsH := handler.NewViews(q, tok, cfg.RedirectURL)
 
@@ -192,6 +194,7 @@ func main() {
 		r.Use(requireCompatibilityJSONFields)
 		r.Use(validateCoupledQueryParameters)
 		r.Use(unpagedWhenPageMissing)
+		r.Use(validateBatchReadJSON)
 
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
@@ -200,6 +203,7 @@ func main() {
 		registerRoutes(r, rankingCtrl, alwaysTrue)
 		registerRoutes(r, reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
+		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 
 	// Admin-only routes.
@@ -282,6 +286,22 @@ func isDeleteCodeRoute(pattern string) bool {
 }
 
 func alwaysTrue(_ string) bool { return true }
+
+func validateBatchReadJSON(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v3/batch" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		if err != nil || !json.Valid(body) {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(w, r)
+	})
+}
 
 // redirectImageResponses translates the generated controllers' URL response
 // into the 301 response documented by the image endpoints.
@@ -368,7 +388,9 @@ func validateCoupledQueryParameters(next http.Handler) http.Handler {
 		query := r.URL.Query()
 		invalidGroupFilter := r.URL.Path == "/api/v2/groups" && query.Has("withUser") != query.Has("userId")
 		invalidMapPoint := r.URL.Path == "/api/v2/map" && query.Has("latitude") != query.Has("longitude")
-		if invalidGroupFilter || invalidMapPoint {
+		invalidPinCursor := r.URL.Path == "/api/v2/pins" &&
+			query.Has("beforeCreationDate") != query.Has("beforeId")
+		if invalidGroupFilter || invalidMapPoint || invalidPinCursor {
 			http.Error(w, "coupled query parameters must be provided together", http.StatusBadRequest)
 			return
 		}

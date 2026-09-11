@@ -126,7 +126,7 @@ mise run flutter-build-web
 cd flutter/e2e
 npm ci
 npm run install:browsers
-python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+node static_server.mjs
 ```
 
 Use the Playwright MCP server against `http://localhost:4173/` and log in as

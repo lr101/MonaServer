@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/square_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,6 +106,16 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         end = pageKey + _pageSize;
       }
       final idList = images.getRange(pageKey, end).toList();
+      if (idList.isNotEmpty) {
+        try {
+          final coalescer = ref.read(batchReadCoalescerProvider);
+          for (final pin in idList) {
+            _prefetchPinImage(coalescer, pin.pinId);
+          }
+        } catch (_) {
+          // Prefetch is an optimization and must not fail the page.
+        }
+      }
       if (end == images.length) {
         _pagingController.appendLastPage(idList);
       } else {
@@ -110,6 +123,21 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
       }
     } catch (error) {
       _pagingController.error = error;
+    }
+  }
+
+  void _prefetchPinImage(BatchReadCoalescer coalescer, String pinId) {
+    try {
+      final suppliedUrl = ref
+          .read(suppliedImageUrlRegistryProvider)
+          .lookup(BatchReadKind.pinImage, pinId);
+      if (suppliedUrl != null) return;
+      final future = coalescer.readKey(
+        BatchReadKey(BatchReadKind.pinImage, pinId),
+      );
+      unawaited(future.then<void>((_) {}, onError: (_, _) {}));
+    } catch (_) {
+      // Prefetch is an optimization and must not turn into a page error.
     }
   }
 }

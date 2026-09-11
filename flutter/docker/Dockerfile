@@ -48,7 +48,8 @@ COPY . .
 
 # Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
 # flutter_bootstrap.js selects the first compatible build in the browser.
-RUN flutter build web --wasm --release --no-pub
+ARG API_HOST=https://stick-it.lr-projects.de
+RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST="${API_HOST}"
 
 # Fail the image build if a future Flutter/toolchain change drops either
 # browser variant or the runtime configuration assets.
@@ -65,7 +66,7 @@ RUN set -eux; \
 # Use a lightweight Nginx image
 FROM nginx:alpine
 
-# Copy the custom nginx.conf
+# Copy the static-file Nginx configuration.
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy the compiled web files from the 'build' stage to Nginx's public folder
@@ -74,5 +75,4 @@ COPY --from=build /app/build/web /usr/share/nginx/html
 # Expose port 80 to the outside world
 EXPOSE 80
 
-# Start Nginx
 CMD ["nginx", "-g", "daemon off;"]

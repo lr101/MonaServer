@@ -8,6 +8,7 @@ import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +44,19 @@ class UserService extends _$UserService {
       final localUser = await repo.get(this.userId);
       if (!isCurrent() || localUser != null) return;
       final bool isCurrentUser = this.userId == global.userId;
-      final userDto = await userApi.getUser(this.userId);
+      UserInfoDto? userDto;
+      try {
+        final result = await ref
+            .read(batchReadCoalescerProvider)
+            .readKey(BatchReadKey(BatchReadKind.user, this.userId));
+        userDto = result.user;
+      } catch (_) {
+        // Keep profile hydration available while an older server is being
+        // upgraded or when a batch item is temporarily unavailable. The
+        // fallback is only used after the coalesced request fails.
+        if (!isCurrent()) return;
+        userDto = await userApi.getUser(this.userId);
+      }
       if (!isCurrent() || userDto == null) return;
       await repo.put(
         UserEntity.fromDto(userDto, !isCurrentUser, keepAlive: isCurrentUser),
@@ -63,6 +76,7 @@ class UserService extends _$UserService {
   }) async {
     final repo = _repo;
     final operationRef = ref;
+    final isCurrent = accountOperation(ref);
     final images = ref.read(userImageRepoProvider);
     final smallImages = ref.read(userImageSmallRepoProvider);
     try {
@@ -79,11 +93,12 @@ class UserService extends _$UserService {
         ),
       );
 
-      if (!operationRef.mounted) return "Session ended";
+      if (!operationRef.mounted || !isCurrent()) return "Session ended";
       final userEntity = state.value;
       if (result != null && userEntity != null) {
         final userDto = userEntity.copyUserWith(result, selectedBatch);
         await repo.put(userDto);
+        if (!isCurrent()) return null;
         if (profilePicture != null) {
           images.overrideUrl(this.userId, result.profileImage!, true);
           smallImages.overrideUrl(this.userId, result.profileImageSmall!, true);

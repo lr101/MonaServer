@@ -30,6 +30,7 @@ part 'auth/http_bearer_auth.dart';
 
 part 'api/admin_api.dart';
 part 'api/auth_api.dart';
+part 'api/batch_api.dart';
 part 'api/groups_api.dart';
 part 'api/likes_api.dart';
 part 'api/members_api.dart';
@@ -40,6 +41,10 @@ part 'api/report_api.dart';
 part 'api/users_api.dart';
 
 part 'model/admin_mail_dto.dart';
+part 'model/batch_read_item.dart';
+part 'model/batch_read_request.dart';
+part 'model/batch_read_response.dart';
+part 'model/batch_read_result.dart';
 part 'model/create_group_dto.dart';
 part 'model/create_like_dto.dart';
 part 'model/group_dto.dart';

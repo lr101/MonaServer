@@ -25,7 +25,7 @@ func NewPinsServicer(pin *service.Pin, group *service.Group, guard *service.Guar
 	return &PinsServicer{pin: pin, group: group, guard: guard, q: q}
 }
 
-func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, groupID, userID string, withImage bool, compression, height, page, size int32, updatedAfter time.Time) (genserver.ImplResponse, error) {
+func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, groupID, userID string, withImage bool, compression, height, page, size int32, updatedAfter, beforeCreationDate time.Time, beforeID string) (genserver.ImplResponse, error) {
 	caller, ok := ctxUserID(ctx)
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
@@ -58,15 +58,37 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 	if !updatedAfter.IsZero() {
 		after = &updatedAfter
 	}
+	var beforeDate *time.Time
+	if !beforeCreationDate.IsZero() {
+		beforeDate = &beforeCreationDate
+	}
+	var beforePinID *uuid.UUID
+	if beforeID != "" {
+		id, err := uuid.Parse(beforeID)
+		if err != nil {
+			return genserver.Response(http.StatusBadRequest, nil), nil
+		}
+		beforePinID = &id
+	}
+	if (beforeDate == nil) != (beforePinID == nil) {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
 	limit := size
 	offset := page * size
 	if len(parsedIDs) > 0 {
 		limit = 0
 		offset = 0
 	}
+	if beforeDate != nil {
+		// Keyset pagination owns the position once a cursor is supplied. The
+		// page field remains accepted for older clients and diagnostics, but an
+		// offset would reintroduce skips when rows are inserted or deleted.
+		offset = 0
+	}
 	pins, err := s.q.SearchPins(ctx, db.PinSearch{
 		CallerID: caller, IDs: parsedIDs, GroupID: gid, CreatorID: creatorID,
-		UpdatedAfter: after, Limit: limit, Offset: offset,
+		UpdatedAfter: after, BeforeCreationDate: beforeDate, BeforeID: beforePinID,
+		Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		return serviceErrResp(ctx, err), nil

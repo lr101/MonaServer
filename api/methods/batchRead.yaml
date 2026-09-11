@@ -1,0 +1,24 @@
+post:
+  operationId: batchRead
+  security:
+    - token: []
+  summary: Read several authenticated resources in one request
+  tags:
+    - Batch
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/batchReadRequest.yaml'
+  responses:
+    '200':
+      description: Per-resource results in request order
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/batchReadResponse.yaml'
+    '400':
+      description: Invalid batch request
+    '401':
+      description: Authentication required

@@ -164,6 +164,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	authCtrl := genserver.NewAuthAPIController(authServicer)
 	groupsCtrl := genserver.NewGroupsAPIController(groupsServicer)
@@ -175,6 +176,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	reportCtrl := genserver.NewReportAPIController(reportServicer)
 	publicCtrl := genserver.NewPublicAPIController(publicServicer)
 	usersCtrl := genserver.NewUsersAPIController(usersServicer)
+	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
 	r := chi.NewRouter()
 	r.Use(chimw.Recoverer)
@@ -193,6 +195,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		r.Use(requireCompatibilityJSONFields)
 		r.Use(validateCoupledQueryParameters)
 		r.Use(unpagedWhenPageMissing)
+		r.Use(validateBatchReadJSON)
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
@@ -200,6 +203,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, rankingCtrl, alwaysTrue)
 		registerRoutes(r, reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
+		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
@@ -231,6 +235,7 @@ func TestUnpagedWhenPageMissing(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestValidateCoupledQueryParameters(t *testing.T) {
@@ -246,6 +251,9 @@ func TestValidateCoupledQueryParameters(t *testing.T) {
 		{path: "/api/v2/map", query: "longitude=1", want: http.StatusBadRequest},
 		{path: "/api/v2/map", query: "latitude=1&longitude=2", want: http.StatusOK},
 		{path: "/api/v2/pins", query: "userId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
+		{path: "/api/v2/pins", query: "beforeCreationDate=2026-01-01T00:00:00Z", want: http.StatusBadRequest},
+		{path: "/api/v2/pins", query: "beforeId=00000000-0000-0000-0000-000000000000", want: http.StatusBadRequest},
+		{path: "/api/v2/pins", query: "beforeCreationDate=2026-01-01T00:00:00Z&beforeId=00000000-0000-0000-0000-000000000000", want: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
@@ -257,6 +265,7 @@ func TestValidateCoupledQueryParameters(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 // --- helper types ---
@@ -539,6 +548,183 @@ func TestEndpointAuth(t *testing.T) {
 			t.Fatalf("delete-code: expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestBatchReadAuthenticationAndValidation(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	auth := anon.signup(t, "batch_validation", "pw123")
+	client := &apiClient{base: srv.URL, bearer: auth.AccessToken}
+	id := uuid.New().String()
+
+	tests := []struct {
+		name   string
+		client *apiClient
+		body   any
+		want   int
+	}{
+		{name: "authentication required", client: anon, body: map[string]any{"requests": []any{map[string]string{"kind": "user", "id": id}}}, want: http.StatusUnauthorized},
+		{name: "empty request rejected", client: client, body: map[string]any{"requests": []any{}}, want: http.StatusBadRequest},
+		{name: "missing requests rejected", client: client, body: map[string]any{}, want: http.StatusBadRequest},
+		{name: "unknown kind rejected", client: client, body: map[string]any{"requests": []any{map[string]string{"kind": "unknown", "id": id}}}, want: http.StatusBadRequest},
+		{name: "malformed id rejected", client: client, body: map[string]any{"requests": []any{map[string]string{"kind": "user", "id": "not-a-uuid"}}}, want: http.StatusBadRequest},
+	}
+	overLimit := make([]any, 101)
+	for i := range overLimit {
+		overLimit[i] = map[string]string{"kind": "user", "id": id}
+	}
+	tests = append(tests, struct {
+		name   string
+		client *apiClient
+		body   any
+		want   int
+	}{name: "over limit rejected", client: client, body: map[string]any{"requests": overLimit}, want: http.StatusBadRequest})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := tt.client.do(t, http.MethodPost, "/api/v3/batch", tt.body)
+			defer resp.Body.Close()
+			if resp.StatusCode != tt.want {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tt.want)
+			}
+		})
+	}
+
+	t.Run("trailing JSON rejected", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v3/batch", strings.NewReader(`{"requests":[{"kind":"user","id":"`+auth.UserID+`"}]} {}`))
+		if err != nil {
+			t.Fatalf("create request: %v", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+auth.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("batch request: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400", resp.StatusCode)
+		}
+	})
+}
+
+func TestBatchReadResourcesAndPerItemAuthorization(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	owner := anon.signup(t, "batch_owner", "pw123")
+	outsider := anon.signup(t, "batch_outsider", "pw123")
+	ownerClient := &apiClient{base: srv.URL, bearer: owner.AccessToken}
+	outsiderClient := &apiClient{base: srv.URL, bearer: outsider.AccessToken}
+	publicGroupID := ownerClient.createGroup(t, owner.UserID, "batch_public", 0)
+	privateGroupID := ownerClient.createGroup(t, owner.UserID, "batch_private", 1)
+
+	pinNumber := 0
+	createPin := func(groupID string) string {
+		pinNumber++
+		resp := ownerClient.do(t, http.MethodPost, "/api/v2/pins", map[string]any{
+			"image":        testImageBase64,
+			"latitude":     48.137 + float64(pinNumber),
+			"longitude":    11.576 + float64(pinNumber),
+			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"userId":       owner.UserID,
+			"groupId":      groupID,
+		})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create pin: status = %d, want 201", resp.StatusCode)
+		}
+		var pin map[string]any
+		decode(t, resp, &pin)
+		return fmt.Sprintf("%v", pin["id"])
+	}
+	publicPinID := createPin(publicGroupID)
+	privatePinID := createPin(privateGroupID)
+
+	like := ownerClient.do(t, http.MethodPost, "/api/v2/pins/"+publicPinID+"/likes", map[string]any{
+		"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false, "userId": owner.UserID,
+	})
+	like.Body.Close()
+	if like.StatusCode != http.StatusCreated {
+		t.Fatalf("create like: status = %d, want 201", like.StatusCode)
+	}
+
+	requests := []map[string]string{
+		{"kind": "pinImage", "id": publicPinID},
+		{"kind": "userImageSmall", "id": owner.UserID},
+		{"kind": "userImage", "id": owner.UserID},
+		{"kind": "groupImageSmall", "id": publicGroupID},
+		{"kind": "groupImage", "id": publicGroupID},
+		{"kind": "groupPinImage", "id": publicGroupID},
+		{"kind": "user", "id": owner.UserID},
+		{"kind": "pinLikes", "id": publicPinID},
+		{"kind": "pinImage", "id": privatePinID},
+		{"kind": "groupImageSmall", "id": privateGroupID},
+		{"kind": "groupImage", "id": privateGroupID},
+		{"kind": "groupPinImage", "id": privateGroupID},
+		{"kind": "pinLikes", "id": publicPinID},
+	}
+	response := outsiderClient.do(t, http.MethodPost, "/api/v3/batch", map[string]any{"requests": requests})
+	if response.StatusCode != http.StatusOK {
+		response.Body.Close()
+		t.Fatalf("batch status = %d, want 200", response.StatusCode)
+	}
+	var body struct {
+		Results []struct {
+			Kind     string         `json:"kind"`
+			ID       string         `json:"id"`
+			Status   int            `json:"status"`
+			ImageURL *string        `json:"imageUrl"`
+			User     map[string]any `json:"user"`
+			Likes    map[string]any `json:"likes"`
+		} `json:"results"`
+	}
+	decode(t, response, &body)
+	if len(body.Results) != len(requests) {
+		t.Fatalf("result count = %d, want %d", len(body.Results), len(requests))
+	}
+	for i := 0; i < 8; i++ {
+		if got := body.Results[i].Status; got != http.StatusOK {
+			t.Fatalf("result %d (%s) status = %d, want 200", i, requests[i]["kind"], got)
+		}
+	}
+	for _, i := range []int{8, 9, 10, 11} {
+		result := body.Results[i]
+		if result.Status != http.StatusForbidden {
+			t.Fatalf("result %d (%s) status = %d, want 403", i, requests[i]["kind"], result.Status)
+		}
+		if result.ImageURL != nil || result.User != nil || result.Likes != nil {
+			t.Fatalf("forbidden result %d exposed resource data: %+v", i, result)
+		}
+	}
+	if got := body.Results[6].User["userId"]; got != owner.UserID {
+		t.Fatalf("user result id = %v, want %s", got, owner.UserID)
+	}
+	if got, _ := body.Results[7].Likes["likeCount"].(float64); got != 1 {
+		t.Fatalf("outsider like count = %v, want 1", body.Results[7].Likes["likeCount"])
+	}
+	if liked, _ := body.Results[7].Likes["likedByUser"].(bool); liked {
+		t.Fatal("outsider pinLikes result reported another caller's like")
+	}
+	if fmt.Sprint(body.Results[7].Likes) != fmt.Sprint(body.Results[12].Likes) {
+		t.Fatal("duplicate request did not preserve the cached result")
+	}
+
+	ownerResponse := ownerClient.do(t, http.MethodPost, "/api/v3/batch", map[string]any{
+		"requests": []map[string]string{{"kind": "pinLikes", "id": publicPinID}},
+	})
+	var ownerBody struct {
+		Results []struct {
+			Likes map[string]any `json:"likes"`
+		} `json:"results"`
+	}
+	decode(t, ownerResponse, &ownerBody)
+	if liked, _ := ownerBody.Results[0].Likes["likedByUser"].(bool); !liked {
+		t.Fatal("owner pinLikes result did not include the caller's like")
+	}
 }
 
 // TestDeleteAccountWithEmailedCode exercises the full account-deletion flow:

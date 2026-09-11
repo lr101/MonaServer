@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
@@ -111,6 +112,7 @@ class SyncingService extends _$SyncingService {
 
     for (final groupUpdate in response.groupUpdates) {
       final groupDto = groupUpdate.group;
+      registerGroupImageUrls(ref, groupDto);
       final existingGroup = await groupRepository.get(groupDto.id);
       await groupRepository.put(
         GroupEntity.fromGroupDto(
@@ -123,6 +125,9 @@ class SyncingService extends _$SyncingService {
       );
 
       if (groupUpdate.pinsAdded.isNotEmpty) {
+        for (final pin in groupUpdate.pinsAdded) {
+          registerPinImageUrl(ref, pin);
+        }
         await pinRepository.putMultiple(
           groupUpdate.pinsAdded
               .map((pin) => PinEntity.fromDto(pin, false))

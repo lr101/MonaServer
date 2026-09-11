@@ -108,7 +108,7 @@ E2E_API_URL=http://127.0.0.1:8081 mise run flutter-build-web
 cd flutter/e2e
 npm ci
 npm run install:browsers
-python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+node static_server.mjs
 ```
 
 Then use the `playwright` MCP server at `http://localhost:4173/`. Flutter web

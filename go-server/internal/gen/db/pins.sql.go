@@ -346,18 +346,28 @@ WHERE p.is_deleted = FALSE
       $5::timestamptz IS NULL
       OR p.update_date > $5::timestamptz
   )
-ORDER BY p.creation_date DESC
-LIMIT $7 OFFSET $6
+  AND (
+      $6::timestamptz IS NULL
+      OR p.creation_date < $6::timestamptz
+      OR (
+          p.creation_date = $6::timestamptz
+          AND p.id < $7::uuid
+      )
+  )
+ORDER BY p.creation_date DESC, p.id DESC
+LIMIT $9 OFFSET $8
 `
 
 type SearchPinsParams struct {
-	CallerID     pgtype.UUID        `json:"caller_id"`
-	Ids          []pgtype.UUID      `json:"ids"`
-	GroupID      pgtype.UUID        `json:"group_id"`
-	CreatorID    pgtype.UUID        `json:"creator_id"`
-	UpdatedAfter pgtype.Timestamptz `json:"updated_after"`
-	Off          int32              `json:"off"`
-	Lim          int32              `json:"lim"`
+	CallerID           pgtype.UUID        `json:"caller_id"`
+	Ids                []pgtype.UUID      `json:"ids"`
+	GroupID            pgtype.UUID        `json:"group_id"`
+	CreatorID          pgtype.UUID        `json:"creator_id"`
+	UpdatedAfter       pgtype.Timestamptz `json:"updated_after"`
+	BeforeCreationDate pgtype.Timestamptz `json:"before_creation_date"`
+	BeforeID           pgtype.UUID        `json:"before_id"`
+	Off                int32              `json:"off"`
+	Lim                int32              `json:"lim"`
 }
 
 type SearchPinsRow struct {
@@ -379,6 +389,8 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 		arg.GroupID,
 		arg.CreatorID,
 		arg.UpdatedAfter,
+		arg.BeforeCreationDate,
+		arg.BeforeID,
 		arg.Off,
 		arg.Lim,
 	)

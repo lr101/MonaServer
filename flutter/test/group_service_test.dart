@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -291,8 +292,8 @@ void main() {
   test('shared group pin state remains newest-first', () async {
     final older = PinEntity(
       pinId: 'older',
-      latitude: 0,
-      longitude: 0,
+      latitude: 0.0,
+      longitude: 0.0,
       creationDate: DateTime(2024),
       creator: 'user-id',
       groupId: 'group-id',
@@ -462,6 +463,23 @@ void main() {
     expect(pinsApi.requests, 1);
   });
 
+  test('paginates all pins when joining a group', () async {
+    final pinsApi = _FakePinsApi(
+      getPinsPageOverride: (page) async => page == 0
+          ? PinsSyncDto(
+              items: List.generate(20, (index) => _groupPin(id: 'pin-$index')),
+            )
+          : PinsSyncDto(items: [_groupPin(id: 'pin-20')]),
+    );
+    final service = await _createService(
+      membersApi: _FakeMembersApi(_groupWithImages()),
+      pinsApi: pinsApi,
+    );
+
+    expect(await service.joinGroup('group-id'), isNull);
+    expect(pinsApi.requestedPages, [0, 1]);
+  });
+
   test(
     'keeps a successful membership when pin synchronization fails',
     () async {
@@ -481,7 +499,7 @@ void main() {
     },
   );
 
-  test('prefetches joined group media after joining completes', () async {
+  test('registers joined group media URLs without downloading bytes', () async {
     final profileCache = _FakeImageRepository.pending();
     final profileSmallCache = _FakeImageRepository.pending();
     final pinImageCache = _FakeImageRepository.pending();
@@ -496,16 +514,11 @@ void main() {
     final join = service.joinGroup('group-id').then((_) => completed = true);
     await _nextEventLoop();
 
-    expect(profileCache.overrideIds, ['group-id']);
-    expect(profileSmallCache.overrideIds, ['group-id']);
-    expect(pinImageCache.overrideIds, ['group-id']);
+    expect(profileCache.fetchIds, isEmpty);
+    expect(profileSmallCache.fetchIds, isEmpty);
+    expect(pinImageCache.fetchIds, isEmpty);
     expect(completed, isTrue);
 
-    profileCache.complete();
-    await _nextEventLoop();
-    profileSmallCache.complete();
-    await _nextEventLoop();
-    pinImageCache.complete();
     await join;
     expect(completed, isTrue);
   });
@@ -526,13 +539,9 @@ void main() {
         .timeout(const Duration(milliseconds: 100));
 
     expect(result, isNull);
-    expect(profileCache.overrideIds, ['group-id']);
-    expect(profileSmallCache.overrideIds, ['group-id']);
-    expect(pinImageCache.overrideIds, ['group-id']);
-
-    profileCache.complete();
-    profileSmallCache.complete();
-    pinImageCache.complete();
+    expect(profileCache.fetchIds, isEmpty);
+    expect(profileSmallCache.fetchIds, isEmpty);
+    expect(pinImageCache.fetchIds, isEmpty);
   });
 
   test(
@@ -558,19 +567,15 @@ void main() {
       container.read(trigger(_groupWithImages(id: 'group-2')));
       await Future<void>.delayed(Duration.zero);
 
-      expect(profileCache.overrideIds, ['group-1']);
-      expect(profileSmallCache.overrideIds, ['group-1']);
-      expect(pinImageCache.overrideIds, ['group-1']);
-
-      profileCache.complete();
-      profileSmallCache.complete();
-      pinImageCache.complete();
+      expect(profileCache.fetchIds, isEmpty);
+      expect(profileSmallCache.fetchIds, isEmpty);
+      expect(pinImageCache.fetchIds, isEmpty);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(profileCache.overrideIds, ['group-1', 'group-2']);
-      expect(profileSmallCache.overrideIds, ['group-1', 'group-2']);
-      expect(pinImageCache.overrideIds, ['group-1', 'group-2']);
+      expect(profileCache.fetchIds, isEmpty);
+      expect(profileSmallCache.fetchIds, isEmpty);
+      expect(pinImageCache.fetchIds, isEmpty);
     },
   );
 
@@ -591,16 +596,11 @@ void main() {
         .then((_) => completed = true);
     await _nextEventLoop();
 
-    expect(profileCache.overrideIds, ['group-id']);
-    expect(profileSmallCache.overrideIds, ['group-id']);
-    expect(pinImageCache.overrideIds, ['group-id']);
+    expect(profileCache.fetchIds, isEmpty);
+    expect(profileSmallCache.fetchIds, isEmpty);
+    expect(pinImageCache.fetchIds, isEmpty);
     expect(completed, isTrue);
 
-    profileCache.complete();
-    await _nextEventLoop();
-    profileSmallCache.complete();
-    await _nextEventLoop();
-    pinImageCache.complete();
     await update;
     expect(completed, isTrue);
   });
@@ -1149,6 +1149,9 @@ Future<UserGroupService> _createService({
       groupPinImageRepoProvider.overrideWithValue(
         pinImageCache ?? _FakeImageRepository(),
       ),
+      suppliedImageUrlRegistryProvider.overrideWithValue(
+        SuppliedImageUrlRegistry(),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -1174,6 +1177,16 @@ GroupDto _groupWithoutImages() =>
 
 GroupDto _privateGroupWithoutImages() =>
     GroupDto(id: 'group-id', name: 'Private group', visibility: 1);
+
+PinWithOptionalImageDto _groupPin({required String id}) =>
+    PinWithOptionalImageDto(
+      id: id,
+      creationDate: DateTime(2024),
+      latitude: 0.0,
+      longitude: 0.0,
+      creationUser: 'creator',
+      groupId: 'group-id',
+    );
 
 class _FakeMembersApi extends MembersApi {
   _FakeMembersApi(this.group) : super(ApiClient());
@@ -1209,10 +1222,13 @@ class _FakeGroupsApi extends GroupsApi {
 }
 
 class _FakePinsApi extends PinsApi {
-  _FakePinsApi({this.getPinsOverride}) : super(ApiClient());
+  _FakePinsApi({this.getPinsOverride, this.getPinsPageOverride})
+    : super(ApiClient());
 
   int requests = 0;
   final Future<PinsSyncDto?> Function()? getPinsOverride;
+  final Future<PinsSyncDto?> Function(int? page)? getPinsPageOverride;
+  final requestedPages = <int?>[];
 
   @override
   Future<PinsSyncDto?> getPinImagesByIds({
@@ -1225,8 +1241,12 @@ class _FakePinsApi extends PinsApi {
     int? page,
     int? size,
     DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
   }) async {
     requests++;
+    requestedPages.add(page);
+    if (getPinsPageOverride != null) return getPinsPageOverride!(page);
     return getPinsOverride == null ? null : getPinsOverride!();
   }
 }
@@ -1365,6 +1385,7 @@ class _FakeImageRepository implements IImageRepository {
   final Completer<Uint8List>? _completion;
   final Object? error;
   final List<String> overrideIds = [];
+  final List<String> fetchIds = [];
 
   @override
   ImageType get type => ImageType.group;
@@ -1387,7 +1408,11 @@ class _FakeImageRepository implements IImageRepository {
   Future<void> deleteOldestItems() async {}
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async => null;
+  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+    fetchIds.add(id);
+    if (error != null) throw error!;
+    return _completion?.future;
+  }
 
   @override
   Future<Uint8List?> fetchImageFromUrl(
