@@ -34,7 +34,7 @@ dependencies:
   flutter_map_tile_caching:
   flutter_native_splash:
   flutter_riverpod: ^3.4.2
-  flutter_secure_storage: ^10.0.0
+  flutter_secure_storage: ^11.0.0
   fluttertoast: ^10.0.0
   freezed_annotation:
   geocoding:
