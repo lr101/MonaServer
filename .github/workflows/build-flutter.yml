@@ -3,13 +3,7 @@ name: Build and test Flutter app
 on:
   push:
     branches: [main, develop]
-    paths:
-      - "flutter/**"
-      - "api/**"
-      - ".github/scripts/**"
-      - "mise.toml"
-      - "codemagic.yaml"
-      - ".github/workflows/build-flutter.yml"
+    # Promotion requires an image for the exact branch HEAD, even after docs pushes.
   pull_request:
     paths:
       - "flutter/**"

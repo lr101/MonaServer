@@ -17,8 +17,11 @@ caches. Release Wasm builds retain the JavaScript fallback for browser support.
 ## GitHub Actions
 
 Flutter and Go validation run on relevant pull requests and manual dispatches.
-Flutter publishing and Go publishing run on relevant pushes to `main` and
-`develop`. Feature branches are validated through their PR, avoiding duplicate
+Flutter publishing and Go publishing run on pushes to `main` and `develop`.
+Publishing pushes intentionally have no path filter: channel promotion verifies
+an image for the exact branch HEAD. Filtering a docs-only push during an earlier
+build could leave no image for that HEAD and prevent promotion. Feature branches
+are validated through their PR, avoiding duplicate
 push and PR jobs. Superseded PR validation is cancelled. Publishing and channel
 promotion are not cancelled.
 

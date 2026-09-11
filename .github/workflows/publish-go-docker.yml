@@ -5,14 +5,7 @@ on:
     branches:
       - main
       - develop
-    paths:
-      - 'go-server/**'
-      - 'api/**'
-      - 'mise.toml'
-      - '.github/actions/go-docker-cache/**'
-      - '.github/scripts/**'
-      - '.github/workflows/build-go-docker.yml'
-      - '.github/workflows/publish-go-docker.yml'
+    # Promotion requires an image for the exact branch HEAD, even after docs pushes.
 
 env:
   REGISTRY: ghcr.io
