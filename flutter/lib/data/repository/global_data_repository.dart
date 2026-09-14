@@ -82,6 +82,7 @@ class GlobalDataRepository {
   late SharedPreferences sharedPreferences;
 
   static const String accountCleanupPending = 'accountCleanupPending';
+  static const String sessionExpired = 'sessionExpired';
   static const String usernameKey = "username";
   static const String userIdKey = "userId";
   static const String tokenKey = "auth";
@@ -126,7 +127,9 @@ class GlobalDataRepository {
       userId: sharedPreferences.getBool(accountCleanupPending) == true
           ? null
           : await storage.read(key: userIdKey),
-      refreshToken: sharedPreferences.getBool(accountCleanupPending) == true
+      refreshToken:
+          sharedPreferences.getBool(accountCleanupPending) == true ||
+              sharedPreferences.getBool(sessionExpired) == true
           ? null
           : await storage.read(key: tokenKey),
       cameras: await loadAvailableCameras(isWeb: kIsWeb),
@@ -162,6 +165,16 @@ class GlobalDataRepository {
     }
   }
 
+  Future<void> expireSession() async {
+    final storage = ref.read(secureStorageProvider);
+    // Either persisted signal prevents rejected credentials being restored.
+    // Attempt both writes even if one store is temporarily unavailable.
+    await Future.wait([
+      requirePreferenceWrite(sharedPreferences.setBool(sessionExpired, true)),
+      storage.delete(key: tokenKey),
+    ]);
+  }
+
   Future<void> logout() async {
     final storage = ref.read(secureStorageProvider);
     Future<void> clearPreferences() async {
@@ -188,6 +201,7 @@ class GlobalDataRepository {
     await storage.write(key: usernameKey, value: username);
     await storage.write(key: userIdKey, value: userId);
     await storage.write(key: tokenKey, value: token);
+    await requirePreferenceWrite(sharedPreferences.remove(sessionExpired));
   }
 
   Future<void> updateCurrentUser({

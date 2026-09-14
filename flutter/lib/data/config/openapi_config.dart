@@ -29,12 +29,14 @@ class AccessTokenManager {
     String initialAccessToken = '',
     DateTime? lastRefreshAt,
     DateTime Function()? now,
+    Future<void> Function()? onInvalidCredentials,
   }) {
     return AccessTokenManager._(
       refreshAccessToken,
       initialAccessToken,
       lastRefreshAt,
       now ?? DateTime.now,
+      onInvalidCredentials,
     );
   }
 
@@ -43,11 +45,14 @@ class AccessTokenManager {
     this._accessToken,
     this._lastRefreshAt,
     this._now,
+    this._onInvalidCredentials,
   );
 
   static const _refreshInterval = Duration(minutes: 1);
 
   final RefreshAccessToken _refreshAccessToken;
+  final Future<void> Function()? _onInvalidCredentials;
+  bool _credentialsRejected = false;
   final DateTime Function() _now;
   final Mutex _mutex = Mutex();
   final _ClientLifetime _lifetime = _ClientLifetime();
@@ -65,6 +70,7 @@ class AccessTokenManager {
 
   Future<void> refresh({bool force = false}) async {
     _lifetime.checkOpen();
+    if (_credentialsRejected) throw const InvalidRefreshCredentialsException();
     final accessTokenBeforeWait = _accessToken;
     if (!force && !needsRefresh) {
       return;
@@ -73,6 +79,9 @@ class AccessTokenManager {
     await _lifetime.guard(
       () => _mutex.protect(() async {
         _lifetime.checkOpen();
+        if (_credentialsRejected) {
+          throw const InvalidRefreshCredentialsException();
+        }
         if (!force && !needsRefresh) {
           return;
         }
@@ -84,24 +93,31 @@ class AccessTokenManager {
           final accessToken = await _refreshAccessToken();
           _lifetime.checkOpen();
           if (accessToken == null || accessToken.isEmpty) {
-            _clearCredentials();
-            throw const InvalidRefreshCredentialsException();
+            await _rejectCredentials();
           }
           _accessToken = accessToken;
           _lastRefreshAt = _now();
         } on ApiException catch (error, stackTrace) {
           _lifetime.checkOpen();
           if (error.code == 401 || error.code == 403) {
-            _clearCredentials();
-            Error.throwWithStackTrace(
-              const InvalidRefreshCredentialsException(),
-              stackTrace,
-            );
+            await _rejectCredentials();
           }
           Error.throwWithStackTrace(error, stackTrace);
         }
       }),
     );
+  }
+
+  Future<Never> _rejectCredentials() async {
+    _credentialsRejected = true;
+    _clearCredentials();
+    try {
+      await _onInvalidCredentials?.call();
+    } catch (_) {
+      // A persistence failure cannot revive this rejected session or replace
+      // the typed authentication failure with potentially sensitive details.
+    }
+    throw const InvalidRefreshCredentialsException();
   }
 
   void dispose() {
@@ -131,8 +147,15 @@ class OpenApiConfig extends _$OpenApiConfig {
       ),
     );
     // Each build captures one session, including the refresh transport.
+    final global = ref.read(globalDataServiceProvider.notifier);
+    final generation = global.generation;
     final refreshApiClient = ApiClient(basePath: session.host);
     final tokenManager = AccessTokenManager(
+      onInvalidCredentials: () async {
+        if (ref.mounted) {
+          await global.expireSession(expectedGeneration: generation);
+        }
+      },
       refreshAccessToken: () async {
         final refreshToken = session.refreshToken;
         if (refreshToken == null || refreshToken.isEmpty) return null;

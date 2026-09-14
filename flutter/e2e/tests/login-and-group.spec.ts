@@ -60,6 +60,67 @@ async function logout(page: Page): Promise<void> {
   await expect(page.locator('input[aria-label="Name"]')).toBeVisible();
 }
 
+test('rejected refresh returns to login, survives reload, and permits reauthentication', async ({ page }) => {
+  test.setTimeout(90_000);
+  const data = readE2eData();
+  await login(page, data);
+  let rejections = 0;
+  await page.route('**/api/v2/public/refresh', async (route) => {
+    rejections++;
+    await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+  });
+  // The only expected browser error is the refresh response injected above.
+  page.on('console', (message) => {
+    if (message.type() === 'error' &&
+        message.location().url.endsWith('/api/v2/public/refresh') &&
+        message.text() === 'Failed to load resource: the server responded with a status of 403 (Forbidden)') {
+      const errors = uiErrors.get(page)!;
+      const index = errors.lastIndexOf(message.text());
+      if (index >= 0) errors.splice(index, 1);
+    }
+  });
+  await page.reload();
+  await page.waitForURL(/#\/login/, { timeout: 30_000 });
+  await enableAccessibility(page);
+  await expect(page.getByText('Your session expired. Sign in again to continue.')).toBeVisible();
+  expect(rejections).toBe(1);
+
+  await page.reload();
+  await enableAccessibility(page);
+  await expect(page.getByText('Your session expired. Sign in again to continue.')).toBeVisible();
+  expect(rejections).toBe(1);
+  await page.unroute('**/api/v2/public/refresh');
+  await submitLogin(page, data);
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+test('login and restored sessions each sync once without navigation retriggers', async ({ page }) => {
+  const data = readE2eData();
+  let syncRequests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/v3/sync') syncRequests++;
+  });
+  const firstSync = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v3/sync' && response.ok());
+  await login(page, data);
+  await firstSync;
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  expect(syncRequests).toBe(1);
+
+  const restoredSync = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v3/sync' && response.ok());
+  await page.reload();
+  await enableAccessibility(page);
+  await restoredSync;
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+  expect(syncRequests).toBe(2);
+});
+
 test('logs in and renders the seeded group', async ({ page }) => {
   const data = readE2eData();
 
@@ -156,6 +217,11 @@ async function login(
   data: E2eData,
 ): Promise<void> {
   await page.goto('/');
+  await enableAccessibility(page);
+  await submitLogin(page, data);
+}
+
+async function enableAccessibility(page: Page): Promise<void> {
   await page.waitForFunction(
     () => document.querySelector('#splash-screen') === null,
     undefined,
@@ -167,8 +233,6 @@ async function login(
   await page.waitForTimeout(500);
   await accessibilityPlaceholder.focus();
   await page.keyboard.press('Enter');
-
-  await submitLogin(page, data);
 }
 
 async function submitLogin(page: Page, data: E2eData): Promise<void> {
