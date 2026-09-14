@@ -17,9 +17,12 @@ class CustomImagePicker {
         source: source,
         imageQuality: 25,
       );
-      final LostDataResponse response = await picker.retrieveLostData();
-      if (response.file != null) {
-        pickedFile = response.file;
+      // Lost-data recovery is only implemented on native Android.
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final LostDataResponse response = await picker.retrieveLostData();
+        if (response.file != null) {
+          pickedFile = response.file;
+        }
       }
       return pickedFile;
     } catch (e) {
