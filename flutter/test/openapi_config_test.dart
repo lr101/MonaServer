@@ -15,6 +15,110 @@ void main() {
   setUp(
     () => dotenv.loadFromString(envString: 'API_HOST=https://example.test'),
   );
+  for (final code in [401, 403]) {
+    test(
+      'refresh $code expires once and stops queued refresh attempts',
+      () async {
+        var expirations = 0;
+        var refreshes = 0;
+        final manager = AccessTokenManager(
+          initialAccessToken: 'old-access',
+          refreshAccessToken: () {
+            refreshes++;
+            return Future<String?>.error(
+              ApiException(code, 'rejected credential'),
+            );
+          },
+          onInvalidCredentials: () async {
+            expirations++;
+          },
+        );
+        addTearDown(manager.dispose);
+        await Future.wait(
+          List.generate(
+            3,
+            (_) => expectLater(
+              manager.refresh(force: true),
+              throwsA(isA<InvalidRefreshCredentialsException>()),
+            ),
+          ),
+        );
+        expect(manager.accessToken, isEmpty);
+        expect(expirations, 1);
+        expect(refreshes, 1);
+      },
+    );
+  }
+
+  test(
+    'transient refresh errors never signal session expiry and can recover',
+    () async {
+      var expirations = 0;
+      var attempts = 0;
+      final manager = AccessTokenManager(
+        initialAccessToken: 'old-access',
+        refreshAccessToken: () async {
+          if (attempts++ == 0) throw ApiException(503, 'temporary outage');
+          return 'new-access';
+        },
+        onInvalidCredentials: () async {
+          expirations++;
+        },
+      );
+      addTearDown(manager.dispose);
+      await expectLater(
+        manager.refresh(force: true),
+        throwsA(isA<ApiException>()),
+      );
+      expect(manager.accessToken, 'old-access');
+      await manager.refresh(force: true);
+      expect(manager.accessToken, 'new-access');
+      expect(expirations, 0);
+    },
+  );
+
+  test('a disposed refresh cannot signal expiry for a newer session', () async {
+    var expirations = 0;
+    final started = Completer<void>();
+    final result = Completer<String?>();
+    final manager = AccessTokenManager(
+      refreshAccessToken: () {
+        started.complete();
+        return result.future;
+      },
+      onInvalidCredentials: () async {
+        expirations++;
+      },
+    );
+    final pending = expectLater(
+      manager.refresh(),
+      throwsA(isA<http.ClientException>()),
+    );
+    await started.future;
+    manager.dispose();
+    result.completeError(ApiException(401, 'old rejection'));
+    await pending;
+    await Future<void>.delayed(Duration.zero);
+    expect(expirations, 0);
+  });
+
+  test(
+    'expiry persistence errors do not replace the credential rejection',
+    () async {
+      final manager = AccessTokenManager(
+        refreshAccessToken: () async => throw ApiException(403, 'rejected'),
+        onInvalidCredentials: () async =>
+            throw StateError('secure storage unavailable'),
+      );
+      addTearDown(manager.dispose);
+      await expectLater(
+        manager.refresh(),
+        throwsA(isA<InvalidRefreshCredentialsException>()),
+      );
+      expect(manager.accessToken, isEmpty);
+    },
+  );
+
   test(
     'closing a session clears its token and rejects a late refresh',
     () async {

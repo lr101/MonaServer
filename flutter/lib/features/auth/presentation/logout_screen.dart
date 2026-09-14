@@ -1,6 +1,6 @@
+import 'package:buff_lisa/app/lifecycle/sync_lifecycle.dart';
 import 'package:buff_lisa/data/service/account_cleanup_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,8 +31,7 @@ class _LogoutScreenState extends ConsumerState<LogoutScreen> {
         await ref.read(accountCleanupProvider).clearCaches();
         if (!mounted) return;
         ref.invalidate(lastSeenProvider);
-        ref.read(syncingServiceProvider.notifier).toInit();
-        await ref.read(syncingServiceProvider.notifier).syncToBackend();
+        await ref.read(syncCoordinatorProvider).restart();
       } else {
         await ref.read(globalDataServiceProvider.notifier).logout();
       }

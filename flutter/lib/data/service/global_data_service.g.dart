@@ -41,7 +41,7 @@ final class GlobalDataServiceProvider
   }
 }
 
-String _$globalDataServiceHash() => r'e6d520419bd5bbdb5512fe4a13e8e81f4842992a';
+String _$globalDataServiceHash() => r'6f4081425758fd16085323e3f6e8c5ccf45c2352';
 
 abstract class _$GlobalDataService extends $Notifier<GlobalDataDto> {
   GlobalDataDto build();

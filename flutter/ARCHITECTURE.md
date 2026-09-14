@@ -1,14 +1,14 @@
 # Flutter architecture
 
 Status: incremental migration in progress. Reviewed against repository code on
-2026-09-10, through `4fe7790`. This is the current architecture and remaining
-plan; implemented reliability work does not mean the target layers exist yet.
+2026-09-14, including composition-root, session-expiry and owned-sync slices. This is the current
+architecture and remaining plan; implemented reliability work does not mean the target layers exist yet.
 
 Start here for ownership and design decisions. Use [README.md](README.md) for
 setup, [AGENTS.md](AGENTS.md) for change and verification rules, and
 [the local stack guide](../docs/AGENT_LOCAL_STACK.md) for services.
 
-## Current state after the first two slices
+## Current state after the first three slices
 
 The initial behavior-hardening work and architecture quick wins are implemented
 in the existing structure. Later changes strengthen those paths. Auth and groups
@@ -20,6 +20,7 @@ are still the **planned first feature-layer migrations**, not completed
 | Session HTTP | [`openapi_config.dart`](lib/data/config/openapi_config.dart) owns a client and in-memory token manager per host/user/refresh credential. Refresh is serialized; a request gets one refresh/replay on 401, not on 403. Disposal fences queued work and response streams and closes the refresh transport. | `openapi_config_test.dart` |
 | Account cleanup | [`global_data_service.dart`](lib/data/service/global_data_service.dart) coordinates logout, account switching, and successful account deletion. [`AccountCleanup`](lib/data/service/account_cleanup_service.dart) clears all Drift tables, including likes and offline pictures, plus platform caches. Cleanup failure blocks login until cleanup succeeds. | `account_cleanup_test.dart`, `global_data_repository_test.dart` |
 | Local session isolation | [`AccountSession`](lib/data/database/account_session.dart) revokes old database access; [`accountDatabaseProvider`](lib/data/repository/drift_repo.dart) supplies disposable facades over the bootstrap connection. Services capture `accountOperation(ref)` before async work to suppress stale follow-up actions. | `account_cleanup_test.dart` |
+| Sync lifecycle | [`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart) owns session/resume subscriptions; the pure Dart [`SyncCoordinator`](lib/core/sync/sync_coordinator.dart) serializes triggers and revokes superseded runs. Sync provider construction is idle. | `app/sync_coordinator_test.dart`, `app/sync_lifecycle_test.dart`, `syncing_service_test.dart` |
 | Groups and sync | Group updates are awaited and preserve local activation. [`group_details_service.dart`](lib/data/service/group_details_service.dart) shares metadata, pins, and image state across entry points. Public unjoined groups load from search; media loading/failure does not block metadata or membership actions. | `group_service_test.dart`, `syncing_service_test.dart`, `group_search_test.dart`, `user_group_overview_test.dart` |
 | Feed and images | Profile pin reads use the requested user. Feed slivers and grid loading are corrected. Image streams subscribe before refresh; metadata-only updates preserve byte identity, and retained image refresh keeps downloaded bytes. | `pin_user_service_test.dart`, `feed_layout_test.dart`, `image_grid_test.dart`, `image_service_test.dart`, `image_repository_test.dart`, image widget tests |
 | Map and camera | Animation/zoom callbacks have lifecycle guards. Camera flows handle permission, empty device/group lists, device selection, browser capture, and preview orientation, framing, and mirroring. | `map_camera_lifecycle_test.dart`, `camera_permissions_test.dart`, `camera_selector_test.dart`, `camera_web_capture_test.dart` |
@@ -32,7 +33,10 @@ update or that every production failure path is covered.
 
 ```text
 flutter/
-  lib/main.dart            startup, provider overrides, MyApp and web shell
+  lib/main.dart            binding initialization and launch
+  lib/app/                 configuration, bootstrap, rendering, router and sync lifecycle
+  lib/core/session/        pure Dart session status
+  lib/core/sync/           pure Dart sync trigger coordination
   lib/data/
     config/               generated API client wiring and HTTP lifecycle
     database/             Drift schema and account-session query guards
@@ -47,12 +51,38 @@ flutter/
   e2e/                    local Playwright flow verification
 ```
 
-`main.dart` still loads configuration, opens Drift, runs legacy cache cleanup,
-selects secure storage, initializes native map tiles/Firebase, and wires
-Riverpod. `GlobalDataService` still combines session and platform concerns.
+`main.dart` now delegates to `app/bootstrap.dart`, which validates the API
+origin before initializing storage/plugins, waits for restored dependencies, and
+renders a generic startup failure screen without exposing exception details.
+`app/app_configuration.dart` accepts HTTP(S) origins, including local ports, and
+rejects missing/invalid hosts, user info, paths, queries and fragments. The
+`API_HOST` build override takes precedence over the bundled configuration.
+
+`app/production_bootstrap.dart` loads configuration, opens Drift, runs legacy
+cache cleanup, selects secure storage, initializes native map tiles/Firebase,
+and wires Riverpod. It closes Drift if a later startup step fails. It bridges the
+validated host into dotenv for existing consumers. `app/app.dart` owns `MyApp`,
+the existing theme/router wiring, web shell and `AppSyncLifecycle`. Fake startup tests live in
+`test/app/bootstrap_test.dart`; native plugin initialization still needs device
+verification. `GlobalDataService` still combines session and platform concerns.
 Screens still import repositories and generated DTOs; map state still contains
-`flutter_map` markers. There is no `lib/app/` or `lib/core/` split or automated
-architecture import check yet.
+`flutter_map` markers. `test/architecture_test.dart` checks imports, exports and
+conditional imports using the Dart analyzer. It enforces the initial app split and rules for
+`core/`, `shared/` and registered migrated features. Existing feature folders
+are not migrated just because they already use data/presentation names: add
+features to `migratedFeatures` as their migration completes. Rule fixtures cover
+the future domain/data/presentation boundaries; repository ports must use the
+`*_repository.dart` naming convention for the presentation import check.
+`core/session/session_status.dart` defines post-bootstrap session status.
+The router is now owned in `app/routing/`; the previous `util/routing/` entry
+point re-exports it for existing callers. It listens to session status and
+disposes both its router and refresh notifier with its provider. See the
+[startup slice verification](../docs/reports/flutter-startup-2026-09-11.md) for
+checks, browser evidence and platform limits. The
+[session-expiry verification](../docs/reports/flutter-session-expiry-2026-09-12.md)
+records the subsequent routing, persistence and reauthentication checks.
+[Sync lifecycle verification](../docs/reports/flutter-sync-lifecycle-2026-09-14.md)
+covers the third slice.
 
 Drift remains the local cache, using hashed IDs, TTL/hit counts and keep-alive
 flags. The bootstrap database owns migrations and the physical connection;
@@ -115,23 +145,60 @@ for schema changes; await cache initialization and cleanup.
 Access tokens stay in memory; refresh credentials use the platform secure-storage
 wrapper. Invalid refresh credentials clear the token manager; refresh endpoint
 401/403 responses are credential failures. Transient refresh errors propagate.
-A unified session repository/state machine and consistent router response to
-expiry remain work to do. Target explicit restoring/signed-out/signed-in/expired
-states and typed, validated route arguments instead of unchecked `extra`/parsing.
+`GlobalDataDto.sessionStatus` derives signed-out, signed-in or expired state
+from restored account identity and refresh credentials. Bootstrap finishes
+restoration before publishing that state. A unified session repository and an
+observable restoring state remain future work.
+
+A refresh rejection now expires the captured session once, stops further
+refresh attempts in that token manager, revokes account database work and
+marks expiry in preferences and removes the stored refresh credential without
+erasing drafts or account identity. Restoration ignores a marked credential even
+when secure-storage deletion failed; successful reauthentication clears the
+marker after writing credentials. The router returns to login with an expiry
+notice; reload remains expired.
+Transient refresh failures leave credentials and session status intact. Late
+rejections are fenced by client disposal and the account generation.
+
+Same-account reauthentication preserves drafts, including credential-write
+failure. A different-account login awaits the existing destructive cleanup
+before accepting new credentials. Explicit logout/account deletion retain their
+cleanup policy. The transitions still live in the legacy service while auth
+migrates. Typed, validated route arguments also remain future work.
 
 Logout removes account-owned cache and pending payloads; successful account
 deletion uses the same local cleanup. Preserve this policy in future outbox work.
 Token expiry/transient refresh failure should pause future outbox processing,
 not delete its payloads. No production analytics or third-party crash reporting;
 keep operational diagnostics minimal and redact credentials, headers, payloads,
-images, precise coordinates and personal data. Existing sync logs still need
-review as part of that work.
+images, precise coordinates and personal data. Sync no longer logs raw errors,
+account identifiers or pin payloads. Other legacy diagnostics still need review.
 
-[`SyncingService`](lib/data/service/syncing_service.dart) still starts work from
-`build()` and retries cached pins with `lastSynced == null`. It is **not** a
-durable outbox or a fully serialized, restart-safe sync coordinator. Move triggers
-to an owned coordinator: restored session, successful login, resume with cooldown,
-manual refresh, online transition, next due retry and Android worker wake-up.
+[`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart), mounted at the app
+root, owns session and Flutter lifecycle subscriptions. It triggers sync when a
+restored or newly authenticated session becomes active and on resume, with a
+one-minute cooldown between automatic attempts. Rebuilding navigation or
+observing sync state does not start network work. Widget disposal removes both
+subscriptions and revokes pending follow-up work; provider-scope disposal also
+disposes the coordinator.
+
+The pure Dart [`SyncCoordinator`](lib/core/sync/sync_coordinator.dart) shares an
+in-flight run between concurrent triggers. A replacement session waits for old
+transport work to settle and invalidates its follow-up guard. Manual refresh
+bypasses the cooldown; cache clearing requests a fresh serialized run even if an
+older run is pending. Automatic failures are contained, while manual callers
+receive errors and `SyncState.failed` remains available to the UI.
+[`SyncingService`](lib/data/service/syncing_service.dart) captures the operation's
+provider/account/run guards before asynchronous work and checks them before
+follow-up writes. Revocation does not cancel an already-started network request
+or make already-started writes atomic with session changes.
+
+Cached pins with `lastSynced == null` still form the legacy retry source.
+Upload failures retain drafts, fail the run and leave its last-seen checkpoint
+unchanged. The existing HTTP 409 duplicate-deletion policy is retained pending
+server idempotency. This coordinator is in-process only: durable delivery,
+online-transition triggers, next-due retry scheduling and Android worker wake-up
+remain planned work.
 
 ## Durable offline upload design — not implemented
 
@@ -184,9 +251,15 @@ retention/cleanup and session changes before claiming durable delivery.
 
 ## Remaining migration order
 
-1. **Composition root and guardrails:** split bootstrap/app rendering; validate
-   configuration; introduce typed failures, redacted diagnostics, session state,
-   platform ports and owned lifecycle; add import checks and fake-startup tests.
+1. **Composition root and guardrails (started):** bootstrap/app rendering split,
+   API-origin validation, safe startup failure UI, initial import checks and
+   fake-startup tests are implemented. Session expiry, safe reauthentication and
+   an owned reactive router and serialized session/resume sync lifecycle are now
+   implemented too. Remaining: a unified session
+   repository/observable restoring state, shared typed failures and redacted
+   diagnostics and platform ports. Native startup adapters remain in their
+   existing structure; connectivity, scheduled retry and worker sync triggers
+   await the durable upload work.
 2. **Auth and groups:** move login/signup/recovery/logout and group queries,
    commands/membership into domain/data/presentation. Reuse current session fences
    and shared group loading behavior; add controller/use-case/source-policy tests.

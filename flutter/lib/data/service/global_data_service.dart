@@ -1,3 +1,4 @@
+import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
@@ -8,7 +9,6 @@ import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -20,12 +20,35 @@ class GlobalDataService extends _$GlobalDataService {
   @override
   GlobalDataDto build() {
     final data = ref.watch(globalDataOnceProvider);
-    storageSession = AccountSession(data.userId != null);
+    storageSession = AccountSession(
+      data.sessionStatus == SessionStatus.signedIn,
+    );
     ref.onDispose(() => storageSession.revoke());
     return data;
   }
 
   late AccountSession storageSession;
+
+  /// Expiry pauses account work. Only explicit logout/account switching erases
+  /// drafts; restoring the same account after reauthentication can reuse them.
+  Future<bool> expireSession({required int expectedGeneration}) async {
+    if (!ref.mounted ||
+        expectedGeneration != _generation ||
+        state.sessionStatus != SessionStatus.signedIn) {
+      return false;
+    }
+    final repository = ref.read(globalDataRepositoryProvider);
+    _generation++;
+    storageSession.revoke();
+    storageSession = AccountSession(false);
+    state = GlobalDataDto(
+      userId: state.userId,
+      refreshToken: null,
+      cameras: state.cameras,
+    );
+    await _serializeCredentials(repository.expireSession);
+    return true;
+  }
 
   Future<void>? _logoutFuture;
   Future<void> _credentialWrites = Future<void>.value();
@@ -96,24 +119,42 @@ class GlobalDataService extends _$GlobalDataService {
     String username, {
     int? expectedGeneration,
   }) async {
-    final generation = expectedGeneration ?? _generation;
+    var generation = expectedGeneration ?? _generation;
     final repository = ref.read(globalDataRepositoryProvider);
     await _logoutFuture;
     if (generation != _generation) return false;
     if (cleanupRequired) {
       throw StateError('Account cleanup must finish before login');
     }
+    if (state.userId != null && state.userId != token.userId) {
+      final cleanup = logout();
+      final cleanupGeneration = _generation;
+      await cleanup;
+      if (!ref.mounted || cleanupGeneration != _generation) return false;
+      generation = cleanupGeneration;
+    }
     var accepted = false;
     await _serializeCredentials(() async {
       if (generation != _generation) return;
       final prefs = ref.read(sharedPreferencesProvider);
-      _cleanupFailed = true;
-      await GlobalDataRepository.requirePreferenceWrite(
-        prefs.setBool(GlobalDataRepository.accountCleanupPending, true),
-      );
+      final reauthenticating =
+          state.sessionStatus == SessionStatus.expired &&
+          state.userId == token.userId;
+      // A same-account retry cannot expose another account's data. Avoid the
+      // destructive cleanup marker so a crash or failed write keeps its drafts.
+      if (!reauthenticating) {
+        _cleanupFailed = true;
+        await GlobalDataRepository.requirePreferenceWrite(
+          prefs.setBool(GlobalDataRepository.accountCleanupPending, true),
+        );
+      }
       try {
         await repository.login(username, token.userId, token.refreshToken);
       } catch (_) {
+        if (reauthenticating) {
+          await repository.expireSession();
+          rethrow;
+        }
         storageSession.revoke();
         storageSession = AccountSession(false);
         state = GlobalDataDto(
@@ -132,9 +173,11 @@ class GlobalDataService extends _$GlobalDataService {
         rethrow;
       }
       if (generation != _generation) return;
-      await GlobalDataRepository.requirePreferenceWrite(
-        prefs.remove(GlobalDataRepository.accountCleanupPending),
-      );
+      if (!reauthenticating) {
+        await GlobalDataRepository.requirePreferenceWrite(
+          prefs.remove(GlobalDataRepository.accountCleanupPending),
+        );
+      }
       if (generation != _generation) return;
       _cleanupFailed = false;
       _generation++;

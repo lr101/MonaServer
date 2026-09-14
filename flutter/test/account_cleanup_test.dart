@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
@@ -17,8 +18,10 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
+import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +39,7 @@ class MemorySecureStorage implements ISecureStorage {
     'username': 'Alice',
   };
   String? failingWriteKey;
+  String? failingDeleteKey;
   Completer<void>? pendingWrite;
   final writeStarted = Completer<void>();
   @override
@@ -50,6 +54,7 @@ class MemorySecureStorage implements ISecureStorage {
 
   @override
   Future<void> delete({required String key}) async {
+    if (key == failingDeleteKey) throw StateError('secure storage unavailable');
     values.remove(key);
   }
 }
@@ -155,6 +160,211 @@ void main() {
   setUp(() {
     dotenv.loadFromString(envString: 'API_HOST=http://localhost');
   });
+
+  test('HTTP refresh rejection expires the real account and prevents the protected send', () async {
+    var protectedSends = 0;
+    await http.runWithClient(
+      () async {
+        final f = await Fixture.create();
+        final client = f.container.read(openApiConfigProvider);
+        await expectLater(
+          client.client.get(Uri.parse('http://localhost/api/v2/pins')),
+          throwsA(
+            anyOf(
+              isA<InvalidRefreshCredentialsException>(),
+              isA<http.ClientException>(),
+            ),
+          ),
+        );
+        await f.container.pump();
+        expect(
+          f.container.read(globalDataServiceProvider).sessionStatus,
+          SessionStatus.expired,
+        );
+        expect(f.storage.values['auth'], isNull);
+        expect(protectedSends, 0);
+      },
+      () => MockClient((request) async {
+        if (request.url.path.contains('refresh')) {
+          return http.Response(
+            '{}',
+            401,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        protectedSends++;
+        return http.Response('{}', 200);
+      }),
+    );
+  });
+
+  testWidgets(
+    'the owned router refreshes on expiry and redirects a protected route',
+    (tester) async {
+      final f = await Fixture.create();
+      final router = f.container.read(routerProvider);
+      router.go('/settings');
+      var notifications = 0;
+      router.routeInformationProvider.addListener(() {
+        notifications++;
+      });
+      await f.global.expireSession(expectedGeneration: f.global.generation);
+      expect(notifications, greaterThan(0));
+      expect(f.container.read(routerProvider), same(router));
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      final matches = await router.routeInformationParser
+          .parseRouteInformationWithDependencies(
+            router.routeInformationProvider.value,
+            tester.element(find.byType(SizedBox)),
+          );
+      expect(matches.uri.path, '/login');
+    },
+  );
+
+  test(
+    'expiry revokes account work but retains drafts and the account identity',
+    () async {
+      final f = await Fixture.create();
+      final active = f.global.storageSession;
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('offline-pin', Uint8List.fromList([1, 2, 3]), true);
+      final expired = await f.global.expireSession(
+        expectedGeneration: f.global.generation,
+      );
+      expect(expired, isTrue);
+      expect(active.isActive, isFalse);
+      expect(f.global.storageSession.isActive, isFalse);
+      expect(
+        f.container.read(globalDataServiceProvider).sessionStatus,
+        SessionStatus.expired,
+      );
+      expect(f.container.read(globalDataServiceProvider).userId, 'alice');
+      expect(f.container.read(globalDataServiceProvider).refreshToken, isNull);
+      expect(f.storage.values['auth'], isNull);
+      expect(f.storage.values['userId'], 'alice');
+      expect(await f.db.select(f.db.imageEntities).get(), hasLength(1));
+      expect(f.global.cleanupRequired, isFalse);
+      final restored = await GlobalDataRepository.get(f.prefs, f.storage);
+      expect(restored.sessionStatus, SessionStatus.expired);
+    },
+  );
+
+  test(
+    'late credential rejection cannot expire a replacement session',
+    () async {
+      final f = await Fixture.create();
+      final oldGeneration = f.global.generation;
+      await f.global.updateData(
+        TokenResponseDto(
+          userId: 'alice',
+          refreshToken: 'new-refresh',
+          accessToken: 'new-access',
+        ),
+        'Alice',
+      );
+      expect(
+        await f.global.expireSession(expectedGeneration: oldGeneration),
+        isFalse,
+      );
+      expect(
+        f.container.read(globalDataServiceProvider).sessionStatus,
+        SessionStatus.signedIn,
+      );
+      expect(f.storage.values['auth'], 'new-refresh');
+    },
+  );
+
+  test(
+    'failed same-account reauthentication keeps the paused drafts',
+    () async {
+      final f = await Fixture.create();
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('offline-pin', Uint8List.fromList([1, 2, 3]), true);
+      await f.global.expireSession(expectedGeneration: f.global.generation);
+      f.storage.failingWriteKey = 'auth';
+      await expectLater(
+        f.global.updateData(
+          TokenResponseDto(
+            userId: 'alice',
+            refreshToken: 'new-refresh',
+            accessToken: 'new-access',
+          ),
+          'Alice',
+        ),
+        throwsStateError,
+      );
+      expect(
+        f.container.read(globalDataServiceProvider).sessionStatus,
+        SessionStatus.expired,
+      );
+      expect(await f.db.select(f.db.imageEntities).get(), hasLength(1));
+      expect(f.storage.values['auth'], isNull);
+      expect(f.global.cleanupRequired, isFalse);
+    },
+  );
+
+  test('restart stays expired when secure-storage deletion fails', () async {
+    final f = await Fixture.create();
+    f.storage.failingDeleteKey = 'auth';
+    await expectLater(
+      f.global.expireSession(expectedGeneration: f.global.generation),
+      throwsStateError,
+    );
+    expect(f.storage.values['auth'], 'alice-token');
+    await f.prefs.reload();
+    final restored = await GlobalDataRepository.get(f.prefs, f.storage);
+    expect(restored.sessionStatus, SessionStatus.expired);
+    expect(restored.refreshToken, isNull);
+    expect(restored.userId, 'alice');
+    // Successful reauthentication clears the marker and restores normally.
+    f.storage.failingDeleteKey = null;
+    await f.global.updateData(
+      TokenResponseDto(
+        userId: 'alice',
+        refreshToken: 'new-refresh',
+        accessToken: 'new-access',
+      ),
+      'Alice',
+    );
+    await f.prefs.reload();
+    expect(
+      (await GlobalDataRepository.get(f.prefs, f.storage)).sessionStatus,
+      SessionStatus.signedIn,
+    );
+  });
+
+  for (final sameAccount in [true, false]) {
+    test(
+      'login after expiry ${sameAccount ? "retains same-account" : "clears other-account"} drafts',
+      () async {
+        final f = await Fixture.create();
+        await f.container
+            .read(pinImageRepositoryProvider)
+            .addImage('offline-pin', Uint8List.fromList([1, 2, 3]), true);
+        await f.global.expireSession(expectedGeneration: f.global.generation);
+        final accepted = await f.global.updateData(
+          TokenResponseDto(
+            userId: sameAccount ? 'alice' : 'bob',
+            refreshToken: 'fresh-refresh',
+            accessToken: 'fresh-access',
+          ),
+          sameAccount ? 'Alice' : 'Bob',
+        );
+        expect(accepted, isTrue);
+        expect(
+          f.container.read(globalDataServiceProvider).sessionStatus,
+          SessionStatus.signedIn,
+        );
+        expect(f.global.storageSession.isActive, isTrue);
+        expect(
+          await f.db.select(f.db.imageEntities).get(),
+          hasLength(sameAccount ? 1 : 0),
+        );
+      },
+    );
+  }
 
   test(
     'logout erases retained pictures and pin likes through the service',
