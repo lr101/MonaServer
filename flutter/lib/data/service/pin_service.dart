@@ -492,7 +492,8 @@ class PinService {
       if (showPrompt)
         CustomErrorSnackBar.loadingMessage(message: "Deleting image");
       final pin = await _pinRepository.get(pinId);
-      if (pin != null && pin.keepAlive == false) {
+      // Retention is a cache policy; only unsynced drafts are local-only.
+      if (pin != null && pin.lastSynced != null) {
         await _pinsApi.deletePin(pinId);
       }
       await _pinRepository.delete(pinId);
