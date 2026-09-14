@@ -5,7 +5,6 @@ import 'package:buff_lisa/data/entity/cache_entity.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:openapi/api.dart';
 
-
 class PinEntity extends CacheEntity {
   @override
   int get isarId => fastHash(pinId);
@@ -19,7 +18,6 @@ class PinEntity extends CacheEntity {
   final String creator; // Assuming this is a userId
 
   int get groupFastId => fastHash(groupId);
-
 
   final String groupId; // Assuming this is a groupId
   final bool isHidden;
@@ -42,13 +40,14 @@ class PinEntity extends CacheEntity {
   });
 
   factory PinEntity.fromDto(
-    PinWithOptionalImageDto pinDto, bool onlySession, {
+    PinWithOptionalImageDto pinDto,
+    bool onlySession, {
     bool keepAlive = false,
   }) {
     return PinEntity(
       pinId: pinDto.id,
-      latitude: pinDto.latitude as double,
-      longitude: pinDto.longitude as double,
+      latitude: pinDto.latitude.toDouble(),
+      longitude: pinDto.longitude.toDouble(),
       creationDate: pinDto.creationDate,
       creator: pinDto.creationUser,
       groupId: pinDto.groupId,
@@ -73,7 +72,12 @@ class PinEntity extends CacheEntity {
   }
 
   @override
-  CacheEntity copyWith({DateTime? ttl, int? hits, bool? keepAlive, bool? onlySession}) {
+  CacheEntity copyWith({
+    DateTime? ttl,
+    int? hits,
+    bool? keepAlive,
+    bool? onlySession,
+  }) {
     return PinEntity(
       pinId: pinId,
       latitude: latitude,
@@ -87,7 +91,7 @@ class PinEntity extends CacheEntity {
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,
       keepAlive: keepAlive ?? this.keepAlive,
-      onlySession: onlySession ?? this.onlySession
+      onlySession: onlySession ?? this.onlySession,
     );
   }
 }

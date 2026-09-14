@@ -1,3 +1,4 @@
+import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/auth/data/login_service.dart';
 import 'package:buff_lisa/features/web/presentation/show_web.dart';
@@ -23,6 +24,9 @@ class _AuthState extends ConsumerState<Auth> {
     final global = ref.watch(globalDataServiceProvider);
     final loginService = ref.watch(loginServiceProvider);
     return FlutterLogin(
+      headerWidget: global.sessionStatus == SessionStatus.expired
+          ? const Text('Your session expired. Sign in again to continue.')
+          : null,
       logo: const AssetImage('assets/icon/logo-rounded-corners.png'),
       termsOfService: [
         TermOfService(id: "0", text: "Terms of Service", mandatory: true, linkUrl: "${global.host}/public/agb"),

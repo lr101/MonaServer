@@ -50,7 +50,7 @@ final class GroupServiceProvider
   }
 }
 
-String _$groupServiceHash() => r'8bcbb2936db5044f192ac13ea41f9d38bd5ba2e2';
+String _$groupServiceHash() => r'0e06f334611d1d67e5f0d792c78031c2948c86ce';
 
 final class GroupServiceFamily extends $Family
     with
@@ -122,7 +122,7 @@ final class UserGroupServiceProvider
   UserGroupService create() => UserGroupService();
 }
 
-String _$userGroupServiceHash() => r'ac8bd873fa8a7cf4ac441d5efca9c647f10116ca';
+String _$userGroupServiceHash() => r'4bc6871b93a22ef518a6c514abba2e1262a6cc80';
 
 abstract class _$UserGroupService extends $StreamNotifier<List<GroupEntity>> {
   Stream<List<GroupEntity>> build();
@@ -273,7 +273,7 @@ final class GroupByIdActivatedProvider
 }
 
 String _$groupByIdActivatedHash() =>
-    r'54a9a6471cfa0c997eed015d7c982a4e3934ac0a';
+    r'9abbe7215f9b82c804051ceea13b4463d55177f9';
 
 final class GroupByIdActivatedFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<bool>, String> {

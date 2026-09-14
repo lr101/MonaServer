@@ -26,11 +26,6 @@ void main() {
       // TODO
     });
 
-    // String minioEndpoint
-    test('to test the property `minioEndpoint`', () async {
-      // TODO
-    });
-
 
   });
 

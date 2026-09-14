@@ -184,6 +184,14 @@ class ApiClient {
           return value is DateTime ? value : DateTime.tryParse(value);
         case 'AdminMailDto':
           return AdminMailDto.fromJson(value);
+        case 'BatchReadItem':
+          return BatchReadItem.fromJson(value);
+        case 'BatchReadRequest':
+          return BatchReadRequest.fromJson(value);
+        case 'BatchReadResponse':
+          return BatchReadResponse.fromJson(value);
+        case 'BatchReadResult':
+          return BatchReadResult.fromJson(value);
         case 'CreateGroupDto':
           return CreateGroupDto.fromJson(value);
         case 'CreateLikeDto':

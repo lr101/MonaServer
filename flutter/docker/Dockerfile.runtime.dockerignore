@@ -1,0 +1,7 @@
+# Override flutter/.dockerignore only for packaging prebuilt web assets.
+**
+!docker/
+!docker/nginx.conf
+!build/
+!build/web/
+!build/web/**

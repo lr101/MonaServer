@@ -16,7 +16,8 @@ abstract class IGroupRepository implements CacheApi<GroupEntity> {
   Stream<List<GroupEntity>> watchAllGroups();
 }
 
-class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository {
+class GroupRepository extends CacheImpl<GroupEntity>
+    implements IGroupRepository {
   final AppDatabase db;
 
   GroupRepository(this.db, {super.maxItems, super.ttlDuration});
@@ -64,7 +65,9 @@ class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.groupEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.groupEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -74,12 +77,16 @@ class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.groupEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.groupEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<GroupEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.groupEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.groupEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     if (res == null) return null;
     return _fromDb(res);
   }
@@ -92,7 +99,9 @@ class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository
 
   @override
   Future<List<GroupEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.groupEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.groupEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -100,13 +109,15 @@ class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository
   Future<int> doGetSize() async {
     final countExp = db.groupEntities.isarId.count();
     final query = db.selectOnly(db.groupEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<GroupEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.groupEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.groupEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
@@ -118,28 +129,40 @@ class GroupRepository extends CacheImpl<GroupEntity> implements IGroupRepository
   @override
   Future<void> doPutMultiple(List<GroupEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.groupEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.groupEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<GroupEntity?> doWatchById(int isarId) {
-    return (db.select(db.groupEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.groupEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 
   @override
   Stream<List<GroupEntity>> watchUserGroups() {
-    return (db.select(db.groupEntities)..where((tbl) => tbl.userIsMember.equals(true))).watch().map((res) => res.map(_fromDb).toList());
+    return (db.select(db.groupEntities)
+          ..where((tbl) => tbl.userIsMember.equals(true)))
+        .watch()
+        .map((res) => res.map(_fromDb).toList());
   }
 
   @override
   Stream<List<GroupEntity>> watchAllGroups() {
-    return db.select(db.groupEntities).watch().map((res) => res.map(_fromDb).toList());
+    return db
+        .select(db.groupEntities)
+        .watch()
+        .map((res) => res.map(_fromDb).toList());
   }
 }
 
 @Riverpod(keepAlive: true)
 IGroupRepository groupRepository(Ref ref) {
-  final db = ref.watch(driftRepoProvider);
+  final db = ref.watch(accountDatabaseProvider);
   return GroupRepository(db);
 }

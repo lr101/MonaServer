@@ -54,4 +54,4 @@ final class MemberRepositoryProvider
   }
 }
 
-String _$memberRepositoryHash() => r'3fcd8aecdd90258ab34b18247ba39d401f1b9485';
+String _$memberRepositoryHash() => r'dc4f7633b83bce85a4986eb0206c297987b0bd37';

@@ -10,14 +10,173 @@ import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
+import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/pop_up_menu_leave.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
+  testWidgets('successful leave returns to the previous route', (tester) async {
+    final group = GroupEntity(
+      groupId: 'group-id',
+      name: 'Group',
+      visibility: 0,
+      userIsMember: true,
+      groupAdmin: 'another-user',
+      ttl: DateTime.now(),
+      onlySession: false,
+    );
+
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          memberServiceProvider('group-id')
+              .overrideWith(_EmptyMemberService.new),
+          userGroupServiceProvider.overrideWith(
+            () => _RemovingLeaveUserGroupService(
+              onLeave: () => visible.value = false,
+            ),
+          ),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/home',
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (context, state) => ElevatedButton(
+                  onPressed: () => context.push('/group'),
+                  child: const Text('Open group'),
+                ),
+              ),
+              GoRoute(
+                path: '/group',
+                builder: (context, state) => ValueListenableBuilder<bool>(
+                  valueListenable: visible,
+                  builder: (context, isVisible, child) => Scaffold(
+                    appBar: isVisible
+                        ? AppBar(actions: [PopUpMenuLeave(groupDto: group)])
+                        : null,
+                    body: isVisible ? null : const Text('Group not found'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.text('Open group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(PopupMenuButton<int>));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave Group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Open group'), findsOneWidget);
+  });
+
+  testWidgets('pending leave does not pop a newer route', (tester) async {
+    final group = GroupEntity(
+      groupId: 'group-id',
+      name: 'Group',
+      visibility: 0,
+      userIsMember: true,
+      groupAdmin: 'another-user',
+      ttl: DateTime.now(),
+      onlySession: false,
+    );
+    final leaveResult = Completer<String?>();
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (context, state) => ElevatedButton(
+            onPressed: () => context.push('/group'),
+            child: const Text('Open group'),
+          ),
+        ),
+        GoRoute(
+          path: '/group',
+          builder: (context, state) => Scaffold(
+            appBar: AppBar(actions: [PopUpMenuLeave(groupDto: group)]),
+          ),
+        ),
+        GoRoute(
+          path: '/other',
+          builder: (context, state) => const Text('Other route'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          memberServiceProvider('group-id')
+              .overrideWith(_EmptyMemberService.new),
+          userGroupServiceProvider.overrideWith(
+            () => _PendingLeaveUserGroupService(leaveResult.future),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.text('Open group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(PopupMenuButton<int>));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave Group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    router.go('/other');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    leaveResult.complete(null);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Other route'), findsOneWidget);
+  });
+
   testWidgets('waits for public group hydration before rendering details', (
     tester,
   ) async {
@@ -191,4 +350,32 @@ class _EmptyUserGroupService extends UserGroupService {
 class _EmptyMemberService extends MemberService {
   @override
   Stream<List<MemberEntity>> build(String groupId) => Stream.value([]);
+}
+
+class _RemovingLeaveUserGroupService extends UserGroupService {
+  _RemovingLeaveUserGroupService({required this.onLeave});
+
+  final VoidCallback onLeave;
+
+  @override
+  Stream<List<GroupEntity>> build() => Stream.value([]);
+
+  @override
+  Future<String?> leaveGroup(String groupId) async {
+    onLeave();
+    await Future<void>.delayed(Duration.zero);
+    return null;
+  }
+}
+
+class _PendingLeaveUserGroupService extends UserGroupService {
+  _PendingLeaveUserGroupService(this.leaveResult);
+
+  final Future<String?> leaveResult;
+
+  @override
+  Stream<List<GroupEntity>> build() => Stream.value([]);
+
+  @override
+  Future<String?> leaveGroup(String groupId) => leaveResult;
 }

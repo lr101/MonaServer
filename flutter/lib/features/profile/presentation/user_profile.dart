@@ -68,6 +68,7 @@ class UserProfile extends ConsumerWidget {
         icon: const Icon(Icons.emoji_events),
       ),
       IconButton(
+        tooltip: "Settings",
         onPressed: () => context.pushNamed("settings"),
         icon: const Icon(Icons.settings),
       ),

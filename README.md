@@ -16,10 +16,6 @@ mise run build
 
 The Go module and its detailed setup instructions are in [`go-server/`](go-server/README.md). The OpenAPI contract is in [`api/openapi.yaml`](api/openapi.yaml).
 
-For a production cutover from the Spring deployment, follow the
-[`go-server/MIGRATION.md`](go-server/MIGRATION.md) guide. It covers the one-time
-Flyway handoff and keeps the existing PostgreSQL and RustFS data in place.
-
 For a complete local stack, create an ignored `.env.dev` as described in the Go server guide, then run:
 
 ```bash
@@ -93,7 +89,7 @@ dart run build_runner build
 flutter analyze --no-fatal-infos --no-fatal-warnings
 ```
 
-The repository pins Go 1.27.1, Flutter 3.47.2, Node.js 24.20.0, and the API
+The repository pins Go 1.27.1, Flutter 3.47.3, Node.js 24.21.0, and the API
 tooling in [`mise.toml`](mise.toml). The same checks are available from the
 repository root as `mise run flutter-analyze`, `mise run flutter-test`, and
 `mise run flutter-api-test`; use `mise run flutter-build-web` for a release web
@@ -130,7 +126,6 @@ and the `app_config` environment group before enabling the workflow.
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `docker-compose.dev.yml`: local PostGIS, object storage, and server stack
-- `docker-compose.yml`: deployment stack
 - `codemagic.yaml`: mobile release workflow
 - `mise.toml`: pinned development tools and tasks
 

@@ -73,19 +73,13 @@ func (s *Group) toDTO(ctx context.Context, g *db.Group, withImages bool) (*Group
 		return nil, err
 	}
 	if withImages && s.obj != nil {
-		if u, err := s.obj.PresignedGet(ctx, GroupProfileKey(g.ID, false)); err != nil {
-			return nil, err
-		} else if u != "" {
+		if u, err := s.obj.PresignedGet(ctx, GroupProfileKey(g.ID, false)); err == nil && u != "" {
 			out.ProfileImage = &u
 		}
-		if u, err := s.obj.PresignedGet(ctx, GroupProfileKey(g.ID, true)); err != nil {
-			return nil, err
-		} else if u != "" {
+		if u, err := s.obj.PresignedGet(ctx, GroupProfileKey(g.ID, true)); err == nil && u != "" {
 			out.ProfileSmall = &u
 		}
-		if u, err := s.obj.PresignedGet(ctx, GroupPinKey(g.ID)); err != nil {
-			return nil, err
-		} else if u != "" {
+		if u, err := s.obj.PresignedGet(ctx, GroupPinKey(g.ID)); err == nil && u != "" {
 			out.PinImage = &u
 		}
 	}

@@ -1,15 +1,14 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:flutter/foundation.dart';
-import 'package:logger/logger.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -34,74 +33,75 @@ class SyncingService extends _$SyncingService {
   late PinsApi _pinsApi;
   late IGroupRepository _groupRepository;
   late IPinRepository _pinRepository;
-  late String userId;
-  final Logger _logger = Logger();
 
   @override
   SyncState build() {
-    ref.listen(userGroupServiceProvider, (_, _) => ());
     _pinsApi = ref.watch(pinApiProvider);
     _groupRepository = ref.watch(groupRepositoryProvider);
     _pinRepository = ref.watch(pinRepositoryProvider);
-    userId = ref.watch(userIdProvider);
-    ref.listen(
-      lastSeenProvider(GlobalDataRepository.lastSeenKey),
-      (_, _) => (),
-    ); // keep provider alive
-    ref.listen(
-      userServiceProvider(userId),
-      (_, _) => (),
-    ); // keep provider alive
-    syncToBackend();
     return SyncState.init;
   }
 
-  void toInit() {
-    state = SyncState.init;
-  }
-
-  Future<void> syncToBackend() async {
+  Future<void> syncToBackend({bool Function()? isActive}) async {
+    final owner = ref;
+    final accountIsCurrent = accountOperation(owner);
+    bool isCurrent() =>
+        owner.mounted && accountIsCurrent() && (isActive?.call() ?? true);
+    if (!isCurrent()) return;
     state = SyncState.syncing;
     const key = GlobalDataRepository.lastSeenKey;
     final lastSeen = ref.read(lastSeenProvider(key));
-    final userId = ref.read(userIdProvider);
     try {
-      _logger.i("Syncing groups of user $userId and lastSeen: $lastSeen");
-      await syncFromBackend(lastSeen);
-      await syncOfflinePins();
+      await _syncFromBackend(lastSeen, isCurrent);
+      if (!isCurrent()) return;
+      await _syncOfflinePins(isCurrent);
+      if (!isCurrent()) return;
       ref.read(lastSeenProvider(key).notifier).setLastSeenNow();
       state = SyncState.finished;
-      _logger.i("Successfully finished syncing");
     } catch (e) {
+      if (!isCurrent()) return;
       state = SyncState.failed;
-      _logger.i("Failed syncing with error: $e");
       rethrow;
     }
   }
 
-  Future<void> syncFromBackend(DateTime? lastSeen) async {
+  Future<void> _syncFromBackend(
+    DateTime? lastSeen,
+    bool Function() isCurrent,
+  ) async {
+    if (!isCurrent()) return;
+    final groupRepository = _groupRepository;
+    final pinRepository = _pinRepository;
     final response = await _pinsApi.callSync(lastSeen: lastSeen);
+    if (!isCurrent()) return;
     if (response == null) {
       throw Exception("no sync possible");
     }
 
-    final localUserGroups = await _groupRepository.watchUserGroups().first;
+    final localUserGroups = await groupRepository.watchUserGroups().first;
+    if (!isCurrent()) return;
     for (final groupId in removedUserGroupIds(
       localUserGroups.map((group) => group.groupId),
       response,
     )) {
-      await _groupRepository.delete(groupId);
-      await _pinRepository.updateKeepAlive(groupId, false, true);
+      if (!isCurrent()) return;
+      await groupRepository.delete(groupId);
+      if (!isCurrent()) return;
+      await pinRepository.updateKeepAlive(groupId, false, true);
     }
 
+    if (!isCurrent()) return;
     if (response.deletedPins.isNotEmpty) {
-      await _pinRepository.deleteMultiple(response.deletedPins);
+      await pinRepository.deleteMultiple(response.deletedPins);
     }
 
     for (final groupUpdate in response.groupUpdates) {
+      if (!isCurrent()) return;
       final groupDto = groupUpdate.group;
-      final existingGroup = await _groupRepository.get(groupDto.id);
-      await _groupRepository.put(
+      registerGroupImageUrls(ref, groupDto);
+      final existingGroup = await groupRepository.get(groupDto.id);
+      if (!isCurrent()) return;
+      await groupRepository.put(
         GroupEntity.fromGroupDto(
           groupDto,
           false,
@@ -111,40 +111,51 @@ class SyncingService extends _$SyncingService {
         ),
       );
 
+      if (!isCurrent()) return;
       if (groupUpdate.pinsAdded.isNotEmpty) {
-        await _pinRepository.putMultiple(
+        for (final pin in groupUpdate.pinsAdded) {
+          registerPinImageUrl(ref, pin);
+        }
+        await pinRepository.putMultiple(
           groupUpdate.pinsAdded
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
       }
 
+      if (!isCurrent()) return;
       prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
     }
   }
 
-  Future<void> syncOfflinePins() async {
-    final offlinePins = (await _pinRepository.getAll()).where(
+  Future<void> _syncOfflinePins(bool Function() isCurrent) async {
+    if (!isCurrent()) return;
+    final pinRepository = _pinRepository;
+    final pinsApi = _pinsApi;
+    final images = ref.read(pinImageRepositoryProvider);
+    final offlinePins = (await pinRepository.getAll()).where(
       (e) => e.lastSynced == null,
     );
     for (final pin in offlinePins) {
-      final image = await ref
-          .read(pinImageRepositoryProvider)
-          .fetchImage(pin.pinId, true);
+      if (!isCurrent()) return;
+      final image = await images.fetchImage(pin.pinId, true);
+      if (!isCurrent()) return;
       try {
-        _logger.i("Trying to sync $pin to online backend");
-        final newPin = await _pinsApi.createPin(pin.toRequestDto(image!));
-        await _pinRepository.put(
+        final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
+        if (!isCurrent()) return;
+        await pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
         );
-        await _pinRepository.delete(pin.pinId);
+        if (!isCurrent()) return;
+        await pinRepository.delete(pin.pinId);
       } on ApiException catch (e) {
-        if (e.code == 409) {
-          _logger.i("Pin $pin already exists on online backend");
-          await _pinRepository.delete(pin.pinId);
-        }
-      } catch (e) {
-        if (kDebugMode) print(e);
+        if (!isCurrent()) return;
+        if (e.code != 409) rethrow;
+        // Preserve the legacy duplicate policy until server idempotency lands.
+        await pinRepository.delete(pin.pinId);
+      } catch (_) {
+        if (!isCurrent()) return;
+        rethrow;
       }
     }
   }

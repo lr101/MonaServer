@@ -2,9 +2,11 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"math/rand"
 	"time"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
 	"github.com/lrprojects/monaserver/internal/apperrors"
@@ -103,8 +105,16 @@ func toTokenResponseDto(p *service.TokenPair) genserver.TokenResponseDto {
 }
 
 // serviceErrResp converts a service/domain error to the tagged server's plain-text response.
-func serviceErrResp(err error) genserver.ImplResponse {
-	return genserver.Response(apperrors.HTTPStatus(err), []byte(apperrors.Message(err)))
+func serviceErrResp(ctx context.Context, err error) genserver.ImplResponse {
+	status := apperrors.HTTPStatus(err)
+	if status >= 500 {
+		slog.ErrorContext(ctx, "request failed",
+			"status", status,
+			"request_id", chimw.GetReqID(ctx),
+			"err", err,
+		)
+	}
+	return genserver.Response(status, []byte(apperrors.Message(err)))
 }
 
 // ctxUserID extracts the authenticated user's UUID from context.

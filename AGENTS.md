@@ -9,14 +9,18 @@ The main repository areas are:
 - `go-server/`: Go module, server source, tests, generators, and container image.
 - `api/`: API contract. `api/openapi.yaml` is the bundled specification consumed by the Go generators.
 - `docker-compose.dev.yml`: local Go server, PostGIS, and RustFS stack.
-- `docker-compose.yml`: deployment stack using the published Go image.
 - `mise.toml`: pinned local Go version and common build tasks.
 
-Read the nearest nested `AGENTS.md` before editing files below `go-server/`, `go-server/internal/db/`, or `api/`. Its rules add to this file.
+Nested guides are conditional references: consult `api/AGENTS.md` when a
+change touches the OpenAPI contract, `go-server/AGENTS.md` for substantive
+Go-server changes, and `go-server/internal/db/AGENTS.md` for SQL or migration
+changes. Skip nested guides for unrelated or trivial edits.
 
-## Toolchain and common commands
+## Safe local checks
 
-Run these commands from the repository root:
+Local formatting, vetting, tests, and builds are safe to run without asking when they are relevant to the change. Use the narrowest applicable check; do not publish, deploy, or access non-local services unless the task explicitly includes it.
+
+The repository provides these repeatable checks from the repository root:
 
 ```bash
 mise install
@@ -57,15 +61,14 @@ available in the verification summary.
 - Keep API behavior, `api/openapi.yaml`, generated API code, handlers, and route authorization in sync.
 - Do not edit files below `go-server/internal/gen/` by hand except the explicitly preserved compatibility adapters listed in `go-server/internal/gen/server/.openapi-generator-ignore`. Change generator sources whenever they can represent the required behavior.
 - Add database changes as new migrations. Do not rewrite a migration that may have run in another environment.
-- Keep credentials out of commits and command output. `.env` and `.env.dev` are ignored for this reason.
+- Keep credentials out of commits and command output. `.env`, `.env.dev`, and `.env.test` are ignored for this reason.
 - Do not mix dependency upgrades or generated-file churn into an unrelated change.
 - Preserve wire compatibility unless the task explicitly changes the API contract. Clients depend on field names, status codes, JWT claims, and object keys.
 
 ## Pull request workflow
 
-- Always target `develop` as the base branch for pull requests. Use another base only when explicitly requested.
-- After a coding run reaches a completed state, always create a pull request for its changes before handoff.
+- Create a pull request only when the user or an explicit workflow requests one; target `develop` by default.
 
 ## Checks before handoff
 
-At minimum, run the narrow test for the package you changed, then `mise exec -- go test ./...`. Run `mise exec -- go vet ./...` for code changes. API and database changes also require their generated files and the checks named in their nested guides.
+Report verification evidence for the checks required by the change. API and database changes also require their generated files and the conditional checks named in their nested guides.

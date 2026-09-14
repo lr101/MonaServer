@@ -20,18 +20,16 @@ Key features:
 
 The Stick-It app is built using the **Flutter** framework, which allows for cross-platform development on Android, iOS, and web platforms. Here's a high-level overview of how the app works:
 
-### Project structure
+### Architecture
 
-The app is structured as follows:
- - **data**: contains data models, repositories, and services. Repositories handles and provides database operations. Services provide business logic for the app, including holding global state values and making api calls.
- - **features**: contains the app's features (mostly widgets where a route leads to), such as the main screen, group screen, and profile screen. Each directory is split into representation (UI) and data (screen specific logic and states).
- - **util**: contains utility classes, such as the app's theme, routing, and error handling.
- - **widgets**: contains reusable widgets that are used across the app. Each directory is split into representation (UI) and data (screen specific logic and states).
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the current code map, implemented
+reliability work, dependency rules and remaining migration plan.
+[AGENTS.md](AGENTS.md) adds agent verification guidance.
 
 ## Quick start (development)
 
 1) Prerequisites
-- Install `mise`, then run `mise install` from the monorepo root to install the pinned Flutter 3.47.2 SDK and build tools.
+- Install `mise`, then run `mise install` from the monorepo root to install the Flutter SDK pinned in `mise.toml` and build tools.
 - Ensure a working Android/iOS development environment (Android Studio / Xcode on macOS for iOS).
 
 2) Install dependencies
@@ -59,6 +57,29 @@ mise run flutter-run -- -d ios
 Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
+
+The web container serves only static files. Its API origin is compiled into
+the Flutter build; pass `--build-arg API_HOST=https://api.example.test` when
+building the image for a backend other than the default production origin.
+That backend and the object-storage origin must allow the web app's origin
+through CORS.
+
+### Faster local iteration
+
+Use `mise run flutter-run -- -d chrome` (or a connected device ID) and hot
+reload during UI work. Keep release/Wasm builds for artifact and browser
+verification. The mise Flutter tasks run `flutter-setup` automatically when
+pubspecs, lockfiles, or tool pins change, or after `.dart_tool` is removed.
+Use `mise run --force flutter-setup` to refresh dependencies explicitly.
+
+Keep `.dart_tool/`, `build/`, the Pub cache, and Gradle caches between builds.
+Use `flutter clean` for a diagnosed stale-build problem, not as a routine
+build step. Gradle task-output caching is enabled in `android/gradle.properties`.
+
+CI compiles web once, passes that artifact to `docker/Dockerfile.runtime`,
+smoke-tests the image, and publishes the same image without rebuilding it.
+`docker/Dockerfile` remains the standalone source-to-image build. See
+[`../docs/BUILD_SPEED.md`](../docs/BUILD_SPEED.md) for cache and timing details.
 
 ### Browser verification and Playwright MCP
 
@@ -88,8 +109,9 @@ set +a
 E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
 ```
 
-The check builds `flutter/build/web`, starts a static server on port 4173,
-and verifies login and the Groups screen. The reusable accounts, groups, pins,
+The check builds `flutter/build/web`, starts a static file server on port 4173,
+and verifies login and the Groups screen against the configured API origin.
+The reusable accounts, groups, pins,
 likes, and scenario IDs are documented in [`../testdata/README.md`](../testdata/README.md)
 and generated under ignored `testdata/` files. The default test API is
 loopback-only; set `TESTDATA_ALLOW_REMOTE_API=1` only when intentionally using
@@ -103,7 +125,7 @@ session, build and serve the app, then navigate the MCP browser to
 ```bash
 E2E_API_URL=http://127.0.0.1:8081 mise run flutter-build-web
 cd flutter/e2e && npm ci && npm run install:browsers
-python3 -m http.server 4173 --bind 127.0.0.1 --directory ../build/web
+node static_server.mjs
 ```
 
 Enable Flutter web accessibility by activating the `Enable accessibility`

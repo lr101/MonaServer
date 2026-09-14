@@ -385,53 +385,52 @@ final class GroupPinImageByIdFamily extends $Family
   String toString() => r'groupPinImageByIdProvider';
 }
 
-@ProviderFor(getPinImageInfo)
-final getPinImageInfoProvider = GetPinImageInfoFamily._();
+@ProviderFor(pinImageBytes)
+final pinImageBytesProvider = PinImageBytesFamily._();
 
-final class GetPinImageInfoProvider
+final class PinImageBytesProvider
     extends
         $FunctionalProvider<
-          AsyncValue<PinImageInfo?>,
-          PinImageInfo?,
-          Stream<PinImageInfo?>
+          AsyncValue<Uint8List?>,
+          Uint8List?,
+          Stream<Uint8List?>
         >
-    with $FutureModifier<PinImageInfo?>, $StreamProvider<PinImageInfo?> {
-  GetPinImageInfoProvider._({
-    required GetPinImageInfoFamily super.from,
+    with $FutureModifier<Uint8List?>, $StreamProvider<Uint8List?> {
+  PinImageBytesProvider._({
+    required PinImageBytesFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'getPinImageInfoProvider',
+         name: r'pinImageBytesProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$getPinImageInfoHash();
+  String debugGetCreateSourceHash() => _$pinImageBytesHash();
 
   @override
   String toString() {
-    return r'getPinImageInfoProvider'
+    return r'pinImageBytesProvider'
         ''
         '($argument)';
   }
 
   @$internal
   @override
-  $StreamProviderElement<PinImageInfo?> $createElement(
-    $ProviderPointer pointer,
-  ) => $StreamProviderElement(pointer);
+  $StreamProviderElement<Uint8List?> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
 
   @override
-  Stream<PinImageInfo?> create(Ref ref) {
+  Stream<Uint8List?> create(Ref ref) {
     final argument = this.argument as String;
-    return getPinImageInfo(ref, argument);
+    return pinImageBytes(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is GetPinImageInfoProvider && other.argument == argument;
+    return other is PinImageBytesProvider && other.argument == argument;
   }
 
   @override
@@ -440,22 +439,22 @@ final class GetPinImageInfoProvider
   }
 }
 
-String _$getPinImageInfoHash() => r'866958cb6eda09d25bf40805d7683831099bef1e';
+String _$pinImageBytesHash() => r'719dd11c02c82c48875466de567e7a78d6650acb';
 
-final class GetPinImageInfoFamily extends $Family
-    with $FunctionalFamilyOverride<Stream<PinImageInfo?>, String> {
-  GetPinImageInfoFamily._()
+final class PinImageBytesFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<Uint8List?>, String> {
+  PinImageBytesFamily._()
     : super(
         retry: null,
-        name: r'getPinImageInfoProvider',
+        name: r'pinImageBytesProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
 
-  GetPinImageInfoProvider call(String pinId) =>
-      GetPinImageInfoProvider._(argument: pinId, from: this);
+  PinImageBytesProvider call(String pinId) =>
+      PinImageBytesProvider._(argument: pinId, from: this);
 
   @override
-  String toString() => r'getPinImageInfoProvider';
+  String toString() => r'pinImageBytesProvider';
 }

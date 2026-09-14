@@ -22,10 +22,13 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       CustomErrorSnackBar.message(message: "Sending code to your email");
-      final result = await ref.watch(authServiceProvider.notifier).getDeleteCode();
+      final result = await ref
+          .watch(authServiceProvider.notifier)
+          .getDeleteCode();
       if (result != null) {
         CustomErrorSnackBar.message(
-            message: "Error while sending code: $result",);
+          message: "Error while sending code: $result",
+        );
       }
     });
   }
@@ -33,16 +36,27 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
   @override
   Widget build(BuildContext context) {
     return CustomCloseKeyboardScaffold(
-        appBar: AppBar(
-          title: const Text("Delete Account", style: TextStyle(fontWeight: FontWeight.bold)),
+      appBar: AppBar(
+        title: const Text(
+          "Delete Account",
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        body: Padding(padding: const EdgeInsets.all(16), child: Form(
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Form(
           key: _formKey,
           child: Column(
             children: [
-              const Text("Are you sure you want to delete your account?", style: TextStyle(fontStyle: FontStyle.italic)),
-              const Text("This action cannot be undone, all data will be lost!!",style: TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 16,),
+              const Text(
+                "Are you sure you want to delete your account?",
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              const Text(
+                "This action cannot be undone, all data will be lost!!",
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 16),
               const Text("Type the Code from your email here:"),
               Padding(
                 padding: const EdgeInsets.all(10),
@@ -56,24 +70,41 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
                     labelText: '6 Digit Code',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => v != null && v.length == 6 ? null: "Code must have 6 digits",
+                  validator: (v) => v != null && v.length == 6
+                      ? null
+                      : "Code must have 6 digits",
                 ),
               ),
-              const SizedBox(height: 50,),
+              const SizedBox(height: 50),
               SubmitButton(onPressed: _submitDelete, text: "Delete Account"),
             ],
           ),
-        ),),);
+        ),
+      ),
+    );
   }
 
   Future<void> _submitDelete() async {
     if (_formKey.currentState!.validate()) {
-      final result = await ref.watch(authServiceProvider.notifier)
-          .deleteAccount(int.parse(_controller.text));
-      if (result != null) {
-        CustomErrorSnackBar.message(message: result);
-      } else if (mounted) {
-        context.goNamed("login");
+      try {
+        final result = await ref
+            .read(authServiceProvider.notifier)
+            .deleteAccount(int.parse(_controller.text));
+        if (!mounted) return;
+        if (result != null) {
+          CustomErrorSnackBar.message(message: result);
+        } else {
+          context.goNamed("login");
+        }
+      } catch (_) {
+        if (!mounted) return;
+        if (ref.read(globalDataServiceProvider.notifier).cleanupRequired) {
+          context.goNamed('logout');
+        } else {
+          CustomErrorSnackBar.message(
+            message: 'Account deletion failed. Please retry.',
+          );
+        }
       }
     }
   }

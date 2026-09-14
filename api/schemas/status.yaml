@@ -10,5 +10,3 @@ properties:
       description: "A notification message list to be shown to the user"
   token-validity:
     $ref: "../parameters/date.yaml"
-  minio-endpoint:
-    $ref: "../parameters/shortString.yaml"

@@ -9,23 +9,33 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'member_repository.g.dart';
 
-
 abstract class IMemberRepository implements CacheApi<MembersEntity> {}
 
-class MemberRepository extends CacheImpl<MembersEntity> implements IMemberRepository {
+class MemberRepository extends CacheImpl<MembersEntity>
+    implements IMemberRepository {
   final AppDatabase db;
 
-  MemberRepository(this.db, {super.maxItems, super.ttlDuration = const Duration(days: 1)});
+  MemberRepository(
+    this.db, {
+    super.maxItems,
+    super.ttlDuration = const Duration(days: 1),
+  });
 
   MemberEntitiesCompanion _toCompanion(MembersEntity entity) {
     return MemberEntitiesCompanion(
       groupId: Value(entity.groupId),
-      members: Value(entity.members.map((e) => {
-        'userId': e.userId,
-        'points': e.points,
-        'username': e.username,
-        'selectedBatch': e.selectedBatch,
-      }).toList()),
+      members: Value(
+        entity.members
+            .map(
+              (e) => {
+                'userId': e.userId,
+                'points': e.points,
+                'username': e.username,
+                'selectedBatch': e.selectedBatch,
+              },
+            )
+            .toList(),
+      ),
       isarId: Value(entity.isarId),
       ttl: Value(entity.ttl),
       hits: Value(entity.hits),
@@ -37,12 +47,16 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
   MembersEntity _fromDb(MemberDb data) {
     return MembersEntity(
       groupId: data.groupId,
-      members: data.members.map((e) => MemberEntity(
-        userId: e['userId'] as String? ?? '',
-        points: e['points'] as int? ?? 0,
-        username: e['username'] as String? ?? '',
-        selectedBatch: e['selectedBatch'] as int?,
-      )).toList(),
+      members: data.members
+          .map(
+            (e) => MemberEntity(
+              userId: e['userId'] as String? ?? '',
+              points: e['points'] as int? ?? 0,
+              username: e['username'] as String? ?? '',
+              selectedBatch: e['selectedBatch'] as int?,
+            ),
+          )
+          .toList(),
       keepAlive: data.keepAlive,
       hits: data.hits,
       ttl: data.ttl,
@@ -52,7 +66,9 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
 
   @override
   Future<void> doDelete(int isarId) async {
-    await (db.delete(db.memberEntities)..where((tbl) => tbl.isarId.equals(isarId))).go();
+    await (db.delete(
+      db.memberEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).go();
   }
 
   @override
@@ -62,12 +78,16 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
 
   @override
   Future<void> doDeleteMultiple(List<int> isarIds) async {
-    await (db.delete(db.memberEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+    await (db.delete(
+      db.memberEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
   }
 
   @override
   Future<MembersEntity?> doGet(int isarId) async {
-    final res = await (db.select(db.memberEntities)..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
+    final res = await (db.select(
+      db.memberEntities,
+    )..where((tbl) => tbl.isarId.equals(isarId))).getSingleOrNull();
     return res == null ? null : _fromDb(res);
   }
 
@@ -79,7 +99,9 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
 
   @override
   Future<List<MembersEntity>> doGetList(List<int> isarIds) async {
-    final res = await (db.select(db.memberEntities)..where((tbl) => tbl.isarId.isIn(isarIds))).get();
+    final res = await (db.select(
+      db.memberEntities,
+    )..where((tbl) => tbl.isarId.isIn(isarIds))).get();
     return res.map(_fromDb).toList();
   }
 
@@ -87,13 +109,15 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
   Future<int> doGetSize() async {
     final countExp = db.memberEntities.isarId.count();
     final query = db.selectOnly(db.memberEntities)..addColumns([countExp]);
-    final result = await query.getSingle();
-    return result.read(countExp) ?? 0;
+    final result = await query.getSingleOrNull();
+    return result?.read(countExp) ?? 0;
   }
 
   @override
   Future<List<MembersEntity>> doGetSortedByHits() async {
-    final res = await (db.select(db.memberEntities)..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
+    final res = await (db.select(
+      db.memberEntities,
+    )..orderBy([(t) => OrderingTerm(expression: t.hits)])).get();
     return res.map(_fromDb).toList();
   }
 
@@ -105,17 +129,23 @@ class MemberRepository extends CacheImpl<MembersEntity> implements IMemberReposi
   @override
   Future<void> doPutMultiple(List<MembersEntity> items) async {
     await db.batch((batch) {
-      batch.insertAllOnConflictUpdate(db.memberEntities, items.map(_toCompanion).toList());
+      batch.insertAllOnConflictUpdate(
+        db.memberEntities,
+        items.map(_toCompanion).toList(),
+      );
     });
   }
 
   @override
   Stream<MembersEntity?> doWatchById(int isarId) {
-    return (db.select(db.memberEntities)..where((tbl) => tbl.isarId.equals(isarId))).watchSingleOrNull().map((res) => res == null ? null : _fromDb(res));
+    return (db.select(db.memberEntities)
+          ..where((tbl) => tbl.isarId.equals(isarId)))
+        .watchSingleOrNull()
+        .map((res) => res == null ? null : _fromDb(res));
   }
 }
 
 @Riverpod(keepAlive: true)
 IMemberRepository memberRepository(Ref ref) {
-  return MemberRepository(ref.watch(driftRepoProvider));
+  return MemberRepository(ref.watch(accountDatabaseProvider));
 }

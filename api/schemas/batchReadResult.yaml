@@ -1,0 +1,32 @@
+type: object
+required:
+  - kind
+  - id
+  - status
+properties:
+  kind:
+    type: string
+    enum:
+      - pinImage
+      - userImageSmall
+      - userImage
+      - groupImageSmall
+      - groupImage
+      - groupPinImage
+      - user
+      - pinLikes
+  id:
+    $ref: '../parameters/id.yaml'
+  status:
+    type: integer
+    format: int32
+  imageUrl:
+    type: string
+  user:
+    nullable: true
+    allOf:
+      - $ref: './userInfoDto.yaml'
+  likes:
+    nullable: true
+    allOf:
+      - $ref: './pinLikeDto.yaml'

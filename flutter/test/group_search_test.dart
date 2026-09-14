@@ -17,7 +17,7 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('search rows load thumbnails without preloading image metadata', (
+  testWidgets('search rows reuse thumbnail URLs from the page response', (
     tester,
   ) async {
     final groupsApi = _RecordingGroupsApi();
@@ -52,11 +52,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Public group'), findsOneWidget);
-    expect(groupsApi.requestedWithImages, [false]);
+    expect(groupsApi.requestedWithImages, [true]);
     expect(thumbnailProviderBuilds, 1);
   });
 
-  testWidgets('search results do not depend on image URL generation', (
+  testWidgets('search results fall back when image URL generation fails', (
     tester,
   ) async {
     final groupsApi = _RecordingGroupsApi(failImageRequest: true);
@@ -84,7 +84,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Public group'), findsOneWidget);
-    expect(groupsApi.requestedWithImages, [false]);
+    expect(groupsApi.requestedWithImages, [true, false]);
   });
 }
 

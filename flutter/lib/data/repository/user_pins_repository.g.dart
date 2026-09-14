@@ -55,4 +55,4 @@ final class UserPinsRepositoryProvider
 }
 
 String _$userPinsRepositoryHash() =>
-    r'7035270f6fbd748bd0d7baff6ad87d0bdb4239ab';
+    r'4c99437db9d9cf047cebf48a394a160daaa0f05d';

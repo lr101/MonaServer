@@ -1,6 +1,7 @@
 README.md
 api/openapi.yaml
 api_admin.go
+api_batch.go
 api_likes.go
 api_public.go
 api_report.go
@@ -9,6 +10,10 @@ error.go
 impl.go
 logger.go
 model_admin_mail_dto.go
+model_batch_read_item.go
+model_batch_read_request.go
+model_batch_read_response.go
+model_batch_read_result.go
 model_create_like_dto.go
 model_group_dto.go
 model_group_ranking_dto_inner.go

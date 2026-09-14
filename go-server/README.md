@@ -2,10 +2,7 @@
 
 Go backend for the **Stick-It** API. It preserves the established endpoints,
 PostgreSQL/PostGIS schema, password hashes, refresh tokens, and object-store key
-layout. Existing Spring access tokens require refresh or login after cutover.
-
-For a production Docker Compose migration from Spring, see
-[`MIGRATION.md`](MIGRATION.md).
+layout.
 
 ## Requirements
 
@@ -67,6 +64,51 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
+| `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
+| `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
+
+### Docker Compose configuration
+
+Create an ignored `.env.dev` file for `docker-compose.dev.yml`. A current
+configuration looks like this:
+
+```dotenv
+POSTGRES_USER=monaserver
+POSTGRES_PASSWORD=<database-password>
+POSTGRES_DB=monaserver
+DATABASE_URL=postgres://monaserver:URL_ENCODED_PASSWORD@db:5432/monaserver?sslmode=disable
+
+JWT_SECRET=<strong-random-secret>
+TOKEN_ACCESS_EXPIRY=15m
+TOKEN_REFRESH_EXPIRY=8760h
+TOKEN_ADMIN_USERNAME=admin
+APP_MAX_LOGIN_ATTEMPTS=10
+
+APP_URL=https://api.example.com
+APP_REDIRECT_URL=https://example.com
+
+RUSTFS_ENDPOINT=rustfs:9000
+RUSTFS_EXTERNAL_ENDPOINT=storage.example.com:9000
+RUSTFS_ACCESS_KEY=<application-access-key>
+RUSTFS_SECRET_KEY=<application-secret-key>
+RUSTFS_BUCKET=<bucket-name>
+RUSTFS_USE_SSL=false
+RUSTFS_URL_EXPIRY=60m
+
+MAIL_HOST=
+MAIL_PORT=587
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM=
+FIREBASE_CONFIG_PATH=
+
+ACHIEVEMENT_MONA_GROUP_ID=d9631336-5c32-4f64-83a7-7a4fcdae4dd6
+ACHIEVEMENT_CREATED_BEFORE=2023-12-10T02:43:44.402768+00:00
+```
+
+`RUSTFS_ENDPOINT` is the address used by the server. The external endpoint is
+written into presigned URLs returned to clients. Both use `host:port` without
+a URL scheme. Set `RUSTFS_USE_SSL=true` only when both endpoints use TLS.
 
 ## API
 
@@ -139,3 +181,15 @@ go-server/
 │   └── token/               HS256 JWT helpers
 └── Dockerfile               multi-stage, distroless runtime
 ```
+
+## Faster local builds
+
+Keep the local database/object store running and use `mise run run` from the
+repository root with the runtime environment above. This runs Go directly and
+reuses its module and compiler caches. Use `mise run build` when a binary is
+needed; avoid clearing Go caches between edits.
+
+Container builds cache module downloads in a layer and compiled packages in a
+BuildKit cache mount. CI restores/exports that mount separately from the image
+layers and cross-compiles Linux amd64/arm64 on the native builder. See
+[`../docs/BUILD_SPEED.md`](../docs/BUILD_SPEED.md).

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:buff_lisa/data/database/account_session.dart';
+
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/entity/season_entity.dart';
 import 'package:drift/drift.dart';
@@ -172,6 +174,8 @@ class UserPinsEntities extends Table with CacheTable {
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
+
+  AccountSession? get session => null;
 
   @override
   int get schemaVersion => 2;

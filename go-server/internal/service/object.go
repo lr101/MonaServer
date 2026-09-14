@@ -3,16 +3,24 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/google/uuid"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-// Object wraps MinIO with the bucket layout used by the Kotlin ObjectServiceImpl:
+// Object wraps the S3-compatible object service with the bucket layout used by
+// the Kotlin ObjectServiceImpl:
 //
 //	pins/{id}.png
 //	groups/{id}/group_pin.png
@@ -21,8 +29,8 @@ import (
 //	users/{id}/profile.png
 //	users/{id}/profile_small.png
 type Object struct {
-	client        *minio.Client // internal endpoint — used for all API operations
-	presignClient *minio.Client // external endpoint — used only for PresignedGetObject
+	client        *s3.Client        // internal endpoint — used for all API operations
+	presignClient *s3.PresignClient // external endpoint — used only for presigned URLs
 	bucket        string
 	urlExpiry     time.Duration
 }
@@ -35,17 +43,7 @@ type Object struct {
 // are both computed over the external address, so the signature remains valid
 // when the client actually fetches the URL.
 func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
-	opts := &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: useSSL,
-		// Region must be set to prevent minio-go from calling GetBucketLocation on
-		// every presign operation. Without it, each PresignedGetObject triggers an
-		// HTTP round-trip to the endpoint — the external endpoint is reachable by
-		// mobile clients but not from inside the Docker network, causing a 30-second
-		// TCP timeout per call.
-		Region: "us-east-1",
-	}
-	client, err := minio.New(endpoint, opts)
+	client, err := newS3Client(endpoint, accessKey, secretKey, useSSL)
 	if err != nil {
 		return nil, err
 	}
@@ -53,49 +51,88 @@ func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, 
 	if extEndpoint == "" {
 		extEndpoint = endpoint
 	}
-	presignClient, err := minio.New(extEndpoint, opts)
+	presignS3Client, err := newS3Client(extEndpoint, accessKey, secretKey, useSSL)
 	if err != nil {
 		return nil, err
 	}
-	return &Object{client: client, presignClient: presignClient, bucket: bucket, urlExpiry: urlExpiry}, nil
+	return &Object{
+		client:        client,
+		presignClient: s3.NewPresignClient(presignS3Client),
+		bucket:        bucket,
+		urlExpiry:     urlExpiry,
+	}, nil
+}
+
+func newS3Client(endpoint, accessKey, secretKey string, useSSL bool) (*s3.Client, error) {
+	cfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion("us-east-1"),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s3.NewFromConfig(cfg, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(s3EndpointURL(endpoint, useSSL))
+		options.UsePathStyle = true
+	}), nil
+}
+
+func s3EndpointURL(endpoint string, useSSL bool) string {
+	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+		return endpoint
+	}
+	scheme := "http"
+	if useSSL {
+		scheme = "https"
+	}
+	return scheme + "://" + endpoint
 }
 
 // EnsureBucket creates the bucket if absent (idempotent).
 func (o *Object) EnsureBucket(ctx context.Context) error {
-	ok, err := o.client.BucketExists(ctx, o.bucket)
-	if err != nil {
-		return err
-	}
-	if ok {
+	_, err := o.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(o.bucket)})
+	if err == nil {
 		return nil
 	}
-	return o.client.MakeBucket(ctx, o.bucket, minio.MakeBucketOptions{})
+	if !isNotFound(err) {
+		return err
+	}
+	_, err = o.client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(o.bucket)})
+	return err
 }
 
 func (o *Object) Put(ctx context.Context, key string, data []byte, contentType string) error {
-	_, err := o.client.PutObject(ctx, o.bucket, key, bytes.NewReader(data), int64(len(data)),
-		minio.PutObjectOptions{ContentType: contentType})
+	_, err := o.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(o.bucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(data),
+		ContentType: aws.String(contentType),
+	})
 	return err
 }
 
 func (o *Object) Get(ctx context.Context, key string) ([]byte, error) {
-	obj, err := o.client.GetObject(ctx, o.bucket, key, minio.GetObjectOptions{})
+	obj, err := o.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(o.bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer obj.Close()
-	return io.ReadAll(obj)
+	defer obj.Body.Close()
+	return io.ReadAll(obj.Body)
 }
 
 // GetIfExists reads an object while treating a missing key as normal state.
 func (o *Object) GetIfExists(ctx context.Context, key string) ([]byte, bool, error) {
-	if _, err := o.client.StatObject(ctx, o.bucket, key, minio.StatObjectOptions{}); err != nil {
-		switch minio.ToErrorResponse(err).Code {
-		case "NoSuchKey", "NoSuchObject", "NotFound":
+	if _, err := o.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(o.bucket),
+		Key:    aws.String(key),
+	}); err != nil {
+		if isNotFound(err) {
 			return nil, false, nil
-		default:
-			return nil, false, err
 		}
+		return nil, false, err
 	}
 	data, err := o.Get(ctx, key)
 	if err != nil {
@@ -105,7 +142,11 @@ func (o *Object) GetIfExists(ctx context.Context, key string) ([]byte, bool, err
 }
 
 func (o *Object) Remove(ctx context.Context, key string) error {
-	return o.client.RemoveObject(ctx, o.bucket, key, minio.RemoveObjectOptions{})
+	_, err := o.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(o.bucket),
+		Key:    aws.String(key),
+	})
+	return err
 }
 
 // PresignedGet returns a time-limited presigned URL for the object.
@@ -113,11 +154,34 @@ func (o *Object) Remove(ctx context.Context, key string) error {
 // If the object does not exist in RustFS the URL will 404 when the client fetches it.
 // The external client is used so the Host in the signature matches what the caller sees.
 func (o *Object) PresignedGet(ctx context.Context, key string) (string, error) {
-	u, err := o.presignClient.PresignedGetObject(ctx, o.bucket, key, o.urlExpiry, nil)
+	req, err := o.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(o.bucket),
+		Key:    aws.String(key),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = o.urlExpiry
+	})
 	if err != nil {
 		return "", err
 	}
-	return u.String(), nil
+	return req.URL, nil
+}
+
+func isNotFound(err error) bool {
+	var responseError *smithyhttp.ResponseError
+	if errors.As(err, &responseError) && responseError.HTTPStatusCode() == http.StatusNotFound {
+		return true
+	}
+
+	var apiError smithy.APIError
+	if !errors.As(err, &apiError) {
+		return false
+	}
+	switch apiError.ErrorCode() {
+	case "NoSuchBucket", "NoSuchKey", "NoSuchObject", "NotFound":
+		return true
+	default:
+		return false
+	}
 }
 
 // PinKey returns pins/{id}.png.

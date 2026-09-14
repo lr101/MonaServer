@@ -168,7 +168,12 @@ func (c *PinsAPIController) GetPinImagesByIds(w http.ResponseWriter, r *http.Req
 	if query.Has("updatedAfter") {
 		updatedAfterParam, _ = parseTime(query.Get("updatedAfter"))
 	}
-	result, err := c.service.GetPinImagesByIds(r.Context(), idsParam, groupIdParam, userIdParam, withImageParam, compressionParam, heightParam, pageParam, sizeParam, updatedAfterParam)
+	var beforeCreationDateParam time.Time
+	if query.Has("beforeCreationDate") {
+		beforeCreationDateParam, _ = parseTime(query.Get("beforeCreationDate"))
+	}
+	beforeIdParam := query.Get("beforeId")
+	result, err := c.service.GetPinImagesByIds(r.Context(), idsParam, groupIdParam, userIdParam, withImageParam, compressionParam, heightParam, pageParam, sizeParam, updatedAfterParam, beforeCreationDateParam, beforeIdParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

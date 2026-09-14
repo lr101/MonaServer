@@ -73,7 +73,15 @@ WHERE p.is_deleted = FALSE
       sqlc.narg('updated_after')::timestamptz IS NULL
       OR p.update_date > sqlc.narg('updated_after')::timestamptz
   )
-ORDER BY p.creation_date DESC
+  AND (
+      sqlc.narg('before_creation_date')::timestamptz IS NULL
+      OR p.creation_date < sqlc.narg('before_creation_date')::timestamptz
+      OR (
+          p.creation_date = sqlc.narg('before_creation_date')::timestamptz
+          AND p.id < sqlc.narg('before_id')::uuid
+      )
+  )
+ORDER BY p.creation_date DESC, p.id DESC
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: ListDeletedPinsAfter :many

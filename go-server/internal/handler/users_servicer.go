@@ -31,7 +31,7 @@ func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.I
 	}
 	u, err := s.user.Get(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusNotFound, nil), nil
@@ -39,11 +39,11 @@ func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.I
 	info := service.ToPublicUserInfo(u)
 	info.SelectedBatch, err = s.q.GetSelectedUserAchievementID(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	info.BestSeason, err = s.q.GetBestUserSeason(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	registered := false
 	if caller, ok := ctxUserID(ctx); ok && caller == id {
@@ -84,7 +84,7 @@ func (s *UsersServicer) UpdateUser(ctx context.Context, userID string, dto gense
 	}
 	result, err := s.user.Update(ctx, id, in)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	resp := genserver.UserUpdateResponseDto{
 		UserInfoDto: toUserInfoDto(result.UserInfoDto),
@@ -114,7 +114,7 @@ func (s *UsersServicer) DeleteUser(ctx context.Context, userID string, code int3
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.user.Delete(ctx, id, int(code)); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }
@@ -126,7 +126,7 @@ func (s *UsersServicer) GetUserProfileImageSmall(ctx context.Context, userID str
 	}
 	u, err := s.user.ProfileImageURL(ctx, id, true)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -144,7 +144,7 @@ func (s *UsersServicer) GetUserProfileImage(ctx context.Context, userID string, 
 	}
 	u, err := s.user.ProfileImageURL(ctx, id, false)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusOK, nil), nil
@@ -169,7 +169,7 @@ func (s *UsersServicer) GetUserXp(ctx context.Context, userID string) (genserver
 	}
 	u, err := s.user.Get(ctx, id)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if u == nil {
 		return genserver.Response(http.StatusNotFound, nil), nil
@@ -197,7 +197,7 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	}
 	items, err := s.q.GetAchievementProgress(ctx, id, s.achCfg)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
@@ -226,13 +226,13 @@ func (s *UsersServicer) ClaimUserAchievement(ctx context.Context, userID string,
 	}
 	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id, s.achCfg)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	if !claimable {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	if err := s.user.ClaimAchievement(ctx, id, achievementID); err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, nil), nil
 }

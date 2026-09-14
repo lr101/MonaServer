@@ -41,7 +41,7 @@ final class OpenApiConfigProvider
   }
 }
 
-String _$openApiConfigHash() => r'787ba07edc4f2681137316a5288e4e5543329bb9';
+String _$openApiConfigHash() => r'71c65f94cb67bf387982438af3a1138968226326';
 
 abstract class _$OpenApiConfig extends $Notifier<ApiClient> {
   ApiClient build();

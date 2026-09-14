@@ -16,9 +16,10 @@ import (
 )
 
 type failingGroupObjectStore struct {
-	objects map[string][]byte
-	failKey string
-	failed  bool
+	objects    map[string][]byte
+	failKey    string
+	failed     bool
+	presignErr error
 }
 
 func (s *failingGroupObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
@@ -41,6 +42,9 @@ func (s *failingGroupObjectStore) Remove(_ context.Context, key string) error {
 }
 
 func (s *failingGroupObjectStore) PresignedGet(_ context.Context, _ string) (string, error) {
+	if s.presignErr != nil {
+		return "", s.presignErr
+	}
 	return "", nil
 }
 
@@ -205,6 +209,26 @@ func TestGroupCreateGetUpdate(t *testing.T) {
 			t.Fatalf("reuse deleted group name: %v", err)
 		}
 	})
+}
+
+func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
+	_, auth, _, _, _, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	uid := createTestUser(t, auth, "group_image_signing_failure")
+	gid := createTestGroup(t, group, uid, "image_signing_failure_group")
+	group.obj = &failingGroupObjectStore{presignErr: errors.New("presign unavailable")}
+
+	search := "image_signing_failure"
+	result, err := group.Search(ctx, &search, nil, nil, true, 0, 20, nil)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(result.Groups) != 1 || result.Groups[0].ID != gid {
+		t.Fatalf("search returned %+v, want group %s", result.Groups, gid)
+	}
+	if result.Groups[0].ProfileImage != nil || result.Groups[0].ProfileSmall != nil || result.Groups[0].PinImage != nil {
+		t.Fatalf("image signing failure leaked partial URLs: %+v", result.Groups[0])
+	}
 }
 
 // TestGroupCreateSideEffects verifies automatic side-effects of group creation:

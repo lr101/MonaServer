@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +13,33 @@ import (
 	"github.com/lrprojects/monaserver/internal/service"
 	"github.com/lrprojects/monaserver/internal/token"
 )
+
+func TestGetStatusUsesCurrentContract(t *testing.T) {
+	resp, err := (&AuthServicer{}).GetStatus(context.Background())
+	if err != nil {
+		t.Fatalf("GetStatus: %v", err)
+	}
+	if resp.Code != 200 {
+		t.Fatalf("GetStatus status = %d, want 200", resp.Code)
+	}
+
+	body, err := json.Marshal(resp.Body)
+	if err != nil {
+		t.Fatalf("marshal status: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("status response has %d fields, want exactly 2", len(fields))
+	}
+	for _, field := range []string{"notifications", "token-validity"} {
+		if _, ok := fields[field]; !ok {
+			t.Fatalf("status response is missing %q", field)
+		}
+	}
+}
 
 func setupAuthServicer(t *testing.T) (*AuthServicer, *service.Auth) {
 	t.Helper()
@@ -35,7 +63,7 @@ func setupAuthServicer(t *testing.T) (*AuthServicer, *service.Auth) {
 		MaxLoginAttempts:   5,
 		RefreshTokenExpiry: time.Hour,
 	})
-	return NewAuthServicer(auth, q, nil, ""), auth
+	return NewAuthServicer(auth, q, nil), auth
 }
 
 func TestRefreshTokenRejectsTokenOwnedByAnotherUser(t *testing.T) {
@@ -73,7 +101,7 @@ func TestPasswordRecoveryUsesTenMinuteExpiryAndReportsMailFailure(t *testing.T) 
 		MailHost: "127.0.0.1", MailPort: 1, MailUsername: "sender@example.com",
 		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
 	}, nil)
-	servicer := NewAuthServicer(auth, baseServicer.q, failingMail, "")
+	servicer := NewAuthServicer(auth, baseServicer.q, failingMail)
 	resp, err := servicer.RequestPasswordRecovery(ctx, "recovery_user")
 	if err != nil {
 		t.Fatalf("failed recovery request: %v", err)
@@ -94,7 +122,7 @@ func TestPasswordRecoveryUsesTenMinuteExpiryAndReportsMailFailure(t *testing.T) 
 		MailHost: host, MailPort: port, MailUsername: "sender@example.com",
 		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
 	}, nil)
-	servicer = NewAuthServicer(auth, baseServicer.q, workingMail, "")
+	servicer = NewAuthServicer(auth, baseServicer.q, workingMail)
 	before := time.Now()
 	resp, err = servicer.RequestPasswordRecovery(ctx, "recovery_user")
 	if err != nil {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_scaffold.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
@@ -82,9 +83,10 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
         _pagingController.error = "Groups could not be fetched";
         return;
       }
-      final groupDtos = groups.items
-          .map((e) => GroupEntity.fromGroupDto(e, true, false))
-          .toList();
+      final groupDtos = groups.items.map((e) {
+        registerGroupImageUrls(ref, e);
+        return GroupEntity.fromGroupDto(e, true, false);
+      }).toList();
       if (groupDtos.length < _pageSize) {
         _pagingController.appendLastPage(groupDtos);
       } else {
@@ -95,17 +97,34 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
     }
   }
 
-  Future<GroupsSyncDto?> _fetchPage(int pageKey) {
-    return ref
-        .read(groupApiProvider)
-        .getGroupsByIds(
-          search: _textEditController.text,
-          withUser: false,
-          userId: ref.read(globalDataServiceProvider).userId,
-          page: pageKey,
-          size: _pageSize,
-          withImages: false,
-        );
+  Future<GroupsSyncDto?> _fetchPage(int pageKey) async {
+    final api = ref.read(groupApiProvider);
+    try {
+      // The list response already contains signed thumbnail URLs. Reuse them
+      // through the shared image registry instead of issuing one URL
+      // resolution request per visible row.
+      return await _requestPage(api, pageKey, withImages: true);
+    } catch (_) {
+      // Image signing is an optional optimization. Keep search usable when
+      // object storage is unavailable, and let visible rows resolve through
+      // the normal cache-aware image path instead.
+      return _requestPage(api, pageKey, withImages: false);
+    }
+  }
+
+  Future<GroupsSyncDto?> _requestPage(
+    GroupsApi api,
+    int pageKey, {
+    required bool withImages,
+  }) {
+    return api.getGroupsByIds(
+      search: _textEditController.text,
+      withUser: false,
+      userId: ref.read(globalDataServiceProvider).userId,
+      page: pageKey,
+      size: _pageSize,
+      withImages: withImages,
+    );
   }
 
   void listener() {

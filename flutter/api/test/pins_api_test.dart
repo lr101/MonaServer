@@ -54,7 +54,7 @@ void main() {
 
     // Get images by IDs
     //
-    //Future<PinsSyncDto> getPinImagesByIds({ List<String> ids, String groupId, String userId, bool withImage, int compression, int height, int page, int size, DateTime updatedAfter }) async
+    //Future<PinsSyncDto> getPinImagesByIds({ List<String> ids, String groupId, String userId, bool withImage, int compression, int height, int page, int size, DateTime updatedAfter, DateTime beforeCreationDate, String beforeId }) async
     test('test getPinImagesByIds', () async {
       // TODO
     });

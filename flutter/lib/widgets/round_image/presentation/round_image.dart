@@ -1,3 +1,4 @@
+import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,10 @@ class RoundImage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageBytes = imageCallback.value;
+    final Uint8List resolvedBytes =
+        imageBytes ??
+        defaultPlaceholderImage ??
+        ref.watch(defaultErrorImageProvider);
     return _clickable(
       context: context,
       child: SizedBox.square(
@@ -43,10 +48,10 @@ class RoundImage extends ConsumerWidget {
                 height: size != null ? size! * 2 : null,
                 width: size != null ? size! * 2 : null,
                 placeholder: MemoryImage(kTransparentImage),
-                image: MemoryImage(
-                  imageBytes ??
-                      defaultPlaceholderImage ??
-                      ref.watch(defaultErrorImageProvider),
+                image: memoryImageForDisplay(
+                  resolvedBytes,
+                  devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                  logicalWidth: size == null ? null : size! * 2,
                 ),
                 fit: BoxFit.cover,
                 fadeInDuration: const Duration(milliseconds: 250),

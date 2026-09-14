@@ -20,6 +20,56 @@ double cameraPreviewAspectRatio({
   return isLandscape ? sensorAspectRatio : 1 / sensorAspectRatio;
 }
 
+bool isValidCameraPreviewSize(Size? previewSize) {
+  return previewSize != null &&
+      previewSize.width.isFinite &&
+      previewSize.height.isFinite &&
+      previewSize.width > 0 &&
+      previewSize.height > 0;
+}
+
+int cameraPreviewQuarterTurns({
+  required Size previewSize,
+  required DeviceOrientation orientation,
+}) {
+  if (!isValidCameraPreviewSize(previewSize)) {
+    return 0;
+  }
+
+  if (previewSize.width > previewSize.height) {
+    return switch (orientation) {
+      DeviceOrientation.portraitUp => 1,
+      DeviceOrientation.landscapeRight => 0,
+      DeviceOrientation.portraitDown => 3,
+      DeviceOrientation.landscapeLeft => 2,
+    };
+  }
+
+  return switch (orientation) {
+    DeviceOrientation.portraitUp => 0,
+    DeviceOrientation.landscapeRight => 1,
+    DeviceOrientation.portraitDown => 2,
+    DeviceOrientation.landscapeLeft => 3,
+  };
+}
+
+double cameraPreviewDisplayAspectRatio({
+  required Size previewSize,
+  required DeviceOrientation orientation,
+}) {
+  if (!isValidCameraPreviewSize(previewSize)) {
+    return 1;
+  }
+
+  final quarterTurns = cameraPreviewQuarterTurns(
+    previewSize: previewSize,
+    orientation: orientation,
+  );
+  return quarterTurns.isOdd
+      ? previewSize.height / previewSize.width
+      : previewSize.width / previewSize.height;
+}
+
 int? cameraIndexForLength(int index, int length) {
   if (length <= 0) {
     return null;

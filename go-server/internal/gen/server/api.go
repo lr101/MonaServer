@@ -36,6 +36,11 @@ type AuthAPIRouter interface {
 	GetStatus(http.ResponseWriter, *http.Request)
 }
 
+// BatchAPIRouter defines the HTTP binding for authenticated batch reads.
+type BatchAPIRouter interface {
+	BatchRead(http.ResponseWriter, *http.Request)
+}
+
 // GroupsAPIRouter defines the required methods for binding the api requests to a responses for the GroupsAPI
 // The GroupsAPIRouter implementation should parse necessary information from the http request,
 // pass the data to a GroupsAPIServicer to perform the required actions, then write the service results to the http response.
@@ -145,6 +150,11 @@ type AuthAPIServicer interface {
 	GetStatus(context.Context) (ImplResponse, error)
 }
 
+// BatchAPIServicer defines the bounded authenticated batch read operation.
+type BatchAPIServicer interface {
+	BatchRead(context.Context, BatchReadRequest) (ImplResponse, error)
+}
+
 // GroupsAPIServicer defines the api actions for the GroupsAPI service
 // This interface intended to stay up to date with the openapi yaml used to generate it,
 // while the service implementation can be ignored with the .openapi-generator-ignore file
@@ -189,7 +199,7 @@ type MembersAPIServicer interface {
 // while the service implementation can be ignored with the .openapi-generator-ignore file
 // and updated with the logic required for the API.
 type PinsAPIServicer interface {
-	GetPinImagesByIds(context.Context, []string, string, string, bool, int32, int32, int32, int32, time.Time) (ImplResponse, error)
+	GetPinImagesByIds(context.Context, []string, string, string, bool, int32, int32, int32, int32, time.Time, time.Time, string) (ImplResponse, error)
 	CreatePin(context.Context, PinRequestDto) (ImplResponse, error)
 	GetPin(context.Context, string, bool) (ImplResponse, error)
 	DeletePin(context.Context, string) (ImplResponse, error)

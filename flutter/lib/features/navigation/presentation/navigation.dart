@@ -1,4 +1,3 @@
-import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:buff_lisa/features/camera/presentation/camera.dart';
 import 'package:buff_lisa/features/feed/presentation/active_group_feed.dart';
 import 'package:buff_lisa/features/group_user_list/presentation/user_groups.dart';
@@ -46,7 +45,6 @@ class _NavigationState extends ConsumerState<Navigation> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(syncingServiceProvider, (_, _) => ());
     ref.listen(navigationStateProvider, (prev, next) => _pageController.jumpToPage(next));
     final state = ref.watch(navigationStateProvider);
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/retry.dart';
 import 'package:mutex/mutex.dart';
@@ -28,12 +29,14 @@ class AccessTokenManager {
     String initialAccessToken = '',
     DateTime? lastRefreshAt,
     DateTime Function()? now,
+    Future<void> Function()? onInvalidCredentials,
   }) {
     return AccessTokenManager._(
       refreshAccessToken,
       initialAccessToken,
       lastRefreshAt,
       now ?? DateTime.now,
+      onInvalidCredentials,
     );
   }
 
@@ -42,13 +45,17 @@ class AccessTokenManager {
     this._accessToken,
     this._lastRefreshAt,
     this._now,
+    this._onInvalidCredentials,
   );
 
   static const _refreshInterval = Duration(minutes: 1);
 
   final RefreshAccessToken _refreshAccessToken;
+  final Future<void> Function()? _onInvalidCredentials;
+  bool _credentialsRejected = false;
   final DateTime Function() _now;
   final Mutex _mutex = Mutex();
+  final _ClientLifetime _lifetime = _ClientLifetime();
 
   String _accessToken;
   DateTime? _lastRefreshAt;
@@ -62,38 +69,60 @@ class AccessTokenManager {
   }
 
   Future<void> refresh({bool force = false}) async {
+    _lifetime.checkOpen();
+    if (_credentialsRejected) throw const InvalidRefreshCredentialsException();
     final accessTokenBeforeWait = _accessToken;
     if (!force && !needsRefresh) {
       return;
     }
 
-    await _mutex.protect(() async {
-      if (!force && !needsRefresh) {
-        return;
-      }
-      if (force && _accessToken != accessTokenBeforeWait) {
-        return;
-      }
-
-      try {
-        final accessToken = await _refreshAccessToken();
-        if (accessToken == null || accessToken.isEmpty) {
-          _clearCredentials();
+    await _lifetime.guard(
+      () => _mutex.protect(() async {
+        _lifetime.checkOpen();
+        if (_credentialsRejected) {
           throw const InvalidRefreshCredentialsException();
         }
-        _accessToken = accessToken;
-        _lastRefreshAt = _now();
-      } on ApiException catch (error, stackTrace) {
-        if (error.code == 401 || error.code == 403) {
-          _clearCredentials();
-          Error.throwWithStackTrace(
-            const InvalidRefreshCredentialsException(),
-            stackTrace,
-          );
+        if (!force && !needsRefresh) {
+          return;
         }
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-    });
+        if (force && _accessToken != accessTokenBeforeWait) {
+          return;
+        }
+
+        try {
+          final accessToken = await _refreshAccessToken();
+          _lifetime.checkOpen();
+          if (accessToken == null || accessToken.isEmpty) {
+            await _rejectCredentials();
+          }
+          _accessToken = accessToken;
+          _lastRefreshAt = _now();
+        } on ApiException catch (error, stackTrace) {
+          _lifetime.checkOpen();
+          if (error.code == 401 || error.code == 403) {
+            await _rejectCredentials();
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }),
+    );
+  }
+
+  Future<Never> _rejectCredentials() async {
+    _credentialsRejected = true;
+    _clearCredentials();
+    try {
+      await _onInvalidCredentials?.call();
+    } catch (_) {
+      // A persistence failure cannot revive this rejected session or replace
+      // the typed authentication failure with potentially sensitive details.
+    }
+    throw const InvalidRefreshCredentialsException();
+  }
+
+  void dispose() {
+    _lifetime.close();
+    _clearCredentials();
   }
 
   void _clearCredentials() {
@@ -104,74 +133,63 @@ class AccessTokenManager {
 
 @Riverpod(keepAlive: true)
 class OpenApiConfig extends _$OpenApiConfig {
-  final HttpBearerAuth _authentication = HttpBearerAuth();
-  final OpenApiClientFactory _clientFactory = OpenApiClientFactory();
-  late final AccessTokenManager _tokenManager = AccessTokenManager(
-    refreshAccessToken: _refreshAccessToken,
-  );
-
-  OpenApiClientResources? _resources;
+  AccessTokenManager? _tokenManager;
 
   @override
   ApiClient build() {
-    final data = ref.watch(globalDataServiceProvider);
-    _resources?.close();
-
-    _authentication.accessToken = () => _tokenManager.accessToken;
-    final resources = _clientFactory.create(
-      basePath: data.host,
-      authentication: _authentication,
-      tokenManager: _tokenManager,
-      ensureToken: _ensureTokenExists,
+    final session = ref.watch(
+      globalDataServiceProvider.select(
+        (data) => (
+          host: data.host,
+          userId: data.userId,
+          refreshToken: data.refreshToken,
+        ),
+      ),
     );
-    _resources = resources;
-    ref.onDispose(_disposeResources);
+    // Each build captures one session, including the refresh transport.
+    final global = ref.read(globalDataServiceProvider.notifier);
+    final generation = global.generation;
+    final refreshApiClient = ApiClient(basePath: session.host);
+    final tokenManager = AccessTokenManager(
+      onInvalidCredentials: () async {
+        if (ref.mounted) {
+          await global.expireSession(expectedGeneration: generation);
+        }
+      },
+      refreshAccessToken: () async {
+        final refreshToken = session.refreshToken;
+        if (refreshToken == null || refreshToken.isEmpty) return null;
+        final response = await AuthApi(refreshApiClient).refreshToken(
+          refreshTokenRequestDto: RefreshTokenRequestDto(
+            refreshToken: refreshToken,
+            userId: session.userId,
+          ),
+        );
+        return response?.accessToken;
+      },
+    );
+    _tokenManager = tokenManager;
+    final authentication = HttpBearerAuth()
+      ..accessToken = () => tokenManager.accessToken;
+    final resources = OpenApiClientFactory().create(
+      basePath: session.host,
+      authentication: authentication,
+      tokenManager: tokenManager,
+      ensureToken: () async {
+        if (session.refreshToken?.isNotEmpty == true) {
+          await tokenManager.refresh();
+        }
+      },
+    );
+    ref.onDispose(() {
+      resources.close();
+      refreshApiClient.client.close();
+    });
     return resources.apiClient;
   }
 
-  Future<void> _ensureTokenExists() async {
-    if (_tokenManager.accessToken.isEmpty || _tokenManager.needsRefresh) {
-      await provideAccessToken();
-    }
-  }
-
   Future<void> provideAccessToken({bool force = false}) async {
-    final refreshToken = ref.read(globalDataServiceProvider).refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) {
-      return;
-    }
-    await _tokenManager.refresh(force: force);
-  }
-
-  Future<String?> _refreshAccessToken() async {
-    final data = ref.read(globalDataServiceProvider);
-    final refreshToken = data.refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) {
-      return null;
-    }
-
-    final refreshApiClient = ApiClient(basePath: data.host);
-    final generatedClient = refreshApiClient.client;
-    final refreshHttpClient = http.Client();
-    refreshApiClient.client = refreshHttpClient;
-    generatedClient.close();
-
-    try {
-      final response = await AuthApi(refreshApiClient).refreshToken(
-        refreshTokenRequestDto: RefreshTokenRequestDto(
-          refreshToken: refreshToken,
-          userId: data.userId,
-        ),
-      );
-      return response?.accessToken;
-    } finally {
-      refreshHttpClient.close();
-    }
-  }
-
-  void _disposeResources() {
-    _resources?.close();
-    _resources = null;
+    await _tokenManager?.refresh(force: force);
   }
 }
 
@@ -207,17 +225,19 @@ class OpenApiClientFactory {
     );
     apiClient.client = authenticatedClient;
     generatedClient.close();
-    return OpenApiClientResources(apiClient);
+    return OpenApiClientResources(apiClient, tokenManager);
   }
 }
 
 /// Closes the complete HTTP stack created for an [ApiClient].
 class OpenApiClientResources {
-  OpenApiClientResources(this.apiClient);
+  OpenApiClientResources(this.apiClient, this._tokenManager);
 
   final ApiClient apiClient;
+  final AccessTokenManager _tokenManager;
 
   void close() {
+    _tokenManager.dispose();
     apiClient.client.close();
   }
 }
@@ -271,28 +291,147 @@ class RateLimitedAuthClient extends http.BaseClient {
   final String Function() getToken;
   final Duration rateLimitDelay;
   final _RequestLimiter _requestLimiter;
+  final _ClientLifetime _lifetime = _ClientLifetime();
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
-    return _requestLimiter.run(() async {
-      await ensureToken();
+    return _lifetime.guard(
+      () => _requestLimiter.run(() async {
+        _lifetime.checkOpen();
+        await ensureToken();
+        _lifetime.checkOpen();
 
-      final accessToken = getToken();
-      if (accessToken.isEmpty) {
-        request.headers.remove('Authorization');
-      } else {
-        request.headers['Authorization'] = 'Bearer $accessToken';
-      }
+        final accessToken = getToken();
+        if (accessToken.isEmpty) {
+          request.headers.remove('Authorization');
+        } else {
+          request.headers['Authorization'] = 'Bearer $accessToken';
+        }
 
-      final response = await inner.send(request);
-      await Future<void>.delayed(rateLimitDelay);
-      return response;
-    });
+        final response = await inner.send(request);
+        try {
+          await Future<void>.delayed(rateLimitDelay);
+          _lifetime.checkOpen();
+        } catch (_) {
+          await response.stream.listen(null).cancel();
+          rethrow;
+        }
+        return http.StreamedResponse(
+          _lifetime.bind(response.stream),
+          response.statusCode,
+          contentLength: response.contentLength,
+          request: response.request,
+          headers: response.headers,
+          isRedirect: response.isRedirect,
+          persistentConnection: response.persistentConnection,
+          reasonPhrase: response.reasonPhrase,
+        );
+      }),
+    );
   }
 
   @override
   void close() {
+    if (_lifetime.isClosed) return;
+    _lifetime.close();
     inner.close();
+  }
+}
+
+/// Fences asynchronous work and response streams when their owner is disposed.
+class _ClientLifetime {
+  final _closed = StreamController<void>.broadcast(sync: true);
+  bool isClosed = false;
+
+  void checkOpen() {
+    if (isClosed) throw http.ClientException('HTTP session is closed');
+  }
+
+  void close() {
+    if (isClosed) return;
+    isClosed = true;
+    _closed.add(null);
+    unawaited(_closed.close());
+  }
+
+  Future<T> guard<T>(Future<T> Function() action) async {
+    checkOpen();
+    final result = Completer<T>();
+    final subscription = _closed.stream.listen((_) {
+      if (!result.isCompleted) {
+        result.completeError(http.ClientException('HTTP session is closed'));
+      }
+    });
+    unawaited(
+      Future<T>.sync(action).then(
+        (value) {
+          if (!result.isCompleted) result.complete(value);
+        },
+        onError: (Object error, StackTrace stack) {
+          if (!result.isCompleted) result.completeError(error, stack);
+        },
+      ),
+    );
+    try {
+      return await result.future;
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  Stream<T> bind<T>(Stream<T> source) {
+    late StreamController<T> controller;
+    StreamSubscription<T>? input;
+    StreamSubscription<void>? closure;
+    var deliveredError = false;
+    controller = StreamController<T>(
+      onListen: () {
+        input = source.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: () {
+            unawaited(closure?.cancel());
+            unawaited(controller.close());
+          },
+        );
+        void stop() {
+          controller.addError(http.ClientException('HTTP session is closed'));
+          unawaited(input?.cancel());
+          unawaited(controller.close());
+        }
+
+        if (isClosed) {
+          stop();
+        } else {
+          closure = _closed.stream.listen((_) => stop());
+        }
+      },
+      onPause: () => input?.pause(),
+      onResume: () => input?.resume(),
+      onCancel: () async {
+        await input?.cancel();
+        await closure?.cancel();
+      },
+    );
+    // Check at delivery, including completion: the source can finish before
+    // buffered events reach the consumer and before the session is closed.
+    return controller.stream.transform(
+      StreamTransformer<T, T>.fromHandlers(
+        handleData: (data, sink) {
+          if (!isClosed) sink.add(data);
+        },
+        handleError: (Object error, StackTrace stack, sink) {
+          deliveredError = true;
+          sink.addError(error, stack);
+        },
+        handleDone: (sink) {
+          if (isClosed && !deliveredError) {
+            sink.addError(http.ClientException('HTTP session is closed'));
+          }
+          sink.close();
+        },
+      ),
+    );
   }
 }
 

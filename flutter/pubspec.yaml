@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 3.0.20+64
+version: 3.0.21+64
 
 
 environment:
@@ -78,6 +78,7 @@ dependencies:
   font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
+  analyzer: ^13.3.0
   build_runner: ^2.16.0
   change_app_package_name:
   flutter_launcher_icons:
@@ -88,6 +89,7 @@ dev_dependencies:
   riverpod_lint: ^3.1.8
   lint:
   meta:
+  shared_preferences_platform_interface: ^2.4.2
   sqlite3: ^3.5.2
 
 dependency_overrides:

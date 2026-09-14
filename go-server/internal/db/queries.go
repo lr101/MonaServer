@@ -983,13 +983,15 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 }
 
 type PinSearch struct {
-	CallerID     uuid.UUID
-	IDs          []uuid.UUID
-	GroupID      *uuid.UUID
-	CreatorID    *uuid.UUID
-	UpdatedAfter *time.Time
-	Limit        int32
-	Offset       int32
+	CallerID           uuid.UUID
+	IDs                []uuid.UUID
+	GroupID            *uuid.UUID
+	CreatorID          *uuid.UUID
+	UpdatedAfter       *time.Time
+	BeforeCreationDate *time.Time
+	BeforeID           *uuid.UUID
+	Limit              int32
+	Offset             int32
 }
 
 func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
@@ -1002,13 +1004,15 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 		limit = 1<<31 - 1
 	}
 	rows, err := q.g.SearchPins(ctx, dbgen.SearchPinsParams{
-		CallerID:     pgUUID(s.CallerID),
-		Ids:          ids,
-		GroupID:      pgUUIDPtr(s.GroupID),
-		CreatorID:    pgUUIDPtr(s.CreatorID),
-		UpdatedAfter: pgTZ(s.UpdatedAfter),
-		Lim:          limit,
-		Off:          s.Offset,
+		CallerID:           pgUUID(s.CallerID),
+		Ids:                ids,
+		GroupID:            pgUUIDPtr(s.GroupID),
+		CreatorID:          pgUUIDPtr(s.CreatorID),
+		UpdatedAfter:       pgTZ(s.UpdatedAfter),
+		BeforeCreationDate: pgTZ(s.BeforeCreationDate),
+		BeforeID:           pgUUIDPtr(s.BeforeID),
+		Lim:                limit,
+		Off:                s.Offset,
 	})
 	if err != nil {
 		return nil, err

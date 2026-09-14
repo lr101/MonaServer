@@ -17,16 +17,15 @@ import (
 
 // AuthServicer implements genserver.AuthAPIServicer.
 type AuthServicer struct {
-	auth          *service.Auth
-	q             *db.Queries
-	mail          *service.Email
-	minioEndpoint string
+	auth *service.Auth
+	q    *db.Queries
+	mail *service.Email
 }
 
 const accountActionExpiry = 10 * time.Minute
 
-func NewAuthServicer(auth *service.Auth, q *db.Queries, mail *service.Email, minioEndpoint string) *AuthServicer {
-	return &AuthServicer{auth: auth, q: q, mail: mail, minioEndpoint: minioEndpoint}
+func NewAuthServicer(auth *service.Auth, q *db.Queries, mail *service.Email) *AuthServicer {
+	return &AuthServicer{auth: auth, q: q, mail: mail}
 }
 
 func (s *AuthServicer) GenerateDeleteCode(ctx context.Context, username string) (genserver.ImplResponse, error) {
@@ -96,7 +95,7 @@ func (s *AuthServicer) RequestPasswordRecovery(ctx context.Context, username str
 func (s *AuthServicer) UserLogin(ctx context.Context, req genserver.UserLoginRequest) (genserver.ImplResponse, error) {
 	pair, err := s.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }
@@ -109,7 +108,7 @@ func (s *AuthServicer) CreateUser(ctx context.Context, req genserver.UserRequest
 	}
 	pair, err := s.auth.Signup(ctx, req.Name, req.Password, email)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, toTokenResponseDto(pair)), nil
 }
@@ -125,7 +124,7 @@ func (s *AuthServicer) RefreshToken(ctx context.Context, req genserver.RefreshTo
 	}
 	pair, err := s.auth.Refresh(ctx, tok, uid)
 	if err != nil {
-		return serviceErrResp(err), nil
+		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, toTokenResponseDto(pair)), nil
 }
@@ -133,7 +132,6 @@ func (s *AuthServicer) RefreshToken(ctx context.Context, req genserver.RefreshTo
 func (s *AuthServicer) GetStatus(_ context.Context) (genserver.ImplResponse, error) {
 	return genserver.Response(http.StatusOK, genserver.Status{
 		Notifications: []string{},
-		MinioEndpoint: s.minioEndpoint,
 		TokenValidity: time.Now().Add(time.Hour),
 	}), nil
 }

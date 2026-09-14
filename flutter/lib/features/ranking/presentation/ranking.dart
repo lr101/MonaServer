@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/features/ranking/data/ranking_state.dart';
 import 'package:buff_lisa/features/ranking/presentation/ranking_list_wrapper.dart';
 import 'package:buff_lisa/features/ranking/presentation/ranking_tab_button.dart';
@@ -19,11 +22,17 @@ class Ranking extends ConsumerStatefulWidget {
 
 class _RankingState extends ConsumerState<Ranking>
     with TickerProviderStateMixin {
-  final _pagingControllerGroup =
-      PagingController<int, GroupRankingDtoInner>(firstPageKey: 0);
-  final _pagingControllerUser =
-      PagingController<int, UserRankingDtoInner>(firstPageKey: 0);
-  late final _tabController = TabController(length: 2, vsync: this,initialIndex: 1);
+  final _pagingControllerGroup = PagingController<int, GroupRankingDtoInner>(
+    firstPageKey: 0,
+  );
+  final _pagingControllerUser = PagingController<int, UserRankingDtoInner>(
+    firstPageKey: 0,
+  );
+  late final _tabController = TabController(
+    length: 2,
+    vsync: this,
+    initialIndex: 1,
+  );
 
   static const int _pageSize = 40;
 
@@ -67,10 +76,7 @@ class _RankingState extends ConsumerState<Ranking>
           backgroundColor: Theme.of(context).focusColor,
           title: const Text(
             'Leaderboard',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(100),
@@ -84,9 +90,7 @@ class _RankingState extends ConsumerState<Ranking>
                     index: 0,
                     tabController: _tabController,
                   ),
-                  const SizedBox(
-                    width: 20,
-                  ),
+                  const SizedBox(width: 20),
                   RankingTabButton(
                     label: "Users",
                     index: 1,
@@ -127,10 +131,7 @@ class _RankingState extends ConsumerState<Ranking>
     GroupRankingDtoInner item,
     int index,
   ) {
-    return GroupRankingTile(
-      groupDto: item,
-      height: 40,
-    );
+    return GroupRankingTile(groupDto: item, height: 40);
   }
 
   Widget listBuilderUser(
@@ -138,10 +139,7 @@ class _RankingState extends ConsumerState<Ranking>
     UserRankingDtoInner item,
     int index,
   ) {
-    return UserRankingTile(
-      user: item,
-      height: 40,
-    );
+    return UserRankingTile(user: item, height: 40);
   }
 
   Future<void> updatePageUser(int pageKey) async {
@@ -153,7 +151,9 @@ class _RankingState extends ConsumerState<Ranking>
       final gid2 = districts?.adminLevel == 2 ? districts?.gid : null;
       final season = rankingTime == 0;
       List<UserRankingDtoInner>? items;
-      items = await ref.read(rankingApiProvider).userRanking(
+      items = await ref
+          .read(rankingApiProvider)
+          .userRanking(
             gid0: gid0,
             gid1: gid1,
             gid2: gid2,
@@ -165,6 +165,7 @@ class _RankingState extends ConsumerState<Ranking>
         _pagingControllerUser.error = "Ranking could not be fetched";
         return;
       }
+      _prefetchUserImages(items);
       if (items.length < _pageSize) {
         _pagingControllerUser.appendLastPage(items);
       } else {
@@ -188,7 +189,9 @@ class _RankingState extends ConsumerState<Ranking>
       final gid2 = districts?.adminLevel == 2 ? districts?.gid : null;
       final season = rankingTime == 0;
       List<GroupRankingDtoInner>? items;
-      items = await ref.read(rankingApiProvider).groupRanking(
+      items = await ref
+          .read(rankingApiProvider)
+          .groupRanking(
             gid0: gid0,
             gid1: gid1,
             gid2: gid2,
@@ -200,6 +203,13 @@ class _RankingState extends ConsumerState<Ranking>
         _pagingControllerGroup.error = "Ranking could not be fetched";
         return;
       }
+      for (final item in items) {
+        final group = item.groupInfoDto;
+        if (group != null) {
+          registerGroupImageUrls(ref, group);
+          _prefetchImage(BatchReadKind.groupImageSmall, group.id);
+        }
+      }
       if (items.length < _pageSize) {
         _pagingControllerGroup.appendLastPage(items);
       } else {
@@ -207,6 +217,28 @@ class _RankingState extends ConsumerState<Ranking>
       }
     } on ApiException catch (e) {
       _pagingControllerGroup.error = e.message;
+    }
+  }
+
+  void _prefetchUserImages(Iterable<UserRankingDtoInner> items) {
+    for (final item in items) {
+      final userId = item.userInfoDto?.userId;
+      if (userId != null) {
+        _prefetchImage(BatchReadKind.userImageSmall, userId);
+      }
+    }
+  }
+
+  void _prefetchImage(BatchReadKind kind, String id) {
+    try {
+      final registry = ref.read(suppliedImageUrlRegistryProvider);
+      if (registry.lookup(kind, id) != null) return;
+      final future = ref
+          .read(batchReadCoalescerProvider)
+          .readKey(BatchReadKey(kind, id));
+      unawaited(future.then<void>((_) {}, onError: (_, _) {}));
+    } catch (_) {
+      // Prefetch is an optimization and must not fail the ranking page.
     }
   }
 }

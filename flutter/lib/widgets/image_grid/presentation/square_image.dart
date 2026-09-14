@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:transparent_image/transparent_image.dart';
@@ -46,28 +47,35 @@ class _SquareImageState extends ConsumerState<SquareImage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Uint8List?>(
-      future: _imageFuture,
-      builder: (context, snapshot) {
-        final image = snapshot.data;
-        if (image != null) {
-          return GestureDetector(
-            onTap: () => widget.onTap(widget.index),
-            child: FadeInImage(
-              fadeInDuration: const Duration(milliseconds: 100),
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              placeholder: MemoryImage(kTransparentImage),
-              image: MemoryImage(image),
-            ),
-          );
-        }
+    return LayoutBuilder(
+      builder: (context, constraints) => FutureBuilder<Uint8List?>(
+        future: _imageFuture,
+        builder: (context, snapshot) {
+          final image = snapshot.data;
+          if (image != null) {
+            return GestureDetector(
+              onTap: () => widget.onTap(widget.index),
+              child: FadeInImage(
+                fadeInDuration: const Duration(milliseconds: 100),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                placeholder: MemoryImage(kTransparentImage),
+                image: memoryImageForDisplay(
+                  image,
+                  devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                  logicalWidth: constraints.maxWidth,
+                  maximumCacheWidth: 720,
+                ),
+              ),
+            );
+          }
 
-        return const ColoredBox(
-          color: Colors.black12,
-          child: Center(child: Icon(Icons.image_not_supported_outlined)),
-        );
-      },
+          return const ColoredBox(
+            color: Colors.black12,
+            child: Center(child: Icon(Icons.image_not_supported_outlined)),
+          );
+        },
+      ),
     );
   }
 }

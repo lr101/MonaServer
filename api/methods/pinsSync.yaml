@@ -44,7 +44,7 @@ post:
         minimum: 0
         maximum: 10000
     - name: page
-      description: "page number (can only be used when ids is not set). Sorted by creation date descending"
+      description: "page number (can only be used when ids is not set). Sorted by creation date descending. Use beforeCreationDate and beforeId for stable cursor pagination."
       in: query
       schema:
         type: integer
@@ -59,6 +59,16 @@ post:
       in: query
       schema:
         $ref: '../parameters/date.yaml'
+    - name: beforeCreationDate
+      description: "stable pagination cursor: provide with beforeId; return pins created before this date, with beforeId breaking ties"
+      in: query
+      schema:
+        $ref: '../parameters/date.yaml'
+    - name: beforeId
+      description: "stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together"
+      in: query
+      schema:
+        $ref: '../parameters/id.yaml'
   responses:
     '200':
       description: Successful response
