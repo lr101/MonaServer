@@ -265,7 +265,7 @@ WHERE session_hash = $1;
 
 -- name: TouchAdminSession :exec
 UPDATE admin_sessions
-SET last_seen_at = now(), idle_expires_at = $2
+SET last_seen_at = now(), idle_expires_at = LEAST($2, absolute_expires_at)
 WHERE session_hash = $1
   AND revoked_at IS NULL
   AND state = 'authenticated'

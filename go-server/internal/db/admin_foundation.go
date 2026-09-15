@@ -31,13 +31,16 @@ const (
 	ActionTokenPurposeRecovery          = "recovery"
 	ActionTokenPurposeEmailConfirmation = "email_confirmation"
 	ActionTokenPurposeDeleteAccount     = "delete_account"
-	AudienceResourceAccounts            = "accounts"
-	AudienceResourceReports             = "reports"
-	DurableJobPending                   = "pending"
-	DurableJobRunning                   = "running"
-	DurableJobCompleted                 = "completed"
-	DurableJobFailed                    = "failed"
-	DurableJobCancelled                 = "cancelled"
+	// InitialAudienceSnapshotOrdinal is the only value that requests the
+	// first snapshot page.  Ordinal zero is a real exclusive cursor.
+	InitialAudienceSnapshotOrdinal int64 = -1
+	AudienceResourceAccounts             = "accounts"
+	AudienceResourceReports              = "reports"
+	DurableJobPending                    = "pending"
+	DurableJobRunning                    = "running"
+	DurableJobCompleted                  = "completed"
+	DurableJobFailed                     = "failed"
+	DurableJobCancelled                  = "cancelled"
 )
 
 var (

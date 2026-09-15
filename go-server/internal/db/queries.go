@@ -34,7 +34,15 @@ func New(pool *pgxpool.Pool) *Queries {
 // Gen returns the underlying sqlc-generated Queries for callers that want to
 // work with pgtype directly (e.g. PostGIS queries).
 func (q *Queries) Gen() *dbgen.Queries { return q.g }
-func (q *Queries) Pool() *pgxpool.Pool { return q.pool }
+
+// Pool returns the root connection pool.  A transaction facade deliberately
+// has no pool so callbacks cannot escape their caller-owned transaction.
+func (q *Queries) Pool() *pgxpool.Pool {
+	if q.inTx {
+		return nil
+	}
+	return q.pool
+}
 
 func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
 	if q.inTx {
@@ -45,7 +53,7 @@ func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	txQueries := &Queries{pool: q.pool, runner: tx, g: q.g.WithTx(tx), inTx: true}
+	txQueries := &Queries{runner: tx, g: q.g.WithTx(tx), inTx: true}
 	if err := fn(txQueries); err != nil {
 		return err
 	}

@@ -207,12 +207,27 @@ func (q *Queries) consumeAccountActionToken(ctx context.Context, tokenHash []byt
 	if err != nil {
 		return nil, false, err
 	}
+	// Purpose is checked before the account restriction so a recovery token
+	// can be considered for the explicitly recoverable restricted states.
+	// The locked token is checked again below before consumption.
+	if initial.Purpose != purpose {
+		return nil, false, nil
+	}
 	account, err := q.LockUserSecurity(ctx, goUUID(initial.AccountID))
 	if err != nil {
 		return nil, false, err
 	}
-	if account == nil || account.IsDeleted || account.SecurityState != SecurityStateNormal || account.PasswordResetRequired {
+	if account == nil || account.IsDeleted {
 		return nil, false, nil
+	}
+	if account.SecurityState != SecurityStateNormal || account.PasswordResetRequired {
+		recoverable := purpose == ActionTokenPurposeRecovery && account.PasswordResetRequired &&
+			(account.SecurityState == SecurityStateNormal ||
+				account.SecurityState == SecurityStatePasswordDisabled ||
+				account.SecurityState == SecurityStateCompromised)
+		if !recoverable {
+			return nil, false, nil
+		}
 	}
 	locked, err := q.LockAccountActionTokenByHash(ctx, tokenHash)
 	if err != nil {
@@ -812,18 +827,13 @@ func (q *Queries) AddAudienceSnapshotMember(ctx context.Context, snapshotID uuid
 }
 
 func (q *Queries) ListAudienceSnapshotMembers(ctx context.Context, snapshotID uuid.UUID, limit int, afterOrdinal int64) ([]AudienceSnapshotMember, error) {
-	if snapshotID == uuid.Nil || limit <= 0 || afterOrdinal < 0 {
+	if snapshotID == uuid.Nil || limit <= 0 || afterOrdinal < InitialAudienceSnapshotOrdinal {
 		return nil, ErrInvalidSnapshot
 	}
-	// The public facade uses zero as the initial cursor.  SQL's exclusive
-	// cursor uses -1 for that first page; subsequent calls pass the last
-	// returned ordinal.
-	pgAfter := int64(-1)
-	if afterOrdinal > 0 {
-		pgAfter = afterOrdinal
-	}
+	// Pass the explicit initial sentinel through unchanged.  In particular,
+	// ordinal zero is a real exclusive cursor and must not be rewritten.
 	rs, err := q.g.ListAudienceSnapshotMembers(ctx, dbgen.ListAudienceSnapshotMembersParams{
-		SnapshotID: pgUUID(snapshotID), Column2: pgAfter, Limit: int32(limit),
+		SnapshotID: pgUUID(snapshotID), Column2: afterOrdinal, Limit: int32(limit),
 	})
 	if err != nil {
 		return nil, err

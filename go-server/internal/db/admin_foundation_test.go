@@ -186,6 +186,139 @@ func TestT02ActionTokenConsumeIsSingleUse(t *testing.T) {
 	}
 }
 
+func TestT02RecoveryTokenCanBeConsumedForCompromisedAccount(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	accountID := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO users
+			(id, username, password, email, email_confirmed, auth_generation,
+			 security_state, password_disabled, password_reset_required,
+			 creation_date, update_date)
+		VALUES ($1, 'restricted-recovery-user', 'hash', 'recovery@example.test', TRUE, 1,
+				'compromised', TRUE, TRUE, NOW(), NOW())`, accountID); err != nil {
+		t.Fatalf("insert restricted user: %v", err)
+	}
+	hash := sha256.Sum256([]byte("restricted-recovery-token"))
+	if err := q.CreateAccountActionToken(ctx, AccountActionTokenParams{
+		ID: uuid.New(), AccountID: accountID, TokenHash: hash[:], Purpose: ActionTokenPurposeRecovery,
+		AuthGeneration: 1, EmailBinding: strptr("recovery@example.test"), ExpiresAt: time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("create recovery token: %v", err)
+	}
+
+	token, consumed, err := q.ConsumeAccountActionToken(ctx, hash[:], ActionTokenPurposeRecovery, time.Now())
+	if err != nil {
+		t.Fatalf("consume recovery token: %v", err)
+	}
+	if !consumed || token == nil || token.Purpose != ActionTokenPurposeRecovery {
+		t.Fatalf("recovery token = %#v, consumed=%v; want consumed recovery token", token, consumed)
+	}
+}
+
+func TestT02SnapshotCursorDistinguishesInitialFromOrdinalZero(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	snapshotID := uuid.New()
+	firstID, secondID := uuid.New(), uuid.New()
+	if err := q.CreateAudienceSnapshot(ctx, AudienceSnapshotParams{
+		ID: snapshotID, Resource: AudienceResourceAccounts, Action: "cursor",
+		PayloadHash: []byte("cursor"), ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create snapshot: %v", err)
+	}
+	if err := q.AddAudienceSnapshotMember(ctx, snapshotID, 0, firstID, true, nil); err != nil {
+		t.Fatalf("add first member: %v", err)
+	}
+	if err := q.AddAudienceSnapshotMember(ctx, snapshotID, 1, secondID, true, nil); err != nil {
+		t.Fatalf("add second member: %v", err)
+	}
+
+	initial, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 1, -1)
+	if err != nil {
+		t.Fatalf("list initial page: %v", err)
+	}
+	if len(initial) != 1 || initial[0].Ordinal != 0 || initial[0].ResourceID != firstID {
+		t.Fatalf("initial page = %#v, want ordinal zero", initial)
+	}
+	afterZero, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 1, 0)
+	if err != nil {
+		t.Fatalf("list after ordinal zero: %v", err)
+	}
+	if len(afterZero) != 1 || afterZero[0].Ordinal != 1 || afterZero[0].ResourceID != secondID {
+		t.Fatalf("page after ordinal zero = %#v, want ordinal one", afterZero)
+	}
+}
+
+func TestT02SnapshotOrdinalIsUniquePerSnapshot(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	snapshotID := uuid.New()
+	if err := q.CreateAudienceSnapshot(ctx, AudienceSnapshotParams{
+		ID: snapshotID, Resource: AudienceResourceAccounts, Action: "ordinal",
+		PayloadHash: []byte("ordinal"), ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create snapshot: %v", err)
+	}
+	if err := q.AddAudienceSnapshotMember(ctx, snapshotID, 0, uuid.New(), true, nil); err != nil {
+		t.Fatalf("add first member: %v", err)
+	}
+	if err := q.AddAudienceSnapshotMember(ctx, snapshotID, 0, uuid.New(), true, nil); err == nil {
+		t.Fatal("duplicate snapshot ordinal was accepted")
+	}
+}
+
+func TestT02TouchAdminSessionCapsIdleExpiryAtAbsoluteExpiry(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	userID := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO users (id, username, password, email_confirmed, creation_date, update_date)
+		VALUES ($1, 'session-bound-user', 'hash', FALSE, NOW(), NOW())`, userID); err != nil {
+		t.Fatalf("insert session user: %v", err)
+	}
+	now := time.Now().UTC()
+	abs := now.Add(2 * time.Minute)
+	if err := q.CreateAdminSession(ctx, AdminSessionParams{
+		ID: uuid.New(), SessionHash: []byte("absolute-session"), UserID: userID,
+		CSRFHash: []byte("csrf"), State: "authenticated", IdleExpiresAt: now.Add(time.Minute),
+		AbsoluteExpiresAt: abs,
+	}); err != nil {
+		t.Fatalf("create admin session: %v", err)
+	}
+	if err := q.TouchAdminSession(ctx, []byte("absolute-session"), abs.Add(time.Hour)); err != nil {
+		t.Fatalf("touch admin session: %v", err)
+	}
+	session, err := q.GetAdminSessionByHash(ctx, []byte("absolute-session"))
+	if err != nil {
+		t.Fatalf("read admin session: %v", err)
+	}
+	if session == nil || !session.IdleExpiresAt.Equal(session.AbsoluteExpiresAt) {
+		t.Fatalf("session after touch = %#v, want idle expiry capped at absolute expiry", session)
+	}
+}
+
+func TestT02TransactionFacadeDoesNotExposePool(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	if q.Pool() == nil {
+		t.Fatal("root query facade lost its pool")
+	}
+	if err := q.InTx(ctx, func(tx *Queries) error {
+		if tx.Pool() != nil {
+			return errors.New("transaction facade exposes root pool")
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("transaction facade pool exposure: %v", err)
+	}
+}
+
 func TestT02DurableLeaseRejectsStaleAcknowledgement(t *testing.T) {
 	q, cleanup := t02Database(t)
 	defer cleanup()
@@ -265,7 +398,7 @@ func TestT02SnapshotMembersRemainStableAfterSourceChanges(t *testing.T) {
 	if err := q.AddAudienceSnapshotMembers(ctx, snapshotID, []uuid.UUID{first}); err != nil {
 		t.Fatalf("idempotent member insert: %v", err)
 	}
-	members, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 10, 0)
+	members, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 10, InitialAudienceSnapshotOrdinal)
 	if err != nil {
 		t.Fatalf("list members: %v", err)
 	}
@@ -524,7 +657,7 @@ func TestT02SnapshotAppendAndReportRevisionAreStable(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	members, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 100, 0)
+	members, err := q.ListAudienceSnapshotMembers(ctx, snapshotID, 100, InitialAudienceSnapshotOrdinal)
 	if err != nil || len(members) != 20 {
 		t.Fatalf("snapshot members = %d err=%v", len(members), err)
 	}
