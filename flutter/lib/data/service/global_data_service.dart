@@ -7,7 +7,7 @@ import 'package:buff_lisa/data/service/account_cleanup_service.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:camera/camera.dart';
+import 'package:buff_lisa/features/camera/platform/camera_access.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
@@ -194,7 +194,7 @@ class GlobalDataService extends _$GlobalDataService {
 
   Future<void> refreshCameraList() async {
     // Explicit camera-page discovery also requests video permission on web.
-    final cameras = await availableCameras();
+    final cameras = await discoverCameras();
     if (!ref.mounted) return;
     state = state.copyWith(cameras: cameras);
   }

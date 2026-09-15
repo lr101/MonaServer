@@ -262,42 +262,81 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Keep the camera flow covered in a full Chromium browser. The web app uses
-// the browser's user-initiated image capture input instead of camera_web's
-// repeated getUserMedia device probing.
+
 test.use({
   channel: 'chromium',
+  launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
 });
 
 test.describe('web camera access', () => {
-  test('does not probe every camera when the camera page opens', async ({ page }) => {
+  test.use({
+    permissions: ['camera'],
+  });
+
+  test('opens a full-frame preview without probing every camera', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.addInitScript(() => {
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices) return;
-      mediaDevices.getUserMedia = async () => {
-        document.documentElement.dataset.cameraRequested = 'true';
-        throw new Error('The camera page should use image capture input');
+      const devices = navigator.mediaDevices;
+      const original = devices.getUserMedia.bind(devices);
+      let requests = 0;
+      Object.defineProperty(window, '__cameraRequests', { get: () => requests });
+      devices.getUserMedia = async (constraints) => {
+        requests++;
+        return original(constraints);
       };
     });
     await login(page, readE2eData());
-    await expect(page.locator('html')).not.toHaveAttribute(
-      'data-camera-requested',
-      'true',
-    );
+    expect(await page.evaluate(() => (window as Window & { __cameraRequests: number }).__cameraRequests)).toBe(0);
     await page.getByRole('tab', { name: 'Camera', exact: true }).click();
-    const takePhoto = page.getByRole('button', { name: 'Take photo' });
-    await expect(takePhoto).toBeVisible();
-    const fileChooserPromise = page.waitForEvent('filechooser');
-    await takePhoto.click();
-    const fileChooser = await fileChooserPromise;
-    expect(await fileChooser.element().getAttribute('accept')).toBe(
-      'image/*',
-    );
-    expect(await fileChooser.element().getAttribute('capture')).toBe(
-      'environment',
-    );
-    await expect(page.locator('body')).not.toContainText(
-      'Could not access the camera',
-    );
+    const video = page.locator('video');
+    await expect(video).toBeVisible({ timeout: 30_000 });
+    await expect(video).toHaveCSS('object-fit', 'contain');
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState)).toBe(4);
+    expect(await page.evaluate(() => (window as Window & { __cameraRequests: number }).__cameraRequests)).toBe(2);
+    await expect(page.getByRole('button', { name: 'Select camera' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'test-results/camera-portrait.png' });
+    await page.setViewportSize({ width: 900, height: 450 });
+    await expect(video).toBeVisible();
+    await page.screenshot({ path: 'test-results/camera-landscape.png' });
+    // Mobile browsers may renegotiate stream dimensions after rotation.
+    await video.evaluate(async (element: HTMLVideoElement) => {
+      const track = (element.srcObject as MediaStream).getVideoTracks()[0];
+      await track.applyConstraints({ width: { exact: 640 }, height: { exact: 480 } });
+    });
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) =>
+      [element.videoWidth, element.videoHeight])).toEqual([640, 480]);
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.width / bounds.height;
+    })).toBeCloseTo(4 / 3, 2);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Approve' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
   });
+  test('camera permission denial is actionable and retry restores preview', async ({ page }) => {
+    await page.addInitScript(() => {
+      const devices = navigator.mediaDevices;
+      const original = devices.getUserMedia.bind(devices);
+      let deny = true;
+      devices.getUserMedia = async (constraints) => {
+        if (deny) {
+          deny = false;
+          throw new DOMException('Permission denied', 'NotAllowedError');
+        }
+        return original(constraints);
+      };
+    });
+    await login(page, readE2eData());
+    await page.getByRole('tab', { name: 'Camera', exact: true }).click();
+    await expect(page.getByRole('group', { name: /Allow camera access/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.locator('video')).toBeVisible({ timeout: 30_000 });
+  });
+
 });
