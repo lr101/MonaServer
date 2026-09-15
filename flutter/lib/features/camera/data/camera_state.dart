@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/features/camera/platform/camera_access.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -26,48 +27,6 @@ bool isValidCameraPreviewSize(Size? previewSize) {
       previewSize.height.isFinite &&
       previewSize.width > 0 &&
       previewSize.height > 0;
-}
-
-int cameraPreviewQuarterTurns({
-  required Size previewSize,
-  required DeviceOrientation orientation,
-}) {
-  if (!isValidCameraPreviewSize(previewSize)) {
-    return 0;
-  }
-
-  if (previewSize.width > previewSize.height) {
-    return switch (orientation) {
-      DeviceOrientation.portraitUp => 1,
-      DeviceOrientation.landscapeRight => 0,
-      DeviceOrientation.portraitDown => 3,
-      DeviceOrientation.landscapeLeft => 2,
-    };
-  }
-
-  return switch (orientation) {
-    DeviceOrientation.portraitUp => 0,
-    DeviceOrientation.landscapeRight => 1,
-    DeviceOrientation.portraitDown => 2,
-    DeviceOrientation.landscapeLeft => 3,
-  };
-}
-
-double cameraPreviewDisplayAspectRatio({
-  required Size previewSize,
-  required DeviceOrientation orientation,
-}) {
-  if (!isValidCameraPreviewSize(previewSize)) {
-    return 1;
-  }
-
-  final quarterTurns = cameraPreviewQuarterTurns(
-    previewSize: previewSize,
-    orientation: orientation,
-  );
-  return quarterTurns.isOdd
-      ? previewSize.height / previewSize.width
-      : previewSize.width / previewSize.height;
 }
 
 int? cameraIndexForLength(int index, int length) {
@@ -167,6 +126,9 @@ class CameraValues extends _$CameraValues {
     try {
       minZoom = await controller.getMinZoomLevel();
       maxZoom = await controller.getMaxZoomLevel();
+    } on CameraException catch (e) {
+      if (e.code != 'zoomLevelNotSupported') rethrow;
+      minZoom = maxZoom = 1;
     } on PlatformException catch (e) {
       debugPrint("Zoom not supported on this camera: ${e.message}");
     }
@@ -201,6 +163,10 @@ Future<CameraController> cameraController(Ref ref) async {
 
   // 4. Initialize
   await controller.initialize();
+  if (ref.mounted) {
+    final cleanupPreview = configureCameraPreview(controller);
+    ref.onDispose(cleanupPreview);
+  }
   return controller;
 }
 

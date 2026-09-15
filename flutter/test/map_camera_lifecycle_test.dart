@@ -95,95 +95,6 @@ void main() {
     );
   });
 
-  test(
-    'web camera preview rotation follows the stream and display orientations',
-    () {
-      const landscapePreview = Size(1280, 720);
-      const portraitPreview = Size(720, 1280);
-
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.portraitUp,
-        ),
-        1,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.landscapeRight,
-        ),
-        0,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.landscapeLeft,
-        ),
-        2,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.portraitDown,
-        ),
-        3,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.portraitUp,
-        ),
-        0,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.landscapeRight,
-        ),
-        1,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.portraitDown,
-        ),
-        2,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.landscapeLeft,
-        ),
-        3,
-      );
-    },
-  );
-
-  test('web camera preview ratio follows the rotated stream dimensions', () {
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(1280, 720),
-        orientation: DeviceOrientation.portraitUp,
-      ),
-      closeTo(9 / 16, 0.001),
-    );
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(720, 1280),
-        orientation: DeviceOrientation.portraitUp,
-      ),
-      closeTo(9 / 16, 0.001),
-    );
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(720, 1280),
-        orientation: DeviceOrientation.landscapeRight,
-      ),
-      closeTo(16 / 9, 0.001),
-    );
-  });
-
   testWidgets('camera preview viewport follows orientation changes', (
     tester,
   ) async {
@@ -199,7 +110,7 @@ void main() {
           child: SizedBox(
             width: 320,
             height: 480,
-            child: camera_page.cameraPreviewViewport(controller),
+            child: camera_page.cameraPreviewViewport(controller, isWeb: false),
           ),
         ),
       ),
@@ -219,39 +130,44 @@ void main() {
     expect(previewChildSize.height, closeTo(320 * 9 / 16, 0.001));
   });
 
-  testWidgets('web camera preview preserves the stream ratio before rotating', (
-    tester,
-  ) async {
-    final controller = _FakeCameraController(
-      orientation: DeviceOrientation.portraitUp,
-    );
-    addTearDown(controller.dispose);
+  testWidgets(
+    'web camera preview preserves the upright full stream without cropping',
+    (tester) async {
+      final controller = _FakeCameraController(
+        orientation: DeviceOrientation.portraitUp,
+      );
+      addTearDown(controller.dispose);
 
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: Center(
-          child: SizedBox(
-            width: 320,
-            height: 480,
-            child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 320,
+              height: 480,
+              child: camera_page.cameraPreviewViewport(controller, isWeb: true),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.byType(CameraPreview), findsNothing);
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
-    expect(
-      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
-      closeTo(16 / 9, 0.001),
-    );
-    final previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, closeTo(320, 0.001));
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
-  });
+      expect(find.byType(CameraPreview), findsNothing);
+      expect(find.byType(RotatedBox), findsNothing);
+      expect(
+        tester.widget<FittedBox>(find.byType(FittedBox)).fit,
+        BoxFit.contain,
+      );
+      expect(
+        tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
+        closeTo(16 / 9, 0.001),
+      );
+      final previewChildSize = _fittedPreviewChildSize(tester);
+      expect(previewChildSize.width, closeTo(320, 0.001));
+      expect(previewChildSize.height, closeTo(180, 0.001));
+    },
+  );
 
-  testWidgets('web front camera keeps its mirror horizontal after rotating', (
+  testWidgets('web front camera leaves browser mirroring upright', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -273,7 +189,7 @@ void main() {
       ),
     );
 
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 3);
+    expect(find.byType(RotatedBox), findsNothing);
   });
 
   testWidgets('web camera preview frames a portrait stream as portrait', (
@@ -298,7 +214,7 @@ void main() {
       ),
     );
 
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 0);
+    expect(find.byType(RotatedBox), findsNothing);
     final previewChildSize = _fittedPreviewChildSize(tester);
     expect(previewChildSize.width, closeTo(320, 0.001));
     expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));

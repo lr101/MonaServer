@@ -51,3 +51,40 @@ closes both servers afterward.
 The normal Flutter test suite also covers retained empty/stale refreshes in
 `test/image_repository_test.dart`, including publication through image watchers
 and preservation of the existing protection against late public responses.
+
+## Camera preview regression
+
+The camera test uses the real camera_web plugin, browser video and image capture,
+with local provider overrides (no API, database or object storage). Run it in
+Chromium with a simulated camera:
+
+```bash
+# Use an executable wrapper as CHROME_EXECUTABLE:
+# exec /path/to/chrome --no-sandbox --use-fake-device-for-media-stream \
+#   --use-fake-ui-for-media-stream "$@"
+CHROME_EXECUTABLE=/path/to/chrome-wrapper mise exec -- flutter test --no-pub \
+  --platform chrome test/browser/camera_preview_test.dart \
+  test/camera_permissions_test.dart test/camera_values_test.dart \
+  test/map_camera_lifecycle_test.dart
+```
+
+The permission tests inject denied/pending discovery results; the simulated
+camera test checks actual preview initialization, exactly two media requests (permission and selected camera), and nonempty captured bytes. The Playwright camera tests also cover the group shutter, approval screen, return to preview and denial/retry.
+These checks do not establish physical lens selection or Safari/Firefox mobile
+behavior. Web preview intentionally fits the full stream rather than cropping
+it to fill a differently shaped viewport. Native shutter/group and camera
+selection controls are shared; flash is disabled on web.
+
+
+The web discovery adapter is isolated in
+`lib/features/camera/platform/camera_access_web.dart`. It bridges camera_web's
+test-visible metadata map because the plugin currently opens every lens during
+enumeration. The exact existing camera_web version is pinned; recheck this
+bridge and browser regressions when upgrading it. Lens labels for devices other
+than the initially opened camera are best-effort; video orientation/mirroring
+remains the browser plugin's responsibility.
+
+Relevant upstream reports:
+- [Firefox Android camera startup](https://github.com/flutter/flutter/issues/115892)
+  and the [upstream constraints fix](https://chromium.googlesource.com/external/github.com/flutter/packages/+/refs/tags/camera_web-v0.3.5%2B2).
+- [WebKit preview crop/zoom after rotation](https://bugs.webkit.org/show_bug.cgi?id=220326).
