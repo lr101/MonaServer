@@ -22,10 +22,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: CameraSelectorButton(
-            cameras: cameras,
-            selectedIndex: 0,
-            onSelected: (index) => selectedIndex = index,
+          body: Align(
+            alignment: Alignment.bottomRight,
+            child: CameraSelectorButton(
+              cameras: cameras,
+              selectedIndex: 0,
+              onSelected: (index) => selectedIndex = index,
+            ),
           ),
         ),
       ),
@@ -36,21 +39,34 @@ void main() {
     expect(find.text('Front camera'), findsNothing);
 
     await tester.tap(find.byTooltip('Select camera'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final openingPosition = tester.getTopLeft(find.text('Front camera'));
     await tester.pumpAndSettle();
-
+    expect(
+      tester.getTopLeft(find.text('Front camera')).dy,
+      lessThan(openingPosition.dy),
+    );
     expect(find.text('Back camera'), findsOneWidget);
     expect(find.text('Front camera'), findsOneWidget);
-    final menuItems = find.byType(CheckedPopupMenuItem<int>);
     expect(
-      tester.widget<CheckedPopupMenuItem<int>>(menuItems.at(0)).checked,
+      tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'Back camera'))
+          .selected,
       isTrue,
     );
-    expect(
-      tester.widget<CheckedPopupMenuItem<int>>(menuItems.at(1)).checked,
-      isFalse,
-    );
-
-    await tester.tap(menuItems.at(1));
+    await tester.tap(find.text('Front camera'));
+    expect(selectedIndex, 1);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(find.text('Front camera'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Front camera'), findsNothing);
+    await tester.tap(find.byTooltip('Select camera'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(100, 100));
+    await tester.pumpAndSettle();
+    expect(find.text('Back camera'), findsNothing);
     expect(selectedIndex, 1);
   });
 }
