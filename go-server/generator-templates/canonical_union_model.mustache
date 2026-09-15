@@ -1,4 +1,7 @@
 import (
+{{#vendorExtensions.x-canonical-audience-filter-union}}
+	"bytes"
+{{/vendorExtensions.x-canonical-audience-filter-union}}
 	"encoding/json"
 	"fmt"
 {{#vendorExtensions.x-canonical-audience-filter-union}}
@@ -16,7 +19,7 @@ type AdminAudienceFilter struct {
 	CreatedBefore    *time.Time            `json:"createdBefore,omitempty"`
 	Email            *string               `json:"email,omitempty"`
 	Id               *string               `json:"id,omitempty"`
-	IncludeAdmins    bool                  `json:"includeAdmins,omitempty"`
+	IncludeAdmins    *bool                 `json:"includeAdmins,omitempty"`
 	SecurityStatuses *[]AdminSecurityState `json:"securityStatuses,omitempty"`
 	Username         *string               `json:"username,omitempty"`
 	VerifiedEmail    *bool                 `json:"verifiedEmail,omitempty"`
@@ -44,7 +47,7 @@ func AssertAdminAudienceFilterConstraints(obj AdminAudienceFilter) error {
 	if obj.Resource == AudienceResourceKind("accounts") && (obj.AssigneeUserId != nil || obj.Statuses != nil || obj.Types != nil) {
 		return fmt.Errorf("report filter fields are not valid for account audiences")
 	}
-	if obj.Resource == AudienceResourceKind("reports") && (obj.Email != nil || obj.Id != nil || obj.SecurityStatuses != nil || obj.Username != nil || obj.VerifiedEmail != nil || obj.IncludeAdmins) {
+	if obj.Resource == AudienceResourceKind("reports") && (obj.Email != nil || obj.Id != nil || obj.SecurityStatuses != nil || obj.Username != nil || obj.VerifiedEmail != nil || obj.IncludeAdmins != nil) {
 		return fmt.Errorf("account filter fields are not valid for report audiences")
 	}
 	return nil
@@ -59,6 +62,28 @@ func (obj *AdminAudienceFilter) UnmarshalJSON(data []byte) error {
 	rawResource, found := fields["resource"]
 	if !found || json.Unmarshal(rawResource, &resource) != nil || resource == "" {
 		return &RequiredError{Field: "resource"}
+	}
+	allowedFields := map[string]struct{}{
+		"resource":      {},
+		"createdAfter":  {},
+		"createdBefore": {},
+	}
+	if resource == AudienceResourceKind("accounts") {
+		for _, field := range []string{"email", "id", "includeAdmins", "securityStatuses", "username", "verifiedEmail"} {
+			allowedFields[field] = struct{}{}
+		}
+	} else if resource == AudienceResourceKind("reports") {
+		for _, field := range []string{"assigneeUserId", "statuses", "types"} {
+			allowedFields[field] = struct{}{}
+		}
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audience filters", field, resource)
+		}
+	}
+	if rawIncludeAdmins, found := fields["includeAdmins"]; found && bytes.Equal(bytes.TrimSpace(rawIncludeAdmins), []byte("null")) {
+		return fmt.Errorf("includeAdmins cannot be null")
 	}
 	type plainAdminAudienceFilter AdminAudienceFilter
 	var decoded plainAdminAudienceFilter
@@ -105,6 +130,9 @@ func AssertAdminAudienceRequired(obj AdminAudience) error {
 	case AudienceKind("filter"):
 		if obj.Filter == nil {
 			return &RequiredError{Field: "filter"}
+		}
+		if len(obj.Ids) != 0 {
+			return fmt.Errorf("ids are not valid for filter audiences")
 		}
 		if obj.Filter.Resource != obj.Resource {
 			return fmt.Errorf("audience and filter resources do not match")
@@ -154,6 +182,21 @@ func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
 	if resource != AudienceResourceKind("accounts") && resource != AudienceResourceKind("reports") {
 		return fmt.Errorf("invalid audience resource %q", resource)
 	}
+	allowedFields := map[string]struct{}{"kind": {}, "resource": {}}
+	switch kind {
+	case AudienceKind("selected"):
+		allowedFields["ids"] = struct{}{}
+	case AudienceKind("filter"):
+		allowedFields["filter"] = struct{}{}
+	case AudienceKind("all"):
+	default:
+		return fmt.Errorf("invalid audience kind %q", kind)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audiences", field, kind)
+		}
+	}
 	switch kind {
 	case AudienceKind("selected"):
 		rawIds, found := fields["ids"]
@@ -177,12 +220,6 @@ func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("audience and filter resources do not match")
 		}
 	case AudienceKind("all"):
-		if _, found := fields["filter"]; found {
-			return fmt.Errorf("filter is not valid for all audiences")
-		}
-		if _, found := fields["ids"]; found {
-			return fmt.Errorf("ids are not valid for all audiences")
-		}
 	default:
 		return fmt.Errorf("invalid audience kind %q", kind)
 	}
@@ -239,11 +276,93 @@ func AssertAdminActionRequired(obj AdminAction) error {
 	default:
 		return fmt.Errorf("invalid action %q", obj.Action)
 	}
-	return nil
+	return assertAdminActionBranchFields(obj)
 }
 
 // AssertAdminActionConstraints checks branch values that are independent of JSON presence.
 func AssertAdminActionConstraints(obj AdminAction) error {
+	return assertAdminActionBranchFields(obj)
+}
+
+func assertAdminActionBranchFields(obj AdminAction) error {
+	reject := func(field string) error {
+		return fmt.Errorf("field %q is not valid for %s actions", field, obj.Action)
+	}
+	switch obj.Action {
+	case AdminActionKind("email"):
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("login_link"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("push"):
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+	default:
+		return fmt.Errorf("invalid action %q", obj.Action)
+	}
 	return nil
 }
 
@@ -256,6 +375,30 @@ func (obj *AdminAction) UnmarshalJSON(data []byte) error {
 	rawAction, found := fields["action"]
 	if !found || json.Unmarshal(rawAction, &action) != nil || action == "" {
 		return &RequiredError{Field: "action"}
+	}
+	allowedFields := map[string]struct{}{"action": {}}
+	switch action {
+	case AdminActionKind("email"):
+		for _, field := range []string{"body", "messageHtml", "subject"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("login_link"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("push"):
+		for _, field := range []string{"body", "title"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		allowedFields["note"] = struct{}{}
+	default:
+		return fmt.Errorf("invalid action %q", action)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s actions", field, action)
+		}
 	}
 	requiredString := func(field string) error {
 		raw, found := fields[field]

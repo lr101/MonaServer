@@ -57,11 +57,93 @@ func AssertAdminActionRequired(obj AdminAction) error {
 	default:
 		return fmt.Errorf("invalid action %q", obj.Action)
 	}
-	return nil
+	return assertAdminActionBranchFields(obj)
 }
 
 // AssertAdminActionConstraints checks branch values that are independent of JSON presence.
 func AssertAdminActionConstraints(obj AdminAction) error {
+	return assertAdminActionBranchFields(obj)
+}
+
+func assertAdminActionBranchFields(obj AdminAction) error {
+	reject := func(field string) error {
+		return fmt.Errorf("field %q is not valid for %s actions", field, obj.Action)
+	}
+	switch obj.Action {
+	case AdminActionKind("email"):
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("login_link"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("push"):
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+	default:
+		return fmt.Errorf("invalid action %q", obj.Action)
+	}
 	return nil
 }
 
@@ -74,6 +156,30 @@ func (obj *AdminAction) UnmarshalJSON(data []byte) error {
 	rawAction, found := fields["action"]
 	if !found || json.Unmarshal(rawAction, &action) != nil || action == "" {
 		return &RequiredError{Field: "action"}
+	}
+	allowedFields := map[string]struct{}{"action": {}}
+	switch action {
+	case AdminActionKind("email"):
+		for _, field := range []string{"body", "messageHtml", "subject"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("login_link"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("push"):
+		for _, field := range []string{"body", "title"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		allowedFields["note"] = struct{}{}
+	default:
+		return fmt.Errorf("invalid action %q", action)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s actions", field, action)
+		}
 	}
 	requiredString := func(field string) error {
 		raw, found := fields[field]

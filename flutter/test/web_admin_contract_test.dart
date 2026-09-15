@@ -7,22 +7,44 @@ import 'package:openapi/api.dart';
 void main() {
   test('selected audience requires at least one canonical id', () {
     expect(
-      () => AdminAudience.fromJson({
-        'kind': 'selected',
-        'resource': 'accounts',
-      }),
+      () =>
+          AdminAudience.fromJson({'kind': 'selected', 'resource': 'accounts'}),
       throwsA(isA<FormatException>()),
     );
   });
 
   test('filter audience requires its filter object', () {
     expect(
+      () => AdminAudience.fromJson({'kind': 'filter', 'resource': 'accounts'}),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
       () => AdminAudience.fromJson({
         'kind': 'filter',
         'resource': 'accounts',
+        'ids': <String>[],
+        'filter': {'resource': 'accounts'},
       }),
       throwsA(isA<FormatException>()),
     );
+    expect(
+      () => AdminAudience.fromJson({
+        'kind': 'filter',
+        'resource': 'accounts',
+        'filter': {'resource': 'accounts', 'unexpected': null},
+      }),
+      throwsA(isA<FormatException>()),
+    );
+    for (final inactiveValue in [false, null]) {
+      expect(
+        () => AdminAudience.fromJson({
+          'kind': 'filter',
+          'resource': 'reports',
+          'filter': {'resource': 'reports', 'includeAdmins': inactiveValue},
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    }
   });
 
   test('all audience has no selected or filter branch fields', () {
@@ -79,17 +101,16 @@ void main() {
     expect(report?.filter?.resource.value, 'reports');
     expect(report?.filter?.statuses?.single.value, 'open');
     expect(report?.filter?.types, ['abuse']);
-    expect(report?.filter?.assigneeUserId,
-        '246b6c7f-0b8a-43b9-b35d-6489e6daee93');
+    expect(
+      report?.filter?.assigneeUserId,
+      '246b6c7f-0b8a-43b9-b35d-6489e6daee93',
+    );
 
     expect(
       () => AdminAudience.fromJson({
         'kind': 'filter',
         'resource': 'reports',
-        'filter': {
-          'resource': 'accounts',
-          'verifiedEmail': true,
-        },
+        'filter': {'resource': 'accounts', 'verifiedEmail': true},
       }),
       throwsA(isA<FormatException>()),
     );
@@ -142,6 +163,33 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     }
+    expect(
+      () => AdminAction.fromJson({
+        'action': 'email',
+        'body': 'Body',
+        'subject': 'Subject',
+        'title': '',
+      }),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => AdminAction.fromJson({
+        'action': 'push',
+        'body': 'Body',
+        'title': 'Title',
+        'reason': null,
+      }),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => AdminAction.fromJson({
+        'action': 'email',
+        'body': 'Body',
+        'subject': 'Subject',
+        'unexpected': null,
+      }),
+      throwsA(isA<FormatException>()),
+    );
   });
 
   test('valid selected and action fixtures retain their branch fields', () {
@@ -180,39 +228,73 @@ void main() {
       ).toJson(),
       throwsA(isA<FormatException>()),
     );
+    expect(
+      () => AdminAudience(
+        kind: AudienceKind.filter,
+        ids: ['046b6c7f-0b8a-43b9-b35d-6489e6daee91'],
+        resource: AudienceResourceKind.accounts,
+        filter: AdminAudienceFilter(resource: AudienceResourceKind.accounts),
+      ).toJson(),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => AdminAction(
+        action: AdminActionKind.push,
+        body: 'Body',
+        title: 'Title',
+        subject: '',
+      ).toJson(),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => AdminAudienceFilter(
+        resource: AudienceResourceKind.reports,
+        includeAdmins: false,
+      ).toJson(),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      AdminAudienceFilter(
+        resource: AudienceResourceKind.reports,
+        includeAdmins: null,
+      ).toJson(),
+      {'resource': AudienceResourceKind.reports},
+    );
   });
 
-  test('legacy v2 login still decodes the token pair and preserves status errors',
-      () async {
-    final response = http.Response(
-      jsonEncode({
-        'refreshToken': 'legacy-refresh',
-        'accessToken': 'legacy-access',
-        'userId': '046b6c7f-0b8a-43b9-b35d-6489e6daee91',
-      }),
-      200,
-    );
-    final api = AuthApi(_StubApiClient(response));
-    final tokens = await api.userLogin(
-      UserLoginRequest(username: 'alice', password: 'password'),
-    );
+  test(
+    'legacy v2 login still decodes the token pair and preserves status errors',
+    () async {
+      final response = http.Response(
+        jsonEncode({
+          'refreshToken': 'legacy-refresh',
+          'accessToken': 'legacy-access',
+          'userId': '046b6c7f-0b8a-43b9-b35d-6489e6daee91',
+        }),
+        200,
+      );
+      final api = AuthApi(_StubApiClient(response));
+      final tokens = await api.userLogin(
+        UserLoginRequest(username: 'alice', password: 'password'),
+      );
 
-    expect(tokens?.accessToken, 'legacy-access');
-    expect(tokens?.refreshToken, 'legacy-refresh');
-    expect(tokens?.userId, '046b6c7f-0b8a-43b9-b35d-6489e6daee91');
+      expect(tokens?.accessToken, 'legacy-access');
+      expect(tokens?.refreshToken, 'legacy-refresh');
+      expect(tokens?.userId, '046b6c7f-0b8a-43b9-b35d-6489e6daee91');
 
-    final rejected = AuthApi(
-      _StubApiClient(http.Response('{"code":"invalid_credentials"}', 401)),
-    );
-    await expectLater(
-      rejected.userLogin(
-        UserLoginRequest(username: 'alice', password: 'wrong'),
-      ),
-      throwsA(
-        isA<ApiException>().having((error) => error.code, 'status', 401),
-      ),
-    );
-  });
+      final rejected = AuthApi(
+        _StubApiClient(http.Response('{"code":"invalid_credentials"}', 401)),
+      );
+      await expectLater(
+        rejected.userLogin(
+          UserLoginRequest(username: 'alice', password: 'wrong'),
+        ),
+        throwsA(
+          isA<ApiException>().having((error) => error.code, 'status', 401),
+        ),
+      );
+    },
+  );
 
   test('preview convenience API decodes a queued 202 response', () async {
     final api = AdminAudiencesApi(
@@ -230,7 +312,7 @@ void main() {
 
     final result = await api.previewAdminAudience(
       'csrf-token-123456',
-        AdminAudiencePreviewRequestDto(
+      AdminAudiencePreviewRequestDto(
         action: AdminAction(
           action: AdminActionKind.push,
           body: 'Security update',
@@ -245,8 +327,10 @@ void main() {
     );
 
     expect(result?.toJson()['jobId'], '146b6c7f-0b8a-43b9-b35d-6489e6daee92');
-    expect(result?.toJson()['snapshotId'],
-        '046b6c7f-0b8a-43b9-b35d-6489e6daee91');
+    expect(
+      result?.toJson()['snapshotId'],
+      '046b6c7f-0b8a-43b9-b35d-6489e6daee91',
+    );
     expect(result?.toJson()['status'].toString(), 'pending');
     expect(result?.status.value, 'pending');
   });
@@ -256,7 +340,11 @@ void main() {
       _StubApiClient(
         http.Response(
           jsonEncode({
-            'action': {'action': 'push', 'body': 'Security update', 'title': 'Stick-It'},
+            'action': {
+              'action': 'push',
+              'body': 'Security update',
+              'title': 'Stick-It',
+            },
             'actorUserId': '246b6c7f-0b8a-43b9-b35d-6489e6daee93',
             'counts': {
               'accountAudienceCount': 1,
@@ -292,8 +380,10 @@ void main() {
       ),
     );
 
-    expect(result?.toJson()['snapshotId'],
-        '046b6c7f-0b8a-43b9-b35d-6489e6daee91');
+    expect(
+      result?.toJson()['snapshotId'],
+      '046b6c7f-0b8a-43b9-b35d-6489e6daee91',
+    );
     expect(result?.toJson()['status'].toString(), 'ready');
     expect(result?.status.value, 'ready');
     expect(result?.action?.body, 'Security update');

@@ -7,7 +7,7 @@ class AdminAudienceFilter {
     this.createdBefore,
     this.email,
     this.id,
-    this.includeAdmins = false,
+    this.includeAdmins,
     this.securityStatuses,
     this.username,
     this.verifiedEmail,
@@ -26,7 +26,7 @@ class AdminAudienceFilter {
 
   String? id;
 
-  bool includeAdmins;
+  bool? includeAdmins;
 
   List<AdminSecurityState>? securityStatuses;
 
@@ -63,7 +63,7 @@ class AdminAudienceFilter {
     (createdBefore == null ? 0 : createdBefore!.hashCode) +
     (email == null ? 0 : email!.hashCode) +
     (id == null ? 0 : id!.hashCode) +
-    (includeAdmins.hashCode) +
+    (includeAdmins == null ? 0 : includeAdmins!.hashCode) +
     (securityStatuses == null ? 0 : securityStatuses!.hashCode) +
     (username == null ? 0 : username!.hashCode) +
     (verifiedEmail == null ? 0 : verifiedEmail!.hashCode) +
@@ -81,7 +81,7 @@ class AdminAudienceFilter {
     }
     if (this.resource.value == 'reports' &&
         (this.email != null || this.id != null || this.securityStatuses != null ||
-            this.username != null || this.verifiedEmail != null || this.includeAdmins)) {
+            this.username != null || this.verifiedEmail != null || this.includeAdmins != null)) {
       throw const FormatException('Account filter fields require resource accounts.');
     }
     final json = <String, dynamic>{};
@@ -98,7 +98,7 @@ class AdminAudienceFilter {
     if (this.id != null) {
       json[r'id'] = this.id;
     }
-    if (this.resource.value == 'accounts') {
+    if (this.resource.value == 'accounts' && this.includeAdmins != null) {
       json[r'includeAdmins'] = this.includeAdmins;
     }
     if (this.securityStatuses != null) {
@@ -132,17 +132,30 @@ class AdminAudienceFilter {
       if (resource == null) {
         throw const FormatException('AdminAudienceFilter requires a valid resource.');
       }
-      final hasReportFields = json['assigneeUserId'] != null ||
-          json['statuses'] != null || json['types'] != null;
-      final hasAccountFields = json['email'] != null ||
-          json['id'] != null || json['securityStatuses'] != null ||
-          json['username'] != null || json['verifiedEmail'] != null ||
-          json['includeAdmins'] == true;
-      if (resource.value == 'accounts' && hasReportFields) {
-        throw const FormatException('Report filter fields require resource reports.');
+      final allowedKeys = <String>{
+        'resource',
+        'createdAfter',
+        'createdBefore',
+      };
+      if (resource.value == 'accounts') {
+        allowedKeys.addAll(<String>{
+          'email',
+          'id',
+          'includeAdmins',
+          'securityStatuses',
+          'username',
+          'verifiedEmail',
+        });
+        if (json.containsKey('includeAdmins') && json['includeAdmins'] == null) {
+          throw const FormatException('includeAdmins cannot be null.');
+        }
+      } else if (resource.value == 'reports') {
+        allowedKeys.addAll(<String>{'assigneeUserId', 'statuses', 'types'});
       }
-      if (resource.value == 'reports' && hasAccountFields) {
-        throw const FormatException('Account filter fields require resource accounts.');
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${resource.value} audience filters.');
+        }
       }
       return AdminAudienceFilter(
         resource: resource,
@@ -150,7 +163,7 @@ class AdminAudienceFilter {
         createdBefore: mapDateTime(json, r'createdBefore', r''),
         email: mapValueOfType<String>(json, r'email'),
         id: mapValueOfType<String>(json, r'id'),
-        includeAdmins: mapValueOfType<bool>(json, r'includeAdmins') ?? false,
+        includeAdmins: mapValueOfType<bool>(json, r'includeAdmins'),
         securityStatuses: AdminSecurityState.listFromJson(json[r'securityStatuses']),
         username: mapValueOfType<String>(json, r'username'),
         verifiedEmail: mapValueOfType<bool>(json, r'verifiedEmail'),
@@ -245,6 +258,9 @@ class AdminAudience {
         if (this.filter == null) {
           throw const FormatException('AdminAudience[filter] requires filter.');
         }
+        if (this.ids.isNotEmpty) {
+          throw const FormatException('IDs are not valid for filter audiences.');
+        }
         if (this.filter!.resource != this.resource) {
           throw const FormatException('Audience and filter resources must match.');
         }
@@ -282,6 +298,24 @@ class AdminAudience {
       }
       if (resource == null) {
         throw const FormatException('AdminAudience requires a valid resource.');
+      }
+      final allowedKeys = <String>{'kind', 'resource'};
+      switch (kind.value) {
+        case 'selected':
+          allowedKeys.add('ids');
+          break;
+        case 'filter':
+          allowedKeys.add('filter');
+          break;
+        case 'all':
+          break;
+        default:
+          throw FormatException('Unknown AdminAudience kind: ${kind.value}');
+      }
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${kind.value} audiences.');
+        }
       }
       switch (kind.value) {
         case 'selected':
@@ -429,10 +463,31 @@ class AdminAction {
         if (!hasText(this.body) || !hasText(this.subject)) {
           throw const FormatException('AdminAction[email] requires body and subject.');
         }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for email actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for email actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for email actions.');
+        }
         break;
       case 'push':
         if (!hasText(this.body) || !hasText(this.title)) {
           throw const FormatException('AdminAction[push] requires body and title.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for push actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for push actions.');
+        }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for push actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for push actions.');
         }
         break;
       case 'revoke_sessions':
@@ -441,10 +496,56 @@ class AdminAction {
         if (!hasText(this.reason)) {
           throw const FormatException('Security actions require reason.');
         }
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for security actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for security actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for security actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for security actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for security actions.');
+        }
         break;
       case 'login_link':
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for login_link actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for login_link actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for login_link actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for login_link actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for login_link actions.');
+        }
+        break;
       case 'report_resolve':
       case 'report_dismiss':
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for report actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for report actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for report actions.');
+        }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for report actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for report actions.');
+        }
         break;
       default:
         throw FormatException('Unknown AdminAction kind: ${this.action.value}');
@@ -481,6 +582,34 @@ class AdminAction {
       final action = AdminActionKind.fromJson(json[r'action']);
       if (action == null) {
         throw const FormatException('AdminAction requires a valid action.');
+      }
+      final allowedKeys = <String>{'action'};
+      switch (action.value) {
+        case 'email':
+          allowedKeys.addAll(<String>{'body', 'messageHtml', 'subject'});
+          break;
+        case 'login_link':
+          allowedKeys.add('reason');
+          break;
+        case 'push':
+          allowedKeys.addAll(<String>{'body', 'title'});
+          break;
+        case 'revoke_sessions':
+        case 'mark_compromised':
+        case 'recovery_resend':
+          allowedKeys.add('reason');
+          break;
+        case 'report_resolve':
+        case 'report_dismiss':
+          allowedKeys.add('note');
+          break;
+        default:
+          throw FormatException('Unknown AdminAction kind: ${action.value}');
+      }
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${action.value} actions.');
+        }
       }
       bool hasText(String key) => json[key] is String && (json[key] as String).isNotEmpty;
       switch (action.value) {

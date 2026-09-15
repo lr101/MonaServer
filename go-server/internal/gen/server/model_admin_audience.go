@@ -46,6 +46,9 @@ func AssertAdminAudienceRequired(obj AdminAudience) error {
 		if obj.Filter == nil {
 			return &RequiredError{Field: "filter"}
 		}
+		if len(obj.Ids) != 0 {
+			return fmt.Errorf("ids are not valid for filter audiences")
+		}
 		if obj.Filter.Resource != obj.Resource {
 			return fmt.Errorf("audience and filter resources do not match")
 		}
@@ -94,6 +97,21 @@ func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
 	if resource != AudienceResourceKind("accounts") && resource != AudienceResourceKind("reports") {
 		return fmt.Errorf("invalid audience resource %q", resource)
 	}
+	allowedFields := map[string]struct{}{"kind": {}, "resource": {}}
+	switch kind {
+	case AudienceKind("selected"):
+		allowedFields["ids"] = struct{}{}
+	case AudienceKind("filter"):
+		allowedFields["filter"] = struct{}{}
+	case AudienceKind("all"):
+	default:
+		return fmt.Errorf("invalid audience kind %q", kind)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audiences", field, kind)
+		}
+	}
 	switch kind {
 	case AudienceKind("selected"):
 		rawIds, found := fields["ids"]
@@ -117,12 +135,6 @@ func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("audience and filter resources do not match")
 		}
 	case AudienceKind("all"):
-		if _, found := fields["filter"]; found {
-			return fmt.Errorf("filter is not valid for all audiences")
-		}
-		if _, found := fields["ids"]; found {
-			return fmt.Errorf("ids are not valid for all audiences")
-		}
 	default:
 		return fmt.Errorf("invalid audience kind %q", kind)
 	}

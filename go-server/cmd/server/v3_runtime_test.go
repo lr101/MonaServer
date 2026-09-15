@@ -177,6 +177,53 @@ func TestV3ValidationErrorsUseBadRequestEnvelope(t *testing.T) {
 		r.ServeHTTP(recorder, request)
 		assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
 	})
+
+	nestedInvalidRequests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "unknown action field",
+			path: "/api/v3/admin/jobs",
+			body: `{"action":{"action":"email","body":"Body","subject":"Subject","unexpected":null},"payloadHash":"payload-hash","snapshotId":"snapshot-id"}`,
+		},
+		{
+			name: "inactive action field",
+			path: "/api/v3/admin/jobs",
+			body: `{"action":{"action":"email","body":"Body","subject":"Subject","title":""},"payloadHash":"payload-hash","snapshotId":"snapshot-id"}`,
+		},
+		{
+			name: "unknown audience field",
+			path: "/api/v3/admin/audiences/preview",
+			body: `{"action":{"action":"login_link"},"audience":{"kind":"selected","resource":"accounts","ids":["046b6c7f-0b8a-43b9-b35d-6489e6daee91"],"unexpected":null}}`,
+		},
+		{
+			name: "inactive audience ids",
+			path: "/api/v3/admin/audiences/preview",
+			body: `{"action":{"action":"login_link"},"audience":{"kind":"filter","resource":"accounts","ids":[],"filter":{"resource":"accounts"}}}`,
+		},
+		{
+			name: "report account field false",
+			path: "/api/v3/admin/audiences/preview",
+			body: `{"action":{"action":"login_link"},"audience":{"kind":"filter","resource":"reports","filter":{"resource":"reports","includeAdmins":false}}}`,
+		},
+		{
+			name: "report account field null",
+			path: "/api/v3/admin/audiences/preview",
+			body: `{"action":{"action":"login_link"},"audience":{"kind":"filter","resource":"reports","filter":{"resource":"reports","includeAdmins":null}}}`,
+		},
+	}
+	for _, tt := range nestedInvalidRequests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _, _ := newV3RuntimeRouter(t, &config.Config{WebAdminAPI: true})
+			request := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			request.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: "opaque-session"})
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, request)
+			assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
+		})
+	}
 }
 
 func TestV3OwnSessionRequiresBearerAuthentication(t *testing.T) {

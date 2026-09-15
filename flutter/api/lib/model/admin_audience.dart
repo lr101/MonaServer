@@ -60,6 +60,9 @@ class AdminAudience {
         if (this.filter == null) {
           throw const FormatException('AdminAudience[filter] requires filter.');
         }
+        if (this.ids.isNotEmpty) {
+          throw const FormatException('IDs are not valid for filter audiences.');
+        }
         if (this.filter!.resource != this.resource) {
           throw const FormatException('Audience and filter resources must match.');
         }
@@ -97,6 +100,24 @@ class AdminAudience {
       }
       if (resource == null) {
         throw const FormatException('AdminAudience requires a valid resource.');
+      }
+      final allowedKeys = <String>{'kind', 'resource'};
+      switch (kind.value) {
+        case 'selected':
+          allowedKeys.add('ids');
+          break;
+        case 'filter':
+          allowedKeys.add('filter');
+          break;
+        case 'all':
+          break;
+        default:
+          throw FormatException('Unknown AdminAudience kind: ${kind.value}');
+      }
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${kind.value} audiences.');
+        }
       }
       switch (kind.value) {
         case 'selected':

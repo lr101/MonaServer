@@ -70,10 +70,31 @@ class AdminAction {
         if (!hasText(this.body) || !hasText(this.subject)) {
           throw const FormatException('AdminAction[email] requires body and subject.');
         }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for email actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for email actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for email actions.');
+        }
         break;
       case 'push':
         if (!hasText(this.body) || !hasText(this.title)) {
           throw const FormatException('AdminAction[push] requires body and title.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for push actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for push actions.');
+        }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for push actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for push actions.');
         }
         break;
       case 'revoke_sessions':
@@ -82,10 +103,56 @@ class AdminAction {
         if (!hasText(this.reason)) {
           throw const FormatException('Security actions require reason.');
         }
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for security actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for security actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for security actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for security actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for security actions.');
+        }
         break;
       case 'login_link':
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for login_link actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for login_link actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for login_link actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for login_link actions.');
+        }
+        if (this.note != null) {
+          throw const FormatException('Field "note" is not valid for login_link actions.');
+        }
+        break;
       case 'report_resolve':
       case 'report_dismiss':
+        if (this.body != null) {
+          throw const FormatException('Field "body" is not valid for report actions.');
+        }
+        if (this.messageHtml != null) {
+          throw const FormatException('Field "messageHtml" is not valid for report actions.');
+        }
+        if (this.subject != null) {
+          throw const FormatException('Field "subject" is not valid for report actions.');
+        }
+        if (this.reason != null) {
+          throw const FormatException('Field "reason" is not valid for report actions.');
+        }
+        if (this.title != null) {
+          throw const FormatException('Field "title" is not valid for report actions.');
+        }
         break;
       default:
         throw FormatException('Unknown AdminAction kind: ${this.action.value}');
@@ -122,6 +189,34 @@ class AdminAction {
       final action = AdminActionKind.fromJson(json[r'action']);
       if (action == null) {
         throw const FormatException('AdminAction requires a valid action.');
+      }
+      final allowedKeys = <String>{'action'};
+      switch (action.value) {
+        case 'email':
+          allowedKeys.addAll(<String>{'body', 'messageHtml', 'subject'});
+          break;
+        case 'login_link':
+          allowedKeys.add('reason');
+          break;
+        case 'push':
+          allowedKeys.addAll(<String>{'body', 'title'});
+          break;
+        case 'revoke_sessions':
+        case 'mark_compromised':
+        case 'recovery_resend':
+          allowedKeys.add('reason');
+          break;
+        case 'report_resolve':
+        case 'report_dismiss':
+          allowedKeys.add('note');
+          break;
+        default:
+          throw FormatException('Unknown AdminAction kind: ${action.value}');
+      }
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${action.value} actions.');
+        }
       }
       bool hasText(String key) => json[key] is String && (json[key] as String).isNotEmpty;
       switch (action.value) {

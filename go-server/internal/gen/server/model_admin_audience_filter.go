@@ -11,6 +11,7 @@
 package genserver
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -25,7 +26,7 @@ type AdminAudienceFilter struct {
 	CreatedBefore    *time.Time            `json:"createdBefore,omitempty"`
 	Email            *string               `json:"email,omitempty"`
 	Id               *string               `json:"id,omitempty"`
-	IncludeAdmins    bool                  `json:"includeAdmins,omitempty"`
+	IncludeAdmins    *bool                 `json:"includeAdmins,omitempty"`
 	SecurityStatuses *[]AdminSecurityState `json:"securityStatuses,omitempty"`
 	Username         *string               `json:"username,omitempty"`
 	VerifiedEmail    *bool                 `json:"verifiedEmail,omitempty"`
@@ -53,7 +54,7 @@ func AssertAdminAudienceFilterConstraints(obj AdminAudienceFilter) error {
 	if obj.Resource == AudienceResourceKind("accounts") && (obj.AssigneeUserId != nil || obj.Statuses != nil || obj.Types != nil) {
 		return fmt.Errorf("report filter fields are not valid for account audiences")
 	}
-	if obj.Resource == AudienceResourceKind("reports") && (obj.Email != nil || obj.Id != nil || obj.SecurityStatuses != nil || obj.Username != nil || obj.VerifiedEmail != nil || obj.IncludeAdmins) {
+	if obj.Resource == AudienceResourceKind("reports") && (obj.Email != nil || obj.Id != nil || obj.SecurityStatuses != nil || obj.Username != nil || obj.VerifiedEmail != nil || obj.IncludeAdmins != nil) {
 		return fmt.Errorf("account filter fields are not valid for report audiences")
 	}
 	return nil
@@ -68,6 +69,28 @@ func (obj *AdminAudienceFilter) UnmarshalJSON(data []byte) error {
 	rawResource, found := fields["resource"]
 	if !found || json.Unmarshal(rawResource, &resource) != nil || resource == "" {
 		return &RequiredError{Field: "resource"}
+	}
+	allowedFields := map[string]struct{}{
+		"resource":      {},
+		"createdAfter":  {},
+		"createdBefore": {},
+	}
+	if resource == AudienceResourceKind("accounts") {
+		for _, field := range []string{"email", "id", "includeAdmins", "securityStatuses", "username", "verifiedEmail"} {
+			allowedFields[field] = struct{}{}
+		}
+	} else if resource == AudienceResourceKind("reports") {
+		for _, field := range []string{"assigneeUserId", "statuses", "types"} {
+			allowedFields[field] = struct{}{}
+		}
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audience filters", field, resource)
+		}
+	}
+	if rawIncludeAdmins, found := fields["includeAdmins"]; found && bytes.Equal(bytes.TrimSpace(rawIncludeAdmins), []byte("null")) {
+		return fmt.Errorf("includeAdmins cannot be null")
 	}
 	type plainAdminAudienceFilter AdminAudienceFilter
 	var decoded plainAdminAudienceFilter

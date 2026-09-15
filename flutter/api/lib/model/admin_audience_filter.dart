@@ -18,7 +18,7 @@ class AdminAudienceFilter {
     this.createdBefore,
     this.email,
     this.id,
-    this.includeAdmins = false,
+    this.includeAdmins,
     this.securityStatuses,
     this.username,
     this.verifiedEmail,
@@ -37,7 +37,7 @@ class AdminAudienceFilter {
 
   String? id;
 
-  bool includeAdmins;
+  bool? includeAdmins;
 
   List<AdminSecurityState>? securityStatuses;
 
@@ -74,7 +74,7 @@ class AdminAudienceFilter {
     (createdBefore == null ? 0 : createdBefore!.hashCode) +
     (email == null ? 0 : email!.hashCode) +
     (id == null ? 0 : id!.hashCode) +
-    (includeAdmins.hashCode) +
+    (includeAdmins == null ? 0 : includeAdmins!.hashCode) +
     (securityStatuses == null ? 0 : securityStatuses!.hashCode) +
     (username == null ? 0 : username!.hashCode) +
     (verifiedEmail == null ? 0 : verifiedEmail!.hashCode) +
@@ -92,7 +92,7 @@ class AdminAudienceFilter {
     }
     if (this.resource.value == 'reports' &&
         (this.email != null || this.id != null || this.securityStatuses != null ||
-            this.username != null || this.verifiedEmail != null || this.includeAdmins)) {
+            this.username != null || this.verifiedEmail != null || this.includeAdmins != null)) {
       throw const FormatException('Account filter fields require resource accounts.');
     }
     final json = <String, dynamic>{};
@@ -109,7 +109,7 @@ class AdminAudienceFilter {
     if (this.id != null) {
       json[r'id'] = this.id;
     }
-    if (this.resource.value == 'accounts') {
+    if (this.resource.value == 'accounts' && this.includeAdmins != null) {
       json[r'includeAdmins'] = this.includeAdmins;
     }
     if (this.securityStatuses != null) {
@@ -143,17 +143,30 @@ class AdminAudienceFilter {
       if (resource == null) {
         throw const FormatException('AdminAudienceFilter requires a valid resource.');
       }
-      final hasReportFields = json['assigneeUserId'] != null ||
-          json['statuses'] != null || json['types'] != null;
-      final hasAccountFields = json['email'] != null ||
-          json['id'] != null || json['securityStatuses'] != null ||
-          json['username'] != null || json['verifiedEmail'] != null ||
-          json['includeAdmins'] == true;
-      if (resource.value == 'accounts' && hasReportFields) {
-        throw const FormatException('Report filter fields require resource reports.');
+      final allowedKeys = <String>{
+        'resource',
+        'createdAfter',
+        'createdBefore',
+      };
+      if (resource.value == 'accounts') {
+        allowedKeys.addAll(<String>{
+          'email',
+          'id',
+          'includeAdmins',
+          'securityStatuses',
+          'username',
+          'verifiedEmail',
+        });
+        if (json.containsKey('includeAdmins') && json['includeAdmins'] == null) {
+          throw const FormatException('includeAdmins cannot be null.');
+        }
+      } else if (resource.value == 'reports') {
+        allowedKeys.addAll(<String>{'assigneeUserId', 'statuses', 'types'});
       }
-      if (resource.value == 'reports' && hasAccountFields) {
-        throw const FormatException('Account filter fields require resource accounts.');
+      for (final key in json.keys) {
+        if (!allowedKeys.contains(key)) {
+          throw FormatException('Field "$key" is not valid for ${resource.value} audience filters.');
+        }
       }
       return AdminAudienceFilter(
         resource: resource,
@@ -161,7 +174,7 @@ class AdminAudienceFilter {
         createdBefore: mapDateTime(json, r'createdBefore', r''),
         email: mapValueOfType<String>(json, r'email'),
         id: mapValueOfType<String>(json, r'id'),
-        includeAdmins: mapValueOfType<bool>(json, r'includeAdmins') ?? false,
+        includeAdmins: mapValueOfType<bool>(json, r'includeAdmins'),
         securityStatuses: AdminSecurityState.listFromJson(json[r'securityStatuses']),
         username: mapValueOfType<String>(json, r'username'),
         verifiedEmail: mapValueOfType<bool>(json, r'verifiedEmail'),
