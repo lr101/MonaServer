@@ -129,7 +129,7 @@ func TestV3DisabledFeaturesCannotExecutePlaceholderMutations(t *testing.T) {
 
 func TestV3EnabledAdminMutationCannotReturnPlaceholderSuccess(t *testing.T) {
 	r, _, _ := newV3RuntimeRouter(t, &config.Config{WebAdminAPI: true})
-	req := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"email"},"payloadHash":"payload-hash","snapshotId":"snapshot-id"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"email","body":"Security update","subject":"Stick-It"},"payloadHash":"payload-hash","snapshotId":"snapshot-id"}`))
 	req.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: "opaque-session"})
 	recorder := httptest.NewRecorder()
 	r.ServeHTTP(recorder, req)
