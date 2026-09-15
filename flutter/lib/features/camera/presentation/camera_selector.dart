@@ -1,7 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-class CameraSelectorButton extends StatelessWidget {
+class CameraSelectorButton extends StatefulWidget {
   const CameraSelectorButton({
     required this.cameras,
     required this.selectedIndex,
@@ -14,35 +14,117 @@ class CameraSelectorButton extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   @override
-  Widget build(BuildContext context) {
-    final labels = _cameraLabels(cameras);
-    final selectedCameraIndex = _selectedCameraIndex;
+  State<CameraSelectorButton> createState() => _CameraSelectorButtonState();
+}
 
-    return PopupMenuButton<int>(
-      tooltip: 'Select camera',
-      icon: const Icon(Icons.flip_camera_android),
-      onSelected: onSelected,
-      itemBuilder: (context) => List.generate(
-        cameras.length,
-        (index) => CheckedPopupMenuItem<int>(
-          value: index,
-          checked: index == selectedCameraIndex,
-          child: Row(
-            children: [
-              Icon(_cameraIcon(cameras[index].lensDirection)),
-              const SizedBox(width: 12),
-              Text(labels[index]),
-            ],
-          ),
-        ),
-      ),
-    );
+class _CameraSelectorButtonState extends State<CameraSelectorButton>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  late final _animation = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeInOutCubic,
+  );
+  bool _open = false;
+
+  void _setOpen(bool open) {
+    setState(() => _open = open);
+    if (open) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
   }
 
-  int get _selectedCameraIndex {
-    if (cameras.isEmpty || selectedIndex < 0) return 0;
-    if (selectedIndex >= cameras.length) return cameras.length - 1;
-    return selectedIndex;
+  @override
+  void dispose() {
+    _animation.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = _cameraLabels(widget.cameras);
+    final selectedIndex = widget.cameras.isEmpty
+        ? 0
+        : widget.selectedIndex.clamp(0, widget.cameras.length - 1);
+    return TapRegion(
+      onTapOutside: (_) {
+        if (_open) _setOpen(false);
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) => Offstage(
+              offstage: _controller.isDismissed,
+              child: ClipRect(
+                child: SizeTransition(
+                  sizeFactor: _animation,
+                  alignment: Alignment.bottomCenter,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1),
+                      end: Offset.zero,
+                    ).animate(_animation),
+                    child: IgnorePointer(ignoring: !_open, child: child),
+                  ),
+                ),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                elevation: 6,
+                borderRadius: BorderRadius.circular(20),
+                clipBehavior: Clip.antiAlias,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 240,
+                    maxHeight: 240,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(widget.cameras.length, (index) {
+                        return ListTile(
+                          leading: Icon(
+                            _cameraIcon(widget.cameras[index].lensDirection),
+                          ),
+                          title: Text(labels[index]),
+                          selected: index == selectedIndex,
+                          trailing: index == selectedIndex
+                              ? const Icon(Icons.check)
+                              : null,
+                          onTap: () {
+                            _setOpen(false);
+                            widget.onSelected(index);
+                          },
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Material(
+            color: Colors.grey.withValues(alpha: 0.5),
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Select camera',
+              onPressed: widget.cameras.isEmpty ? null : () => _setOpen(!_open),
+              icon: const Icon(Icons.flip_camera_android),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

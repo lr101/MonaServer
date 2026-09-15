@@ -155,159 +155,158 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final cameraIndex = ref.watch(cameraIndexProvider);
     return Scaffold(
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    // We handle the AsyncValue of the CONTROLLER here
-                    child: controllerAsync.when(
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (err, stack) =>
-                          Center(child: Text("Camera Error: $err")),
-                      data: (controller) {
-                        // Once controller is ready, we check the Values state
-                        return cameraStateAsync.when(
+            Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        // We handle the AsyncValue of the CONTROLLER here
+                        child: controllerAsync.when(
                           loading: () =>
                               const Center(child: CircularProgressIndicator()),
-                          error: (err, stack) => Text(err.toString()),
-                          data: (cameraState) => GestureDetector(
-                            onDoubleTap: ref
-                                .read(cameraIndexProvider.notifier)
-                                .increment,
-                            onScaleStart: (_) => basScaleFactor = scaleFactor,
-                            onScaleUpdate: (details) =>
-                                handleZoom(details, cameraState),
-                            child: cameraPreviewViewport(controller),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  Align(
-                    alignment: FractionalOffset.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 75),
-                      child: ref.watch(cameraCapturingProvider)
-                          ? Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).highlightColor,
-                                borderRadius: BorderRadius.circular(10),
+                          error: (err, stack) =>
+                              Center(child: Text("Camera Error: $err")),
+                          data: (controller) {
+                            // Once controller is ready, we check the Values state
+                            return cameraStateAsync.when(
+                              loading: () => const Center(
+                                child: CircularProgressIndicator(),
                               ),
-                              child: const Padding(
-                                padding: EdgeInsets.all(5),
-                                child: Text("Hold steady capturing ..."),
+                              error: (err, stack) => Text(err.toString()),
+                              data: (cameraState) => GestureDetector(
+                                onDoubleTap: ref
+                                    .read(cameraIndexProvider.notifier)
+                                    .increment,
+                                onScaleStart: (_) =>
+                                    basScaleFactor = scaleFactor,
+                                onScaleUpdate: (details) =>
+                                    handleZoom(details, cameraState),
+                                child: cameraPreviewViewport(controller),
                               ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                  Align(
-                    alignment: FractionalOffset.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: SizedBox(
-                        height: 50,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(2.5),
-                              child: CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.grey.withValues(
-                                  alpha: 0.5,
-                                ),
-                                child: Center(
-                                  child: IconButton(
-                                    onPressed: () =>
-                                        handleFlashChange(!cameraFlashMode),
-                                    icon: cameraFlashMode
-                                        ? const Icon(Icons.flash_off)
-                                        : const Icon(Icons.flash_auto),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 1,
-                              ),
-                              child: SizedBox.square(
-                                dimension: 48,
-                                child: CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Colors.grey.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                  child: CameraSelectorButton(
-                                    cameras: cameras,
-                                    selectedIndex: cameraIndex,
-                                    onSelected: handleCameraChange,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(2.5),
-                              child: CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.grey.withValues(
-                                  alpha: 0.5,
-                                ),
-                                child: Center(
-                                  child: GestureDetector(
-                                    onTap: uploadFileImage,
-                                    child: const Icon(Icons.upload),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                            );
+                          },
                         ),
                       ),
+                      Align(
+                        alignment: FractionalOffset.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 75),
+                          child: ref.watch(cameraCapturingProvider)
+                              ? Container(
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).highlightColor,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(5),
+                                    child: Text("Hold steady capturing ..."),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                      Align(
+                        alignment: FractionalOffset.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: SizedBox(
+                            height: 50,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(2.5),
+                                  child: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.grey.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    child: Center(
+                                      child: IconButton(
+                                        onPressed: () =>
+                                            handleFlashChange(!cameraFlashMode),
+                                        icon: cameraFlashMode
+                                            ? const Icon(Icons.flash_off)
+                                            : const Icon(Icons.flash_auto),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(2.5),
+                                  child: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.grey.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    child: Center(
+                                      child: GestureDetector(
+                                        onTap: uploadFileImage,
+                                        child: const Icon(Icons.upload),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 48),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (groupIds.isNotEmpty)
+                  SizedBox(
+                    height: (MediaQuery.of(context).size.height) * 0.15,
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: SnappingPageScroll(
+                            controller: pageController,
+                            onPageChanged: onPageChange,
+                            children: List.generate(
+                              groupIds.length,
+                              (index) => groupCard(groupIds[index], index),
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: IgnorePointer(
+                            child: Container(
+                              padding: const EdgeInsets.all(2.0),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  width: 5.0,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                              height:
+                                  (MediaQuery.of(context).size.height) *
+                                  0.07 *
+                                  2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                const SizedBox(height: 5),
+              ],
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: CameraSelectorButton(
+                cameras: cameras,
+                selectedIndex: cameraIndex,
+                onSelected: handleCameraChange,
               ),
             ),
-            if (groupIds.isNotEmpty)
-              SizedBox(
-                height: (MediaQuery.of(context).size.height) * 0.15,
-                child: Stack(
-                  children: [
-                    Center(
-                      child: SnappingPageScroll(
-                        controller: pageController,
-                        onPageChanged: onPageChange,
-                        children: List.generate(
-                          groupIds.length,
-                          (index) => groupCard(groupIds[index], index),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: const EdgeInsets.all(2.0),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              width: 5.0,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            shape: BoxShape.circle,
-                          ),
-                          height:
-                              (MediaQuery.of(context).size.height) * 0.07 * 2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 5),
           ],
         ),
       ),
