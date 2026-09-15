@@ -26,6 +26,8 @@ type AdminUserFilterDto struct {
 
 	IncludeAdmins bool `json:"includeAdmins,omitempty"`
 
+	Resource string `json:"resource"`
+
 	SecurityStatuses *[]AdminSecurityState `json:"securityStatuses,omitempty"`
 
 	Username *string `json:"username,omitempty"`
@@ -35,6 +37,15 @@ type AdminUserFilterDto struct {
 
 // AssertAdminUserFilterDtoRequired checks if the required fields are not zero-ed
 func AssertAdminUserFilterDtoRequired(obj AdminUserFilterDto) error {
+	elements := map[string]interface{}{
+		"resource": obj.Resource,
+	}
+	for name, el := range elements {
+		if isZero := IsZeroValue(el); isZero {
+			return &RequiredError{Field: name}
+		}
+	}
+
 	return nil
 }
 

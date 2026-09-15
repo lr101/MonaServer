@@ -10,6 +10,8 @@
 
 part of openapi.api;
 
+
+
 class AdminAction {
   /// Returns a new [AdminAction] instance.
   AdminAction({
@@ -24,39 +26,15 @@ class AdminAction {
 
   AdminActionKind action;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   String? body;
 
   /// Optional server-sanitized preview input; scripts and admin DOM access are rejected.
   String? messageHtml;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   String? subject;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   String? reason;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   String? title;
 
   String? note;
@@ -86,37 +64,51 @@ class AdminAction {
   String toString() => 'AdminAction[action=$action, body=$body, messageHtml=$messageHtml, subject=$subject, reason=$reason, title=$title, note=$note]';
 
   Map<String, dynamic> toJson() {
+    bool hasText(String? value) => value != null && value.isNotEmpty;
+    switch (this.action.value) {
+      case 'email':
+        if (!hasText(this.body) || !hasText(this.subject)) {
+          throw const FormatException('AdminAction[email] requires body and subject.');
+        }
+        break;
+      case 'push':
+        if (!hasText(this.body) || !hasText(this.title)) {
+          throw const FormatException('AdminAction[push] requires body and title.');
+        }
+        break;
+      case 'revoke_sessions':
+      case 'mark_compromised':
+      case 'recovery_resend':
+        if (!hasText(this.reason)) {
+          throw const FormatException('Security actions require reason.');
+        }
+        break;
+      case 'login_link':
+      case 'report_resolve':
+      case 'report_dismiss':
+        break;
+      default:
+        throw FormatException('Unknown AdminAction kind: ${this.action.value}');
+    }
     final json = <String, dynamic>{};
-      json[r'action'] = this.action;
+    json[r'action'] = this.action;
     if (this.body != null) {
       json[r'body'] = this.body;
-    } else {
-      json[r'body'] = null;
     }
     if (this.messageHtml != null) {
       json[r'messageHtml'] = this.messageHtml;
-    } else {
-      json[r'messageHtml'] = null;
     }
     if (this.subject != null) {
       json[r'subject'] = this.subject;
-    } else {
-      json[r'subject'] = null;
     }
     if (this.reason != null) {
       json[r'reason'] = this.reason;
-    } else {
-      json[r'reason'] = null;
     }
     if (this.title != null) {
       json[r'title'] = this.title;
-    } else {
-      json[r'title'] = null;
     }
     if (this.note != null) {
       json[r'note'] = this.note;
-    } else {
-      json[r'note'] = null;
     }
     return json;
   }
@@ -127,20 +119,38 @@ class AdminAction {
   static AdminAction? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
-
-      // Ensure that the map contains the required keys.
-      // Note 1: the values aren't checked for validity beyond being non-null.
-      // Note 2: this code is stripped in release mode!
-      assert(() {
-        requiredKeys.forEach((key) {
-          assert(json.containsKey(key), 'Required key "AdminAction[$key]" is missing from JSON.');
-          assert(json[key] != null, 'Required key "AdminAction[$key]" has a null value in JSON.');
-        });
-        return true;
-      }());
-
+      final action = AdminActionKind.fromJson(json[r'action']);
+      if (action == null) {
+        throw const FormatException('AdminAction requires a valid action.');
+      }
+      bool hasText(String key) => json[key] is String && (json[key] as String).isNotEmpty;
+      switch (action.value) {
+        case 'email':
+          if (!hasText('body') || !hasText('subject')) {
+            throw const FormatException('AdminAction[email] requires body and subject.');
+          }
+          break;
+        case 'push':
+          if (!hasText('body') || !hasText('title')) {
+            throw const FormatException('AdminAction[push] requires body and title.');
+          }
+          break;
+        case 'revoke_sessions':
+        case 'mark_compromised':
+        case 'recovery_resend':
+          if (!hasText('reason')) {
+            throw const FormatException('Security actions require reason.');
+          }
+          break;
+        case 'login_link':
+        case 'report_resolve':
+        case 'report_dismiss':
+          break;
+        default:
+          throw FormatException('Unknown AdminAction kind: ${action.value}');
+      }
       return AdminAction(
-        action: AdminActionKind.fromJson(json[r'action'])!,
+        action: action,
         body: mapValueOfType<String>(json, r'body'),
         messageHtml: mapValueOfType<String>(json, r'messageHtml'),
         subject: mapValueOfType<String>(json, r'subject'),
@@ -192,9 +202,7 @@ class AdminAction {
     return map;
   }
 
-  /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'action',
   };
 }
-

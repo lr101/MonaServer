@@ -12,7 +12,7 @@ package genserver
 
 // SelectedAudience - Explicit bounded IDs; report actions interpret IDs as report IDs.
 type SelectedAudience struct {
-	Ids []string `json:"ids,omitempty"`
+	Ids []string `json:"ids"`
 
 	Kind string `json:"kind"`
 
@@ -22,6 +22,7 @@ type SelectedAudience struct {
 // AssertSelectedAudienceRequired checks if the required fields are not zero-ed
 func AssertSelectedAudienceRequired(obj SelectedAudience) error {
 	elements := map[string]interface{}{
+		"ids":      obj.Ids,
 		"kind":     obj.Kind,
 		"resource": obj.Resource,
 	}

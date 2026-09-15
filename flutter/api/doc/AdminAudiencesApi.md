@@ -43,8 +43,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **audienceId** | **String**| Immutable audience snapshot identifier. | 
- **cursor** | **String**| Opaque cursor returned by the preceding page. | [optional] 
+ **audienceId** | **String**| Immutable audience snapshot identifier. |
+ **cursor** | **String**| Opaque cursor returned by the preceding page. | [optional]
  **limit** | **int**| Maximum number of records in the page; defaults to 25 and is capped at 100. | [optional] [default to 25]
 
 ### Return type
@@ -63,7 +63,7 @@ Name | Type | Description  | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **previewAdminAudience**
-> AdminAudiencePreviewDto previewAdminAudience(xCSRFToken, adminAudiencePreviewRequestDto)
+> AdminAudiencePreviewResponseDto previewAdminAudience(xCSRFToken, adminAudiencePreviewRequestDto)
 
 Preview an explicit administrative audience
 
@@ -79,7 +79,7 @@ import 'package:openapi/api.dart';
 
 final api_instance = AdminAudiencesApi();
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-final adminAudiencePreviewRequestDto = AdminAudiencePreviewRequestDto(); // AdminAudiencePreviewRequestDto | 
+final adminAudiencePreviewRequestDto = AdminAudiencePreviewRequestDto(); // AdminAudiencePreviewRequestDto |
 
 try {
     final result = api_instance.previewAdminAudience(xCSRFToken, adminAudiencePreviewRequestDto);
@@ -93,12 +93,12 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. | 
- **adminAudiencePreviewRequestDto** | [**AdminAudiencePreviewRequestDto**](AdminAudiencePreviewRequestDto.md)|  | 
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminAudiencePreviewRequestDto** | [**AdminAudiencePreviewRequestDto**](AdminAudiencePreviewRequestDto.md)|  |
 
 ### Return type
 
-[**AdminAudiencePreviewDto**](AdminAudiencePreviewDto.md)
+[**AdminAudiencePreviewResponseDto**](AdminAudiencePreviewResponseDto.md)
 
 ### Authorization
 
@@ -110,4 +110,3 @@ Name | Type | Description  | Notes
  - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-

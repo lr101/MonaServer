@@ -14,27 +14,15 @@ class PushActionDto {
   /// Returns a new [PushActionDto] instance.
   PushActionDto({
     required this.action,
-    this.body,
-    this.title,
+    required this.body,
+    required this.title,
   });
 
   PushActionDtoActionEnum action;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? body;
+  String body;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? title;
+  String title;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is PushActionDto &&
@@ -46,8 +34,8 @@ class PushActionDto {
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (action.hashCode) +
-    (body == null ? 0 : body!.hashCode) +
-    (title == null ? 0 : title!.hashCode);
+    (body.hashCode) +
+    (title.hashCode);
 
   @override
   String toString() => 'PushActionDto[action=$action, body=$body, title=$title]';
@@ -55,16 +43,8 @@ class PushActionDto {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'action'] = this.action;
-    if (this.body != null) {
       json[r'body'] = this.body;
-    } else {
-      json[r'body'] = null;
-    }
-    if (this.title != null) {
       json[r'title'] = this.title;
-    } else {
-      json[r'title'] = null;
-    }
     return json;
   }
 
@@ -88,8 +68,8 @@ class PushActionDto {
 
       return PushActionDto(
         action: PushActionDtoActionEnum.fromJson(json[r'action'])!,
-        body: mapValueOfType<String>(json, r'body'),
-        title: mapValueOfType<String>(json, r'title'),
+        body: mapValueOfType<String>(json, r'body')!,
+        title: mapValueOfType<String>(json, r'title')!,
       );
     }
     return null;
@@ -138,6 +118,8 @@ class PushActionDto {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'action',
+    'body',
+    'title',
   };
 }
 
@@ -210,5 +192,3 @@ class PushActionDtoActionEnumTypeTransformer {
   /// Singleton [PushActionDtoActionEnumTypeTransformer] instance.
   static PushActionDtoActionEnumTypeTransformer? _instance;
 }
-
-

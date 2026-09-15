@@ -59,13 +59,3 @@ func NewAdminSecurityStateFromValue(v string) (AdminSecurityState, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AdminSecurityState: valid values are %v", v, AllowedAdminSecurityStateEnumValues)
 }
-
-// AssertAdminSecurityStateRequired checks if the required fields are not zero-ed
-func AssertAdminSecurityStateRequired(obj AdminSecurityState) error {
-	return nil
-}
-
-// AssertAdminSecurityStateConstraints checks if the values respects the defined constraints
-func AssertAdminSecurityStateConstraints(obj AdminSecurityState) error {
-	return nil
-}

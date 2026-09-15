@@ -68,13 +68,3 @@ func NewAdminActionKindFromValue(v string) (AdminActionKind, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AdminActionKind: valid values are %v", v, AllowedAdminActionKindEnumValues)
 }
-
-// AssertAdminActionKindRequired checks if the required fields are not zero-ed
-func AssertAdminActionKindRequired(obj AdminActionKind) error {
-	return nil
-}
-
-// AssertAdminActionKindConstraints checks if the values respects the defined constraints
-func AssertAdminActionKindConstraints(obj AdminActionKind) error {
-	return nil
-}

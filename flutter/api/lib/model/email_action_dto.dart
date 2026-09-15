@@ -14,31 +14,19 @@ class EmailActionDto {
   /// Returns a new [EmailActionDto] instance.
   EmailActionDto({
     required this.action,
-    this.body,
+    required this.body,
     this.messageHtml,
-    this.subject,
+    required this.subject,
   });
 
   EmailActionDtoActionEnum action;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? body;
+  String body;
 
   /// Optional server-sanitized preview input; scripts and admin DOM access are rejected.
   String? messageHtml;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? subject;
+  String subject;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is EmailActionDto &&
@@ -51,9 +39,9 @@ class EmailActionDto {
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (action.hashCode) +
-    (body == null ? 0 : body!.hashCode) +
+    (body.hashCode) +
     (messageHtml == null ? 0 : messageHtml!.hashCode) +
-    (subject == null ? 0 : subject!.hashCode);
+    (subject.hashCode);
 
   @override
   String toString() => 'EmailActionDto[action=$action, body=$body, messageHtml=$messageHtml, subject=$subject]';
@@ -61,21 +49,13 @@ class EmailActionDto {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'action'] = this.action;
-    if (this.body != null) {
       json[r'body'] = this.body;
-    } else {
-      json[r'body'] = null;
-    }
     if (this.messageHtml != null) {
       json[r'messageHtml'] = this.messageHtml;
     } else {
       json[r'messageHtml'] = null;
     }
-    if (this.subject != null) {
       json[r'subject'] = this.subject;
-    } else {
-      json[r'subject'] = null;
-    }
     return json;
   }
 
@@ -99,9 +79,9 @@ class EmailActionDto {
 
       return EmailActionDto(
         action: EmailActionDtoActionEnum.fromJson(json[r'action'])!,
-        body: mapValueOfType<String>(json, r'body'),
+        body: mapValueOfType<String>(json, r'body')!,
         messageHtml: mapValueOfType<String>(json, r'messageHtml'),
-        subject: mapValueOfType<String>(json, r'subject'),
+        subject: mapValueOfType<String>(json, r'subject')!,
       );
     }
     return null;
@@ -150,6 +130,8 @@ class EmailActionDto {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'action',
+    'body',
+    'subject',
   };
 }
 
@@ -222,5 +204,3 @@ class EmailActionDtoActionEnumTypeTransformer {
   /// Singleton [EmailActionDtoActionEnumTypeTransformer] instance.
   static EmailActionDtoActionEnumTypeTransformer? _instance;
 }
-
-

@@ -62,13 +62,3 @@ func NewAdminJobStatusFromValue(v string) (AdminJobStatus, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AdminJobStatus: valid values are %v", v, AllowedAdminJobStatusEnumValues)
 }
-
-// AssertAdminJobStatusRequired checks if the required fields are not zero-ed
-func AssertAdminJobStatusRequired(obj AdminJobStatus) error {
-	return nil
-}
-
-// AssertAdminJobStatusConstraints checks if the values respects the defined constraints
-func AssertAdminJobStatusConstraints(obj AdminJobStatus) error {
-	return nil
-}

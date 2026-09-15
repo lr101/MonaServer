@@ -13,13 +13,14 @@ package genserver
 type RecoveryResendActionDto struct {
 	Action string `json:"action"`
 
-	Reason string `json:"reason,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // AssertRecoveryResendActionDtoRequired checks if the required fields are not zero-ed
 func AssertRecoveryResendActionDtoRequired(obj RecoveryResendActionDto) error {
 	elements := map[string]interface{}{
 		"action": obj.Action,
+		"reason": obj.Reason,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

@@ -13,13 +13,14 @@ package genserver
 type RevokeSessionsActionDto struct {
 	Action string `json:"action"`
 
-	Reason string `json:"reason,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // AssertRevokeSessionsActionDtoRequired checks if the required fields are not zero-ed
 func AssertRevokeSessionsActionDtoRequired(obj RevokeSessionsActionDto) error {
 	elements := map[string]interface{}{
 		"action": obj.Action,
+		"reason": obj.Reason,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

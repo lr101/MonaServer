@@ -85,7 +85,7 @@ class AdminAudiencesApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminAudiencePageDto',) as AdminAudiencePageDto;
-    
+
     }
     return null;
   }
@@ -139,7 +139,7 @@ class AdminAudiencesApi {
   ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
   ///
   /// * [AdminAudiencePreviewRequestDto] adminAudiencePreviewRequestDto (required):
-  Future<AdminAudiencePreviewDto?> previewAdminAudience(String xCSRFToken, AdminAudiencePreviewRequestDto adminAudiencePreviewRequestDto,) async {
+  Future<AdminAudiencePreviewResponseDto?> previewAdminAudience(String xCSRFToken, AdminAudiencePreviewRequestDto adminAudiencePreviewRequestDto,) async {
     final response = await previewAdminAudienceWithHttpInfo(xCSRFToken, adminAudiencePreviewRequestDto,);
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
@@ -148,8 +148,8 @@ class AdminAudiencesApi {
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminAudiencePreviewDto',) as AdminAudiencePreviewDto;
-    
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminAudiencePreviewResponseDto',) as AdminAudiencePreviewResponseDto;
+
     }
     return null;
   }

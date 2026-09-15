@@ -48,7 +48,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = AdminApi();
-final adminMailDto = AdminMailDto(); // AdminMailDto | 
+final adminMailDto = AdminMailDto(); // AdminMailDto |
 
 try {
     api_instance.sendAdminMail(adminMailDto);
@@ -123,11 +123,11 @@ Class | Method | HTTP request | Description
 *PublicAuthApi* | [**completeRecovery**](doc//PublicAuthApi.md#completerecovery) | **POST** /api/v3/public/auth/recovery/complete | Complete restricted account recovery
 *PublicAuthApi* | [**exchangeEmailLink**](doc//PublicAuthApi.md#exchangeemaillink) | **POST** /api/v3/public/auth/email-link/exchange | Exchange a one-time email sign-in link
 *PublicAuthApi* | [**requestEmailLink**](doc//PublicAuthApi.md#requestemaillink) | **POST** /api/v3/public/auth/email-link/request | Request a one-time email sign-in link
-*RankingApi* | [**getGeoJson**](doc//RankingApi.md#getgeojson) | **GET** /api/v2/map/geojson | 
-*RankingApi* | [**getMapInfo**](doc//RankingApi.md#getmapinfo) | **GET** /api/v2/map | 
-*RankingApi* | [**groupRanking**](doc//RankingApi.md#groupranking) | **GET** /api/v2/ranking/group | 
+*RankingApi* | [**getGeoJson**](doc//RankingApi.md#getgeojson) | **GET** /api/v2/map/geojson |
+*RankingApi* | [**getMapInfo**](doc//RankingApi.md#getmapinfo) | **GET** /api/v2/map |
+*RankingApi* | [**groupRanking**](doc//RankingApi.md#groupranking) | **GET** /api/v2/ranking/group |
 *RankingApi* | [**searchRanking**](doc//RankingApi.md#searchranking) | **GET** /api/v2/ranking/search | Search for a location
-*RankingApi* | [**userRanking**](doc//RankingApi.md#userranking) | **GET** /api/v2/ranking/user | 
+*RankingApi* | [**userRanking**](doc//RankingApi.md#userranking) | **GET** /api/v2/ranking/user |
 *ReportApi* | [**createReport**](doc//ReportApi.md#createreport) | **POST** /api/v2/report | Report content
 *SessionAuthApi* | [**revokeOwnSession**](doc//SessionAuthApi.md#revokeownsession) | **POST** /api/v3/auth/session/revoke | Revoke the caller's submitted refresh credential
 *UsersApi* | [**claimUserAchievement**](doc//UsersApi.md#claimuserachievement) | **POST** /api/v2/users/{userId}/achievements/{achievementId} | Claim an achievement
@@ -147,11 +147,13 @@ Class | Method | HTTP request | Description
  - [AdminAudience](doc//AdminAudience.md)
  - [AdminAudienceCountsDto](doc//AdminAudienceCountsDto.md)
  - [AdminAudienceExclusionDto](doc//AdminAudienceExclusionDto.md)
+ - [AdminAudienceFilter](doc//AdminAudienceFilter.md)
  - [AdminAudienceMemberDto](doc//AdminAudienceMemberDto.md)
  - [AdminAudiencePageDto](doc//AdminAudiencePageDto.md)
  - [AdminAudiencePreviewAcceptedDto](doc//AdminAudiencePreviewAcceptedDto.md)
  - [AdminAudiencePreviewDto](doc//AdminAudiencePreviewDto.md)
  - [AdminAudiencePreviewRequestDto](doc//AdminAudiencePreviewRequestDto.md)
+ - [AdminAudiencePreviewResponseDto](doc//AdminAudiencePreviewResponseDto.md)
  - [AdminAuditEventDto](doc//AdminAuditEventDto.md)
  - [AdminAuditPageDto](doc//AdminAuditPageDto.md)
  - [AdminJobAcceptedDto](doc//AdminJobAcceptedDto.md)
@@ -166,6 +168,7 @@ Class | Method | HTTP request | Description
  - [AdminMfaRequestDto](doc//AdminMfaRequestDto.md)
  - [AdminReauthenticateRequestDto](doc//AdminReauthenticateRequestDto.md)
  - [AdminReportDto](doc//AdminReportDto.md)
+ - [AdminReportFilterDto](doc//AdminReportFilterDto.md)
  - [AdminReportNoteDto](doc//AdminReportNoteDto.md)
  - [AdminReportNoteRequestDto](doc//AdminReportNoteRequestDto.md)
  - [AdminReportPageDto](doc//AdminReportPageDto.md)
@@ -258,6 +261,3 @@ Authentication schemes defined for the API:
 
 
 ## Author
-
-
-

@@ -138,6 +138,14 @@ pre-rollout adapter implements every v3 method with `503 feature_unavailable`
 and is covered by a focused controller test; no v3 router is registered until
 the session/capability gate and a real implementation are available.
 
+The generated client method `previewAdminAudience` returns the typed
+`AdminAudiencePreviewResponseDto` for both `200` (ready) and `202` (pending).
+Both statuses require `snapshotId` and `status`; a pending response carries a
+`jobId`, while a ready response carries the actor, action, resource, payload
+hash, expiry, counts, and exclusions. The conditional fields are nullable in
+the common DTO so a client can branch on `status` without decoding a successful
+response through an unrelated placeholder type.
+
 ## DTOs, unions, and enums
 
 `adminActionKind` is the closed union:
@@ -152,8 +160,18 @@ admin browser.
 `adminAudience` is a discriminated union on `kind`:
 
 - `selected`: 1..10,000 explicit UUIDs and `resource` `accounts` or `reports`;
-- `filter`: a server-evaluated `adminUserFilterDto` and `resource: accounts`;
+- `filter`: a resource-tagged server-evaluated filter whose nested `resource`
+  must equal the audience resource. Account filters use `adminUserFilterDto`;
+  report filters use `adminReportFilterDto`;
 - `all`: all eligible records of the declared `accounts` or `reports` resource.
+
+Report filters support `statuses`, `types`, `createdAfter`, `createdBefore`,
+and `assigneeUserId`, matching the report list's review dimensions while
+keeping the existing list `status` and `search` query parameters compatible.
+A report filter is evaluated against reports only; account criteria are
+rejected rather than applied to the report resource. The preview snapshot
+stores the exact resource and criteria, and following or committing it never
+reruns a local client filter.
 
 An empty selection is invalid. A filter or `all` request is resolved once into
 an immutable snapshot. Preview binds the actor, action, payload hash, and
@@ -176,6 +194,14 @@ identifier/name and `deleted` marker.
 The account summary intentionally omits passwords, password hashes, action
 tokens, refresh credentials, provider tokens, and delivery payloads. Audit
 events expose bounded actor/target/action/reason/outcome metadata only.
+
+The Go server templates for these canonical unions live in
+`go-server/generator-templates/`; `make gen-server` verifies the pinned
+OpenAPI Generator 7.19.0 SHA-256 before generation. Dart uses the analogous
+`flutter/generator-templates/` source with OpenAPI Generator 7.9.0. Generated
+model and API tests are disabled by source-controlled generator properties;
+the v2 compatibility fixtures and the canonical v3 union/preview fixtures live
+in `flutter/test/web_admin_contract_test.dart`.
 
 ## Transaction and delivery ports
 
@@ -365,13 +391,16 @@ The three valid audience forms are explicit and mutually exclusive:
 
 ```json
 {"kind":"selected","resource":"accounts","ids":["046b6c7f-0b8a-43b9-b35d-6489e6daee91"]}
-{"kind":"filter","resource":"accounts","filter":{"verifiedEmail":true,"includeAdmins":false,"securityStatuses":["normal"]}}
+{"kind":"filter","resource":"accounts","filter":{"resource":"accounts","verifiedEmail":true,"includeAdmins":false,"securityStatuses":["normal"]}}
+{"kind":"filter","resource":"reports","filter":{"resource":"reports","statuses":["open"],"types":["abuse"],"createdAfter":"2026-01-01T00:00:00Z","createdBefore":"2026-09-01T00:00:00Z","assigneeUserId":"246b6c7f-0b8a-43b9-b35d-6489e6daee93"}}
 {"kind":"all","resource":"accounts"}
 ```
 
-Reports use `resource:"reports"` with selected IDs or all eligible reports;
-the account filter is not silently applied to reports. A ready preview binds
-the exact action and payload hash:
+The nested filter resource tag must match the outer audience resource. Report
+audience filters support status, type, date-range, and assignee criteria; the
+server rejects an account filter sent for a report audience instead of
+silently applying account rules. A ready preview binds the exact action and
+payload hash:
 
 ```json
 POST /api/v3/admin/audiences/preview
@@ -396,8 +425,10 @@ X-CSRF-Token: csrf-authenticated-value
 ```
 
 Large materialization returns `202` with `{ "jobId", "snapshotId",
-"status":"pending" }`. A snapshot page retains exclusions and stable
-members rather than rerunning the filter:
+"status":"pending" }`, and the generated Flutter convenience method
+deserializes that response through the same `AdminAudiencePreviewResponseDto`
+used for a ready `200`. A snapshot page retains exclusions and stable members
+rather than rerunning the filter:
 
 ```json
 {

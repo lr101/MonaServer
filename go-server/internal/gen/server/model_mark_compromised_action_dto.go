@@ -13,13 +13,14 @@ package genserver
 type MarkCompromisedActionDto struct {
 	Action string `json:"action"`
 
-	Reason string `json:"reason,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // AssertMarkCompromisedActionDtoRequired checks if the required fields are not zero-ed
 func AssertMarkCompromisedActionDtoRequired(obj MarkCompromisedActionDto) error {
 	elements := map[string]interface{}{
 		"action": obj.Action,
+		"reason": obj.Reason,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

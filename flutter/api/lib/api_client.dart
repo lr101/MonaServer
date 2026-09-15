@@ -192,6 +192,8 @@ class ApiClient {
           return AdminAudienceCountsDto.fromJson(value);
         case 'AdminAudienceExclusionDto':
           return AdminAudienceExclusionDto.fromJson(value);
+        case 'AdminAudienceFilter':
+          return AdminAudienceFilter.fromJson(value);
         case 'AdminAudienceMemberDto':
           return AdminAudienceMemberDto.fromJson(value);
         case 'AdminAudiencePageDto':
@@ -202,6 +204,8 @@ class ApiClient {
           return AdminAudiencePreviewDto.fromJson(value);
         case 'AdminAudiencePreviewRequestDto':
           return AdminAudiencePreviewRequestDto.fromJson(value);
+        case 'AdminAudiencePreviewResponseDto':
+          return AdminAudiencePreviewResponseDto.fromJson(value);
         case 'AdminAuditEventDto':
           return AdminAuditEventDto.fromJson(value);
         case 'AdminAuditPageDto':
@@ -230,6 +234,8 @@ class ApiClient {
           return AdminReauthenticateRequestDto.fromJson(value);
         case 'AdminReportDto':
           return AdminReportDto.fromJson(value);
+        case 'AdminReportFilterDto':
+          return AdminReportFilterDto.fromJson(value);
         case 'AdminReportNoteDto':
           return AdminReportNoteDto.fromJson(value);
         case 'AdminReportNoteRequestDto':

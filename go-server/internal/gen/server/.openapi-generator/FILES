@@ -23,11 +23,13 @@ model_admin_action_kind.go
 model_admin_audience.go
 model_admin_audience_counts_dto.go
 model_admin_audience_exclusion_dto.go
+model_admin_audience_filter.go
 model_admin_audience_member_dto.go
 model_admin_audience_page_dto.go
 model_admin_audience_preview_accepted_dto.go
 model_admin_audience_preview_dto.go
 model_admin_audience_preview_request_dto.go
+model_admin_audience_preview_response_dto.go
 model_admin_audit_event_dto.go
 model_admin_audit_page_dto.go
 model_admin_job_accepted_dto.go
@@ -42,6 +44,7 @@ model_admin_mail_dto.go
 model_admin_mfa_request_dto.go
 model_admin_reauthenticate_request_dto.go
 model_admin_report_dto.go
+model_admin_report_filter_dto.go
 model_admin_report_note_dto.go
 model_admin_report_note_request_dto.go
 model_admin_report_page_dto.go

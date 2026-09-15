@@ -10,6 +10,7 @@
 
 part of openapi.api;
 
+
 class AdminAudience {
   /// Returns a new [AdminAudience] instance.
   AdminAudience({
@@ -25,13 +26,7 @@ class AdminAudience {
 
   AudienceResourceKind resource;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  AdminUserFilterDto? filter;
+  AdminAudienceFilter? filter;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is AdminAudience &&
@@ -52,14 +47,39 @@ class AdminAudience {
   String toString() => 'AdminAudience[kind=$kind, ids=$ids, resource=$resource, filter=$filter]';
 
   Map<String, dynamic> toJson() {
+    switch (this.kind.value) {
+      case 'selected':
+        if (this.ids.isEmpty) {
+          throw const FormatException('AdminAudience[selected] requires ids.');
+        }
+        if (this.filter != null) {
+          throw const FormatException('Filter is not valid for selected audiences.');
+        }
+        break;
+      case 'filter':
+        if (this.filter == null) {
+          throw const FormatException('AdminAudience[filter] requires filter.');
+        }
+        if (this.filter!.resource != this.resource) {
+          throw const FormatException('Audience and filter resources must match.');
+        }
+        break;
+      case 'all':
+        if (this.ids.isNotEmpty || this.filter != null) {
+          throw const FormatException('All audiences cannot include filter or ids.');
+        }
+        break;
+      default:
+        throw FormatException('Unknown AdminAudience kind: ${this.kind.value}');
+    }
     final json = <String, dynamic>{};
-      json[r'kind'] = this.kind;
+    json[r'kind'] = this.kind;
+    json[r'resource'] = this.resource;
+    if (this.kind.value == 'selected') {
       json[r'ids'] = this.ids;
-      json[r'resource'] = this.resource;
-    if (this.filter != null) {
+    }
+    if (this.kind.value == 'filter' && this.filter != null) {
       json[r'filter'] = this.filter;
-    } else {
-      json[r'filter'] = null;
     }
     return json;
   }
@@ -70,25 +90,49 @@ class AdminAudience {
   static AdminAudience? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
-
-      // Ensure that the map contains the required keys.
-      // Note 1: the values aren't checked for validity beyond being non-null.
-      // Note 2: this code is stripped in release mode!
-      assert(() {
-        requiredKeys.forEach((key) {
-          assert(json.containsKey(key), 'Required key "AdminAudience[$key]" is missing from JSON.');
-          assert(json[key] != null, 'Required key "AdminAudience[$key]" has a null value in JSON.');
-        });
-        return true;
-      }());
-
+      final kind = AudienceKind.fromJson(json[r'kind']);
+      final resource = AudienceResourceKind.fromJson(json[r'resource']);
+      if (kind == null) {
+        throw const FormatException('AdminAudience requires a valid kind.');
+      }
+      if (resource == null) {
+        throw const FormatException('AdminAudience requires a valid resource.');
+      }
+      switch (kind.value) {
+        case 'selected':
+          final ids = json[r'ids'];
+          if (ids is! Iterable || ids.isEmpty ||
+              ids.any((id) => id is! String || id.isEmpty)) {
+            throw const FormatException('AdminAudience[selected] requires ids.');
+          }
+          if (json.containsKey(r'filter')) {
+            throw const FormatException('Filter is not valid for selected audiences.');
+          }
+          break;
+        case 'filter':
+          if (json[r'filter'] is! Map) {
+            throw const FormatException('AdminAudience[filter] requires filter.');
+          }
+          final filter = AdminAudienceFilter.fromJson(json[r'filter']);
+          if (filter == null || filter.resource != resource) {
+            throw const FormatException('Audience and filter resources must match.');
+          }
+          break;
+        case 'all':
+          if (json.containsKey(r'filter') || json.containsKey(r'ids')) {
+            throw const FormatException('All audiences cannot include filter or ids.');
+          }
+          break;
+        default:
+          throw FormatException('Unknown AdminAudience kind: ${kind.value}');
+      }
       return AdminAudience(
-        kind: AudienceKind.fromJson(json[r'kind'])!,
+        kind: kind,
         ids: json[r'ids'] is Iterable
             ? (json[r'ids'] as Iterable).cast<String>().toList(growable: false)
             : const [],
-        resource: AudienceResourceKind.fromJson(json[r'resource'])!,
-        filter: AdminUserFilterDto.fromJson(json[r'filter']),
+        resource: resource,
+        filter: AdminAudienceFilter.fromJson(json[r'filter']),
       );
     }
     return null;
@@ -134,10 +178,8 @@ class AdminAudience {
     return map;
   }
 
-  /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'kind',
     'resource',
   };
 }
-

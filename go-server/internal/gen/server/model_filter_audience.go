@@ -12,16 +12,17 @@ package genserver
 
 // FilterAudience - Explicit validated filter evaluated once into an immutable snapshot.
 type FilterAudience struct {
-	Filter AdminUserFilterDto `json:"filter,omitempty"`
+	Filter AdminAudienceFilter `json:"filter"`
 
 	Kind string `json:"kind"`
 
-	Resource string `json:"resource"`
+	Resource AudienceResourceKind `json:"resource"`
 }
 
 // AssertFilterAudienceRequired checks if the required fields are not zero-ed
 func AssertFilterAudienceRequired(obj FilterAudience) error {
 	elements := map[string]interface{}{
+		"filter":   obj.Filter,
 		"kind":     obj.Kind,
 		"resource": obj.Resource,
 	}
@@ -31,7 +32,7 @@ func AssertFilterAudienceRequired(obj FilterAudience) error {
 		}
 	}
 
-	if err := AssertAdminUserFilterDtoRequired(obj.Filter); err != nil {
+	if err := AssertAdminAudienceFilterRequired(obj.Filter); err != nil {
 		return err
 	}
 	return nil
@@ -39,7 +40,7 @@ func AssertFilterAudienceRequired(obj FilterAudience) error {
 
 // AssertFilterAudienceConstraints checks if the values respects the defined constraints
 func AssertFilterAudienceConstraints(obj FilterAudience) error {
-	if err := AssertAdminUserFilterDtoConstraints(obj.Filter); err != nil {
+	if err := AssertAdminAudienceFilterConstraints(obj.Filter); err != nil {
 		return err
 	}
 	return nil

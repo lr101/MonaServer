@@ -13,22 +13,16 @@ part of openapi.api;
 class FilterAudience {
   /// Returns a new [FilterAudience] instance.
   FilterAudience({
-    this.filter,
+    required this.filter,
     required this.kind,
     required this.resource,
   });
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  AdminUserFilterDto? filter;
+  AdminAudienceFilter filter;
 
   FilterAudienceKindEnum kind;
 
-  FilterAudienceResourceEnum resource;
+  AudienceResourceKind resource;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is FilterAudience &&
@@ -39,7 +33,7 @@ class FilterAudience {
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (filter == null ? 0 : filter!.hashCode) +
+    (filter.hashCode) +
     (kind.hashCode) +
     (resource.hashCode);
 
@@ -48,11 +42,7 @@ class FilterAudience {
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.filter != null) {
       json[r'filter'] = this.filter;
-    } else {
-      json[r'filter'] = null;
-    }
       json[r'kind'] = this.kind;
       json[r'resource'] = this.resource;
     return json;
@@ -77,9 +67,9 @@ class FilterAudience {
       }());
 
       return FilterAudience(
-        filter: AdminUserFilterDto.fromJson(json[r'filter']),
+        filter: AdminAudienceFilter.fromJson(json[r'filter'])!,
         kind: FilterAudienceKindEnum.fromJson(json[r'kind'])!,
-        resource: FilterAudienceResourceEnum.fromJson(json[r'resource'])!,
+        resource: AudienceResourceKind.fromJson(json[r'resource'])!,
       );
     }
     return null;
@@ -127,6 +117,7 @@ class FilterAudience {
 
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
+    'filter',
     'kind',
     'resource',
   };
@@ -201,76 +192,3 @@ class FilterAudienceKindEnumTypeTransformer {
   /// Singleton [FilterAudienceKindEnumTypeTransformer] instance.
   static FilterAudienceKindEnumTypeTransformer? _instance;
 }
-
-
-
-class FilterAudienceResourceEnum {
-  /// Instantiate a new enum with the provided [value].
-  const FilterAudienceResourceEnum._(this.value);
-
-  /// The underlying value of this enum member.
-  final String value;
-
-  @override
-  String toString() => value;
-
-  String toJson() => value;
-
-  static const accounts = FilterAudienceResourceEnum._(r'accounts');
-
-  /// List of all possible values in this [enum][FilterAudienceResourceEnum].
-  static const values = <FilterAudienceResourceEnum>[
-    accounts,
-  ];
-
-  static FilterAudienceResourceEnum? fromJson(dynamic value) => FilterAudienceResourceEnumTypeTransformer().decode(value);
-
-  static List<FilterAudienceResourceEnum> listFromJson(dynamic json, {bool growable = false,}) {
-    final result = <FilterAudienceResourceEnum>[];
-    if (json is List && json.isNotEmpty) {
-      for (final row in json) {
-        final value = FilterAudienceResourceEnum.fromJson(row);
-        if (value != null) {
-          result.add(value);
-        }
-      }
-    }
-    return result.toList(growable: growable);
-  }
-}
-
-/// Transformation class that can [encode] an instance of [FilterAudienceResourceEnum] to String,
-/// and [decode] dynamic data back to [FilterAudienceResourceEnum].
-class FilterAudienceResourceEnumTypeTransformer {
-  factory FilterAudienceResourceEnumTypeTransformer() => _instance ??= const FilterAudienceResourceEnumTypeTransformer._();
-
-  const FilterAudienceResourceEnumTypeTransformer._();
-
-  String encode(FilterAudienceResourceEnum data) => data.value;
-
-  /// Decodes a [dynamic value][data] to a FilterAudienceResourceEnum.
-  ///
-  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
-  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
-  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
-  ///
-  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
-  /// and users are still using an old app with the old code.
-  FilterAudienceResourceEnum? decode(dynamic data, {bool allowNull = true}) {
-    if (data != null) {
-      switch (data) {
-        case r'accounts': return FilterAudienceResourceEnum.accounts;
-        default:
-          if (!allowNull) {
-            throw ArgumentError('Unknown enum value to decode: $data');
-          }
-      }
-    }
-    return null;
-  }
-
-  /// Singleton [FilterAudienceResourceEnumTypeTransformer] instance.
-  static FilterAudienceResourceEnumTypeTransformer? _instance;
-}
-
-

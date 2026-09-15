@@ -1650,6 +1650,8 @@ paths:
           $ref: "#/components/responses/badRequest"
         "401":
           $ref: "#/components/responses/unauthorized"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - token: []
       summary: Revoke the caller's submitted refresh credential
@@ -1703,6 +1705,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "429":
           $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Begin an admin password and MFA login
@@ -1735,6 +1739,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "429":
           $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Complete admin MFA
@@ -1767,6 +1773,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Reauthenticate an admin session for a sensitive action
@@ -1785,6 +1793,8 @@ paths:
           description: Admin session revoked; operation is idempotent
         "401":
           $ref: "#/components/responses/unauthorized"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Log out of the admin session
@@ -1807,6 +1817,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Restore the current admin session
@@ -1860,6 +1872,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Search administrative user records
@@ -1891,6 +1905,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Get one administrative user record
@@ -1915,13 +1931,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/adminAudiencePreviewDto"
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
           description: Snapshot preview is ready
         "202":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/adminAudiencePreviewAcceptedDto"
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
           description: Snapshot materialization is queued
         "400":
           $ref: "#/components/responses/badRequest"
@@ -1968,6 +1984,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Read an administrative audience snapshot
@@ -2002,6 +2020,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: List administrative action jobs
@@ -2071,6 +2091,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Read an administrative job
@@ -2104,6 +2126,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: List job recipient outcomes
@@ -2147,6 +2171,8 @@ paths:
           $ref: "#/components/responses/notFound"
         "409":
           $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Retry eligible failed job work
@@ -2190,6 +2216,8 @@ paths:
           $ref: "#/components/responses/notFound"
         "409":
           $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Cancel pending job work
@@ -2261,6 +2289,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: List reports for administrative review
@@ -2299,6 +2329,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Read one report and its notes
@@ -2340,6 +2372,8 @@ paths:
           $ref: "#/components/responses/notFound"
         "409":
           $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Apply a revision-checked report transition
@@ -2380,6 +2414,8 @@ paths:
           $ref: "#/components/responses/forbidden"
         "404":
           $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: Add an administrative report note
@@ -2415,6 +2451,8 @@ paths:
           $ref: "#/components/responses/unauthorized"
         "403":
           $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
       security:
       - adminSession: []
       summary: List administrative audit events
@@ -2939,6 +2977,7 @@ components:
       description: Validated server-side account filter. Filter evaluation never happens in the client.
       example:
         includeAdmins: false
+        resource: accounts
         securityStatuses:
         - normal
         verifiedEmail: true
@@ -2963,6 +3002,10 @@ components:
         includeAdmins:
           default: false
           type: boolean
+        resource:
+          enum:
+          - accounts
+          type: string
         securityStatuses:
           items:
             $ref: "#/components/schemas/adminSecurityState"
@@ -2977,7 +3020,66 @@ components:
         verifiedEmail:
           nullable: true
           type: boolean
+      required:
+      - resource
       type: object
+    adminReportFilterDto:
+      description: Validated server-side report filter. Filter evaluation never happens in the client.
+      example:
+        assigneeUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        createdAfter: 2026-01-01T00:00:00Z
+        resource: reports
+        statuses:
+        - open
+        types:
+        - abuse
+      properties:
+        assigneeUserId:
+          format: uuid
+          nullable: true
+          type: string
+        createdAfter:
+          format: date-time
+          nullable: true
+          type: string
+        createdBefore:
+          format: date-time
+          nullable: true
+          type: string
+        resource:
+          enum:
+          - reports
+          type: string
+        statuses:
+          items:
+            $ref: "#/components/schemas/adminReportStatus"
+          maxItems: 3
+          minItems: 1
+          nullable: true
+          type: array
+        types:
+          items:
+            maxLength: 64
+            minLength: 1
+            type: string
+          maxItems: 32
+          minItems: 1
+          nullable: true
+          type: array
+      required:
+      - resource
+      type: object
+    adminAudienceFilter:
+      description: Resource-tagged filter union. Account and report criteria cannot be applied across resource types.
+      x-canonical-audience-filter-union: true
+      discriminator:
+        mapping:
+          accounts: "#/components/schemas/adminUserFilterDto"
+          reports: "#/components/schemas/adminReportFilterDto"
+        propertyName: resource
+      oneOf:
+      - $ref: "#/components/schemas/adminUserFilterDto"
+      - $ref: "#/components/schemas/adminReportFilterDto"
     selectedAudience:
       description: Explicit bounded IDs; report actions interpret IDs as report IDs.
       properties:
@@ -2995,6 +3097,7 @@ components:
         resource:
           $ref: "#/components/schemas/audienceResourceKind"
       required:
+      - ids
       - kind
       - resource
       type: object
@@ -3002,16 +3105,16 @@ components:
       description: Explicit validated filter evaluated once into an immutable snapshot.
       properties:
         filter:
-          $ref: "#/components/schemas/adminUserFilterDto"
+          $ref: "#/components/schemas/adminAudienceFilter"
+          x-canonical-pointer: true
         kind:
           enum:
           - filter
           type: string
         resource:
-          enum:
-          - accounts
-          type: string
+          $ref: "#/components/schemas/audienceResourceKind"
       required:
+      - filter
       - kind
       - resource
       type: object
@@ -3030,6 +3133,15 @@ components:
       type: object
     adminAudience:
       description: Discriminated explicit selection/filter/all union. Empty audiences are invalid.
+      x-canonical-audience-union: true
+      x-canonical-branches:
+        discriminator: kind
+        required:
+          all: []
+          filter:
+          - filter
+          selected:
+          - ids
       properties:
         kind:
           $ref: "#/components/schemas/audienceKind"
@@ -3067,6 +3179,8 @@ components:
           minLength: 1
           type: string
       required:
+      - body
+      - subject
       - action
       type: object
     loginLinkActionDto:
@@ -3097,6 +3211,8 @@ components:
           minLength: 1
           type: string
       required:
+      - body
+      - title
       - action
       type: object
     revokeSessionsActionDto:
@@ -3110,6 +3226,7 @@ components:
           minLength: 1
           type: string
       required:
+      - reason
       - action
       type: object
     markCompromisedActionDto:
@@ -3123,6 +3240,7 @@ components:
           minLength: 1
           type: string
       required:
+      - reason
       - action
       type: object
     recoveryResendActionDto:
@@ -3136,6 +3254,7 @@ components:
           minLength: 1
           type: string
       required:
+      - reason
       - action
       type: object
     reportResolveActionDto:
@@ -3166,6 +3285,25 @@ components:
       type: object
     adminAction:
       description: Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+      x-canonical-action-union: true
+      x-canonical-branches:
+        discriminator: action
+        required:
+          email:
+          - body
+          - subject
+          login_link: []
+          mark_compromised:
+          - reason
+          push:
+          - body
+          - title
+          recovery_resend:
+          - reason
+          report_dismiss: []
+          report_resolve: []
+          revoke_sessions:
+          - reason
       properties:
         action:
           $ref: "#/components/schemas/adminActionKind"
@@ -3346,6 +3484,62 @@ components:
           type: string
       required:
       - jobId
+      - snapshotId
+      - status
+      type: object
+    adminAudiencePreviewResponseDto:
+      description: Preview result shared by the ready 200 and queued 202 responses. Both statuses include snapshotId and status; a ready result includes the preview fields and a pending result includes jobId. The server must not return a pending result with HTTP 200 or a ready result with HTTP 202.
+      example:
+        jobId: 146b6c7f-0b8a-43b9-b35d-6489e6daee92
+        snapshotId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: pending
+      properties:
+        action:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/adminAction"
+        actorUserId:
+          format: uuid
+          nullable: true
+          type: string
+        counts:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/adminAudienceCountsDto"
+        expiresAt:
+          format: date-time
+          nullable: true
+          type: string
+        exclusions:
+          items:
+            $ref: "#/components/schemas/adminAudienceExclusionDto"
+          maxItems: 100
+          nullable: true
+          type: array
+        jobId:
+          format: uuid
+          nullable: true
+          type: string
+        payloadHash:
+          maxLength: 128
+          minLength: 16
+          nullable: true
+          type: string
+        resource:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/audienceResourceKind"
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          - ready
+          - expired
+          - failed
+          type: string
+      required:
       - snapshotId
       - status
       type: object

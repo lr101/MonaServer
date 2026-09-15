@@ -14,18 +14,12 @@ class MarkCompromisedActionDto {
   /// Returns a new [MarkCompromisedActionDto] instance.
   MarkCompromisedActionDto({
     required this.action,
-    this.reason,
+    required this.reason,
   });
 
   MarkCompromisedActionDtoActionEnum action;
 
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  String? reason;
+  String reason;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is MarkCompromisedActionDto &&
@@ -36,7 +30,7 @@ class MarkCompromisedActionDto {
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (action.hashCode) +
-    (reason == null ? 0 : reason!.hashCode);
+    (reason.hashCode);
 
   @override
   String toString() => 'MarkCompromisedActionDto[action=$action, reason=$reason]';
@@ -44,11 +38,7 @@ class MarkCompromisedActionDto {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'action'] = this.action;
-    if (this.reason != null) {
       json[r'reason'] = this.reason;
-    } else {
-      json[r'reason'] = null;
-    }
     return json;
   }
 
@@ -72,7 +62,7 @@ class MarkCompromisedActionDto {
 
       return MarkCompromisedActionDto(
         action: MarkCompromisedActionDtoActionEnum.fromJson(json[r'action'])!,
-        reason: mapValueOfType<String>(json, r'reason'),
+        reason: mapValueOfType<String>(json, r'reason')!,
       );
     }
     return null;
@@ -121,6 +111,7 @@ class MarkCompromisedActionDto {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'action',
+    'reason',
   };
 }
 
@@ -193,5 +184,3 @@ class MarkCompromisedActionDtoActionEnumTypeTransformer {
   /// Singleton [MarkCompromisedActionDtoActionEnumTypeTransformer] instance.
   static MarkCompromisedActionDtoActionEnumTypeTransformer? _instance;
 }
-
-

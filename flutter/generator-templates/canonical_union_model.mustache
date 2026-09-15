@@ -1,0 +1,568 @@
+{{#vendorExtensions.x-canonical-audience-filter-union}}
+class AdminAudienceFilter {
+  /// Returns a new [AdminAudienceFilter] instance.
+  AdminAudienceFilter({
+    required this.resource,
+    this.createdAfter,
+    this.createdBefore,
+    this.email,
+    this.id,
+    this.includeAdmins = false,
+    this.securityStatuses,
+    this.username,
+    this.verifiedEmail,
+    this.assigneeUserId,
+    this.statuses,
+    this.types,
+  });
+
+  AudienceResourceKind resource;
+
+  DateTime? createdAfter;
+
+  DateTime? createdBefore;
+
+  String? email;
+
+  String? id;
+
+  bool includeAdmins;
+
+  List<AdminSecurityState>? securityStatuses;
+
+  String? username;
+
+  bool? verifiedEmail;
+
+  String? assigneeUserId;
+
+  List<AdminReportStatus>? statuses;
+
+  List<String>? types;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is AdminAudienceFilter &&
+    other.resource == resource &&
+    other.createdAfter == createdAfter &&
+    other.createdBefore == createdBefore &&
+    other.email == email &&
+    other.id == id &&
+    other.includeAdmins == includeAdmins &&
+    _deepEquality.equals(other.securityStatuses, securityStatuses) &&
+    other.username == username &&
+    other.verifiedEmail == verifiedEmail &&
+    other.assigneeUserId == assigneeUserId &&
+    _deepEquality.equals(other.statuses, statuses) &&
+    _deepEquality.equals(other.types, types);
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (resource.hashCode) +
+    (createdAfter == null ? 0 : createdAfter!.hashCode) +
+    (createdBefore == null ? 0 : createdBefore!.hashCode) +
+    (email == null ? 0 : email!.hashCode) +
+    (id == null ? 0 : id!.hashCode) +
+    (includeAdmins.hashCode) +
+    (securityStatuses == null ? 0 : securityStatuses!.hashCode) +
+    (username == null ? 0 : username!.hashCode) +
+    (verifiedEmail == null ? 0 : verifiedEmail!.hashCode) +
+    (assigneeUserId == null ? 0 : assigneeUserId!.hashCode) +
+    (statuses == null ? 0 : statuses!.hashCode) +
+    (types == null ? 0 : types!.hashCode);
+
+  @override
+  String toString() => 'AdminAudienceFilter[resource=$resource, createdAfter=$createdAfter, createdBefore=$createdBefore, email=$email, id=$id, includeAdmins=$includeAdmins, securityStatuses=$securityStatuses, username=$username, verifiedEmail=$verifiedEmail, assigneeUserId=$assigneeUserId, statuses=$statuses, types=$types]';
+
+  Map<String, dynamic> toJson() {
+    if (this.resource.value == 'accounts' &&
+        (this.assigneeUserId != null || this.statuses != null || this.types != null)) {
+      throw const FormatException('Report filter fields require resource reports.');
+    }
+    if (this.resource.value == 'reports' &&
+        (this.email != null || this.id != null || this.securityStatuses != null ||
+            this.username != null || this.verifiedEmail != null || this.includeAdmins)) {
+      throw const FormatException('Account filter fields require resource accounts.');
+    }
+    final json = <String, dynamic>{};
+    json[r'resource'] = this.resource;
+    if (this.createdAfter != null) {
+      json[r'createdAfter'] = this.createdAfter!.toUtc().toIso8601String();
+    }
+    if (this.createdBefore != null) {
+      json[r'createdBefore'] = this.createdBefore!.toUtc().toIso8601String();
+    }
+    if (this.email != null) {
+      json[r'email'] = this.email;
+    }
+    if (this.id != null) {
+      json[r'id'] = this.id;
+    }
+    if (this.resource.value == 'accounts') {
+      json[r'includeAdmins'] = this.includeAdmins;
+    }
+    if (this.securityStatuses != null) {
+      json[r'securityStatuses'] = this.securityStatuses;
+    }
+    if (this.username != null) {
+      json[r'username'] = this.username;
+    }
+    if (this.verifiedEmail != null) {
+      json[r'verifiedEmail'] = this.verifiedEmail;
+    }
+    if (this.assigneeUserId != null) {
+      json[r'assigneeUserId'] = this.assigneeUserId;
+    }
+    if (this.statuses != null) {
+      json[r'statuses'] = this.statuses;
+    }
+    if (this.types != null) {
+      json[r'types'] = this.types;
+    }
+    return json;
+  }
+
+  /// Returns a new [AdminAudienceFilter] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static AdminAudienceFilter? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+      final resource = AudienceResourceKind.fromJson(json[r'resource']);
+      if (resource == null) {
+        throw const FormatException('AdminAudienceFilter requires a valid resource.');
+      }
+      final hasReportFields = json['assigneeUserId'] != null ||
+          json['statuses'] != null || json['types'] != null;
+      final hasAccountFields = json['email'] != null ||
+          json['id'] != null || json['securityStatuses'] != null ||
+          json['username'] != null || json['verifiedEmail'] != null ||
+          json['includeAdmins'] == true;
+      if (resource.value == 'accounts' && hasReportFields) {
+        throw const FormatException('Report filter fields require resource reports.');
+      }
+      if (resource.value == 'reports' && hasAccountFields) {
+        throw const FormatException('Account filter fields require resource accounts.');
+      }
+      return AdminAudienceFilter(
+        resource: resource,
+        createdAfter: mapDateTime(json, r'createdAfter', r''),
+        createdBefore: mapDateTime(json, r'createdBefore', r''),
+        email: mapValueOfType<String>(json, r'email'),
+        id: mapValueOfType<String>(json, r'id'),
+        includeAdmins: mapValueOfType<bool>(json, r'includeAdmins') ?? false,
+        securityStatuses: AdminSecurityState.listFromJson(json[r'securityStatuses']),
+        username: mapValueOfType<String>(json, r'username'),
+        verifiedEmail: mapValueOfType<bool>(json, r'verifiedEmail'),
+        assigneeUserId: mapValueOfType<String>(json, r'assigneeUserId'),
+        statuses: AdminReportStatus.listFromJson(json[r'statuses']),
+        types: (json[r'types'] as Iterable?)?.cast<String>().toList(growable: false),
+      );
+    }
+    return null;
+  }
+
+  static List<AdminAudienceFilter> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <AdminAudienceFilter>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AdminAudienceFilter.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, AdminAudienceFilter> mapFromJson(dynamic json) {
+    final map = <String, AdminAudienceFilter>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = AdminAudienceFilter.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  static const requiredKeys = <String>{
+    'resource',
+  };
+}
+{{/vendorExtensions.x-canonical-audience-filter-union}}
+
+{{#vendorExtensions.x-canonical-audience-union}}
+class AdminAudience {
+  /// Returns a new [AdminAudience] instance.
+  AdminAudience({
+    required this.kind,
+    this.ids = const [],
+    required this.resource,
+    this.filter,
+  });
+
+  AudienceKind kind;
+
+  List<String> ids;
+
+  AudienceResourceKind resource;
+
+  AdminAudienceFilter? filter;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is AdminAudience &&
+    other.kind == kind &&
+    _deepEquality.equals(other.ids, ids) &&
+    other.resource == resource &&
+    other.filter == filter;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (kind.hashCode) +
+    (ids.hashCode) +
+    (resource.hashCode) +
+    (filter == null ? 0 : filter!.hashCode);
+
+  @override
+  String toString() => 'AdminAudience[kind=$kind, ids=$ids, resource=$resource, filter=$filter]';
+
+  Map<String, dynamic> toJson() {
+    switch (this.kind.value) {
+      case 'selected':
+        if (this.ids.isEmpty) {
+          throw const FormatException('AdminAudience[selected] requires ids.');
+        }
+        if (this.filter != null) {
+          throw const FormatException('Filter is not valid for selected audiences.');
+        }
+        break;
+      case 'filter':
+        if (this.filter == null) {
+          throw const FormatException('AdminAudience[filter] requires filter.');
+        }
+        if (this.filter!.resource != this.resource) {
+          throw const FormatException('Audience and filter resources must match.');
+        }
+        break;
+      case 'all':
+        if (this.ids.isNotEmpty || this.filter != null) {
+          throw const FormatException('All audiences cannot include filter or ids.');
+        }
+        break;
+      default:
+        throw FormatException('Unknown AdminAudience kind: ${this.kind.value}');
+    }
+    final json = <String, dynamic>{};
+    json[r'kind'] = this.kind;
+    json[r'resource'] = this.resource;
+    if (this.kind.value == 'selected') {
+      json[r'ids'] = this.ids;
+    }
+    if (this.kind.value == 'filter' && this.filter != null) {
+      json[r'filter'] = this.filter;
+    }
+    return json;
+  }
+
+  /// Returns a new [AdminAudience] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static AdminAudience? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+      final kind = AudienceKind.fromJson(json[r'kind']);
+      final resource = AudienceResourceKind.fromJson(json[r'resource']);
+      if (kind == null) {
+        throw const FormatException('AdminAudience requires a valid kind.');
+      }
+      if (resource == null) {
+        throw const FormatException('AdminAudience requires a valid resource.');
+      }
+      switch (kind.value) {
+        case 'selected':
+          final ids = json[r'ids'];
+          if (ids is! Iterable || ids.isEmpty ||
+              ids.any((id) => id is! String || id.isEmpty)) {
+            throw const FormatException('AdminAudience[selected] requires ids.');
+          }
+          if (json.containsKey(r'filter')) {
+            throw const FormatException('Filter is not valid for selected audiences.');
+          }
+          break;
+        case 'filter':
+          if (json[r'filter'] is! Map) {
+            throw const FormatException('AdminAudience[filter] requires filter.');
+          }
+          final filter = AdminAudienceFilter.fromJson(json[r'filter']);
+          if (filter == null || filter.resource != resource) {
+            throw const FormatException('Audience and filter resources must match.');
+          }
+          break;
+        case 'all':
+          if (json.containsKey(r'filter') || json.containsKey(r'ids')) {
+            throw const FormatException('All audiences cannot include filter or ids.');
+          }
+          break;
+        default:
+          throw FormatException('Unknown AdminAudience kind: ${kind.value}');
+      }
+      return AdminAudience(
+        kind: kind,
+        ids: json[r'ids'] is Iterable
+            ? (json[r'ids'] as Iterable).cast<String>().toList(growable: false)
+            : const [],
+        resource: resource,
+        filter: AdminAudienceFilter.fromJson(json[r'filter']),
+      );
+    }
+    return null;
+  }
+
+  static List<AdminAudience> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <AdminAudience>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AdminAudience.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, AdminAudience> mapFromJson(dynamic json) {
+    final map = <String, AdminAudience>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = AdminAudience.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of AdminAudience-objects as value to a dart map
+  static Map<String, List<AdminAudience>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<AdminAudience>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = AdminAudience.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  static const requiredKeys = <String>{
+    'kind',
+    'resource',
+  };
+}
+{{/vendorExtensions.x-canonical-audience-union}}
+
+{{#vendorExtensions.x-canonical-action-union}}
+class AdminAction {
+  /// Returns a new [AdminAction] instance.
+  AdminAction({
+    required this.action,
+    this.body,
+    this.messageHtml,
+    this.subject,
+    this.reason,
+    this.title,
+    this.note,
+  });
+
+  AdminActionKind action;
+
+  String? body;
+
+  /// Optional server-sanitized preview input; scripts and admin DOM access are rejected.
+  String? messageHtml;
+
+  String? subject;
+
+  String? reason;
+
+  String? title;
+
+  String? note;
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is AdminAction &&
+    other.action == action &&
+    other.body == body &&
+    other.messageHtml == messageHtml &&
+    other.subject == subject &&
+    other.reason == reason &&
+    other.title == title &&
+    other.note == note;
+
+  @override
+  int get hashCode =>
+    // ignore: unnecessary_parenthesis
+    (action.hashCode) +
+    (body == null ? 0 : body!.hashCode) +
+    (messageHtml == null ? 0 : messageHtml!.hashCode) +
+    (subject == null ? 0 : subject!.hashCode) +
+    (reason == null ? 0 : reason!.hashCode) +
+    (title == null ? 0 : title!.hashCode) +
+    (note == null ? 0 : note!.hashCode);
+
+  @override
+  String toString() => 'AdminAction[action=$action, body=$body, messageHtml=$messageHtml, subject=$subject, reason=$reason, title=$title, note=$note]';
+
+  Map<String, dynamic> toJson() {
+    bool hasText(String? value) => value != null && value.isNotEmpty;
+    switch (this.action.value) {
+      case 'email':
+        if (!hasText(this.body) || !hasText(this.subject)) {
+          throw const FormatException('AdminAction[email] requires body and subject.');
+        }
+        break;
+      case 'push':
+        if (!hasText(this.body) || !hasText(this.title)) {
+          throw const FormatException('AdminAction[push] requires body and title.');
+        }
+        break;
+      case 'revoke_sessions':
+      case 'mark_compromised':
+      case 'recovery_resend':
+        if (!hasText(this.reason)) {
+          throw const FormatException('Security actions require reason.');
+        }
+        break;
+      case 'login_link':
+      case 'report_resolve':
+      case 'report_dismiss':
+        break;
+      default:
+        throw FormatException('Unknown AdminAction kind: ${this.action.value}');
+    }
+    final json = <String, dynamic>{};
+    json[r'action'] = this.action;
+    if (this.body != null) {
+      json[r'body'] = this.body;
+    }
+    if (this.messageHtml != null) {
+      json[r'messageHtml'] = this.messageHtml;
+    }
+    if (this.subject != null) {
+      json[r'subject'] = this.subject;
+    }
+    if (this.reason != null) {
+      json[r'reason'] = this.reason;
+    }
+    if (this.title != null) {
+      json[r'title'] = this.title;
+    }
+    if (this.note != null) {
+      json[r'note'] = this.note;
+    }
+    return json;
+  }
+
+  /// Returns a new [AdminAction] instance and imports its values from
+  /// [value] if it's a [Map], null otherwise.
+  // ignore: prefer_constructors_over_static_methods
+  static AdminAction? fromJson(dynamic value) {
+    if (value is Map) {
+      final json = value.cast<String, dynamic>();
+      final action = AdminActionKind.fromJson(json[r'action']);
+      if (action == null) {
+        throw const FormatException('AdminAction requires a valid action.');
+      }
+      bool hasText(String key) => json[key] is String && (json[key] as String).isNotEmpty;
+      switch (action.value) {
+        case 'email':
+          if (!hasText('body') || !hasText('subject')) {
+            throw const FormatException('AdminAction[email] requires body and subject.');
+          }
+          break;
+        case 'push':
+          if (!hasText('body') || !hasText('title')) {
+            throw const FormatException('AdminAction[push] requires body and title.');
+          }
+          break;
+        case 'revoke_sessions':
+        case 'mark_compromised':
+        case 'recovery_resend':
+          if (!hasText('reason')) {
+            throw const FormatException('Security actions require reason.');
+          }
+          break;
+        case 'login_link':
+        case 'report_resolve':
+        case 'report_dismiss':
+          break;
+        default:
+          throw FormatException('Unknown AdminAction kind: ${action.value}');
+      }
+      return AdminAction(
+        action: action,
+        body: mapValueOfType<String>(json, r'body'),
+        messageHtml: mapValueOfType<String>(json, r'messageHtml'),
+        subject: mapValueOfType<String>(json, r'subject'),
+        reason: mapValueOfType<String>(json, r'reason'),
+        title: mapValueOfType<String>(json, r'title'),
+        note: mapValueOfType<String>(json, r'note'),
+      );
+    }
+    return null;
+  }
+
+  static List<AdminAction> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <AdminAction>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = AdminAction.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+
+  static Map<String, AdminAction> mapFromJson(dynamic json) {
+    final map = <String, AdminAction>{};
+    if (json is Map && json.isNotEmpty) {
+      json = json.cast<String, dynamic>(); // ignore: parameter_assignments
+      for (final entry in json.entries) {
+        final value = AdminAction.fromJson(entry.value);
+        if (value != null) {
+          map[entry.key] = value;
+        }
+      }
+    }
+    return map;
+  }
+
+  // maps a json object with a list of AdminAction-objects as value to a dart map
+  static Map<String, List<AdminAction>> mapListFromJson(dynamic json, {bool growable = false,}) {
+    final map = <String, List<AdminAction>>{};
+    if (json is Map && json.isNotEmpty) {
+      // ignore: parameter_assignments
+      json = json.cast<String, dynamic>();
+      for (final entry in json.entries) {
+        map[entry.key] = AdminAction.listFromJson(entry.value, growable: growable,);
+      }
+    }
+    return map;
+  }
+
+  static const requiredKeys = <String>{
+    'action',
+  };
+}
+{{/vendorExtensions.x-canonical-action-union}}

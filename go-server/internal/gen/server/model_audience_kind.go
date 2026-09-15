@@ -53,13 +53,3 @@ func NewAudienceKindFromValue(v string) (AudienceKind, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AudienceKind: valid values are %v", v, AllowedAudienceKindEnumValues)
 }
-
-// AssertAudienceKindRequired checks if the required fields are not zero-ed
-func AssertAudienceKindRequired(obj AudienceKind) error {
-	return nil
-}
-
-// AssertAudienceKindConstraints checks if the values respects the defined constraints
-func AssertAudienceKindConstraints(obj AudienceKind) error {
-	return nil
-}

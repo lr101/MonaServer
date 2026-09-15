@@ -14,18 +14,20 @@ package genserver
 type EmailActionDto struct {
 	Action string `json:"action"`
 
-	Body string `json:"body,omitempty"`
+	Body string `json:"body"`
 
 	// Optional server-sanitized preview input; scripts and admin DOM access are rejected.
 	MessageHtml *string `json:"messageHtml,omitempty"`
 
-	Subject string `json:"subject,omitempty"`
+	Subject string `json:"subject"`
 }
 
 // AssertEmailActionDtoRequired checks if the required fields are not zero-ed
 func AssertEmailActionDtoRequired(obj EmailActionDto) error {
 	elements := map[string]interface{}{
-		"action": obj.Action,
+		"action":  obj.Action,
+		"body":    obj.Body,
+		"subject": obj.Subject,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

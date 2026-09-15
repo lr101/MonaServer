@@ -53,13 +53,3 @@ func NewAdminSessionStateFromValue(v string) (AdminSessionState, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AdminSessionState: valid values are %v", v, AllowedAdminSessionStateEnumValues)
 }
-
-// AssertAdminSessionStateRequired checks if the required fields are not zero-ed
-func AssertAdminSessionStateRequired(obj AdminSessionState) error {
-	return nil
-}
-
-// AssertAdminSessionStateConstraints checks if the values respects the defined constraints
-func AssertAdminSessionStateConstraints(obj AdminSessionState) error {
-	return nil
-}

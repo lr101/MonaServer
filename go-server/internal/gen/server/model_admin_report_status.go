@@ -53,13 +53,3 @@ func NewAdminReportStatusFromValue(v string) (AdminReportStatus, error) {
 
 	return "", fmt.Errorf("invalid value '%v' for AdminReportStatus: valid values are %v", v, AllowedAdminReportStatusEnumValues)
 }
-
-// AssertAdminReportStatusRequired checks if the required fields are not zero-ed
-func AssertAdminReportStatusRequired(obj AdminReportStatus) error {
-	return nil
-}
-
-// AssertAdminReportStatusConstraints checks if the values respects the defined constraints
-func AssertAdminReportStatusConstraints(obj AdminReportStatus) error {
-	return nil
-}

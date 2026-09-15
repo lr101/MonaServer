@@ -1,4 +1,4 @@
-# openapi.model.AdminUserFilterDto
+# openapi.model.AdminAudienceFilter
 
 ## Load the model package
 ```dart
@@ -17,5 +17,8 @@ Name | Type | Description | Notes
 **securityStatuses** | [**List<AdminSecurityState>**](AdminSecurityState.md) |  | [optional] [default to const []]
 **username** | **String** |  | [optional]
 **verifiedEmail** | **bool** |  | [optional]
+**assigneeUserId** | **String** |  | [optional]
+**statuses** | [**List<AdminReportStatus>**](AdminReportStatus.md) |  | [optional] [default to const []]
+**types** | **List<String>** |  | [optional] [default to const []]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

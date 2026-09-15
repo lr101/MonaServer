@@ -10,39 +10,107 @@
 
 package genserver
 
-// AdminAction - Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// AdminAction is a generator view of the discriminated action union. The
+// OpenAPI branches carry the canonical required fields; this view keeps the
+// flattened server fields optional while validating the active branch during
+// JSON decoding.
 type AdminAction struct {
-	Action AdminActionKind `json:"action"`
-
-	Body string `json:"body,omitempty"`
-
-	// Optional server-sanitized preview input; scripts and admin DOM access are rejected.
-	MessageHtml *string `json:"messageHtml,omitempty"`
-
-	Subject string `json:"subject,omitempty"`
-
-	Reason string `json:"reason,omitempty"`
-
-	Title string `json:"title,omitempty"`
-
-	Note *string `json:"note,omitempty"`
+	Action      AdminActionKind `json:"action"`
+	Body        string          `json:"body,omitempty"`
+	MessageHtml *string         `json:"messageHtml,omitempty"`
+	Subject     string          `json:"subject,omitempty"`
+	Reason      string          `json:"reason,omitempty"`
+	Title       string          `json:"title,omitempty"`
+	Note        *string         `json:"note,omitempty"`
 }
 
-// AssertAdminActionRequired checks if the required fields are not zero-ed
+// AssertAdminActionRequired checks common and branch-specific required fields.
 func AssertAdminActionRequired(obj AdminAction) error {
-	elements := map[string]interface{}{
-		"action": obj.Action,
+	if IsZeroValue(obj.Action) {
+		return &RequiredError{Field: "action"}
 	}
-	for name, el := range elements {
-		if isZero := IsZeroValue(el); isZero {
-			return &RequiredError{Field: name}
+	switch obj.Action {
+	case AdminActionKind("email"):
+		if obj.Body == "" {
+			return &RequiredError{Field: "body"}
 		}
+		if obj.Subject == "" {
+			return &RequiredError{Field: "subject"}
+		}
+	case AdminActionKind("push"):
+		if obj.Body == "" {
+			return &RequiredError{Field: "body"}
+		}
+		if obj.Title == "" {
+			return &RequiredError{Field: "title"}
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if obj.Reason == "" {
+			return &RequiredError{Field: "reason"}
+		}
+	case AdminActionKind("login_link"), AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+	default:
+		return fmt.Errorf("invalid action %q", obj.Action)
 	}
-
 	return nil
 }
 
-// AssertAdminActionConstraints checks if the values respects the defined constraints
+// AssertAdminActionConstraints checks branch values that are independent of JSON presence.
 func AssertAdminActionConstraints(obj AdminAction) error {
+	return nil
+}
+
+func (obj *AdminAction) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	var action AdminActionKind
+	rawAction, found := fields["action"]
+	if !found || json.Unmarshal(rawAction, &action) != nil || action == "" {
+		return &RequiredError{Field: "action"}
+	}
+	requiredString := func(field string) error {
+		raw, found := fields[field]
+		var value string
+		if !found || json.Unmarshal(raw, &value) != nil || value == "" {
+			return &RequiredError{Field: field}
+		}
+		return nil
+	}
+	switch action {
+	case AdminActionKind("email"):
+		if err := requiredString("body"); err != nil {
+			return err
+		}
+		if err := requiredString("subject"); err != nil {
+			return err
+		}
+	case AdminActionKind("push"):
+		if err := requiredString("body"); err != nil {
+			return err
+		}
+		if err := requiredString("title"); err != nil {
+			return err
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if err := requiredString("reason"); err != nil {
+			return err
+		}
+	case AdminActionKind("login_link"), AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+	default:
+		return fmt.Errorf("invalid action %q", action)
+	}
+	type plainAdminAction AdminAction
+	var decoded plainAdminAction
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*obj = AdminAction(decoded)
 	return nil
 }

@@ -10,39 +10,127 @@
 
 package genserver
 
-// AdminAudience - Discriminated explicit selection/filter/all union. Empty audiences are invalid.
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// AdminAudience is a generator view of the discriminated audience union. The
+// OpenAPI branches carry the canonical required fields; this view keeps the
+// flattened server fields optional while validating the active branch during
+// JSON decoding.
 type AdminAudience struct {
-	Kind AudienceKind `json:"kind"`
-
-	Ids []string `json:"ids,omitempty"`
-
+	Kind     AudienceKind         `json:"kind"`
+	Ids      []string             `json:"ids,omitempty"`
 	Resource AudienceResourceKind `json:"resource"`
-
-	Filter AdminUserFilterDto `json:"filter,omitempty"`
+	Filter   *AdminAudienceFilter `json:"filter,omitempty"`
 }
 
-// AssertAdminAudienceRequired checks if the required fields are not zero-ed
+// AssertAdminAudienceRequired checks common and branch-specific required fields.
 func AssertAdminAudienceRequired(obj AdminAudience) error {
-	elements := map[string]interface{}{
-		"kind":     obj.Kind,
-		"resource": obj.Resource,
+	if IsZeroValue(obj.Kind) {
+		return &RequiredError{Field: "kind"}
 	}
-	for name, el := range elements {
-		if isZero := IsZeroValue(el); isZero {
-			return &RequiredError{Field: name}
+	if IsZeroValue(obj.Resource) {
+		return &RequiredError{Field: "resource"}
+	}
+	switch obj.Kind {
+	case AudienceKind("selected"):
+		if len(obj.Ids) == 0 {
+			return &RequiredError{Field: "ids"}
 		}
-	}
-
-	if err := AssertAdminUserFilterDtoRequired(obj.Filter); err != nil {
-		return err
+		if obj.Filter != nil {
+			return fmt.Errorf("filter is not valid for selected audiences")
+		}
+	case AudienceKind("filter"):
+		if obj.Filter == nil {
+			return &RequiredError{Field: "filter"}
+		}
+		if obj.Filter.Resource != obj.Resource {
+			return fmt.Errorf("audience and filter resources do not match")
+		}
+		if err := AssertAdminAudienceFilterConstraints(*obj.Filter); err != nil {
+			return err
+		}
+	case AudienceKind("all"):
+		if obj.Filter != nil {
+			return fmt.Errorf("filter is not valid for all audiences")
+		}
+		if len(obj.Ids) != 0 {
+			return fmt.Errorf("ids are not valid for all audiences")
+		}
+	default:
+		return fmt.Errorf("invalid audience kind %q", obj.Kind)
 	}
 	return nil
 }
 
-// AssertAdminAudienceConstraints checks if the values respects the defined constraints
+// AssertAdminAudienceConstraints checks branch values that are independent of JSON presence.
 func AssertAdminAudienceConstraints(obj AdminAudience) error {
-	if err := AssertAdminUserFilterDtoConstraints(obj.Filter); err != nil {
+	if err := AssertAdminAudienceRequired(obj); err != nil {
 		return err
 	}
+	if obj.Kind == AudienceKind("filter") {
+		return AssertAdminAudienceFilterConstraints(*obj.Filter)
+	}
 	return nil
+}
+
+func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	var kind AudienceKind
+	rawKind, found := fields["kind"]
+	if !found || json.Unmarshal(rawKind, &kind) != nil || kind == "" {
+		return &RequiredError{Field: "kind"}
+	}
+	var resource AudienceResourceKind
+	rawResource, found := fields["resource"]
+	if !found || json.Unmarshal(rawResource, &resource) != nil || resource == "" {
+		return &RequiredError{Field: "resource"}
+	}
+	if resource != AudienceResourceKind("accounts") && resource != AudienceResourceKind("reports") {
+		return fmt.Errorf("invalid audience resource %q", resource)
+	}
+	switch kind {
+	case AudienceKind("selected"):
+		rawIds, found := fields["ids"]
+		var ids []string
+		if !found || json.Unmarshal(rawIds, &ids) != nil || len(ids) == 0 {
+			return &RequiredError{Field: "ids"}
+		}
+		if _, found := fields["filter"]; found {
+			return fmt.Errorf("filter is not valid for selected audiences")
+		}
+	case AudienceKind("filter"):
+		rawFilter, found := fields["filter"]
+		if !found || string(rawFilter) == "null" {
+			return &RequiredError{Field: "filter"}
+		}
+		var filter AdminAudienceFilter
+		if err := json.Unmarshal(rawFilter, &filter); err != nil {
+			return err
+		}
+		if filter.Resource != resource {
+			return fmt.Errorf("audience and filter resources do not match")
+		}
+	case AudienceKind("all"):
+		if _, found := fields["filter"]; found {
+			return fmt.Errorf("filter is not valid for all audiences")
+		}
+		if _, found := fields["ids"]; found {
+			return fmt.Errorf("ids are not valid for all audiences")
+		}
+	default:
+		return fmt.Errorf("invalid audience kind %q", kind)
+	}
+	type plainAdminAudience AdminAudience
+	var decoded plainAdminAudience
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*obj = AdminAudience(decoded)
+	return AssertAdminAudienceRequired(*obj)
 }

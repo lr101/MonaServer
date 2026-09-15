@@ -1920,6 +1920,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: "Authentication is missing, expired, revoked, or invalid."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - token: []
       summary: Revoke the caller's submitted refresh credential
@@ -2021,6 +2027,12 @@ paths:
                 minimum: 0
                 type: integer
               style: simple
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Begin an admin password and MFA login
@@ -2084,6 +2096,12 @@ paths:
                 minimum: 0
                 type: integer
               style: simple
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Complete admin MFA
@@ -2139,6 +2157,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Reauthenticate an admin session for a sensitive action
@@ -2171,6 +2195,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: "Authentication is missing, expired, revoked, or invalid."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Log out of the admin session
@@ -2202,6 +2232,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Restore the current admin session
@@ -2298,6 +2334,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Search administrative user records
@@ -2343,6 +2385,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Get one administrative user record
@@ -2378,13 +2426,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/adminAudiencePreviewDto"
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
           description: Snapshot preview is ready
         "202":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/adminAudiencePreviewAcceptedDto"
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
           description: Snapshot materialization is queued
         "400":
           content:
@@ -2497,6 +2545,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Read an administrative audience snapshot
@@ -2564,6 +2618,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: List administrative action jobs
@@ -2701,6 +2761,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Read an administrative job
@@ -2767,6 +2833,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: List job recipient outcomes
@@ -2853,6 +2925,12 @@ paths:
                 $ref: "#/components/schemas/apiErrorDto"
           description: "Revision, payload, audience, or idempotency key conflicts\
             \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Retry eligible failed job work
@@ -2939,6 +3017,12 @@ paths:
                 $ref: "#/components/schemas/apiErrorDto"
           description: "Revision, payload, audience, or idempotency key conflicts\
             \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Cancel pending job work
@@ -3082,6 +3166,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: List reports for administrative review
@@ -3137,6 +3227,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Read one report and its notes
@@ -3211,6 +3307,12 @@ paths:
                 $ref: "#/components/schemas/apiErrorDto"
           description: "Revision, payload, audience, or idempotency key conflicts\
             \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Apply a revision-checked report transition
@@ -3279,6 +3381,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: Add an administrative report note
@@ -3347,6 +3455,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
       summary: List administrative audit events
@@ -3912,6 +4026,7 @@ components:
         in the client.
       example:
         includeAdmins: false
+        resource: accounts
         securityStatuses:
         - normal
         verifiedEmail: true
@@ -3936,6 +4051,10 @@ components:
         includeAdmins:
           default: false
           type: boolean
+        resource:
+          enum:
+          - accounts
+          type: string
         securityStatuses:
           items:
             $ref: "#/components/schemas/adminSecurityState"
@@ -3950,7 +4069,68 @@ components:
         verifiedEmail:
           nullable: true
           type: boolean
+      required:
+      - resource
       type: object
+    adminReportFilterDto:
+      description: Validated server-side report filter. Filter evaluation never happens
+        in the client.
+      example:
+        assigneeUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        createdAfter: 2026-01-01T00:00:00Z
+        resource: reports
+        statuses:
+        - open
+        types:
+        - abuse
+      properties:
+        assigneeUserId:
+          format: uuid
+          nullable: true
+          type: string
+        createdAfter:
+          format: date-time
+          nullable: true
+          type: string
+        createdBefore:
+          format: date-time
+          nullable: true
+          type: string
+        resource:
+          enum:
+          - reports
+          type: string
+        statuses:
+          items:
+            $ref: "#/components/schemas/adminReportStatus"
+          maxItems: 3
+          minItems: 1
+          nullable: true
+          type: array
+        types:
+          items:
+            maxLength: 64
+            minLength: 1
+            type: string
+          maxItems: 32
+          minItems: 1
+          nullable: true
+          type: array
+      required:
+      - resource
+      type: object
+    adminAudienceFilter:
+      description: Resource-tagged filter union. Account and report criteria cannot
+        be applied across resource types.
+      discriminator:
+        mapping:
+          accounts: "#/components/schemas/adminUserFilterDto"
+          reports: "#/components/schemas/adminReportFilterDto"
+        propertyName: resource
+      oneOf:
+      - $ref: "#/components/schemas/adminUserFilterDto"
+      - $ref: "#/components/schemas/adminReportFilterDto"
+      x-canonical-audience-filter-union: true
     selectedAudience:
       description: Explicit bounded IDs; report actions interpret IDs as report IDs.
       properties:
@@ -3968,6 +4148,7 @@ components:
         resource:
           $ref: "#/components/schemas/audienceResourceKind"
       required:
+      - ids
       - kind
       - resource
       type: object
@@ -3975,16 +4156,15 @@ components:
       description: Explicit validated filter evaluated once into an immutable snapshot.
       properties:
         filter:
-          $ref: "#/components/schemas/adminUserFilterDto"
+          $ref: "#/components/schemas/adminAudienceFilter"
         kind:
           enum:
           - filter
           type: string
         resource:
-          enum:
-          - accounts
-          type: string
+          $ref: "#/components/schemas/audienceResourceKind"
       required:
+      - filter
       - kind
       - resource
       type: object
@@ -4021,6 +4201,15 @@ components:
       required:
       - kind
       type: object
+      x-canonical-audience-union: true
+      x-canonical-branches:
+        discriminator: kind
+        required:
+          all: []
+          filter:
+          - filter
+          selected:
+          - ids
     emailActionDto:
       description: Server-sanitized email action payload.
       properties:
@@ -4044,6 +4233,8 @@ components:
           type: string
       required:
       - action
+      - body
+      - subject
       type: object
     loginLinkActionDto:
       properties:
@@ -4074,6 +4265,8 @@ components:
           type: string
       required:
       - action
+      - body
+      - title
       type: object
     revokeSessionsActionDto:
       properties:
@@ -4087,6 +4280,7 @@ components:
           type: string
       required:
       - action
+      - reason
       type: object
     markCompromisedActionDto:
       properties:
@@ -4100,6 +4294,7 @@ components:
           type: string
       required:
       - action
+      - reason
       type: object
     recoveryResendActionDto:
       properties:
@@ -4113,6 +4308,7 @@ components:
           type: string
       required:
       - action
+      - reason
       type: object
     reportResolveActionDto:
       properties:
@@ -4171,6 +4367,25 @@ components:
       required:
       - action
       type: object
+      x-canonical-action-union: true
+      x-canonical-branches:
+        discriminator: action
+        required:
+          email:
+          - body
+          - subject
+          login_link: []
+          mark_compromised:
+          - reason
+          push:
+          - body
+          - title
+          recovery_resend:
+          - reason
+          report_dismiss: []
+          report_resolve: []
+          revoke_sessions:
+          - reason
     adminAudiencePreviewRequestDto:
       example:
         action:
@@ -4323,10 +4538,6 @@ components:
       type: object
     adminAudiencePreviewAcceptedDto:
       description: Large snapshot materialization accepted as a disabled-feature job.
-      example:
-        jobId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        snapshotId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-        status: pending
       properties:
         jobId:
           format: uuid
@@ -4340,6 +4551,65 @@ components:
           type: string
       required:
       - jobId
+      - snapshotId
+      - status
+      type: object
+    adminAudiencePreviewResponseDto:
+      description: Preview result shared by the ready 200 and queued 202 responses.
+        Both statuses include snapshotId and status; a ready result includes the preview
+        fields and a pending result includes jobId. The server must not return a pending
+        result with HTTP 200 or a ready result with HTTP 202.
+      example:
+        jobId: 146b6c7f-0b8a-43b9-b35d-6489e6daee92
+        snapshotId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: pending
+      properties:
+        action:
+          allOf:
+          - $ref: "#/components/schemas/adminAction"
+          nullable: true
+        actorUserId:
+          format: uuid
+          nullable: true
+          type: string
+        counts:
+          allOf:
+          - $ref: "#/components/schemas/adminAudienceCountsDto"
+          nullable: true
+        expiresAt:
+          format: date-time
+          nullable: true
+          type: string
+        exclusions:
+          items:
+            $ref: "#/components/schemas/adminAudienceExclusionDto"
+          maxItems: 100
+          nullable: true
+          type: array
+        jobId:
+          format: uuid
+          nullable: true
+          type: string
+        payloadHash:
+          maxLength: 128
+          minLength: 16
+          nullable: true
+          type: string
+        resource:
+          allOf:
+          - $ref: "#/components/schemas/audienceResourceKind"
+          nullable: true
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          - ready
+          - expired
+          - failed
+          type: string
+      required:
       - snapshotId
       - status
       type: object

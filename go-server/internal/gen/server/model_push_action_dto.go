@@ -13,15 +13,17 @@ package genserver
 type PushActionDto struct {
 	Action string `json:"action"`
 
-	Body string `json:"body,omitempty"`
+	Body string `json:"body"`
 
-	Title string `json:"title,omitempty"`
+	Title string `json:"title"`
 }
 
 // AssertPushActionDtoRequired checks if the required fields are not zero-ed
 func AssertPushActionDtoRequired(obj PushActionDto) error {
 	elements := map[string]interface{}{
 		"action": obj.Action,
+		"body":   obj.Body,
+		"title":  obj.Title,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {
