@@ -273,15 +273,15 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	}
 
 	servicer := handler.NewUnavailableV3Servicer()
-	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer)
-	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer)
-	adminSessionCtrl := genserver.NewAdminSessionAPIController(servicer)
-	adminUsersCtrl := genserver.NewAdminUsersAPIController(servicer)
-	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer)
-	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer)
-	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(servicer)
-	adminReportsCtrl := genserver.NewAdminReportsAPIController(servicer)
-	adminAuditCtrl := genserver.NewAdminAuditAPIController(servicer)
+	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer, genserver.WithPublicAuthAPIErrorHandler(handler.V3ErrorHandler))
+	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer, genserver.WithSessionAuthAPIErrorHandler(handler.V3ErrorHandler))
+	adminSessionCtrl := genserver.NewAdminSessionAPIController(servicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
+	adminUsersCtrl := genserver.NewAdminUsersAPIController(servicer, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
+	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
+	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
+	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(servicer, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
+	adminReportsCtrl := genserver.NewAdminReportsAPIController(servicer, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
+	adminAuditCtrl := genserver.NewAdminAuditAPIController(servicer, genserver.WithAdminAuditAPIErrorHandler(handler.V3ErrorHandler))
 
 	// Public email-link and recovery endpoints are intentionally public, but
 	// remain unavailable while PUBLIC_EMAIL_LOGIN is false.

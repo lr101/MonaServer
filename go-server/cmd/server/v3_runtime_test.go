@@ -139,6 +139,46 @@ func TestV3EnabledAdminMutationCannotReturnPlaceholderSuccess(t *testing.T) {
 	}
 }
 
+func TestV3ValidationErrorsUseBadRequestEnvelope(t *testing.T) {
+	t.Run("public malformed JSON", func(t *testing.T) {
+		r, _, _ := newV3RuntimeRouter(t, &config.Config{PublicEmailLogin: true})
+		request := httptest.NewRequest(http.MethodPost, "/api/v3/public/auth/email-link/request", strings.NewReader(`{"email":"person@example.com","secret":"raw-token"}`))
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, request)
+		raw := recorder.Body.String()
+		assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
+		assertNoSecretEcho(t, raw, "raw-token")
+	})
+
+	t.Run("public missing required field", func(t *testing.T) {
+		r, _, _ := newV3RuntimeRouter(t, &config.Config{PublicEmailLogin: true})
+		request := httptest.NewRequest(http.MethodPost, "/api/v3/public/auth/email-link/request", strings.NewReader(`{}`))
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, request)
+		assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
+	})
+
+	t.Run("own session malformed JSON", func(t *testing.T) {
+		r, consumerToken, _ := newV3RuntimeRouter(t, &config.Config{PublicEmailLogin: true})
+		request := httptest.NewRequest(http.MethodPost, "/api/v3/auth/session/revoke", strings.NewReader(`{"refreshToken":"raw-refresh-token"`))
+		request.Header.Set("Authorization", "Bearer "+consumerToken)
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, request)
+		raw := recorder.Body.String()
+		assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
+		assertNoSecretEcho(t, raw, "raw-refresh-token")
+	})
+
+	t.Run("admin missing required fields", func(t *testing.T) {
+		r, _, _ := newV3RuntimeRouter(t, &config.Config{WebAdminAPI: true})
+		request := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{}`))
+		request.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: "opaque-session"})
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, request)
+		assertV3RuntimeError(t, recorder, http.StatusBadRequest, "invalid_request")
+	})
+}
+
 func TestV3OwnSessionRequiresBearerAuthentication(t *testing.T) {
 	r, consumerToken, _ := newV3RuntimeRouter(t, &config.Config{PublicEmailLogin: true})
 
@@ -179,5 +219,12 @@ func assertLegacyRuntimeError(t *testing.T, recorder *httptest.ResponseRecorder,
 	}
 	if body["error"] != wantMessage {
 		t.Fatalf("legacy error = %q, want %q", body["error"], wantMessage)
+	}
+}
+
+func assertNoSecretEcho(t *testing.T, response, secret string) {
+	t.Helper()
+	if strings.Contains(response, secret) {
+		t.Fatalf("v3 validation error echoed secret %q: %s", secret, response)
 	}
 }

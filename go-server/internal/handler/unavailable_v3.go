@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -24,6 +25,54 @@ func WriteV3Error(w http.ResponseWriter, status int, code, message string) {
 		Code:    code,
 		Message: message,
 	}, &status, w)
+}
+
+// V3ErrorHandler is installed on every generated v3 controller. Generator
+// defaults expose parser text and use 422 for required fields, while the v3
+// contract uses a bounded 400 error for all malformed/invalid request bodies.
+// Service errors are reduced to a small status-to-code/message vocabulary so
+// raw input, credentials, and provider details never cross the HTTP boundary.
+func V3ErrorHandler(w http.ResponseWriter, _ *http.Request, err error, result *genserver.ImplResponse) {
+	var parsingErr *genserver.ParsingError
+	var requiredErr *genserver.RequiredError
+	if errors.As(err, &parsingErr) || errors.As(err, &requiredErr) {
+		WriteV3Error(w, http.StatusBadRequest, "invalid_request", "request is invalid")
+		return
+	}
+
+	status := http.StatusInternalServerError
+	if result != nil {
+		status = result.Code
+	}
+	if status == http.StatusUnprocessableEntity {
+		status = http.StatusBadRequest
+	}
+	if status < http.StatusBadRequest || status > 599 {
+		status = http.StatusInternalServerError
+	}
+	code, message := v3ErrorMetadata(status)
+	WriteV3Error(w, status, code, message)
+}
+
+func v3ErrorMetadata(status int) (string, string) {
+	switch status {
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return "invalid_request", "request is invalid"
+	case http.StatusUnauthorized:
+		return "unauthorized", "authentication is required"
+	case http.StatusForbidden:
+		return "forbidden", "access is forbidden"
+	case http.StatusNotFound:
+		return "not_found", "resource was not found"
+	case http.StatusConflict:
+		return "conflict", "request conflicts with current state"
+	case http.StatusTooManyRequests:
+		return "rate_limited", "too many requests"
+	case http.StatusServiceUnavailable:
+		return "feature_unavailable", "this API is not available"
+	default:
+		return "internal_error", "internal server error"
+	}
 }
 
 // UnavailableV3Middleware is the feature-flag gate for the pre-rollout v3
