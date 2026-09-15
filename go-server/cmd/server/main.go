@@ -213,6 +213,11 @@ func main() {
 		registerRoutes(r, adminCtrl, alwaysTrue)
 	})
 
+	// New v3 routes are always present in the router so their feature and
+	// authentication behavior is observable. They are backed by an unavailable
+	// adapter until the public email and browser-admin implementations land.
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername)
+
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
 	srv := &http.Server{Addr: addr, Handler: r, ReadHeaderTimeout: 10 * time.Second}
@@ -256,6 +261,98 @@ func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool)
 			r.Method(route.Method, route.Pattern, route.HandlerFunc)
 		}
 	}
+}
+
+// registerV3Routes installs the additive v3 surfaces behind their independent
+// feature flags. The unavailable adapter is intentionally registered for every
+// v3 operation, which gives disabled or not-yet-implemented routes a stable
+// failure instead of a successful placeholder.
+func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string) {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+
+	servicer := handler.NewUnavailableV3Servicer()
+	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer)
+	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer)
+	adminSessionCtrl := genserver.NewAdminSessionAPIController(servicer)
+	adminUsersCtrl := genserver.NewAdminUsersAPIController(servicer)
+	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer)
+	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer)
+	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(servicer)
+	adminReportsCtrl := genserver.NewAdminReportsAPIController(servicer)
+	adminAuditCtrl := genserver.NewAdminAuditAPIController(servicer)
+
+	// Public email-link and recovery endpoints are intentionally public, but
+	// remain unavailable while PUBLIC_EMAIL_LOGIN is false.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
+		registerRoutes(r, publicAuthCtrl, alwaysTrue)
+	})
+
+	// Own-session revoke is the one new endpoint that uses a consumer Bearer
+	// credential. It is independent from the browser-admin session transport.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
+		r.Use(middleware.JWT(tok, lookup, adminUsername))
+		r.Use(middleware.RequireRole(middleware.RoleUser))
+		registerRoutes(r, sessionAuthCtrl, alwaysTrue)
+	})
+
+	// Bootstrap is the only public admin-session endpoint. The actual
+	// bootstrap/login/MFA/session implementation belongs to T05.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		registerRoutes(r, adminSessionCtrl, isAdminBootstrapRoute)
+	})
+
+	// Until T05 supplies an opaque browser-session verifier, reject every
+	// bearer-only request and only let a request carrying the dedicated cookie
+	// reach the unavailable adapter. This prevents consumer JWTs from becoming
+	// an accidental admin authentication fallback.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(requireAdminBrowserSession)
+		registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
+		registerRoutes(r, adminUsersCtrl, alwaysTrue)
+		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
+		registerRoutes(r, adminJobsCtrl, alwaysTrue)
+		registerRoutes(r, adminMessagesCtrl, alwaysTrue)
+		registerRoutes(r, adminReportsCtrl, alwaysTrue)
+		registerRoutes(r, adminAuditCtrl, alwaysTrue)
+	})
+}
+
+func v3FeatureFlag(enabled bool) func(http.Handler) http.Handler {
+	if enabled {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return handler.UnavailableV3Middleware
+}
+
+const adminSessionCookieName = "admin_session"
+
+func requireAdminBrowserSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(adminSessionCookieName)
+		if err != nil || strings.TrimSpace(cookie.Value) == "" {
+			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+				handler.WriteV3Error(w, http.StatusForbidden, "forbidden", "admin browser session required")
+				return
+			}
+			handler.WriteV3Error(w, http.StatusUnauthorized, "unauthorized", "admin browser session required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isAdminBootstrapRoute(pattern string) bool {
+	return pattern == "/api/v3/admin/session/bootstrap"
+}
+
+func isNonBootstrapAdminRoute(pattern string) bool {
+	return !isAdminBootstrapRoute(pattern)
 }
 
 func isPublicRoute(pattern string) bool {

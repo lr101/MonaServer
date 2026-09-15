@@ -9,13 +9,31 @@ import (
 )
 
 // UnavailableV3Servicer is the safe pre-rollout adapter for the new v3
-// contracts. It is intentionally not registered by the server bootstrap yet;
-// if a coordinator registers the generated controllers before their feature
-// implementations are ready, every operation still returns a non-successful
-// unavailable response.
+// contracts. The server bootstrap registers it behind explicit feature and
+// session gates until the real v3 implementations are ready; every operation
+// therefore returns a non-successful unavailable response.
 type UnavailableV3Servicer struct{}
 
 func NewUnavailableV3Servicer() *UnavailableV3Servicer { return &UnavailableV3Servicer{} }
+
+// WriteV3Error emits the stable v3 error envelope used by route gates and
+// the unavailable adapter. The route gates call it before a controller can
+// parse input or invoke a service.
+func WriteV3Error(w http.ResponseWriter, status int, code, message string) {
+	_ = genserver.EncodeJSONResponse(genserver.ApiErrorDto{
+		Code:    code,
+		Message: message,
+	}, &status, w)
+}
+
+// UnavailableV3Middleware is the feature-flag gate for the pre-rollout v3
+// surface. It deliberately does not call next, so disabled routes cannot
+// execute a handler or return a successful placeholder mutation.
+func UnavailableV3Middleware(_ http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		WriteV3Error(w, http.StatusServiceUnavailable, "feature_unavailable", "this API is not available")
+	})
+}
 
 func (s *UnavailableV3Servicer) unavailable() (genserver.ImplResponse, error) {
 	return genserver.ImplResponse{

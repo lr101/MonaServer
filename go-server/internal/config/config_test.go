@@ -18,3 +18,16 @@ func TestLoadReadsRustfsObjectStorageVariables(t *testing.T) {
 		t.Fatalf("RustFS variables were not loaded: %+v", cfg)
 	}
 }
+
+func TestLoadReadsV3FeatureFlags(t *testing.T) {
+	t.Setenv("PUBLIC_EMAIL_LOGIN", "true")
+	t.Setenv("WEB_ADMIN_API", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.PublicEmailLogin || !cfg.WebAdminAPI {
+		t.Fatalf("v3 feature flags were not loaded: %+v", cfg)
+	}
+}

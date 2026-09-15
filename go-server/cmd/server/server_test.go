@@ -210,6 +210,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		r.Use(middleware.RequireRole(middleware.RoleAdmin))
 		registerRoutes(r, adminCtrl, alwaysTrue)
 	})
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername)
 
 	return httptest.NewServer(r)
 }

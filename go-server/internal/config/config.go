@@ -21,6 +21,8 @@ type Config struct {
 	RefreshTokenExpiry time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
 	AdminUsername      string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
 	MaxLoginAttempts   int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
+	PublicEmailLogin   bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
+	WebAdminAPI        bool          `mapstructure:"WEB_ADMIN_API"`
 
 	// RustFS / object storage
 	RustfsEndpoint         string        `mapstructure:"RUSTFS_ENDPOINT"`
@@ -56,6 +58,7 @@ func Load() (*Config, error) {
 		"PORT", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
 		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
+		"PUBLIC_EMAIL_LOGIN", "WEB_ADMIN_API",
 		"RUSTFS_ENDPOINT", "RUSTFS_EXTERNAL_ENDPOINT",
 		"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY",
 		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_URL_EXPIRY",
@@ -70,6 +73,8 @@ func Load() (*Config, error) {
 	v.SetDefault("TOKEN_ACCESS_EXPIRY", 15*time.Minute)
 	v.SetDefault("TOKEN_REFRESH_EXPIRY", 365*24*time.Hour)
 	v.SetDefault("APP_MAX_LOGIN_ATTEMPTS", 10)
+	v.SetDefault("PUBLIC_EMAIL_LOGIN", false)
+	v.SetDefault("WEB_ADMIN_API", false)
 	v.SetDefault("RUSTFS_BUCKET", "monaserver")
 	v.SetDefault("RUSTFS_USE_SSL", false)
 	v.SetDefault("RUSTFS_URL_EXPIRY", 60*time.Minute)
