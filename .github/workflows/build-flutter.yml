@@ -305,7 +305,7 @@ jobs:
           retention-days: 1
 
   build-ios:
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       # Flutter 3.44+ uses Swift Package Manager for compatible plugins and
       # falls back to CocoaPods only for plugins that still require it.
