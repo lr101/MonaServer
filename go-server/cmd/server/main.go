@@ -588,6 +588,11 @@ func must(err error, context string) {
 }
 
 // requestLogger logs method, path, status code, and duration for every request.
+// Legacy action links carry their bearer-equivalent secret in the path. Keep
+// the public route shape while replacing that segment before structured logs
+// are emitted. Reverse proxies should apply the same rules to
+// /public/recover/*, /public/delete-account/* (except /code), and
+// /public/email-confirmation/* before forwarding access logs.
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -596,12 +601,25 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(ww, r)
 			log.Info("request",
 				"method", r.Method,
-				"path", r.URL.Path,
+				"path", redactLegacyActionPath(r.URL.Path),
 				"status", ww.status,
 				"duration_ms", time.Since(start).Milliseconds(),
 				"request_id", chimw.GetReqID(r.Context()),
 			)
 		})
+	}
+}
+
+func redactLegacyActionPath(path string) string {
+	switch {
+	case strings.HasPrefix(path, "/public/recover/"):
+		return "/public/recover/[redacted]"
+	case strings.HasPrefix(path, "/public/delete-account/") && path != "/public/delete-account/code":
+		return "/public/delete-account/[redacted]"
+	case strings.HasPrefix(path, "/public/email-confirmation/"):
+		return "/public/email-confirmation/[redacted]"
+	default:
+		return path
 	}
 }
 

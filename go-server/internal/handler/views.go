@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
+	"github.com/lrprojects/monaserver/internal/service"
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
@@ -21,13 +22,21 @@ var faviconBytes []byte
 var templates = template.Must(template.ParseFS(tmplFS, "templates/*.html"))
 
 type Views struct {
-	q   *db.Queries
-	tok *token.Helper
+	q           *db.Queries
+	tok         *token.Helper
+	security    *service.AccountSecurity
 	redirectURL string
 }
 
-func NewViews(q *db.Queries, tok *token.Helper, redirectURL string) *Views {
-	return &Views{q: q, tok: tok, redirectURL: redirectURL}
+func NewViews(q *db.Queries, tok *token.Helper, redirectURL string, security ...*service.AccountSecurity) *Views {
+	var coordinator *service.AccountSecurity
+	if len(security) > 0 {
+		coordinator = security[0]
+	}
+	if coordinator == nil {
+		coordinator = service.NewAccountSecurity(q)
+	}
+	return &Views{q: q, tok: tok, security: coordinator, redirectURL: redirectURL}
 }
 
 func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +50,24 @@ func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	tok, _ := v.tok.GenerateAccessToken(u.ID)
-	renderTemplate(w, "recover-view.html", map[string]any{"UserID": u.ID, "Token": tok})
+	// The legacy reset URL predates the purpose-bound action token. Once an
+	// account is contained, that old URL must not mint a fresh recovery
+	// capability; only a recovery token queued for the current generation may
+	// be redeemed by the restricted endpoint.
+	state, err := v.security.GetSecurityState(r.Context(), u.ID)
+	if err != nil || state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
+		renderTemplate(w, "404.html", nil)
+		return
+	}
+	// A legacy reset URL is only a lookup handle. The page receives a
+	// purpose-bound opaque action token and submits it to the restricted
+	// recovery endpoint; it never receives a normal consumer JWT.
+	action, err := v.security.IssueActionToken(r.Context(), nil, u.ID, db.ActionTokenPurposeRecovery, nil, 10*time.Minute)
+	if err != nil || action == nil {
+		renderTemplate(w, "404.html", nil)
+		return
+	}
+	renderTemplate(w, "recover-view.html", map[string]any{"UserID": u.ID, "Token": action.Token})
 }
 
 func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
@@ -56,8 +81,12 @@ func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	tok, _ := v.tok.GenerateAccessToken(u.ID)
-	renderTemplate(w, "delete-view.html", map[string]any{"UserID": u.ID, "Username": u.Username, "Token": tok})
+	action, err := v.security.IssueActionToken(r.Context(), nil, u.ID, db.ActionTokenPurposeDeleteAccount, nil, 10*time.Minute)
+	if err != nil || action == nil {
+		renderTemplate(w, "404.html", nil)
+		return
+	}
+	renderTemplate(w, "delete-view.html", map[string]any{"UserID": u.ID, "Username": u.Username, "Token": action.Token})
 }
 
 func (v *Views) EmailConfirmation(w http.ResponseWriter, r *http.Request) {

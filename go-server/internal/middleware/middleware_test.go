@@ -23,6 +23,66 @@ func (f *fakeLookup) GetUsername(_ context.Context, id uuid.UUID) (string, error
 	return "", http.ErrAbortHandler
 }
 
+type fakeSecurityLookup struct {
+	*fakeLookup
+	states     map[uuid.UUID]PrincipalSecurityState
+	adminUsers map[uuid.UUID]bool
+}
+
+func (f *fakeSecurityLookup) GetSecurityState(_ context.Context, id uuid.UUID) (*PrincipalSecurityState, error) {
+	state, ok := f.states[id]
+	if !ok {
+		return nil, http.ErrAbortHandler
+	}
+	return &state, nil
+}
+
+func (f *fakeSecurityLookup) IsAdmin(_ context.Context, id uuid.UUID) (bool, error) {
+	return f.adminUsers[id], nil
+}
+
+func TestJWTRejectsStaleGenerationAndDisabledPrincipal(t *testing.T) {
+	uid := uuid.New()
+	tok := token.NewHelper("secret", time.Minute)
+	lookup := &fakeSecurityLookup{
+		fakeLookup: &fakeLookup{usernames: map[uuid.UUID]string{uid: "alice"}},
+		states: map[uuid.UUID]PrincipalSecurityState{uid: {
+			AuthGeneration: 2,
+			SecurityState:  SecurityStateNormal,
+		}},
+	}
+
+	call := func(raw string) int {
+		h := JWT(tok, lookup, "")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+raw)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	current, err := tok.GenerateAccessTokenWithGeneration(uid, 2)
+	if err != nil {
+		t.Fatalf("current token: %v", err)
+	}
+	if got := call(current); got != http.StatusOK {
+		t.Fatalf("current generation status = %d, want 200", got)
+	}
+	stale, err := tok.GenerateAccessTokenWithGeneration(uid, 1)
+	if err != nil {
+		t.Fatalf("stale token: %v", err)
+	}
+	if got := call(stale); got != http.StatusUnauthorized {
+		t.Fatalf("stale generation status = %d, want 401", got)
+	}
+	lookup.states[uid] = PrincipalSecurityState{AuthGeneration: 2, SecurityState: SecurityStateCompromised, PasswordDisabled: true, PasswordResetRequired: true}
+	if got := call(current); got != http.StatusUnauthorized {
+		t.Fatalf("disabled principal status = %d, want 401", got)
+	}
+}
+
 func TestJWTAndRole(t *testing.T) {
 	uid := uuid.New()
 	adminUID := uuid.New()
@@ -67,10 +127,12 @@ type fakeGuard struct {
 func (f *fakeGuard) IsGroupAdmin(_ context.Context, gid, uid uuid.UUID) (bool, error) {
 	return f.groupAdmin[gid] == uid, nil
 }
-func (f *fakeGuard) IsGroupMember(_ context.Context, _, _ uuid.UUID) (bool, error)   { return false, nil }
-func (f *fakeGuard) IsGroupVisible(_ context.Context, _, _ uuid.UUID) (bool, error)  { return true, nil }
-func (f *fakeGuard) IsPinCreator(_ context.Context, _, _ uuid.UUID) (bool, error)    { return false, nil }
-func (f *fakeGuard) IsPinGroupAdmin(_ context.Context, _, _ uuid.UUID) (bool, error) { return false, nil }
+func (f *fakeGuard) IsGroupMember(_ context.Context, _, _ uuid.UUID) (bool, error)  { return false, nil }
+func (f *fakeGuard) IsGroupVisible(_ context.Context, _, _ uuid.UUID) (bool, error) { return true, nil }
+func (f *fakeGuard) IsPinCreator(_ context.Context, _, _ uuid.UUID) (bool, error)   { return false, nil }
+func (f *fakeGuard) IsPinGroupAdmin(_ context.Context, _, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
 func (f *fakeGuard) IsPinPublicOrMember(_ context.Context, pid, _ uuid.UUID) (bool, error) {
 	return f.pinPublicMember[pid], nil
 }

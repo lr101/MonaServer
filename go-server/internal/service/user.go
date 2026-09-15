@@ -75,15 +75,20 @@ func toUserInfo(u *db.User) *UserInfo {
 
 // User service — ports UserServiceImpl.
 type User struct {
-	q    *db.Queries
-	obj  *Object
-	tok  *token.Helper
-	auth *Auth
-	mail *Email
+	q        *db.Queries
+	obj      *Object
+	tok      *token.Helper
+	auth     *Auth
+	mail     *Email
+	security *AccountSecurity
 }
 
 func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Email) *User {
-	return &User{q: q, obj: obj, tok: tok, auth: auth, mail: mail}
+	security := NewAccountSecurity(q)
+	if auth != nil {
+		security = auth.Security()
+	}
+	return &User{q: q, obj: obj, tok: tok, auth: auth, mail: mail, security: security}
 }
 
 func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
@@ -99,28 +104,36 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
-	u, err := s.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	if u.Code == nil || u.CodeExpiration == nil {
-		return apperrors.ErrNotFound
-	}
-	if *u.Code != itoaCode(code) {
-		return apperrors.ErrNotFound
-	}
-	if time.Now().After(*u.CodeExpiration) {
-		return apperrors.New(400, "code expired")
-	}
-	groupIDs, err := s.q.ListAdminGroupIDs(ctx, id)
-	if err != nil {
-		return err
-	}
-	pinIDs, err := s.q.ListPinIDsRemovedWithUser(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+	var groupIDs, pinIDs []uuid.UUID
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		state, err := q.LockUserSecurity(ctx, id)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
+			return apperrors.ErrNotFound
+		}
+		u, err := q.GetUserByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if u == nil || u.Code == nil || u.CodeExpiration == nil {
+			return apperrors.ErrNotFound
+		}
+		if *u.Code != itoaCode(code) {
+			return apperrors.ErrNotFound
+		}
+		if time.Now().After(*u.CodeExpiration) {
+			return apperrors.New(400, "code expired")
+		}
+		groupIDs, err = q.ListAdminGroupIDs(ctx, id)
+		if err != nil {
+			return err
+		}
+		pinIDs, err = q.ListPinIDsRemovedWithUser(ctx, id)
+		if err != nil {
+			return err
+		}
 		for _, pinID := range pinIDs {
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
@@ -135,7 +148,8 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 			return err
 		}
 		return q.HardDeleteUser(ctx, id)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	if s.obj != nil {
@@ -178,9 +192,10 @@ func (s *User) ProfileImageURL(ctx context.Context, id uuid.UUID, small bool) (*
 // Update mirrors UserServiceImpl.updateUser.
 func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
 	var result *UserUpdateResult
-	err := s.q.InTx(ctx, func(q *db.Queries) error {
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
 		txService := *s
 		txService.q = q
+		txService.security = s.security
 		if s.auth != nil {
 			txAuth := *s.auth
 			txAuth.q = q
@@ -194,6 +209,17 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 }
 
 func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
+	var lockedState *db.UserSecurityState
+	if in.Email != nil || in.Password != nil {
+		var err error
+		lockedState, err = s.q.LockUserSecurity(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if lockedState == nil || lockedState.IsDeleted || lockedState.SecurityState != db.SecurityStateNormal || lockedState.PasswordDisabled || lockedState.PasswordResetRequired {
+			return nil, apperrors.ErrForbidden
+		}
+	}
 	u, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -201,6 +227,13 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 
 	var tokenResp *TokenPair
 	var profileImg, profileImgSmall *string
+	var newGeneration bool
+	if lockedState != nil {
+		if _, err := s.security.AdvanceGenerationForMutation(ctx, s.q, id); err != nil {
+			return nil, err
+		}
+		newGeneration = true
+	}
 
 	if len(in.Image) > 0 {
 		if s.obj == nil {
@@ -255,10 +288,12 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if err := s.q.UpdateUserPassword(ctx, id, hash); err != nil {
 			return nil, err
 		}
-		if err := s.q.InvalidateUserTokens(ctx, id); err != nil {
-			return nil, err
+		if !newGeneration {
+			if _, err := s.security.AdvanceGenerationForMutation(ctx, s.q, id); err != nil {
+				return nil, err
+			}
 		}
-		pair, err := s.auth.issueTokens(ctx, id)
+		pair, err := s.auth.issueTokensWithQueries(ctx, s.q, id)
 		if err != nil {
 			return nil, err
 		}
