@@ -8,6 +8,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccountActionToken struct {
+	ID                pgtype.UUID        `json:"id"`
+	TokenHash         []byte             `json:"token_hash"`
+	Purpose           string             `json:"purpose"`
+	AccountID         pgtype.UUID        `json:"account_id"`
+	EmailBinding      pgtype.Text        `json:"email_binding"`
+	AuthGeneration    int64              `json:"auth_generation"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt        pgtype.Timestamptz `json:"consumed_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+	DeliveryAttemptID pgtype.UUID        `json:"delivery_attempt_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Admin2Boundary struct {
 	ID       pgtype.UUID `json:"id"`
 	Gid0     pgtype.Text `json:"gid_0"`
@@ -26,10 +41,204 @@ type Admin2Boundary struct {
 	Geom     interface{} `json:"geom"`
 }
 
+type AdminJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	SnapshotID     pgtype.UUID        `json:"snapshot_id"`
+	Action         string             `json:"action"`
+	PayloadHash    []byte             `json:"payload_hash"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	Status         string             `json:"status"`
+	AccountCount   int64              `json:"account_count"`
+	EligibleCount  int64              `json:"eligible_count"`
+	DeviceCount    int64              `json:"device_count"`
+	CompletedCount int64              `json:"completed_count"`
+	FailedCount    int64              `json:"failed_count"`
+	Reason         pgtype.Text        `json:"reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
+type AdminJobItem struct {
+	ID                pgtype.UUID        `json:"id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	TargetID          pgtype.UUID        `json:"target_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	Outcome           string             `json:"outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	AttemptCount      int32              `json:"attempt_count"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AdminLoginChallenge struct {
+	ID             pgtype.UUID        `json:"id"`
+	ChallengeHash  []byte             `json:"challenge_hash"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	IpHmac         []byte             `json:"ip_hmac"`
+	FailedAttempts int32              `json:"failed_attempts"`
+	AuthGeneration int64              `json:"auth_generation"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	ConsumedAt     pgtype.Timestamptz `json:"consumed_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type AdminMembership struct {
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               pgtype.UUID        `json:"user_id"`
+	Permissions          []string           `json:"permissions"`
+	Active               bool               `json:"active"`
+	TotpSecretCiphertext []byte             `json:"totp_secret_ciphertext"`
+	TotpKeyID            pgtype.Text        `json:"totp_key_id"`
+	TotpEnrolledAt       pgtype.Timestamptz `json:"totp_enrolled_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	RevokedAt            pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type AdminMfaReplayCounter struct {
+	SessionID   pgtype.UUID        `json:"session_id"`
+	LastCounter int64              `json:"last_counter"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AdminSession struct {
+	ID                pgtype.UUID        `json:"id"`
+	SessionHash       []byte             `json:"session_hash"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	CsrfHash          []byte             `json:"csrf_hash"`
+	State             string             `json:"state"`
+	AuthGeneration    int64              `json:"auth_generation"`
+	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	IdleExpiresAt     pgtype.Timestamptz `json:"idle_expires_at"`
+	AbsoluteExpiresAt pgtype.Timestamptz `json:"absolute_expires_at"`
+	RecentMfaAt       pgtype.Timestamptz `json:"recent_mfa_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type AudienceSnapshot struct {
+	ID             pgtype.UUID        `json:"id"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	Resource       string             `json:"resource"`
+	Action         string             `json:"action"`
+	PayloadHash    []byte             `json:"payload_hash"`
+	Filter         []byte             `json:"filter"`
+	Status         string             `json:"status"`
+	AccountCount   int64              `json:"account_count"`
+	EligibleCount  int64              `json:"eligible_count"`
+	DeviceCount    int64              `json:"device_count"`
+	ExclusionCount int64              `json:"exclusion_count"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AudienceSnapshotMember struct {
+	SnapshotID    pgtype.UUID        `json:"snapshot_id"`
+	Ordinal       int64              `json:"ordinal"`
+	ResourceID    pgtype.UUID        `json:"resource_id"`
+	Eligible      bool               `json:"eligible"`
+	ExclusionCode pgtype.Text        `json:"exclusion_code"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type AuditEvent struct {
+	ID              pgtype.UUID        `json:"id"`
+	ActorID         pgtype.UUID        `json:"actor_id"`
+	TargetAccountID pgtype.UUID        `json:"target_account_id"`
+	Action          string             `json:"action"`
+	Reason          pgtype.Text        `json:"reason"`
+	Outcome         pgtype.Text        `json:"outcome"`
+	Metadata        []byte             `json:"metadata"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type CommunicationPreference struct {
+	UserID               pgtype.UUID        `json:"user_id"`
+	SecurityEmailEnabled bool               `json:"security_email_enabled"`
+	GeneralEmailEnabled  bool               `json:"general_email_enabled"`
+	PushEnabled          bool               `json:"push_enabled"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DeleteLog struct {
 	DeletedEntityType int16              `json:"deleted_entity_type"`
 	DeletedEntityID   pgtype.UUID        `json:"deleted_entity_id"`
 	CreationDate      pgtype.Timestamptz `json:"creation_date"`
+}
+
+type DeliveryAttempt struct {
+	ID                pgtype.UUID        `json:"id"`
+	Channel           string             `json:"channel"`
+	AccountID         pgtype.UUID        `json:"account_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	ItemID            pgtype.UUID        `json:"item_id"`
+	Status            string             `json:"status"`
+	AttemptNumber     int32              `json:"attempt_number"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	ProviderOutcome   pgtype.Text        `json:"provider_outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	EncryptedPayload  []byte             `json:"encrypted_payload"`
+	DeliveryKeyID     pgtype.Text        `json:"delivery_key_id"`
+	PayloadExpiresAt  pgtype.Timestamptz `json:"payload_expires_at"`
+	AcceptedAt        pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+}
+
+type DeviceRegistration struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Provider    string             `json:"provider"`
+	DeviceToken string             `json:"device_token"`
+	TokenHash   []byte             `json:"token_hash"`
+	Enabled     bool               `json:"enabled"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DurableJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	Kind           string             `json:"kind"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	Payload        []byte             `json:"payload"`
+	Priority       int32              `json:"priority"`
+	Status         string             `json:"status"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
+	AttemptCount   int32              `json:"attempt_count"`
+	MaxAttempts    int32              `json:"max_attempts"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseToken     pgtype.UUID        `json:"lease_token"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
+type EmailLoginClaim struct {
+	CanonicalEmail string             `json:"canonical_email"`
+	OwnerUserID    pgtype.UUID        `json:"owner_user_id"`
+	State          string             `json:"state"`
+	IsAmbiguous    bool               `json:"is_ambiguous"`
+	BlockedReason  pgtype.Text        `json:"blocked_reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Group struct {
@@ -79,6 +288,23 @@ type Member struct {
 	Active       bool             `json:"active"`
 }
 
+type OutboxEvent struct {
+	ID             pgtype.UUID        `json:"id"`
+	Topic          string             `json:"topic"`
+	AggregateID    pgtype.UUID        `json:"aggregate_id"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	Payload        []byte             `json:"payload"`
+	Status         string             `json:"status"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
+	AttemptCount   int32              `json:"attempt_count"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseToken     pgtype.UUID        `json:"lease_token"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	AcceptedAt     pgtype.Timestamptz `json:"accepted_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Pin struct {
 	ID              pgtype.UUID        `json:"id"`
 	CreationDate    pgtype.Timestamptz `json:"creation_date"`
@@ -93,6 +319,16 @@ type Pin struct {
 	Description     pgtype.Text        `json:"description"`
 }
 
+type RateLimitBucket struct {
+	Scope          string             `json:"scope"`
+	IdentifierHmac []byte             `json:"identifier_hmac"`
+	KeyID          string             `json:"key_id"`
+	WindowStart    pgtype.Timestamptz `json:"window_start"`
+	WindowEnd      pgtype.Timestamptz `json:"window_end"`
+	HitCount       int64              `json:"hit_count"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RefreshToken struct {
 	ID             pgtype.UUID        `json:"id"`
 	UpdateDate     pgtype.Timestamptz `json:"update_date"`
@@ -102,6 +338,32 @@ type RefreshToken struct {
 	LastActiveDate pgtype.Timestamptz `json:"last_active_date"`
 }
 
+type Report struct {
+	ID             pgtype.UUID        `json:"id"`
+	ReporterUserID pgtype.UUID        `json:"reporter_user_id"`
+	TargetID       pgtype.UUID        `json:"target_id"`
+	TargetKind     pgtype.Text        `json:"target_kind"`
+	TargetName     pgtype.Text        `json:"target_name"`
+	TargetDeleted  bool               `json:"target_deleted"`
+	Body           string             `json:"body"`
+	LegacyText     pgtype.Text        `json:"legacy_text"`
+	Status         string             `json:"status"`
+	AssigneeUserID pgtype.UUID        `json:"assignee_user_id"`
+	Revision       int64              `json:"revision"`
+	RequestID      pgtype.Text        `json:"request_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+}
+
+type ReportNote struct {
+	ID           pgtype.UUID        `json:"id"`
+	ReportID     pgtype.UUID        `json:"report_id"`
+	AuthorUserID pgtype.UUID        `json:"author_user_id"`
+	Body         string             `json:"body"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Season struct {
 	ID           pgtype.UUID        `json:"id"`
 	SeasonNumber int32              `json:"season_number"`
@@ -109,6 +371,18 @@ type Season struct {
 	Month        int32              `json:"month"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+}
+
+type SecurityIncident struct {
+	ID             pgtype.UUID        `json:"id"`
+	AccountID      pgtype.UUID        `json:"account_id"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	Reason         string             `json:"reason"`
+	PreviousState  pgtype.Text        `json:"previous_state"`
+	NewState       string             `json:"new_state"`
+	AuthGeneration int64              `json:"auth_generation"`
+	Metadata       []byte             `json:"metadata"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
@@ -135,6 +409,11 @@ type User struct {
 	EmailConfirmed          bool               `json:"email_confirmed"`
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	FirebaseToken           pgtype.Text        `json:"firebase_token"`
+	AuthGeneration          int64              `json:"auth_generation"`
+	SecurityState           string             `json:"security_state"`
+	PasswordDisabled        bool               `json:"password_disabled"`
+	PasswordResetRequired   bool               `json:"password_reset_required"`
+	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
 }
 
 type UserAchievement struct {

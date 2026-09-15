@@ -4,7 +4,9 @@
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE id = $1 AND is_deleted = FALSE;
 
@@ -12,12 +14,26 @@ WHERE id = $1 AND is_deleted = FALSE;
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE username = $1 AND is_deleted = FALSE;
 
 -- name: GetUsernameByID :one
 SELECT username FROM users WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetUserByEmail :one
+SELECT id, username, email, password, xp, description, profile_picture_exists,
+       email_confirmed, failed_login_attempts, firebase_token,
+       code, code_expiration, reset_password_url, reset_password_expiration,
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
+FROM users
+WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
+ORDER BY id
+LIMIT 1;
 
 -- name: CreateUser :one
 INSERT INTO users (

@@ -21,6 +21,10 @@ type Queries struct {
 	pool   *pgxpool.Pool
 	runner dbgen.DBTX
 	g      *dbgen.Queries
+	// inTx is true for a facade backed by a caller-owned transaction.  Methods
+	// that need an atomic claim/security update can start a transaction only at
+	// the outer edge and never accidentally nest one.
+	inTx bool
 }
 
 func New(pool *pgxpool.Pool) *Queries {
@@ -33,12 +37,15 @@ func (q *Queries) Gen() *dbgen.Queries { return q.g }
 func (q *Queries) Pool() *pgxpool.Pool { return q.pool }
 
 func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
+	if q.inTx {
+		return fn(q)
+	}
 	tx, err := q.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	txQueries := &Queries{pool: q.pool, runner: tx, g: q.g.WithTx(tx)}
+	txQueries := &Queries{pool: q.pool, runner: tx, g: q.g.WithTx(tx), inTx: true}
 	if err := fn(txQueries); err != nil {
 		return err
 	}
@@ -104,6 +111,11 @@ type User struct {
 	EmailConfirmationUrl    *string
 	LastUsernameUpdate      *time.Time
 	SelectedBatch           *uuid.UUID
+	AuthGeneration          int64
+	SecurityState           string
+	PasswordDisabled        bool
+	PasswordResetRequired   bool
+	CompromisedAt           *time.Time
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
@@ -142,6 +154,11 @@ func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
 		SelectedBatch:           sb,
+		AuthGeneration:          r.AuthGeneration,
+		SecurityState:           r.SecurityState,
+		PasswordDisabled:        r.PasswordDisabled,
+		PasswordResetRequired:   r.PasswordResetRequired,
+		CompromisedAt:           goTZ(r.CompromisedAt),
 	}
 }
 
@@ -172,29 +189,46 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 		DeletionUrl:             goText(row.DeletionUrl),
 		EmailConfirmationUrl:    goText(row.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(row.LastUsernameUpdate),
+		AuthGeneration:          row.AuthGeneration,
+		SecurityState:           row.SecurityState,
+		PasswordDisabled:        row.PasswordDisabled,
+		PasswordResetRequired:   row.PasswordResetRequired,
+		CompromisedAt:           goTZ(row.CompromisedAt),
 	}, nil
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	const getUserByEmail = `SELECT id, username, email, password, xp, description, profile_picture_exists,
-	       email_confirmed, failed_login_attempts, firebase_token,
-	       code, code_expiration, reset_password_url, reset_password_expiration,
-	       deletion_url, email_confirmation_url, last_username_update, selected_batch
-	FROM users WHERE email = $1 AND is_deleted = FALSE LIMIT 1`
-	row := q.runner.QueryRow(ctx, getUserByEmail, email)
-	var r dbgen.GetUserByIDRow
-	if err := row.Scan(
-		&r.ID, &r.Username, &r.Email, &r.Password, &r.Xp, &r.Description, &r.ProfilePictureExists,
-		&r.EmailConfirmed, &r.FailedLoginAttempts, &r.FirebaseToken, &r.Code, &r.CodeExpiration,
-		&r.ResetPasswordUrl, &r.ResetPasswordExpiration,
-		&r.DeletionUrl, &r.EmailConfirmationUrl, &r.LastUsernameUpdate, &r.SelectedBatch,
-	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
+	r, err := q.g.GetUserByEmail(ctx, email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
-	return userFromIDRow(r), nil
+	return &User{
+		ID:                      goUUID(r.ID),
+		Username:                r.Username.String,
+		Email:                   goText(r.Email),
+		Password:                r.Password.String,
+		XP:                      int64(r.Xp),
+		Description:             goText(r.Description),
+		ProfilePictureExists:    r.ProfilePictureExists,
+		EmailConfirmed:          r.EmailConfirmed,
+		FailedLoginAttempts:     int(r.FailedLoginAttempts),
+		FirebaseToken:           goText(r.FirebaseToken),
+		Code:                    goText(r.Code),
+		CodeExpiration:          goTZ(r.CodeExpiration),
+		ResetPasswordUrl:        goText(r.ResetPasswordUrl),
+		ResetPasswordExpiration: goTZ(r.ResetPasswordExpiration),
+		DeletionUrl:             goText(r.DeletionUrl),
+		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
+		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
+		AuthGeneration:          r.AuthGeneration,
+		SecurityState:           r.SecurityState,
+		PasswordDisabled:        r.PasswordDisabled,
+		PasswordResetRequired:   r.PasswordResetRequired,
+		CompromisedAt:           goTZ(r.CompromisedAt),
+	}, nil
 }
 
 func (q *Queries) GetUsernameByID(ctx context.Context, id uuid.UUID) (string, error) {
@@ -223,14 +257,6 @@ func (q *Queries) IncrementFailedLogin(ctx context.Context, id uuid.UUID) error 
 
 func (q *Queries) ResetFailedLogin(ctx context.Context, id uuid.UUID) error {
 	return q.g.ResetFailedLogin(ctx, pgUUID(id))
-}
-
-func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
-	return q.g.SoftDeleteUser(ctx, pgUUID(id))
-}
-
-func (q *Queries) HardDeleteUser(ctx context.Context, id uuid.UUID) error {
-	return q.g.HardDeleteUser(ctx, pgUUID(id))
 }
 
 func (q *Queries) ListAdminGroupIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
@@ -270,11 +296,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash str
 	return q.g.UpdateUserPassword(ctx, dbgen.UpdateUserPasswordParams{ID: pgUUID(id), Password: pgTextS(hash)})
 }
 func (q *Queries) UpdateUserEmail(ctx context.Context, id uuid.UUID, email, confirmationUrl *string) error {
-	return q.g.UpdateUserEmail(ctx, dbgen.UpdateUserEmailParams{
-		ID:                   pgUUID(id),
-		Email:                pgText(email),
-		EmailConfirmationUrl: pgText(confirmationUrl),
-	})
+	return q.ChangeUserEmail(ctx, id, email, confirmationUrl)
 }
 func (q *Queries) SetUserProfilePictureExists(ctx context.Context, id uuid.UUID, exists bool) error {
 	return q.g.SetUserProfilePictureExists(ctx, dbgen.SetUserProfilePictureExistsParams{ID: pgUUID(id), ProfilePictureExists: exists})
@@ -345,7 +367,14 @@ func (q *Queries) GetUserByEmailConfirmationUrl(ctx context.Context, url string)
 }
 
 func (q *Queries) ConfirmUserEmail(ctx context.Context, id uuid.UUID) error {
-	return q.g.ConfirmUserEmail(ctx, pgUUID(id))
+	confirmed, err := q.ConfirmUserEmailWithClaim(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return ErrEmailClaimUnavailable
+	}
+	return nil
 }
 
 func (q *Queries) ListAllUserEmails(ctx context.Context) ([]string, error) {
