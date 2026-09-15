@@ -182,8 +182,98 @@ class ApiClient {
           return valueString == 'true' || valueString == '1';
         case 'DateTime':
           return value is DateTime ? value : DateTime.tryParse(value);
+        case 'AdminAction':
+          return AdminAction.fromJson(value);
+        case 'AdminActionKind':
+          return AdminActionKindTypeTransformer().decode(value);
+        case 'AdminAudience':
+          return AdminAudience.fromJson(value);
+        case 'AdminAudienceCountsDto':
+          return AdminAudienceCountsDto.fromJson(value);
+        case 'AdminAudienceExclusionDto':
+          return AdminAudienceExclusionDto.fromJson(value);
+        case 'AdminAudienceMemberDto':
+          return AdminAudienceMemberDto.fromJson(value);
+        case 'AdminAudiencePageDto':
+          return AdminAudiencePageDto.fromJson(value);
+        case 'AdminAudiencePreviewAcceptedDto':
+          return AdminAudiencePreviewAcceptedDto.fromJson(value);
+        case 'AdminAudiencePreviewDto':
+          return AdminAudiencePreviewDto.fromJson(value);
+        case 'AdminAudiencePreviewRequestDto':
+          return AdminAudiencePreviewRequestDto.fromJson(value);
+        case 'AdminAuditEventDto':
+          return AdminAuditEventDto.fromJson(value);
+        case 'AdminAuditPageDto':
+          return AdminAuditPageDto.fromJson(value);
+        case 'AdminJobAcceptedDto':
+          return AdminJobAcceptedDto.fromJson(value);
+        case 'AdminJobCommandRequestDto':
+          return AdminJobCommandRequestDto.fromJson(value);
+        case 'AdminJobCreateRequestDto':
+          return AdminJobCreateRequestDto.fromJson(value);
+        case 'AdminJobDto':
+          return AdminJobDto.fromJson(value);
+        case 'AdminJobPageDto':
+          return AdminJobPageDto.fromJson(value);
+        case 'AdminJobRecipientDto':
+          return AdminJobRecipientDto.fromJson(value);
+        case 'AdminJobRecipientPageDto':
+          return AdminJobRecipientPageDto.fromJson(value);
+        case 'AdminJobStatus':
+          return AdminJobStatusTypeTransformer().decode(value);
         case 'AdminMailDto':
           return AdminMailDto.fromJson(value);
+        case 'AdminMfaRequestDto':
+          return AdminMfaRequestDto.fromJson(value);
+        case 'AdminReauthenticateRequestDto':
+          return AdminReauthenticateRequestDto.fromJson(value);
+        case 'AdminReportDto':
+          return AdminReportDto.fromJson(value);
+        case 'AdminReportNoteDto':
+          return AdminReportNoteDto.fromJson(value);
+        case 'AdminReportNoteRequestDto':
+          return AdminReportNoteRequestDto.fromJson(value);
+        case 'AdminReportPageDto':
+          return AdminReportPageDto.fromJson(value);
+        case 'AdminReportStatus':
+          return AdminReportStatusTypeTransformer().decode(value);
+        case 'AdminReportTargetDto':
+          return AdminReportTargetDto.fromJson(value);
+        case 'AdminReportUpdateRequestDto':
+          return AdminReportUpdateRequestDto.fromJson(value);
+        case 'AdminSecurityState':
+          return AdminSecurityStateTypeTransformer().decode(value);
+        case 'AdminSessionBootstrapDto':
+          return AdminSessionBootstrapDto.fromJson(value);
+        case 'AdminSessionDto':
+          return AdminSessionDto.fromJson(value);
+        case 'AdminSessionLoginRequestDto':
+          return AdminSessionLoginRequestDto.fromJson(value);
+        case 'AdminSessionLoginResponseDto':
+          return AdminSessionLoginResponseDto.fromJson(value);
+        case 'AdminSessionState':
+          return AdminSessionStateTypeTransformer().decode(value);
+        case 'AdminTestMessageAcceptedDto':
+          return AdminTestMessageAcceptedDto.fromJson(value);
+        case 'AdminTestMessageRequestDto':
+          return AdminTestMessageRequestDto.fromJson(value);
+        case 'AdminUserDetailsDto':
+          return AdminUserDetailsDto.fromJson(value);
+        case 'AdminUserDto':
+          return AdminUserDto.fromJson(value);
+        case 'AdminUserFilterDto':
+          return AdminUserFilterDto.fromJson(value);
+        case 'AdminUserPageDto':
+          return AdminUserPageDto.fromJson(value);
+        case 'AllAudience':
+          return AllAudience.fromJson(value);
+        case 'ApiErrorDto':
+          return ApiErrorDto.fromJson(value);
+        case 'AudienceKind':
+          return AudienceKindTypeTransformer().decode(value);
+        case 'AudienceResourceKind':
+          return AudienceResourceKindTypeTransformer().decode(value);
         case 'BatchReadItem':
           return BatchReadItem.fromJson(value);
         case 'BatchReadRequest':
@@ -196,6 +286,18 @@ class ApiClient {
           return CreateGroupDto.fromJson(value);
         case 'CreateLikeDto':
           return CreateLikeDto.fromJson(value);
+        case 'EmailActionDto':
+          return EmailActionDto.fromJson(value);
+        case 'EmailLinkExchangeRequestDto':
+          return EmailLinkExchangeRequestDto.fromJson(value);
+        case 'EmailLinkExchangeResponseDto':
+          return EmailLinkExchangeResponseDto.fromJson(value);
+        case 'EmailLinkRequestAcceptedDto':
+          return EmailLinkRequestAcceptedDto.fromJson(value);
+        case 'EmailLinkRequestDto':
+          return EmailLinkRequestDto.fromJson(value);
+        case 'FilterAudience':
+          return FilterAudience.fromJson(value);
         case 'GroupDto':
           return GroupDto.fromJson(value);
         case 'GroupRankingDtoInner':
@@ -204,8 +306,12 @@ class ApiClient {
           return GroupsSyncDto.fromJson(value);
         case 'InfoDto':
           return InfoDto.fromJson(value);
+        case 'LoginLinkActionDto':
+          return LoginLinkActionDto.fromJson(value);
         case 'MapInfoDto':
           return MapInfoDto.fromJson(value);
+        case 'MarkCompromisedActionDto':
+          return MarkCompromisedActionDto.fromJson(value);
         case 'MemberResponseDto':
           return MemberResponseDto.fromJson(value);
         case 'NotificationDto':
@@ -218,16 +324,32 @@ class ApiClient {
           return PinWithOptionalImageDto.fromJson(value);
         case 'PinsSyncDto':
           return PinsSyncDto.fromJson(value);
+        case 'PushActionDto':
+          return PushActionDto.fromJson(value);
         case 'RankingSearchDtoInner':
           return RankingSearchDtoInner.fromJson(value);
+        case 'RecoveryCompleteRequestDto':
+          return RecoveryCompleteRequestDto.fromJson(value);
+        case 'RecoveryResendActionDto':
+          return RecoveryResendActionDto.fromJson(value);
         case 'RefreshTokenRequestDto':
           return RefreshTokenRequestDto.fromJson(value);
+        case 'ReportDismissActionDto':
+          return ReportDismissActionDto.fromJson(value);
         case 'ReportDto':
           return ReportDto.fromJson(value);
+        case 'ReportResolveActionDto':
+          return ReportResolveActionDto.fromJson(value);
+        case 'RevokeSessionsActionDto':
+          return RevokeSessionsActionDto.fromJson(value);
         case 'SeasonDto':
           return SeasonDto.fromJson(value);
         case 'SeasonItemDto':
           return SeasonItemDto.fromJson(value);
+        case 'SelectedAudience':
+          return SelectedAudience.fromJson(value);
+        case 'SessionRevokeRequestDto':
+          return SessionRevokeRequestDto.fromJson(value);
         case 'Status':
           return Status.fromJson(value);
         case 'SyncDto':

@@ -249,3 +249,132 @@ type UsersAPIServicer interface {
 	GetUserAchievements(context.Context, string) (ImplResponse, error)
 	ClaimUserAchievement(context.Context, string, int32) (ImplResponse, error)
 }
+
+// The v3 interfaces below are preserved here because this compatibility adapter
+// is intentionally excluded from generator overwrites. The generated v3
+// controllers in this package depend on these contracts until their servicers
+// are implemented and registered behind the corresponding feature flags.
+
+// AdminAudiencesAPIRouter defines the HTTP binding for admin audience operations.
+type AdminAudiencesAPIRouter interface {
+	PreviewAdminAudience(http.ResponseWriter, *http.Request)
+	GetAdminAudience(http.ResponseWriter, *http.Request)
+}
+
+// AdminAuditAPIRouter defines the HTTP binding for admin audit operations.
+type AdminAuditAPIRouter interface {
+	ListAdminAudit(http.ResponseWriter, *http.Request)
+}
+
+// AdminJobsAPIRouter defines the HTTP binding for admin job operations.
+type AdminJobsAPIRouter interface {
+	ListAdminJobs(http.ResponseWriter, *http.Request)
+	CreateAdminJob(http.ResponseWriter, *http.Request)
+	GetAdminJob(http.ResponseWriter, *http.Request)
+	ListAdminJobRecipients(http.ResponseWriter, *http.Request)
+	RetryAdminJob(http.ResponseWriter, *http.Request)
+	CancelAdminJob(http.ResponseWriter, *http.Request)
+}
+
+// AdminMessagesAPIRouter defines the HTTP binding for admin test messages.
+type AdminMessagesAPIRouter interface {
+	SendAdminTestMessage(http.ResponseWriter, *http.Request)
+}
+
+// AdminReportsAPIRouter defines the HTTP binding for admin report operations.
+type AdminReportsAPIRouter interface {
+	ListAdminReports(http.ResponseWriter, *http.Request)
+	GetAdminReport(http.ResponseWriter, *http.Request)
+	UpdateAdminReport(http.ResponseWriter, *http.Request)
+	AddAdminReportNote(http.ResponseWriter, *http.Request)
+}
+
+// AdminSessionAPIRouter defines the HTTP binding for admin session operations.
+type AdminSessionAPIRouter interface {
+	BootstrapAdminSession(http.ResponseWriter, *http.Request)
+	AdminSessionLogin(http.ResponseWriter, *http.Request)
+	CompleteAdminSessionMfa(http.ResponseWriter, *http.Request)
+	ReauthenticateAdminSession(http.ResponseWriter, *http.Request)
+	LogoutAdminSession(http.ResponseWriter, *http.Request)
+	GetAdminSession(http.ResponseWriter, *http.Request)
+}
+
+// AdminUsersAPIRouter defines the HTTP binding for admin user operations.
+type AdminUsersAPIRouter interface {
+	ListAdminUsers(http.ResponseWriter, *http.Request)
+	GetAdminUser(http.ResponseWriter, *http.Request)
+}
+
+// PublicAuthAPIRouter defines the HTTP binding for public email authentication.
+type PublicAuthAPIRouter interface {
+	RequestEmailLink(http.ResponseWriter, *http.Request)
+	ExchangeEmailLink(http.ResponseWriter, *http.Request)
+	CompleteRecovery(http.ResponseWriter, *http.Request)
+}
+
+// SessionAuthAPIRouter defines the HTTP binding for own-session operations.
+type SessionAuthAPIRouter interface {
+	RevokeOwnSession(http.ResponseWriter, *http.Request)
+}
+
+// AdminAudiencesAPIServicer defines the v3 admin audience service contract.
+type AdminAudiencesAPIServicer interface {
+	PreviewAdminAudience(context.Context, string, AdminAudiencePreviewRequestDto) (ImplResponse, error)
+	GetAdminAudience(context.Context, string, string, int32) (ImplResponse, error)
+}
+
+// AdminAuditAPIServicer defines the v3 admin audit service contract.
+type AdminAuditAPIServicer interface {
+	ListAdminAudit(context.Context, string, int32, string, AdminActionKind) (ImplResponse, error)
+}
+
+// AdminJobsAPIServicer defines the v3 admin job service contract.
+type AdminJobsAPIServicer interface {
+	ListAdminJobs(context.Context, string, int32, AdminJobStatus, AdminActionKind) (ImplResponse, error)
+	CreateAdminJob(context.Context, string, string, AdminJobCreateRequestDto) (ImplResponse, error)
+	GetAdminJob(context.Context, string) (ImplResponse, error)
+	ListAdminJobRecipients(context.Context, string, string, int32) (ImplResponse, error)
+	RetryAdminJob(context.Context, string, string, string, AdminJobCommandRequestDto) (ImplResponse, error)
+	CancelAdminJob(context.Context, string, string, string, AdminJobCommandRequestDto) (ImplResponse, error)
+}
+
+// AdminMessagesAPIServicer defines the v3 admin test-message service contract.
+type AdminMessagesAPIServicer interface {
+	SendAdminTestMessage(context.Context, string, AdminTestMessageRequestDto) (ImplResponse, error)
+}
+
+// AdminReportsAPIServicer defines the v3 admin report service contract.
+type AdminReportsAPIServicer interface {
+	ListAdminReports(context.Context, string, int32, AdminReportStatus, string) (ImplResponse, error)
+	GetAdminReport(context.Context, string, int64) (ImplResponse, error)
+	UpdateAdminReport(context.Context, string, string, AdminReportUpdateRequestDto) (ImplResponse, error)
+	AddAdminReportNote(context.Context, string, string, AdminReportNoteRequestDto) (ImplResponse, error)
+}
+
+// AdminSessionAPIServicer defines the v3 admin session service contract.
+type AdminSessionAPIServicer interface {
+	BootstrapAdminSession(context.Context) (ImplResponse, error)
+	AdminSessionLogin(context.Context, string, AdminSessionLoginRequestDto) (ImplResponse, error)
+	CompleteAdminSessionMfa(context.Context, string, AdminMfaRequestDto) (ImplResponse, error)
+	ReauthenticateAdminSession(context.Context, string, AdminReauthenticateRequestDto) (ImplResponse, error)
+	LogoutAdminSession(context.Context, string) (ImplResponse, error)
+	GetAdminSession(context.Context) (ImplResponse, error)
+}
+
+// AdminUsersAPIServicer defines the v3 admin user service contract.
+type AdminUsersAPIServicer interface {
+	ListAdminUsers(context.Context, string, int32, string, AdminSecurityState, bool, time.Time, time.Time) (ImplResponse, error)
+	GetAdminUser(context.Context, string) (ImplResponse, error)
+}
+
+// PublicAuthAPIServicer defines the v3 public email authentication contract.
+type PublicAuthAPIServicer interface {
+	RequestEmailLink(context.Context, EmailLinkRequestDto) (ImplResponse, error)
+	ExchangeEmailLink(context.Context, EmailLinkExchangeRequestDto) (ImplResponse, error)
+	CompleteRecovery(context.Context, RecoveryCompleteRequestDto) (ImplResponse, error)
+}
+
+// SessionAuthAPIServicer defines the v3 own-session service contract.
+type SessionAuthAPIServicer interface {
+	RevokeOwnSession(context.Context, SessionRevokeRequestDto) (ImplResponse, error)
+}

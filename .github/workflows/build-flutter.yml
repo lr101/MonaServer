@@ -89,6 +89,8 @@ jobs:
             -g dart \
             -o "$generated_api" \
             --skip-validate-spec
+          # OpenAPI Generator 7.9.0 leaves trailing whitespace for cookie API keys.
+          sed -i '/^- \*\*Location\*\*: $/s/[[:blank:]]\+$//' "$generated_api/README.md"
           diff -ru \
             --exclude=pubspec.yaml \
             --exclude=pubspec.lock \
