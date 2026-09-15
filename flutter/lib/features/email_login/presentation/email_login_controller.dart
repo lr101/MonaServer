@@ -365,12 +365,12 @@ final class EmailLoginController {
   Future<EmailLoginViewState> declineAccountSwitch() async {
     if (_disposed || !_state.needsAccountSwitchConfirmation) return _state;
     final exchange = _pendingExchange;
-    _operation++;
+    final operation = ++_operation;
     _clearPending();
     if (exchange != null) {
       await _revoke(exchange.credentials.refreshToken);
     }
-    if (_disposed) return _state;
+    if (!_isCurrent(operation)) return _state;
     _emit(const EmailLoginViewState.accountSwitchDeclined());
     return _state;
   }
@@ -417,12 +417,14 @@ final class EmailLoginController {
         !_generationMatches(session.generation) ||
         current.userId != session.userId) {
       await _revokeResult(result);
+      if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.staleGeneration());
       return _state;
     }
     if (current.cleanupRequired) {
       await _revokeResult(result);
+      if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.cleanupRequired());
       return _state;
@@ -491,12 +493,14 @@ final class EmailLoginController {
         !_generationMatches(expectedGeneration) ||
         current.userId != session.userId) {
       await _revoke(exchange.credentials.refreshToken);
+      if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.staleGeneration());
       return _state;
     }
     if (current.cleanupRequired) {
       await _revoke(exchange.credentials.refreshToken);
+      if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.cleanupRequired());
       return _state;
@@ -529,6 +533,7 @@ final class EmailLoginController {
       return _state;
     }
     await _revoke(exchange.credentials.refreshToken);
+    if (!_isCurrent(operation)) return _state;
     final next = switch (result.status) {
       EmailLoginAdmissionStatus.staleGeneration =>
         const EmailLoginViewState.staleGeneration(),

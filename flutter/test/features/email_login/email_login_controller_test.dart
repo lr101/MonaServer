@@ -242,6 +242,155 @@ void main() {
     },
   );
 
+  test(
+    'delayed stale-response revocation cannot clear a newer launch',
+    () async {
+      final exchangePort = _FakeExchangePort()
+        ..result = const EmailLinkExchangeResult.success(_exchange);
+      final admissionPort = _FakeAdmissionPort(_signedOutSession)
+        ..revokeStarted = Completer<void>()
+        ..pendingRevocation = Completer<void>();
+      final controller = EmailLoginController(
+        exchangePort: exchangePort,
+        admissionPort: admissionPort,
+      );
+      controller.setLaunchData(
+        EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-one')!),
+      );
+
+      final pending = controller.confirmSignIn();
+      admissionPort.session = const EmailLoginSessionSnapshot(
+        userId: null,
+        generation: 13,
+        cleanupRequired: false,
+      );
+      await admissionPort.revokeStarted!.future;
+
+      controller.setLaunchData(
+        EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-two')!),
+      );
+      admissionPort.pendingRevocation!.complete();
+
+      expect((await pending).status, EmailLoginViewStatus.awaitingConfirmation);
+      expect(
+        controller.state.status,
+        EmailLoginViewStatus.awaitingConfirmation,
+      );
+
+      final next = await controller.confirmSignIn();
+
+      expect(next.status, EmailLoginViewStatus.signedIn);
+      expect(exchangePort.tokens.map((token) => token.value), [
+        'token-one',
+        'token-two',
+      ]);
+    },
+  );
+
+  test(
+    'failed admission revokes credentials without overwriting a newer launch',
+    () async {
+      final exchangePort = _FakeExchangePort()
+        ..result = const EmailLinkExchangeResult.success(_exchange);
+      final admissionPort = _FakeAdmissionPort(_signedOutSession)
+        ..admissionResult = const EmailLoginAdmissionResult.failed()
+        ..revokeStarted = Completer<void>()
+        ..pendingRevocation = Completer<void>();
+      final controller = EmailLoginController(
+        exchangePort: exchangePort,
+        admissionPort: admissionPort,
+      );
+      controller.setLaunchData(
+        EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-one')!),
+      );
+
+      final pending = controller.confirmSignIn();
+      await admissionPort.revokeStarted!.future;
+
+      controller.setLaunchData(
+        EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-two')!),
+      );
+      admissionPort.pendingRevocation!.complete();
+
+      expect((await pending).status, EmailLoginViewStatus.awaitingConfirmation);
+      expect(
+        controller.state.status,
+        EmailLoginViewStatus.awaitingConfirmation,
+      );
+      expect(admissionPort.revokedRefreshTokens, ['refresh-token']);
+
+      admissionPort.admissionResult =
+          const EmailLoginAdmissionResult.accepted();
+      expect(
+        (await controller.confirmSignIn()).status,
+        EmailLoginViewStatus.signedIn,
+      );
+    },
+  );
+
+  test('decline revocation cannot overwrite a newer launch', () async {
+    final exchangePort = _FakeExchangePort()
+      ..result = const EmailLinkExchangeResult.success(_exchange);
+    final admissionPort = _FakeAdmissionPort(_signedInSession)
+      ..revokeStarted = Completer<void>()
+      ..pendingRevocation = Completer<void>();
+    final controller = EmailLoginController(
+      exchangePort: exchangePort,
+      admissionPort: admissionPort,
+    );
+    controller.setLaunchData(
+      EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-one')!),
+    );
+    await controller.confirmSignIn();
+
+    final declined = controller.declineAccountSwitch();
+    await admissionPort.revokeStarted!.future;
+
+    controller.setLaunchData(
+      EmailLinkLaunchData.captured(EmailLinkToken.tryParse('token-two')!),
+    );
+    admissionPort.pendingRevocation!.complete();
+
+    expect((await declined).status, EmailLoginViewStatus.awaitingConfirmation);
+    expect(controller.state.status, EmailLoginViewStatus.awaitingConfirmation);
+    expect(
+      (await controller.confirmSignIn()).status,
+      EmailLoginViewStatus.awaitingAccountSwitchConfirmation,
+    );
+    expect(exchangePort.tokens.map((token) => token.value), [
+      'token-one',
+      'token-two',
+    ]);
+  });
+
+  test(
+    'duplicate account-switch admission shares one pending submission',
+    () async {
+      final admissionPort = _FakeAdmissionPort(_signedInSession)
+        ..pendingAdmission = Completer<EmailLoginAdmissionResult>();
+      final controller = EmailLoginController(
+        exchangePort: _FakeExchangePort()
+          ..result = const EmailLinkExchangeResult.success(_exchange),
+        admissionPort: admissionPort,
+      );
+      controller.setLaunchData(
+        EmailLinkLaunchData.captured(EmailLinkToken.tryParse('opaque-token')!),
+      );
+      await controller.confirmSignIn();
+
+      final first = controller.confirmAccountSwitch();
+      final second = controller.confirmAccountSwitch();
+
+      expect(admissionPort.admissions, hasLength(1));
+      expect(identical(first, second), isTrue);
+      admissionPort.pendingAdmission!.complete(
+        const EmailLoginAdmissionResult.accepted(),
+      );
+
+      expect((await first).status, EmailLoginViewStatus.signedIn);
+    },
+  );
+
   test('late exchange after cancellation cannot write state', () async {
     final exchangePort = _FakeExchangePort()..pending = Completer();
     final admissionPort = _FakeAdmissionPort(_signedOutSession);
@@ -289,6 +438,21 @@ void main() {
       );
     },
   );
+
+  test('duplicate recovery submission shares one pending request', () async {
+    final recoveryPort = _FakeRecoveryPort()..pending = Completer();
+    final controller = EmailRecoveryController(recoveryPort);
+    controller.setToken('raw-recovery-token');
+
+    final first = controller.submit('a valid replacement password');
+    final second = controller.submit('a valid replacement password');
+
+    expect(recoveryPort.calls, 1);
+    expect(identical(first, second), isTrue);
+    recoveryPort.pending!.complete(const RecoveryCompletionResult.completed());
+
+    expect((await first).status, EmailRecoveryViewStatus.completed);
+  });
 }
 
 const _signedOutSession = EmailLoginSessionSnapshot(
@@ -340,12 +504,14 @@ class _FakeRequestPort implements EmailLinkRequestPort {
 
 class _FakeExchangePort implements EmailLinkExchangePort {
   int calls = 0;
+  final tokens = <EmailLinkToken>[];
   Completer<EmailLinkExchangeResult>? pending;
   EmailLinkExchangeResult result = const EmailLinkExchangeResult.unavailable();
 
   @override
   Future<EmailLinkExchangeResult> exchange(EmailLinkToken token) async {
     calls++;
+    tokens.add(token);
     if (pending != null) return pending!.future;
     return result;
   }
@@ -358,6 +524,11 @@ class _FakeAdmissionPort implements EmailLoginAdmissionPort {
   EmailLoginSessionSnapshot session;
   final admissions = <({EmailLinkExchange exchange, int expectedGeneration})>[];
   final revokedRefreshTokens = <String>[];
+  EmailLoginAdmissionResult admissionResult =
+      const EmailLoginAdmissionResult.accepted();
+  Completer<EmailLoginAdmissionResult>? pendingAdmission;
+  Completer<void>? revokeStarted;
+  Completer<void>? pendingRevocation;
 
   @override
   bool isGenerationCurrent(int expectedGeneration) =>
@@ -372,17 +543,24 @@ class _FakeAdmissionPort implements EmailLoginAdmissionPort {
       exchange: exchange,
       expectedGeneration: expectedGeneration,
     ));
-    return const EmailLoginAdmissionResult.accepted();
+    if (pendingAdmission != null) return pendingAdmission!.future;
+    return admissionResult;
   }
 
   @override
   Future<void> revokeRefreshCredential(String refreshToken) async {
     revokedRefreshTokens.add(refreshToken);
+    if (revokeStarted != null && !revokeStarted!.isCompleted) {
+      revokeStarted!.complete();
+    }
+    if (pendingRevocation != null) await pendingRevocation!.future;
   }
 }
 
 class _FakeRecoveryPort implements EmailRecoveryPort {
+  int calls = 0;
   final tokens = <RecoveryToken>[];
+  Completer<RecoveryCompletionResult>? pending;
   RecoveryCompletionResult result = const RecoveryCompletionResult.completed();
 
   @override
@@ -390,7 +568,9 @@ class _FakeRecoveryPort implements EmailRecoveryPort {
     RecoveryToken token,
     RecoveryPassword password,
   ) async {
+    calls++;
     tokens.add(token);
+    if (pending != null) return pending!.future;
     return result;
   }
 }
