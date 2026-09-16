@@ -6,12 +6,16 @@ class CameraSelectorButton extends StatefulWidget {
     required this.cameras,
     required this.selectedIndex,
     required this.onSelected,
+    this.maxMenuHeight = 240,
+    this.menuBottomSpacing = 0,
     super.key,
   });
 
   final List<CameraDescription> cameras;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final double maxMenuHeight;
+  final double menuBottomSpacing;
 
   @override
   State<CameraSelectorButton> createState() => _CameraSelectorButtonState();
@@ -78,15 +82,15 @@ class _CameraSelectorButtonState extends State<CameraSelectorButton>
               ),
             ),
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: 8 + widget.menuBottomSpacing),
               child: Material(
                 elevation: 6,
                 borderRadius: BorderRadius.circular(20),
                 clipBehavior: Clip.antiAlias,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
+                  constraints: BoxConstraints(
                     maxWidth: 240,
-                    maxHeight: 240,
+                    maxHeight: widget.maxMenuHeight,
                   ),
                   child: SingleChildScrollView(
                     child: Column(
