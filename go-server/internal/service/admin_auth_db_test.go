@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -680,11 +681,15 @@ func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("revoke membership: %v", err)
 	}
+	revokedBefore, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || revokedBefore == nil {
+		t.Fatalf("revoked membership before recovery: %v %#v", err, revokedBefore)
+	}
 	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", &actorID); err != ErrAdminForbidden {
 		t.Fatalf("revoked recovery err=%v, want %v", err, ErrAdminForbidden)
 	}
 	revoked, err := q.GetAdminMembership(ctx, userID)
-	if err != nil || revoked == nil || revoked.RevokedAt == nil || !revoked.Active {
+	if err != nil || revoked == nil || !reflect.DeepEqual(*revokedBefore, *revoked) {
 		t.Fatalf("revoked membership changed: %v %#v", err, revoked)
 	}
 }
@@ -752,8 +757,12 @@ func TestBreakGlassRecoveryRejectsInvalidActorStateBeforeMutation(t *testing.T) 
 	}
 
 	compromisedAt := time.Now().UTC()
-	if err := q.SetUserSecurityState(ctx, actorID, db.SecurityStateCompromised, true, true, &compromisedAt); err != nil {
+	if err := q.SetUserSecurityState(ctx, actorID, db.SecurityStateCompromised, false, false, &compromisedAt); err != nil {
 		t.Fatalf("compromise actor: %v", err)
+	}
+	compromisedState, err := q.GetUserSecurityState(ctx, actorID)
+	if err != nil || compromisedState == nil || compromisedState.SecurityState != db.SecurityStateCompromised || compromisedState.PasswordDisabled || compromisedState.PasswordResetRequired || compromisedState.CompromisedAt == nil {
+		t.Fatalf("compromised actor state = %v %#v", err, compromisedState)
 	}
 	assertRejectedWithoutMutation("compromised")
 }
