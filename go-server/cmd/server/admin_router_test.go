@@ -53,7 +53,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	})
 	currentNow := time.Now().UTC().Truncate(time.Second)
 	admin.SetClock(func() time.Time { return currentNow })
-	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "campaign.email"})
+	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "reports.read", "campaign.email"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	r := chi.NewRouter()
 	r.Use(globalCORS(cfg.AdminOrigin))
 	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin, cfg.AdminOrigin)
-	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin)
+	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin, q)
 
 	origin := cfg.AdminOrigin
 	newRequest := func(method, path, body string) *http.Request {
@@ -164,6 +164,24 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	r.ServeHTTP(users, usersReq)
 	if users.Code != http.StatusServiceUnavailable {
 		t.Fatalf("authenticated users status = %d, body = %s", users.Code, users.Body.String())
+	}
+
+	if _, err := service.NewReportService(q).Submit(ctx, service.ReportSubmission{
+		ReporterID: enrollment.UserID,
+		Body:       "router report",
+	}); err != nil {
+		t.Fatalf("create router report: %v", err)
+	}
+	reportsReq := newRequest(http.MethodGet, "/api/v3/admin/reports?limit=1", "")
+	reportsReq.AddCookie(authCookie)
+	reports := httptest.NewRecorder()
+	r.ServeHTTP(reports, reportsReq)
+	if reports.Code != http.StatusOK {
+		t.Fatalf("authenticated reports status = %d, body = %s", reports.Code, reports.Body.String())
+	}
+	var reportPage genserver.AdminReportPageDto
+	if err := json.Unmarshal(reports.Body.Bytes(), &reportPage); err != nil || len(reportPage.Items) != 1 || reportPage.Items[0].Text != "router report" {
+		t.Fatalf("authenticated reports response = %s err=%v", reports.Body.String(), err)
 	}
 
 	// Membership is reloaded for every request: removing users.read changes a

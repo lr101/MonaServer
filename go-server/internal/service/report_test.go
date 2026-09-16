@@ -447,6 +447,74 @@ func TestReportServiceTargetDeletionRaceMarksReportsDeleted(t *testing.T) {
 	}
 }
 
+func TestReportServiceConcurrentUserDeleteDoesNotDeadlock(t *testing.T) {
+	_, q := setupPool(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	reporterID := uuid.New()
+	targetID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "user-delete-reporter")
+	insertReportTestUser(t, q, targetID, "user-delete-target")
+	if _, err := q.Pool().Exec(ctx, `
+		UPDATE users
+		SET code = '001234', code_expiration = NOW() + INTERVAL '5 minutes'
+		WHERE id = $1`, targetID); err != nil {
+		t.Fatalf("set deletion code: %v", err)
+	}
+
+	targetKind := "user"
+	reports := NewReportService(q)
+	users := NewUser(q, nil, nil, nil, nil)
+	start := make(chan struct{})
+	reportResult := make(chan struct {
+		report *db.Report
+		err    error
+	}, 1)
+	deleteResult := make(chan error, 1)
+	go func() {
+		<-start
+		report, err := reports.Submit(ctx, ReportSubmission{
+			ReporterID: reporterID, TargetID: &targetID, TargetKind: &targetKind,
+			Body: "report while account is deleted",
+		})
+		reportResult <- struct {
+			report *db.Report
+			err    error
+		}{report: report, err: err}
+	}()
+	go func() {
+		<-start
+		deleteResult <- users.Delete(ctx, targetID, 1234)
+	}()
+	close(start)
+
+	var report *db.Report
+	select {
+	case result := <-reportResult:
+		if result.err != nil {
+			t.Fatalf("concurrent report submission: %v", result.err)
+		}
+		report = result.report
+	case <-ctx.Done():
+		t.Fatalf("report submission deadlocked: %v", ctx.Err())
+	}
+	select {
+	case err := <-deleteResult:
+		if err != nil {
+			t.Fatalf("concurrent user delete: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatalf("user delete deadlocked: %v", ctx.Err())
+	}
+	if report == nil {
+		t.Fatal("concurrent submission returned nil report")
+	}
+	stored, err := q.GetReport(context.Background(), report.ID)
+	if err != nil || stored == nil || !stored.TargetDeleted {
+		t.Fatalf("report target after User.Delete = %#v err=%v, want deleted", stored, err)
+	}
+}
+
 func TestReportServiceStructuredTargetReplayIgnoresDerivedSnapshotFields(t *testing.T) {
 	_, q := setupPool(t)
 	ctx := context.Background()
@@ -455,18 +523,22 @@ func TestReportServiceStructuredTargetReplayIgnoresDerivedSnapshotFields(t *test
 	insertReportTestUser(t, q, reporterID, "snapshot-reporter")
 	insertReportTestUser(t, q, targetID, "snapshot-target")
 	targetKind := "user"
+	targetName := "snapshot-target"
 	requestID := "structured-replay"
 	reports := NewReportService(q)
 	first, err := reports.Submit(ctx, ReportSubmission{
 		ReporterID: reporterID, TargetID: &targetID, TargetKind: &targetKind,
-		Body: "same payload", RequestID: &requestID,
+		TargetName: &targetName, Body: "same payload", RequestID: &requestID,
 	})
 	if err != nil {
 		t.Fatalf("first structured submission: %v", err)
 	}
+	if err := q.SoftDeleteUser(ctx, targetID); err != nil {
+		t.Fatalf("delete structured replay target: %v", err)
+	}
 	replay, err := reports.Submit(ctx, ReportSubmission{
 		ID: uuid.New(), ReporterID: reporterID, TargetID: &targetID, TargetKind: &targetKind,
-		Body: "same payload", RequestID: &requestID,
+		TargetName: &targetName, Body: "same payload", RequestID: &requestID,
 	})
 	if err != nil || replay == nil || replay.ID != first.ID {
 		t.Fatalf("structured replay = %#v err=%v, want original report", replay, err)

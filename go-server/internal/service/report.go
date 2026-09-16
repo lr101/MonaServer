@@ -198,15 +198,16 @@ func (s *ReportService) Submit(ctx context.Context, input ReportSubmission) (*db
 	var stored *db.Report
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
 		insert := input
-		// Lock target identity before reading it or inserting the report. User
-		// deletion acquires the same transaction-scoped lock, so the snapshot and
-		// insert are ordered with both soft and hard deletion paths.
+		// Read and lock the user row before acquiring the report-target advisory
+		// lock. User.Delete already holds this row lock when it enters
+		// HardDeleteUser, so this order prevents a report submission and account
+		// deletion from waiting on each other in opposite orders.
 		if insert.TargetID != nil && isReportUserTarget(insert.TargetKind) {
-			if err := tx.LockReportTarget(ctx, *insert.TargetID); err != nil {
-				return err
-			}
 			target, err := tx.GetReportTargetSnapshot(ctx, *insert.TargetID)
 			if err != nil {
+				return err
+			}
+			if err := tx.LockReportTarget(ctx, *insert.TargetID); err != nil {
 				return err
 			}
 			if target != nil {

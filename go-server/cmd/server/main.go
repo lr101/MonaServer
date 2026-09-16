@@ -115,7 +115,11 @@ func main() {
 		AdminOrigin:        cfg.AdminOrigin,
 	}
 	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
-	reportServicer := handler.NewReportServicer(mailSvc, q)
+	reportConfig := service.ReportServiceConfig{
+		HMACKey:   decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID: cfg.AdminSessionHMACKeyID,
+	}
+	reportServicer := handler.NewReportServicer(mailSvc, q, reportConfig)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
@@ -218,7 +222,10 @@ func main() {
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
-		registerRoutes(r, reportCtrl, alwaysTrue)
+		// CaptureReportRequest runs after TrustedRealIP (installed on the root
+		// router), so the service receives the bounded idempotency key and the
+		// trusted client address used by the shared report quota.
+		registerRoutes(r.With(handler.CaptureReportRequest), reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
@@ -228,9 +235,10 @@ func main() {
 
 	// New v3 routes are always present in the router so their feature and
 	// authentication behavior is observable. The browser-admin session endpoints
-	// use the concrete T05 service; later admin operation surfaces remain
-	// explicitly unavailable until their owning services are integrated.
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth)
+	// and report inbox use their concrete services; later admin operation
+	// surfaces remain explicitly unavailable until their owning services are
+	// integrated.
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -356,16 +364,22 @@ func adminRecentMFATTL(auth *service.AdminAuth) time.Duration {
 }
 
 // registerV3Routes installs the additive v3 surfaces behind their independent
-// feature flags. Passing an AdminAuth wires the browser-admin implementation;
-// omitting it retains the unavailable scaffold used by compatibility tests and
-// by deployments that have not enabled the feature.
-func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string, adminAuthOptions ...*service.AdminAuth) {
+// feature flags. Options may include the browser-admin service and the shared
+// report repository. Keeping the options variadic preserves the compatibility
+// test seam that exercises the unavailable scaffold without a database.
+func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string, options ...interface{}) {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
 	var adminAuth *service.AdminAuth
-	if len(adminAuthOptions) > 0 {
-		adminAuth = adminAuthOptions[0]
+	var reportQueries *db.Queries
+	for _, option := range options {
+		switch value := option.(type) {
+		case *service.AdminAuth:
+			adminAuth = value
+		case *db.Queries:
+			reportQueries = value
+		}
 	}
 
 	servicer := handler.NewUnavailableV3Servicer()
@@ -375,7 +389,11 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
 	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
 	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(servicer, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
-	adminReportsCtrl := genserver.NewAdminReportsAPIController(servicer, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
+	var adminReportsServicer genserver.AdminReportsAPIServicer = servicer
+	if reportQueries != nil {
+		adminReportsServicer = handler.NewAdminReportsServicer(reportQueries)
+	}
+	adminReportsCtrl := genserver.NewAdminReportsAPIController(adminReportsServicer, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
 	adminAuditCtrl := genserver.NewAdminAuditAPIController(servicer, genserver.WithAdminAuditAPIErrorHandler(handler.V3ErrorHandler))
 
 	// Public email-link and recovery endpoints are intentionally public, but

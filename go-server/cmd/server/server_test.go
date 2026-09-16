@@ -110,6 +110,11 @@ func serveTestSMTPConnection(conn net.Conn) {
 }
 
 func buildTestServer(t *testing.T) *httptest.Server {
+	server, _ := buildTestServerWithQuery(t)
+	return server
+}
+
+func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	dsn := testDSN(t)
 
@@ -168,7 +173,10 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		HMACKey:       []byte("server-test-admin-quota-key"),
 		AdminOrigin:   cfg.AdminOrigin,
 	})
-	reportServicer := handler.NewReportServicer(mailSvc, q)
+	reportServicer := handler.NewReportServicer(mailSvc, q, service.ReportServiceConfig{
+		HMACKey:   []byte("server-test-report-quota-key"),
+		HMACKeyID: "server-test-report-v1",
+	})
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
@@ -208,14 +216,14 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
-		registerRoutes(r, reportCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CaptureReportRequest), reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth)
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
 
-	return httptest.NewServer(r)
+	return httptest.NewServer(r), q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -315,6 +323,10 @@ func TestFailedWeeklyNotificationClearsInvalidToken(t *testing.T) {
 }
 
 func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Response {
+	return c.doWithHeaders(t, method, path, body, nil)
+}
+
+func (c *apiClient) doWithHeaders(t *testing.T, method, path string, body any, headers map[string]string) *http.Response {
 	t.Helper()
 	var r io.Reader
 	if body != nil {
@@ -324,6 +336,9 @@ func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Respon
 	req, _ := http.NewRequest(method, c.base+path, r)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	if c.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+c.bearer)
@@ -1258,7 +1273,7 @@ func TestEndpointRanking(t *testing.T) {
 }
 
 func TestEndpointReport(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, q := buildTestServerWithQuery(t)
 	defer srv.Close()
 
 	anon := &apiClient{base: srv.URL}
@@ -1266,15 +1281,27 @@ func TestEndpointReport(t *testing.T) {
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
 	t.Run("POST /api/v2/report", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/report", map[string]any{
-			"userId":  uuid.New().String(),
+		body := map[string]any{
+			"userId":  ar.UserID,
 			"report":  "spam",
 			"message": "test report",
-		})
+		}
+		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, map[string]string{"Idempotency-Key": "routed-report-key"})
 		resp.Body.Close()
-		// 200 if mail is not configured, still expect non-5xx.
-		if resp.StatusCode >= 500 {
-			t.Fatalf("unexpected server error: %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("report status = %d, want 201", resp.StatusCode)
+		}
+		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, map[string]string{"Idempotency-Key": "routed-report-key"})
+		replay.Body.Close()
+		if replay.StatusCode != http.StatusCreated {
+			t.Fatalf("report replay status = %d, want 201", replay.StatusCode)
+		}
+		var count int
+		if err := q.Pool().QueryRow(context.Background(), `SELECT count(*) FROM reports WHERE reporter_user_id = $1`, ar.UserID).Scan(&count); err != nil {
+			t.Fatalf("count routed reports: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("routed reports = %d, want exactly one idempotent row", count)
 		}
 	})
 }

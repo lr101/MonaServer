@@ -1847,12 +1847,14 @@ func reportFromRow(r dbgen.Report) Report {
 func ReportMatches(p ReportParams, existing Report) bool {
 	// target_name and target_deleted may be filled from the current user row
 	// while the report is inserted. A retry of the same structured submission
-	// omits those server-derived snapshot fields, so compare the stable target
-	// identity in that case and retain strict comparison for caller-supplied
-	// snapshots.
-	targetSnapshotMatches := p.TargetID != nil && p.TargetName == nil &&
-		optionalUUIDEqual(p.TargetID, existing.TargetID)
-	targetFieldsMatch := optionalStringEqual(p.TargetName, existing.TargetName) && p.TargetDeleted == existing.TargetDeleted
+	// omits those server-derived snapshot fields. The deletion bit is also
+	// server-owned: a replay can observe a target after it was deleted, so a
+	// user-target match must remain idempotent even when that bit changed.
+	userTargetMatch := p.TargetID != nil && optionalUUIDEqual(p.TargetID, existing.TargetID) &&
+		(p.TargetKind == nil || *p.TargetKind == "user" || *p.TargetKind == "account")
+	targetSnapshotMatches := userTargetMatch && p.TargetName == nil
+	targetFieldsMatch := optionalStringEqual(p.TargetName, existing.TargetName) &&
+		(userTargetMatch || p.TargetDeleted == existing.TargetDeleted)
 	return optionalUUIDEqual(p.ReporterUserID, existing.ReporterUserID) &&
 		optionalUUIDEqual(p.TargetID, existing.TargetID) &&
 		optionalStringEqual(p.TargetKind, existing.TargetKind) &&

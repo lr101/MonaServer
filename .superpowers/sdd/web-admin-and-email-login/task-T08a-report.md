@@ -10,8 +10,10 @@ losers return the committed row without a second quota hit or audit event;
 changed payloads return a conflict.
 
 Target snapshots and user deletion share a transaction-scoped advisory lock,
-and the snapshot query locks the target row. This orders report insertion with
-soft and hard deletion so every report retains a deletion-safe target state.
+and the snapshot query locks the target row first. The same user-row-then-
+advisory lock order is used by `User.Delete`, `SoftDeleteUser`, and
+`HardDeleteUser`, so report insertion and physical deletion cannot deadlock;
+every report retains a deletion-safe target state.
 
 Administrative report updates require `reports.review` for every individual
 transition, including resolve and dismiss. `reports.resolve` and
@@ -28,9 +30,10 @@ newest-first history through a cursor page.
 
 The OpenAPI contract, `oapi-codegen` output, OpenAPI Generator server output,
 sqlc queries/output, handlers, and tests are synchronized. Runtime route
-composition in `cmd/server/main.go` remains coordinator-owned; generated
-controller routes are ready for the real servicer wiring. T08b bulk snapshot
-and job execution remains outside this task.
+composition now installs `CaptureReportRequest` after trusted-real-IP
+normalization, passes the configured report quota HMAC into the consumer
+servicer, and mounts the concrete admin report servicer under `WEB_ADMIN_API`.
+T08b bulk snapshot and job execution remains outside this task.
 
 ## Interfaces and integration seam
 
@@ -42,11 +45,10 @@ handler implements the generated report methods, including
 `ListAdminReportNotes`, and checks the request-time admin principal and
 capability again for direct servicer use.
 
-The coordinator-owned `cmd/server/main.go` wiring must pass the configured T05
-HMAC key and key ID into `NewReportServicer`, construct
-`NewAdminReportsServicer(q, reportService)`, and register the generated admin
-reports controller in the authenticated v3 admin group. The existing
-`CaptureReportRequest` wrapper must remain around the authenticated
+`cmd/server/main.go` passes the configured T05 HMAC key and key ID into
+`NewReportServicer`, constructs the concrete `NewAdminReportsServicer(q)` for
+the generated v3 admin reports controller, and registers it in the
+authenticated v3 admin group. `CaptureReportRequest` wraps the authenticated
 `/api/v2/report` route after trusted-real-IP normalization.
 
 ## Red/green evidence
@@ -118,6 +120,24 @@ PASS: cmd/admin-auth, cmd/server, internal/config, internal/db,
       tests reported [no test files]
 ```
 
+The final fix-round race checks passed serially:
+
+```text
+cd go-server
+TEST_DATABASE_URL='<disposable-local-DSN>' \
+  mise exec -- go test -race -count=1 -p 1 ./internal/service -run '^TestReportService'
+PASS
+
+TEST_DATABASE_URL='<disposable-local-DSN>' \
+  mise exec -- go test -race -count=1 -p 1 ./cmd/server \
+    -run 'TestEndpointReport|TestRealAdminRouterUsesBrowserSessionBoundary'
+PASS
+
+TEST_DATABASE_URL='<disposable-local-DSN>' \
+  mise exec -- go test -race -count=1 -p 1 ./...
+PASS: all Go packages
+```
+
 ## Local service availability
 
 PostgreSQL with PostGIS was available on the disposable local instance at
@@ -149,5 +169,8 @@ PR operation was used.
 - `go-server/internal/middleware/admin_session_test.go`
 - `go-server/internal/service/report.go`
 - `go-server/internal/service/report_test.go`
+- `go-server/cmd/server/main.go`
+- `go-server/cmd/server/server_test.go`
+- `go-server/cmd/server/admin_router_test.go`
 
-Implementation commit SHA: current worktree `HEAD` (reported with the handoff).
+Implementation commit SHA: current fix-round worktree `HEAD` (reported with the handoff).
