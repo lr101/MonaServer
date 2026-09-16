@@ -1,0 +1,93 @@
+# Task T07 — audience, bulk actions, users, and audit backend
+
+## Scope delivered
+
+This task adds the transport-independent administrative audience and job
+services in [`go-server/internal/service/admin_audience.go`](../go-server/internal/service/admin_audience.go),
+[`go-server/internal/service/admin_bulk.go`](../go-server/internal/service/admin_bulk.go),
+[`go-server/internal/service/admin_users.go`](../go-server/internal/service/admin_users.go),
+and [`go-server/internal/service/admin_audit.go`](../go-server/internal/service/admin_audit.go).
+
+Audience resolution validates the selected/filter/all union and resource-tagged
+filters, applies bounded content validation, resolves explicit records into an
+immutable actor/action/hash/expiry snapshot, and supports opaque cursor reads.
+All-account and security actions require an action-bound recent MFA proof;
+administrator targets require the stronger include-admin capability and
+acknowledgement. Preview and commit capability checks are separate, and
+snapshot criteria are deep-copied before persistence. Email, login-link, and
+push previews account for current email/device eligibility and opt-outs; a
+later execution check can only shrink the recipient set.
+
+Bulk jobs use typed action ports for session revocation, compromise
+containment, recovery resend, email, login links, push, and report actions.
+The job store interface defines the atomic job/item commit, idempotent commands,
+lease/CAS claim and finish, progress, pause, and cursor pagination boundaries.
+The in-memory store is deterministic for service tests and local composition.
+Failed work is retried only after an explicit idempotent retry command;
+duplicate item processing returns the stored outcome. Cancellation skips work
+that has not started and cannot undo a completed operation. Successful
+self-containment of the actor pauses the remaining job for another authorized
+operator. A pre-send eligibility port rechecks account state, preferences, and
+device ownership immediately before delivery.
+
+The user service exposes a bounded, credential-free account projection with
+search/security/verified-email/creation-date filters and cursor pagination.
+The audit service provides permissioned cursor reads plus an actor-bound append
+boundary. Reasons and metadata are length-limited and secret-like fields,
+provider-looking values, control characters, and unsafe payload fields are
+redacted before they cross the store or generated DTO boundary.
+
+The generated v3 adapters are in
+[`go-server/internal/handler/admin_audience_servicer.go`](../go-server/internal/handler/admin_audience_servicer.go),
+[`go-server/internal/handler/admin_jobs_servicer.go`](../go-server/internal/handler/admin_jobs_servicer.go),
+[`go-server/internal/handler/admin_users_servicer.go`](../go-server/internal/handler/admin_users_servicer.go),
+[`go-server/internal/handler/admin_audit_servicer.go`](../go-server/internal/handler/admin_audit_servicer.go),
+and [`go-server/internal/handler/admin_messages_servicer.go`](../go-server/internal/handler/admin_messages_servicer.go).
+They enforce the principal and CSRF context proof, map only frozen generated
+DTOs, and return the bounded v3 error envelope. Main/router registration is
+left to the coordinator as requested.
+
+## Exact DB-owner request
+
+No DB, OpenAPI, generated, main, or router files were changed. The production
+facade needs these additive operations, each using PostgreSQL parameters and
+transactions where stated:
+
+1. `ListAdminUsers(ctx, cursor, limit, search, securityState, verifiedEmail, createdAfter, createdBefore)` and `GetAdminUserDetails(ctx, userID)` should return the safe user projection, including creation time, admin/security state, auth generation, compromise/password flags, communication opt-out, and an aggregate registered-device count. The query must perform filtering and stable cursor ordering in PostgreSQL and must never select passwords, token/code/url columns, or provider credentials.
+2. `ResolveAdminAudience(ctx, actorID, audience, action)` should evaluate accounts/reports server-side with stable ordering, per-record permission/state/ownership checks, email-ownership/verified-account checks, communication preferences, device eligibility, and explicit exclusion codes. A paged resolver or bounded count is required so a large filter is not loaded into one request. Report criteria must remain report-only.
+3. `CreateAudienceSnapshot(ctx, snapshot, members)` must insert the snapshot and every member in one transaction, with an immutable canonical audience/action/hash, actor ID, expiry, ordinals, counts, and bounded exclusions. `GetAudienceSnapshot` and `ListAudienceSnapshotMembers(snapshotID, afterOrdinal, limit)` must enforce actor/resource access at the service boundary and stable ordinal cursors.
+4. `CreateAdminJobWithItems(ctx, job, items)` must atomically insert one job and all item rows and enforce an actor/action/snapshot/payload-bound idempotency key. `ClaimAdminJobItem(ctx, jobID, itemID, worker, lease)` and `FinishAdminJobItem(ctx, itemID, lease, outcome, reason, errorCode, providerReference)` must use compare-and-set leases, recover stale leases, and refuse stale-worker acknowledgements. `UpdateAdminJobProgress`, `PauseAdminJob`, and `Get/ListAdminJobs` must derive safe account/eligible/device and outcome counts.
+5. `ApplyAdminJobCommand(ctx, actorID, jobID, kind, idempotencyKey, reason)` must make retry (failed items only) and cancellation idempotent in one transaction. Cancellation must skip only unclaimed work; it cannot restore credentials or undo delivery. Commands and job/item reads must never return action tokens, passwords, provider payloads, or raw provider errors.
+6. `ListAdminAudit(ctx, cursor, limit, targetUserID, action)` and `AppendAdminAudit(ctx, event)` should provide append-only storage, stable cursor ordering, target/action filters, bounded safe metadata, and retention/deletion handling. For security operations, the job item transition and its actor/target/outcome audit should be coordinated transactionally where possible.
+
+The current generated users interface represents optional `verifiedEmail` as a
+plain `bool`, so an HTTP request cannot distinguish an omitted value from an
+explicit `false` through that frozen signature. The service API accepts a
+`*bool`; the adapter preserves omitted/default behavior for the generated
+route and direct service callers can express `false` explicitly. A future API
+owner can repair that generated contract if the false query case must be
+available over HTTP.
+
+## Verification
+
+Service tests cover empty/invalid audiences, payload sanitization and binding,
+MFA/all-account checks, admin exclusions, filter-copy immutability,
+preferences/device shrinkage, idempotent item processing, explicit retry,
+self-containment pause, eligibility recheck, and audit actor/secret binding.
+Handler tests cover generated DTO mapping, CSRF rejection, sanitized preview
+responses, immutable job commit, and idempotent create.
+
+```text
+mise exec -- gofmt -w internal/service/admin_*.go internal/handler/admin_*.go
+mise exec -- go test ./...
+PASS
+mise exec -- go vet ./...
+PASS
+git diff --check
+PASS
+```
+
+Database tests were not run with `TEST_DATABASE_URL`: this task deliberately
+does not add or change database primitives, and the production adapter remains
+coordinator/DB-owner work described above. No provider send, deployment, or
+PR was performed.
