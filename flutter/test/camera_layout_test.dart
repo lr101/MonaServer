@@ -71,7 +71,7 @@ class _CameraPlatform extends CameraPlatform {
 
 void main() {
   testWidgets(
-    'keeps upload above selector in the preview corner on compact screens',
+    'keeps selector above upload in the preview corner on compact screens',
     (tester) async {
       const cameras = [
         CameraDescription(
@@ -91,7 +91,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
 
-      await tester.binding.setSurfaceSize(const Size(320, 160));
+      await tester.binding.setSurfaceSize(const Size(320, 240));
       addTearDown(() async {
         CameraPlatform.instance = originalPlatform;
         await tester.binding.setSurfaceSize(null);
@@ -124,11 +124,11 @@ void main() {
       expect(upload, findsOneWidget);
       expect(selector, findsOneWidget);
       expect(
-        tester.getTopLeft(upload).dy,
-        lessThan(tester.getTopLeft(selector).dy),
+        tester.getTopLeft(selector).dy,
+        lessThan(tester.getTopLeft(upload).dy),
       );
       expect(tester.getBottomRight(selector).dx, lessThanOrEqualTo(320));
-      expect(tester.getBottomRight(selector).dy, lessThanOrEqualTo(160));
+      expect(tester.getBottomRight(selector).dy, lessThanOrEqualTo(240));
       expect(tester.takeException(), isNull);
 
       await tester.tap(selector);
@@ -152,4 +152,68 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('does not overflow when navigation reduces the preview height', (
+    tester,
+  ) async {
+    const cameras = [
+      CameraDescription(
+        name: 'back-camera',
+        lensDirection: CameraLensDirection.back,
+        sensorOrientation: 90,
+      ),
+      CameraDescription(
+        name: 'front-camera',
+        lensDirection: CameraLensDirection.front,
+        sensorOrientation: 270,
+      ),
+    ];
+    final controller = _FakeCameraController();
+    final originalPlatform = CameraPlatform.instance;
+    CameraPlatform.instance = _CameraPlatform(cameras);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.binding.setSurfaceSize(const Size(320, 160));
+    addTearDown(() async {
+      CameraPlatform.instance = originalPlatform;
+      await tester.binding.setSurfaceSize(null);
+      await controller.dispose();
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: null,
+              refreshToken: null,
+              cameras: cameras,
+            ),
+          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          groupOrderServiceProvider.overrideWithValue([]),
+          cameraControllerProvider.overrideWith(
+            (ref) => Future.value(controller),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: Camera(),
+            bottomNavigationBar: SizedBox(height: 80),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('Select camera'));
+    await tester.pumpAndSettle();
+    expect(find.text('Back camera'), findsOneWidget);
+    expect(find.text('Front camera'), findsOneWidget);
+    await tester.tap(find.text('Front camera'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
 }

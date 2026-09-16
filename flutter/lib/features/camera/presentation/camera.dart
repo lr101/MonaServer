@@ -33,12 +33,14 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   double basScaleFactor = 1.0;
   final _m = Mutex();
   late final ZoomUpdateCoalescer _zoomUpdates;
+  late final CameraCapturing _capturingNotifier;
   bool _discoveringCameras = true;
   Object? _discoveryError;
 
   @override
   void initState() {
     super.initState();
+    _capturingNotifier = ref.read(cameraCapturingProvider.notifier);
     WidgetsBinding.instance.addObserver(this);
     unawaited(_discoverCameras());
     _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
@@ -69,6 +71,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _capturingNotifier.setCapturing(false);
     WidgetsBinding.instance.removeObserver(this);
     pageController.dispose();
     super.dispose();
@@ -251,41 +254,56 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      Positioned(
-                        top: 0,
-                        right: 12,
-                        bottom: 12,
-                        child: Align(
-                          alignment: Alignment.bottomRight,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final maxMenuHeight =
-                                  (constraints.maxHeight - 48 - 8 - 56).clamp(
-                                    0.0,
-                                    240.0,
-                                  );
-                              return CameraSelectorButton(
-                                cameras: cameras,
-                                selectedIndex: cameraIndex,
-                                onSelected: handleCameraChange,
-                                maxMenuHeight: maxMenuHeight,
-                                menuBottomSpacing: 56,
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 12,
-                        bottom: 68,
-                        child: Material(
-                          color: Colors.grey.withValues(alpha: 0.5),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: 'Upload photo',
-                            onPressed: uploadFileImage,
-                            icon: const Icon(Icons.upload),
-                          ),
+                      Positioned.fill(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            const controlSpacing = 8.0;
+                            const controlBottomPadding = 12.0;
+                            const controlButtonHeight = 48.0;
+                            final maxMenuHeight =
+                                (constraints.maxHeight -
+                                        controlBottomPadding -
+                                        (controlButtonHeight * 2) -
+                                        controlSpacing)
+                                    .clamp(0.0, 240.0);
+                            return Align(
+                              alignment: Alignment.bottomRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  right: 12,
+                                  bottom: controlBottomPadding,
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.bottomRight,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      CameraSelectorButton(
+                                        cameras: cameras,
+                                        selectedIndex: cameraIndex,
+                                        onSelected: handleCameraChange,
+                                        maxMenuHeight: maxMenuHeight,
+                                      ),
+                                      const SizedBox(height: controlSpacing),
+                                      Material(
+                                        color: Colors.grey.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                        shape: const CircleBorder(),
+                                        child: IconButton(
+                                          tooltip: 'Upload photo',
+                                          onPressed: uploadFileImage,
+                                          icon: const Icon(Icons.upload),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -409,7 +427,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       return;
     }
     await _m.acquire();
-    ref.read(cameraCapturingProvider.notifier).setCapturing(true);
+    _capturingNotifier.setCapturing(true);
     try {
       final image = await controller.takePicture();
       if (!mounted) return;
@@ -419,7 +437,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     } finally {
       _m.release();
       if (mounted) {
-        ref.read(cameraCapturingProvider.notifier).setCapturing(false);
+        _capturingNotifier.setCapturing(false);
       }
     }
   }

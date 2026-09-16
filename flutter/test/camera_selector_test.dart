@@ -69,4 +69,45 @@ void main() {
     expect(find.text('Back camera'), findsNothing);
     expect(selectedIndex, 1);
   });
+
+  testWidgets('uses a dialog when the preview cannot fit the camera menu', (
+    tester,
+  ) async {
+    const cameras = [
+      CameraDescription(
+        name: 'back-camera',
+        lensDirection: CameraLensDirection.back,
+        sensorOrientation: 90,
+      ),
+      CameraDescription(
+        name: 'front-camera',
+        lensDirection: CameraLensDirection.front,
+        sensorOrientation: 270,
+      ),
+    ];
+    int? selectedIndex;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CameraSelectorButton(
+            cameras: cameras,
+            selectedIndex: 0,
+            maxMenuHeight: 0,
+            onSelected: (index) => selectedIndex = index,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Select camera'));
+    await tester.pumpAndSettle();
+    expect(find.text('Back camera'), findsOneWidget);
+    expect(find.text('Front camera'), findsOneWidget);
+
+    await tester.tap(find.text('Front camera'));
+    await tester.pumpAndSettle();
+    expect(selectedIndex, 1);
+    expect(find.text('Front camera'), findsNothing);
+  });
 }

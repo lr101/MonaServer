@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
@@ -7,7 +9,6 @@ class CameraSelectorButton extends StatefulWidget {
     required this.selectedIndex,
     required this.onSelected,
     this.maxMenuHeight = 240,
-    this.menuBottomSpacing = 0,
     super.key,
   });
 
@@ -15,7 +16,6 @@ class CameraSelectorButton extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final double maxMenuHeight;
-  final double menuBottomSpacing;
 
   @override
   State<CameraSelectorButton> createState() => _CameraSelectorButtonState();
@@ -40,6 +40,46 @@ class _CameraSelectorButtonState extends State<CameraSelectorButton>
     } else {
       _controller.reverse();
     }
+  }
+
+  Future<void> _showCameraPickerDialog() async {
+    final selectedIndex = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        final selectedIndex = widget.cameras.isEmpty
+            ? 0
+            : widget.selectedIndex.clamp(0, widget.cameras.length - 1);
+        final labels = _cameraLabels(widget.cameras);
+        return Dialog(
+          insetPadding: const EdgeInsets.all(8),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height - 16,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: List.generate(widget.cameras.length, (index) {
+                return ListTile(
+                  dense: true,
+                  leading: Icon(
+                    _cameraIcon(widget.cameras[index].lensDirection),
+                  ),
+                  title: Text(labels[index]),
+                  selected: index == selectedIndex,
+                  trailing: index == selectedIndex
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(index),
+                );
+              }),
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || selectedIndex == null) return;
+    widget.onSelected(selectedIndex);
   }
 
   @override
@@ -82,7 +122,7 @@ class _CameraSelectorButtonState extends State<CameraSelectorButton>
               ),
             ),
             child: Padding(
-              padding: EdgeInsets.only(bottom: 8 + widget.menuBottomSpacing),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Material(
                 elevation: 6,
                 borderRadius: BorderRadius.circular(20),
@@ -122,7 +162,15 @@ class _CameraSelectorButtonState extends State<CameraSelectorButton>
             shape: const CircleBorder(),
             child: IconButton(
               tooltip: 'Select camera',
-              onPressed: widget.cameras.isEmpty ? null : () => _setOpen(!_open),
+              onPressed: widget.cameras.isEmpty
+                  ? null
+                  : () {
+                      if (widget.maxMenuHeight < 48) {
+                        unawaited(_showCameraPickerDialog());
+                      } else {
+                        _setOpen(!_open);
+                      }
+                    },
               icon: const Icon(Icons.flip_camera_android),
             ),
           ),

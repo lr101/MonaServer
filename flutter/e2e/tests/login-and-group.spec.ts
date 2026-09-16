@@ -318,6 +318,9 @@ test.describe('web camera access', () => {
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(video).toBeVisible();
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+    await expect(page.getByText('Hold steady capturing ...', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
   });
   test('camera permission denial is actionable and retry restores preview', async ({ page }) => {
     await page.addInitScript(() => {
