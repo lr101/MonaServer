@@ -140,6 +140,22 @@ func TestTrustedRealIPRejectsSpoofedForwardedHeaders(t *testing.T) {
 		t.Fatalf("trusted forwarded client = %q, want client address", got)
 	}
 
+	trustedRealIP := httptest.NewRequest(http.MethodGet, "/", nil)
+	trustedRealIP.RemoteAddr = "10.0.0.8:1234"
+	trustedRealIP.Header.Set("X-Real-IP", "198.51.100.8")
+	h.ServeHTTP(httptest.NewRecorder(), trustedRealIP)
+	if got != "198.51.100.8" {
+		t.Fatalf("trusted X-Real-IP client = %q, want client address", got)
+	}
+
+	directRealIPSpoof := httptest.NewRequest(http.MethodGet, "/", nil)
+	directRealIPSpoof.RemoteAddr = "192.0.2.41:1234"
+	directRealIPSpoof.Header.Set("X-Real-IP", "198.51.100.9")
+	h.ServeHTTP(httptest.NewRecorder(), directRealIPSpoof)
+	if got != "192.0.2.41" {
+		t.Fatalf("direct X-Real-IP client = %q, want direct peer", got)
+	}
+
 	malformed := httptest.NewRequest(http.MethodGet, "/", nil)
 	malformed.RemoteAddr = "10.0.0.8:1234"
 	malformed.Header.Set("X-Forwarded-For", "not-an-ip")
@@ -204,6 +220,9 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 	}
 	if RecentMFAActionMatches("email", "") {
 		t.Fatal("stored action was allowed to match an unmapped mutation")
+	}
+	if RecentMFAActionMatches("", "jobs.control") {
+		t.Fatal("empty stored action was allowed to match a mapped mutation")
 	}
 
 	job := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"mark_compromised","reason":"incident"}}`))

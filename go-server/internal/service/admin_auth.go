@@ -130,6 +130,16 @@ func NewAdminAuth(q *db.Queries, cfg AdminAuthConfig) *AdminAuth {
 	return &AdminAuth{q: q, cfg: cfg, now: time.Now, random: func(b []byte) error { _, err := rand.Read(b); return err }}
 }
 
+// RecentMFATTL returns the configured freshness window used by the request
+// middleware. Keeping the route guard on the same service configuration avoids
+// silently drifting from the value used when sessions are issued.
+func (a *AdminAuth) RecentMFATTL() time.Duration {
+	if a == nil {
+		return 0
+	}
+	return a.cfg.RecentMFATTL
+}
+
 func (a *AdminAuth) SetClock(now func() time.Time) {
 	if now == nil {
 		now = time.Now
@@ -972,6 +982,8 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 		csrfToken := base64.RawURLEncoding.EncodeToString(csrfBytes)
 		sessionCookie := "s." + sessionSecretEncoded + "." + csrfToken
 		now := a.currentTime()
+		// Initial MFA authenticates the session but is intentionally actionless;
+		// mutation middleware requires an explicit later step-up action.
 		session := db.AdminSessionParams{ID: uuid.New(), SessionHash: hashOpaque(sessionSecretEncoded), UserID: *consumed.UserID,
 			CSRFHash: middleware.CSRFHash(csrfToken), State: adminSessionStateAuthenticated, AuthGeneration: state.AuthGeneration,
 			IdleExpiresAt: now.Add(a.cfg.SessionIdleTTL), AbsoluteExpiresAt: now.Add(a.cfg.SessionAbsoluteTTL), RecentMFAAt: &now}

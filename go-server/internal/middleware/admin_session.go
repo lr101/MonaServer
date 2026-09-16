@@ -307,7 +307,7 @@ func AdminMutationActionForRequest(r *http.Request) string {
 func RecentMFAActionMatches(stored, required string) bool {
 	stored = strings.TrimSpace(stored)
 	required = strings.TrimSpace(required)
-	return required != "" && (stored == "" || stored == required)
+	return stored != "" && required != "" && stored == required
 }
 
 // AdminCapabilityGuard applies the stable capability matrix to the known
@@ -496,7 +496,14 @@ func forwardedClientIP(r *http.Request, trusted []*net.IPNet) string {
 	// X-Forwarded-For is a right-to-left chain. Select the first valid address
 	// that is not itself a configured trusted proxy; malformed values cause us
 	// to fall back to the direct peer instead of trusting attacker input.
-	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	xForwardedFor := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+	if xForwardedFor == "" {
+		if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Real-IP"))); ip != nil {
+			return ip.String()
+		}
+		return ""
+	}
+	parts := strings.Split(xForwardedFor, ",")
 	for i := len(parts) - 1; i >= 0; i-- {
 		ip := net.ParseIP(strings.TrimSpace(parts[i]))
 		if ip == nil {
@@ -505,9 +512,6 @@ func forwardedClientIP(r *http.Request, trusted []*net.IPNet) string {
 		if !ipInNetworks(ip, trusted) {
 			return ip.String()
 		}
-	}
-	if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Real-IP"))); ip != nil {
-		return ip.String()
 	}
 	return ""
 }

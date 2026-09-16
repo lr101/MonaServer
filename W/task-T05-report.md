@@ -29,6 +29,19 @@ configured TTL; bootstrap renewals preserve the original absolute deadline.
 `WEB_ADMIN_API` defaults on so a deployment that protects v2 with browser
 sessions can still bootstrap/login after upgrade.
 
+The fourth review repair makes an initial MFA session actionless and therefore
+unable to satisfy any mapped mutation guard until a capability-bound step-up
+stores an explicit action. The contract now publishes the route-family actions
+`jobs.control`, `messages.test`, and `reports.review`; the Go and Flutter
+generated clients were regenerated from the same OpenAPI source. `WEB_ADMIN_API`
+is passed to the migrated v2 group as well as every v3 admin group, so disabling
+the flag returns the unavailable response before a handler can run. Trusted
+proxy processing accepts `X-Real-IP` only for a configured proxy when
+`X-Forwarded-For` is absent, while direct peers and malformed forwarded input
+remain authoritative. All admin session TTLs and shared quota limits are now
+loaded from configuration and the route guard uses the service's configured
+recent-MFA TTL.
+
 The runtime now constructs this service from configuration, mounts the concrete
 admin session controller, applies the browser cookie gate to v2 and v3 admin
 groups, and preserves the existing v2 payload handlers after authentication.
@@ -44,10 +57,11 @@ TOTP secret only as the deliberate one-time operator handoff; the HTTP API,
 logs, and audit metadata never contain it. Break-glass recovery rotates the
 secret, revokes browser sessions, and records the stable actor and target IDs.
 
-No OpenAPI or generated API/server files, consumer auth, jobs, or Flutter files
-were changed. The reviewer-required database additions are forward migrations
-for membership/user replay scope and action-bound recent MFA, with sqlc output
-regenerated from the query source.
+The OpenAPI source, generated Go API/server artifacts, and generated Flutter
+action enum are changed together; consumer auth, jobs, and database schema are
+unchanged in this repair. The reviewer-required database additions are forward
+migrations for membership/user replay scope and action-bound recent MFA, with
+sqlc output regenerated from the query source.
 
 ## Red/green evidence
 
@@ -92,10 +106,13 @@ break-glass audit behavior. The real router test covers browser bootstrap/login,
 Bearer denial, capability 403, v2 cookie-gated handling, mutation CSRF, and an
 OPTIONS preflight through the production global CORS wrapper, including exact
 origin/credential headers and wildcard rejection. Middleware tests cover
-unmapped-action rejection, body-action binding and body restoration. The
-concurrent replay test records one winner for a moving factor and rejects all
-later replays; the throttle test covers password, initial MFA, and step-up
-exhaustion with recovery after the shared window.
+unmapped-action rejection, empty stored-action rejection, body-action binding,
+body restoration, and direct/trusted `X-Real-IP` handling. The real router test
+also performs an action-bound step-up before exercising the migrated v2 write,
+and a disabled-flag test proves the v2 group stops at the feature gate. The
+concurrent service-level step-up test records one winner for a moving factor
+and rejects the simultaneous replay; the throttle test covers password,
+initial MFA, and step-up exhaustion with recovery after the shared window.
 
 ```text
 mise exec -- go vet ./...
@@ -107,6 +124,36 @@ PASS (no generated drift)
 
 git diff --check
 PASS (no diagnostics)
+```
+
+The fourth-repair verification was run after the changes:
+
+```text
+mise exec -- make gen-api
+OPENAPI_GENERATOR_JAR=/root/openapi-generator-cli.jar mise exec -- make gen-server
+PASS (generated Go outputs stable)
+
+java -jar ~/.cache/openapi-generator/openapi-generator-cli-7.9.0.jar generate ...
+diff -ru ... flutter/api "$generated_api"
+PASS (generated Flutter output matches)
+
+cd flutter/api && mise exec -- flutter test --no-pub
+PASS (203 tests)
+
+cd flutter/api && mise exec -- flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+PASS (two pre-existing non-fatal warnings)
+
+TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./...
+PASS (all packages, disposable PostGIS database)
+
+TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -race -count=1 -p 1 ./internal/service -run '^TestAdminStepUpReplayIsRejectedAtServiceBoundaryConcurrently$'
+PASS
+
+mise exec -- go vet ./...
+PASS
+
+mise exec -- go build -o /tmp/monaserver-admin-t05 ./cmd/server
+PASS
 ```
 
 ## Local service availability

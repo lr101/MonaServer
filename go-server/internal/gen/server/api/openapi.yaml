@@ -3866,6 +3866,9 @@ components:
       - recovery_resend
       - report_resolve
       - report_dismiss
+      - jobs.control
+      - messages.test
+      - reports.review
       type: string
     audienceKind:
       enum:

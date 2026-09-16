@@ -51,6 +51,8 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		HMACKey:       []byte("router-admin-quota-key"),
 		AdminOrigin:   "https://admin.example",
 	})
+	currentNow := time.Now().UTC().Truncate(time.Second)
+	admin.SetClock(func() time.Time { return currentNow })
 	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "campaign.email"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
@@ -127,7 +129,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		t.Fatalf("login response = %s", login.Body.String())
 	}
 
-	code, _ := service.GenerateTOTP(secret, time.Now().UTC())
+	code, _ := service.GenerateTOTP(secret, currentNow)
 	mfaReq := newRequest(http.MethodPost, "/api/v3/admin/session/mfa", `{"challengeId":"`+challenge.ChallengeID+`","code":"`+code+`"}`)
 	mfaReq.AddCookie(preAuthCookie)
 	mfaReq.Header.Set("X-CSRF-Token", boot.CSRFToken)
@@ -189,6 +191,32 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	r.ServeHTTP(csrfMissing, csrfReq)
 	assertV3RuntimeError(t, csrfMissing, http.StatusForbidden, "invalid_csrf")
 
+	// Initial MFA authenticates the browser but carries no mutation action.
+	// A capability-bound step-up is required before the migrated v2 mutation
+	// surface can be used.
+	stepUpCodeAt := currentNow.Truncate(30 * time.Second).Add(30 * time.Second)
+	stepUpCode, _ := service.GenerateTOTP(secret, stepUpCodeAt)
+	stepUpReq := newRequest(http.MethodPost, "/api/v3/admin/session/reauthenticate", `{"action":"email","code":"`+stepUpCode+`"}`)
+	stepUpReq.AddCookie(authCookie)
+	stepUpReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	stepUp := httptest.NewRecorder()
+	r.ServeHTTP(stepUp, stepUpReq)
+	if stepUp.Code != http.StatusOK {
+		t.Fatalf("step-up status = %d, body = %s", stepUp.Code, stepUp.Body.String())
+	}
+	var steppedUpSession struct {
+		CSRFToken string `json:"csrfToken"`
+	}
+	if err := json.Unmarshal(stepUp.Body.Bytes(), &steppedUpSession); err != nil || steppedUpSession.CSRFToken == "" {
+		t.Fatalf("step-up response = %s", stepUp.Body.String())
+	}
+	stepUpCookies := stepUp.Result().Cookies()
+	if len(stepUpCookies) != 1 || !strings.HasPrefix(stepUpCookies[0].Value, "s.") {
+		t.Fatalf("step-up cookie = %#v", stepUpCookies)
+	}
+	authCookie = stepUpCookies[0]
+	session.CSRFToken = steppedUpSession.CSRFToken
+
 	// The old v2 payload is still parsed and reaches its service result after
 	// the browser gate; only the legacy JWT/username authentication is retired.
 	v2Req := newRequest(http.MethodPost, "/api/v2/admin/mail", `{"mails":["person@example.com"],"subject":"subject","message":"message"}`)
@@ -198,5 +226,18 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	r.ServeHTTP(v2, v2Req)
 	if v2.Code != http.StatusServiceUnavailable {
 		t.Fatalf("v2 admin result = %d, body = %s", v2.Code, v2.Body.String())
+	}
+}
+
+func TestWebAdminAPIDisablesMigratedV2AdminSurface(t *testing.T) {
+	r := chi.NewRouter()
+	cfg := &config.Config{WebAdminAPI: false, AdminOrigin: "https://admin.example"}
+	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(nil, nil, nil)), nil, cfg.AdminOrigin, cfg.WebAdminAPI)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v2/admin/mail", strings.NewReader(`{}`))
+	recorder := httptest.NewRecorder()
+	r.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("disabled v2 admin status = %d, body = %s; want 503", recorder.Code, recorder.Body.String())
 	}
 }

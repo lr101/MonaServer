@@ -31,6 +31,9 @@ class AdminActionKind {
   static const recoveryResend = AdminActionKind._(r'recovery_resend');
   static const reportResolve = AdminActionKind._(r'report_resolve');
   static const reportDismiss = AdminActionKind._(r'report_dismiss');
+  static const jobsPeriodControl = AdminActionKind._(r'jobs.control');
+  static const messagesPeriodTest = AdminActionKind._(r'messages.test');
+  static const reportsPeriodReview = AdminActionKind._(r'reports.review');
 
   /// List of all possible values in this [enum][AdminActionKind].
   static const values = <AdminActionKind>[
@@ -42,6 +45,9 @@ class AdminActionKind {
     recoveryResend,
     reportResolve,
     reportDismiss,
+    jobsPeriodControl,
+    messagesPeriodTest,
+    reportsPeriodReview,
   ];
 
   static AdminActionKind? fromJson(dynamic value) => AdminActionKindTypeTransformer().decode(value);
@@ -88,6 +94,9 @@ class AdminActionKindTypeTransformer {
         case r'recovery_resend': return AdminActionKind.recoveryResend;
         case r'report_resolve': return AdminActionKind.reportResolve;
         case r'report_dismiss': return AdminActionKind.reportDismiss;
+        case r'jobs.control': return AdminActionKind.jobsPeriodControl;
+        case r'messages.test': return AdminActionKind.messagesPeriodTest;
+        case r'reports.review': return AdminActionKind.reportsPeriodReview;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');
@@ -100,4 +109,3 @@ class AdminActionKindTypeTransformer {
   /// Singleton [AdminActionKindTypeTransformer] instance.
   static AdminActionKindTypeTransformer? _instance;
 }
-

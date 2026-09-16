@@ -136,6 +136,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		MaxLoginAttempts:   10,
 		AdminUsername:      "admin",
 		AdminOrigin:        "https://admin.example",
+		WebAdminAPI:        true,
 		MailHost:           mailHost,
 		MailPort:           mailPort,
 		MailUsername:       "mail@test.example",
@@ -211,7 +212,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
-	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin)
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
 	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth)
 
 	return httptest.NewServer(r)

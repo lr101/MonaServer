@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -484,6 +485,95 @@ func TestAdminMFAReplayScopeAllowsCounterOnceConcurrently(t *testing.T) {
 	}
 	if acceptedCount != 0 {
 		t.Fatalf("concurrent replay accepted=%d, want 0", acceptedCount)
+	}
+}
+
+func TestAdminStepUpReplayIsRejectedAtServiceBoundaryConcurrently(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	now := time.Unix(1_700_000_000, 0).UTC()
+	consumer := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	createTestUser(t, consumer, "concurrent-step-up-admin")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("concurrent-step-up-quota-key"),
+	})
+	admin.SetClock(func() time.Time { return now })
+	enrollment, err := admin.EnrollAdminOperator(ctx, "concurrent-step-up-admin", []string{"jobs.create"})
+	if err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	secret, err := normalizedTOTPSecret(enrollment.Secret)
+	if err != nil {
+		t.Fatalf("decode secret: %v", err)
+	}
+
+	bootstrapRecorder := httptest.NewRecorder()
+	bootstrapCtx := middleware.WithAdminResponseWriter(ctx, bootstrapRecorder)
+	bootstrapCtx = middleware.WithAdminClientIP(bootstrapCtx, "192.0.2.60")
+	boot, err := admin.BootstrapAdminSession(bootstrapCtx)
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	preAuthCookie := bootstrapRecorder.Result().Cookies()[0].Value
+	loginCtx := middleware.WithAdminSessionCookie(bootstrapCtx, preAuthCookie)
+	login, err := admin.AdminSessionLogin(loginCtx, boot.CSRFToken, "concurrent-step-up-admin", "password123")
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	code, _ := GenerateTOTP(secret, now)
+	initial, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, code)
+	if err != nil {
+		t.Fatalf("complete mfa: %v", err)
+	}
+	secretPart, _, ok := authenticatedCookieParts(initial.Cookie)
+	if !ok {
+		t.Fatalf("authenticated cookie was malformed: %q", initial.Cookie)
+	}
+	stored, err := q.GetAdminSessionByHash(ctx, hashOpaque(secretPart))
+	if err != nil {
+		t.Fatalf("load initial session: %v", err)
+	}
+	if stored == nil {
+		t.Fatal("initial MFA session was not persisted")
+	}
+	if stored.RecentMFAAction != nil && strings.TrimSpace(*stored.RecentMFAAction) != "" {
+		t.Fatalf("initial MFA persisted action = %q, want empty", *stored.RecentMFAAction)
+	}
+
+	now = now.Add(31 * time.Second)
+	stepUpCode, _ := GenerateTOTP(secret, now)
+	stepUpCtx := middleware.WithAdminClientIP(ctx, "192.0.2.60")
+	stepUpCtx = middleware.WithAdminSessionCookie(stepUpCtx, initial.Cookie)
+	const attempts = 2
+	start := make(chan struct{})
+	results := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := admin.ReauthenticateAdminSession(stepUpCtx, initial.CSRFToken, "jobs.create", stepUpCode)
+			results <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var accepted, rejected int
+	for err := range results {
+		switch {
+		case err == nil:
+			accepted++
+		case err == ErrAdminUnauthorized:
+			rejected++
+		default:
+			t.Fatalf("concurrent step-up err = %v, want one success and one unauthorized replay", err)
+		}
+	}
+	if accepted != 1 || rejected != 1 {
+		t.Fatalf("concurrent step-up accepted=%d rejected=%d, want 1/1", accepted, rejected)
 	}
 }
 

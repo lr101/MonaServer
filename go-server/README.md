@@ -55,6 +55,16 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
 | `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
+| `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and recovery routes |
+| `WEB_ADMIN_API` | `true` | Enables the browser-admin session and migrated v2/v3 admin routes; `false` returns the unavailable response for the complete admin surface |
+| `ADMIN_TOTP_ENCRYPTION_KEY`, `ADMIN_TOTP_ENCRYPTION_KEY_ID` | — / `admin-totp-v1` | Key material and key ID for encrypted admin TOTP enrollment secrets |
+| `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Key material and key ID for admin login-failure quotas |
+| `ADMIN_ORIGIN` | — | Exact browser origin allowed for admin CORS and state-changing requests |
+| `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
+| `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
+| `ADMIN_CHALLENGE_TTL` / `ADMIN_RECENT_MFA_TTL` | `5m` / `5m` | Password challenge and action-bound recent-MFA windows |
+| `ADMIN_PREAUTH_TTL` | `10m` | Pre-authentication browser envelope lifetime |
+| `ADMIN_LOGIN_FAILURE_LIMIT` / `ADMIN_LOGIN_IP_LIMIT` / `ADMIN_LOGIN_GLOBAL_LIMIT` | `5` / `100` / `1000` | Shared account, IP, and global admin proof-failure quotas |
 | `APP_URL` / `APP_REDIRECT_URL` | — | Public URL; used in email links |
 | `RUSTFS_ENDPOINT` | — | Internal S3 endpoint, e.g. `rustfs:9000` |
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
@@ -136,7 +146,8 @@ Endpoint authentication and role requirements are:
 |---|---|
 | `/api/v2/public/*` | none (signup, login, refresh) |
 | `/api/v2/*` | JWT + `USER` role |
-| `/api/v2/admin/*` | JWT + `ADMIN` role (username == `TOKEN_ADMIN_USERNAME`) |
+| `/api/v2/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and action-bound recent MFA; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v3/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and action-bound recent MFA; unavailable when `WEB_ADMIN_API=false` |
 | `/api/v3/sync` | JWT + `USER` role |
 
 Fine-grained guards cover group administrators, group members, and pin creators.

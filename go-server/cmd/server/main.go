@@ -99,13 +99,22 @@ func main() {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
-		EncryptionKey:   decodeAdminKey(cfg.AdminTOTPEncryptionKey),
-		EncryptionKeyID: cfg.AdminTOTPEncryptionKeyID,
-		HMACKey:         decodeAdminKey(cfg.AdminSessionHMACKey),
-		HMACKeyID:       cfg.AdminSessionHMACKeyID,
-		AdminOrigin:     cfg.AdminOrigin,
-	})
+	adminAuthConfig := service.AdminAuthConfig{
+		EncryptionKey:      decodeAdminKey(cfg.AdminTOTPEncryptionKey),
+		EncryptionKeyID:    cfg.AdminTOTPEncryptionKeyID,
+		HMACKey:            decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID:          cfg.AdminSessionHMACKeyID,
+		SessionIdleTTL:     cfg.AdminSessionIdleTTL,
+		SessionAbsoluteTTL: cfg.AdminSessionAbsoluteTTL,
+		ChallengeTTL:       cfg.AdminChallengeTTL,
+		RecentMFATTL:       cfg.AdminRecentMFATTL,
+		PreAuthTTL:         cfg.AdminPreAuthTTL,
+		LoginFailureLimit:  cfg.AdminLoginFailureLimit,
+		LoginIPLimit:       cfg.AdminLoginIPLimit,
+		LoginGlobalLimit:   cfg.AdminLoginGlobalLimit,
+		AdminOrigin:        cfg.AdminOrigin,
+	}
+	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
 	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
@@ -215,7 +224,7 @@ func main() {
 	})
 
 	// Admin-only routes.
-	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin)
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
 
 	// New v3 routes are always present in the router so their feature and
 	// authentication behavior is observable. The browser-admin session endpoints
@@ -322,17 +331,28 @@ func isAdminRequestPath(path string) bool {
 // registerAdminV2Routes retires the legacy username/JWT admin boundary. The
 // v2 payloads remain wire-compatible, but an opaque browser session and the
 // same origin/CSRF/capability policy as v3 are now required.
-func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, origin string) {
+// The optional flag preserves compatibility with older in-package test
+// fixtures; the production call always supplies cfg.WebAdminAPI.
+func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, origin string, enabled ...bool) {
+	adminEnabled := true
+	if len(enabled) > 0 {
+		adminEnabled = enabled[0]
+	}
 	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(adminEnabled))
 		r.Use(middleware.CaptureAdminRequest)
 		r.Use(middleware.AdminCORS(origin))
 		r.Use(middleware.AdminSessionGuard(auth))
 		r.Use(middleware.AdminOriginGuard(origin))
 		r.Use(middleware.AdminCSRFGuard)
-		r.Use(middleware.AdminRecentMFAGuard(5 * time.Minute))
+		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(auth)))
 		r.Use(middleware.AdminCapabilityGuard)
 		registerRoutes(r, ctrl, alwaysTrue)
 	})
+}
+
+func adminRecentMFATTL(auth *service.AdminAuth) time.Duration {
+	return auth.RecentMFATTL()
 }
 
 // registerV3Routes installs the additive v3 surfaces behind their independent
@@ -445,7 +465,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(middleware.AdminSessionGuard(adminAuth))
 		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
 		r.Use(middleware.AdminCSRFGuard)
-		r.Use(middleware.AdminRecentMFAGuard(5 * time.Minute))
+		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(adminAuth)))
 		r.Use(middleware.AdminCapabilityGuard)
 		registerRoutes(r, adminUsersCtrl, alwaysTrue)
 		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
