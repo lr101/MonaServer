@@ -41,6 +41,9 @@ const (
 	DurableJobCompleted                  = "completed"
 	DurableJobFailed                     = "failed"
 	DurableJobCancelled                  = "cancelled"
+	ReportStatusOpen                     = "open"
+	ReportStatusResolved                 = "resolved"
+	ReportStatusDismissed                = "dismissed"
 )
 
 var (

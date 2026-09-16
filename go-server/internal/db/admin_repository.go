@@ -1818,6 +1818,12 @@ type ReportParams struct {
 	RequestID      *string
 }
 
+type ReportTargetSnapshot struct {
+	ID      uuid.UUID
+	Name    string
+	Deleted bool
+}
+
 func reportFromRow(r dbgen.Report) Report {
 	return Report{
 		ID:             goUUID(r.ID),
@@ -1839,11 +1845,18 @@ func reportFromRow(r dbgen.Report) Report {
 }
 
 func reportMatches(p ReportParams, existing Report) bool {
+	// target_name and target_deleted may be filled from the current user row
+	// while the report is inserted. A retry of the same structured submission
+	// omits those server-derived snapshot fields, so compare the stable target
+	// identity in that case and retain strict comparison for caller-supplied
+	// snapshots.
+	targetSnapshotMatches := p.TargetID != nil && p.TargetName == nil &&
+		optionalUUIDEqual(p.TargetID, existing.TargetID)
+	targetFieldsMatch := optionalStringEqual(p.TargetName, existing.TargetName) && p.TargetDeleted == existing.TargetDeleted
 	return optionalUUIDEqual(p.ReporterUserID, existing.ReporterUserID) &&
 		optionalUUIDEqual(p.TargetID, existing.TargetID) &&
 		optionalStringEqual(p.TargetKind, existing.TargetKind) &&
-		optionalStringEqual(p.TargetName, existing.TargetName) &&
-		p.TargetDeleted == existing.TargetDeleted && p.Body == existing.Body &&
+		(targetSnapshotMatches || targetFieldsMatch) && p.Body == existing.Body &&
 		optionalStringEqual(p.LegacyText, existing.LegacyText)
 }
 
@@ -1879,6 +1892,64 @@ func (q *Queries) GetReport(ctx context.Context, id uuid.UUID) (*Report, error) 
 	}
 	v := reportFromRow(r)
 	return &v, nil
+}
+
+func (q *Queries) GetReportByRequestID(ctx context.Context, requestID string) (*Report, error) {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return nil, nil
+	}
+	r, err := q.g.GetReportByRequestID(ctx, pgTextS(requestID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v := reportFromRow(r)
+	return &v, nil
+}
+
+func (q *Queries) GetReportTargetSnapshot(ctx context.Context, id uuid.UUID) (*ReportTargetSnapshot, error) {
+	if id == uuid.Nil {
+		return nil, nil
+	}
+	r, err := q.g.GetReportTargetSnapshot(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &ReportTargetSnapshot{ID: goUUID(r.ID), Name: r.Username.String, Deleted: r.IsDeleted}, nil
+}
+
+// ListReportsPage applies a stable (created_at, id) keyset cursor and an
+// optional substring search. The cursor values are exclusive, so inserting a
+// report while an inbox is being paged cannot duplicate an existing item.
+func (q *Queries) ListReportsPage(ctx context.Context, status, search string, beforeCreated *time.Time, beforeID *uuid.UUID, limit int) ([]Report, error) {
+	if limit <= 0 {
+		return nil, ErrInvalidJob
+	}
+	if beforeCreated == nil {
+		beforeID = nil
+	}
+	var cursorID pgtype.UUID
+	if beforeID != nil {
+		cursorID = pgUUID(*beforeID)
+	}
+	rs, err := q.g.ListReportsPage(ctx, dbgen.ListReportsPageParams{
+		Column1: strings.TrimSpace(status), Column2: pgTZ(beforeCreated), Column3: cursorID,
+		Column4: strings.TrimSpace(search), Limit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Report, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, reportFromRow(r))
+	}
+	return out, nil
 }
 
 func (q *Queries) ListReports(ctx context.Context, status string, before *time.Time, limit int) ([]Report, error) {

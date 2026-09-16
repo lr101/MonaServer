@@ -436,6 +436,32 @@ SELECT id, reporter_user_id, target_id, target_kind, target_name, target_deleted
 FROM reports
 WHERE id = $1;
 
+-- name: GetReportByRequestID :one
+SELECT id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+       body, legacy_text, status, assignee_user_id, revision, request_id,
+       created_at, updated_at, resolved_at
+FROM reports
+WHERE request_id = $1;
+
+-- name: GetReportTargetSnapshot :one
+SELECT id, username, is_deleted
+FROM users
+WHERE id = $1;
+
+-- name: ListReportsPage :many
+SELECT id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+       body, legacy_text, status, assignee_user_id, revision, request_id,
+       created_at, updated_at, resolved_at
+FROM reports
+WHERE ($1::text = '' OR status = $1)
+  AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz
+       OR (created_at = $2::timestamptz AND id < $3::uuid))
+  AND ($4::text = '' OR position(lower($4) in lower(
+      coalesce(body, '') || ' ' || coalesce(legacy_text, '') || ' ' ||
+      coalesce(target_name, '') || ' ' || coalesce(target_id::text, ''))) > 0)
+ORDER BY created_at DESC, id DESC
+LIMIT $5;
+
 -- name: ListReports :many
 SELECT id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
        body, legacy_text, status, assignee_user_id, revision, request_id,
@@ -452,7 +478,9 @@ SET status = CASE WHEN $2 = '' THEN status ELSE $2 END,
     assignee_user_id = COALESCE($3, assignee_user_id),
     revision = revision + 1,
     updated_at = now(),
-    resolved_at = CASE WHEN $2 IN ('resolved', 'dismissed') THEN now() ELSE resolved_at END
+    resolved_at = CASE WHEN $2 IN ('resolved', 'dismissed') THEN now()
+                       WHEN $2 = 'open' THEN NULL
+                       ELSE resolved_at END
 WHERE id = $1 AND revision = $4
 RETURNING id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
           body, legacy_text, status, assignee_user_id, revision, request_id,
