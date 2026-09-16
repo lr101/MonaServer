@@ -183,6 +183,26 @@ func TestProviderOutcomesMapToRetryFailureDisabledAndUnknownResults(t *testing.T
 	}
 }
 
+func TestClassifyFCMUnknownErrorIsRetryableUncertain(t *testing.T) {
+	result := classifyFCMError(context.Background(), errors.New("firebase changed its response envelope"))
+	if result.Outcome != ProviderUnknownDelivery {
+		t.Fatalf("unknown FCM outcome = %q, want unknown delivery", result.Outcome)
+	}
+	if result.ErrorCode != "provider_unknown" {
+		t.Fatalf("unknown FCM error code = %q, want bounded provider_unknown", result.ErrorCode)
+	}
+	if !result.JobResult().Retry || result.JobResult().Outcome != jobs.OutcomeUnknownDelivery {
+		t.Fatalf("unknown FCM job result = %#v, want retryable unknown delivery", result.JobResult())
+	}
+}
+
+func TestClassifyFCMKnownPermanentRequestErrorRemainsTerminal(t *testing.T) {
+	result := classifyFCMError(context.Background(), errors.New("firebase invalid argument: malformed message"))
+	if result.Outcome != ProviderPermanentFailure || result.ErrorCode != "provider_rejected" {
+		t.Fatalf("known permanent FCM result = %#v, want terminal provider rejection", result)
+	}
+}
+
 func TestPushEligibilitySeparatesPreferenceFromRegisteredDevices(t *testing.T) {
 	userID := uuid.New()
 	devices := []db.DeviceRegistration{

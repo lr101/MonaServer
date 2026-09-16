@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,9 +16,12 @@ import (
 )
 
 type fakeJobStore struct {
-	mu       sync.Mutex
-	finished []finishCall
-	released []releaseCall
+	mu                 sync.Mutex
+	finished           []finishCall
+	released           []releaseCall
+	extended           []extendCall
+	releaseContextErr  error
+	releaseHasDeadline bool
 }
 
 type finishCall struct {
@@ -34,11 +38,21 @@ type releaseCall struct {
 	availableAt time.Time
 }
 
+type extendCall struct {
+	id     uuid.UUID
+	worker string
+	token  uuid.UUID
+	lease  time.Duration
+}
+
 func (f *fakeJobStore) ClaimDurableJobs(context.Context, string, int, time.Duration) ([]db.DurableJob, error) {
 	return nil, nil
 }
 
-func (f *fakeJobStore) ExtendDurableJobLease(context.Context, uuid.UUID, string, uuid.UUID, time.Duration) (bool, error) {
+func (f *fakeJobStore) ExtendDurableJobLease(_ context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
+	f.mu.Lock()
+	f.extended = append(f.extended, extendCall{id: id, worker: worker, token: token, lease: lease})
+	f.mu.Unlock()
 	return true, nil
 }
 
@@ -49,11 +63,29 @@ func (f *fakeJobStore) FinishDurableJob(_ context.Context, id uuid.UUID, worker 
 	return true, nil
 }
 
-func (f *fakeJobStore) ReleaseDurableJobLease(_ context.Context, id uuid.UUID, worker string, token uuid.UUID, availableAt time.Time) (bool, error) {
+func (f *fakeJobStore) ReleaseDurableJobLease(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, availableAt time.Time) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.releaseContextErr = ctx.Err()
+	_, f.releaseHasDeadline = ctx.Deadline()
 	f.released = append(f.released, releaseCall{id: id, worker: worker, token: token, availableAt: availableAt})
 	return true, nil
+}
+
+type failingHeartbeatStore struct {
+	fakeJobStore
+	result chan struct{}
+}
+
+func (f *failingHeartbeatStore) ExtendDurableJobLease(_ context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
+	f.mu.Lock()
+	f.extended = append(f.extended, extendCall{id: id, worker: worker, token: token, lease: lease})
+	f.mu.Unlock()
+	select {
+	case f.result <- struct{}{}:
+	default:
+	}
+	return false, nil
 }
 
 type queueJobStore struct {
@@ -150,11 +182,11 @@ func TestTransientHandlerResultUsesExponentialBackoffAndStopsAtAttemptLimit(t *t
 	now := time.Unix(200, 0)
 	store := &fakeJobStore{}
 	w := NewWorker(store, Config{
-		WorkerID:    "worker-a",
-		Clock:       func() time.Time { return now },
-		BackoffBase: 2 * time.Second,
-		BackoffMax:  20 * time.Second,
-		Jitter:      0,
+		WorkerID:      "worker-a",
+		Clock:         func() time.Time { return now },
+		BackoffBase:   2 * time.Second,
+		BackoffMax:    20 * time.Second,
+		DisableJitter: true,
 	})
 	if err := w.Register("email", HandlerFunc(func(context.Context, Job) Result {
 		return Retry(errors.New("provider unavailable"))
@@ -212,6 +244,111 @@ func TestWorkerCancellationReleasesInFlightLease(t *testing.T) {
 	}
 	if len(store.released) != 1 {
 		t.Fatalf("released calls = %#v, want one lease release", store.released)
+	}
+}
+
+func TestProcessHeartbeatsLeaseDuringLongHandler(t *testing.T) {
+	store := &fakeJobStore{}
+	w := NewWorker(store, Config{WorkerID: "worker-a", LeaseDuration: 30 * time.Millisecond, Clock: time.Now})
+	started := make(chan struct{})
+	if err := w.Register("email", HandlerFunc(func(ctx context.Context, _ Job) Result {
+		close(started)
+		<-ctx.Done()
+		return Cancelled()
+	})); err != nil {
+		t.Fatalf("register handler: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	job := testJob(map[string]string{"to": "person@example.test"}, 1, 3)
+	done := make(chan error, 1)
+	go func() { done <- w.process(ctx, job) }()
+	<-started
+	deadline := time.After(250 * time.Millisecond)
+	for {
+		store.mu.Lock()
+		extensions := len(store.extended)
+		store.mu.Unlock()
+		if extensions > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatal("worker did not extend the in-flight lease")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("cancelled process: %v", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.extended) == 0 || store.extended[0].lease != 30*time.Millisecond {
+		t.Fatalf("lease extensions = %#v, want the configured lease", store.extended)
+	}
+}
+
+func TestProcessFencesHandlerWhenLeaseHeartbeatFails(t *testing.T) {
+	store := &failingHeartbeatStore{result: make(chan struct{}, 1)}
+	w := NewWorker(store, Config{WorkerID: "worker-a", LeaseDuration: 30 * time.Millisecond, Clock: time.Now})
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	if err := w.Register("email", HandlerFunc(func(ctx context.Context, _ Job) Result {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return Success()
+	})); err != nil {
+		t.Fatalf("register handler: %v", err)
+	}
+
+	job := testJob(map[string]string{"to": "person@example.test"}, 1, 3)
+	done := make(chan error, 1)
+	go func() { done <- w.process(context.Background(), job) }()
+	<-started
+	select {
+	case <-cancelled:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("heartbeat failure did not cancel the handler")
+	}
+	if err := <-done; !errors.Is(err, ErrLeaseLost) {
+		t.Fatalf("fenced process error = %v, want lease lost", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.finished) != 0 || len(store.released) != 0 {
+		t.Fatalf("fenced lease was acknowledged: finish=%#v release=%#v", store.finished, store.released)
+	}
+}
+
+func TestCancelledProcessUsesIndependentCleanupContext(t *testing.T) {
+	store := &fakeJobStore{}
+	w := NewWorker(store, Config{WorkerID: "worker-a", Clock: time.Now})
+	started := make(chan struct{})
+	if err := w.Register("email", HandlerFunc(func(ctx context.Context, _ Job) Result {
+		close(started)
+		<-ctx.Done()
+		return Cancelled()
+	})); err != nil {
+		t.Fatalf("register handler: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- w.process(ctx, testJob(map[string]string{"to": "person@example.test"}, 1, 3)) }()
+	<-started
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("cancelled process: %v", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.released) != 1 {
+		t.Fatalf("released calls = %#v, want one lease release", store.released)
+	}
+	if store.releaseContextErr != nil || !store.releaseHasDeadline {
+		t.Fatalf("cleanup context err=%v deadline=%v, want independent bounded context", store.releaseContextErr, store.releaseHasDeadline)
 	}
 }
 
@@ -339,6 +476,18 @@ func (f *fakeEnqueueStore) GetDurableJob(_ context.Context, id uuid.UUID) (*db.D
 	return &job, nil
 }
 
+func (f *fakeEnqueueStore) GetDurableJobByIdempotencyKey(_ context.Context, kind, key string) (*db.DurableJob, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, job := range f.jobs {
+		if job.Kind == kind && job.IdempotencyKey == key {
+			copy := job
+			return &copy, nil
+		}
+	}
+	return nil, nil
+}
+
 func (f *fakeEnqueueStore) CreateOutboxEvent(_ context.Context, p db.OutboxEventParams) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -368,6 +517,57 @@ func TestEnqueueDurableJobIsIdempotentAndRejectsPayloadConflicts(t *testing.T) {
 	req.Payload = json.RawMessage(`{"to":"other@example.test"}`)
 	if _, err := EnqueueDurableJob(context.Background(), store, req); !errors.Is(err, ErrIdempotencyConflict) {
 		t.Fatalf("conflicting enqueue error = %v, want idempotency conflict", err)
+	}
+}
+
+func TestEnqueueDurableJobRejectsExplicitIDReuseWithDifferentJobID(t *testing.T) {
+	store := newFakeEnqueueStore()
+	firstID := uuid.New()
+	first, err := EnqueueDurableJob(context.Background(), store, EnqueueRequest{
+		ID: firstID, Kind: "email", IdempotencyKey: "explicit-reuse", Payload: json.RawMessage(`{"to":"person@example.test"}`), AvailableAt: time.Unix(200, 0), MaxAttempts: 3,
+	})
+	if err != nil || first != firstID {
+		t.Fatalf("first enqueue = %v, %v", first, err)
+	}
+	secondID := uuid.New()
+	if _, err := EnqueueDurableJob(context.Background(), store, EnqueueRequest{
+		ID: secondID, Kind: "email", IdempotencyKey: "explicit-reuse", Payload: json.RawMessage(`{"to":"person@example.test"}`), AvailableAt: time.Unix(200, 0), MaxAttempts: 3,
+	}); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("explicit-ID reuse error = %v, want idempotency conflict", err)
+	}
+}
+
+func TestNewWorkerAppliesDefaultJitterAndSupportsDeterministicOverride(t *testing.T) {
+	defaultWorker := NewWorker(&fakeJobStore{}, Config{WorkerID: "worker-a"})
+	if defaultWorker.cfg.Jitter != defaultJitter {
+		t.Fatalf("default jitter = %v, want %v", defaultWorker.cfg.Jitter, defaultJitter)
+	}
+	deterministicWorker := NewWorker(&fakeJobStore{}, Config{WorkerID: "worker-b", DisableJitter: true})
+	if deterministicWorker.cfg.Jitter != 0 {
+		t.Fatalf("deterministic jitter = %v, want zero", deterministicWorker.cfg.Jitter)
+	}
+}
+
+func TestSafeErrorReturnsOnlyAllowlistedDiagnostics(t *testing.T) {
+	secret := "opaque-token-value"
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "timeout", err: errors.New("smtp timeout token=" + secret), want: "timeout"},
+		{name: "database conflict", err: errors.New("serialization failure password=hunter2"), want: "database_conflict"},
+		{name: "unknown", err: errors.New("provider returned secret=" + secret), want: "worker_error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := safeError(tc.err)
+			if got != tc.want {
+				t.Fatalf("safe error = %q, want %q", got, tc.want)
+			}
+			if len(got) > 64 || strings.Contains(got, secret) {
+				t.Fatalf("safe error exposed unbounded/secret text: %q", got)
+			}
+		})
 	}
 }
 

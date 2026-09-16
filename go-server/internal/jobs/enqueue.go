@@ -43,6 +43,15 @@ type DurableJobEnqueuer interface {
 	GetDurableJob(context.Context, uuid.UUID) (*db.DurableJob, error)
 }
 
+// DurableJobIdempotencyLookup is an optional stronger lookup implemented by
+// transaction-backed stores that can query the unique business key directly.
+// The fallback read by ID remains useful for the deterministic-ID path; an
+// explicit ID with no row after a successful insert is treated as a conflict
+// rather than silently accepting a duplicate operation.
+type DurableJobIdempotencyLookup interface {
+	GetDurableJobByIdempotencyKey(context.Context, string, string) (*db.DurableJob, error)
+}
+
 // OutboxRequest is the caller-owned transaction form of an outbox event.
 type OutboxRequest struct {
 	ID             uuid.UUID
@@ -81,6 +90,7 @@ func EnqueueDurableJob(ctx context.Context, store DurableJobEnqueuer, request En
 	}
 	request.Kind = strings.TrimSpace(request.Kind)
 	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
+	explicitID := request.ID != uuid.Nil
 	if request.ID == uuid.Nil {
 		request.ID = DeterministicJobID(request.Kind, request.IdempotencyKey)
 	}
@@ -107,17 +117,28 @@ func EnqueueDurableJob(ctx context.Context, store DurableJobEnqueuer, request En
 	if err != nil {
 		return uuid.Nil, err
 	}
-	existing, err := store.GetDurableJob(ctx, request.ID)
+	var existing *db.DurableJob
+	if keyed, ok := store.(DurableJobIdempotencyLookup); ok {
+		existing, err = keyed.GetDurableJobByIdempotencyKey(ctx, request.Kind, request.IdempotencyKey)
+	} else {
+		existing, err = store.GetDurableJob(ctx, request.ID)
+	}
 	if err != nil {
 		return uuid.Nil, err
 	}
 	if existing == nil {
+		if explicitID {
+			// A duplicate protected by the idempotency key can make an insert a
+			// no-op while a different explicit ID has no row to read. Returning
+			// that new ID would acknowledge an operation that was never stored.
+			return uuid.Nil, ErrIdempotencyConflict
+		}
 		// A store may intentionally make writes asynchronous. The database
 		// facade is synchronous, and its deterministic row is read back here;
 		// returning the stable ID still lets the caller safely retry.
 		return request.ID, nil
 	}
-	if existing.Kind != request.Kind || existing.IdempotencyKey != request.IdempotencyKey ||
+	if existing.ID != request.ID || existing.Kind != request.Kind || existing.IdempotencyKey != request.IdempotencyKey ||
 		!bytes.Equal(existing.Payload, payload) || existing.Priority != request.Priority ||
 		existing.MaxAttempts != request.MaxAttempts {
 		return uuid.Nil, ErrIdempotencyConflict

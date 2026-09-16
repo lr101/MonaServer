@@ -108,5 +108,11 @@ func classifyFCMError(ctx context.Context, err error) ProviderResult {
 	if strings.Contains(text, "deadline") || strings.Contains(text, "timeout") || strings.Contains(text, "unavailable") || strings.Contains(text, "temporar") || strings.Contains(text, "connection") || strings.Contains(text, "resource exhausted") {
 		return ProviderResult{Outcome: ProviderTransientFailure, ErrorCode: RedactProviderError(err)}
 	}
-	return ProviderResult{Outcome: ProviderPermanentFailure, ErrorCode: "provider_rejected"}
+	if strings.Contains(text, "invalid argument") || strings.Contains(text, "invalid request") || strings.Contains(text, "malformed") || strings.Contains(text, "sender id mismatch") {
+		return ProviderResult{Outcome: ProviderPermanentFailure, ErrorCode: "provider_rejected"}
+	}
+	// An unrecognized Firebase response cannot prove that the provider did not
+	// accept the message. Preserve uncertainty so the bounded retry path can
+	// make the duplicate/ack-loss tradeoff explicitly.
+	return ProviderResult{Outcome: ProviderUnknownDelivery, ErrorCode: "provider_unknown"}
 }

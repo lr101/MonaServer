@@ -111,8 +111,11 @@ type Config struct {
 	BackoffBase   time.Duration
 	BackoffMax    time.Duration
 	// Jitter is a fraction of the computed delay, in [0, 1].  The default is
-	// 0.2.  Set it to zero in deterministic tests.
+	// 0.2. Set DisableJitter for deterministic tests that need exact delays.
 	Jitter float64
+	// DisableJitter is an explicit deterministic-test switch. A zero Jitter
+	// value otherwise selects the documented production default.
+	DisableJitter bool
 	// Kinds optionally limits this worker to one queue family.  A worker with
 	// no allowlist handles every registered kind.  Jobs from another queue are
 	// released immediately and remain available to their dedicated worker.
@@ -177,6 +180,9 @@ func NewWorker(store DurableJobStore, cfg Config) *Worker {
 	}
 	if cfg.Jitter > 1 {
 		cfg.Jitter = 1
+	}
+	if cfg.Jitter == 0 && !cfg.DisableJitter {
+		cfg.Jitter = defaultJitter
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
@@ -279,7 +285,16 @@ func (w *Worker) process(ctx context.Context, job Job) error {
 		return w.finish(ctx, job, StatusFailed)
 	}
 
-	result := handler.Handle(ctx, job)
+	handlerCtx, cancelHandler := context.WithCancel(ctx)
+	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+	heartbeatDone := make(chan bool, 1)
+	go w.monitorLease(heartbeatCtx, job, cancelHandler, heartbeatDone)
+	result := handler.Handle(handlerCtx, job)
+	cancelHandler()
+	stopHeartbeat()
+	if <-heartbeatDone {
+		return ErrLeaseLost
+	}
 	if ctx.Err() != nil {
 		// A cancelled handler may return Success after observing cancellation;
 		// the worker owns the shutdown boundary and must release the lease.
@@ -292,7 +307,9 @@ func (w *Worker) process(ctx context.Context, job Job) error {
 		}
 		delay := w.retryDelay(job.AttemptCount, result.RetryAfter)
 		availableAt := w.cfg.Clock().Add(delay)
-		ok, err := w.store.ReleaseDurableJobLease(ctx, job.ID, *job.LeaseOwner, job.LeaseToken, availableAt)
+		cleanupCtx, cleanupCancel := leaseCleanupContext(ctx)
+		ok, err := w.store.ReleaseDurableJobLease(cleanupCtx, job.ID, *job.LeaseOwner, job.LeaseToken, availableAt)
+		cleanupCancel()
 		if err != nil {
 			return err
 		}
@@ -320,12 +337,63 @@ func (w *Worker) process(ctx context.Context, job Job) error {
 // worker.  It is intentionally distinct from a provider failure.
 var ErrLeaseLost = errors.New("durable job lease lost")
 
+const leaseCleanupTimeout = 5 * time.Second
+
+// monitorLease keeps a claimed job's lease alive while its handler runs. A
+// failed or stale extension fences the handler before it can acknowledge the
+// row with an expired lease.
+func (w *Worker) monitorLease(ctx context.Context, job Job, cancelHandler context.CancelFunc, done chan<- bool) {
+	lost := false
+	interval := w.cfg.LeaseDuration / 3
+	if interval <= 0 {
+		interval = time.Nanosecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	defer func() { done <- lost }()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			owner := ""
+			if job.LeaseOwner != nil {
+				owner = *job.LeaseOwner
+			}
+			ok, err := w.store.ExtendDurableJobLease(ctx, job.ID, owner, job.LeaseToken, w.cfg.LeaseDuration)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil || !ok {
+				lost = true
+				cancelHandler()
+				return
+			}
+		}
+	}
+}
+
+// leaseCleanupContext detaches an acknowledgement from handler cancellation
+// while preserving context values and bounding the database call.
+func leaseCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), leaseCleanupTimeout)
+}
+
 func (w *Worker) finish(ctx context.Context, job Job, status string) error {
 	owner := ""
 	if job.LeaseOwner != nil {
 		owner = *job.LeaseOwner
 	}
-	ok, err := w.store.FinishDurableJob(ctx, job.ID, owner, job.LeaseToken, status)
+	cleanupCtx, cleanupCancel := leaseCleanupContext(ctx)
+	defer cleanupCancel()
+	ok, err := w.store.FinishDurableJob(cleanupCtx, job.ID, owner, job.LeaseToken, status)
 	if err != nil {
 		return err
 	}
@@ -440,7 +508,9 @@ func (w *Worker) releaseUnowned(ctx context.Context, job Job) error {
 	if job.LeaseOwner == nil || job.LeaseToken == uuid.Nil {
 		return nil
 	}
-	ok, err := w.store.ReleaseDurableJobLease(ctx, job.ID, *job.LeaseOwner, job.LeaseToken, w.cfg.Clock())
+	cleanupCtx, cleanupCancel := leaseCleanupContext(ctx)
+	defer cleanupCancel()
+	ok, err := w.store.ReleaseDurableJobLease(cleanupCtx, job.ID, *job.LeaseOwner, job.LeaseToken, w.cfg.Clock())
 	if err == nil && !ok {
 		return ErrLeaseLost
 	}
@@ -526,10 +596,19 @@ func safeError(err error) string {
 		return ""
 	}
 	// Provider/database errors can contain addresses, credentials, or token
-	// fragments. Keep only a bounded, single-line diagnostic for logs.
-	value := strings.Join(strings.Fields(err.Error()), " ")
-	if len(value) > 256 {
-		value = value[:256]
+	// fragments. Emit only an allowlisted diagnostic so an unexpected error
+	// cannot turn queue logs into a secret-bearing channel.
+	value := strings.ToLower(strings.Join(strings.Fields(err.Error()), " "))
+	switch {
+	case strings.Contains(value, "deadline"), strings.Contains(value, "timeout"):
+		return "timeout"
+	case strings.Contains(value, "deadlock"), strings.Contains(value, "serialization"):
+		return "database_conflict"
+	case strings.Contains(value, "connection"), strings.Contains(value, "unavailable"), strings.Contains(value, "temporary"), strings.Contains(value, "try again"):
+		return "transient"
+	case strings.Contains(value, "invalid"):
+		return "invalid_request"
+	default:
+		return "worker_error"
 	}
-	return value
 }
