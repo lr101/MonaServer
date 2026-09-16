@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -142,6 +144,7 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 		AdminUsername:      "admin",
 		AdminOrigin:        "https://admin.example",
 		WebAdminAPI:        true,
+		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
 		MailPort:           mailPort,
 		MailUsername:       "mail@test.example",
@@ -194,6 +197,7 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
 	r := chi.NewRouter()
+	r.Use(middleware.TrustedRealIP(cfg.TrustedProxyCIDRs))
 	r.Use(chimw.Recoverer)
 
 	// Mirror the route wiring in main.go.
@@ -1275,23 +1279,33 @@ func TestEndpointRanking(t *testing.T) {
 func TestEndpointReport(t *testing.T) {
 	srv, q := buildTestServerWithQuery(t)
 	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
 
 	anon := &apiClient{base: srv.URL}
 	ar := anon.signup(t, "reporter", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
 	t.Run("POST /api/v2/report", func(t *testing.T) {
+		const reportQuotaKey = "server-test-report-quota-key"
+		const reportQuotaKeyID = "server-test-report-v1"
+		const forwardedIP = "198.51.100.7"
 		body := map[string]any{
 			"userId":  ar.UserID,
 			"report":  "spam",
 			"message": "test report",
 		}
-		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, map[string]string{"Idempotency-Key": "routed-report-key"})
+		headers := map[string]string{
+			"Idempotency-Key": "routed-report-key",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		}
+		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("report status = %d, want 201", resp.StatusCode)
 		}
-		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, map[string]string{"Idempotency-Key": "routed-report-key"})
+		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		replay.Body.Close()
 		if replay.StatusCode != http.StatusCreated {
 			t.Fatalf("report replay status = %d, want 201", replay.StatusCode)
@@ -1303,5 +1317,27 @@ func TestEndpointReport(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("routed reports = %d, want exactly one idempotent row", count)
 		}
+		accountHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-account", ar.UserID)
+		ipHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-ip", forwardedIP)
+		var accountHits, ipHits int64
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-account' AND identifier_hmac = $1 AND key_id = $2`, accountHMAC, reportQuotaKeyID).Scan(&accountHits); err != nil {
+			t.Fatalf("read routed account quota bucket: %v", err)
+		}
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-ip' AND identifier_hmac = $1 AND key_id = $2`, ipHMAC, reportQuotaKeyID).Scan(&ipHits); err != nil {
+			t.Fatalf("read routed IP quota bucket: %v", err)
+		}
+		if accountHits != 1 || ipHits != 1 {
+			t.Fatalf("routed quota hits account=%d ip=%d, want one keyed hit each", accountHits, ipHits)
+		}
 	})
+}
+
+func reportQuotaIdentifierHMAC(key []byte, scope, value string) []byte {
+	h := hmac.New(sha256.New, key)
+	_, _ = h.Write([]byte(scope + "\x00" + value))
+	return h.Sum(nil)
 }

@@ -138,6 +138,41 @@ TEST_DATABASE_URL='<disposable-local-DSN>' \
 PASS: all Go packages
 ```
 
+The test-repair validation ran with the following raw worktree head and output
+before committing the test changes:
+
+```text
+$ git rev-parse HEAD
+ea279143929b789d336d1ed523e0715378fbb232
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -race -count=1 -p 1 ./internal/service -run '^TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory$' -v
+=== RUN   TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory
+=== RUN   TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/Submit
+=== RUN   TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/HardDeleteUser
+=== RUN   TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/User.Delete
+--- PASS: TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory (0.33s)
+    --- PASS: TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/Submit (0.03s)
+    --- PASS: TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/HardDeleteUser (0.02s)
+    --- PASS: TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory/User.Delete (0.02s)
+PASS
+ok  github.com/lrprojects/monaserver/internal/service 1.370s
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -race -count=1 -p 1 ./cmd/server -run '^TestEndpointReport$' -v
+=== RUN   TestEndpointReport
+2026/09/16 23:21:04 WARN firebase messaging init failed err="project ID is required to access Firebase Cloud Messaging client"
+=== RUN   TestEndpointReport/POST_/api/v2/report
+--- PASS: TestEndpointReport (0.96s)
+    --- PASS: TestEndpointReport/POST_/api/v2/report (0.01s)
+PASS
+ok  github.com/lrprojects/monaserver/cmd/server 2.024s
+```
+
+The deterministic lock test observes the operation waiting on its target
+advisory lock while a separate `FOR UPDATE NOWAIT` probe confirms the target
+user row is already held. The routed test sends `X-Forwarded-For` through a
+trusted `127.0.0.1/32` proxy and verifies one HMAC-keyed account bucket and one
+HMAC-keyed forwarded-IP bucket after the idempotent replay.
+
 ## Local service availability
 
 PostgreSQL with PostGIS was available on the disposable local instance at

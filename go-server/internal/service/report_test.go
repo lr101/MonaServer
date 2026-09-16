@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
@@ -513,6 +515,124 @@ func TestReportServiceConcurrentUserDeleteDoesNotDeadlock(t *testing.T) {
 	if err != nil || stored == nil || !stored.TargetDeleted {
 		t.Fatalf("report target after User.Delete = %#v err=%v, want deleted", stored, err)
 	}
+}
+
+func TestReportServiceLockOrderAcquiresUserRowBeforeReportAdvisory(t *testing.T) {
+	pool, q := setupPool(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	reporterID := uuid.New()
+	submitTargetID := uuid.New()
+	hardDeleteTargetID := uuid.New()
+	userDeleteTargetID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "lock-order-reporter")
+	insertReportTestUser(t, q, submitTargetID, "lock-order-submit-target")
+	insertReportTestUser(t, q, hardDeleteTargetID, "lock-order-hard-delete-target")
+	insertReportTestUser(t, q, userDeleteTargetID, "lock-order-user-delete-target")
+	if _, err := q.Pool().Exec(ctx, `
+		UPDATE users
+		SET code = '001234', code_expiration = NOW() + INTERVAL '5 minutes'
+		WHERE id = $1`, userDeleteTargetID); err != nil {
+		t.Fatalf("set deletion code: %v", err)
+	}
+
+	exercise := func(name string, targetID uuid.UUID, operation func(context.Context) error) {
+		t.Run(name, func(t *testing.T) {
+			blockerConn, err := pool.Acquire(ctx)
+			if err != nil {
+				t.Fatalf("acquire advisory blocker connection: %v", err)
+			}
+			defer blockerConn.Release()
+			blockerTx, err := blockerConn.Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin advisory blocker: %v", err)
+			}
+			defer func() { _ = blockerTx.Rollback(context.Background()) }()
+			if _, err := blockerTx.Exec(ctx, `
+				SELECT pg_advisory_xact_lock(hashtextextended('report-target:' || $1::text, 0))`, targetID); err != nil {
+				t.Fatalf("hold report advisory lock: %v", err)
+			}
+
+			result := make(chan error, 1)
+			go func() { result <- operation(ctx) }()
+			if err := waitForReportTargetAdvisoryWaiter(ctx, pool, targetID); err != nil {
+				t.Fatalf("wait for %s advisory waiter: %v", name, err)
+			}
+			if err := assertUserRowLocked(ctx, pool, targetID); err != nil {
+				t.Fatalf("%s lock order: %v", name, err)
+			}
+
+			if err := blockerTx.Rollback(ctx); err != nil {
+				t.Fatalf("release advisory blocker: %v", err)
+			}
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("%s after lock release: %v", name, err)
+				}
+			case <-ctx.Done():
+				t.Fatalf("%s did not finish after lock release: %v", name, ctx.Err())
+			}
+		})
+	}
+
+	reports := NewReportService(q)
+	exercise("Submit", submitTargetID, func(ctx context.Context) error {
+		targetKind := "user"
+		_, err := reports.Submit(ctx, ReportSubmission{
+			ReporterID: reporterID, TargetID: &submitTargetID, TargetKind: &targetKind,
+			Body: "deterministic lock-order submission",
+		})
+		return err
+	})
+	exercise("HardDeleteUser", hardDeleteTargetID, func(ctx context.Context) error {
+		return q.HardDeleteUser(ctx, hardDeleteTargetID)
+	})
+	exercise("User.Delete", userDeleteTargetID, func(ctx context.Context) error {
+		return NewUser(q, nil, nil, nil, nil).Delete(ctx, userDeleteTargetID, 1234)
+	})
+}
+
+func waitForReportTargetAdvisoryWaiter(ctx context.Context, pool *pgxpool.Pool, targetID uuid.UUID) error {
+	const query = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_locks
+			WHERE locktype = 'advisory'
+			  AND NOT granted
+			  AND classid = (((hashtextextended('report-target:' || $1::text, 0) >> 32) & 4294967295)::oid)
+			  AND objid = ((hashtextextended('report-target:' || $1::text, 0) & 4294967295)::oid)
+			  AND objsubid = 1
+		)`
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var waiting bool
+		if err := pool.QueryRow(ctx, query, targetID).Scan(&waiting); err != nil {
+			return err
+		}
+		if waiting {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func assertUserRowLocked(ctx context.Context, pool *pgxpool.Pool, targetID uuid.UUID) error {
+	var got uuid.UUID
+	err := pool.QueryRow(ctx, `SELECT id FROM users WHERE id = $1 FOR UPDATE NOWAIT`, targetID).Scan(&got)
+	if err == nil {
+		return fmt.Errorf("row lock was available for %s", got)
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "55P03" {
+		return fmt.Errorf("row lock probe error: %w", err)
+	}
+	return nil
 }
 
 func TestReportServiceStructuredTargetReplayIgnoresDerivedSnapshotFields(t *testing.T) {
