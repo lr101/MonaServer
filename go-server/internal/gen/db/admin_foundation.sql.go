@@ -89,6 +89,34 @@ func (q *Queries) AdvanceAdminMFAReplayCounter(ctx context.Context, arg AdvanceA
 	return i, err
 }
 
+const advanceAdminMFAReplayScope = `-- name: AdvanceAdminMFAReplayScope :one
+INSERT INTO admin_mfa_replay_scopes (membership_id, user_id, last_counter, updated_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (membership_id) DO UPDATE
+SET last_counter = EXCLUDED.last_counter, updated_at = now()
+WHERE admin_mfa_replay_scopes.user_id = EXCLUDED.user_id
+  AND admin_mfa_replay_scopes.last_counter < EXCLUDED.last_counter
+RETURNING membership_id, user_id, last_counter, updated_at
+`
+
+type AdvanceAdminMFAReplayScopeParams struct {
+	MembershipID pgtype.UUID `json:"membership_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	LastCounter  int64       `json:"last_counter"`
+}
+
+func (q *Queries) AdvanceAdminMFAReplayScope(ctx context.Context, arg AdvanceAdminMFAReplayScopeParams) (AdminMfaReplayScope, error) {
+	row := q.db.QueryRow(ctx, advanceAdminMFAReplayScope, arg.MembershipID, arg.UserID, arg.LastCounter)
+	var i AdminMfaReplayScope
+	err := row.Scan(
+		&i.MembershipID,
+		&i.UserID,
+		&i.LastCounter,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const advanceUserAuthGeneration = `-- name: AdvanceUserAuthGeneration :one
 UPDATE users
 SET auth_generation = auth_generation + 1,
@@ -895,8 +923,9 @@ func (q *Queries) CreateAdminLoginChallenge(ctx context.Context, arg CreateAdmin
 const createAdminSession = `-- name: CreateAdminSession :exec
 INSERT INTO admin_sessions
     (id, session_hash, user_id, csrf_hash, state, auth_generation, issued_at,
-     last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at, revoked_at)
-VALUES ($1, $2, $3, $4, $5, $6, now(), now(), $7, $8, $9, NULL)
+     last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at,
+     recent_mfa_action, revoked_at)
+VALUES ($1, $2, $3, $4, $5, $6, now(), now(), $7, $8, $9, $10, NULL)
 `
 
 type CreateAdminSessionParams struct {
@@ -909,6 +938,7 @@ type CreateAdminSessionParams struct {
 	IdleExpiresAt     pgtype.Timestamptz `json:"idle_expires_at"`
 	AbsoluteExpiresAt pgtype.Timestamptz `json:"absolute_expires_at"`
 	RecentMfaAt       pgtype.Timestamptz `json:"recent_mfa_at"`
+	RecentMfaAction   pgtype.Text        `json:"recent_mfa_action"`
 }
 
 func (q *Queries) CreateAdminSession(ctx context.Context, arg CreateAdminSessionParams) error {
@@ -922,6 +952,7 @@ func (q *Queries) CreateAdminSession(ctx context.Context, arg CreateAdminSession
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
 		arg.RecentMfaAt,
+		arg.RecentMfaAction,
 	)
 	return err
 }
@@ -1577,6 +1608,31 @@ func (q *Queries) GetAdminMFAReplayCounter(ctx context.Context, sessionID pgtype
 	return i, err
 }
 
+const getAdminMFAReplayScope = `-- name: GetAdminMFAReplayScope :one
+SELECT membership_id, user_id, last_counter, updated_at
+FROM admin_mfa_replay_scopes
+WHERE membership_id = $1 AND user_id = $2
+`
+
+type GetAdminMFAReplayScopeParams struct {
+	MembershipID pgtype.UUID `json:"membership_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+}
+
+// The replay scope is membership/user enrollment scoped and therefore shared
+// by all authenticated browser sessions for the operator.
+func (q *Queries) GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFAReplayScopeParams) (AdminMfaReplayScope, error) {
+	row := q.db.QueryRow(ctx, getAdminMFAReplayScope, arg.MembershipID, arg.UserID)
+	var i AdminMfaReplayScope
+	err := row.Scan(
+		&i.MembershipID,
+		&i.UserID,
+		&i.LastCounter,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAdminMembership = `-- name: GetAdminMembership :one
 
 SELECT id, user_id, permissions, active, totp_secret_ciphertext, totp_key_id,
@@ -1606,14 +1662,31 @@ func (q *Queries) GetAdminMembership(ctx context.Context, userID pgtype.UUID) (A
 
 const getAdminSessionByHash = `-- name: GetAdminSessionByHash :one
 SELECT id, session_hash, user_id, csrf_hash, state, auth_generation, issued_at,
-       last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at, revoked_at
+       last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at,
+       recent_mfa_action, revoked_at
 FROM admin_sessions
 WHERE session_hash = $1
 `
 
-func (q *Queries) GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (AdminSession, error) {
+type GetAdminSessionByHashRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	SessionHash       []byte             `json:"session_hash"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	CsrfHash          []byte             `json:"csrf_hash"`
+	State             string             `json:"state"`
+	AuthGeneration    int64              `json:"auth_generation"`
+	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	IdleExpiresAt     pgtype.Timestamptz `json:"idle_expires_at"`
+	AbsoluteExpiresAt pgtype.Timestamptz `json:"absolute_expires_at"`
+	RecentMfaAt       pgtype.Timestamptz `json:"recent_mfa_at"`
+	RecentMfaAction   pgtype.Text        `json:"recent_mfa_action"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+}
+
+func (q *Queries) GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (GetAdminSessionByHashRow, error) {
 	row := q.db.QueryRow(ctx, getAdminSessionByHash, sessionHash)
-	var i AdminSession
+	var i GetAdminSessionByHashRow
 	err := row.Scan(
 		&i.ID,
 		&i.SessionHash,
@@ -1626,6 +1699,7 @@ func (q *Queries) GetAdminSessionByHash(ctx context.Context, sessionHash []byte)
 		&i.IdleExpiresAt,
 		&i.AbsoluteExpiresAt,
 		&i.RecentMfaAt,
+		&i.RecentMfaAction,
 		&i.RevokedAt,
 	)
 	return i, err
@@ -2565,6 +2639,21 @@ func (q *Queries) ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutbox
 	return id, err
 }
 
+const resetAdminMFAReplayScope = `-- name: ResetAdminMFAReplayScope :exec
+DELETE FROM admin_mfa_replay_scopes
+WHERE membership_id = $1 AND user_id = $2
+`
+
+type ResetAdminMFAReplayScopeParams struct {
+	MembershipID pgtype.UUID `json:"membership_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error {
+	_, err := q.db.Exec(ctx, resetAdminMFAReplayScope, arg.MembershipID, arg.UserID)
+	return err
+}
+
 const revokeAccountActionTokens = `-- name: RevokeAccountActionTokens :exec
 UPDATE account_action_tokens
 SET revoked_at = COALESCE(revoked_at, now()), updated_at = now()
@@ -2663,18 +2752,25 @@ const rotateAdminSessionCSRF = `-- name: RotateAdminSessionCSRF :exec
 UPDATE admin_sessions
 SET csrf_hash = $2,
     recent_mfa_at = COALESCE($3, recent_mfa_at),
+    recent_mfa_action = COALESCE($4, recent_mfa_action),
     last_seen_at = now()
 WHERE id = $1 AND revoked_at IS NULL
 `
 
 type RotateAdminSessionCSRFParams struct {
-	ID          pgtype.UUID        `json:"id"`
-	CsrfHash    []byte             `json:"csrf_hash"`
-	RecentMfaAt pgtype.Timestamptz `json:"recent_mfa_at"`
+	ID              pgtype.UUID        `json:"id"`
+	CsrfHash        []byte             `json:"csrf_hash"`
+	RecentMfaAt     pgtype.Timestamptz `json:"recent_mfa_at"`
+	RecentMfaAction pgtype.Text        `json:"recent_mfa_action"`
 }
 
 func (q *Queries) RotateAdminSessionCSRF(ctx context.Context, arg RotateAdminSessionCSRFParams) error {
-	_, err := q.db.Exec(ctx, rotateAdminSessionCSRF, arg.ID, arg.CsrfHash, arg.RecentMfaAt)
+	_, err := q.db.Exec(ctx, rotateAdminSessionCSRF,
+		arg.ID,
+		arg.CsrfHash,
+		arg.RecentMfaAt,
+		arg.RecentMfaAction,
+	)
 	return err
 }
 

@@ -271,12 +271,14 @@ WHERE user_id = $1;
 -- name: CreateAdminSession :exec
 INSERT INTO admin_sessions
     (id, session_hash, user_id, csrf_hash, state, auth_generation, issued_at,
-     last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at, revoked_at)
-VALUES ($1, $2, $3, $4, $5, $6, now(), now(), $7, $8, $9, NULL);
+     last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at,
+     recent_mfa_action, revoked_at)
+VALUES ($1, $2, $3, $4, $5, $6, now(), now(), $7, $8, $9, $10, NULL);
 
 -- name: GetAdminSessionByHash :one
 SELECT id, session_hash, user_id, csrf_hash, state, auth_generation, issued_at,
-       last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at, revoked_at
+       last_seen_at, idle_expires_at, absolute_expires_at, recent_mfa_at,
+       recent_mfa_action, revoked_at
 FROM admin_sessions
 WHERE session_hash = $1;
 
@@ -293,6 +295,7 @@ WHERE session_hash = $1
 UPDATE admin_sessions
 SET csrf_hash = $2,
     recent_mfa_at = COALESCE($3, recent_mfa_at),
+    recent_mfa_action = COALESCE($4, recent_mfa_action),
     last_seen_at = now()
 WHERE id = $1 AND revoked_at IS NULL;
 
@@ -365,6 +368,26 @@ ON CONFLICT (session_id) DO UPDATE
 SET last_counter = EXCLUDED.last_counter, updated_at = now()
 WHERE admin_mfa_replay_counters.last_counter < EXCLUDED.last_counter
 RETURNING session_id, last_counter, updated_at;
+
+-- The replay scope is membership/user enrollment scoped and therefore shared
+-- by all authenticated browser sessions for the operator.
+-- name: GetAdminMFAReplayScope :one
+SELECT membership_id, user_id, last_counter, updated_at
+FROM admin_mfa_replay_scopes
+WHERE membership_id = $1 AND user_id = $2;
+
+-- name: AdvanceAdminMFAReplayScope :one
+INSERT INTO admin_mfa_replay_scopes (membership_id, user_id, last_counter, updated_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (membership_id) DO UPDATE
+SET last_counter = EXCLUDED.last_counter, updated_at = now()
+WHERE admin_mfa_replay_scopes.user_id = EXCLUDED.user_id
+  AND admin_mfa_replay_scopes.last_counter < EXCLUDED.last_counter
+RETURNING membership_id, user_id, last_counter, updated_at;
+
+-- name: ResetAdminMFAReplayScope :exec
+DELETE FROM admin_mfa_replay_scopes
+WHERE membership_id = $1 AND user_id = $2;
 
 -- Security incidents and append-only audit ---------------------------------
 

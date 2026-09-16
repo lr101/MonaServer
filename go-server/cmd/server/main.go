@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -97,6 +99,13 @@ func main() {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
+	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
+		EncryptionKey:   decodeAdminKey(cfg.AdminTOTPEncryptionKey),
+		EncryptionKeyID: cfg.AdminTOTPEncryptionKeyID,
+		HMACKey:         decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID:       cfg.AdminSessionHMACKeyID,
+		AdminOrigin:     cfg.AdminOrigin,
+	})
 	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
@@ -148,7 +157,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
+	r.Use(middleware.TrustedRealIP(cfg.TrustedProxyCIDRs))
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))
@@ -207,16 +216,13 @@ func main() {
 	})
 
 	// Admin-only routes.
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		registerRoutes(r, adminCtrl, alwaysTrue)
-	})
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin)
 
 	// New v3 routes are always present in the router so their feature and
-	// authentication behavior is observable. They are backed by an unavailable
-	// adapter until the public email and browser-admin implementations land.
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername)
+	// authentication behavior is observable. The browser-admin session endpoints
+	// use the concrete T05 service; later admin operation surfaces remain
+	// explicitly unavailable until their owning services are integrated.
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -254,6 +260,26 @@ func newMailService(cfg *config.Config) *service.Email {
 	return service.NewEmail(cfg, nil)
 }
 
+// decodeAdminKey accepts the deployment formats used by existing secrets
+// managers while keeping malformed values unavailable at request time. The
+// service still validates the encryption key length before decrypting.
+func decodeAdminKey(raw string) []byte {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if decoded, err := hex.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	if decoded, err := base64.RawStdEncoding.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	return []byte(raw)
+}
+
 // registerRoutes registers controller routes into r, filtered by predicate on the pattern.
 func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool) {
 	for _, route := range ctrl.OrderedRoutes() {
@@ -263,19 +289,38 @@ func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool)
 	}
 }
 
+// registerAdminV2Routes retires the legacy username/JWT admin boundary. The
+// v2 payloads remain wire-compatible, but an opaque browser session and the
+// same origin/CSRF/capability policy as v3 are now required.
+func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, origin string) {
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS(origin))
+		r.Use(middleware.AdminSessionGuard(auth))
+		r.Use(middleware.AdminOriginGuard(origin))
+		r.Use(middleware.AdminCSRFGuard)
+		r.Use(middleware.AdminRecentMFAGuard(5 * time.Minute))
+		r.Use(middleware.AdminCapabilityGuard)
+		registerRoutes(r, ctrl, alwaysTrue)
+	})
+}
+
 // registerV3Routes installs the additive v3 surfaces behind their independent
-// feature flags. The unavailable adapter is intentionally registered for every
-// v3 operation, which gives disabled or not-yet-implemented routes a stable
-// failure instead of a successful placeholder.
-func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string) {
+// feature flags. Passing an AdminAuth wires the browser-admin implementation;
+// omitting it retains the unavailable scaffold used by compatibility tests and
+// by deployments that have not enabled the feature.
+func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string, adminAuthOptions ...*service.AdminAuth) {
 	if cfg == nil {
 		cfg = &config.Config{}
+	}
+	var adminAuth *service.AdminAuth
+	if len(adminAuthOptions) > 0 {
+		adminAuth = adminAuthOptions[0]
 	}
 
 	servicer := handler.NewUnavailableV3Servicer()
 	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer, genserver.WithPublicAuthAPIErrorHandler(handler.V3ErrorHandler))
 	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer, genserver.WithSessionAuthAPIErrorHandler(handler.V3ErrorHandler))
-	adminSessionCtrl := genserver.NewAdminSessionAPIController(servicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
 	adminUsersCtrl := genserver.NewAdminUsersAPIController(servicer, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
 	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
 	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
@@ -299,21 +344,79 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		registerRoutes(r, sessionAuthCtrl, alwaysTrue)
 	})
 
-	// Bootstrap is the only public admin-session endpoint. The actual
-	// bootstrap/login/MFA/session implementation belongs to T05.
+	// Bootstrap is the only public admin-session endpoint. It still receives
+	// origin/CORS protection because it sets a credentialed browser cookie.
+	var adminSessionCtrl *genserver.AdminSessionAPIController
+	if adminAuth != nil {
+		adminSessionServicer := handler.NewAdminSessionServicer(adminAuth)
+		adminSessionCtrl = genserver.NewAdminSessionAPIController(adminSessionServicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
+	} else {
+		adminSessionCtrl = genserver.NewAdminSessionAPIController(servicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
+	}
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		if adminAuth != nil {
+			r.Use(middleware.CaptureAdminRequest)
+			r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+			r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+		}
 		registerRoutes(r, adminSessionCtrl, isAdminBootstrapRoute)
 	})
 
-	// Until T05 supplies an opaque browser-session verifier, reject every
-	// bearer-only request and only let a request carrying the dedicated cookie
-	// reach the unavailable adapter. This prevents consumer JWTs from becoming
-	// an accidental admin authentication fallback.
+	if adminAuth == nil {
+		// Compatibility scaffold: reject every bearer-only request and only let a
+		// request carrying a cookie reach the unavailable adapter.
+		r.Group(func(r chi.Router) {
+			r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+			r.Use(requireAdminBrowserSession)
+			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
+			registerRoutes(r, adminUsersCtrl, alwaysTrue)
+			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
+			registerRoutes(r, adminJobsCtrl, alwaysTrue)
+			registerRoutes(r, adminMessagesCtrl, alwaysTrue)
+			registerRoutes(r, adminReportsCtrl, alwaysTrue)
+			registerRoutes(r, adminAuditCtrl, alwaysTrue)
+		})
+		return
+	}
+
+	// Password and initial-MFA challenges use only a pre-auth envelope. They do
+	// not pass through the authenticated CSRF/recent-MFA guards below; the
+	// generated service receives and verifies their explicit CSRF header.
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
-		r.Use(requireAdminBrowserSession)
-		registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+		r.Use(middleware.AdminPreAuthGuard)
+		registerRoutes(r, adminSessionCtrl, isAdminPreAuthSessionRoute)
+	})
+
+	// Session restoration and reauthentication/logout use the authenticated
+	// cookie; reauthentication performs the action-bound TOTP proof in the
+	// service and rotates CSRF before returning.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+		r.Use(middleware.AdminSessionGuard(adminAuth))
+		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+		r.Use(middleware.AdminCSRFGuard)
+		registerRoutes(r, adminSessionCtrl, isAdminAuthenticatedSessionRoute)
+	})
+
+	// Every implemented admin surface is request-time authenticated and
+	// capability checked. Mutations also require the current CSRF token and a
+	// recent MFA proof, including v2 payloads mounted above.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+		r.Use(middleware.AdminSessionGuard(adminAuth))
+		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+		r.Use(middleware.AdminCSRFGuard)
+		r.Use(middleware.AdminRecentMFAGuard(5 * time.Minute))
+		r.Use(middleware.AdminCapabilityGuard)
 		registerRoutes(r, adminUsersCtrl, alwaysTrue)
 		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
 		registerRoutes(r, adminJobsCtrl, alwaysTrue)
@@ -353,6 +456,24 @@ func isAdminBootstrapRoute(pattern string) bool {
 
 func isNonBootstrapAdminRoute(pattern string) bool {
 	return !isAdminBootstrapRoute(pattern)
+}
+
+func isAdminPreAuthSessionRoute(pattern string) bool {
+	switch pattern {
+	case "/api/v3/admin/session/login", "/api/v3/admin/session/mfa":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAdminAuthenticatedSessionRoute(pattern string) bool {
+	switch pattern {
+	case "/api/v3/admin/session/reauthenticate", "/api/v3/admin/session/logout", "/api/v3/admin/session":
+		return true
+	default:
+		return false
+	}
 }
 
 func isPublicRoute(pattern string) bool {

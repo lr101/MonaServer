@@ -120,6 +120,69 @@ func TestAdminChallengeFailuresAreSharedAndNonLocking(t *testing.T) {
 	}
 }
 
+func TestAdminThrottleAdmissionPrecedesPasswordAndMFAVerification(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	hash, err := password.Hash("password123")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	userID, err := q.CreateUser(ctx, "preverify-throttle-admin", hash, nil, nil)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("preverify-throttle-key"),
+		ChallengeTTL: time.Hour, LoginFailureLimit: 1, LoginIPLimit: 100, LoginGlobalLimit: 1000,
+	})
+	admin.SetClock(func() time.Time { return now })
+	enrollment, err := admin.EnrollAdminOperator(ctx, "preverify-throttle-admin", []string{"users.read"})
+	if err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	secret, err := normalizedTOTPSecret(enrollment.Secret)
+	if err != nil {
+		t.Fatalf("decode secret: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	base := middleware.WithAdminResponseWriter(ctx, recorder)
+	base = middleware.WithAdminClientIP(base, "192.0.2.41")
+	boot, err := admin.BootstrapAdminSession(base)
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	preAuth := recorder.Result().Cookies()[0].Value
+	loginCtx := middleware.WithAdminSessionCookie(base, preAuth)
+	if _, err := admin.AdminSessionLogin(loginCtx, boot.CSRFToken, "preverify-throttle-admin", "wrong-password"); err != ErrAdminUnauthorized {
+		t.Fatalf("first bad password err=%v, want unauthorized", err)
+	}
+	if _, err := admin.AdminSessionLogin(loginCtx, boot.CSRFToken, "preverify-throttle-admin", "password123"); err != ErrAdminRateLimited {
+		t.Fatalf("correct password in exhausted window err=%v, want rate limited", err)
+	}
+
+	now = now.Add(16 * time.Minute)
+	login, err := admin.AdminSessionLogin(loginCtx, boot.CSRFToken, "preverify-throttle-admin", "password123")
+	if err != nil {
+		t.Fatalf("correct password after window: %v", err)
+	}
+	wrongCode := "000000"
+	if _, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, wrongCode); err != ErrAdminUnauthorized {
+		t.Fatalf("first bad mfa err=%v, want unauthorized", err)
+	}
+	code, _ := GenerateTOTP(secret, now)
+	if _, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, code); err != ErrAdminRateLimited {
+		t.Fatalf("correct mfa in exhausted window err=%v, want rate limited", err)
+	}
+
+	now = now.Add(16 * time.Minute)
+	code, _ = GenerateTOTP(secret, now)
+	if _, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, code); err != nil {
+		t.Fatalf("correct mfa after window: %v", err)
+	}
+	_ = userID
+}
+
 func TestAdminEnrollmentIsIdempotentAndEncrypted(t *testing.T) {
 	_, q := setupPool(t)
 	ctx := context.Background()
@@ -289,6 +352,83 @@ func TestAdminSessionRejectsCompromisedSecurityState(t *testing.T) {
 	}
 	if _, err := admin.ValidateAdminSession(ctx, result.Cookie); err == nil {
 		t.Fatal("compromised account retained an authenticated admin session")
+	}
+}
+
+func TestAdminMFAReplayScopeIsSharedAcrossSessions(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	userID := createTestUser(t, auth, "replay-scope-admin")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("replay-scope-quota-key"),
+	})
+	if _, err := admin.EnrollAdminOperator(ctx, "replay-scope-admin", []string{"users.read"}); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	membership, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || membership == nil {
+		t.Fatalf("membership: %v %#v", err, membership)
+	}
+	counter := time.Now().Unix() / 30
+	if _, accepted, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, counter); err != nil || !accepted {
+		t.Fatalf("first counter accepted=%v err=%v", accepted, err)
+	}
+	if _, accepted, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, counter); err != nil || accepted {
+		t.Fatalf("replayed counter accepted=%v err=%v", accepted, err)
+	}
+	if _, accepted, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, counter+1); err != nil || !accepted {
+		t.Fatalf("next counter accepted=%v err=%v", accepted, err)
+	}
+}
+
+func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	userID := createTestUser(t, auth, "inactive-breakglass-admin")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("inactive-breakglass-quota-key"),
+	})
+	enrollment, err := admin.EnrollAdminOperator(ctx, "inactive-breakglass-admin", []string{"users.read"})
+	if err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	membership, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || membership == nil {
+		t.Fatalf("membership: %v %#v", err, membership)
+	}
+	if err := q.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+		ID: membership.ID, UserID: membership.UserID, Permissions: membership.Permissions, Active: false,
+		TotpSecretCiphertext: membership.TotpSecretCiphertext, TotpKeyID: membership.TotpKeyID, TotpEnrolledAt: membership.TotpEnrolledAt,
+		RevokedAt: membership.RevokedAt,
+	}); err != nil {
+		t.Fatalf("disable membership: %v", err)
+	}
+	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", nil); err != ErrAdminForbidden {
+		t.Fatalf("inactive recovery err=%v, want %v", err, ErrAdminForbidden)
+	}
+	after, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || after == nil {
+		t.Fatalf("membership after rejection: %v %#v", err, after)
+	}
+	if after.Active || string(after.TotpSecretCiphertext) != string(membership.TotpSecretCiphertext) || enrollment.Secret == "" {
+		t.Fatalf("inactive membership changed: before=%#v after=%#v", membership, after)
+	}
+	revokedAt := time.Now().UTC()
+	if err := q.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+		ID: after.ID, UserID: after.UserID, Permissions: after.Permissions, Active: true,
+		TotpSecretCiphertext: after.TotpSecretCiphertext, TotpKeyID: after.TotpKeyID, TotpEnrolledAt: after.TotpEnrolledAt,
+		RevokedAt: &revokedAt,
+	}); err != nil {
+		t.Fatalf("revoke membership: %v", err)
+	}
+	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", nil); err != ErrAdminForbidden {
+		t.Fatalf("revoked recovery err=%v, want %v", err, ErrAdminForbidden)
+	}
+	revoked, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || revoked == nil || revoked.RevokedAt == nil || !revoked.Active {
+		t.Fatalf("revoked membership changed: %v %#v", err, revoked)
 	}
 }
 

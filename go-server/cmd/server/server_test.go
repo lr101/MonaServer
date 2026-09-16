@@ -135,6 +135,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
 		AdminUsername:      "admin",
+		AdminOrigin:        "https://admin.example",
 		MailHost:           mailHost,
 		MailPort:           mailPort,
 		MailUsername:       "mail@test.example",
@@ -161,6 +162,11 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
+	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("server-test-admin-quota-key"),
+		AdminOrigin:   cfg.AdminOrigin,
+	})
 	reportServicer := handler.NewReportServicer(mailSvc, q)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
@@ -205,12 +211,8 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		registerRoutes(r, adminCtrl, alwaysTrue)
-	})
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername)
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin)
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth)
 
 	return httptest.NewServer(r)
 }

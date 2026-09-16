@@ -24,6 +24,15 @@ type Config struct {
 	PublicEmailLogin   bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
 	WebAdminAPI        bool          `mapstructure:"WEB_ADMIN_API"`
 
+	// Browser-admin authentication. Keys are supplied as hex, base64, or raw
+	// bytes by deployment configuration and are never generated at startup.
+	AdminTOTPEncryptionKey   string `mapstructure:"ADMIN_TOTP_ENCRYPTION_KEY"`
+	AdminTOTPEncryptionKeyID string `mapstructure:"ADMIN_TOTP_ENCRYPTION_KEY_ID"`
+	AdminSessionHMACKey      string `mapstructure:"ADMIN_SESSION_HMAC_KEY"`
+	AdminSessionHMACKeyID    string `mapstructure:"ADMIN_SESSION_HMAC_KEY_ID"`
+	AdminOrigin              string `mapstructure:"ADMIN_ORIGIN"`
+	TrustedProxyCIDRs        string `mapstructure:"TRUSTED_PROXY_CIDRS"`
+
 	// RustFS / object storage
 	RustfsEndpoint         string        `mapstructure:"RUSTFS_ENDPOINT"`
 	RustfsExternalEndpoint string        `mapstructure:"RUSTFS_EXTERNAL_ENDPOINT"`
@@ -59,6 +68,9 @@ func Load() (*Config, error) {
 		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
 		"PUBLIC_EMAIL_LOGIN", "WEB_ADMIN_API",
+		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
+		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID",
+		"ADMIN_ORIGIN", "TRUSTED_PROXY_CIDRS",
 		"RUSTFS_ENDPOINT", "RUSTFS_EXTERNAL_ENDPOINT",
 		"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY",
 		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_URL_EXPIRY",

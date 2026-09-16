@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/apperrors"
 )
 
@@ -29,6 +30,7 @@ type AdminPrincipal struct {
 	Permissions     []string
 	Capabilities    []string
 	RecentMFAAt     *time.Time
+	RecentMFAAction string
 	AuthenticatedAt time.Time
 	LastActivityAt  time.Time
 	IdleExpiresAt   time.Time
@@ -116,6 +118,10 @@ func CaptureAdminRequest(next http.Handler) http.Handler {
 func AdminSessionGuard(validator AdminSessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if validator == nil {
+				writeAdminError(w, http.StatusServiceUnavailable, "feature_unavailable", "admin authentication is unavailable")
+				return
+			}
 			cookie, err := r.Cookie("admin_session")
 			if err != nil || strings.TrimSpace(cookie.Value) == "" {
 				writeAdminError(w, http.StatusUnauthorized, "unauthorized", "admin browser session required")
@@ -136,9 +142,118 @@ func AdminSessionGuard(validator AdminSessionValidator) func(http.Handler) http.
 			}
 			ctx := WithAdminSessionCookie(r.Context(), cookie.Value)
 			ctx = WithAdminPrincipal(ctx, *principal)
+			// Preserve the actor context consumed by existing v2 handlers while
+			// deriving it from the freshly validated stable user ID.
+			if userID, parseErr := uuid.Parse(principal.UserID); parseErr == nil {
+				ctx = WithUser(ctx, userID, RoleAdmin)
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// AdminPreAuthGuard admits only the short-lived, HMAC-bound pre-auth cookie to
+// password and initial-MFA endpoints. Consumer bearer credentials are never a
+// substitute for this browser state.
+func AdminPreAuthGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("admin_session")
+		if err != nil || !strings.HasPrefix(strings.TrimSpace(cookie.Value), "p.") {
+			writeAdminError(w, http.StatusUnauthorized, "unauthorized", "admin pre-authentication is required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// AdminCSRFGuard applies the double-submit proof to every authenticated
+// browser-admin mutation. Session endpoints perform the same check inside the
+// service, while this guard protects legacy v2 and future v3 handlers that do
+// not receive CSRF as an explicit generated parameter.
+func AdminCSRFGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+		principal, ok := AdminPrincipalFromContext(r.Context())
+		if !ok {
+			writeAdminError(w, http.StatusUnauthorized, "unauthorized", "admin browser session required")
+			return
+		}
+		if !CSRFMatches(principal.CSRFHash, strings.TrimSpace(r.Header.Get("X-CSRF-Token"))) {
+			writeAdminError(w, http.StatusForbidden, "invalid_csrf", "invalid csrf token")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// AdminRecentMFAGuard requires a fresh MFA proof for all authenticated admin
+// mutations. The route-level boundary intentionally errs on the side of
+// requiring step-up for every write; handlers still enforce their capability
+// and action-specific checks when the operation is implemented.
+func AdminRecentMFAGuard(ttl time.Duration) func(http.Handler) http.Handler {
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			principal, ok := AdminPrincipalFromContext(r.Context())
+			if !ok {
+				writeAdminError(w, http.StatusUnauthorized, "unauthorized", "admin browser session required")
+				return
+			}
+			if !RecentMFAAtValid(principal.RecentMFAAt, time.Now().UTC(), ttl) {
+				writeAdminError(w, http.StatusForbidden, "recent_mfa_required", "recent mfa is required")
+				return
+			}
+			requiredAction := AdminMutationAction(r.Method, r.URL.Path)
+			if !RecentMFAActionMatches(principal.RecentMFAAction, requiredAction) {
+				writeAdminError(w, http.StatusForbidden, "recent_mfa_required", "recent mfa is bound to another action")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RecentMFAAtValid is kept in middleware so guards can be unit-tested without
+// importing the service package (which already imports this package).
+func RecentMFAAtValid(at *time.Time, now time.Time, ttl time.Duration) bool {
+	return at != nil && ttl > 0 && !at.After(now) && now.Sub(*at) < ttl
+}
+
+// AdminMutationAction names the action family represented by a route. Empty
+// means that the body carries the action union and the route-level guard uses
+// the fresh session proof without guessing at its value.
+func AdminMutationAction(method, path string) string {
+	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
+		return ""
+	}
+	path = strings.TrimSuffix(path, "/")
+	switch {
+	case path == "/api/v2/admin/mail":
+		return "email"
+	case path == "/api/v2/admin/notification":
+		return "push"
+	case path == "/api/v3/admin/messages/test":
+		return "push"
+	case path == "/api/v3/admin/audiences/preview":
+		return ""
+	case strings.HasPrefix(path, "/api/v3/admin/reports/"):
+		return ""
+	default:
+		return ""
+	}
+}
+
+func RecentMFAActionMatches(stored, required string) bool {
+	return strings.TrimSpace(stored) == "" || required == "" || stored == required
 }
 
 // AdminCapabilityGuard applies the stable capability matrix to the known
@@ -234,6 +349,13 @@ func AdminCORS(allowedOrigin string) func(http.Handler) http.Handler {
 	allowedOrigin = normalizeOrigin(allowedOrigin)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The process-wide consumer CORS middleware runs outside this guard.
+			// Remove its wildcard headers before deciding whether this request is
+			// allowed to carry browser-admin credentials.
+			w.Header().Del("Access-Control-Allow-Origin")
+			w.Header().Del("Access-Control-Allow-Credentials")
+			w.Header().Del("Access-Control-Allow-Headers")
+			w.Header().Del("Access-Control-Allow-Methods")
 			origin := normalizeOrigin(r.Header.Get("Origin"))
 			if origin != "" && origin == allowedOrigin {
 				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
@@ -253,6 +375,87 @@ func AdminCORS(allowedOrigin string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// TrustedRealIP normalizes RemoteAddr only when the direct peer is in the
+// configured proxy networks. Forwarded headers from an untrusted peer are
+// ignored, so an attacker cannot choose the per-IP authentication quota key.
+// TRUSTED_PROXY_CIDRS is a comma-separated list of CIDR blocks.
+func TrustedRealIP(cidrs string) func(http.Handler) http.Handler {
+	trusted := parseTrustedNetworks(cidrs)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			peer := remoteHost(r.RemoteAddr)
+			client := peer
+			if ip := net.ParseIP(peer); ip != nil && ipInNetworks(ip, trusted) {
+				if forwarded := forwardedClientIP(r, trusted); forwarded != "" {
+					client = forwarded
+				}
+			}
+			if parsed := net.ParseIP(client); parsed != nil {
+				port := ""
+				if _, p, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+					port = p
+				}
+				if port != "" {
+					r.RemoteAddr = net.JoinHostPort(parsed.String(), port)
+				} else {
+					r.RemoteAddr = parsed.String()
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func parseTrustedNetworks(raw string) []*net.IPNet {
+	var networks []*net.IPNet
+	for _, value := range strings.Split(raw, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, network, err := net.ParseCIDR(value); err == nil {
+			networks = append(networks, network)
+		}
+	}
+	return networks
+}
+
+func ipInNetworks(ip net.IP, networks []*net.IPNet) bool {
+	for _, network := range networks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func remoteHost(remote string) string {
+	if host, _, err := net.SplitHostPort(strings.TrimSpace(remote)); err == nil {
+		return host
+	}
+	return strings.TrimSpace(remote)
+}
+
+func forwardedClientIP(r *http.Request, trusted []*net.IPNet) string {
+	// X-Forwarded-For is a right-to-left chain. Select the first valid address
+	// that is not itself a configured trusted proxy; malformed values cause us
+	// to fall back to the direct peer instead of trusting attacker input.
+	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		ip := net.ParseIP(strings.TrimSpace(parts[i]))
+		if ip == nil {
+			return ""
+		}
+		if !ipInNetworks(ip, trusted) {
+			return ip.String()
+		}
+	}
+	if ip := net.ParseIP(strings.TrimSpace(r.Header.Get("X-Real-IP"))); ip != nil {
+		return ip.String()
+	}
+	return ""
 }
 
 func normalizeOrigin(raw string) string {

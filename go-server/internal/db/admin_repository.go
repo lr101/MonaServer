@@ -666,6 +666,26 @@ type QuotaDecision struct {
 	RetryAt   time.Time
 }
 
+// CheckSharedQuota takes the same advisory lock and reads the aggregate quota
+// without consuming it. Authentication callers use this as an atomic
+// pre-verification admission gate so an already exhausted account/IP/global
+// window rejects even correct credentials.
+func (q *Queries) CheckSharedQuota(ctx context.Context, keys []SharedQuotaKey, amount int64) (QuotaDecision, error) {
+	if amount <= 0 || len(keys) == 0 {
+		return QuotaDecision{}, ErrInvalidQuota
+	}
+	if !q.inTx {
+		var decision QuotaDecision
+		err := q.InTxRetry(ctx, func(tx *Queries) error {
+			var err error
+			decision, err = tx.CheckSharedQuota(ctx, keys, amount)
+			return err
+		})
+		return decision, err
+	}
+	return q.sharedQuotaDecision(ctx, keys, amount, false)
+}
+
 func (q *Queries) AcquireSharedQuota(ctx context.Context, keys []SharedQuotaKey, amount int64) (QuotaDecision, error) {
 	if amount <= 0 || len(keys) == 0 {
 		return QuotaDecision{}, ErrInvalidQuota
@@ -679,6 +699,10 @@ func (q *Queries) AcquireSharedQuota(ctx context.Context, keys []SharedQuotaKey,
 		})
 		return decision, err
 	}
+	return q.sharedQuotaDecision(ctx, keys, amount, true)
+}
+
+func (q *Queries) sharedQuotaDecision(ctx context.Context, keys []SharedQuotaKey, amount int64, consume bool) (QuotaDecision, error) {
 	// Rotation keys represent aliases for one logical scope/window.  Require
 	// one window and limit so callers cannot accidentally combine unrelated
 	// quotas under one advisory lock.
@@ -714,6 +738,10 @@ func (q *Queries) AcquireSharedQuota(ctx context.Context, keys []SharedQuotaKey,
 	decision := QuotaDecision{Current: current, Limit: limit, Requested: amount, RetryAt: first.WindowEnd}
 	if current > limit || amount > limit-current {
 		decision.Remaining = maxInt64(0, limit-current)
+		return decision, nil
+	}
+	if !consume {
+		decision.Allowed = true
 		return decision, nil
 	}
 	// Only the first (current) key is incremented.  The sum includes all
@@ -1127,6 +1155,7 @@ type AdminSession struct {
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
 	RecentMFAAt       *time.Time
+	RecentMFAAction   *string
 	RevokedAt         *time.Time
 }
 
@@ -1140,13 +1169,14 @@ type AdminSessionParams struct {
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
 	RecentMFAAt       *time.Time
+	RecentMFAAction   *string
 }
 
-func adminSessionFromRow(r dbgen.AdminSession) AdminSession {
+func adminSessionFromRow(r dbgen.GetAdminSessionByHashRow) AdminSession {
 	return AdminSession{
 		ID: goUUID(r.ID), SessionHash: cloneBytes(r.SessionHash), UserID: goUUID(r.UserID), CSRFHash: cloneBytes(r.CsrfHash), State: r.State,
 		AuthGeneration: r.AuthGeneration, IssuedAt: timeFromPG(r.IssuedAt), LastSeenAt: timeFromPG(r.LastSeenAt), IdleExpiresAt: timeFromPG(r.IdleExpiresAt),
-		AbsoluteExpiresAt: timeFromPG(r.AbsoluteExpiresAt), RecentMFAAt: timePtrFromPG(r.RecentMfaAt), RevokedAt: timePtrFromPG(r.RevokedAt),
+		AbsoluteExpiresAt: timeFromPG(r.AbsoluteExpiresAt), RecentMFAAt: timePtrFromPG(r.RecentMfaAt), RecentMFAAction: textPtrFromPG(r.RecentMfaAction), RevokedAt: timePtrFromPG(r.RevokedAt),
 	}
 }
 
@@ -1159,7 +1189,7 @@ func (q *Queries) CreateAdminSession(ctx context.Context, p AdminSessionParams) 
 	}
 	return q.g.CreateAdminSession(ctx, dbgen.CreateAdminSessionParams{
 		ID: pgUUID(p.ID), SessionHash: cloneBytes(p.SessionHash), UserID: pgUUID(p.UserID), CsrfHash: cloneBytes(p.CSRFHash), State: p.State,
-		AuthGeneration: p.AuthGeneration, IdleExpiresAt: pgTZ(&p.IdleExpiresAt), AbsoluteExpiresAt: pgTZ(&p.AbsoluteExpiresAt), RecentMfaAt: pgTZ(p.RecentMFAAt),
+		AuthGeneration: p.AuthGeneration, IdleExpiresAt: pgTZ(&p.IdleExpiresAt), AbsoluteExpiresAt: pgTZ(&p.AbsoluteExpiresAt), RecentMfaAt: pgTZ(p.RecentMFAAt), RecentMfaAction: pgText(p.RecentMFAAction),
 	})
 }
 
@@ -1185,11 +1215,16 @@ func (q *Queries) TouchAdminSession(ctx context.Context, sessionHash []byte, idl
 	return q.g.TouchAdminSession(ctx, dbgen.TouchAdminSessionParams{SessionHash: cloneBytes(sessionHash), IdleExpiresAt: pgTZ(&idleExpiresAt)})
 }
 
-func (q *Queries) RotateAdminSessionCSRF(ctx context.Context, id uuid.UUID, csrfHash []byte, recentMFAAt *time.Time) error {
+func (q *Queries) RotateAdminSessionCSRF(ctx context.Context, id uuid.UUID, csrfHash []byte, recentMFAAt *time.Time, recentMFAAction ...string) error {
 	if id == uuid.Nil || len(csrfHash) == 0 {
 		return ErrInvalidSession
 	}
-	return q.g.RotateAdminSessionCSRF(ctx, dbgen.RotateAdminSessionCSRFParams{ID: pgUUID(id), CsrfHash: cloneBytes(csrfHash), RecentMfaAt: pgTZ(recentMFAAt)})
+	var action *string
+	if len(recentMFAAction) > 0 && strings.TrimSpace(recentMFAAction[0]) != "" {
+		value := strings.TrimSpace(recentMFAAction[0])
+		action = &value
+	}
+	return q.g.RotateAdminSessionCSRF(ctx, dbgen.RotateAdminSessionCSRFParams{ID: pgUUID(id), CsrfHash: cloneBytes(csrfHash), RecentMfaAt: pgTZ(recentMFAAt), RecentMfaAction: pgText(action)})
 }
 
 func (q *Queries) RevokeAdminSession(ctx context.Context, id uuid.UUID) error {
@@ -1342,6 +1377,15 @@ type AdminMFAReplayCounter struct {
 	UpdatedAt   time.Time
 }
 
+// AdminMFAReplayScope is shared by all browser sessions for one stable admin
+// membership and user enrollment.
+type AdminMFAReplayScope struct {
+	MembershipID uuid.UUID
+	UserID       uuid.UUID
+	LastCounter  int64
+	UpdatedAt    time.Time
+}
+
 func adminMFAReplayCounterFromRow(r dbgen.AdminMfaReplayCounter) AdminMFAReplayCounter {
 	return AdminMFAReplayCounter{SessionID: goUUID(r.SessionID), LastCounter: r.LastCounter, UpdatedAt: timeFromPG(r.UpdatedAt)}
 }
@@ -1374,6 +1418,50 @@ func (q *Queries) AdvanceAdminMFAReplayCounter(ctx context.Context, sessionID uu
 	}
 	v := adminMFAReplayCounterFromRow(r)
 	return &v, true, nil
+}
+
+func adminMFAReplayScopeFromRow(r dbgen.AdminMfaReplayScope) AdminMFAReplayScope {
+	return AdminMFAReplayScope{MembershipID: goUUID(r.MembershipID), UserID: goUUID(r.UserID), LastCounter: r.LastCounter, UpdatedAt: timeFromPG(r.UpdatedAt)}
+}
+
+func (q *Queries) GetAdminMFAReplayScope(ctx context.Context, membershipID, userID uuid.UUID) (*AdminMFAReplayScope, error) {
+	if membershipID == uuid.Nil || userID == uuid.Nil {
+		return nil, nil
+	}
+	r, err := q.g.GetAdminMFAReplayScope(ctx, dbgen.GetAdminMFAReplayScopeParams{MembershipID: pgUUID(membershipID), UserID: pgUUID(userID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v := adminMFAReplayScopeFromRow(r)
+	return &v, nil
+}
+
+// AdvanceAdminMFAReplayScope is the atomic moving-factor boundary. A false
+// result means this counter was already accepted for this membership/user,
+// including from a different browser session.
+func (q *Queries) AdvanceAdminMFAReplayScope(ctx context.Context, membershipID, userID uuid.UUID, counter int64) (*AdminMFAReplayScope, bool, error) {
+	if membershipID == uuid.Nil || userID == uuid.Nil || counter < 0 {
+		return nil, false, nil
+	}
+	r, err := q.g.AdvanceAdminMFAReplayScope(ctx, dbgen.AdvanceAdminMFAReplayScopeParams{MembershipID: pgUUID(membershipID), UserID: pgUUID(userID), LastCounter: counter})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	v := adminMFAReplayScopeFromRow(r)
+	return &v, true, nil
+}
+
+func (q *Queries) ResetAdminMFAReplayScope(ctx context.Context, membershipID, userID uuid.UUID) error {
+	if membershipID == uuid.Nil || userID == uuid.Nil {
+		return nil
+	}
+	return q.g.ResetAdminMFAReplayScope(ctx, dbgen.ResetAdminMFAReplayScopeParams{MembershipID: pgUUID(membershipID), UserID: pgUUID(userID)})
 }
 
 // ---- administrative jobs and recipient items -----------------------------

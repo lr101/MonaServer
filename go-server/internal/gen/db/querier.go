@@ -17,6 +17,7 @@ type Querier interface {
 	AddMember(ctx context.Context, arg AddMemberParams) error
 	AddUserXp(ctx context.Context, arg AddUserXpParams) error
 	AdvanceAdminMFAReplayCounter(ctx context.Context, arg AdvanceAdminMFAReplayCounterParams) (AdminMfaReplayCounter, error)
+	AdvanceAdminMFAReplayScope(ctx context.Context, arg AdvanceAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
 	AdvanceUserAuthGeneration(ctx context.Context, id pgtype.UUID) (int64, error)
 	// Append members under the snapshot row lock so separate materializer batches
 	// cannot reuse ordinals.  The caller order is retained via WITH ORDINALITY;
@@ -111,9 +112,12 @@ type Querier interface {
 	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (AdminJobItem, error)
 	GetAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
 	GetAdminMFAReplayCounter(ctx context.Context, sessionID pgtype.UUID) (AdminMfaReplayCounter, error)
+	// The replay scope is membership/user enrollment scoped and therefore shared
+	// by all authenticated browser sessions for the operator.
+	GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
 	// Admin membership and browser sessions ------------------------------------
 	GetAdminMembership(ctx context.Context, userID pgtype.UUID) (AdminMembership, error)
-	GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (AdminSession, error)
+	GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (GetAdminSessionByHashRow, error)
 	GetAudienceSnapshot(ctx context.Context, id pgtype.UUID) (AudienceSnapshot, error)
 	GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error)
 	GetBestUserSeason(ctx context.Context, userID pgtype.UUID) (GetBestUserSeasonRow, error)
@@ -211,6 +215,7 @@ type Querier interface {
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
+	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
 	RevokeAccountActionTokens(ctx context.Context, arg RevokeAccountActionTokensParams) error
 	RevokeAccountActionTokensExcept(ctx context.Context, arg RevokeAccountActionTokensExceptParams) error

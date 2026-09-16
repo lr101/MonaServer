@@ -110,6 +110,13 @@ type AdminMfaReplayCounter struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AdminMfaReplayScope struct {
+	MembershipID pgtype.UUID        `json:"membership_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	LastCounter  int64              `json:"last_counter"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AdminSession struct {
 	ID                pgtype.UUID        `json:"id"`
 	SessionHash       []byte             `json:"session_hash"`
@@ -123,6 +130,7 @@ type AdminSession struct {
 	AbsoluteExpiresAt pgtype.Timestamptz `json:"absolute_expires_at"`
 	RecentMfaAt       pgtype.Timestamptz `json:"recent_mfa_at"`
 	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+	RecentMfaAction   pgtype.Text        `json:"recent_mfa_action"`
 }
 
 type AudienceSnapshot struct {

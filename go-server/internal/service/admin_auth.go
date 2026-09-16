@@ -543,6 +543,13 @@ func (a *AdminAuth) AdminSessionLogin(ctx context.Context, csrf, username, plain
 	if err != nil {
 		return nil, ErrAdminUnavailable
 	}
+	// Admission is deliberately performed before password verification. This
+	// keeps an exhausted account/IP/global window effective for correct
+	// credentials as well as failures, without changing the consumer lockout
+	// counter or creating a permanent account lock.
+	if err := a.checkFailedChallengeQuota(ctx, candidateID(candidate), adminClientIP(ctx)); err != nil {
+		return nil, err
+	}
 	var failed bool
 	var login *AdminLoginResult
 	err = a.q.InTxRetry(ctx, func(tx *db.Queries) error {
@@ -633,6 +640,56 @@ func (a *AdminAuth) acquireQuota(ctx context.Context, scope, identifier string, 
 	return decision.Allowed, nil
 }
 
+func (a *AdminAuth) checkFailedChallengeQuota(ctx context.Context, accountID uuid.UUID, ip string) error {
+	if a.q == nil || len(a.cfg.HMACKey) == 0 {
+		return ErrAdminUnavailable
+	}
+	err := a.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		return a.checkFailedChallengeQuotaTx(ctx, tx, accountID, ip)
+	})
+	if err != nil {
+		if errors.Is(err, ErrAdminRateLimited) || errors.Is(err, ErrAdminUnavailable) {
+			return err
+		}
+		return ErrAdminUnavailable
+	}
+	return nil
+}
+
+// checkFailedChallengeQuotaTx checks all three dimensions while one
+// transaction owns their advisory locks. No bucket is incremented here; the
+// failure path consumes a hit only after credentials have been rejected.
+func (a *AdminAuth) checkFailedChallengeQuotaTx(ctx context.Context, tx *db.Queries, accountID uuid.UUID, ip string) error {
+	if tx == nil || len(a.cfg.HMACKey) == 0 {
+		return ErrAdminUnavailable
+	}
+	accountKey := accountID.String()
+	if accountID == uuid.Nil {
+		accountKey = "unknown"
+	}
+	checks := []struct {
+		scope, id string
+		limit     int64
+	}{
+		{"admin-login-account-ip", accountKey + "|" + ip, a.cfg.LoginFailureLimit},
+		{"admin-login-ip", ip, a.cfg.LoginIPLimit},
+		{"admin-login-global", "global", a.cfg.LoginGlobalLimit},
+	}
+	for _, check := range checks {
+		now := a.currentTime()
+		start, end := a.quotaWindow(now)
+		key := db.SharedQuotaKey{Scope: check.scope, IdentifierHMAC: hmacDigest(a.cfg.HMACKey, check.scope, check.id), KeyID: a.cfg.HMACKeyID, WindowStart: start, WindowEnd: end, Limit: check.limit}
+		decision, err := tx.CheckSharedQuota(ctx, []db.SharedQuotaKey{key}, 1)
+		if err != nil {
+			return ErrAdminUnavailable
+		}
+		if !decision.Allowed {
+			return ErrAdminRateLimited
+		}
+	}
+	return nil
+}
+
 func (a *AdminAuth) admitFailedChallenge(ctx context.Context, accountID uuid.UUID, ip string) error {
 	accountKey := accountID.String()
 	if accountID == uuid.Nil {
@@ -719,7 +776,7 @@ func (a *AdminAuth) ValidateAdminSession(ctx context.Context, cookie string) (*m
 		SessionID: session.ID.String(), UserID: session.UserID.String(), Username: username, AuthGeneration: session.AuthGeneration,
 		State: session.State, CSRFHash: append([]byte(nil), session.CSRFHash...), CSRFToken: csrf,
 		Permissions: append([]string(nil), membership.Permissions...), Capabilities: capabilities,
-		RecentMFAAt: cloneTime(session.RecentMFAAt), AuthenticatedAt: session.IssuedAt,
+		RecentMFAAt: cloneTime(session.RecentMFAAt), RecentMFAAction: stringValue(session.RecentMFAAction), AuthenticatedAt: session.IssuedAt,
 		LastActivityAt: now, IdleExpiresAt: minTime(now.Add(a.cfg.SessionIdleTTL), session.AbsoluteExpiresAt),
 	}
 	_ = username // username is loaded here to ensure a deleted/hidden user cannot retain a session.
@@ -741,6 +798,13 @@ func cloneTime(value *time.Time) *time.Time {
 	return &copy
 }
 
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 func actionCapability(action string) string {
 	switch action {
 	case "revoke_sessions":
@@ -759,6 +823,8 @@ func actionCapability(action string) string {
 		return "campaign.login_link"
 	case "push":
 		return "campaign.push"
+	case "audience.preview":
+		return "audience.preview"
 	default:
 		return ""
 	}
@@ -796,6 +862,9 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 		!constantTimeBytesEqual(challenge.ChallengeHash, challengeBinding(challengeID, cookie, a.enrollmentKey())) ||
 		!constantTimeBytesEqual(challenge.IPHMAC, a.ipHMAC(adminClientIP(ctx))) {
 		return nil, ErrAdminInvalidChallenge
+	}
+	if err := a.checkFailedChallengeQuota(ctx, *challenge.UserID, adminClientIP(ctx)); err != nil {
+		return nil, err
 	}
 	membership, err := a.q.GetAdminMembership(ctx, *challenge.UserID)
 	if err != nil {
@@ -865,7 +934,7 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 		if err := tx.CreateAdminSession(ctx, session); err != nil {
 			return err
 		}
-		if _, ok, err := tx.AdvanceAdminMFAReplayCounter(ctx, session.ID, counter); err != nil {
+		if _, ok, err := tx.AdvanceAdminMFAReplayScope(ctx, membership.ID, *consumed.UserID, counter); err != nil {
 			return err
 		} else if !ok {
 			return ErrAdminUnauthorized
@@ -998,6 +1067,9 @@ func (a *AdminAuth) ReauthenticateAdminSession(ctx context.Context, csrf, action
 	if !containsString(principal.Capabilities, required) {
 		return nil, ErrAdminForbidden
 	}
+	if err := a.checkFailedChallengeQuota(ctx, mustUUID(principal.UserID), adminClientIP(ctx)); err != nil {
+		return nil, err
+	}
 	membership, err := a.q.GetAdminMembership(ctx, mustUUID(principal.UserID))
 	if err != nil {
 		return nil, ErrAdminUnavailable
@@ -1047,12 +1119,12 @@ func (a *AdminAuth) ReauthenticateAdminSession(ctx context.Context, csrf, action
 		if !valid {
 			return ErrAdminUnauthorized
 		}
-		if _, ok, err := tx.AdvanceAdminMFAReplayCounter(ctx, sessionID, counter); err != nil {
+		if _, ok, err := tx.AdvanceAdminMFAReplayScope(ctx, currentMembership.ID, mustUUID(principal.UserID), counter); err != nil {
 			return err
 		} else if !ok {
 			return ErrAdminUnauthorized
 		}
-		if err := tx.RotateAdminSessionCSRF(ctx, sessionID, middleware.CSRFHash(newCSRF), &now); err != nil {
+		if err := tx.RotateAdminSessionCSRF(ctx, sessionID, middleware.CSRFHash(newCSRF), &now, action); err != nil {
 			return err
 		}
 		actorID := mustUUID(principal.UserID)
@@ -1172,6 +1244,9 @@ func (a *AdminAuth) EnrollAdminOperator(ctx context.Context, username string, pe
 			membershipID = membership.ID
 		}
 		keyID := a.cfg.EncryptionKeyID
+		if err := tx.ResetAdminMFAReplayScope(ctx, membershipID, user.ID); err != nil {
+			return err
+		}
 		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{ID: membershipID, UserID: user.ID, Permissions: permissions, Active: true,
 			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt}); err != nil {
 			return err
@@ -1222,7 +1297,7 @@ func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username stri
 		if err != nil {
 			return err
 		}
-		if membership == nil || len(membership.Permissions) == 0 && !membership.Active {
+		if membership == nil || !membership.Active || membership.RevokedAt != nil {
 			return ErrAdminForbidden
 		}
 		secretText, secret, err := a.GenerateEnrollmentSecret()
@@ -1235,8 +1310,11 @@ func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username stri
 		}
 		enrolledAt := a.currentTime()
 		keyID := a.cfg.EncryptionKeyID
-		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{ID: membership.ID, UserID: user.ID, Permissions: membership.Permissions, Active: true,
-			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt}); err != nil {
+		if err := tx.ResetAdminMFAReplayScope(ctx, membership.ID, user.ID); err != nil {
+			return err
+		}
+		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{ID: membership.ID, UserID: user.ID, Permissions: membership.Permissions, Active: membership.Active,
+			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt, RevokedAt: membership.RevokedAt}); err != nil {
 			return err
 		}
 		if err := tx.RevokeAdminSessionsForUser(ctx, user.ID); err != nil {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lrprojects/monaserver/internal/apperrors"
 )
@@ -111,5 +112,69 @@ func TestAdminCORSAllowsCredentialsOnlyForConfiguredOrigin(t *testing.T) {
 	AdminCORS("https://admin.example")(next).ServeHTTP(deniedRecorder, denied)
 	if deniedRecorder.Header().Get("Access-Control-Allow-Origin") != "" || deniedRecorder.Header().Get("Access-Control-Allow-Credentials") != "" {
 		t.Fatalf("denied CORS headers = %#v", deniedRecorder.Header())
+	}
+}
+
+func TestTrustedRealIPRejectsSpoofedForwardedHeaders(t *testing.T) {
+	var got string
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = AdminClientIP(r.Context())
+	})
+	h := TrustedRealIP("10.0.0.0/8")(CaptureAdminRequest(next))
+
+	untrusted := httptest.NewRequest(http.MethodGet, "/", nil)
+	untrusted.RemoteAddr = "192.0.2.40:1234"
+	untrusted.Header.Set("X-Forwarded-For", "198.51.100.7")
+	h.ServeHTTP(httptest.NewRecorder(), untrusted)
+	if got != "192.0.2.40" {
+		t.Fatalf("untrusted forwarded client = %q, want direct peer", got)
+	}
+
+	trusted := httptest.NewRequest(http.MethodGet, "/", nil)
+	trusted.RemoteAddr = "10.0.0.8:1234"
+	trusted.Header.Set("X-Forwarded-For", "198.51.100.7, 10.0.0.8")
+	h.ServeHTTP(httptest.NewRecorder(), trusted)
+	if got != "198.51.100.7" {
+		t.Fatalf("trusted forwarded client = %q, want client address", got)
+	}
+
+	malformed := httptest.NewRequest(http.MethodGet, "/", nil)
+	malformed.RemoteAddr = "10.0.0.8:1234"
+	malformed.Header.Set("X-Forwarded-For", "not-an-ip")
+	h.ServeHTTP(httptest.NewRecorder(), malformed)
+	if got != "10.0.0.8" {
+		t.Fatalf("malformed forwarded client = %q, want direct peer", got)
+	}
+}
+
+func TestAdminCSRFAndRecentMFAGuardsProtectMutations(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	now := time.Now().UTC()
+	principal := AdminPrincipal{CSRFHash: CSRFHash("csrf"), RecentMFAAt: &now, RecentMFAAction: "email"}
+
+	missing := httptest.NewRequest(http.MethodPost, "/api/v2/admin/mail", nil)
+	missing = missing.WithContext(WithAdminPrincipal(missing.Context(), principal))
+	recorder := httptest.NewRecorder()
+	AdminCSRFGuard(next).ServeHTTP(recorder, missing)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("missing csrf status = %d, want 403", recorder.Code)
+	}
+
+	wrongAction := httptest.NewRequest(http.MethodPost, "/api/v2/admin/notification", nil)
+	wrongAction.Header.Set("X-CSRF-Token", "csrf")
+	wrongAction = wrongAction.WithContext(WithAdminPrincipal(wrongAction.Context(), principal))
+	recorder = httptest.NewRecorder()
+	AdminCSRFGuard(AdminRecentMFAGuard(time.Minute)(next)).ServeHTTP(recorder, wrongAction)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("wrong recent mfa action status = %d, want 403", recorder.Code)
+	}
+
+	valid := httptest.NewRequest(http.MethodPost, "/api/v2/admin/mail", nil)
+	valid.Header.Set("X-CSRF-Token", "csrf")
+	valid = valid.WithContext(WithAdminPrincipal(valid.Context(), principal))
+	recorder = httptest.NewRecorder()
+	AdminCSRFGuard(AdminRecentMFAGuard(time.Minute)(next)).ServeHTTP(recorder, valid)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("valid mutation status = %d, want 204", recorder.Code)
 	}
 }
