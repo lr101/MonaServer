@@ -27,7 +27,7 @@ type Job = db.DurableJob
 // satisfies it while tests and future queue backends can provide the same
 // lease semantics without coupling handlers to PostgreSQL.
 type DurableJobStore interface {
-	ClaimDurableJobs(context.Context, string, int, time.Duration) ([]db.DurableJob, error)
+	ClaimDurableJobsByKinds(context.Context, string, []string, int, time.Duration) ([]db.DurableJob, error)
 	ExtendDurableJobLease(context.Context, uuid.UUID, string, uuid.UUID, time.Duration) (bool, error)
 	FinishDurableJob(context.Context, uuid.UUID, string, uuid.UUID, string) (bool, error)
 	ReleaseDurableJobLease(context.Context, uuid.UUID, string, uuid.UUID, time.Time) (bool, error)
@@ -460,7 +460,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 		available := cap(semaphore) - len(semaphore)
 		if available > 0 {
-			claimed, err := w.store.ClaimDurableJobs(ctx, w.cfg.WorkerID, available, w.cfg.LeaseDuration)
+			claimed, err := w.store.ClaimDurableJobsByKinds(ctx, w.cfg.WorkerID, w.cfg.Kinds, available, w.cfg.LeaseDuration)
 			if err != nil {
 				if ctx.Err() != nil {
 					w.handlersWG.Wait()
@@ -469,10 +469,6 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.cfg.Logger.Warn("durable job claim failed", "worker", w.cfg.WorkerID, "err", safeError(err))
 			} else {
 				for _, job := range claimed {
-					if !w.handlesKind(job.Kind) {
-						_ = w.releaseUnowned(ctx, job)
-						continue
-					}
 					select {
 					case semaphore <- struct{}{}:
 					case <-ctx.Done():

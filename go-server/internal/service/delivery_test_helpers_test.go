@@ -18,6 +18,10 @@ func (*fakeJobStore) ClaimDurableJobs(context.Context, string, int, time.Duratio
 	return nil, nil
 }
 
+func (*fakeJobStore) ClaimDurableJobsByKinds(context.Context, string, []string, int, time.Duration) ([]db.DurableJob, error) {
+	return nil, nil
+}
+
 func (*fakeJobStore) ExtendDurableJobLease(context.Context, uuid.UUID, string, uuid.UUID, time.Duration) (bool, error) {
 	return true, nil
 }

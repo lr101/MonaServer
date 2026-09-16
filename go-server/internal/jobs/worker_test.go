@@ -49,6 +49,10 @@ func (f *fakeJobStore) ClaimDurableJobs(context.Context, string, int, time.Durat
 	return nil, nil
 }
 
+func (f *fakeJobStore) ClaimDurableJobsByKinds(context.Context, string, []string, int, time.Duration) ([]db.DurableJob, error) {
+	return nil, nil
+}
+
 func (f *fakeJobStore) ExtendDurableJobLease(_ context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
 	f.mu.Lock()
 	f.extended = append(f.extended, extendCall{id: id, worker: worker, token: token, lease: lease})
@@ -92,8 +96,15 @@ type queueJobStore struct {
 	mu          sync.Mutex
 	jobs        []db.DurableJob
 	claimLimits []int
+	claimKinds  []claimKindsCall
 	finished    []finishCall
 	released    []releaseCall
+}
+
+type claimKindsCall struct {
+	worker string
+	kinds  []string
+	limit  int
 }
 
 func (f *queueJobStore) ClaimDurableJobs(_ context.Context, worker string, limit int, _ time.Duration) ([]db.DurableJob, error) {
@@ -114,6 +125,40 @@ func (f *queueJobStore) ClaimDurableJobs(_ context.Context, worker string, limit
 			claimed[i].LeaseToken = uuid.New()
 		}
 	}
+	return claimed, nil
+}
+
+func (f *queueJobStore) ClaimDurableJobsByKinds(_ context.Context, worker string, kinds []string, limit int, _ time.Duration) ([]db.DurableJob, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.claimLimits = append(f.claimLimits, limit)
+	call := claimKindsCall{worker: worker, kinds: append([]string{}, kinds...), limit: limit}
+	f.claimKinds = append(f.claimKinds, call)
+	allowed := make(map[string]struct{}, len(kinds))
+	for _, kind := range kinds {
+		allowed[kind] = struct{}{}
+	}
+	allKinds := len(kinds) == 0
+	claimed := make([]db.DurableJob, 0, limit)
+	remaining := f.jobs[:0]
+	for _, job := range f.jobs {
+		if len(claimed) >= limit {
+			remaining = append(remaining, job)
+			continue
+		}
+		if !allKinds {
+			if _, ok := allowed[job.Kind]; !ok {
+				remaining = append(remaining, job)
+				continue
+			}
+		}
+		job.LeaseOwner = stringPtr(worker)
+		if job.LeaseToken == uuid.Nil {
+			job.LeaseToken = uuid.New()
+		}
+		claimed = append(claimed, job)
+	}
+	f.jobs = remaining
 	return claimed, nil
 }
 
@@ -412,6 +457,128 @@ func TestRunKeepsClaimedWorkWithinConfiguredConcurrency(t *testing.T) {
 			t.Fatalf("claim limit = %d, want at most configured concurrency", limit)
 		}
 	}
+}
+
+func TestRunClaimsConfiguredKindsInsideStore(t *testing.T) {
+	store := &queueJobStore{jobs: []db.DurableJob{
+		jobWithKind("bulk.email", 1),
+		jobWithKind("auth.email", 1),
+	}}
+	w := NewWorker(store, Config{
+		WorkerID:     "auth-worker",
+		Kinds:        []string{" auth.email ", "auth.email"},
+		PollInterval: time.Millisecond,
+		Clock:        time.Now,
+	})
+	processed := make(chan struct{})
+	if err := w.Register("auth.email", HandlerFunc(func(context.Context, Job) Result {
+		close(processed)
+		return Success()
+	})); err != nil {
+		t.Fatalf("register handler: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- w.Run(ctx) }()
+	select {
+	case <-processed:
+		waitForFinishedJobs(t, store, 1)
+		cancel()
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("worker did not process the configured kind")
+	}
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.claimKinds) == 0 {
+		t.Fatal("worker never used kind-aware claim")
+	}
+	if got := store.claimKinds[0].kinds; len(got) != 1 || got[0] != "auth.email" {
+		t.Fatalf("claimed kinds = %#v, want normalized auth kind", got)
+	}
+	if len(store.finished) != 1 || store.finished[0].status != StatusCompleted {
+		t.Fatalf("finished calls = %#v, want auth completion", store.finished)
+	}
+	if len(store.released) != 0 {
+		t.Fatalf("released calls = %#v, want no cross-family release", store.released)
+	}
+	if len(store.jobs) != 1 || store.jobs[0].Kind != "bulk.email" {
+		t.Fatalf("remaining jobs = %#v, want bulk job untouched", store.jobs)
+	}
+}
+
+func TestRunEmptyKindsClaimsAllFamilies(t *testing.T) {
+	store := &queueJobStore{jobs: []db.DurableJob{
+		jobWithKind("bulk.email", 1),
+		jobWithKind("auth.email", 1),
+	}}
+	w := NewWorker(store, Config{WorkerID: "all-worker", PollInterval: time.Millisecond, Clock: time.Now})
+	var processed atomic.Int32
+	allProcessed := make(chan struct{})
+	if err := w.Register("bulk.email", HandlerFunc(func(context.Context, Job) Result {
+		if processed.Add(1) == 2 {
+			close(allProcessed)
+		}
+		return Success()
+	})); err != nil {
+		t.Fatalf("register bulk handler: %v", err)
+	}
+	if err := w.Register("auth.email", HandlerFunc(func(context.Context, Job) Result {
+		if processed.Add(1) == 2 {
+			close(allProcessed)
+		}
+		return Success()
+	})); err != nil {
+		t.Fatalf("register auth handler: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- w.Run(ctx) }()
+	select {
+	case <-allProcessed:
+		waitForFinishedJobs(t, store, 2)
+		cancel()
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("worker did not process every family with empty kinds")
+	}
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context cancellation", err)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.claimKinds) == 0 || store.claimKinds[0].kinds == nil || len(store.claimKinds[0].kinds) != 0 {
+		t.Fatalf("empty kind claim = %#v, want explicit empty allowlist", store.claimKinds)
+	}
+	if len(store.jobs) != 0 || len(store.finished) != 2 {
+		t.Fatalf("jobs/finished = %d/%d, want all families processed", len(store.jobs), len(store.finished))
+	}
+}
+
+func waitForFinishedJobs(t *testing.T, store *queueJobStore, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.Lock()
+		finished := len(store.finished)
+		store.mu.Unlock()
+		if finished >= want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	t.Fatalf("finished jobs = %d, want at least %d", len(store.finished), want)
+}
+
+func jobWithKind(kind string, attempt int32) db.DurableJob {
+	job := testJob(map[string]string{"kind": kind}, attempt, 3)
+	job.Kind = kind
+	return job
 }
 
 func TestShutdownWaitsForHandlerBeforeReturning(t *testing.T) {

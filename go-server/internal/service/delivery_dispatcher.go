@@ -41,6 +41,7 @@ type DeliveryPayload struct {
 type DeliveryAttemptStore interface {
 	GetDeliveryAttempt(context.Context, uuid.UUID) (*db.DeliveryAttempt, error)
 	UpdateDeliveryAttemptOutcome(context.Context, uuid.UUID, string, *string, *string, *string, *time.Time) error
+	ClearDeliveryAttemptPayload(context.Context, uuid.UUID, time.Time) (bool, error)
 	DisableDeviceRegistration(context.Context, uuid.UUID, uuid.UUID) error
 }
 
@@ -95,6 +96,9 @@ func (d *DeliveryDispatcher) handle(ctx context.Context, _ jobs.Job, payload Del
 		return jobs.Failed(errors.New("delivery attempt not found"))
 	}
 	if attempt.Status == DeliveryStatusAccepted {
+		if err := d.clearPayload(ctx, attempt.ID); err != nil {
+			return jobs.Retry(err)
+		}
 		return jobs.Success()
 	}
 	if d.keys == nil || attempt.DeliveryKeyID == nil || attempt.PayloadExpiresAt == nil {
@@ -156,6 +160,9 @@ func (d *DeliveryDispatcher) recordProviderResult(ctx context.Context, attempt *
 	if err := d.attempts.UpdateDeliveryAttemptOutcome(ctx, attempt.ID, status, providerReference, providerOutcome, errorCode, acceptedAt); err != nil {
 		return jobs.Retry(err)
 	}
+	if err := d.clearPayload(ctx, attempt.ID); err != nil {
+		return jobs.Retry(err)
+	}
 	if IsInvalidDeviceToken(result) && attempt.DeviceID != nil && attempt.AccountID != nil {
 		if err := d.attempts.DisableDeviceRegistration(ctx, *attempt.DeviceID, *attempt.AccountID); err != nil {
 			return jobs.Retry(err)
@@ -179,7 +186,18 @@ func (d *DeliveryDispatcher) recordFailure(ctx context.Context, attemptID uuid.U
 	if updateErr := d.attempts.UpdateDeliveryAttemptOutcome(ctx, attemptID, DeliveryStatusFailed, nil, optionalString("failed"), optionalString(code), nil); updateErr != nil {
 		return jobs.Retry(updateErr)
 	}
+	if clearErr := d.clearPayload(ctx, attemptID); clearErr != nil {
+		return jobs.Retry(clearErr)
+	}
 	return jobs.Result{Status: jobs.StatusFailed, Outcome: jobs.OutcomeFailed, ErrorCode: code, Err: err}
+}
+
+func (d *DeliveryDispatcher) clearPayload(ctx context.Context, attemptID uuid.UUID) error {
+	if d == nil || d.attempts == nil {
+		return errors.New("delivery attempt store is required")
+	}
+	_, err := d.attempts.ClearDeliveryAttemptPayload(ctx, attemptID, d.clock())
+	return err
 }
 
 func optionalString(value string) *string {

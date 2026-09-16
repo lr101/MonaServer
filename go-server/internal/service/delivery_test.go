@@ -230,6 +230,7 @@ type fakeAttemptStore struct {
 	mu       sync.Mutex
 	attempts map[uuid.UUID]*db.DeliveryAttempt
 	outcomes []attemptOutcome
+	clears   []attemptClear
 	disabled []struct{ id, userID uuid.UUID }
 }
 
@@ -240,6 +241,12 @@ type attemptOutcome struct {
 	providerOutcome   *string
 	errorCode         *string
 	acceptedAt        *time.Time
+}
+
+type attemptClear struct {
+	id      uuid.UUID
+	now     time.Time
+	cleared bool
 }
 
 func (f *fakeAttemptStore) GetDeliveryAttempt(_ context.Context, id uuid.UUID) (*db.DeliveryAttempt, error) {
@@ -258,7 +265,34 @@ func (f *fakeAttemptStore) UpdateDeliveryAttemptOutcome(_ context.Context, id uu
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.outcomes = append(f.outcomes, attemptOutcome{id: id, status: status, providerReference: providerReference, providerOutcome: providerOutcome, errorCode: errorCode, acceptedAt: acceptedAt})
+	if attempt := f.attempts[id]; attempt != nil {
+		attempt.Status = status
+		attempt.ProviderReference = providerReference
+		attempt.ProviderOutcome = providerOutcome
+		attempt.ErrorCode = errorCode
+		attempt.AcceptedAt = acceptedAt
+	}
 	return nil
+}
+
+func (f *fakeAttemptStore) ClearDeliveryAttemptPayload(_ context.Context, id uuid.UUID, now time.Time) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	attempt := f.attempts[id]
+	if attempt == nil {
+		f.clears = append(f.clears, attemptClear{id: id, now: now})
+		return false, nil
+	}
+	clear := len(attempt.EncryptedPayload) > 0 || attempt.DeliveryKeyID != nil
+	if clear && (attempt.Status == DeliveryStatusAccepted || attempt.Status == DeliveryStatusFailed || (attempt.PayloadExpiresAt != nil && !now.Before(*attempt.PayloadExpiresAt))) {
+		attempt.EncryptedPayload = nil
+		attempt.DeliveryKeyID = nil
+		clear = true
+	} else {
+		clear = false
+	}
+	f.clears = append(f.clears, attemptClear{id: id, now: now, cleared: clear})
+	return clear, nil
 }
 
 func (f *fakeAttemptStore) DisableDeviceRegistration(_ context.Context, id, userID uuid.UUID) error {
@@ -297,11 +331,89 @@ func TestDeliveryDispatcherPersistsAcceptedEmailOutcomeWithoutExposingPayload(t 
 	if len(store.outcomes) != 1 || store.outcomes[0].status != DeliveryStatusAccepted || store.outcomes[0].providerOutcome == nil || *store.outcomes[0].providerOutcome != string(ProviderAccepted) {
 		t.Fatalf("delivery outcomes = %#v, want accepted", store.outcomes)
 	}
+	if len(store.clears) != 1 || !store.clears[0].cleared {
+		t.Fatalf("delivery clears = %#v, want accepted payload clear", store.clears)
+	}
+	if store.attempts[attemptID].EncryptedPayload != nil || store.attempts[attemptID].DeliveryKeyID != nil {
+		t.Fatal("accepted delivery payload was retained")
+	}
 	if len(provider.received) != 1 || provider.received[0].To != "person@example.test" {
 		t.Fatalf("provider messages = %#v", provider.received)
 	}
-	if bytes.Contains(store.attempts[attemptID].EncryptedPayload, []byte("Hello")) {
-		t.Fatal("stored delivery payload contains plaintext body")
+}
+
+func TestDeliveryDispatcherRetainsUnexpiredRetryPayload(t *testing.T) {
+	now := time.Unix(100, 0)
+	ring := testKeyRing(t)
+	provider := &fakeEmailProvider{result: ProviderResult{Outcome: ProviderUnknownDelivery, ErrorCode: "provider_unknown"}}
+	store := &fakeAttemptStore{attempts: make(map[uuid.UUID]*db.DeliveryAttempt)}
+	dispatcher := NewDeliveryDispatcher(store, ring, NewEmailDelivery(provider), nil, func() time.Time { return now })
+	attemptID := uuid.New()
+	payload, err := json.Marshal(DeliveryPayload{Email: &EmailContent{To: "person@example.test", Subject: "Notice", Body: "Hello"}})
+	if err != nil {
+		t.Fatalf("marshal delivery payload: %v", err)
+	}
+	envelope, err := ring.EncryptPayload(payload, now, time.Minute)
+	if err != nil {
+		t.Fatalf("encrypt delivery payload: %v", err)
+	}
+	keyID := envelope.KeyID
+	expiresAt := envelope.ExpiresAt
+	store.attempts[attemptID] = &db.DeliveryAttempt{ID: attemptID, Channel: "email", EncryptedPayload: envelope.Ciphertext, DeliveryKeyID: &keyID, PayloadExpiresAt: &expiresAt}
+	w := jobs.NewWorker(&fakeJobStore{}, jobs.Config{WorkerID: "worker-a", Clock: time.Now})
+	if err := RegisterDeliveryHandlers(w, dispatcher); err != nil {
+		t.Fatalf("register delivery handlers: %v", err)
+	}
+	if err := w.Process(context.Background(), deliveryJob(attemptID)); err != nil {
+		t.Fatalf("process retryable delivery: %v", err)
+	}
+	if len(store.outcomes) != 1 || store.outcomes[0].status != DeliveryStatusUnknown {
+		t.Fatalf("delivery outcomes = %#v, want unknown delivery", store.outcomes)
+	}
+	if len(store.clears) != 1 || store.clears[0].cleared {
+		t.Fatalf("delivery clears = %#v, want retained retry payload", store.clears)
+	}
+	if len(store.attempts[attemptID].EncryptedPayload) == 0 || store.attempts[attemptID].DeliveryKeyID == nil {
+		t.Fatal("unexpired retry payload was cleared")
+	}
+}
+
+func TestDeliveryDispatcherClearsExpiredPayloadWithoutProviderCall(t *testing.T) {
+	now := time.Unix(100, 0)
+	ring := testKeyRing(t)
+	provider := &fakeEmailProvider{result: ProviderResult{Outcome: ProviderAccepted}}
+	store := &fakeAttemptStore{attempts: make(map[uuid.UUID]*db.DeliveryAttempt)}
+	dispatcher := NewDeliveryDispatcher(store, ring, NewEmailDelivery(provider), nil, func() time.Time { return now })
+	attemptID := uuid.New()
+	payload, err := json.Marshal(DeliveryPayload{Email: &EmailContent{To: "person@example.test", Subject: "Notice", Body: "Hello"}})
+	if err != nil {
+		t.Fatalf("marshal delivery payload: %v", err)
+	}
+	envelope, err := ring.EncryptPayload(payload, now.Add(-2*time.Minute), time.Minute)
+	if err != nil {
+		t.Fatalf("encrypt delivery payload: %v", err)
+	}
+	keyID := envelope.KeyID
+	expiresAt := envelope.ExpiresAt
+	store.attempts[attemptID] = &db.DeliveryAttempt{ID: attemptID, Channel: "email", EncryptedPayload: envelope.Ciphertext, DeliveryKeyID: &keyID, PayloadExpiresAt: &expiresAt}
+	w := jobs.NewWorker(&fakeJobStore{}, jobs.Config{WorkerID: "worker-a", Clock: time.Now})
+	if err := RegisterDeliveryHandlers(w, dispatcher); err != nil {
+		t.Fatalf("register delivery handlers: %v", err)
+	}
+	if err := w.Process(context.Background(), deliveryJob(attemptID)); err != nil {
+		t.Fatalf("process expired delivery: %v", err)
+	}
+	if len(provider.received) != 0 {
+		t.Fatalf("expired payload reached provider: %#v", provider.received)
+	}
+	if len(store.outcomes) != 1 || store.outcomes[0].status != DeliveryStatusFailed {
+		t.Fatalf("delivery outcomes = %#v, want terminal failure", store.outcomes)
+	}
+	if len(store.clears) != 1 || !store.clears[0].cleared {
+		t.Fatalf("delivery clears = %#v, want expired payload clear", store.clears)
+	}
+	if store.attempts[attemptID].EncryptedPayload != nil || store.attempts[attemptID].DeliveryKeyID != nil {
+		t.Fatal("expired delivery payload was retained")
 	}
 }
 
