@@ -38,6 +38,39 @@ type DeliveryPayload struct {
 	Push  *PushMessage  `json:"push,omitempty"`
 }
 
+// DeliveryAttemptValidationError marks a payload failure that is terminal
+// for the current delivery attempt. The dispatcher records Code and clears
+// the encrypted payload; the underlying sentinel remains available to
+// callers that need to distinguish expiry, key rotation, and corruption.
+type DeliveryAttemptValidationError struct {
+	Code  string
+	Cause error
+}
+
+func (e *DeliveryAttemptValidationError) Error() string {
+	if e == nil || e.Code == "" {
+		return "delivery attempt validation failed"
+	}
+	return e.Code
+}
+
+func (e *DeliveryAttemptValidationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
+func newDeliveryAttemptValidationError(code string, cause error) *DeliveryAttemptValidationError {
+	if code == "" {
+		code = "delivery_payload_invalid"
+	}
+	if cause == nil {
+		cause = ErrInvalidDeliveryPayload
+	}
+	return &DeliveryAttemptValidationError{Code: code, Cause: cause}
+}
+
 type DeliveryAttemptStore interface {
 	GetDeliveryAttempt(context.Context, uuid.UUID) (*db.DeliveryAttempt, error)
 	UpdateDeliveryAttemptOutcome(context.Context, uuid.UUID, string, *string, *string, *string, *time.Time) error
@@ -90,6 +123,9 @@ func (d *DeliveryDispatcher) handle(ctx context.Context, _ jobs.Job, payload Del
 	}
 	attempt, err := d.attempts.GetDeliveryAttempt(ctx, payload.AttemptID)
 	if err != nil {
+		if code, ok := classifiedDeliveryAttemptError(err); ok {
+			return d.recordFailure(ctx, payload.AttemptID, code, nil)
+		}
 		return jobs.Retry(err)
 	}
 	if attempt == nil {
@@ -140,6 +176,27 @@ func (d *DeliveryDispatcher) handle(ctx context.Context, _ jobs.Job, payload Del
 		}
 	}
 	return d.recordProviderResult(ctx, attempt, providerResult)
+}
+
+func classifiedDeliveryAttemptError(err error) (string, bool) {
+	var classified *DeliveryAttemptValidationError
+	if errors.As(err, &classified) && classified != nil {
+		code := safeProviderCode(classified.Code)
+		if code == "" {
+			return "delivery_payload_invalid", true
+		}
+		return code, true
+	}
+	switch {
+	case errors.Is(err, ErrDeliveryKeyUnavailable):
+		return "delivery_key_unavailable", true
+	case errors.Is(err, ErrDeliveryPayloadExpired):
+		return "delivery_payload_expired", true
+	case errors.Is(err, ErrInvalidDeliveryPayload):
+		return "delivery_payload_invalid", true
+	default:
+		return "", false
+	}
 }
 
 func (d *DeliveryDispatcher) recordProviderResult(ctx context.Context, attempt *db.DeliveryAttempt, result ProviderResult) jobs.Result {

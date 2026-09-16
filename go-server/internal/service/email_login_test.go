@@ -33,6 +33,47 @@ func (failingLoginLinkEnqueuer) EnqueueLoginLink(context.Context, *db.Queries, L
 	return nil, errors.New("delivery unavailable")
 }
 
+type recordingFailingLoginLinkEnqueuer struct {
+	request LoginLinkDeliveryRequest
+}
+
+func (e *recordingFailingLoginLinkEnqueuer) EnqueueLoginLink(_ context.Context, _ *db.Queries, request LoginLinkDeliveryRequest) (*uuid.UUID, error) {
+	e.request = request
+	return nil, errors.New("delivery unavailable")
+}
+
+type partialLoginLinkEnqueuer struct {
+	request   LoginLinkDeliveryRequest
+	attemptID uuid.UUID
+	jobID     uuid.UUID
+}
+
+func (e *partialLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.Queries, request LoginLinkDeliveryRequest) (*uuid.UUID, error) {
+	e.request = request
+	e.attemptID = uuid.New()
+	keyID := "partial-key"
+	expiresAt := request.ExpiresAt
+	if err := tx.CreateDeliveryAttempt(ctx, db.DeliveryAttemptParams{
+		ID: e.attemptID, Channel: "email", AccountID: &request.AccountID, Status: DeliveryStatusPending,
+		AttemptNumber: 0, EncryptedPayload: []byte("partial-ciphertext"), DeliveryKeyID: &keyID,
+		PayloadExpiresAt: &expiresAt,
+	}); err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(DeliveryJobPayload{AttemptID: e.attemptID})
+	if err != nil {
+		return nil, err
+	}
+	e.jobID = uuid.New()
+	if err := tx.CreateDurableJob(ctx, db.DurableJobParams{
+		ID: e.jobID, Kind: KindEmailDelivery, IdempotencyKey: "partial-login-link:" + request.ActionTokenID.String(),
+		Payload: payload, Priority: 100, AvailableAt: request.ExpiresAt.Add(-15 * time.Minute), MaxAttempts: 5,
+	}); err != nil {
+		return nil, err
+	}
+	return nil, errors.New("delivery unavailable after durable writes")
+}
+
 func TestEmailLoginRequestUsesCanonicalOwnedEmailAndReturnsGenericAcceptance(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -380,6 +421,123 @@ func TestValidatedDeliveryAttemptStoreSuppressesContainedLogin(t *testing.T) {
 	}
 }
 
+func createTestDeliveryAttempt(t *testing.T, q *db.Queries, ring *DeliveryKeyRing, plaintext []byte, createdAt time.Time, ttl time.Duration, corrupt bool) uuid.UUID {
+	t.Helper()
+	envelope, err := ring.EncryptPayload(plaintext, createdAt, ttl)
+	if err != nil {
+		t.Fatalf("encrypt test delivery payload: %v", err)
+	}
+	if corrupt {
+		envelope.Ciphertext[len(envelope.Ciphertext)-1] ^= 0x01
+	}
+	attemptID := uuid.New()
+	keyID := envelope.KeyID
+	expiresAt := envelope.ExpiresAt
+	if err := q.CreateDeliveryAttempt(context.Background(), db.DeliveryAttemptParams{
+		ID: attemptID, Channel: "email", Status: DeliveryStatusPending, AttemptNumber: 0,
+		EncryptedPayload: envelope.Ciphertext, DeliveryKeyID: &keyID, PayloadExpiresAt: &expiresAt,
+	}); err != nil {
+		t.Fatalf("create test delivery attempt: %v", err)
+	}
+	return attemptID
+}
+
+func assertClassifiedDeliveryPayloadError(t *testing.T, err error, code string, cause error) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("delivery payload error = nil, want %s", code)
+	}
+	var classified *DeliveryAttemptValidationError
+	if !errors.As(err, &classified) {
+		t.Fatalf("delivery payload error = %T %v, want classified validation error", err, err)
+	}
+	if classified.Code != code {
+		t.Fatalf("classified delivery code = %q, want %q", classified.Code, code)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatalf("classified delivery error = %v, want cause %v", err, cause)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreClassifiesExpiredPayloadForDispatcher(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	now := time.Unix(1000, 0)
+	ring := testKeyRing(t)
+	attemptID := createTestDeliveryAttempt(t, q, ring, []byte(`{"email":{"to":"person@example.test","subject":"Notice","body":"Hello"}}`), now.Add(-2*time.Minute), time.Minute, false)
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, func() time.Time { return now })
+	_, err := store.GetDeliveryAttempt(ctx, attemptID)
+	assertClassifiedDeliveryPayloadError(t, err, "delivery_payload_expired", ErrDeliveryPayloadExpired)
+
+	provider := &fakeEmailProvider{result: ProviderResult{Outcome: ProviderAccepted}}
+	dispatcher := NewDeliveryDispatcher(store, ring, NewEmailDelivery(provider), nil, func() time.Time { return now })
+	result := dispatcher.handleEmail(ctx, jobs.Job{}, DeliveryJobPayload{AttemptID: attemptID})
+	if result.Status != jobs.StatusFailed || result.ErrorCode != "delivery_payload_expired" {
+		t.Fatalf("expired dispatcher result = %#v, want terminal classified failure", result)
+	}
+	stored, err := q.GetDeliveryAttempt(ctx, attemptID)
+	if err != nil || stored == nil || stored.Status != DeliveryStatusFailed || stored.ErrorCode == nil || *stored.ErrorCode != "delivery_payload_expired" || stored.EncryptedPayload != nil || stored.DeliveryKeyID != nil {
+		t.Fatalf("expired stored attempt = %#v, err=%v, want failed and cleared", stored, err)
+	}
+	if len(provider.received) != 0 {
+		t.Fatalf("expired payload reached provider: %#v", provider.received)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreClassifiesMissingKeyForDispatcher(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	now := time.Unix(1100, 0)
+	ring := testKeyRing(t)
+	attemptID := createTestDeliveryAttempt(t, q, ring, []byte(`{"email":{"to":"person@example.test","subject":"Notice","body":"Hello"}}`), now, time.Minute, false)
+	missingKeyRing, err := NewDeliveryKeyRing(map[string][]byte{"other": []byte("01234567890123456789012345678901")}, "other", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("missing-key ring: %v", err)
+	}
+	store := NewValidatedDeliveryAttemptStore(q, q, missingKeyRing, func() time.Time { return now })
+	_, err = store.GetDeliveryAttempt(ctx, attemptID)
+	assertClassifiedDeliveryPayloadError(t, err, "delivery_key_unavailable", ErrDeliveryKeyUnavailable)
+
+	provider := &fakeEmailProvider{result: ProviderResult{Outcome: ProviderAccepted}}
+	dispatcher := NewDeliveryDispatcher(store, missingKeyRing, NewEmailDelivery(provider), nil, func() time.Time { return now })
+	result := dispatcher.handleEmail(ctx, jobs.Job{}, DeliveryJobPayload{AttemptID: attemptID})
+	if result.Status != jobs.StatusFailed || result.ErrorCode != "delivery_key_unavailable" {
+		t.Fatalf("missing-key dispatcher result = %#v, want terminal classified failure", result)
+	}
+	stored, err := q.GetDeliveryAttempt(ctx, attemptID)
+	if err != nil || stored == nil || stored.Status != DeliveryStatusFailed || stored.ErrorCode == nil || *stored.ErrorCode != "delivery_key_unavailable" || stored.EncryptedPayload != nil || stored.DeliveryKeyID != nil {
+		t.Fatalf("missing-key stored attempt = %#v, err=%v, want failed and cleared", stored, err)
+	}
+	if len(provider.received) != 0 {
+		t.Fatalf("missing-key payload reached provider: %#v", provider.received)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreClassifiesCorruptPayloadForDispatcher(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	now := time.Unix(1200, 0)
+	ring := testKeyRing(t)
+	attemptID := createTestDeliveryAttempt(t, q, ring, []byte(`{"email":{"to":"person@example.test","subject":"Notice","body":"Hello"}}`), now, time.Minute, true)
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, func() time.Time { return now })
+	_, err := store.GetDeliveryAttempt(ctx, attemptID)
+	assertClassifiedDeliveryPayloadError(t, err, "delivery_payload_invalid", ErrInvalidDeliveryPayload)
+
+	provider := &fakeEmailProvider{result: ProviderResult{Outcome: ProviderAccepted}}
+	dispatcher := NewDeliveryDispatcher(store, ring, NewEmailDelivery(provider), nil, func() time.Time { return now })
+	result := dispatcher.handleEmail(ctx, jobs.Job{}, DeliveryJobPayload{AttemptID: attemptID})
+	if result.Status != jobs.StatusFailed || result.ErrorCode != "delivery_payload_invalid" {
+		t.Fatalf("corrupt dispatcher result = %#v, want terminal classified failure", result)
+	}
+	stored, err := q.GetDeliveryAttempt(ctx, attemptID)
+	if err != nil || stored == nil || stored.Status != DeliveryStatusFailed || stored.ErrorCode == nil || *stored.ErrorCode != "delivery_payload_invalid" || stored.EncryptedPayload != nil || stored.DeliveryKeyID != nil {
+		t.Fatalf("corrupt stored attempt = %#v, err=%v, want failed and cleared", stored, err)
+	}
+	if len(provider.received) != 0 {
+		t.Fatalf("corrupt payload reached provider: %#v", provider.received)
+	}
+}
+
 func TestEmailLoginRequestSuppressesUnknownDuplicateAndRestrictedAccounts(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	enqueuer := &recordingLoginLinkEnqueuer{}
@@ -467,6 +625,32 @@ func TestEmailLoginDeliveryFailureKeepsAbuseQuotaCommitted(t *testing.T) {
 	}
 }
 
+func TestEmailLoginDeliveryFailureRollsBackIssuedAction(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "login-action-rollback@example.com"
+	confirmTestEmail(t, q, auth, "login_action_rollback", email)
+	enqueuer := &recordingFailingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "action-rollback-v1", HMACKey: uniqueQuotaKey(),
+	}, enqueuer)
+	accepted, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.46"})
+	if err != nil || accepted == nil || !accepted.Accepted || accepted.Issued {
+		t.Fatalf("delivery failure = %#v, err=%v, want generic accepted response", accepted, err)
+	}
+	if enqueuer.request.Token == "" {
+		t.Fatal("failing enqueuer did not observe issued action token")
+	}
+	actionHash := sha256.Sum256([]byte(enqueuer.request.Token))
+	action, err := q.GetAccountActionTokenByHash(ctx, actionHash[:])
+	if err != nil {
+		t.Fatalf("read rolled-back action token: %v", err)
+	}
+	if action != nil {
+		t.Fatalf("action token survived failed enqueue: %#v", action)
+	}
+}
+
 func TestEmailLoginDeliveryFailureNormalizesEligibleAndUnknownAcceptance(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -482,6 +666,49 @@ func TestEmailLoginDeliveryFailureNormalizesEligibleAndUnknownAcceptance(t *test
 	unknown, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: "missing-normalized@example.com", ClientIP: "192.0.2.43"})
 	if err != nil || unknown == nil || !unknown.Accepted || unknown.Issued {
 		t.Fatalf("unknown delivery failure = %#v, err=%v, want generic accepted", unknown, err)
+	}
+}
+
+func TestEmailLoginDeliveryEnqueueFailureRollsBackActionAndPartialDurableWrites(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "login-partial-delivery-failure@example.com"
+	confirmTestEmail(t, q, auth, "login_partial_delivery_failure", email)
+	enqueuer := &partialLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "partial-delivery-failure-v1", HMACKey: uniqueQuotaKey(), IPLimit: 1,
+	}, enqueuer)
+	accepted, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.45"})
+	if err != nil || accepted == nil || !accepted.Accepted || accepted.Issued {
+		t.Fatalf("partial delivery failure = %#v, err=%v, want generic accepted response", accepted, err)
+	}
+	if enqueuer.request.Token == "" || enqueuer.attemptID == uuid.Nil || enqueuer.jobID == uuid.Nil {
+		t.Fatalf("partial enqueuer did not observe durable writes: %#v", enqueuer)
+	}
+	actionHash := sha256.Sum256([]byte(enqueuer.request.Token))
+	action, err := q.GetAccountActionTokenByHash(ctx, actionHash[:])
+	if err != nil {
+		t.Fatalf("read rolled-back action token: %v", err)
+	}
+	if action != nil {
+		t.Fatalf("action token survived failed enqueue: %#v", action)
+	}
+	attempt, err := q.GetDeliveryAttempt(ctx, enqueuer.attemptID)
+	if err != nil {
+		t.Fatalf("read rolled-back delivery attempt: %v", err)
+	}
+	if attempt != nil {
+		t.Fatalf("delivery attempt survived failed enqueue: %#v", attempt)
+	}
+	job, err := q.GetDurableJob(ctx, enqueuer.jobID)
+	if err != nil {
+		t.Fatalf("read rolled-back durable job: %v", err)
+	}
+	if job != nil {
+		t.Fatalf("durable job survived failed enqueue: %#v", job)
+	}
+	if _, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: "unknown-after-partial-failure@example.com", ClientIP: "192.0.2.45"}); err == nil || apperrors.HTTPStatus(err) != 429 {
+		t.Fatalf("retry after partial delivery failure = %v, want committed IP quota 429", err)
 	}
 }
 

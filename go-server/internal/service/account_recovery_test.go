@@ -120,6 +120,34 @@ func TestValidateRecoveryPasswordMatchesFrozenSchemaBoundaries(t *testing.T) {
 	}
 }
 
+func TestAccountRecoveryCompletesContractValidLongPasswordEndToEnd(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "recover-long-password@example.com"
+	pair, err := auth.Signup(ctx, "recover_long_password", "password123", &email)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if err := q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	security := NewAccountSecurity(q)
+	if _, err := security.ContainAccount(ctx, ContainmentRequest{AccountID: pair.UserID, Reason: "long password test"}); err != nil {
+		t.Fatalf("contain: %v", err)
+	}
+	action, err := security.IssueActionToken(ctx, nil, pair.UserID, db.ActionTokenPurposeRecovery, &email, time.Minute)
+	if err != nil || action == nil {
+		t.Fatalf("issue recovery action = %#v, err=%v", action, err)
+	}
+	longPassword := strings.Repeat("L", 256)
+	if err := NewAccountRecovery(q, security).CompleteRecovery(ctx, RecoveryCompletionRequest{Token: action.Token, Password: longPassword}); err != nil {
+		t.Fatalf("complete long recovery: %v", err)
+	}
+	if _, err := auth.Login(ctx, "recover_long_password", longPassword); err != nil {
+		t.Fatalf("login with contract-valid long password: %v", err)
+	}
+}
+
 func TestAccountRecoveryRedemptionHasOneWinner(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()

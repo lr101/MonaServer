@@ -324,13 +324,6 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		}
 		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, canonical)
 		if err != nil {
-			// Public admission must not reveal that this address reached the
-			// eligible-account branch when delivery is unavailable. The quota
-			// transaction is already committed, while this transaction has no
-			// durable action to commit after the enqueue failure.
-			if errors.Is(err, ErrEmailDeliveryUnavailable) || errors.Is(err, ErrInvalidAction) {
-				return nil
-			}
 			return err
 		}
 		if issued == nil {
@@ -341,6 +334,12 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		return nil
 	})
 	if err != nil {
+		// The quota transaction has already committed. Returning the generic
+		// accepted result after this transaction rolls back keeps an outage
+		// enumeration-safe without leaving an unusable action or delivery row.
+		if errors.Is(err, ErrEmailDeliveryUnavailable) || errors.Is(err, ErrInvalidAction) {
+			return result, nil
+		}
 		return nil, err
 	}
 	return result, nil
@@ -667,38 +666,38 @@ func (s *ValidatedDeliveryAttemptStore) GetDeliveryAttempt(ctx context.Context, 
 	if err != nil || attempt == nil || attempt.Channel == "push" || attempt.Status == DeliveryStatusAccepted {
 		return attempt, err
 	}
-	if s.q == nil || s.keys == nil || attempt.DeliveryKeyID == nil || attempt.PayloadExpiresAt == nil || len(attempt.EncryptedPayload) == 0 {
-		// The dispatcher owns ordinary key/payload failure recording. Without
-		// a decryptable envelope there is no authenticated marker proving this
-		// is a T06 action, so leave the attempt to that existing path.
-		return attempt, nil
-	}
 	now := s.clock()
 	if now.IsZero() {
 		now = time.Now()
+	}
+	if s.keys == nil || attempt.DeliveryKeyID == nil {
+		return nil, newDeliveryAttemptValidationError("delivery_key_unavailable", ErrDeliveryKeyUnavailable)
+	}
+	if attempt.PayloadExpiresAt == nil || len(attempt.EncryptedPayload) == 0 {
+		return nil, newDeliveryAttemptValidationError("delivery_payload_invalid", ErrInvalidDeliveryPayload)
 	}
 	plaintext, err := s.keys.DecryptPayload(EncryptedDeliveryPayload{
 		Ciphertext: attempt.EncryptedPayload, KeyID: *attempt.DeliveryKeyID, ExpiresAt: *attempt.PayloadExpiresAt,
 	}, now)
 	if err != nil {
-		// The dispatcher owns key/expiry failure recording. Returning the error
-		// keeps those structured outcomes intact rather than treating an
-		// infrastructure failure as an authenticated stale action.
-		return nil, err
+		return nil, newDeliveryAttemptValidationError(deliveryPayloadErrorCode(err), deliveryPayloadErrorCause(err))
 	}
 	var payload authenticatedDeliveryPayload
-	if err := json.Unmarshal(plaintext, &payload); err != nil || payload.Email == nil {
-		// This wrapper is shared with ordinary T04 email messages. Let the
-		// dispatcher record their normal channel/payload validation outcome;
-		// only the explicit authenticated envelope is subject to T06 fencing.
-		return attempt, nil
+	if err := json.Unmarshal(plaintext, &payload); err != nil {
+		return nil, newDeliveryAttemptValidationError("delivery_payload_invalid", ErrInvalidDeliveryPayload)
+	}
+	if payload.Email == nil {
+		return nil, newDeliveryAttemptValidationError("delivery_channel_mismatch", ErrInvalidDeliveryPayload)
 	}
 	if payload.Auth == nil {
 		return attempt, nil
 	}
 	metadata := *payload.Auth
 	if metadata.ActionTokenID == uuid.Nil || len(metadata.TokenHash) == 0 || metadata.Purpose == "" || metadata.AccountID == uuid.Nil || db.CanonicalEmail(metadata.CanonicalEmail) == "" || attempt.AccountID == nil || *attempt.AccountID != metadata.AccountID {
-		return s.suppressAttempt(ctx, id)
+		return nil, newDeliveryAttemptValidationError("delivery_payload_invalid", ErrInvalidDeliveryPayload)
+	}
+	if s.q == nil {
+		return nil, ErrEmailDeliveryUnavailable
 	}
 	var validated *db.DeliveryAttempt
 	err = s.q.InTxRetry(ctx, func(tx *db.Queries) error {
@@ -733,33 +732,30 @@ func (s *ValidatedDeliveryAttemptStore) GetDeliveryAttempt(ctx context.Context, 
 	return validated, nil
 }
 
-func (s *ValidatedDeliveryAttemptStore) suppressAttempt(ctx context.Context, id uuid.UUID) (*db.DeliveryAttempt, error) {
-	if s == nil || s.q == nil {
-		return nil, ErrEmailDeliveryUnavailable
+func deliveryPayloadErrorCode(err error) string {
+	switch {
+	case errors.Is(err, ErrDeliveryKeyUnavailable):
+		return "delivery_key_unavailable"
+	case errors.Is(err, ErrDeliveryPayloadExpired):
+		return "delivery_payload_expired"
+	case errors.Is(err, ErrInvalidDeliveryPayload):
+		return "delivery_payload_invalid"
+	default:
+		return "delivery_payload_invalid"
 	}
-	var suppressed *db.DeliveryAttempt
-	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
-		attempt, err := tx.GetDeliveryAttempt(ctx, id)
-		if err != nil || attempt == nil {
-			suppressed = attempt
-			return err
-		}
-		if attempt.Status != DeliveryStatusAccepted {
-			code, outcome := "stale_action", "suppressed"
-			if err := tx.UpdateDeliveryAttemptOutcome(ctx, id, DeliveryStatusFailed, nil, &outcome, &code, nil); err != nil {
-				return err
-			}
-			attempt.Status = DeliveryStatusAccepted
-			attempt.ProviderOutcome = &outcome
-			attempt.ErrorCode = &code
-		}
-		suppressed = attempt
-		return nil
-	})
-	if err != nil {
-		return nil, err
+}
+
+func deliveryPayloadErrorCause(err error) error {
+	switch {
+	case errors.Is(err, ErrDeliveryKeyUnavailable):
+		return ErrDeliveryKeyUnavailable
+	case errors.Is(err, ErrDeliveryPayloadExpired):
+		return ErrDeliveryPayloadExpired
+	case errors.Is(err, ErrInvalidDeliveryPayload):
+		return ErrInvalidDeliveryPayload
+	default:
+		return ErrInvalidDeliveryPayload
 	}
-	return suppressed, nil
 }
 
 func validateAuthenticatedDelivery(ctx context.Context, tx *db.Queries, metadata *authenticatedDeliveryMetadata, now time.Time) (bool, error) {

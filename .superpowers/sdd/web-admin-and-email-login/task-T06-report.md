@@ -45,6 +45,18 @@ using the existing generic `V3ErrorHandler` would drop `Retry-After`. Trusted
 route middleware must put its already-validated client IP into the request
 context with `service.WithEmailLoginClientIP` before controller dispatch.
 
+The second fix round keeps the 8–256 Unicode recovery contract while routing
+passwords over bcrypt's 72-byte input limit through a domain-separated SHA-256
+preparation; short-password and legacy hash verification remain compatible.
+The delivery validation wrapper now returns typed terminal payload outcomes
+for expiry, unavailable keys, and invalid/corrupt payloads, allowing the
+dispatcher to persist the bounded failure code and clear the encrypted fields
+without retrying or invoking a provider. Public login-link issuance propagates
+enqueue failures out of the action transaction before normalizing them to the
+generic accepted response, so failing and partially-writing enqueuers leave no
+action, delivery-attempt, or durable-job rows while the already committed quota
+still applies.
+
 ## Verification
 
 The fix-round database checks used the disposable native PostgreSQL/PostGIS
@@ -78,18 +90,27 @@ git diff --check
 PASS
 ```
 
+The second fix round additionally passed `go test -count=1 -p 1 ./...` with the
+same disposable database, `go test -race -count=1 -p 1 ./internal/service`
+covering concurrent exchange/recovery redemption and all validated-delivery
+tests, and `go vet ./...`. The changed Go files were formatted with `gofmt` and
+`git diff --check` remained clean.
+
 The focused database tests cover canonical/generic request behavior,
 enumeration-safe unknown/duplicate/restricted suppression, address and IP
 quotas, delivery-failure quota retention and eligible/unknown normalization,
+rollback of action, delivery-attempt, and durable-job writes after failing or
+partially-writing enqueuers,
 missing quota-key fail-closed behavior, expiry, random and wrong-purpose
 tokens, email changes, simultaneous exchange and recovery redemption,
 single-use/sibling revocation, canonical username, refresh-insertion rollback,
-8/256 password boundaries, blocked claims, encrypted login/recovery attempts,
+8/256 password boundaries including end-to-end recovery with the contract
+maximum, blocked claims, encrypted login/recovery attempts,
 configurable payload TTL, durable job creation, missing delivery keys,
 delivery-time suppression after email change/containment/sibling redemption or
-completed recovery, and containment that remains committed on delivery
-failure. Handler tests cover generated response mappings, trusted client-IP
-context bridging, actual v3 error JSON, and `Retry-After` preservation.
+completed recovery, and dispatcher terminal handling for expired, missing-key,
+and corrupt payloads. Handler tests cover generated response mappings, trusted
+client-IP context bridging, actual v3 error JSON, and `Retry-After` preservation.
 
 ## Availability and limits
 
@@ -97,5 +118,6 @@ PostgreSQL/PostGIS was available through the native local stack. Docker and
 Podman were unavailable; RustFS was not needed. No SMTP, FCM, or other real
 provider was contacted. Main/config/route composition remains deferred to the
 coordinator; the coordinator must apply the two route bridges described above.
-No API/OpenAPI/generated, DB/schema, T03, T04, T05, Flutter, or shared
-legacy-view files were changed.
+No API/OpenAPI/generated, DB/schema, T03, T05, Flutter, or shared
+legacy-view files were changed; the dispatcher classification hook is part of
+the T06 delivery validation integration.

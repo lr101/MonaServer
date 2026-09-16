@@ -70,9 +70,10 @@ func (s *AccountRecovery) CompleteRecovery(ctx context.Context, request Recovery
 		return err
 	}
 	// T03 owns the account lock order, bound-token consumption, generation
-	// advance, credential invalidation, and restriction transition. T06 only
-	// adds the consumer password policy and maps its generic invalid-action
-	// result to the public recovery error.
+	// advance, credential invalidation, and restriction transition. The shared
+	// password helper transparently prehashes inputs over bcrypt's 72-byte
+	// limit, so every contract-valid recovery password remains verifiable by
+	// the normal login path.
 	err := s.security.CompleteRecovery(ctx, request.Token, request.Password)
 	if errors.Is(err, ErrInvalidAction) {
 		return ErrInvalidRecoveryToken
