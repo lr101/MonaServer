@@ -1,7 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -62,7 +67,7 @@ func TestPublicAuthServicerMapsRequestExchangeAndRecovery(t *testing.T) {
 	}
 
 	badRecovery, err := servicer.CompleteRecovery(ctx, genserver.RecoveryCompleteRequestDto{Token: "random", Password: "new-password"})
-	if err != nil || badRecovery.Code != 400 {
+	if err == nil || badRecovery.Code != 400 {
 		t.Fatalf("invalid recovery response = %#v, err=%v", badRecovery, err)
 	}
 }
@@ -70,7 +75,59 @@ func TestPublicAuthServicerMapsRequestExchangeAndRecovery(t *testing.T) {
 func TestPublicAuthServicerReturnsUnavailableWhenDependenciesMissing(t *testing.T) {
 	servicer := NewPublicAuthServicer(nil, nil)
 	response, err := servicer.RequestEmailLink(context.Background(), genserver.EmailLinkRequestDto{Email: "person@example.com"})
-	if err != nil || response.Code != 503 {
-		t.Fatalf("missing dependency response = %#v, err=%v, want 503", response, err)
+	if err == nil || response.Code != 503 {
+		t.Fatalf("missing dependency response = %#v, err=%v, want typed 503", response, err)
+	}
+	if body, ok := response.Body.(genserver.ApiErrorDto); !ok || body.Code != "feature_unavailable" {
+		t.Fatalf("missing dependency body = %#v, want v3 envelope", response.Body)
+	}
+}
+
+func TestPublicAuthV3ErrorHandlerWritesEnvelopeAndRetryAfter(t *testing.T) {
+	base, auth := setupAuthServicer(t)
+	q := base.q
+	ctx := context.Background()
+	email := "handler-rate@example.com"
+	pair, err := auth.Signup(ctx, "handler_rate_owner", "password123", &email)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if err := q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	login := service.NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), service.EmailLoginConfig{
+		HMACKeyID: "handler-rate-v1", HMACKey: []byte("handler-rate-" + uuid.NewString()), IPLimit: 1,
+	}, handlerLoginLinkEnqueuer{})
+	controller := genserver.NewPublicAuthAPIController(
+		NewPublicAuthServicer(login, service.NewAccountRecovery(q, auth.Security())),
+		genserver.WithPublicAuthAPIErrorHandler(PublicAuthV3ErrorHandler),
+	)
+
+	first := httptest.NewRecorder()
+	firstRequest := httptest.NewRequest(http.MethodPost, "/api/v3/public/auth/email-link/request", bytes.NewBufferString(`{"email":"unknown-handler-rate@example.com"}`))
+	firstRequest = firstRequest.WithContext(service.WithEmailLoginClientIP(firstRequest.Context(), "198.51.100.10"))
+	controller.RequestEmailLink(first, firstRequest)
+	if first.Code != http.StatusAccepted {
+		t.Fatalf("first response status = %d, want 202", first.Code)
+	}
+	second := httptest.NewRecorder()
+	secondRequest := httptest.NewRequest(http.MethodPost, "/api/v3/public/auth/email-link/request", bytes.NewBufferString(`{"email":"another-handler-rate@example.com"}`))
+	secondRequest = secondRequest.WithContext(service.WithEmailLoginClientIP(secondRequest.Context(), "198.51.100.10"))
+	controller.RequestEmailLink(second, secondRequest)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second response status = %d, want 429", second.Code)
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("second response has no Retry-After header")
+	}
+	var body genserver.ApiErrorDto
+	if err := json.NewDecoder(second.Body).Decode(&body); err != nil {
+		t.Fatalf("decode v3 error body: %v", err)
+	}
+	if body.Code != "rate_limited" || body.Message != "too many requests" || body.RetryAfterSeconds == nil || *body.RetryAfterSeconds <= 0 {
+		t.Fatalf("v3 error body = %#v, want bounded rate limit envelope", body)
+	}
+	if second.Header().Get("Retry-After") != strconv.FormatInt(int64(*body.RetryAfterSeconds), 10) {
+		t.Fatalf("Retry-After = %q, body seconds = %d", second.Header().Get("Retry-After"), *body.RetryAfterSeconds)
 	}
 }

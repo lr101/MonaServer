@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -98,6 +99,24 @@ func TestAccountRecoveryRejectsBadPasswordWithoutConsumingToken(t *testing.T) {
 	stored, err := q.GetAccountActionTokenByHash(ctx, hash[:])
 	if err != nil || stored == nil || stored.ConsumedAt != nil {
 		t.Fatalf("token after invalid password = %#v, err=%v, want unconsumed", stored, err)
+	}
+}
+
+func TestValidateRecoveryPasswordMatchesFrozenSchemaBoundaries(t *testing.T) {
+	if err := ValidateRecoveryPassword(strings.Repeat("a", 7)); err == nil {
+		t.Fatal("7-character recovery password was accepted")
+	}
+	if err := ValidateRecoveryPassword(strings.Repeat("a", 8)); err != nil {
+		t.Fatalf("8-character recovery password rejected: %v", err)
+	}
+	if err := ValidateRecoveryPassword(strings.Repeat("a", 256)); err != nil {
+		t.Fatalf("256-character recovery password rejected: %v", err)
+	}
+	if err := ValidateRecoveryPassword(strings.Repeat("a", 257)); err == nil {
+		t.Fatal("257-character recovery password was accepted")
+	}
+	if err := ValidateRecoveryPassword("пароль-🙂"); err != nil {
+		t.Fatalf("valid UTF-8 recovery password rejected: %v", err)
 	}
 }
 
@@ -231,5 +250,58 @@ func TestDurableRecoveryDeliveryFailureLeavesContainmentCommitted(t *testing.T) 
 	state, err := q.GetUserSecurityState(ctx, pair.UserID)
 	if err != nil || state == nil || !state.PasswordDisabled || !state.PasswordResetRequired {
 		t.Fatalf("state = %#v, err=%v, want containment committed", state, err)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreSuppressesCompletedRecovery(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "stale-recovery-delivery@example.com"
+	pair, err := auth.Signup(ctx, "stale_recovery_delivery", "password123", &email)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if err := q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	ring, err := NewDeliveryKeyRing(map[string][]byte{"test": []byte("01234567890123456789012345678901")}, "test", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("key ring: %v", err)
+	}
+	security := NewAccountSecurity(q)
+	enqueuer := NewDurableRecoveryEnqueuer(security, ring, "https://consumer.example/#/recovery?token=", nil, time.Minute)
+	security = NewAccountSecurity(q, enqueuer)
+	contained, err := security.ContainAccount(ctx, ContainmentRequest{AccountID: pair.UserID, Reason: "stale recovery delivery"})
+	if err != nil || contained == nil || contained.Recovery.AttemptID == nil {
+		t.Fatalf("containment = %#v, err=%v, want queued recovery", contained, err)
+	}
+	attempt, err := q.GetDeliveryAttempt(ctx, *contained.Recovery.AttemptID)
+	if err != nil || attempt == nil || attempt.DeliveryKeyID == nil || attempt.PayloadExpiresAt == nil {
+		t.Fatalf("attempt = %#v, err=%v", attempt, err)
+	}
+	plaintext, err := ring.DecryptPayload(EncryptedDeliveryPayload{Ciphertext: attempt.EncryptedPayload, KeyID: *attempt.DeliveryKeyID, ExpiresAt: *attempt.PayloadExpiresAt}, time.Now())
+	if err != nil {
+		t.Fatalf("decrypt attempt: %v", err)
+	}
+	var payload authenticatedDeliveryPayload
+	if err := json.Unmarshal(plaintext, &payload); err != nil || payload.Email == nil {
+		t.Fatalf("delivery payload = %s, err=%v", plaintext, err)
+	}
+	tokenStart := strings.LastIndex(payload.Email.Body, "token=")
+	if tokenStart < 0 {
+		t.Fatalf("recovery body has no token: %q", payload.Email.Body)
+	}
+	rawToken := strings.TrimSpace(payload.Email.Body[tokenStart+len("token="):])
+	if err := NewAccountRecovery(q, security).CompleteRecovery(ctx, RecoveryCompletionRequest{Token: rawToken, Password: "completed-recovery-password"}); err != nil {
+		t.Fatalf("complete recovery: %v", err)
+	}
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, nil)
+	suppressed, err := store.GetDeliveryAttempt(ctx, *contained.Recovery.AttemptID)
+	if err != nil || suppressed == nil || suppressed.Status != DeliveryStatusAccepted {
+		t.Fatalf("completed recovery attempt = %#v, err=%v, want suppressed", suppressed, err)
+	}
+	stored, err := q.GetDeliveryAttempt(ctx, *contained.Recovery.AttemptID)
+	if err != nil || stored == nil || stored.Status != DeliveryStatusFailed || stored.ErrorCode == nil || *stored.ErrorCode != "stale_action" {
+		t.Fatalf("stored completed recovery attempt = %#v, err=%v, want stale audit", stored, err)
 	}
 }

@@ -247,9 +247,10 @@ func TestDurableLoginLinkEnqueuerStoresEncryptedAttemptAndJob(t *testing.T) {
 		t.Fatalf("key ring: %v", err)
 	}
 	login := NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), EmailLoginConfig{
-		HMACKeyID: "durable-login-v1", HMACKey: uniqueQuotaKey(), DeliveryKeyRing: ring,
+		HMACKeyID: "durable-login-v1", HMACKey: uniqueQuotaKey(), DeliveryKeyRing: ring, DeliveryPayloadTTL: time.Minute,
 		CallbackURL: "https://consumer.example/#/email-login/callback?token=",
 	}, nil)
+	before := time.Now()
 	issued, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.28"})
 	if err != nil || issued == nil || issued.Action == nil || issued.DeliveryID == nil {
 		t.Fatalf("durable request = %#v, err=%v", issued, err)
@@ -263,6 +264,9 @@ func TestDurableLoginLinkEnqueuerStoresEncryptedAttemptAndJob(t *testing.T) {
 	}
 	if attempt.PayloadExpiresAt == nil {
 		t.Fatal("delivery attempt has no payload expiry")
+	}
+	if attempt.PayloadExpiresAt.Before(before.Add(50*time.Second)) || attempt.PayloadExpiresAt.After(before.Add(70*time.Second)) {
+		t.Fatalf("payload expiry = %s, want approximately one configured minute", attempt.PayloadExpiresAt)
 	}
 	envelope := EncryptedDeliveryPayload{Ciphertext: attempt.EncryptedPayload, KeyID: *attempt.DeliveryKeyID, ExpiresAt: *attempt.PayloadExpiresAt}
 	plaintext, err := ring.DecryptPayload(envelope, time.Now())
@@ -282,6 +286,97 @@ func TestDurableLoginLinkEnqueuerStoresEncryptedAttemptAndJob(t *testing.T) {
 	}
 	if jobPayload.AttemptID != *issued.DeliveryID || userID == uuid.Nil {
 		t.Fatalf("job payload = %#v, attempt=%s", jobPayload, issued.DeliveryID)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreSuppressesEmailChangedLogin(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "stale-login-delivery@example.com"
+	userID := confirmTestEmail(t, q, auth, "stale_login_delivery", email)
+	ring, err := NewDeliveryKeyRing(map[string][]byte{"test": []byte("01234567890123456789012345678901")}, "test", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("key ring: %v", err)
+	}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "stale-login-v1", HMACKey: uniqueQuotaKey(), DeliveryKeyRing: ring,
+	}, nil)
+	issued, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.50"})
+	if err != nil || issued == nil || issued.DeliveryID == nil {
+		t.Fatalf("request = %#v, err=%v", issued, err)
+	}
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, nil)
+	valid, err := store.GetDeliveryAttempt(ctx, *issued.DeliveryID)
+	if err != nil || valid == nil || valid.Status != DeliveryStatusPending {
+		t.Fatalf("fresh attempt = %#v, err=%v, want pending", valid, err)
+	}
+	newEmail := "stale-login-delivery-new@example.com"
+	if err := q.ChangeUserEmail(ctx, userID, &newEmail, nil); err != nil {
+		t.Fatalf("change email: %v", err)
+	}
+	suppressed, err := store.GetDeliveryAttempt(ctx, *issued.DeliveryID)
+	if err != nil || suppressed == nil || suppressed.Status != DeliveryStatusAccepted {
+		t.Fatalf("stale attempt = %#v, err=%v, want suppressed accepted status", suppressed, err)
+	}
+	stored, err := q.GetDeliveryAttempt(ctx, *issued.DeliveryID)
+	if err != nil || stored == nil || stored.Status != DeliveryStatusFailed || stored.ErrorCode == nil || *stored.ErrorCode != "stale_action" {
+		t.Fatalf("stored stale attempt = %#v, err=%v, want audit failure", stored, err)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreSuppressesRevokedSiblingLogin(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "sibling-login-delivery@example.com"
+	confirmTestEmail(t, q, auth, "sibling_login_delivery", email)
+	ring, err := NewDeliveryKeyRing(map[string][]byte{"test": []byte("01234567890123456789012345678901")}, "test", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("key ring: %v", err)
+	}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "sibling-login-v1", HMACKey: uniqueQuotaKey(), DeliveryKeyRing: ring,
+	}, nil)
+	first, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.51"})
+	if err != nil || first == nil || first.Action == nil || first.DeliveryID == nil {
+		t.Fatalf("first request = %#v, err=%v", first, err)
+	}
+	second, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.52"})
+	if err != nil || second == nil || second.Action == nil || second.DeliveryID == nil {
+		t.Fatalf("second request = %#v, err=%v", second, err)
+	}
+	if _, err := login.ExchangeEmailLink(ctx, first.Action.Token); err != nil {
+		t.Fatalf("exchange first link: %v", err)
+	}
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, nil)
+	suppressed, err := store.GetDeliveryAttempt(ctx, *second.DeliveryID)
+	if err != nil || suppressed == nil || suppressed.Status != DeliveryStatusAccepted {
+		t.Fatalf("revoked sibling attempt = %#v, err=%v, want suppressed", suppressed, err)
+	}
+}
+
+func TestValidatedDeliveryAttemptStoreSuppressesContainedLogin(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "contained-login-delivery@example.com"
+	userID := confirmTestEmail(t, q, auth, "contained_login_delivery", email)
+	ring, err := NewDeliveryKeyRing(map[string][]byte{"test": []byte("01234567890123456789012345678901")}, "test", 15*time.Minute)
+	if err != nil {
+		t.Fatalf("key ring: %v", err)
+	}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "contained-login-v1", HMACKey: uniqueQuotaKey(), DeliveryKeyRing: ring,
+	}, nil)
+	issued, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.53"})
+	if err != nil || issued == nil || issued.DeliveryID == nil {
+		t.Fatalf("request = %#v, err=%v", issued, err)
+	}
+	if _, err := NewAccountSecurity(q).ContainAccount(ctx, ContainmentRequest{AccountID: userID, Reason: "queued login containment"}); err != nil {
+		t.Fatalf("contain account: %v", err)
+	}
+	store := NewValidatedDeliveryAttemptStore(q, q, ring, nil)
+	suppressed, err := store.GetDeliveryAttempt(ctx, *issued.DeliveryID)
+	if err != nil || suppressed == nil || suppressed.Status != DeliveryStatusAccepted {
+		t.Fatalf("contained login attempt = %#v, err=%v, want suppressed", suppressed, err)
 	}
 }
 
@@ -363,11 +458,44 @@ func TestEmailLoginDeliveryFailureKeepsAbuseQuotaCommitted(t *testing.T) {
 	login := NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), EmailLoginConfig{
 		HMACKeyID: "delivery-failure-v1", HMACKey: uniqueQuotaKey(), IPLimit: 1,
 	}, failingLoginLinkEnqueuer{})
-	if _, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.41"}); err == nil || apperrors.HTTPStatus(err) != 503 {
-		t.Fatalf("delivery failure = %v, want generic 503", err)
+	accepted, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.41"})
+	if err != nil || accepted == nil || !accepted.Accepted || accepted.Issued {
+		t.Fatalf("delivery failure = %#v, err=%v, want generic accepted response", accepted, err)
 	}
 	if _, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: "unknown-after-failure@example.com", ClientIP: "192.0.2.41"}); err == nil || apperrors.HTTPStatus(err) != 429 {
 		t.Fatalf("retry after delivery failure = %v, want committed IP quota 429", err)
+	}
+}
+
+func TestEmailLoginDeliveryFailureNormalizesEligibleAndUnknownAcceptance(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "normalized-delivery-failure@example.com"
+	confirmTestEmail(t, q, auth, "normalized_delivery_failure", email)
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "normalized-failure-v1", HMACKey: uniqueQuotaKey(), IPLimit: 20,
+	}, failingLoginLinkEnqueuer{})
+	eligible, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.42"})
+	if err != nil || eligible == nil || !eligible.Accepted || eligible.Issued {
+		t.Fatalf("eligible delivery failure = %#v, err=%v, want generic accepted", eligible, err)
+	}
+	unknown, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: "missing-normalized@example.com", ClientIP: "192.0.2.43"})
+	if err != nil || unknown == nil || !unknown.Accepted || unknown.Issued {
+		t.Fatalf("unknown delivery failure = %#v, err=%v, want generic accepted", unknown, err)
+	}
+}
+
+func TestEmailLoginRequiresExplicitQuotaSecretAndKeyID(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{}, &recordingLoginLinkEnqueuer{})
+	result, err := login.RequestEmailLink(context.Background(), EmailLoginRequest{Email: "person@example.com", ClientIP: "192.0.2.43"})
+	if result != nil || err == nil || apperrors.HTTPStatus(err) != 503 {
+		t.Fatalf("missing quota key result = %#v, err=%v, want fail-closed 503", result, err)
+	}
+	login = NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{HMACKey: uniqueQuotaKey()}, &recordingLoginLinkEnqueuer{})
+	result, err = login.RequestEmailLink(context.Background(), EmailLoginRequest{Email: "person@example.com", ClientIP: "192.0.2.44"})
+	if result != nil || err == nil || apperrors.HTTPStatus(err) != 503 {
+		t.Fatalf("missing quota key id result = %#v, err=%v, want fail-closed 503", result, err)
 	}
 }
 

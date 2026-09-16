@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -85,18 +86,15 @@ func (s *AccountRecovery) CompleteRecoveryToken(ctx context.Context, rawToken, n
 	return s.CompleteRecovery(ctx, RecoveryCompletionRequest{Token: rawToken, Password: newPassword})
 }
 
-// ValidateRecoveryPassword mirrors the consumer password policy: 2..29
-// ASCII characters from the existing login validator's allowlist.
+// ValidateRecoveryPassword mirrors the frozen v3 recovery schema: a valid
+// UTF-8 string with 8 through 256 Unicode code points. The schema does not
+// impose an ASCII allowlist or a narrower legacy-login length.
 func ValidateRecoveryPassword(value string) error {
-	if len(value) < 2 || len(value) > 29 {
+	if !utf8.ValidString(value) {
 		return ErrInvalidRecoveryPassword
 	}
-	for i := 0; i < len(value); i++ {
-		c := value[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') || strings.ContainsRune(`!@#$%^&*(),.?":{}|<>~`+"`"+`/\[]-_=+`, rune(c)) {
-			continue
-		}
+	length := utf8.RuneCountInString(value)
+	if length < 8 || length > 256 {
 		return ErrInvalidRecoveryPassword
 	}
 	return nil
@@ -107,17 +105,22 @@ func ValidateRecoveryPassword(value string) error {
 // provider and reports manual recovery when no current owned destination is
 // available.
 type DurableRecoveryEnqueuer struct {
-	security *AccountSecurity
-	keys     *DeliveryKeyRing
-	callback string
-	clock    func() time.Time
+	security   *AccountSecurity
+	keys       *DeliveryKeyRing
+	callback   string
+	clock      func() time.Time
+	payloadTTL time.Duration
 }
 
-func NewDurableRecoveryEnqueuer(security *AccountSecurity, keys *DeliveryKeyRing, callback string, clock func() time.Time) *DurableRecoveryEnqueuer {
+func NewDurableRecoveryEnqueuer(security *AccountSecurity, keys *DeliveryKeyRing, callback string, clock func() time.Time, payloadTTL ...time.Duration) *DurableRecoveryEnqueuer {
 	if clock == nil {
 		clock = time.Now
 	}
-	return &DurableRecoveryEnqueuer{security: security, keys: keys, callback: callback, clock: clock}
+	ttl := recoveryTokenTTL
+	if len(payloadTTL) > 0 && payloadTTL[0] > 0 {
+		ttl = payloadTTL[0]
+	}
+	return &DurableRecoveryEnqueuer{security: security, keys: keys, callback: callback, clock: clock, payloadTTL: ttl}
 }
 
 func (e *DurableRecoveryEnqueuer) EnqueueRecovery(ctx context.Context, tx *db.Queries, request RecoveryEnqueueRequest) (RecoveryEnqueueResult, error) {
@@ -166,12 +169,25 @@ func (e *DurableRecoveryEnqueuer) EnqueueRecovery(ctx context.Context, tx *db.Qu
 	if when.IsZero() {
 		when = time.Now()
 	}
-	plaintext, err := json.Marshal(DeliveryPayload{Email: &content})
+	metadata := authenticatedDeliveryMetadata{
+		ActionTokenID:  action.ID,
+		TokenHash:      sha256Bytes(action.Token),
+		Purpose:        db.ActionTokenPurposeRecovery,
+		AccountID:      request.AccountID,
+		AuthGeneration: request.AuthGeneration,
+		CanonicalEmail: canonical,
+	}
+	plaintext, err := marshalAuthenticatedEmailPayload(content, metadata)
 	if err != nil {
 		_ = tx.RevokeAccountActionTokens(ctx, request.AccountID, db.ActionTokenPurposeRecovery)
 		return RecoveryEnqueueResult{}, err
 	}
-	envelope, err := e.keys.EncryptPayload(plaintext, when, recoveryTokenTTL)
+	ttl, ok := boundedDeliveryTTL(e.payloadTTL, action.ExpiresAt, when)
+	if !ok {
+		_ = tx.RevokeAccountActionTokens(ctx, request.AccountID, db.ActionTokenPurposeRecovery)
+		return RecoveryEnqueueResult{Status: RecoveryEnqueueManualRecoveryRequired}, ErrEmailDeliveryUnavailable
+	}
+	envelope, err := e.keys.EncryptPayload(plaintext, when, ttl)
 	if err != nil {
 		_ = tx.RevokeAccountActionTokens(ctx, request.AccountID, db.ActionTokenPurposeRecovery)
 		return RecoveryEnqueueResult{Status: RecoveryEnqueueManualRecoveryRequired}, ErrEmailDeliveryUnavailable

@@ -40,6 +40,37 @@ var (
 	ErrInvalidEmailLink         = apperrors.New(http.StatusBadRequest, "invalid email link")
 )
 
+// EmailRateLimitError keeps the shared quota decision's retry boundary at the
+// typed service edge.  The public handler turns this into both the v3 body
+// field and the Retry-After header; callers that do not expose HTTP can still
+// use errors.Is(err, ErrEmailRateLimited).
+type EmailRateLimitError struct {
+	RetryAt time.Time
+	Now     time.Time
+}
+
+func (e *EmailRateLimitError) Error() string { return ErrEmailRateLimited.Error() }
+
+func (e *EmailRateLimitError) Unwrap() error { return ErrEmailRateLimited }
+
+func (e *EmailRateLimitError) RetryAfterSeconds() int32 {
+	if e == nil {
+		return 1
+	}
+	remaining := e.RetryAt.Sub(e.Now)
+	if remaining <= 0 {
+		return 1
+	}
+	seconds := int64((remaining + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	if seconds > int64(^uint32(0)>>1) {
+		return int32(^uint32(0) >> 1)
+	}
+	return int32(seconds)
+}
+
 // EmailLoginConfig controls the shared public-email admission limits. HMAC
 // keys are rotated by retaining previous entries; all retained identifiers
 // count toward the same logical quota window.
@@ -133,7 +164,7 @@ func NewEmailLogin(q *db.Queries, security *AccountSecurity, tok *token.Helper, 
 	}
 	cfg = cfg.withDefaults()
 	if enqueuer == nil && cfg.DeliveryKeyRing != nil {
-		enqueuer = NewDurableLoginLinkEnqueuer(cfg.DeliveryKeyRing, cfg.CallbackURL, nil)
+		enqueuer = NewDurableLoginLinkEnqueuer(cfg.DeliveryKeyRing, cfg.CallbackURL, nil, cfg.DeliveryPayloadTTL)
 	}
 	s := &EmailLogin{
 		q: q, security: security, tok: tok, cfg: cfg, enqueuer: enqueuer,
@@ -152,15 +183,6 @@ func NewEmailLoginService(q *db.Queries, security *AccountSecurity, tok *token.H
 }
 
 func (c EmailLoginConfig) withDefaults() EmailLoginConfig {
-	if c.HMACKeyID == "" {
-		c.HMACKeyID = "default-v1"
-	}
-	if len(c.HMACKey) == 0 {
-		// Composition code should replace this with a deployment secret. The
-		// stable fallback prevents a process restart from silently resetting
-		// quotas in local/test deployments.
-		c.HMACKey = []byte("monaserver-public-email-login-quota-key")
-	}
 	if c.AddressWindow <= 0 {
 		c.AddressWindow = 15 * time.Minute
 	}
@@ -256,17 +278,23 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 	if canonical == "" {
 		return nil, apperrors.ErrBadRequest
 	}
+	// Quota identifiers are HMAC-derived before they reach shared storage. A
+	// missing deployment secret or key ID must fail closed; a public fallback
+	// would let a restart silently move all callers into a new quota namespace.
+	if !s.quotaKeyConfigured() {
+		return nil, ErrEmailDeliveryUnavailable
+	}
 	now := s.clock()()
 	if now.IsZero() {
 		now = time.Now()
 	}
 	result := &EmailLinkRequestResult{Accepted: true, CanonicalEmail: canonical}
-	addressAllowed, rateLimited, err := s.acquireRequestQuotas(ctx, canonical, request.ClientIP, now)
+	addressAllowed, rateLimited, retryAt, err := s.acquireRequestQuotas(ctx, canonical, request.ClientIP, now)
 	if err != nil {
 		return nil, err
 	}
 	if rateLimited {
-		return nil, ErrEmailRateLimited
+		return nil, &EmailRateLimitError{RetryAt: retryAt, Now: now}
 	}
 	if !addressAllowed {
 		return result, nil
@@ -296,10 +324,17 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		}
 		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, canonical)
 		if err != nil {
+			// Public admission must not reveal that this address reached the
+			// eligible-account branch when delivery is unavailable. The quota
+			// transaction is already committed, while this transaction has no
+			// durable action to commit after the enqueue failure.
+			if errors.Is(err, ErrEmailDeliveryUnavailable) || errors.Is(err, ErrInvalidAction) {
+				return nil
+			}
 			return err
 		}
 		if issued == nil {
-			return ErrEmailDeliveryUnavailable
+			return nil
 		}
 		*result = *issued
 		result.Accepted = true
@@ -314,24 +349,30 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 // acquireRequestQuotas commits public abuse accounting independently from the
 // account/action transaction. A provider or database failure while issuing a
 // link must not give an attacker a fresh quota window on every retry.
-func (s *EmailLogin) acquireRequestQuotas(ctx context.Context, canonical, clientIP string, now time.Time) (addressAllowed, rateLimited bool, err error) {
+func (s *EmailLogin) acquireRequestQuotas(ctx context.Context, canonical, clientIP string, now time.Time) (addressAllowed, rateLimited bool, retryAt time.Time, err error) {
 	err = s.q.InTxRetry(ctx, func(tx *db.Queries) error {
 		addressAllowed, err = s.acquireAddressQuotas(ctx, tx, canonical, now)
 		if err != nil {
 			return err
 		}
-		ipAllowed, err := s.acquireQuota(ctx, tx, ipBurstScope, clientIP, now, s.cfg.IPWindow, s.cfg.IPLimit)
+		ipAllowed, ipRetryAt, err := s.acquireQuota(ctx, tx, ipBurstScope, clientIP, now, s.cfg.IPWindow, s.cfg.IPLimit)
 		if err != nil {
 			return err
 		}
-		globalAllowed, err := s.acquireQuota(ctx, tx, globalScope, "global", now, s.cfg.GlobalWindow, s.cfg.GlobalLimit)
+		globalAllowed, globalRetryAt, err := s.acquireQuota(ctx, tx, globalScope, "global", now, s.cfg.GlobalWindow, s.cfg.GlobalLimit)
 		if err != nil {
 			return err
 		}
 		rateLimited = !ipAllowed || !globalAllowed
+		if !ipAllowed {
+			retryAt = ipRetryAt
+		}
+		if !globalAllowed && (retryAt.IsZero() || globalRetryAt.Before(retryAt)) {
+			retryAt = globalRetryAt
+		}
 		return nil
 	})
-	return addressAllowed, rateLimited, err
+	return addressAllowed, rateLimited, retryAt, err
 }
 
 // Request is a compact alias used by non-HTTP callers.
@@ -340,32 +381,39 @@ func (s *EmailLogin) Request(ctx context.Context, request EmailLoginRequest) (*E
 }
 
 func (s *EmailLogin) acquireAddressQuotas(ctx context.Context, tx *db.Queries, canonical string, now time.Time) (bool, error) {
-	allowed, err := s.acquireQuota(ctx, tx, addressBurstScope, canonical, now, s.cfg.AddressWindow, s.cfg.AddressLimit)
+	allowed, _, err := s.acquireQuota(ctx, tx, addressBurstScope, canonical, now, s.cfg.AddressWindow, s.cfg.AddressLimit)
 	if err != nil || !allowed {
 		// Still acquire the daily bucket so every address request participates
 		// in both shared limits, even after the short bucket is full.
-		dailyAllowed, dailyErr := s.acquireQuota(ctx, tx, addressDailyScope, canonical, now, s.cfg.AddressDailyWindow, s.cfg.AddressDailyLimit)
+		dailyAllowed, _, dailyErr := s.acquireQuota(ctx, tx, addressDailyScope, canonical, now, s.cfg.AddressDailyWindow, s.cfg.AddressDailyLimit)
 		if dailyErr != nil {
 			return false, dailyErr
 		}
 		return allowed && dailyAllowed, err
 	}
-	dailyAllowed, err := s.acquireQuota(ctx, tx, addressDailyScope, canonical, now, s.cfg.AddressDailyWindow, s.cfg.AddressDailyLimit)
+	dailyAllowed, _, err := s.acquireQuota(ctx, tx, addressDailyScope, canonical, now, s.cfg.AddressDailyWindow, s.cfg.AddressDailyLimit)
 	return dailyAllowed, err
 }
 
-func (s *EmailLogin) acquireQuota(ctx context.Context, tx *db.Queries, scope, identifier string, now time.Time, window time.Duration, limit int64) (bool, error) {
+func (s *EmailLogin) acquireQuota(ctx context.Context, tx *db.Queries, scope, identifier string, now time.Time, window time.Duration, limit int64) (bool, time.Time, error) {
 	if tx == nil || window <= 0 || limit <= 0 {
-		return false, db.ErrInvalidQuota
+		return false, time.Time{}, db.ErrInvalidQuota
+	}
+	if !s.quotaKeyConfigured() {
+		return false, time.Time{}, ErrEmailDeliveryUnavailable
 	}
 	start := now.UTC().Truncate(window)
 	end := start.Add(window)
 	keys := s.quotaKeys(scope, identifier)
 	decision, err := tx.AcquireSharedQuota(ctx, keysForQuota(keys, scope, start, end, limit), 1)
 	if err != nil {
-		return false, err
+		return false, time.Time{}, err
 	}
-	return decision.Allowed, nil
+	return decision.Allowed, decision.RetryAt, nil
+}
+
+func (s *EmailLogin) quotaKeyConfigured() bool {
+	return s != nil && strings.TrimSpace(s.cfg.HMACKeyID) != "" && len(s.cfg.HMACKey) > 0
 }
 
 type quotaHMACKey struct {
@@ -546,19 +594,256 @@ type EmailLinkExchangeResult struct {
 	AuthGeneration int64
 }
 
-// DurableLoginLinkEnqueuer encrypts the ephemeral token, writes one delivery
-// attempt, and enqueues one durable delivery job in the caller transaction.
-type DurableLoginLinkEnqueuer struct {
-	keys     *DeliveryKeyRing
-	callback string
-	clock    func() time.Time
+// authenticatedDeliveryMetadata is encrypted alongside the rendered email.
+// The durable job still contains only an attempt ID, while the delivery-time
+// adapter can fence a queued message against the current account generation,
+// canonical claim, and one-use action row immediately before provider I/O.
+type authenticatedDeliveryMetadata struct {
+	ActionTokenID  uuid.UUID `json:"actionTokenId"`
+	TokenHash      []byte    `json:"tokenHash"`
+	Purpose        string    `json:"purpose"`
+	AccountID      uuid.UUID `json:"accountId"`
+	AuthGeneration int64     `json:"authGeneration"`
+	CanonicalEmail string    `json:"canonicalEmail"`
 }
 
-func NewDurableLoginLinkEnqueuer(keys *DeliveryKeyRing, callback string, clock func() time.Time) *DurableLoginLinkEnqueuer {
+type authenticatedDeliveryPayload struct {
+	Email *EmailContent                  `json:"email,omitempty"`
+	Push  *PushMessage                   `json:"push,omitempty"`
+	Auth  *authenticatedDeliveryMetadata `json:"auth,omitempty"`
+}
+
+func sha256Bytes(value string) []byte {
+	hash := sha256.Sum256([]byte(value))
+	return hash[:]
+}
+
+func marshalAuthenticatedEmailPayload(content EmailContent, metadata authenticatedDeliveryMetadata) ([]byte, error) {
+	return json.Marshal(authenticatedDeliveryPayload{Email: &content, Auth: &metadata})
+}
+
+func boundedDeliveryTTL(configured time.Duration, expiresAt, now time.Time) (time.Duration, bool) {
+	if configured <= 0 {
+		configured = loginDeliveryPayloadTTL
+	}
+	if !expiresAt.IsZero() {
+		remaining := expiresAt.Sub(now)
+		if remaining <= 0 {
+			return 0, false
+		}
+		if remaining < configured {
+			configured = remaining
+		}
+	}
+	return configured, configured > 0
+}
+
+// ValidatedDeliveryAttemptStore wraps the T04 attempt store and fences
+// authenticated email payloads at delivery time. Coordinators should pass it
+// to NewDeliveryDispatcher for both delivery.email and delivery.recovery;
+// push attempts are delegated unchanged. Stale login/recovery attempts are
+// marked suppressed/accepted and have their payload cleared by the existing
+// dispatcher, so a queued message after an email change, containment,
+// recovery, expiry, or sibling redemption cannot reach a provider.
+type ValidatedDeliveryAttemptStore struct {
+	base  DeliveryAttemptStore
+	q     *db.Queries
+	keys  *DeliveryKeyRing
+	clock func() time.Time
+}
+
+func NewValidatedDeliveryAttemptStore(base DeliveryAttemptStore, q *db.Queries, keys *DeliveryKeyRing, clock func() time.Time) *ValidatedDeliveryAttemptStore {
 	if clock == nil {
 		clock = time.Now
 	}
-	return &DurableLoginLinkEnqueuer{keys: keys, callback: callback, clock: clock}
+	return &ValidatedDeliveryAttemptStore{base: base, q: q, keys: keys, clock: clock}
+}
+
+func (s *ValidatedDeliveryAttemptStore) GetDeliveryAttempt(ctx context.Context, id uuid.UUID) (*db.DeliveryAttempt, error) {
+	if s == nil || s.base == nil {
+		return nil, ErrEmailDeliveryUnavailable
+	}
+	attempt, err := s.base.GetDeliveryAttempt(ctx, id)
+	if err != nil || attempt == nil || attempt.Channel == "push" || attempt.Status == DeliveryStatusAccepted {
+		return attempt, err
+	}
+	if s.q == nil || s.keys == nil || attempt.DeliveryKeyID == nil || attempt.PayloadExpiresAt == nil || len(attempt.EncryptedPayload) == 0 {
+		// The dispatcher owns ordinary key/payload failure recording. Without
+		// a decryptable envelope there is no authenticated marker proving this
+		// is a T06 action, so leave the attempt to that existing path.
+		return attempt, nil
+	}
+	now := s.clock()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	plaintext, err := s.keys.DecryptPayload(EncryptedDeliveryPayload{
+		Ciphertext: attempt.EncryptedPayload, KeyID: *attempt.DeliveryKeyID, ExpiresAt: *attempt.PayloadExpiresAt,
+	}, now)
+	if err != nil {
+		// The dispatcher owns key/expiry failure recording. Returning the error
+		// keeps those structured outcomes intact rather than treating an
+		// infrastructure failure as an authenticated stale action.
+		return nil, err
+	}
+	var payload authenticatedDeliveryPayload
+	if err := json.Unmarshal(plaintext, &payload); err != nil || payload.Email == nil {
+		// This wrapper is shared with ordinary T04 email messages. Let the
+		// dispatcher record their normal channel/payload validation outcome;
+		// only the explicit authenticated envelope is subject to T06 fencing.
+		return attempt, nil
+	}
+	if payload.Auth == nil {
+		return attempt, nil
+	}
+	metadata := *payload.Auth
+	if metadata.ActionTokenID == uuid.Nil || len(metadata.TokenHash) == 0 || metadata.Purpose == "" || metadata.AccountID == uuid.Nil || db.CanonicalEmail(metadata.CanonicalEmail) == "" || attempt.AccountID == nil || *attempt.AccountID != metadata.AccountID {
+		return s.suppressAttempt(ctx, id)
+	}
+	var validated *db.DeliveryAttempt
+	err = s.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		current, err := tx.GetDeliveryAttempt(ctx, id)
+		if err != nil || current == nil {
+			validated = current
+			return err
+		}
+		if current.Status == DeliveryStatusAccepted {
+			validated = current
+			return nil
+		}
+		valid, err := validateAuthenticatedDelivery(ctx, tx, &metadata, now)
+		if err != nil {
+			return err
+		}
+		if !valid {
+			code, outcome := "stale_action", "suppressed"
+			if err := tx.UpdateDeliveryAttemptOutcome(ctx, id, DeliveryStatusFailed, nil, &outcome, &code, nil); err != nil {
+				return err
+			}
+			current.Status = DeliveryStatusAccepted
+			current.ProviderOutcome = &outcome
+			current.ErrorCode = &code
+		}
+		validated = current
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return validated, nil
+}
+
+func (s *ValidatedDeliveryAttemptStore) suppressAttempt(ctx context.Context, id uuid.UUID) (*db.DeliveryAttempt, error) {
+	if s == nil || s.q == nil {
+		return nil, ErrEmailDeliveryUnavailable
+	}
+	var suppressed *db.DeliveryAttempt
+	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		attempt, err := tx.GetDeliveryAttempt(ctx, id)
+		if err != nil || attempt == nil {
+			suppressed = attempt
+			return err
+		}
+		if attempt.Status != DeliveryStatusAccepted {
+			code, outcome := "stale_action", "suppressed"
+			if err := tx.UpdateDeliveryAttemptOutcome(ctx, id, DeliveryStatusFailed, nil, &outcome, &code, nil); err != nil {
+				return err
+			}
+			attempt.Status = DeliveryStatusAccepted
+			attempt.ProviderOutcome = &outcome
+			attempt.ErrorCode = &code
+		}
+		suppressed = attempt
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return suppressed, nil
+}
+
+func validateAuthenticatedDelivery(ctx context.Context, tx *db.Queries, metadata *authenticatedDeliveryMetadata, now time.Time) (bool, error) {
+	if tx == nil || metadata == nil || metadata.AccountID == uuid.Nil || len(metadata.TokenHash) == 0 || now.IsZero() {
+		return false, nil
+	}
+	canonical := db.CanonicalEmail(metadata.CanonicalEmail)
+	if canonical == "" {
+		return false, nil
+	}
+	state, err := tx.LockUserSecurity(ctx, metadata.AccountID)
+	if err != nil {
+		return false, err
+	}
+	if state == nil || state.AuthGeneration != metadata.AuthGeneration {
+		return false, nil
+	}
+	claim, err := tx.LockEmailLoginClaim(ctx, canonical)
+	if err != nil {
+		return false, err
+	}
+	var validClaim bool
+	switch metadata.Purpose {
+	case db.ActionTokenPurposeLoginLink:
+		validClaim = ownedEmailMatches(state, claim, canonical, metadata.AccountID)
+	case db.ActionTokenPurposeRecovery:
+		validClaim = recoveryEmailMatches(state, claim, canonical, metadata.AccountID)
+	default:
+		return false, nil
+	}
+	if !validClaim {
+		return false, nil
+	}
+	action, err := tx.LockAccountActionTokenByHash(ctx, metadata.TokenHash)
+	if err != nil {
+		return false, err
+	}
+	if action == nil || action.ID != metadata.ActionTokenID || action.AccountID != metadata.AccountID || action.Purpose != metadata.Purpose || action.AuthGeneration != metadata.AuthGeneration || action.EmailBinding == nil || db.CanonicalEmail(*action.EmailBinding) != canonical || action.ConsumedAt != nil || action.RevokedAt != nil || !action.ExpiresAt.After(now) {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (s *ValidatedDeliveryAttemptStore) UpdateDeliveryAttemptOutcome(ctx context.Context, id uuid.UUID, status string, providerReference, providerOutcome, errorCode *string, acceptedAt *time.Time) error {
+	if s == nil || s.base == nil {
+		return ErrEmailDeliveryUnavailable
+	}
+	return s.base.UpdateDeliveryAttemptOutcome(ctx, id, status, providerReference, providerOutcome, errorCode, acceptedAt)
+}
+
+func (s *ValidatedDeliveryAttemptStore) ClearDeliveryAttemptPayload(ctx context.Context, id uuid.UUID, now time.Time) (bool, error) {
+	if s == nil || s.base == nil {
+		return false, ErrEmailDeliveryUnavailable
+	}
+	return s.base.ClearDeliveryAttemptPayload(ctx, id, now)
+}
+
+func (s *ValidatedDeliveryAttemptStore) DisableDeviceRegistration(ctx context.Context, deviceID, accountID uuid.UUID) error {
+	if s == nil || s.base == nil {
+		return ErrEmailDeliveryUnavailable
+	}
+	return s.base.DisableDeviceRegistration(ctx, deviceID, accountID)
+}
+
+var _ DeliveryAttemptStore = (*ValidatedDeliveryAttemptStore)(nil)
+
+// DurableLoginLinkEnqueuer encrypts the ephemeral token, writes one delivery
+// attempt, and enqueues one durable delivery job in the caller transaction.
+type DurableLoginLinkEnqueuer struct {
+	keys       *DeliveryKeyRing
+	callback   string
+	clock      func() time.Time
+	payloadTTL time.Duration
+}
+
+func NewDurableLoginLinkEnqueuer(keys *DeliveryKeyRing, callback string, clock func() time.Time, payloadTTL ...time.Duration) *DurableLoginLinkEnqueuer {
+	if clock == nil {
+		clock = time.Now
+	}
+	ttl := loginDeliveryPayloadTTL
+	if len(payloadTTL) > 0 && payloadTTL[0] > 0 {
+		ttl = payloadTTL[0]
+	}
+	return &DurableLoginLinkEnqueuer{keys: keys, callback: callback, clock: clock, payloadTTL: ttl}
 }
 
 func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.Queries, request LoginLinkDeliveryRequest) (*uuid.UUID, error) {
@@ -570,11 +855,23 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 		now = time.Now()
 	}
 	content := loginLinkEmailContent(request.Username, request.To, request.Token, e.callback)
-	plaintext, err := json.Marshal(DeliveryPayload{Email: &content})
+	metadata := authenticatedDeliveryMetadata{
+		ActionTokenID:  request.ActionTokenID,
+		TokenHash:      sha256Bytes(request.Token),
+		Purpose:        db.ActionTokenPurposeLoginLink,
+		AccountID:      request.AccountID,
+		AuthGeneration: request.AuthGeneration,
+		CanonicalEmail: db.CanonicalEmail(request.To),
+	}
+	plaintext, err := marshalAuthenticatedEmailPayload(content, metadata)
 	if err != nil {
 		return nil, err
 	}
-	envelope, err := e.keys.EncryptPayload(plaintext, now, loginDeliveryPayloadTTL)
+	ttl, ok := boundedDeliveryTTL(e.payloadTTL, request.ExpiresAt, now)
+	if !ok {
+		return nil, ErrEmailDeliveryUnavailable
+	}
+	envelope, err := e.keys.EncryptPayload(plaintext, now, ttl)
 	if err != nil {
 		return nil, ErrEmailDeliveryUnavailable
 	}
