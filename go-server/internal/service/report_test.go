@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -67,6 +69,74 @@ func TestReportServiceSubmissionIsAuthenticatedAndIdempotent(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("report count = %d, want 1", count)
+	}
+}
+
+func TestReportServiceSameIdempotencyKeyIsAtomicAndQuotaNeutral(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	if _, err := q.Pool().Exec(ctx, `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate quota buckets: %v", err)
+	}
+	reporterID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "concurrent-idempotency-reporter")
+	reports := NewReportService(q, ReportServiceConfig{
+		HMACKey:           []byte("concurrent-idempotency-key"),
+		SubmissionLimit:   1,
+		SubmissionIPLimit: 10,
+		SubmissionWindow:  time.Hour,
+	})
+	requestID := "concurrent-report-request"
+	const callers = 8
+	start := make(chan struct{})
+	results := make(chan struct {
+		report *db.Report
+		err    error
+	}, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			report, err := reports.Submit(ctx, ReportSubmission{
+				ID: reporterID, ReporterID: reporterID, Body: "same concurrent body", RequestID: &requestID,
+				ClientIP: "192.0.2.44",
+			})
+			results <- struct {
+				report *db.Report
+				err    error
+			}{report: report, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var winner *db.Report
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("concurrent idempotent submission error = %v", result.err)
+		}
+		if result.report == nil {
+			t.Fatal("concurrent idempotent submission returned no report")
+		}
+		if winner == nil {
+			winner = result.report
+		} else if result.report.ID != winner.ID {
+			t.Fatalf("concurrent idempotent report IDs = %s and %s", winner.ID, result.report.ID)
+		}
+	}
+
+	var reportCount, quotaHits int
+	if err := q.Pool().QueryRow(ctx, `SELECT count(*) FROM reports WHERE request_id = $1`, requestID).Scan(&reportCount); err != nil {
+		t.Fatalf("count idempotent reports: %v", err)
+	}
+	if err := q.Pool().QueryRow(ctx, `SELECT COALESCE(sum(hit_count), 0) FROM rate_limit_buckets WHERE scope = 'report-submit-account'`).Scan(&quotaHits); err != nil {
+		t.Fatalf("count idempotent quota hits: %v", err)
+	}
+	if reportCount != 1 || quotaHits != 1 {
+		t.Fatalf("concurrent idempotency rows=%d quota hits=%d, want one row and one quota hit", reportCount, quotaHits)
 	}
 }
 
@@ -177,6 +247,113 @@ func TestReportServiceReviewRevisionAllowsOneConcurrentWriter(t *testing.T) {
 	}
 }
 
+func TestReportServiceAssigneeOmittedPreservesAndExplicitClearRemoves(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	reporterID := uuid.New()
+	actorID := uuid.New()
+	assigneeID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "assignee-reporter")
+	insertReportTestUser(t, q, actorID, "assignee-actor")
+	insertReportTestUser(t, q, assigneeID, "assignee-user")
+	reports := NewReportService(q)
+	created, err := reports.Submit(ctx, ReportSubmission{ReporterID: reporterID, Body: "assignment"})
+	if err != nil {
+		t.Fatalf("submit assignment report: %v", err)
+	}
+	assigned, err := reports.Review(ctx, ReportReviewInput{
+		ReportID: created.ID, ActorID: actorID, ExpectedRevision: created.Revision,
+		Status: db.ReportStatusOpen, AssigneeUserID: &assigneeID, AssigneeSet: true,
+	})
+	if err != nil || assigned.AssigneeUserID == nil || *assigned.AssigneeUserID != assigneeID {
+		t.Fatalf("assign report = %#v err=%v", assigned, err)
+	}
+	preserved, err := reports.Review(ctx, ReportReviewInput{
+		ReportID: created.ID, ActorID: actorID, ExpectedRevision: assigned.Revision,
+		Status: db.ReportStatusOpen,
+	})
+	if err != nil || preserved.AssigneeUserID == nil || *preserved.AssigneeUserID != assigneeID {
+		t.Fatalf("omitted assignee report = %#v err=%v", preserved, err)
+	}
+	cleared, err := reports.Review(ctx, ReportReviewInput{
+		ReportID: created.ID, ActorID: actorID, ExpectedRevision: preserved.Revision,
+		Status: db.ReportStatusOpen, AssigneeSet: true,
+	})
+	if err != nil || cleared.AssigneeUserID != nil {
+		t.Fatalf("explicit assignee clear report = %#v err=%v", cleared, err)
+	}
+}
+
+func TestReportServiceReviewAuditUsesPriorStatusAndChangeMetadata(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	reporterID := uuid.New()
+	actorID := uuid.New()
+	assigneeID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "audit-reporter")
+	insertReportTestUser(t, q, actorID, "audit-actor")
+	insertReportTestUser(t, q, assigneeID, "audit-assignee")
+	reports := NewReportService(q)
+	created, err := reports.Submit(ctx, ReportSubmission{ReporterID: reporterID, Body: "audit transition"})
+	if err != nil {
+		t.Fatalf("submit audit report: %v", err)
+	}
+	note := "handled with assignment"
+	resolved, err := reports.Review(ctx, ReportReviewInput{
+		ReportID: created.ID, ActorID: actorID, ExpectedRevision: created.Revision,
+		Status: db.ReportStatusResolved, AssigneeUserID: &assigneeID, AssigneeSet: true, Note: &note,
+	})
+	if err != nil {
+		t.Fatalf("resolve audit report: %v", err)
+	}
+	if _, err := reports.Review(ctx, ReportReviewInput{
+		ReportID: created.ID, ActorID: actorID, ExpectedRevision: resolved.Revision,
+		Status: db.ReportStatusOpen, AssigneeSet: true,
+	}); err != nil {
+		t.Fatalf("reopen audit report: %v", err)
+	}
+
+	events, err := q.ListAuditEvents(ctx, nil, 20)
+	if err != nil {
+		t.Fatalf("list audit events: %v", err)
+	}
+	var resolvedEvent, reopenedEvent *db.AuditEvent
+	for i := range events {
+		event := &events[i]
+		switch event.Action {
+		case "report_resolve":
+			resolvedEvent = event
+		case "report_reopen":
+			reopenedEvent = event
+		}
+	}
+	if resolvedEvent == nil || reopenedEvent == nil {
+		t.Fatalf("report transition events = %#v", events)
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal(resolvedEvent.Metadata, &metadata); err != nil {
+		t.Fatalf("decode resolve metadata: %v", err)
+	}
+	for key, want := range map[string]string{
+		"previous_status":    db.ReportStatusOpen,
+		"status":             db.ReportStatusResolved,
+		"assignee_user_id":   assigneeID.String(),
+		"assignment_changed": "true",
+		"note_added":         "true",
+	} {
+		if metadata[key] != want {
+			t.Fatalf("resolve metadata[%q] = %q, want %q; metadata=%v", key, metadata[key], want, metadata)
+		}
+	}
+	metadata = nil
+	if err := json.Unmarshal(reopenedEvent.Metadata, &metadata); err != nil {
+		t.Fatalf("decode reopen metadata: %v", err)
+	}
+	if metadata["previous_status"] != db.ReportStatusResolved || metadata["status"] != db.ReportStatusOpen {
+		t.Fatalf("reopen status metadata = %v", metadata)
+	}
+}
+
 func TestReportServiceRetainsStructuredTargetAfterDeletion(t *testing.T) {
 	_, q := setupPool(t)
 	ctx := context.Background()
@@ -208,6 +385,65 @@ func TestReportServiceRetainsStructuredTargetAfterDeletion(t *testing.T) {
 	stored, err = q.GetReport(ctx, created.ID)
 	if err != nil || stored == nil || !stored.TargetDeleted || stored.TargetName == nil || *stored.TargetName != "target-user" {
 		t.Fatalf("target after hard deletion = %#v err=%v", stored, err)
+	}
+}
+
+func TestReportServiceTargetDeletionRaceMarksReportsDeleted(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	reporterID := uuid.New()
+	targetID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "target-race-reporter")
+	insertReportTestUser(t, q, targetID, "target-race-user")
+	targetKind := "user"
+	reports := NewReportService(q)
+
+	const callers = 12
+	start := make(chan struct{})
+	results := make(chan *db.Report, callers)
+	errorsCh := make(chan error, callers)
+	var wg sync.WaitGroup
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			<-start
+			report, err := reports.Submit(ctx, ReportSubmission{
+				ReporterID: reporterID, TargetID: &targetID, TargetKind: &targetKind,
+				Body: fmt.Sprintf("target race %d", index),
+			})
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			results <- report
+		}(i)
+	}
+	deleteDone := make(chan error, 1)
+	go func() {
+		<-start
+		deleteDone <- q.HardDeleteUser(ctx, targetID)
+	}()
+	close(start)
+	wg.Wait()
+	if err := <-deleteDone; err != nil {
+		t.Fatalf("hard-delete target during submissions: %v", err)
+	}
+	close(results)
+	close(errorsCh)
+	for err := range errorsCh {
+		t.Fatalf("target race submission error = %v", err)
+	}
+	var seen int
+	for report := range results {
+		seen++
+		stored, err := q.GetReport(ctx, report.ID)
+		if err != nil || stored == nil || !stored.TargetDeleted {
+			t.Fatalf("target race report %s was not marked deleted: %#v err=%v", report.ID, stored, err)
+		}
+	}
+	if seen != callers {
+		t.Fatalf("target race reports = %d, want %d", seen, callers)
 	}
 }
 
@@ -259,6 +495,46 @@ func TestReportServiceListUsesStableCursorAndSearch(t *testing.T) {
 	search, err := reports.List(ctx, ReportListInput{Limit: 10, Search: "NEEDLE"})
 	if err != nil || len(search.Items) != 1 || search.Items[0].Body != "needle details" {
 		t.Fatalf("search page = %#v err=%v", search, err)
+	}
+}
+
+func TestReportServiceNotesCursorExposesAllNotesNewestFirst(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	reporterID := uuid.New()
+	actorID := uuid.New()
+	insertReportTestUser(t, q, reporterID, "notes-reporter")
+	insertReportTestUser(t, q, actorID, "notes-actor")
+	reports := NewReportService(q)
+	created, err := reports.Submit(ctx, ReportSubmission{ReporterID: reporterID, Body: "many notes"})
+	if err != nil {
+		t.Fatalf("submit notes report: %v", err)
+	}
+	for i := 0; i < 105; i++ {
+		if _, err := reports.AddNote(ctx, ReportNoteInput{ReportID: created.ID, ActorID: actorID, Body: fmt.Sprintf("note-%03d", i)}); err != nil {
+			t.Fatalf("add note %d: %v", i, err)
+		}
+	}
+	first, err := reports.ListNotes(ctx, ReportNoteListInput{ReportID: created.ID, Limit: 100})
+	if err != nil || len(first.Items) != 100 || first.NextCursor == nil {
+		t.Fatalf("first notes page = %#v err=%v", first, err)
+	}
+	if first.Items[0].Body != "note-104" || first.Items[99].Body != "note-005" {
+		t.Fatalf("first notes order = %q ... %q", first.Items[0].Body, first.Items[99].Body)
+	}
+	second, err := reports.ListNotes(ctx, ReportNoteListInput{ReportID: created.ID, Cursor: *first.NextCursor, Limit: 100})
+	if err != nil || len(second.Items) != 5 || second.NextCursor != nil {
+		t.Fatalf("second notes page = %#v err=%v", second, err)
+	}
+	if second.Items[0].Body != "note-004" || second.Items[4].Body != "note-000" {
+		t.Fatalf("second notes order = %q ... %q", second.Items[0].Body, second.Items[4].Body)
+	}
+	if _, err := reports.AddNote(ctx, ReportNoteInput{ReportID: created.ID, ActorID: actorID, Body: "note-105"}); err != nil {
+		t.Fatalf("append note: %v", err)
+	}
+	fresh, err := reports.ListNotes(ctx, ReportNoteListInput{ReportID: created.ID, Limit: 1})
+	if err != nil || len(fresh.Items) != 1 || fresh.Items[0].Body != "note-105" {
+		t.Fatalf("fresh appended note page = %#v err=%v", fresh, err)
 	}
 }
 

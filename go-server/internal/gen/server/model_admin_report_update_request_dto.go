@@ -11,6 +11,8 @@
 package genserver
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 )
 
@@ -23,6 +25,37 @@ type AdminReportUpdateRequestDto struct {
 	Note *string `json:"note,omitempty"`
 
 	Status AdminReportStatus `json:"status"`
+
+	// assigneeUserIdPresent preserves the distinction between an omitted
+	// optional field and an explicit JSON null for the tri-state PATCH API.
+	assigneeUserIdPresent bool
+}
+
+// UnmarshalJSON records whether assigneeUserId appeared in the request. The
+// generated controller uses a DisallowUnknownFields decoder, so preserve that
+// validation inside this compatibility adapter as well.
+func (obj *AdminReportUpdateRequestDto) UnmarshalJSON(data []byte) error {
+	type alias AdminReportUpdateRequestDto
+	var decoded alias
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*obj = AdminReportUpdateRequestDto(decoded)
+	_, obj.assigneeUserIdPresent = fields["assigneeUserId"]
+	return nil
+}
+
+// AssigneeUserIDPresent reports whether PATCH explicitly supplied
+// assigneeUserId. A non-nil value also counts for callers that construct the
+// DTO directly rather than decoding JSON.
+func (obj AdminReportUpdateRequestDto) AssigneeUserIDPresent() bool {
+	return obj.assigneeUserIdPresent || obj.AssigneeUserId != nil
 }
 
 // AssertAdminReportUpdateRequestDtoRequired checks if the required fields are not zero-ed

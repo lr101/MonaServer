@@ -194,10 +194,67 @@ func TestAdminReportHandlerRequiresCapabilityAndSupportsReviewWorkflow(t *testin
 	}
 }
 
+func TestAdminReportUpdateUsesReviewCapabilityAndExplicitNullClearsAssignee(t *testing.T) {
+	q, reporterID, adminID := setupReportHandlerDB(t)
+	reports := service.NewReportService(q)
+	created, err := reports.Submit(context.Background(), service.ReportSubmission{ReporterID: reporterID, Body: "assignment clear"})
+	if err != nil {
+		t.Fatalf("submit report: %v", err)
+	}
+	assigneeID := uuid.New()
+	if _, err := q.Pool().Exec(context.Background(), `
+		INSERT INTO users (id, username, password, email_confirmed, creation_date, update_date)
+		VALUES ($1, 'handler-assignee', 'hash', FALSE, NOW(), NOW())`, assigneeID); err != nil {
+		t.Fatalf("insert assignee: %v", err)
+	}
+	servicer := NewAdminReportsServicer(q, reports)
+	assigned, err := servicer.UpdateAdminReport(reportAdminContext(adminID), created.ID.String(), "", genserver.AdminReportUpdateRequestDto{
+		ExpectedRevision: created.Revision, Status: genserver.OPEN, AssigneeUserId: stringPtr(assigneeID.String()),
+	})
+	if err != nil || assigned.Code != http.StatusOK {
+		t.Fatalf("assign report = %#v err=%v", assigned, err)
+	}
+	reviewOnly := middleware.WithAdminPrincipal(context.Background(), middleware.AdminPrincipal{
+		UserID: adminID.String(), State: "authenticated", Capabilities: []string{"reports.read", "reports.review"},
+	})
+	reviewOnly = middleware.WithUser(reviewOnly, adminID, middleware.RoleAdmin)
+	controller := genserver.NewAdminReportsAPIController(servicer)
+	router := chi.NewRouter()
+	for _, route := range controller.OrderedRoutes() {
+		router.Method(route.Method, route.Pattern, route.HandlerFunc)
+	}
+	omitted := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/"+created.ID.String(), strings.NewReader(`{"expectedRevision":2,"status":"open"}`))
+	omitted = omitted.WithContext(reviewOnly)
+	omittedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(omittedRecorder, omitted)
+	if omittedRecorder.Code != http.StatusOK {
+		t.Fatalf("review-only omitted assignee status = %d, body=%s", omittedRecorder.Code, omittedRecorder.Body.String())
+	}
+	stored, err := q.GetReport(context.Background(), created.ID)
+	if err != nil || stored == nil || stored.AssigneeUserID == nil || *stored.AssigneeUserID != assigneeID {
+		t.Fatalf("omitted assignee = %#v err=%v", stored, err)
+	}
+	request := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/"+created.ID.String(), strings.NewReader(`{"expectedRevision":3,"status":"dismissed","assigneeUserId":null}`))
+	request = request.WithContext(reviewOnly)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("review-only explicit clear status = %d, body=%s", recorder.Code, recorder.Body.String())
+	}
+	stored, err = q.GetReport(context.Background(), created.ID)
+	if err != nil || stored == nil || stored.Status != db.ReportStatusDismissed || stored.AssigneeUserID != nil {
+		t.Fatalf("explicit null assignee = %#v err=%v", stored, err)
+	}
+}
+
 func TestAdminReportGeneratedControllerBindsCursorAndPath(t *testing.T) {
 	q, reporterID, adminID := setupReportHandlerDB(t)
-	if _, err := service.NewReportService(q).Submit(context.Background(), service.ReportSubmission{ReporterID: reporterID, Body: "controller details"}); err != nil {
+	created, err := service.NewReportService(q).Submit(context.Background(), service.ReportSubmission{ReporterID: reporterID, Body: "controller details"})
+	if err != nil {
 		t.Fatalf("submit report: %v", err)
+	}
+	if _, err := service.NewReportService(q).AddNote(reportAdminContext(adminID), service.ReportNoteInput{ReportID: created.ID, ActorID: adminID, Body: "history note"}); err != nil {
+		t.Fatalf("add history note: %v", err)
 	}
 	controller := genserver.NewAdminReportsAPIController(NewAdminReportsServicer(q))
 	router := chi.NewRouter()
@@ -217,6 +274,20 @@ func TestAdminReportGeneratedControllerBindsCursorAndPath(t *testing.T) {
 	}
 	if len(body.Items) != 1 {
 		t.Fatalf("controller items = %d, want 1", len(body.Items))
+	}
+	notesRequest := httptest.NewRequest(http.MethodGet, "/api/v3/admin/reports/"+created.ID.String()+"/notes?limit=1", nil)
+	notesRequest = notesRequest.WithContext(reportAdminContext(adminID))
+	notesRecorder := httptest.NewRecorder()
+	router.ServeHTTP(notesRecorder, notesRequest)
+	if notesRecorder.Code != http.StatusOK {
+		t.Fatalf("controller notes status = %d, body=%s", notesRecorder.Code, notesRecorder.Body.String())
+	}
+	var notesBody genserver.AdminReportNotePageDto
+	if err := json.NewDecoder(strings.NewReader(notesRecorder.Body.String())).Decode(&notesBody); err != nil {
+		t.Fatalf("decode controller notes body: %v", err)
+	}
+	if len(notesBody.Items) != 1 || notesBody.Items[0].Text != "history note" {
+		t.Fatalf("controller notes body = %#v", notesBody)
 	}
 }
 

@@ -419,12 +419,31 @@ LIMIT $2;
 
 -- Reports -------------------------------------------------------------------
 
+-- Report submissions and account deletion use the same transaction-scoped
+-- advisory lock. This keeps the target row and report insert in one ordered
+-- critical section even when a hard delete removes the user row.
+-- name: LockReportTarget :exec
+SELECT pg_advisory_xact_lock(hashtextextended('report-target:' || $1::text, 0));
+
 -- name: CreateReport :one
 INSERT INTO reports
     (id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
      body, legacy_text, status, assignee_user_id, revision, request_id, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, 1, $9, now(), now())
 ON CONFLICT (request_id) WHERE request_id IS NOT NULL DO UPDATE SET id = reports.id
+RETURNING id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+          body, legacy_text, status, assignee_user_id, revision, request_id,
+          created_at, updated_at, resolved_at;
+
+-- InsertReport reports whether this transaction won a request-key race. A
+-- losing insert returns no row, allowing the caller to replay the committed
+-- row without consuming quota or writing another audit event.
+-- name: InsertReport :one
+INSERT INTO reports
+    (id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+     body, legacy_text, status, assignee_user_id, revision, request_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, 1, $9, now(), now())
+ON CONFLICT (request_id) WHERE request_id IS NOT NULL DO NOTHING
 RETURNING id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
           body, legacy_text, status, assignee_user_id, revision, request_id,
           created_at, updated_at, resolved_at;
@@ -446,7 +465,8 @@ WHERE request_id = $1;
 -- name: GetReportTargetSnapshot :one
 SELECT id, username, is_deleted
 FROM users
-WHERE id = $1;
+WHERE id = $1
+FOR UPDATE;
 
 -- name: ListReportsPage :many
 SELECT id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
@@ -475,7 +495,7 @@ LIMIT $3;
 -- name: UpdateReportIfRevision :one
 UPDATE reports
 SET status = CASE WHEN $2 = '' THEN status ELSE $2 END,
-    assignee_user_id = COALESCE($3, assignee_user_id),
+    assignee_user_id = CASE WHEN sqlc.arg('assignee_set')::boolean THEN $3 ELSE assignee_user_id END,
     revision = revision + 1,
     updated_at = now(),
     resolved_at = CASE WHEN $2 IN ('resolved', 'dismissed') THEN now()
@@ -497,6 +517,15 @@ FROM report_notes
 WHERE report_id = $1
 ORDER BY created_at ASC, id ASC
 LIMIT $2;
+
+-- name: ListReportNotesPage :many
+SELECT id, report_id, author_user_id, body, created_at
+FROM report_notes
+WHERE report_id = $1
+  AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz
+       OR (created_at = $2::timestamptz AND id < $3::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $4;
 
 -- Audience snapshots --------------------------------------------------------
 

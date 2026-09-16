@@ -69,6 +69,12 @@ func (c *AdminReportsAPIController) Routes() Routes {
 			"/api/v3/admin/reports/{reportId}",
 			c.UpdateAdminReport,
 		},
+		"ListAdminReportNotes": Route{
+			"ListAdminReportNotes",
+			strings.ToUpper("Get"),
+			"/api/v3/admin/reports/{reportId}/notes",
+			c.ListAdminReportNotes,
+		},
 		"AddAdminReportNote": Route{
 			"AddAdminReportNote",
 			strings.ToUpper("Post"),
@@ -98,6 +104,12 @@ func (c *AdminReportsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Patch"),
 			"/api/v3/admin/reports/{reportId}",
 			c.UpdateAdminReport,
+		},
+		Route{
+			"ListAdminReportNotes",
+			strings.ToUpper("Get"),
+			"/api/v3/admin/reports/{reportId}/notes",
+			c.ListAdminReportNotes,
 		},
 		Route{
 			"AddAdminReportNote",
@@ -225,6 +237,53 @@ func (c *AdminReportsAPIController) UpdateAdminReport(w http.ResponseWriter, r *
 		return
 	}
 	result, err := c.service.UpdateAdminReport(r.Context(), reportIdParam, xCSRFTokenParam, adminReportUpdateRequestDtoParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// ListAdminReportNotes - List all administrative report notes
+func (c *AdminReportsAPIController) ListAdminReportNotes(w http.ResponseWriter, r *http.Request) {
+	query, err := parseQuery(r.URL.RawQuery)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	reportIdParam := chi.URLParam(r, "reportId")
+	if reportIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"reportId"}, nil)
+		return
+	}
+	var cursorParam string
+	if query.Has("cursor") {
+		param := query.Get("cursor")
+
+		cursorParam = param
+	} else {
+	}
+	var limitParam int32
+	if query.Has("limit") {
+		param, err := parseNumericParameter[int32](
+			query.Get("limit"),
+			WithParse[int32](parseInt32),
+			WithMinimum[int32](1),
+			WithMaximum[int32](100),
+		)
+		if err != nil {
+			c.errorHandler(w, r, &ParsingError{Param: "limit", Err: err}, nil)
+			return
+		}
+
+		limitParam = param
+	} else {
+		var param int32 = 25
+		limitParam = param
+	}
+	result, err := c.service.ListAdminReportNotes(r.Context(), reportIdParam, cursorParam, limitParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

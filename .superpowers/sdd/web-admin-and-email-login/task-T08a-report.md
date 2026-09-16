@@ -2,130 +2,152 @@
 
 ## Scope delivered
 
-The legacy consumer report adapter now persists a report before attempting the
-optional SMTP notification. It derives the durable reporter from the
-authenticated `middleware.UserID` context and rejects a mismatched DTO user ID.
-When the report repository is present, no SMTP service is a successful-path
-requirement; a configured SMTP failure cannot roll back the saved report.
-The adapter accepts a bounded `Idempotency-Key`, returns the existing row for a
-matching retry, and returns a conflict for a changed payload. `CaptureReportRequest`
-also carries the trusted-real-IP result into the service and caps the request
-body before generated JSON decoding.
+The legacy consumer report adapter persists a report before optional SMTP
+delivery and derives the reporter from the authenticated context. Reports with
+an `Idempotency-Key` now arbitrate the unique request row and consume account
+and IP quota only in the transaction that wins the insert. Replays and racing
+losers return the committed row without a second quota hit or audit event;
+changed payloads return a conflict.
 
-`service.ReportService` owns bounded submission validation, optional HMAC-keyed
-account/IP quotas, target snapshot capture, cursor-based inbox paging and
-search, detail reads, assignment, append-only notes, and revision-checked
-open/resolved/dismissed transitions. Submission and review audit events are
-written in the same transaction as their changes. The target deletion
-migration preserves target ID/name/deleted state for both soft and hard user
-deletion. User content remains text in the DTO boundary and SMTP report bodies
-use HTML escaping.
+Target snapshots and user deletion share a transaction-scoped advisory lock,
+and the snapshot query locks the target row. This orders report insertion with
+soft and hard deletion so every report retains a deletion-safe target state.
 
-The generated API contract was unchanged. sqlc output was regenerated for the
-new report queries and the updated reopen timestamp behavior. T08b's durable
-inbox outbox and report bulk snapshot/job work remain outside this milestone.
+Administrative report updates require `reports.review` for every individual
+transition, including resolve and dismiss. `reports.resolve` and
+`reports.dismiss` remain action capabilities for bulk report jobs. PATCH
+assignment is tri-state: an omitted `assigneeUserId` preserves the assignment,
+`null` clears it, and a UUID assigns a user. The generated request model keeps
+presence information in an ignore-listed compatibility adapter.
+
+Review audit events derive their action from the prior and new status and
+include previous status, assignment changes, assignee IDs, assignment intent,
+and whether a note was added. Report details remain bounded to 100 notes; the
+new `GET /api/v3/admin/reports/{reportId}/notes` contract exposes the complete
+newest-first history through a cursor page.
+
+The OpenAPI contract, `oapi-codegen` output, OpenAPI Generator server output,
+sqlc queries/output, handlers, and tests are synchronized. Runtime route
+composition in `cmd/server/main.go` remains coordinator-owned; generated
+controller routes are ready for the real servicer wiring. T08b bulk snapshot
+and job execution remains outside this task.
 
 ## Interfaces and integration seam
 
-The new service constructors are `service.NewReportService` (with an optional
+The service constructors are `service.NewReportService` (with an optional
 `ReportServiceConfig`) and `service.NewReportReviewService`. The consumer
-adapter constructor accepts the same optional config, while
+adapter accepts the same optional config, while
 `handler.NewAdminReportsServicer` accepts a shared report service. The admin
-handler implements the frozen `genserver.AdminReportsAPIServicer` methods and
-checks the stable admin principal/capabilities again for direct use.
+handler implements the generated report methods, including
+`ListAdminReportNotes`, and checks the request-time admin principal and
+capability again for direct servicer use.
 
-The coordinator-owned `cmd/server/main.go` wiring must:
-
-1. pass the configured T05 HMAC key and key ID into `NewReportServicer` so
-   report quotas are enabled in production;
-2. construct `NewAdminReportsServicer(q, reportService)`, create its generated
-   admin reports controller, and register that controller in the authenticated
-   v3 admin group; and
-3. wrap the authenticated `/api/v2/report` route with
-   `handler.CaptureReportRequest` after `TrustedRealIP` has normalized the
-   client address.
-
-The internal reopen audit action is recorded as `report_reopen` so reopening
-is distinguishable from resolving and dismissing. The frozen admin action
-enum currently names only `report_resolve` and `report_dismiss`; if the audit
-API exposes report transition actions, the coordinator should reconcile that
-contract with the T08 reopen requirement rather than silently changing the
-generated contract in this milestone.
+The coordinator-owned `cmd/server/main.go` wiring must pass the configured T05
+HMAC key and key ID into `NewReportServicer`, construct
+`NewAdminReportsServicer(q, reportService)`, and register the generated admin
+reports controller in the authenticated v3 admin group. The existing
+`CaptureReportRequest` wrapper must remain around the authenticated
+`/api/v2/report` route after trusted-real-IP normalization.
 
 ## Red/green evidence
 
-The first service test run was intentionally red before implementation:
+The first focused run was intentionally red before the implementation slice:
 
 ```text
 cd go-server
-mise exec -- go test ./internal/service -run 'TestReportService|TestReportCursor' -count=1
-FAIL: undefined report service constructors/types referenced by the new tests
+mise exec -- go test ./internal/service ./internal/middleware ./internal/handler
+FAIL: missing AssigneeSet/ListReportNotes page types and the new atomic
+      persistence behavior
 ```
 
-After implementation, the focused disposable-PostGIS run passed:
+The focused disposable-PostGIS run passed after the changes:
 
 ```text
 cd go-server
-TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -p 1 ./internal/service ./internal/handler -run 'TestReportService|TestReportCursor|TestCreateReport|TestCaptureReport|TestAdminReport' -count=1
+TEST_DATABASE_URL='postgres://monaserver:monaserver@localhost:5432/monaserver_test?sslmode=disable' \
+  mise exec -- go test -count=1 -p 1 ./internal/service ./internal/handler
 PASS
 ```
 
-The final serial whole-server run passed for every Go package:
+The regression coverage includes concurrent same-key submissions with one
+quota hit, repeated target-deletion races, concurrent revision checks,
+omitted/explicit-null assignment, prior-status audit metadata, and 105-note
+cursor paging with an appended note. The focused race run passed:
 
 ```text
-cd go-server
-TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -count=1 -p 1 ./...
-PASS: cmd/admin-auth, cmd/server, internal/config, internal/db,
-      internal/handler, internal/image, internal/jobs, internal/middleware,
-      internal/password, internal/service, internal/token; packages without
-      tests reported [no test files]
+TEST_DATABASE_URL='<disposable-local-DSN>' \
+  mise exec -- go test -race -count=1 -p 1 ./internal/service -run '^TestReportService'
+PASS
 ```
 
-Generation, formatting, static checks, build, and whitespace checks passed:
+Generation and static verification commands:
 
 ```text
 cd go-server
 mise exec -- make gen-db
-PASS: sqlc generated output is current
+PASS: sqlc output is current
 
-mise exec -- gofmt -w internal/db/admin_foundation.go internal/db/admin_repository.go internal/handler/admin_servicer.go internal/handler/report_servicer.go internal/handler/report_servicer_test.go internal/service/report.go internal/service/report_test.go
-PASS
+mise exec -- make gen-api
+PASS: bundled API output is current
+
+OPENAPI_GENERATOR_JAR=/root/openapi-generator-cli.jar \
+  mise exec -- make gen-server
+PASS: OpenAPI Generator 7.19.0 output is current and preserves the
+      tri-state compatibility adapter
 
 mise exec -- go vet ./...
 PASS: no diagnostics
 
-mise exec -- go build -o bin/server ./cmd/server
-PASS: server binary built as the ignored local artifact go-server/bin/server
+mise exec -- go build -o /tmp/monaserver-admin-t08a ./cmd/server
+PASS
 
 cd ..
 git diff --check
 PASS: no diagnostics
 ```
 
-No OpenAPI generation was run because `api/openapi.yaml` and generated API
-files were unchanged. The sqlc command above was run after the final query
-source edits.
+The final serial whole-server PostGIS suite passed across every package:
+
+```text
+cd go-server
+TEST_DATABASE_URL='<disposable-local-DSN>' \
+  mise exec -- go test -count=1 -p 1 ./...
+PASS: cmd/admin-auth, cmd/server, internal/config, internal/db,
+      internal/handler, internal/image, internal/jobs, internal/middleware,
+      internal/password, internal/service, internal/token; packages without
+      tests reported [no test files]
+```
 
 ## Local service availability
 
 PostgreSQL with PostGIS was available on the disposable local instance at
-`127.0.0.1:5432`; all database-backed tests used a serial `-p 1` run. Docker
-and Podman were unavailable. No SMTP, FCM, or production provider was
-contacted. RustFS was not needed for this report slice. No production sends,
-deployment, or PR was performed.
+`127.0.0.1:5432`; database-backed tests use serial `-p 1`. Docker and Podman
+were unavailable. No SMTP, FCM, RustFS, production provider, deployment, or
+PR operation was used.
 
 ## Changed files
 
-- `go-server/internal/db/migrations/000028_report_target_deletion.up.sql`
-- `go-server/internal/db/queries/admin_foundation.sql`
+- `api/openapi.yaml`
+- `docs/contracts/web-admin-and-email-login.md`
 - `go-server/internal/db/admin_foundation.go`
 - `go-server/internal/db/admin_repository.go`
+- `go-server/internal/db/queries/admin_foundation.sql`
+- `go-server/internal/gen/api/api.gen.go`
 - `go-server/internal/gen/db/admin_foundation.sql.go`
 - `go-server/internal/gen/db/querier.go`
-- `go-server/internal/handler/admin_servicer.go`
+- `go-server/internal/gen/server/.openapi-generator-ignore`
+- `go-server/internal/gen/server/.openapi-generator/FILES`
+- `go-server/internal/gen/server/api.go`
+- `go-server/internal/gen/server/api/openapi.yaml`
+- `go-server/internal/gen/server/api_admin_reports.go`
+- `go-server/internal/gen/server/model_admin_report_note_page_dto.go`
+- `go-server/internal/gen/server/model_admin_report_update_request_dto.go`
 - `go-server/internal/handler/report_servicer.go`
 - `go-server/internal/handler/report_servicer_test.go`
+- `go-server/internal/handler/unavailable_v3.go`
+- `go-server/internal/middleware/admin_session.go`
+- `go-server/internal/middleware/admin_session_test.go`
 - `go-server/internal/service/report.go`
 - `go-server/internal/service/report_test.go`
 
-Implementation commit SHA: `f70cf41`.
+Implementation commit SHA: current worktree `HEAD` (reported with the handoff).

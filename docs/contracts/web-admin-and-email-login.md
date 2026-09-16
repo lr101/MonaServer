@@ -81,6 +81,7 @@ password recovery, and other existing API response contracts remain unchanged.
 | `sendAdminTestMessage` | `POST /api/v3/admin/messages/test` | Admin cookie + CSRF | `202 adminTestMessageAcceptedDto` |
 | `listAdminReports` / `getAdminReport` | `GET /api/v3/admin/reports[/{reportId}]` | Authenticated admin cookie | `200 adminReportPageDto` / `200 adminReportDto` |
 | `updateAdminReport` | `PATCH /api/v3/admin/reports/{reportId}` | Admin cookie + CSRF | `200 adminReportDto` |
+| `listAdminReportNotes` | `GET /api/v3/admin/reports/{reportId}/notes` | Authenticated admin cookie | `200 adminReportNotePageDto` (newest first, cursor-paginated) |
 | `addAdminReportNote` | `POST /api/v3/admin/reports/{reportId}/notes` | Admin cookie + CSRF | `201 adminReportNoteDto` |
 | `listAdminAudit` | `GET /api/v3/admin/audit` | Authenticated admin cookie | `200 adminAuditPageDto` |
 
@@ -130,7 +131,7 @@ JSON parsing and bounded parameter binding. The frozen groups are:
 | `AdminAudiencesAPIServicer` | `PreviewAdminAudience`, `GetAdminAudience` |
 | `AdminJobsAPIServicer` | `ListAdminJobs`, `CreateAdminJob`, `GetAdminJob`, `ListAdminJobRecipients`, `RetryAdminJob`, `CancelAdminJob` |
 | `AdminMessagesAPIServicer` | `SendAdminTestMessage` |
-| `AdminReportsAPIServicer` | `ListAdminReports`, `GetAdminReport`, `UpdateAdminReport`, `AddAdminReportNote` |
+| `AdminReportsAPIServicer` | `ListAdminReports`, `GetAdminReport`, `UpdateAdminReport`, `ListAdminReportNotes`, `AddAdminReportNote` |
 | `AdminAuditAPIServicer` | `ListAdminAudit` |
 
 These interfaces are additive to the existing v2 generated contracts. The
@@ -190,6 +191,10 @@ Recipient outcomes are `skipped`, `secured`, `queued`, `provider_accepted`,
 `dismissed`. Report updates carry `expectedRevision`; stale revisions return
 `409`. A deleted report target stays reviewable through its retained target
 identifier/name and `deleted` marker.
+In a report update, omitting `assigneeUserId` preserves the current assignment,
+`null` clears it, and a UUID assigns that user. The separate report-note
+history endpoint returns newest-first cursor pages so detail views can remain
+bounded without hiding older notes.
 
 The account summary intentionally omits passwords, password hashes, action
 tokens, refresh credentials, provider tokens, and delivery payloads. Audit

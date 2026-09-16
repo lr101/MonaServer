@@ -170,6 +170,10 @@ func (s *UnavailableV3Servicer) GetAdminReport(context.Context, string, int64) (
 	return s.unavailable()
 }
 
+func (s *UnavailableV3Servicer) ListAdminReportNotes(context.Context, string, string, int32) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func (s *UnavailableV3Servicer) UpdateAdminReport(context.Context, string, string, genserver.AdminReportUpdateRequestDto) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }

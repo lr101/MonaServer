@@ -2382,6 +2382,42 @@ paths:
       x-availability: disabled
       x-feature-flag: web_admin_api
   /api/v3/admin/reports/{reportId}/notes:
+    get:
+      operationId: listAdminReportNotes
+      parameters:
+      - description: Report identifier.
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportNotePageDto"
+          description: Complete cursor-paginated report note history
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List all administrative report notes
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
     post:
       operationId: addAdminReportNote
       parameters:
@@ -3787,6 +3823,20 @@ components:
       - id
       - text
       type: object
+    adminReportNotePageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminReportNoteDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
     adminReportDto:
       description: Report detail with authenticated actor history and a separate structured target.
       properties:
@@ -3866,7 +3916,7 @@ components:
       - text
       type: object
     adminReportUpdateRequestDto:
-      description: Revision-checked transition; a stale expectedRevision returns 409.
+      description: Revision-checked transition; a stale expectedRevision returns 409. Omit assigneeUserId to preserve the current assignee, send null to clear it, or send a UUID to assign that user.
       properties:
         assigneeUserId:
           format: uuid

@@ -64,7 +64,10 @@ type ReportReviewInput struct {
 	ExpectedRevision int64
 	Status           string
 	AssigneeUserID   *uuid.UUID
-	Note             *string
+	// AssigneeSet distinguishes an omitted assignment from an explicit clear.
+	// A non-nil AssigneeUserID implies set for compatibility with older callers.
+	AssigneeSet bool
+	Note        *string
 }
 
 type ReportNoteInput struct {
@@ -88,6 +91,17 @@ type ReportPage struct {
 type ReportDetail struct {
 	Report *db.Report
 	Notes  []db.ReportNote
+}
+
+type ReportNoteListInput struct {
+	ReportID uuid.UUID
+	Cursor   string
+	Limit    int
+}
+
+type ReportNotePage struct {
+	Items      []db.ReportNote
+	NextCursor *string
 }
 
 // ReportService owns report persistence and review transitions. SMTP is kept
@@ -178,65 +192,64 @@ func (s *ReportService) Submit(ctx context.Context, input ReportSubmission) (*db
 		return nil, err
 	}
 	input = normalizeReportSubmission(input)
-	// A replay of the same idempotency key returns the committed row and does
-	// not consume another submission quota unit. A changed payload still goes
-	// through the transactional conflict check below.
-	if input.RequestID == nil {
-		if err := s.admitSubmission(ctx, input); err != nil {
-			return nil, err
-		}
-	} else {
-		existing, err := s.q.GetReportByRequestID(ctx, *input.RequestID)
-		if err != nil {
-			return nil, apperrors.ErrUnavailable
-		}
-		if existing == nil {
-			if err := s.admitSubmission(ctx, input); err != nil {
-				return nil, err
-			}
-		}
-	}
-
 	if input.ID == uuid.Nil {
 		input.ID = uuid.New()
 	}
 	var stored *db.Report
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
 		insert := input
-		requestID := ""
-		if insert.RequestID != nil {
-			requestID = *insert.RequestID
-		}
-		existing, err := tx.GetReportByRequestID(ctx, requestID)
-		if err != nil {
-			return err
-		}
-		// Resolve a target snapshot while the insert transaction is open. This
-		// preserves the username/deleted bit if a soft deletion races the
-		// submission and keeps review independent of the target account later.
-		if existing == nil && insert.TargetID != nil && insert.TargetName == nil && isReportUserTarget(insert.TargetKind) {
+		// Lock target identity before reading it or inserting the report. User
+		// deletion acquires the same transaction-scoped lock, so the snapshot and
+		// insert are ordered with both soft and hard deletion paths.
+		if insert.TargetID != nil && isReportUserTarget(insert.TargetKind) {
+			if err := tx.LockReportTarget(ctx, *insert.TargetID); err != nil {
+				return err
+			}
 			target, err := tx.GetReportTargetSnapshot(ctx, *insert.TargetID)
 			if err != nil {
 				return err
 			}
 			if target != nil {
-				name := target.Name
-				insert.TargetName = &name
+				if insert.TargetName == nil {
+					name := target.Name
+					insert.TargetName = &name
+				}
 				insert.TargetDeleted = target.Deleted
+			} else {
+				// A hard-deleted target cannot provide a name, but its identity is
+				// still a deleted target in the review record.
+				insert.TargetDeleted = true
 			}
 		}
-		stored, err = tx.CreateReport(ctx, db.ReportParams{
-			ID: insert.ID, ReporterUserID: &insert.ReporterID, TargetID: insert.TargetID,
-			TargetKind: insert.TargetKind, TargetName: insert.TargetName, TargetDeleted: insert.TargetDeleted,
-			Body: insert.Body, LegacyText: insert.LegacyText, RequestID: insert.RequestID,
-		})
+		params := reportParamsFromSubmission(insert)
+		var inserted bool
+		var err error
+		stored, inserted, err = tx.InsertReport(ctx, params)
 		if err != nil {
 			return err
 		}
-		// CreateReport returns the existing row on an idempotent conflict. Avoid
-		// a second audit event for both a previously visible and a racing replay.
-		if existing != nil || stored.ID != insert.ID {
+		if !inserted {
+			// The unique request key was committed by another transaction while
+			// this insert waited. Read it in a new statement snapshot and compare
+			// only the caller-owned payload fields before replaying it.
+			if insert.RequestID == nil {
+				return db.ErrIdempotencyConflict
+			}
+			existing, err := tx.GetReportByRequestID(ctx, *insert.RequestID)
+			if err != nil {
+				return err
+			}
+			if existing == nil || !db.ReportMatches(reportParamsFromSubmission(input), *existing) {
+				return db.ErrIdempotencyConflict
+			}
+			stored = existing
 			return nil
+		}
+		// Quota admission is inside the same transaction as the winning insert.
+		// A replay or a loser never reaches this call, and a rejected winner
+		// rolls back its quota increment together with the report row.
+		if err := s.admitSubmissionTx(ctx, tx, insert); err != nil {
+			return err
 		}
 		return createReportAudit(ctx, tx, input.ReporterID, stored, "report_submitted")
 	})
@@ -244,9 +257,20 @@ func (s *ReportService) Submit(ctx context.Context, input ReportSubmission) (*db
 		return nil, apperrors.ErrConflict
 	}
 	if err != nil {
+		if apperrors.HTTPStatus(err) == http.StatusTooManyRequests {
+			return nil, err
+		}
 		return nil, mapReportDBError(err)
 	}
 	return stored, nil
+}
+
+func reportParamsFromSubmission(input ReportSubmission) db.ReportParams {
+	return db.ReportParams{
+		ID: input.ID, ReporterUserID: &input.ReporterID, TargetID: input.TargetID,
+		TargetKind: input.TargetKind, TargetName: input.TargetName, TargetDeleted: input.TargetDeleted,
+		Body: input.Body, LegacyText: input.LegacyText, RequestID: input.RequestID,
+	}
 }
 
 func (s *ReportService) List(ctx context.Context, input ReportListInput) (*ReportPage, error) {
@@ -326,6 +350,58 @@ func (s *ReportService) Get(ctx context.Context, id uuid.UUID, noteLimit int) (*
 	return &ReportDetail{Report: report, Notes: notes}, nil
 }
 
+// ListNotes exposes the complete append-only note history through a newest
+// first keyset page. The detail DTO remains bounded while this endpoint lets a
+// client continue until every note has been read.
+func (s *ReportService) ListNotes(ctx context.Context, input ReportNoteListInput) (*ReportNotePage, error) {
+	if s == nil || s.q == nil {
+		return nil, apperrors.ErrUnavailable
+	}
+	if input.ReportID == uuid.Nil {
+		return nil, apperrors.ErrBadRequest
+	}
+	if input.Limit <= 0 {
+		input.Limit = 25
+	}
+	if input.Limit > MaxReportPageSize {
+		return nil, apperrors.ErrBadRequest
+	}
+	report, err := s.q.GetReport(ctx, input.ReportID)
+	if err != nil {
+		return nil, mapReportDBError(err)
+	}
+	if report == nil {
+		return nil, apperrors.ErrNotFound
+	}
+	var beforeCreated *time.Time
+	var beforeID *uuid.UUID
+	if strings.TrimSpace(input.Cursor) != "" {
+		cursor, err := decodeReportCursor(input.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		beforeCreated = &cursor.CreatedAt
+		beforeID = &cursor.ID
+	}
+	rows, err := s.q.ListReportNotesPage(ctx, input.ReportID, beforeCreated, beforeID, input.Limit+1)
+	if err != nil {
+		return nil, mapReportDBError(err)
+	}
+	page := &ReportNotePage{Items: rows}
+	if len(rows) > input.Limit {
+		page.Items = rows[:input.Limit]
+		cursor, err := encodeReportCursor(reportCursor{CreatedAt: page.Items[len(page.Items)-1].CreatedAt, ID: page.Items[len(page.Items)-1].ID})
+		if err != nil {
+			return nil, err
+		}
+		page.NextCursor = &cursor
+	}
+	if page.Items == nil {
+		page.Items = []db.ReportNote{}
+	}
+	return page, nil
+}
+
 func (s *ReportService) Review(ctx context.Context, input ReportReviewInput) (*db.Report, error) {
 	if s == nil || s.q == nil {
 		return nil, apperrors.ErrUnavailable
@@ -343,6 +419,7 @@ func (s *ReportService) Review(ctx context.Context, input ReportReviewInput) (*d
 	if input.AssigneeUserID != nil && *input.AssigneeUserID == uuid.Nil {
 		return nil, apperrors.ErrBadRequest
 	}
+	assigneeSet := input.AssigneeSet || input.AssigneeUserID != nil
 
 	var updated *db.Report
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
@@ -366,7 +443,7 @@ func (s *ReportService) Review(ctx context.Context, input ReportReviewInput) (*d
 			}
 		}
 		var ok bool
-		updated, ok, err = tx.UpdateReportIfRevision(ctx, input.ReportID, input.ExpectedRevision, input.Status, input.AssigneeUserID)
+		updated, ok, err = tx.UpdateReportIfRevision(ctx, input.ReportID, input.ExpectedRevision, input.Status, input.AssigneeUserID, assigneeSet)
 		if err != nil {
 			return err
 		}
@@ -378,7 +455,7 @@ func (s *ReportService) Review(ctx context.Context, input ReportReviewInput) (*d
 				return err
 			}
 		}
-		return createReportAudit(ctx, tx, input.ActorID, updated, reportActionForStatus(input.Status))
+		return createReportReviewAudit(ctx, tx, input.ActorID, before, updated, assigneeSet, input.Note != nil)
 	})
 	if err != nil {
 		return nil, mapReportDBError(err)
@@ -471,15 +548,18 @@ func isReportUserTarget(kind *string) bool {
 	return kind == nil || *kind == "user" || *kind == "account"
 }
 
-func reportActionForStatus(status string) string {
-	switch status {
-	case db.ReportStatusResolved:
-		return "report_resolve"
-	case db.ReportStatusDismissed:
-		return "report_dismiss"
-	default:
-		return "report_reopen"
+func reportActionForTransition(previous, current string) string {
+	if previous != current {
+		switch current {
+		case db.ReportStatusResolved:
+			return "report_resolve"
+		case db.ReportStatusDismissed:
+			return "report_dismiss"
+		case db.ReportStatusOpen:
+			return "report_reopen"
+		}
 	}
+	return "report_update"
 }
 
 func createReportAudit(ctx context.Context, q *db.Queries, actor uuid.UUID, report *db.Report, action string) error {
@@ -499,6 +579,52 @@ func createReportAudit(ctx context.Context, q *db.Queries, actor uuid.UUID, repo
 		target = report.TargetID
 	}
 	return q.CreateAuditEvent(ctx, db.AuditEventParams{ID: uuid.New(), ActorID: &actor, TargetAccountID: target, Action: action, Metadata: metadata})
+}
+
+func createReportReviewAudit(ctx context.Context, q *db.Queries, actor uuid.UUID, before, after *db.Report, assigneeSet, noteAdded bool) error {
+	if q == nil || before == nil || after == nil || actor == uuid.Nil {
+		return apperrors.ErrBadRequest
+	}
+	metadata := map[string]string{
+		"report_id":          after.ID.String(),
+		"previous_status":    before.Status,
+		"status":             after.Status,
+		"revision":           formatInt(after.Revision),
+		"assignment_changed": strconv.FormatBool(!reportUUIDPointersEqual(before.AssigneeUserID, after.AssigneeUserID)),
+		"note_added":         strconv.FormatBool(noteAdded),
+	}
+	if before.AssigneeUserID != nil {
+		metadata["previous_assignee_user_id"] = before.AssigneeUserID.String()
+	}
+	if after.AssigneeUserID != nil {
+		metadata["assignee_user_id"] = after.AssigneeUserID.String()
+	}
+	if !assigneeSet {
+		metadata["assignment"] = "omitted"
+	} else if after.AssigneeUserID == nil {
+		metadata["assignment"] = "clear"
+	} else {
+		metadata["assignment"] = "assign"
+	}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	var target *uuid.UUID
+	if after.TargetID != nil && isReportUserTarget(after.TargetKind) {
+		target = after.TargetID
+	}
+	return q.CreateAuditEvent(ctx, db.AuditEventParams{
+		ID: uuid.New(), ActorID: &actor, TargetAccountID: target,
+		Action: reportActionForTransition(before.Status, after.Status), Metadata: encoded,
+	})
+}
+
+func reportUUIDPointersEqual(left, right *uuid.UUID) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func formatInt(value int64) string {
@@ -573,7 +699,7 @@ func decodeReportCursor(value string) (reportCursor, error) {
 	return reportCursor{CreatedAt: created, ID: id}, nil
 }
 
-func (s *ReportService) admitSubmission(ctx context.Context, input ReportSubmission) error {
+func (s *ReportService) admitSubmissionTx(ctx context.Context, q *db.Queries, input ReportSubmission) error {
 	if len(s.cfg.HMACKey) == 0 {
 		return nil
 	}
@@ -601,7 +727,7 @@ func (s *ReportService) admitSubmission(ctx context.Context, input ReportSubmiss
 	for _, check := range checks {
 		h := hmac.New(sha256.New, s.cfg.HMACKey)
 		_, _ = h.Write([]byte(check.scope + "\x00" + check.value))
-		decision, err := s.q.AcquireSharedQuota(ctx, []db.SharedQuotaKey{{
+		decision, err := q.AcquireSharedQuota(ctx, []db.SharedQuotaKey{{
 			Scope: check.scope, IdentifierHMAC: h.Sum(nil), KeyID: s.cfg.HMACKeyID,
 			WindowStart: start, WindowEnd: end, Limit: check.limit,
 		}}, 1)

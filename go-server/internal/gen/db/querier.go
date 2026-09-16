@@ -84,7 +84,6 @@ type Querier interface {
 	CreatePin(ctx context.Context, arg CreatePinParams) error
 	// Refresh tokens --
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error
-	// Reports -------------------------------------------------------------------
 	CreateReport(ctx context.Context, arg CreateReportParams) (Report, error)
 	CreateReportNote(ctx context.Context, arg CreateReportNoteParams) (ReportNote, error)
 	CreateSeason(ctx context.Context, arg CreateSeasonParams) (pgtype.UUID, error)
@@ -160,6 +159,10 @@ type Querier interface {
 	HardDeleteUser(ctx context.Context, id pgtype.UUID) error
 	IncrementAdminChallengeFailure(ctx context.Context, id pgtype.UUID) (int32, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
+	// InsertReport reports whether this transaction won a request-key race. A
+	// losing insert returns no row, allowing the caller to replay the committed
+	// row without consuming quota or writing another audit event.
+	InsertReport(ctx context.Context, arg InsertReportParams) (Report, error)
 	InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) error
 	// Guard queries: fast authorization checks used by middleware.
 	IsGroupAdmin(ctx context.Context, arg IsGroupAdminParams) (bool, error)
@@ -184,6 +187,7 @@ type Querier interface {
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListReportNotes(ctx context.Context, arg ListReportNotesParams) ([]ReportNote, error)
+	ListReportNotesPage(ctx context.Context, arg ListReportNotesPageParams) ([]ReportNote, error)
 	ListReports(ctx context.Context, arg ListReportsParams) ([]Report, error)
 	ListReportsPage(ctx context.Context, arg ListReportsPageParams) ([]Report, error)
 	ListSecurityIncidentsForAccount(ctx context.Context, arg ListSecurityIncidentsForAccountParams) ([]SecurityIncident, error)
@@ -204,6 +208,11 @@ type Querier interface {
 	// Advisory locking is scoped to the logical scope/window, so current and
 	// previous HMAC key rows cannot bypass one another during key rotation.
 	LockRateLimitWindow(ctx context.Context, arg LockRateLimitWindowParams) error
+	// Reports -------------------------------------------------------------------
+	// Report submissions and account deletion use the same transaction-scoped
+	// advisory lock. This keeps the target row and report insert in one ordered
+	// critical section even when a hard delete removes the user row.
+	LockReportTarget(ctx context.Context, dollar_1 string) error
 	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)

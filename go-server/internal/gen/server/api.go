@@ -286,6 +286,7 @@ type AdminReportsAPIRouter interface {
 	ListAdminReports(http.ResponseWriter, *http.Request)
 	GetAdminReport(http.ResponseWriter, *http.Request)
 	UpdateAdminReport(http.ResponseWriter, *http.Request)
+	ListAdminReportNotes(http.ResponseWriter, *http.Request)
 	AddAdminReportNote(http.ResponseWriter, *http.Request)
 }
 
@@ -348,6 +349,7 @@ type AdminReportsAPIServicer interface {
 	ListAdminReports(context.Context, string, int32, AdminReportStatus, string) (ImplResponse, error)
 	GetAdminReport(context.Context, string, int64) (ImplResponse, error)
 	UpdateAdminReport(context.Context, string, string, AdminReportUpdateRequestDto) (ImplResponse, error)
+	ListAdminReportNotes(context.Context, string, string, int32) (ImplResponse, error)
 	AddAdminReportNote(context.Context, string, string, AdminReportNoteRequestDto) (ImplResponse, error)
 }
 

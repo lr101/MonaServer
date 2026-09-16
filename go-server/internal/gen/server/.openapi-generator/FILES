@@ -46,11 +46,11 @@ model_admin_reauthenticate_request_dto.go
 model_admin_report_dto.go
 model_admin_report_filter_dto.go
 model_admin_report_note_dto.go
+model_admin_report_note_page_dto.go
 model_admin_report_note_request_dto.go
 model_admin_report_page_dto.go
 model_admin_report_status.go
 model_admin_report_target_dto.go
-model_admin_report_update_request_dto.go
 model_admin_security_state.go
 model_admin_session_bootstrap_dto.go
 model_admin_session_dto.go

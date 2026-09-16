@@ -1844,7 +1844,7 @@ func reportFromRow(r dbgen.Report) Report {
 	}
 }
 
-func reportMatches(p ReportParams, existing Report) bool {
+func ReportMatches(p ReportParams, existing Report) bool {
 	// target_name and target_deleted may be filled from the current user row
 	// while the report is inserted. A retry of the same structured submission
 	// omits those server-derived snapshot fields, so compare the stable target
@@ -1858,6 +1858,10 @@ func reportMatches(p ReportParams, existing Report) bool {
 		optionalStringEqual(p.TargetKind, existing.TargetKind) &&
 		(targetSnapshotMatches || targetFieldsMatch) && p.Body == existing.Body &&
 		optionalStringEqual(p.LegacyText, existing.LegacyText)
+}
+
+func reportMatches(p ReportParams, existing Report) bool {
+	return ReportMatches(p, existing)
 }
 
 func (q *Queries) CreateReport(ctx context.Context, p ReportParams) (*Report, error) {
@@ -1877,6 +1881,37 @@ func (q *Queries) CreateReport(ctx context.Context, p ReportParams) (*Report, er
 		return nil, ErrIdempotencyConflict
 	}
 	return &v, nil
+}
+
+// LockReportTarget serializes report target snapshots with the user deletion
+// paths. The lock is transaction-scoped and has no durable state of its own.
+func (q *Queries) LockReportTarget(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return ErrInvalidJob
+	}
+	return q.g.LockReportTarget(ctx, id.String())
+}
+
+// InsertReport returns inserted=false when another transaction already won
+// the request-key race. Callers can then replay that row without consuming a
+// quota unit or emitting a duplicate audit event.
+func (q *Queries) InsertReport(ctx context.Context, p ReportParams) (*Report, bool, error) {
+	if p.ID == uuid.Nil || p.Body == "" {
+		return nil, false, ErrInvalidJob
+	}
+	r, err := q.g.InsertReport(ctx, dbgen.InsertReportParams{
+		ID: pgUUID(p.ID), ReporterUserID: pgUUIDPtr(p.ReporterUserID), TargetID: pgUUIDPtr(p.TargetID),
+		TargetKind: pgText(p.TargetKind), TargetName: pgText(p.TargetName), TargetDeleted: p.TargetDeleted,
+		Body: p.Body, LegacyText: pgText(p.LegacyText), RequestID: pgText(p.RequestID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	v := reportFromRow(r)
+	return &v, true, nil
 }
 
 func (q *Queries) GetReport(ctx context.Context, id uuid.UUID) (*Report, error) {
@@ -1967,15 +2002,19 @@ func (q *Queries) ListReports(ctx context.Context, status string, before *time.T
 	return out, nil
 }
 
-func (q *Queries) UpdateReportIfRevision(ctx context.Context, id uuid.UUID, revision int64, status string, assigneeUserID *uuid.UUID) (*Report, bool, error) {
+func (q *Queries) UpdateReportIfRevision(ctx context.Context, id uuid.UUID, revision int64, status string, assigneeUserID *uuid.UUID, assigneeSet ...bool) (*Report, bool, error) {
 	if id == uuid.Nil || revision <= 0 {
 		return nil, false, ErrInvalidJob
 	}
 	if status != "" && status != "open" && status != "resolved" && status != "dismissed" {
 		return nil, false, ErrInvalidJob
 	}
+	setAssignee := assigneeUserID != nil
+	if len(assigneeSet) > 0 {
+		setAssignee = assigneeSet[0]
+	}
 	r, err := q.g.UpdateReportIfRevision(ctx, dbgen.UpdateReportIfRevisionParams{
-		ID: pgUUID(id), Column2: status, AssigneeUserID: pgUUIDPtr(assigneeUserID), Revision: revision,
+		ID: pgUUID(id), Column2: status, AssigneeUserID: pgUUIDPtr(assigneeUserID), Revision: revision, AssigneeSet: setAssignee,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
@@ -2023,6 +2062,30 @@ func (q *Queries) ListReportNotes(ctx context.Context, reportID uuid.UUID, limit
 		return nil, ErrInvalidJob
 	}
 	rs, err := q.g.ListReportNotes(ctx, dbgen.ListReportNotesParams{ReportID: pgUUID(reportID), Limit: int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ReportNote, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, reportNoteFromRow(r))
+	}
+	return out, nil
+}
+
+func (q *Queries) ListReportNotesPage(ctx context.Context, reportID uuid.UUID, beforeCreated *time.Time, beforeID *uuid.UUID, limit int) ([]ReportNote, error) {
+	if reportID == uuid.Nil || limit <= 0 {
+		return nil, ErrInvalidJob
+	}
+	if beforeCreated == nil {
+		beforeID = nil
+	}
+	var cursorID pgtype.UUID
+	if beforeID != nil {
+		cursorID = pgUUID(*beforeID)
+	}
+	rs, err := q.g.ListReportNotesPage(ctx, dbgen.ListReportNotesPageParams{
+		ReportID: pgUUID(reportID), Column2: pgTZ(beforeCreated), Column3: cursorID, Limit: int32(limit),
+	})
 	if err != nil {
 		return nil, err
 	}

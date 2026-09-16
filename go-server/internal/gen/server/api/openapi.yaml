@@ -3321,6 +3321,83 @@ paths:
       x-availability: disabled
       x-feature-flag: web_admin_api
   /api/v3/admin/reports/{reportId}/notes:
+    get:
+      operationId: listAdminReportNotes
+      parameters:
+      - description: Report identifier.
+        explode: false
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Opaque cursor returned by the preceding page.
+        explode: true
+        in: query
+        name: cursor
+        required: false
+        schema:
+          maxLength: 512
+          type: string
+        style: form
+      - description: Maximum number of records in the page; defaults to 25 and is
+          capped at 100.
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 25
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportNotePageDto"
+          description: Complete cursor-paginated report note history
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: List all administrative report notes
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
     post:
       operationId: addAdminReportNote
       parameters:
@@ -5047,6 +5124,43 @@ components:
       - id
       - text
       type: object
+    adminReportNotePageDto:
+      example:
+        nextCursor: nextCursor
+        items:
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          actorUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          text: text
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          actorUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          text: text
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          actorUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          text: text
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          actorUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          text: text
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          actorUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          text: text
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminReportNoteDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
     adminReportDto:
       description: Report detail with authenticated actor history and a separate structured
         target.
@@ -5341,7 +5455,9 @@ components:
       - text
       type: object
     adminReportUpdateRequestDto:
-      description: Revision-checked transition; a stale expectedRevision returns 409.
+      description: "Revision-checked transition; a stale expectedRevision returns\
+        \ 409. Omit assigneeUserId to preserve the current assignee, send null to\
+        \ clear it, or send a UUID to assign that user."
       properties:
         assigneeUserId:
           format: uuid

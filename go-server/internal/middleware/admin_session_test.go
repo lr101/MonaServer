@@ -233,10 +233,17 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 	if err != nil || string(decoded) == "" {
 		t.Fatalf("body was not restored: %q (%v)", decoded, err)
 	}
+	bulkReport := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"report_resolve","reason":"reviewed"}}`))
+	if got := AdminMutationActionForRequest(bulkReport); got != "report_resolve" {
+		t.Fatalf("bulk report body action = %q, want report_resolve", got)
+	}
 
 	report := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/123", strings.NewReader(`{"status":"dismissed","expectedRevision":1}`))
 	if got := AdminMutationActionForRequest(report); got != "reports.review" {
-		t.Fatalf("report body action = %q, want reports.review", got)
+		t.Fatalf("individual report body action = %q, want reports.review", got)
+	}
+	if got := RequiredAdminCapability(http.MethodPatch, "/api/v3/admin/reports/123"); got != "reports.review" {
+		t.Fatalf("individual report capability = %q, want reports.review", got)
 	}
 
 	now := time.Now().UTC()

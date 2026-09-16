@@ -166,7 +166,7 @@ func NewAdminReportServicer(q *db.Queries, reports ...*service.ReportService) *A
 }
 
 func (s *AdminReportsServicer) ListAdminReports(ctx context.Context, cursor string, limit int32, status genserver.AdminReportStatus, search string) (genserver.ImplResponse, error) {
-	if _, err := requireReportAdmin(ctx, "reports.read", ""); err != nil {
+	if _, err := requireReportAdmin(ctx, "reports.read"); err != nil {
 		return reportErrorResponse(ctx, err), nil
 	}
 	if s == nil || s.reports == nil {
@@ -187,7 +187,7 @@ func (s *AdminReportsServicer) ListAdminReports(ctx context.Context, cursor stri
 }
 
 func (s *AdminReportsServicer) GetAdminReport(ctx context.Context, reportID string, _ int64) (genserver.ImplResponse, error) {
-	if _, err := requireReportAdmin(ctx, "reports.read", ""); err != nil {
+	if _, err := requireReportAdmin(ctx, "reports.read"); err != nil {
 		return reportErrorResponse(ctx, err), nil
 	}
 	if s == nil || s.reports == nil {
@@ -204,8 +204,30 @@ func (s *AdminReportsServicer) GetAdminReport(ctx context.Context, reportID stri
 	return genserver.Response(http.StatusOK, s.reportDTO(ctx, detail.Report, detail.Notes)), nil
 }
 
+func (s *AdminReportsServicer) ListAdminReportNotes(ctx context.Context, reportID, cursor string, limit int32) (genserver.ImplResponse, error) {
+	if _, err := requireReportAdmin(ctx, "reports.read"); err != nil {
+		return reportErrorResponse(ctx, err), nil
+	}
+	if s == nil || s.reports == nil {
+		return reportErrorResponse(ctx, service.ErrAdminUnavailable), nil
+	}
+	id, err := uuid.Parse(strings.TrimSpace(reportID))
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	page, err := s.reports.ListNotes(ctx, service.ReportNoteListInput{ReportID: id, Cursor: cursor, Limit: int(limit)})
+	if err != nil {
+		return reportErrorResponse(ctx, err), nil
+	}
+	items := make([]genserver.AdminReportNoteDto, 0, len(page.Items))
+	for i := range page.Items {
+		items = append(items, s.noteDTO(&page.Items[i]))
+	}
+	return genserver.Response(http.StatusOK, genserver.AdminReportNotePageDto{Items: items, NextCursor: page.NextCursor}), nil
+}
+
 func (s *AdminReportsServicer) UpdateAdminReport(ctx context.Context, reportID, csrf string, request genserver.AdminReportUpdateRequestDto) (genserver.ImplResponse, error) {
-	actor, err := requireReportAdmin(ctx, "reports.review", string(request.Status))
+	actor, err := requireReportAdmin(ctx, "reports.review")
 	if err != nil {
 		return reportErrorResponse(ctx, err), nil
 	}
@@ -222,6 +244,7 @@ func (s *AdminReportsServicer) UpdateAdminReport(ctx context.Context, reportID, 
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
 	var assignee *uuid.UUID
+	assigneeSet := request.AssigneeUserIDPresent()
 	if request.AssigneeUserId != nil {
 		value, parseErr := uuid.Parse(strings.TrimSpace(*request.AssigneeUserId))
 		if parseErr != nil {
@@ -231,7 +254,7 @@ func (s *AdminReportsServicer) UpdateAdminReport(ctx context.Context, reportID, 
 	}
 	updated, err := s.reports.Review(ctx, service.ReportReviewInput{
 		ReportID: id, ActorID: actor, ExpectedRevision: request.ExpectedRevision,
-		Status: string(request.Status), AssigneeUserID: assignee, Note: request.Note,
+		Status: string(request.Status), AssigneeUserID: assignee, AssigneeSet: assigneeSet, Note: request.Note,
 	})
 	if err != nil {
 		return reportErrorResponse(ctx, err), nil
@@ -244,7 +267,7 @@ func (s *AdminReportsServicer) UpdateAdminReport(ctx context.Context, reportID, 
 }
 
 func (s *AdminReportsServicer) AddAdminReportNote(ctx context.Context, reportID, csrf string, request genserver.AdminReportNoteRequestDto) (genserver.ImplResponse, error) {
-	actor, err := requireReportAdmin(ctx, "reports.review", "")
+	actor, err := requireReportAdmin(ctx, "reports.review")
 	if err != nil {
 		return reportErrorResponse(ctx, err), nil
 	}
@@ -313,7 +336,7 @@ func (s *AdminReportsServicer) noteDTO(note *db.ReportNote) genserver.AdminRepor
 	return genserver.AdminReportNoteDto{Id: note.ID.String(), ActorUserId: actor, CreatedAt: note.CreatedAt, Text: note.Body}
 }
 
-func requireReportAdmin(ctx context.Context, capability, status string) (uuid.UUID, error) {
+func requireReportAdmin(ctx context.Context, capability string) (uuid.UUID, error) {
 	principal, ok := middleware.AdminPrincipalFromContext(ctx)
 	if !ok || strings.TrimSpace(principal.UserID) == "" || (principal.State != "" && principal.State != "authenticated") {
 		return uuid.Nil, service.ErrAdminUnauthorized
@@ -325,14 +348,8 @@ func requireReportAdmin(ctx context.Context, capability, status string) (uuid.UU
 	if current, present := ctxUserID(ctx); present && current != actor {
 		return uuid.Nil, service.ErrAdminForbidden
 	}
-	required := capability
-	if status == string(genserver.RESOLVED) {
-		required = "reports.resolve"
-	} else if status == string(genserver.DISMISSED) {
-		required = "reports.dismiss"
-	}
 	for _, value := range principal.Capabilities {
-		if value == required {
+		if value == capability {
 			return actor, nil
 		}
 	}

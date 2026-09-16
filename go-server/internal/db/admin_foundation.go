@@ -478,6 +478,9 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
 	if id == uuid.Nil {
 		return nil
 	}
+	if err := q.LockReportTarget(ctx, id); err != nil {
+		return err
+	}
 	user, err := q.g.LockUserSecurityState(ctx, pgUUID(id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -520,6 +523,9 @@ func (q *Queries) HardDeleteUser(ctx context.Context, id uuid.UUID) error {
 	}
 	if id == uuid.Nil {
 		return nil
+	}
+	if err := q.LockReportTarget(ctx, id); err != nil {
+		return err
 	}
 	user, err := q.g.LockUserSecurityState(ctx, pgUUID(id))
 	if errors.Is(err, pgx.ErrNoRows) {

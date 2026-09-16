@@ -1122,7 +1122,6 @@ func (q *Queries) CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventPa
 }
 
 const createReport = `-- name: CreateReport :one
-
 INSERT INTO reports
     (id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
      body, legacy_text, status, assignee_user_id, revision, request_id, created_at, updated_at)
@@ -1145,7 +1144,6 @@ type CreateReportParams struct {
 	RequestID      pgtype.Text `json:"request_id"`
 }
 
-// Reports -------------------------------------------------------------------
 func (q *Queries) CreateReport(ctx context.Context, arg CreateReportParams) (Report, error) {
 	row := q.db.QueryRow(ctx, createReport,
 		arg.ID,
@@ -1942,6 +1940,7 @@ const getReportTargetSnapshot = `-- name: GetReportTargetSnapshot :one
 SELECT id, username, is_deleted
 FROM users
 WHERE id = $1
+FOR UPDATE
 `
 
 type GetReportTargetSnapshotRow struct {
@@ -2007,6 +2006,65 @@ func (q *Queries) IncrementAdminChallengeFailure(ctx context.Context, id pgtype.
 	var failed_attempts int32
 	err := row.Scan(&failed_attempts)
 	return failed_attempts, err
+}
+
+const insertReport = `-- name: InsertReport :one
+INSERT INTO reports
+    (id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+     body, legacy_text, status, assignee_user_id, revision, request_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', NULL, 1, $9, now(), now())
+ON CONFLICT (request_id) WHERE request_id IS NOT NULL DO NOTHING
+RETURNING id, reporter_user_id, target_id, target_kind, target_name, target_deleted,
+          body, legacy_text, status, assignee_user_id, revision, request_id,
+          created_at, updated_at, resolved_at
+`
+
+type InsertReportParams struct {
+	ID             pgtype.UUID `json:"id"`
+	ReporterUserID pgtype.UUID `json:"reporter_user_id"`
+	TargetID       pgtype.UUID `json:"target_id"`
+	TargetKind     pgtype.Text `json:"target_kind"`
+	TargetName     pgtype.Text `json:"target_name"`
+	TargetDeleted  bool        `json:"target_deleted"`
+	Body           string      `json:"body"`
+	LegacyText     pgtype.Text `json:"legacy_text"`
+	RequestID      pgtype.Text `json:"request_id"`
+}
+
+// InsertReport reports whether this transaction won a request-key race. A
+// losing insert returns no row, allowing the caller to replay the committed
+// row without consuming quota or writing another audit event.
+func (q *Queries) InsertReport(ctx context.Context, arg InsertReportParams) (Report, error) {
+	row := q.db.QueryRow(ctx, insertReport,
+		arg.ID,
+		arg.ReporterUserID,
+		arg.TargetID,
+		arg.TargetKind,
+		arg.TargetName,
+		arg.TargetDeleted,
+		arg.Body,
+		arg.LegacyText,
+		arg.RequestID,
+	)
+	var i Report
+	err := row.Scan(
+		&i.ID,
+		&i.ReporterUserID,
+		&i.TargetID,
+		&i.TargetKind,
+		&i.TargetName,
+		&i.TargetDeleted,
+		&i.Body,
+		&i.LegacyText,
+		&i.Status,
+		&i.AssigneeUserID,
+		&i.Revision,
+		&i.RequestID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResolvedAt,
+	)
+	return i, err
 }
 
 const listAdminJobItems = `-- name: ListAdminJobItems :many
@@ -2253,6 +2311,54 @@ type ListReportNotesParams struct {
 
 func (q *Queries) ListReportNotes(ctx context.Context, arg ListReportNotesParams) ([]ReportNote, error) {
 	rows, err := q.db.Query(ctx, listReportNotes, arg.ReportID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReportNote
+	for rows.Next() {
+		var i ReportNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReportID,
+			&i.AuthorUserID,
+			&i.Body,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReportNotesPage = `-- name: ListReportNotesPage :many
+SELECT id, report_id, author_user_id, body, created_at
+FROM report_notes
+WHERE report_id = $1
+  AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz
+       OR (created_at = $2::timestamptz AND id < $3::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListReportNotesPageParams struct {
+	ReportID pgtype.UUID        `json:"report_id"`
+	Column2  pgtype.Timestamptz `json:"column_2"`
+	Column3  pgtype.UUID        `json:"column_3"`
+	Limit    int32              `json:"limit"`
+}
+
+func (q *Queries) ListReportNotesPage(ctx context.Context, arg ListReportNotesPageParams) ([]ReportNote, error) {
+	rows, err := q.db.Query(ctx, listReportNotesPage,
+		arg.ReportID,
+		arg.Column2,
+		arg.Column3,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2579,6 +2685,20 @@ type LockRateLimitWindowParams struct {
 // previous HMAC key rows cannot bypass one another during key rotation.
 func (q *Queries) LockRateLimitWindow(ctx context.Context, arg LockRateLimitWindowParams) error {
 	_, err := q.db.Exec(ctx, lockRateLimitWindow, arg.Column1, arg.Column2)
+	return err
+}
+
+const lockReportTarget = `-- name: LockReportTarget :exec
+
+SELECT pg_advisory_xact_lock(hashtextextended('report-target:' || $1::text, 0))
+`
+
+// Reports -------------------------------------------------------------------
+// Report submissions and account deletion use the same transaction-scoped
+// advisory lock. This keeps the target row and report insert in one ordered
+// critical section even when a hard delete removes the user row.
+func (q *Queries) LockReportTarget(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, lockReportTarget, dollar_1)
 	return err
 }
 
@@ -3084,7 +3204,7 @@ func (q *Queries) UpdateDeliveryAttemptOutcome(ctx context.Context, arg UpdateDe
 const updateReportIfRevision = `-- name: UpdateReportIfRevision :one
 UPDATE reports
 SET status = CASE WHEN $2 = '' THEN status ELSE $2 END,
-    assignee_user_id = COALESCE($3, assignee_user_id),
+    assignee_user_id = CASE WHEN $5::boolean THEN $3 ELSE assignee_user_id END,
     revision = revision + 1,
     updated_at = now(),
     resolved_at = CASE WHEN $2 IN ('resolved', 'dismissed') THEN now()
@@ -3101,6 +3221,7 @@ type UpdateReportIfRevisionParams struct {
 	Column2        interface{} `json:"column_2"`
 	AssigneeUserID pgtype.UUID `json:"assignee_user_id"`
 	Revision       int64       `json:"revision"`
+	AssigneeSet    bool        `json:"assignee_set"`
 }
 
 func (q *Queries) UpdateReportIfRevision(ctx context.Context, arg UpdateReportIfRevisionParams) (Report, error) {
@@ -3109,6 +3230,7 @@ func (q *Queries) UpdateReportIfRevision(ctx context.Context, arg UpdateReportIf
 		arg.Column2,
 		arg.AssigneeUserID,
 		arg.Revision,
+		arg.AssigneeSet,
 	)
 	var i Report
 	err := row.Scan(
