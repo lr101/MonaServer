@@ -45,7 +45,7 @@ func parseAdminAuthCommand(args []string) (adminAuthCommandOptions, error) {
 	flags.SetOutput(io.Discard)
 	username := flags.String("username", "", "existing user account to enroll or recover")
 	permissionText := flags.String("permissions", "", "comma-separated stable admin capabilities")
-	actorText := flags.String("actor-id", "", "auditing actor UUID for break-glass recovery")
+	actorText := flags.String("actor-id", "", "active admin actor UUID for break-glass recovery")
 	if err := flags.Parse(args[1:]); err != nil {
 		return adminAuthCommandOptions{}, err
 	}
@@ -66,7 +66,13 @@ func parseAdminAuthCommand(args []string) (adminAuthCommandOptions, error) {
 		if err != nil {
 			return adminAuthCommandOptions{}, errors.New("--actor-id must be a UUID")
 		}
+		if parsed == uuid.Nil {
+			return adminAuthCommandOptions{}, errors.New("--actor-id must be a non-zero UUID")
+		}
 		actorID = &parsed
+	}
+	if operation == "recover-mfa" && actorID == nil {
+		return adminAuthCommandOptions{}, errors.New("--actor-id is required for recover-mfa")
 	}
 	if operation != "recover-mfa" && actorID != nil {
 		return adminAuthCommandOptions{}, errors.New("--actor-id is only valid with recover-mfa")

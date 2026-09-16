@@ -235,11 +235,51 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 	}
 
 	report := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/123", strings.NewReader(`{"status":"dismissed","expectedRevision":1}`))
-	if got := AdminMutationActionForRequest(report); got != "report_dismiss" {
-		t.Fatalf("report body action = %q, want report_dismiss", got)
+	if got := AdminMutationActionForRequest(report); got != "reports.review" {
+		t.Fatalf("report body action = %q, want reports.review", got)
 	}
 
 	now := time.Now().UTC()
+	for _, test := range []struct {
+		status     string
+		bulkAction string
+	}{
+		{status: "resolved", bulkAction: "report_resolve"},
+		{status: "dismissed", bulkAction: "report_dismiss"},
+	} {
+		request := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/123", strings.NewReader(`{"status":"`+test.status+`","expectedRevision":1}`))
+		if got := AdminMutationActionForRequest(request); got != "reports.review" {
+			t.Fatalf("%s report body action = %q, want reports.review", test.status, got)
+		}
+		principal := AdminPrincipal{
+			Capabilities:    []string{"reports.review"},
+			RecentMFAAt:     &now,
+			RecentMFAAction: "reports.review",
+		}
+		request = request.WithContext(WithAdminPrincipal(request.Context(), principal))
+		recorder := httptest.NewRecorder()
+		AdminRecentMFAGuard(time.Minute)(AdminCapabilityGuard(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))).ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("%s report transition status = %d, want 204", test.status, recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/123", strings.NewReader(`{"status":"`+test.status+`","expectedRevision":1}`))
+		request = request.WithContext(WithAdminPrincipal(request.Context(), AdminPrincipal{
+			Capabilities:    []string{"reports.review"},
+			RecentMFAAt:     &now,
+			RecentMFAAction: test.bulkAction,
+		}))
+		recorder = httptest.NewRecorder()
+		AdminRecentMFAGuard(time.Minute)(AdminCapabilityGuard(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))).ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("%s bulk action proof status = %d, want 403", test.status, recorder.Code)
+		}
+	}
+
 	principal := AdminPrincipal{RecentMFAAt: &now, RecentMFAAction: "mark_compromised"}
 	matched := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"mark_compromised","reason":"incident"}}`))
 	matched = matched.WithContext(WithAdminPrincipal(matched.Context(), principal))

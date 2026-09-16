@@ -22,8 +22,9 @@ step-up state is persisted with its action binding.
 The third review repair keeps consumer CORS behavior while dispatching every
 v2/v3 admin path to the credentialed origin policy before wildcard headers can
 be emitted. Mutating routes now have explicit recent-MFA action families;
-action-union and report-transition bodies are inspected with a bounded reader
-and restored before generated decoding. The pre-auth envelope carries its
+action-union bodies are inspected with a bounded reader and restored before
+generated decoding. Single-report transition bodies remain untouched by the
+action guard. The pre-auth envelope carries its
 issuance timestamp, which is bound by the CSRF HMAC and checked against the
 configured TTL; bootstrap renewals preserve the original absolute deadline.
 `WEB_ADMIN_API` defaults on so a deployment that protects v2 with browser
@@ -42,6 +43,15 @@ remain authoritative. All admin session TTLs and shared quota limits are now
 loaded from configuration and the route guard uses the service's configured
 recent-MFA TTL.
 
+The final review repair keeps single-report PATCH transitions bound to the
+`reports.review` route action, including resolved and dismissed status bodies;
+the `report_resolve` and `report_dismiss` proofs remain reserved for bulk action
+jobs. Break-glass recovery now requires a nonzero actor ID that resolves to a
+live, active admin membership with `security.recovery_resend`; missing,
+unknown, consumer, revoked, disabled, and insufficiently permissioned actors are
+rejected before the target membership can change, and successful audits retain
+the validated actor ID.
+
 The runtime now constructs this service from configuration, mounts the concrete
 admin session controller, applies the browser cookie gate to v2 and v3 admin
 groups, and preserves the existing v2 payload handlers after authentication.
@@ -55,7 +65,9 @@ and preserves membership state.
 `recover-mfa` operations. Enrollment is idempotent and prints a newly created
 TOTP secret only as the deliberate one-time operator handoff; the HTTP API,
 logs, and audit metadata never contain it. Break-glass recovery rotates the
-secret, revokes browser sessions, and records the stable actor and target IDs.
+secret, revokes browser sessions, and records the stable authorized actor and
+target IDs. The `recover-mfa` command requires `--actor-id`; the service checks
+that the ID belongs to an active operator with `security.recovery_resend`.
 
 The OpenAPI source, generated Go API/server artifacts, and generated Flutter
 action enum are changed together; consumer auth, jobs, and database schema are
@@ -112,7 +124,11 @@ also performs an action-bound step-up before exercising the migrated v2 write,
 and a disabled-flag test proves the v2 group stops at the feature gate. The
 concurrent service-level step-up test records one winner for a moving factor
 and rejects the simultaneous replay; the throttle test covers password,
-initial MFA, and step-up exhaustion with recovery after the shared window.
+initial MFA, and step-up exhaustion with recovery after the shared window. The
+final review tests cover both single-report transition statuses through the
+`reports.review` middleware capability and reject bulk proofs, while the
+break-glass service test covers missing, consumer, and insufficient actor IDs,
+no mutation on rejected calls, and successful audit attribution.
 
 ```text
 mise exec -- go vet ./...
@@ -155,6 +171,14 @@ PASS
 mise exec -- go build -o /tmp/monaserver-admin-t05 ./cmd/server
 PASS
 ```
+
+The final review repair was then rechecked with the focused middleware, CLI,
+and service tests, followed by a fresh serial full suite against the same
+disposable PostGIS database. Pinned Go API/server generation produced no diff;
+pinned Dart generation also matched `flutter/api` after the repository
+normalizer. The root Flutter contract fixtures passed after `flutter pub get`,
+and the generated-client suite passed 203 tests. Dart analysis retained only
+the two existing non-fatal generated-client warnings.
 
 ## Local service availability
 

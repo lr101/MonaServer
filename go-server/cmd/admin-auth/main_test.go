@@ -35,7 +35,24 @@ func TestParseCommandRequiresPermissionsForBootstrapAndEnrollment(t *testing.T) 
 			t.Fatalf("%s without permissions unexpectedly succeeded", operation)
 		}
 	}
-	if options, err := parseAdminAuthCommand([]string{"recover-mfa", "--username", "operator"}); err != nil || len(options.permissions) != 0 {
-		t.Fatalf("recover options = %#v, err=%v", options, err)
+	if _, err := parseAdminAuthCommand([]string{"recover-mfa", "--username", "operator"}); err == nil {
+		t.Fatal("recover-mfa without actor unexpectedly succeeded")
+	}
+}
+
+func TestParseCommandRequiresNonNilActorForRecovery(t *testing.T) {
+	options, err := parseAdminAuthCommand([]string{
+		"recover-mfa", "--username", "operator", "--actor-id", "11111111-1111-1111-1111-111111111111",
+	})
+	if err != nil {
+		t.Fatalf("parse recover-mfa: %v", err)
+	}
+	if options.actorID == nil || options.actorID.String() != "11111111-1111-1111-1111-111111111111" {
+		t.Fatalf("recover actor = %#v", options.actorID)
+	}
+	if _, err := parseAdminAuthCommand([]string{
+		"recover-mfa", "--username", "operator", "--actor-id", "00000000-0000-0000-0000-000000000000",
+	}); err == nil {
+		t.Fatal("nil recovery actor unexpectedly succeeded")
 	}
 }

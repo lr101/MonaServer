@@ -261,9 +261,11 @@ func AdminMutationAction(method, path string) string {
 	}
 }
 
-// AdminMutationActionForRequest refines action-union and report-transition
-// routes without consuming their body. The generated controller receives the
-// exact same bytes after this guard has inspected the bounded JSON envelope.
+// AdminMutationActionForRequest refines action-union routes without consuming
+// their body. The generated controller receives the exact same bytes after
+// this guard has inspected the bounded JSON envelope. Single-report
+// transitions stay bound to the reports.review route family; report_resolve
+// and report_dismiss are reserved for bulk action jobs.
 func AdminMutationActionForRequest(r *http.Request) string {
 	if r == nil {
 		return ""
@@ -272,8 +274,7 @@ func AdminMutationActionForRequest(r *http.Request) string {
 	if required == "" || r.Body == nil || r.Body == http.NoBody {
 		return required
 	}
-	if required != "jobs.create" && required != "audience.preview" &&
-		!(required == "reports.review" && r.Method == http.MethodPatch) {
+	if required != "jobs.create" && required != "audience.preview" {
 		return required
 	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, 1<<20+1))
@@ -285,21 +286,12 @@ func AdminMutationActionForRequest(r *http.Request) string {
 		Action struct {
 			Action string `json:"action"`
 		} `json:"action"`
-		Status string `json:"status"`
 	}
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return required
 	}
 	if (required == "jobs.create" || required == "audience.preview") && envelope.Action.Action != "" {
 		return strings.TrimSpace(envelope.Action.Action)
-	}
-	if required == "reports.review" && r.Method == http.MethodPatch {
-		switch strings.TrimSpace(envelope.Status) {
-		case "resolved":
-			return "report_resolve"
-		case "dismissed":
-			return "report_dismiss"
-		}
 	}
 	return required
 }

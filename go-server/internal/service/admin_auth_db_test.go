@@ -250,6 +250,9 @@ func TestAdminSessionExpirySelfTargetAndBreakGlassAudit(t *testing.T) {
 		SessionIdleTTL: time.Minute, SessionAbsoluteTTL: 2 * time.Minute,
 	})
 	admin.SetClock(func() time.Time { return now })
+	if _, err := admin.EnrollAdminOperator(ctx, "breakglass-actor", []string{"security.recovery_resend"}); err != nil {
+		t.Fatalf("enroll break-glass actor: %v", err)
+	}
 	enrollment, err := admin.EnrollAdminOperator(ctx, "breakglass-target", []string{"security.revoke"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
@@ -680,6 +683,80 @@ func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
 	if err != nil || revoked == nil || revoked.RevokedAt == nil || !revoked.Active {
 		t.Fatalf("revoked membership changed: %v %#v", err, revoked)
 	}
+}
+
+func TestBreakGlassRecoveryRequiresAuthorizedStableActor(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	targetID := createTestUser(t, auth, "breakglass-recovery-target")
+	consumerID := createTestUser(t, auth, "breakglass-consumer-actor")
+	unknownID := uuid.New()
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("authorized-actor-quota-key"),
+	})
+	targetEnrollment, err := admin.EnrollAdminOperator(ctx, "breakglass-recovery-target", []string{"users.read"})
+	if err != nil {
+		t.Fatalf("enroll target: %v", err)
+	}
+	if targetEnrollment.Secret == "" {
+		t.Fatal("target enrollment did not return a secret")
+	}
+	targetMembership, err := q.GetAdminMembership(ctx, targetID)
+	if err != nil || targetMembership == nil {
+		t.Fatalf("target membership: %v %#v", err, targetMembership)
+	}
+	originalCiphertext := string(targetMembership.TotpSecretCiphertext)
+
+	for name, candidate := range map[string]*uuid.UUID{
+		"missing":  nil,
+		"unknown":  &unknownID,
+		"consumer": &consumerID,
+	} {
+		if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "breakglass-recovery-target", candidate); err != ErrAdminForbidden {
+			t.Fatalf("%s actor err=%v, want %v", name, err, ErrAdminForbidden)
+		}
+		current, err := q.GetAdminMembership(ctx, targetID)
+		if err != nil || current == nil || string(current.TotpSecretCiphertext) != originalCiphertext {
+			t.Fatalf("%s actor mutated target membership: %v %#v", name, err, current)
+		}
+	}
+
+	if _, err := admin.EnrollAdminOperator(ctx, "breakglass-consumer-actor", []string{"users.read"}); err != nil {
+		t.Fatalf("enroll insufficient actor: %v", err)
+	}
+	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "breakglass-recovery-target", &consumerID); err != ErrAdminForbidden {
+		t.Fatalf("insufficient actor err=%v, want %v", err, ErrAdminForbidden)
+	}
+	current, err := q.GetAdminMembership(ctx, targetID)
+	if err != nil || current == nil || string(current.TotpSecretCiphertext) != originalCiphertext {
+		t.Fatalf("insufficient actor mutated target membership: %v %#v", err, current)
+	}
+
+	if _, err := admin.EnrollAdminOperator(ctx, "breakglass-consumer-actor", []string{"security.recovery_resend"}); err != nil {
+		t.Fatalf("upgrade actor permission: %v", err)
+	}
+	recovered, err := admin.BreakGlassRecoverAdminMFA(ctx, "breakglass-recovery-target", &consumerID)
+	if err != nil {
+		t.Fatalf("authorized recovery: %v", err)
+	}
+	if recovered == nil || recovered.Secret == "" {
+		t.Fatal("authorized recovery did not return a secret")
+	}
+	audits, err := q.ListAuditEvents(ctx, nil, 100)
+	if err != nil {
+		t.Fatalf("list audit events: %v", err)
+	}
+	for _, audit := range audits {
+		if audit.Action != "admin_break_glass_mfa_recovery" {
+			continue
+		}
+		if audit.ActorID == nil || *audit.ActorID != consumerID || audit.TargetAccountID == nil || *audit.TargetAccountID != targetID {
+			t.Fatalf("recovery audit attribution = %#v", audit)
+		}
+		return
+	}
+	t.Fatal("authorized recovery audit was not recorded")
 }
 
 func ptrTime(value time.Time) *time.Time { return &value }

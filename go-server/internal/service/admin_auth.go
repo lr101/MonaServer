@@ -1329,13 +1329,18 @@ func (a *AdminAuth) EnrollAdminOperator(ctx context.Context, username string, pe
 }
 
 // BreakGlassRecoverAdminMFA is intentionally a service operation for a local
-// operator command. It rotates the encrypted secret, preserves stable
-// membership permissions, revokes active browser sessions, and appends audit
-// metadata. No public endpoint invokes this method.
+// operator command. It requires a stable active admin actor with the
+// security.recovery_resend capability, then rotates the encrypted secret,
+// preserves stable membership permissions, revokes active browser sessions,
+// and appends audit metadata. No public endpoint invokes this method.
 func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username string, actorID *uuid.UUID) (*AdminEnrollmentResult, error) {
 	if a == nil || a.q == nil {
 		return nil, ErrAdminUnavailable
 	}
+	if actorID == nil || *actorID == uuid.Nil {
+		return nil, ErrAdminForbidden
+	}
+	actor := *actorID
 	user, err := a.q.GetUserByUsername(ctx, strings.TrimSpace(username))
 	if err != nil {
 		return nil, ErrAdminUnavailable
@@ -1345,6 +1350,21 @@ func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username stri
 	}
 	var result *AdminEnrollmentResult
 	err = a.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		actorState, err := tx.LockUserSecurity(ctx, actor)
+		if err != nil {
+			return err
+		}
+		if actorState == nil || actorState.IsDeleted || actorState.SecurityState != db.SecurityStateNormal || actorState.PasswordDisabled || actorState.PasswordResetRequired {
+			return ErrAdminForbidden
+		}
+		actorMembership, err := tx.GetAdminMembership(ctx, actor)
+		if err != nil {
+			return err
+		}
+		if actorMembership == nil || !actorMembership.Active || actorMembership.RevokedAt != nil ||
+			!containsString(CapabilitiesForPermissions(actorMembership.Permissions), "security.recovery_resend") {
+			return ErrAdminForbidden
+		}
 		state, err := tx.LockUserSecurity(ctx, user.ID)
 		if err != nil {
 			return err
@@ -1379,7 +1399,7 @@ func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username stri
 		if err := tx.RevokeAdminSessionsForUser(ctx, user.ID); err != nil {
 			return err
 		}
-		if err := createAdminAuditWithActor(ctx, tx, actorID, user.ID, "admin_break_glass_mfa_recovery", nil, strPtr("secret_rotated"), nil); err != nil {
+		if err := createAdminAuditWithActor(ctx, tx, &actor, user.ID, "admin_break_glass_mfa_recovery", nil, strPtr("secret_rotated"), nil); err != nil {
 			return err
 		}
 		result = &AdminEnrollmentResult{UserID: user.ID, Secret: secretText}
