@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -134,10 +135,10 @@ func TestAdminThrottleAdmissionPrecedesPasswordAndMFAVerification(t *testing.T) 
 	now := time.Now().UTC().Truncate(time.Second)
 	admin := NewAdminAuth(q, AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("preverify-throttle-key"),
-		ChallengeTTL: time.Hour, LoginFailureLimit: 1, LoginIPLimit: 100, LoginGlobalLimit: 1000,
+		ChallengeTTL: time.Hour, PreAuthTTL: time.Hour, LoginFailureLimit: 1, LoginIPLimit: 100, LoginGlobalLimit: 1000,
 	})
 	admin.SetClock(func() time.Time { return now })
-	enrollment, err := admin.EnrollAdminOperator(ctx, "preverify-throttle-admin", []string{"users.read"})
+	enrollment, err := admin.EnrollAdminOperator(ctx, "preverify-throttle-admin", []string{"users.read", "jobs.create"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
@@ -177,8 +178,26 @@ func TestAdminThrottleAdmissionPrecedesPasswordAndMFAVerification(t *testing.T) 
 
 	now = now.Add(16 * time.Minute)
 	code, _ = GenerateTOTP(secret, now)
-	if _, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, code); err != nil {
+	session, err := admin.CompleteAdminSessionMFA(loginCtx, boot.CSRFToken, login.ChallengeID, code)
+	if err != nil {
 		t.Fatalf("correct mfa after window: %v", err)
+	}
+
+	// Step-up uses the same pre-verification gate as password and initial MFA:
+	// once a failed proof consumes the account bucket, a correct proof remains
+	// rejected until the shared window rolls over.
+	authCtx := middleware.WithAdminSessionCookie(base, session.Cookie)
+	if _, err := admin.ReauthenticateAdminSession(authCtx, session.CSRFToken, "jobs.create", "000000"); err != ErrAdminUnauthorized {
+		t.Fatalf("first bad step-up err=%v, want unauthorized", err)
+	}
+	code, _ = GenerateTOTP(secret, now)
+	if _, err := admin.ReauthenticateAdminSession(authCtx, session.CSRFToken, "jobs.create", code); err != ErrAdminRateLimited {
+		t.Fatalf("correct step-up in exhausted window err=%v, want rate limited", err)
+	}
+	now = now.Add(16 * time.Minute)
+	code, _ = GenerateTOTP(secret, now)
+	if _, err := admin.ReauthenticateAdminSession(authCtx, session.CSRFToken, "jobs.create", code); err != nil {
+		t.Fatalf("correct step-up after window: %v", err)
 	}
 	_ = userID
 }
@@ -379,6 +398,147 @@ func TestAdminMFAReplayScopeIsSharedAcrossSessions(t *testing.T) {
 	}
 	if _, accepted, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, counter+1); err != nil || !accepted {
 		t.Fatalf("next counter accepted=%v err=%v", accepted, err)
+	}
+}
+
+func TestAdminMFAReplayScopeAllowsCounterOnceConcurrently(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	userID := createTestUser(t, auth, "concurrent-replay-admin")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("concurrent-replay-quota-key"),
+	})
+	if _, err := admin.EnrollAdminOperator(ctx, "concurrent-replay-admin", []string{"users.read"}); err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	membership, err := q.GetAdminMembership(ctx, userID)
+	if err != nil || membership == nil {
+		t.Fatalf("membership: %v %#v", err, membership)
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	accepted := make(chan bool, attempts)
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, ok, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, 7_000_000)
+			accepted <- ok
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(accepted)
+	close(errs)
+	acceptedCount := 0
+	for ok := range accepted {
+		if ok {
+			acceptedCount++
+		}
+	}
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent replay update: %v", err)
+		}
+	}
+	if acceptedCount != 1 {
+		t.Fatalf("concurrent replay accepted=%d, want 1", acceptedCount)
+	}
+
+	// A second wave with the same moving factor models independent browser
+	// sessions replaying one TOTP code at the same instant. Exactly one update
+	// can win the conditional ON CONFLICT update.
+	start = make(chan struct{})
+	accepted = make(chan bool, attempts)
+	errs = make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, ok, err := q.AdvanceAdminMFAReplayScope(ctx, membership.ID, userID, 7_000_000)
+			accepted <- ok
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(accepted)
+	close(errs)
+	acceptedCount = 0
+	for ok := range accepted {
+		if ok {
+			acceptedCount++
+		}
+	}
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent replay rejection: %v", err)
+		}
+	}
+	if acceptedCount != 0 {
+		t.Fatalf("concurrent replay accepted=%d, want 0", acceptedCount)
+	}
+}
+
+func TestAdminPreAuthEnvelopeExpiresAtOriginalDeadline(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("preauth-expiry-quota-key"),
+		PreAuthTTL: 5 * time.Minute,
+	})
+	admin.SetClock(func() time.Time { return now })
+
+	firstRecorder := httptest.NewRecorder()
+	base := middleware.WithAdminClientIP(ctx, "192.0.2.50")
+	firstCtx := middleware.WithAdminResponseWriter(base, firstRecorder)
+	first, err := admin.BootstrapAdminSession(firstCtx)
+	if err != nil {
+		t.Fatalf("first bootstrap: %v", err)
+	}
+	firstCookies := firstRecorder.Result().Cookies()
+	if len(firstCookies) != 1 {
+		t.Fatalf("first cookie count = %d", len(firstCookies))
+	}
+	preAuth := firstCookies[0].Value
+	expiresAt := first.ExpiresAt
+
+	now = now.Add(2 * time.Minute)
+	secondRecorder := httptest.NewRecorder()
+	secondCtx := middleware.WithAdminResponseWriter(middleware.WithAdminSessionCookie(base, preAuth), secondRecorder)
+	second, err := admin.BootstrapAdminSession(secondCtx)
+	if err != nil {
+		t.Fatalf("renewal bootstrap: %v", err)
+	}
+	if second.ExpiresAt != expiresAt {
+		t.Fatalf("renewal moved pre-auth deadline from %v to %v", expiresAt, second.ExpiresAt)
+	}
+	secondCookies := secondRecorder.Result().Cookies()
+	if len(secondCookies) != 1 || secondCookies[0].Value != preAuth || !secondCookies[0].Expires.Equal(expiresAt) {
+		t.Fatalf("renewed pre-auth cookie = %#v, want original value/deadline", secondCookies)
+	}
+
+	now = expiresAt.Add(time.Second)
+	thirdRecorder := httptest.NewRecorder()
+	thirdCtx := middleware.WithAdminResponseWriter(middleware.WithAdminSessionCookie(base, preAuth), thirdRecorder)
+	third, err := admin.BootstrapAdminSession(thirdCtx)
+	if err != nil {
+		t.Fatalf("expired bootstrap: %v", err)
+	}
+	thirdCookies := thirdRecorder.Result().Cookies()
+	if len(thirdCookies) != 1 || thirdCookies[0].Value == preAuth || !third.ExpiresAt.After(now) {
+		t.Fatalf("expired pre-auth was reused: result=%#v cookies=%#v", third, thirdCookies)
+	}
+	if _, err := admin.AdminSessionLogin(middleware.WithAdminSessionCookie(base, preAuth), second.CSRFToken, "nobody", "password"); err != ErrAdminUnauthorized {
+		t.Fatalf("expired pre-auth login err=%v, want %v", err, ErrAdminUnauthorized)
 	}
 }
 

@@ -161,12 +161,11 @@ func main() {
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		AllowCredentials: false,
-	}))
+	// Consumer CORS remains permissive, while admin paths are dispatched to
+	// the credentialed origin-bound policy before the global handler can emit
+	// wildcard headers. The admin dispatch is the passthrough boundary; the
+	// consumer handler retains its existing standalone preflight behavior.
+	r.Use(globalCORS(cfg.AdminOrigin))
 
 	// OpenAPI spec + Swagger UI.
 	r.Get("/public/api-docs", serveOpenAPISpec)
@@ -287,6 +286,37 @@ func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool)
 			r.Method(route.Method, route.Pattern, route.HandlerFunc)
 		}
 	}
+}
+
+// globalCORS keeps the process-wide consumer policy from answering admin
+// preflights with Access-Control-Allow-Origin: *. Admin cookies are only
+// usable from the configured browser origin, so both admin preflights and
+// actual requests pass through the same credentialed policy used by each
+// admin route group.
+func globalCORS(adminOrigin string) func(http.Handler) http.Handler {
+	consumer := cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: false,
+	})
+	admin := middleware.AdminCORS(adminOrigin)
+	return func(next http.Handler) http.Handler {
+		consumerHandler := consumer(next)
+		adminHandler := admin(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isAdminRequestPath(r.URL.Path) {
+				adminHandler.ServeHTTP(w, r)
+				return
+			}
+			consumerHandler.ServeHTTP(w, r)
+		})
+	}
+}
+
+func isAdminRequestPath(path string) bool {
+	return path == "/api/v2/admin" || strings.HasPrefix(path, "/api/v2/admin/") ||
+		path == "/api/v3/admin" || strings.HasPrefix(path, "/api/v3/admin/")
 }
 
 // registerAdminV2Routes retires the legacy username/JWT admin boundary. The

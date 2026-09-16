@@ -19,6 +19,16 @@ dimension is checked atomically before password, initial MFA, and step-up
 verification so correct credentials remain rejected during exhaustion. Recent
 step-up state is persisted with its action binding.
 
+The third review repair keeps consumer CORS behavior while dispatching every
+v2/v3 admin path to the credentialed origin policy before wildcard headers can
+be emitted. Mutating routes now have explicit recent-MFA action families;
+action-union and report-transition bodies are inspected with a bounded reader
+and restored before generated decoding. The pre-auth envelope carries its
+issuance timestamp, which is bound by the CSRF HMAC and checked against the
+configured TTL; bootstrap renewals preserve the original absolute deadline.
+`WEB_ADMIN_API` defaults on so a deployment that protects v2 with browser
+sessions can still bootstrap/login after upgrade.
+
 The runtime now constructs this service from configuration, mounts the concrete
 admin session controller, applies the browser cookie gate to v2 and v3 admin
 groups, and preserves the existing v2 payload handlers after authentication.
@@ -53,16 +63,17 @@ intentionally omitted here.
 ```text
 set -a; source /root/.t3/worktrees/MonaServer/t3code-76e6aaef/.superpowers/sdd/web-admin-and-email-login/.env.test.T03; set +a
 TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./...
-ok  github.com/lrprojects/monaserver/cmd/admin-auth          0.008s
-ok  github.com/lrprojects/monaserver/cmd/server               6.076s
-ok  github.com/lrprojects/monaserver/internal/db              5.379s
-ok  github.com/lrprojects/monaserver/internal/handler        13.738s
-ok  github.com/lrprojects/monaserver/internal/middleware      0.003s
-ok  github.com/lrprojects/monaserver/internal/service        21.503s
-ok  github.com/lrprojects/monaserver/internal/image             0.095s
-ok  github.com/lrprojects/monaserver/internal/jobs              0.073s
-ok  github.com/lrprojects/monaserver/internal/password          0.217s
-ok  github.com/lrprojects/monaserver/internal/token              0.002s
+ok  github.com/lrprojects/monaserver/cmd/admin-auth          0.009s
+ok  github.com/lrprojects/monaserver/cmd/server               5.632s
+ok  github.com/lrprojects/monaserver/internal/config           0.003s
+ok  github.com/lrprojects/monaserver/internal/db              5.542s
+ok  github.com/lrprojects/monaserver/internal/handler        11.608s
+ok  github.com/lrprojects/monaserver/internal/image             0.097s
+ok  github.com/lrprojects/monaserver/internal/jobs              0.072s
+ok  github.com/lrprojects/monaserver/internal/middleware      0.004s
+ok  github.com/lrprojects/monaserver/internal/password          0.224s
+ok  github.com/lrprojects/monaserver/internal/service        21.707s
+ok  github.com/lrprojects/monaserver/internal/token              0.003s
 ?    github.com/lrprojects/monaserver/internal/apperrors         [no test files]
 ?    github.com/lrprojects/monaserver/internal/gen/api           [no test files]
 ?    github.com/lrprojects/monaserver/internal/gen/db            [no test files]
@@ -78,7 +89,13 @@ membership/user replay across sessions, IP/account/global throttling, consumer
 counter isolation, encrypted idempotent enrollment, expiry, demotion,
 compromise, self-target revocation/job pause, and active-membership-only
 break-glass audit behavior. The real router test covers browser bootstrap/login,
-Bearer denial, capability 403, v2 cookie-gated handling, and mutation CSRF.
+Bearer denial, capability 403, v2 cookie-gated handling, mutation CSRF, and an
+OPTIONS preflight through the production global CORS wrapper, including exact
+origin/credential headers and wildcard rejection. Middleware tests cover
+unmapped-action rejection, body-action binding and body restoration. The
+concurrent replay test records one winner for a moving factor and rejects all
+later replays; the throttle test covers password, initial MFA, and step-up
+exhaustion with recovery after the shared window.
 
 ```text
 mise exec -- go vet ./...

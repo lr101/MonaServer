@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestLoadReadsRustfsObjectStorageVariables(t *testing.T) {
 	t.Setenv("RUSTFS_ENDPOINT", "rustfs.internal:9000")
@@ -29,5 +32,27 @@ func TestLoadReadsV3FeatureFlags(t *testing.T) {
 	}
 	if !cfg.PublicEmailLogin || !cfg.WebAdminAPI {
 		t.Fatalf("v3 feature flags were not loaded: %+v", cfg)
+	}
+}
+
+func TestLoadEnablesAdminSessionRoutesByDefault(t *testing.T) {
+	previous, present := os.LookupEnv("WEB_ADMIN_API")
+	if err := os.Unsetenv("WEB_ADMIN_API"); err != nil {
+		t.Fatalf("unset WEB_ADMIN_API: %v", err)
+	}
+	t.Cleanup(func() {
+		if present {
+			_ = os.Setenv("WEB_ADMIN_API", previous)
+		} else {
+			_ = os.Unsetenv("WEB_ADMIN_API")
+		}
+	})
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.WebAdminAPI {
+		t.Fatal("WEB_ADMIN_API default disabled the browser session bootstrap")
 	}
 }

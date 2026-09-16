@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -212,7 +215,7 @@ func AdminRecentMFAGuard(ttl time.Duration) func(http.Handler) http.Handler {
 				writeAdminError(w, http.StatusForbidden, "recent_mfa_required", "recent mfa is required")
 				return
 			}
-			requiredAction := AdminMutationAction(r.Method, r.URL.Path)
+			requiredAction := AdminMutationActionForRequest(r)
 			if !RecentMFAActionMatches(principal.RecentMFAAction, requiredAction) {
 				writeAdminError(w, http.StatusForbidden, "recent_mfa_required", "recent mfa is bound to another action")
 				return
@@ -228,9 +231,9 @@ func RecentMFAAtValid(at *time.Time, now time.Time, ttl time.Duration) bool {
 	return at != nil && ttl > 0 && !at.After(now) && now.Sub(*at) < ttl
 }
 
-// AdminMutationAction names the action family represented by a route. Empty
-// means that the body carries the action union and the route-level guard uses
-// the fresh session proof without guessing at its value.
+// AdminMutationAction names the action family represented by a route. Every
+// mutating admin route has an explicit family; body-bearing action unions are
+// refined by AdminMutationActionForRequest before the guard runs.
 func AdminMutationAction(method, path string) string {
 	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
 		return ""
@@ -242,18 +245,69 @@ func AdminMutationAction(method, path string) string {
 	case path == "/api/v2/admin/notification":
 		return "push"
 	case path == "/api/v3/admin/messages/test":
-		return "push"
+		return "messages.test"
 	case path == "/api/v3/admin/audiences/preview":
-		return ""
+		return "audience.preview"
+	case path == "/api/v3/admin/jobs":
+		return "jobs.create"
+	case strings.HasPrefix(path, "/api/v3/admin/jobs/") && (strings.HasSuffix(path, "/retry") || strings.HasSuffix(path, "/cancel")):
+		return "jobs.control"
 	case strings.HasPrefix(path, "/api/v3/admin/reports/"):
-		return ""
+		return "reports.review"
+	case strings.HasPrefix(path, "/api/v3/admin/") || strings.HasPrefix(path, "/api/v2/admin/"):
+		return "admin.mutation"
 	default:
 		return ""
 	}
 }
 
+// AdminMutationActionForRequest refines action-union and report-transition
+// routes without consuming their body. The generated controller receives the
+// exact same bytes after this guard has inspected the bounded JSON envelope.
+func AdminMutationActionForRequest(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	required := AdminMutationAction(r.Method, r.URL.Path)
+	if required == "" || r.Body == nil || r.Body == http.NoBody {
+		return required
+	}
+	if required != "jobs.create" && required != "audience.preview" &&
+		!(required == "reports.review" && r.Method == http.MethodPatch) {
+		return required
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, 1<<20+1))
+	r.Body = io.NopCloser(bytes.NewReader(data))
+	if err != nil || len(data) > 1<<20 {
+		return required
+	}
+	var envelope struct {
+		Action struct {
+			Action string `json:"action"`
+		} `json:"action"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return required
+	}
+	if (required == "jobs.create" || required == "audience.preview") && envelope.Action.Action != "" {
+		return strings.TrimSpace(envelope.Action.Action)
+	}
+	if required == "reports.review" && r.Method == http.MethodPatch {
+		switch strings.TrimSpace(envelope.Status) {
+		case "resolved":
+			return "report_resolve"
+		case "dismissed":
+			return "report_dismiss"
+		}
+	}
+	return required
+}
+
 func RecentMFAActionMatches(stored, required string) bool {
-	return strings.TrimSpace(stored) == "" || required == "" || stored == required
+	stored = strings.TrimSpace(stored)
+	required = strings.TrimSpace(required)
+	return required != "" && (stored == "" || stored == required)
 }
 
 // AdminCapabilityGuard applies the stable capability matrix to the known

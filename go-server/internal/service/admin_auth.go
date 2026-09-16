@@ -273,7 +273,37 @@ func adminClientIP(ctx context.Context) string {
 }
 
 func validPreAuthCookie(cookie string) bool {
-	return strings.HasPrefix(cookie, "p.") && len(cookie) > 34 && len(cookie) < 256
+	_, _, ok := preAuthCookieParts(cookie)
+	return ok
+}
+
+func preAuthCookieParts(cookie string) ([]byte, time.Time, bool) {
+	parts := strings.Split(cookie, ".")
+	if len(parts) != 3 || parts[0] != "p" || len(cookie) > 256 {
+		return nil, time.Time{}, false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || len(raw) != 32 {
+		return nil, time.Time{}, false
+	}
+	nanos, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return nil, time.Time{}, false
+	}
+	return raw, time.Unix(0, nanos).UTC(), true
+}
+
+func preAuthCookieValue(raw []byte, issuedAt time.Time) string {
+	return "p." + base64.RawURLEncoding.EncodeToString(raw) + "." + strconv.FormatInt(issuedAt.UnixNano(), 10)
+}
+
+func (a *AdminAuth) validPreAuthEnvelope(cookie string) bool {
+	_, issuedAt, ok := preAuthCookieParts(cookie)
+	if !ok {
+		return false
+	}
+	now := a.currentTime()
+	return !issuedAt.After(now) && now.Sub(issuedAt) < a.cfg.PreAuthTTL
 }
 
 func authenticatedCookieParts(cookie string) (sessionSecret, csrf string, ok bool) {
@@ -464,10 +494,12 @@ func (a *AdminAuth) BootstrapAdminSession(ctx context.Context) (*AdminBootstrapR
 	}
 	now := a.currentTime()
 	cookie := adminCookie(ctx)
-	if validPreAuthCookie(cookie) {
+	if a.validPreAuthEnvelope(cookie) {
+		_, issuedAt, _ := preAuthCookieParts(cookie)
 		csrf, _ := a.preAuthCSRF(cookie)
-		result := &AdminBootstrapResult{CSRFToken: csrf, SessionState: "pre_authentication", ExpiresAt: now.Add(a.cfg.PreAuthTTL)}
-		writeAdminCookie(ctx, NewAdminSessionCookie(cookie, now, a.cfg.PreAuthTTL))
+		expiresAt := issuedAt.Add(a.cfg.PreAuthTTL)
+		result := &AdminBootstrapResult{CSRFToken: csrf, SessionState: "pre_authentication", ExpiresAt: expiresAt}
+		writeAdminCookie(ctx, NewAdminSessionCookie(cookie, now, expiresAt.Sub(now)))
 		return result, nil
 	}
 	// A valid authenticated cookie is restored rather than downgraded by a
@@ -486,7 +518,7 @@ func (a *AdminAuth) BootstrapAdminSession(ctx context.Context) (*AdminBootstrapR
 	if err != nil {
 		return nil, ErrAdminUnavailable
 	}
-	value := "p." + base64.RawURLEncoding.EncodeToString(raw)
+	value := preAuthCookieValue(raw, now)
 	csrf := csrfForPreAuth(value, a.enrollmentKey())
 	writeAdminCookie(ctx, NewAdminSessionCookie(value, now, a.cfg.PreAuthTTL))
 	return &AdminBootstrapResult{CSRFToken: csrf, SessionState: "pre_authentication", ExpiresAt: now.Add(a.cfg.PreAuthTTL)}, nil
@@ -496,6 +528,9 @@ func (a *AdminAuth) BootstrapAdminSession(ctx context.Context) (*AdminBootstrapR
 // hash, so GET restoration rotates to a fresh random token rather than trying
 // to recover the original value.
 func (a *AdminAuth) validatePreAuthCSRF(cookie, csrf string) bool {
+	if !a.validPreAuthEnvelope(cookie) {
+		return false
+	}
 	expected, ok := a.preAuthCSRF(cookie)
 	return ok && hmac.Equal([]byte(expected), []byte(csrf))
 }
@@ -503,6 +538,9 @@ func (a *AdminAuth) validatePreAuthCSRF(cookie, csrf string) bool {
 func (a *AdminAuth) validateCSRF(ctx context.Context, csrf string) (*middleware.AdminPrincipal, error) {
 	cookie := adminCookie(ctx)
 	if validPreAuthCookie(cookie) {
+		if !a.validPreAuthEnvelope(cookie) {
+			return nil, ErrAdminUnauthorized
+		}
 		if !a.validatePreAuthCSRF(cookie, csrf) {
 			return nil, ErrAdminInvalidCSRF
 		}
@@ -526,7 +564,7 @@ func (a *AdminAuth) AdminSessionLogin(ctx context.Context, csrf, username, plain
 		return nil, ErrAdminUnavailable
 	}
 	cookie := adminCookie(ctx)
-	if !validPreAuthCookie(cookie) {
+	if !a.validPreAuthEnvelope(cookie) {
 		return nil, ErrAdminUnauthorized
 	}
 	if !a.validatePreAuthCSRF(cookie, csrf) {
@@ -825,6 +863,12 @@ func actionCapability(action string) string {
 		return "campaign.push"
 	case "audience.preview":
 		return "audience.preview"
+	case "jobs.create", "jobs.control", "messages.test", "reports.review":
+		// These route-family actions are intentionally capability-shaped. The
+		// generated request type is a string alias at runtime, so a step-up can
+		// bind to an operation that has no action-union payload (for example a
+		// retry, report note, or test message).
+		return action
 	default:
 		return ""
 	}
@@ -844,7 +888,7 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 		return nil, ErrAdminUnavailable
 	}
 	cookie := adminCookie(ctx)
-	if !validPreAuthCookie(cookie) {
+	if !a.validPreAuthEnvelope(cookie) {
 		return nil, ErrAdminUnauthorized
 	}
 	if !a.validatePreAuthCSRF(cookie, csrf) {
@@ -1018,6 +1062,9 @@ func (a *AdminAuth) LogoutAdminSession(ctx context.Context, csrf string) error {
 	}
 	cookie := adminCookie(ctx)
 	if validPreAuthCookie(cookie) {
+		if !a.validPreAuthEnvelope(cookie) {
+			return ErrAdminUnauthorized
+		}
 		if !a.validatePreAuthCSRF(cookie, csrf) {
 			return ErrAdminInvalidCSRF
 		}

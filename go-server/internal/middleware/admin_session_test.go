@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,5 +178,67 @@ func TestAdminCSRFAndRecentMFAGuardsProtectMutations(t *testing.T) {
 	AdminCSRFGuard(AdminRecentMFAGuard(time.Minute)(next)).ServeHTTP(recorder, valid)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("valid mutation status = %d, want 204", recorder.Code)
+	}
+}
+
+func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
+	paths := []struct {
+		method string
+		path   string
+		want   string
+	}{
+		{http.MethodPost, "/api/v3/admin/audiences/preview", "audience.preview"},
+		{http.MethodPost, "/api/v3/admin/jobs", "jobs.create"},
+		{http.MethodPost, "/api/v3/admin/jobs/123/retry", "jobs.control"},
+		{http.MethodPost, "/api/v3/admin/jobs/123/cancel", "jobs.control"},
+		{http.MethodPost, "/api/v3/admin/messages/test", "messages.test"},
+		{http.MethodPatch, "/api/v3/admin/reports/123", "reports.review"},
+		{http.MethodPost, "/api/v3/admin/reports/123/notes", "reports.review"},
+		{http.MethodPost, "/api/v2/admin/mail", "email"},
+		{http.MethodPost, "/api/v2/admin/notification", "push"},
+	}
+	for _, test := range paths {
+		if got := AdminMutationAction(test.method, test.path); got != test.want {
+			t.Fatalf("AdminMutationAction(%s, %s) = %q, want %q", test.method, test.path, got, test.want)
+		}
+	}
+	if RecentMFAActionMatches("email", "") {
+		t.Fatal("stored action was allowed to match an unmapped mutation")
+	}
+
+	job := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"mark_compromised","reason":"incident"}}`))
+	if got := AdminMutationActionForRequest(job); got != "mark_compromised" {
+		t.Fatalf("body action = %q, want mark_compromised", got)
+	}
+	decoded, err := io.ReadAll(job.Body)
+	if err != nil || string(decoded) == "" {
+		t.Fatalf("body was not restored: %q (%v)", decoded, err)
+	}
+
+	report := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/reports/123", strings.NewReader(`{"status":"dismissed","expectedRevision":1}`))
+	if got := AdminMutationActionForRequest(report); got != "report_dismiss" {
+		t.Fatalf("report body action = %q, want report_dismiss", got)
+	}
+
+	now := time.Now().UTC()
+	principal := AdminPrincipal{RecentMFAAt: &now, RecentMFAAction: "mark_compromised"}
+	matched := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"mark_compromised","reason":"incident"}}`))
+	matched = matched.WithContext(WithAdminPrincipal(matched.Context(), principal))
+	matchedRecorder := httptest.NewRecorder()
+	AdminRecentMFAGuard(time.Minute)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(matchedRecorder, matched)
+	if matchedRecorder.Code != http.StatusNoContent {
+		t.Fatalf("body-bound matching action status = %d, want 204", matchedRecorder.Code)
+	}
+
+	wrong := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", strings.NewReader(`{"action":{"action":"email","body":"hello","subject":"notice"}}`))
+	wrong = wrong.WithContext(WithAdminPrincipal(wrong.Context(), principal))
+	wrongRecorder := httptest.NewRecorder()
+	AdminRecentMFAGuard(time.Minute)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(wrongRecorder, wrong)
+	if wrongRecorder.Code != http.StatusForbidden {
+		t.Fatalf("body-bound mismatching action status = %d, want 403", wrongRecorder.Code)
 	}
 }

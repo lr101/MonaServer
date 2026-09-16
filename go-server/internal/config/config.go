@@ -86,7 +86,11 @@ func Load() (*Config, error) {
 	v.SetDefault("TOKEN_REFRESH_EXPIRY", 365*24*time.Hour)
 	v.SetDefault("APP_MAX_LOGIN_ATTEMPTS", 10)
 	v.SetDefault("PUBLIC_EMAIL_LOGIN", false)
-	v.SetDefault("WEB_ADMIN_API", false)
+	// Browser sessions are the authentication boundary for the v2 admin
+	// routes as well as v3. Keep the session bootstrap/login endpoints
+	// available after an upgrade unless an operator explicitly disables the
+	// feature; missing key material still fails closed as unavailable.
+	v.SetDefault("WEB_ADMIN_API", true)
 	v.SetDefault("RUSTFS_BUCKET", "monaserver")
 	v.SetDefault("RUSTFS_USE_SSL", false)
 	v.SetDefault("RUSTFS_URL_EXPIRY", 60*time.Minute)

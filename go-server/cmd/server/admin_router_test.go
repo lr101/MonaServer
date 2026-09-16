@@ -63,6 +63,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	cfg := &config.Config{WebAdminAPI: true, AdminOrigin: "https://admin.example"}
 	tok := token.NewHelper("consumer-router-secret", time.Minute)
 	r := chi.NewRouter()
+	r.Use(globalCORS(cfg.AdminOrigin))
 	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin, cfg.AdminOrigin)
 	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin)
 
@@ -72,6 +73,26 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		req.RemoteAddr = "192.0.2.40:1234"
 		req.Header.Set("Origin", origin)
 		return req
+	}
+
+	preflightReq := newRequest(http.MethodOptions, "/api/v3/admin/session/bootstrap", "")
+	preflightReq.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	preflightReq.Header.Set("Access-Control-Request-Headers", "X-CSRF-Token")
+	preflight := httptest.NewRecorder()
+	r.ServeHTTP(preflight, preflightReq)
+	if preflight.Code != http.StatusNoContent || preflight.Header().Get("Access-Control-Allow-Origin") != origin || preflight.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		t.Fatalf("admin preflight status/headers = %d %#v", preflight.Code, preflight.Header())
+	}
+	if strings.Contains(preflight.Header().Get("Access-Control-Allow-Origin"), "*") {
+		t.Fatalf("admin preflight emitted wildcard origin: %#v", preflight.Header())
+	}
+	deniedPreflightReq := newRequest(http.MethodOptions, "/api/v3/admin/session/bootstrap", "")
+	deniedPreflightReq.Header.Set("Origin", "https://evil.example")
+	deniedPreflightReq.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	deniedPreflight := httptest.NewRecorder()
+	r.ServeHTTP(deniedPreflight, deniedPreflightReq)
+	if deniedPreflight.Code != http.StatusForbidden || deniedPreflight.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("denied admin preflight = %d %#v", deniedPreflight.Code, deniedPreflight.Header())
 	}
 
 	bootstrap := httptest.NewRecorder()
