@@ -353,6 +353,115 @@ func TestT02DurableLeaseRejectsStaleAcknowledgement(t *testing.T) {
 	}
 }
 
+func TestT02DurableClaimByKindsKeepsQueueFamiliesIsolated(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UTC().Add(-time.Second)
+	authID, bulkID := uuid.New(), uuid.New()
+	if err := q.CreateDurableJob(ctx, DurableJobParams{
+		ID: authID, Kind: "auth.email", IdempotencyKey: "auth-lane", Payload: []byte(`{"lane":"auth"}`),
+		AvailableAt: now, MaxAttempts: 3,
+	}); err != nil {
+		t.Fatalf("create auth job: %v", err)
+	}
+	if err := q.CreateDurableJob(ctx, DurableJobParams{
+		ID: bulkID, Kind: "bulk.email", IdempotencyKey: "bulk-lane", Payload: []byte(`{"lane":"bulk"}`),
+		AvailableAt: now, MaxAttempts: 3,
+	}); err != nil {
+		t.Fatalf("create bulk job: %v", err)
+	}
+
+	authClaims, err := q.ClaimDurableJobsByKinds(ctx, "auth-worker", []string{"auth.email"}, 2, time.Minute)
+	if err != nil {
+		t.Fatalf("claim auth lane: %v", err)
+	}
+	if len(authClaims) != 1 || authClaims[0].ID != authID || authClaims[0].Kind != "auth.email" {
+		t.Fatalf("auth claims = %#v, want only auth job", authClaims)
+	}
+	if authClaims[0].LeaseOwner == nil || *authClaims[0].LeaseOwner != "auth-worker" || authClaims[0].LeaseToken == uuid.Nil || authClaims[0].LeaseUntil == nil {
+		t.Fatalf("auth claim lease = %#v, want owner/token/expiry", authClaims[0])
+	}
+
+	bulkClaims, err := q.ClaimDurableJobsByKinds(ctx, "bulk-worker", []string{"bulk.email"}, 2, time.Minute)
+	if err != nil {
+		t.Fatalf("claim bulk lane: %v", err)
+	}
+	if len(bulkClaims) != 1 || bulkClaims[0].ID != bulkID || bulkClaims[0].Kind != "bulk.email" {
+		t.Fatalf("bulk claims = %#v, want only bulk job", bulkClaims)
+	}
+	if bulkClaims[0].LeaseOwner == nil || *bulkClaims[0].LeaseOwner != "bulk-worker" || bulkClaims[0].LeaseToken == uuid.Nil || bulkClaims[0].LeaseUntil == nil {
+		t.Fatalf("bulk claim lease = %#v, want owner/token/expiry", bulkClaims[0])
+	}
+}
+
+func TestT02DeliveryPayloadClearsOnlyTerminalOutcomes(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	newAttempt := func(t *testing.T, id uuid.UUID, status string, expiresAt time.Time) {
+		t.Helper()
+		if err := q.CreateDeliveryAttempt(ctx, DeliveryAttemptParams{
+			ID: id, Channel: "email", Status: status, AttemptNumber: 0,
+			EncryptedPayload: []byte("ciphertext-" + id.String()), DeliveryKeyID: strptr("delivery-key"),
+			PayloadExpiresAt: timePtr(expiresAt),
+		}); err != nil {
+			t.Fatalf("create delivery attempt %s: %v", id, err)
+		}
+	}
+
+	acceptedID := uuid.New()
+	newAttempt(t, acceptedID, "pending", now.Add(time.Hour))
+	acceptedAt := now
+	if err := q.UpdateDeliveryAttemptOutcome(ctx, acceptedID, "accepted", strptr("provider-accepted"), strptr("accepted"), nil, &acceptedAt); err != nil {
+		t.Fatalf("record accepted outcome: %v", err)
+	}
+	cleared, err := q.ClearDeliveryAttemptPayload(ctx, acceptedID, now)
+	if err != nil || !cleared {
+		t.Fatalf("clear accepted payload = %t, err=%v; want true", cleared, err)
+	}
+	accepted, err := q.GetDeliveryAttempt(ctx, acceptedID)
+	if err != nil || accepted == nil || accepted.EncryptedPayload != nil || accepted.DeliveryKeyID != nil {
+		t.Fatalf("accepted attempt = %#v, err=%v; want payload and key cleared", accepted, err)
+	}
+
+	failedID := uuid.New()
+	newAttempt(t, failedID, "pending", now.Add(time.Hour))
+	if err := q.UpdateDeliveryAttemptOutcome(ctx, failedID, "failed", nil, strptr("failed"), strptr("permanent"), nil); err != nil {
+		t.Fatalf("record terminal failure: %v", err)
+	}
+	cleared, err = q.ClearDeliveryAttemptPayload(ctx, failedID, now)
+	if err != nil || !cleared {
+		t.Fatalf("clear failed payload = %t, err=%v; want true", cleared, err)
+	}
+
+	transientID := uuid.New()
+	newAttempt(t, transientID, "pending", now.Add(time.Hour))
+	if err := q.UpdateDeliveryAttemptOutcome(ctx, transientID, "unknown_delivery", nil, strptr("transient"), strptr("provider_unavailable"), nil); err != nil {
+		t.Fatalf("record transient outcome: %v", err)
+	}
+	cleared, err = q.ClearDeliveryAttemptPayload(ctx, transientID, now)
+	if err != nil || cleared {
+		t.Fatalf("clear transient payload = %t, err=%v; want false", cleared, err)
+	}
+	transient, err := q.GetDeliveryAttempt(ctx, transientID)
+	if err != nil || transient == nil || len(transient.EncryptedPayload) == 0 || transient.DeliveryKeyID == nil {
+		t.Fatalf("transient attempt = %#v, err=%v; want retry payload retained", transient, err)
+	}
+
+	expiredID := uuid.New()
+	newAttempt(t, expiredID, "unknown_delivery", now.Add(-time.Second))
+	cleared, err = q.ClearDeliveryAttemptPayload(ctx, expiredID, now)
+	if err != nil || !cleared {
+		t.Fatalf("clear expired payload = %t, err=%v; want true", cleared, err)
+	}
+	expired, err := q.GetDeliveryAttempt(ctx, expiredID)
+	if err != nil || expired == nil || expired.EncryptedPayload != nil || expired.DeliveryKeyID != nil {
+		t.Fatalf("expired attempt = %#v, err=%v; want payload and key cleared", expired, err)
+	}
+}
+
 func TestT02RotatedQuotaKeysShareOneWindow(t *testing.T) {
 	q, cleanup := t02Database(t)
 	defer cleanup()

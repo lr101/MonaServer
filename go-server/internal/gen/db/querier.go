@@ -31,10 +31,20 @@ type Querier interface {
 	// Expired running leases are made claimable in the same statement that claims
 	// work.  A fresh lease token makes an old worker's acknowledgement harmless.
 	ClaimDurableJobs(ctx context.Context, arg ClaimDurableJobsParams) ([]ClaimDurableJobsRow, error)
+	// Claiming with a kind allowlist keeps queue-family isolation in the same
+	// SELECT ... FOR UPDATE SKIP LOCKED statement as the lease transition.  A
+	// worker therefore never claims a row it will later release because it does
+	// not own that kind.
+	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
+	// Clear the short-lived delivery secret only once the attempt is terminal or
+	// its encrypted payload has expired.  The status/expiry predicate is part of
+	// the same UPDATE, so a retryable outcome cannot clear its payload by racing
+	// a cleanup call.
+	ClearDeliveryAttemptPayload(ctx context.Context, arg ClearDeliveryAttemptPayloadParams) (pgtype.UUID, error)
 	ClearExpiredDeliveryPayloads(ctx context.Context, arg ClearExpiredDeliveryPayloadsParams) error
 	ClearUserRecoveryRestriction(ctx context.Context, id pgtype.UUID) error
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error

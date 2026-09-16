@@ -364,6 +364,106 @@ func (q *Queries) ClaimDurableJobs(ctx context.Context, arg ClaimDurableJobsPara
 	return items, nil
 }
 
+const claimDurableJobsByKinds = `-- name: ClaimDurableJobsByKinds :many
+WITH candidates AS (
+    SELECT id
+    FROM durable_jobs
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= now()))
+      AND available_at <= now()
+      AND attempt_count < max_attempts
+      AND (cardinality($2::text[]) = 0 OR kind = ANY($2::text[]))
+    ORDER BY priority DESC, available_at ASC, created_at ASC, id ASC
+    FOR UPDATE SKIP LOCKED
+    LIMIT $1
+), claimed AS (
+    UPDATE durable_jobs j
+    SET status = 'running', lease_owner = $3, lease_token = uuid_generate_v4(),
+        lease_until = now() + make_interval(secs => $4::double precision), attempt_count = attempt_count + 1,
+        started_at = COALESCE(started_at, now()), updated_at = now()
+    FROM candidates c
+    WHERE j.id = c.id
+    RETURNING j.id, j.kind, j.idempotency_key, j.payload, j.priority, j.status,
+              j.available_at, j.attempt_count, j.max_attempts, j.lease_owner,
+              j.lease_token, j.lease_until, j.last_error, j.created_at,
+              j.updated_at, j.started_at, j.completed_at
+)
+SELECT id, kind, idempotency_key, payload, priority, status, available_at, attempt_count, max_attempts, lease_owner, lease_token, lease_until, last_error, created_at, updated_at, started_at, completed_at FROM claimed ORDER BY priority DESC, available_at ASC, created_at ASC, id ASC
+`
+
+type ClaimDurableJobsByKindsParams struct {
+	Limit      int32       `json:"limit"`
+	Column2    []string    `json:"column_2"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	Column4    float64     `json:"column_4"`
+}
+
+type ClaimDurableJobsByKindsRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	Kind           string             `json:"kind"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	Payload        []byte             `json:"payload"`
+	Priority       int32              `json:"priority"`
+	Status         string             `json:"status"`
+	AvailableAt    pgtype.Timestamptz `json:"available_at"`
+	AttemptCount   int32              `json:"attempt_count"`
+	MaxAttempts    int32              `json:"max_attempts"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseToken     pgtype.UUID        `json:"lease_token"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
+// Claiming with a kind allowlist keeps queue-family isolation in the same
+// SELECT ... FOR UPDATE SKIP LOCKED statement as the lease transition.  A
+// worker therefore never claims a row it will later release because it does
+// not own that kind.
+func (q *Queries) ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error) {
+	rows, err := q.db.Query(ctx, claimDurableJobsByKinds,
+		arg.Limit,
+		arg.Column2,
+		arg.LeaseOwner,
+		arg.Column4,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClaimDurableJobsByKindsRow
+	for rows.Next() {
+		var i ClaimDurableJobsByKindsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.IdempotencyKey,
+			&i.Payload,
+			&i.Priority,
+			&i.Status,
+			&i.AvailableAt,
+			&i.AttemptCount,
+			&i.MaxAttempts,
+			&i.LeaseOwner,
+			&i.LeaseToken,
+			&i.LeaseUntil,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimEmailLoginClaim = `-- name: ClaimEmailLoginClaim :one
 INSERT INTO email_login_claims
     (canonical_email, owner_user_id, state, is_ambiguous, blocked_reason)
@@ -479,6 +579,36 @@ func (q *Queries) ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const clearDeliveryAttemptPayload = `-- name: ClearDeliveryAttemptPayload :one
+UPDATE delivery_attempts
+SET encrypted_payload = NULL,
+    delivery_key_id = NULL,
+    updated_at = now()
+WHERE id = $1
+  AND encrypted_payload IS NOT NULL
+  AND (
+      status IN ('accepted', 'failed')
+      OR (payload_expires_at IS NOT NULL AND payload_expires_at <= $2)
+  )
+RETURNING id
+`
+
+type ClearDeliveryAttemptPayloadParams struct {
+	ID               pgtype.UUID        `json:"id"`
+	PayloadExpiresAt pgtype.Timestamptz `json:"payload_expires_at"`
+}
+
+// Clear the short-lived delivery secret only once the attempt is terminal or
+// its encrypted payload has expired.  The status/expiry predicate is part of
+// the same UPDATE, so a retryable outcome cannot clear its payload by racing
+// a cleanup call.
+func (q *Queries) ClearDeliveryAttemptPayload(ctx context.Context, arg ClearDeliveryAttemptPayloadParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, clearDeliveryAttemptPayload, arg.ID, arg.PayloadExpiresAt)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const clearExpiredDeliveryPayloads = `-- name: ClearExpiredDeliveryPayloads :exec

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -391,6 +392,72 @@ func (q *Queries) ClaimDurableJobs(ctx context.Context, worker string, limit int
 		out = append(out, durableJobFromClaimRow(r))
 	}
 	return out, nil
+}
+
+// ClaimDurableJobsByKinds applies the queue-family allowlist inside the
+// database claim statement.  The row lock and lease transition therefore
+// cover only kinds this worker is responsible for; callers never need to
+// claim another family's row and release it afterward.
+func (q *Queries) ClaimDurableJobsByKinds(ctx context.Context, worker string, kinds []string, limit int, lease time.Duration) ([]DurableJob, error) {
+	if worker == "" || limit <= 0 || lease <= 0 {
+		return nil, ErrInvalidLease
+	}
+	normalizedKinds, err := normalizeDurableJobKinds(kinds)
+	if err != nil {
+		return nil, err
+	}
+	rs, err := q.g.ClaimDurableJobsByKinds(ctx, dbgen.ClaimDurableJobsByKindsParams{
+		Limit: int32(limit), Column2: normalizedKinds, LeaseOwner: pgTextS(worker), Column4: lease.Seconds(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]DurableJob, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, durableJobFromKindClaimRow(r))
+	}
+	return out, nil
+}
+
+func normalizeDurableJobKinds(kinds []string) ([]string, error) {
+	// An empty, non-nil slice is significant to PostgreSQL: it means all
+	// kinds in the SQL predicate, while a NULL array would match none.
+	normalized := make([]string, 0, len(kinds))
+	seen := make(map[string]struct{}, len(kinds))
+	for _, kind := range kinds {
+		kind = strings.TrimSpace(kind)
+		if kind == "" {
+			return nil, ErrInvalidJob
+		}
+		if _, ok := seen[kind]; ok {
+			continue
+		}
+		seen[kind] = struct{}{}
+		normalized = append(normalized, kind)
+	}
+	return normalized, nil
+}
+
+func durableJobFromKindClaimRow(r dbgen.ClaimDurableJobsByKindsRow) DurableJob {
+	return DurableJob{
+		ID:             goUUID(r.ID),
+		Kind:           r.Kind,
+		IdempotencyKey: r.IdempotencyKey,
+		Payload:        cloneBytes(r.Payload),
+		Priority:       r.Priority,
+		Status:         r.Status,
+		AvailableAt:    timeFromPG(r.AvailableAt),
+		AttemptCount:   r.AttemptCount,
+		MaxAttempts:    r.MaxAttempts,
+		LeaseOwner:     textPtrFromPG(r.LeaseOwner),
+		LeaseToken:     goUUID(r.LeaseToken),
+		LeaseUntil:     timePtrFromPG(r.LeaseUntil),
+		LastError:      textPtrFromPG(r.LastError),
+		CreatedAt:      timeFromPG(r.CreatedAt),
+		UpdatedAt:      timeFromPG(r.UpdatedAt),
+		StartedAt:      timePtrFromPG(r.StartedAt),
+		CompletedAt:    timePtrFromPG(r.CompletedAt),
+	}
 }
 
 func durableJobFromClaimRow(r dbgen.ClaimDurableJobsRow) DurableJob {
@@ -944,6 +1011,29 @@ func (q *Queries) UpdateDeliveryAttemptOutcome(ctx context.Context, id uuid.UUID
 		ID: pgUUID(id), Status: status, ProviderReference: pgText(providerReference), ProviderOutcome: pgText(providerOutcome),
 		ErrorCode: pgText(errorCode), AcceptedAt: pgTZ(acceptedAt),
 	})
+}
+
+// ClearDeliveryAttemptPayload atomically removes the encrypted delivery
+// secret and its key identifier once the attempt is terminal or its payload
+// has expired.  Retryable statuses do not satisfy the predicate, so a
+// cleanup racing an outcome update cannot erase a payload needed for retry.
+func (q *Queries) ClearDeliveryAttemptPayload(ctx context.Context, id uuid.UUID, now time.Time) (bool, error) {
+	if id == uuid.Nil {
+		return false, ErrInvalidDeliveryAttempt
+	}
+	if now.IsZero() {
+		return false, ErrInvalidRetentionWindow
+	}
+	clearedID, err := q.g.ClearDeliveryAttemptPayload(ctx, dbgen.ClearDeliveryAttemptPayloadParams{
+		ID: pgUUID(id), PayloadExpiresAt: pgTZ(&now),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return clearedID.Valid, nil
 }
 
 func (q *Queries) ClearExpiredDeliveryPayloads(ctx context.Context, payloadBefore, acceptedBefore time.Time) error {

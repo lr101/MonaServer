@@ -219,6 +219,23 @@ SET status = $2,
     updated_at = now()
 WHERE id = $1;
 
+-- Clear the short-lived delivery secret only once the attempt is terminal or
+-- its encrypted payload has expired.  The status/expiry predicate is part of
+-- the same UPDATE, so a retryable outcome cannot clear its payload by racing
+-- a cleanup call.
+-- name: ClearDeliveryAttemptPayload :one
+UPDATE delivery_attempts
+SET encrypted_payload = NULL,
+    delivery_key_id = NULL,
+    updated_at = now()
+WHERE id = $1
+  AND encrypted_payload IS NOT NULL
+  AND (
+      status IN ('accepted', 'failed')
+      OR (payload_expires_at IS NOT NULL AND payload_expires_at <= $2)
+  )
+RETURNING id;
+
 -- name: ClearExpiredDeliveryPayloads :exec
 UPDATE delivery_attempts
 SET encrypted_payload = NULL, delivery_key_id = NULL, updated_at = now()
@@ -664,6 +681,35 @@ WITH candidates AS (
     UPDATE durable_jobs j
     SET status = 'running', lease_owner = $2, lease_token = uuid_generate_v4(),
         lease_until = now() + make_interval(secs => $3::double precision), attempt_count = attempt_count + 1,
+        started_at = COALESCE(started_at, now()), updated_at = now()
+    FROM candidates c
+    WHERE j.id = c.id
+    RETURNING j.id, j.kind, j.idempotency_key, j.payload, j.priority, j.status,
+              j.available_at, j.attempt_count, j.max_attempts, j.lease_owner,
+              j.lease_token, j.lease_until, j.last_error, j.created_at,
+              j.updated_at, j.started_at, j.completed_at
+)
+SELECT * FROM claimed ORDER BY priority DESC, available_at ASC, created_at ASC, id ASC;
+
+-- Claiming with a kind allowlist keeps queue-family isolation in the same
+-- SELECT ... FOR UPDATE SKIP LOCKED statement as the lease transition.  A
+-- worker therefore never claims a row it will later release because it does
+-- not own that kind.
+-- name: ClaimDurableJobsByKinds :many
+WITH candidates AS (
+    SELECT id
+    FROM durable_jobs
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= now()))
+      AND available_at <= now()
+      AND attempt_count < max_attempts
+      AND (cardinality($2::text[]) = 0 OR kind = ANY($2::text[]))
+    ORDER BY priority DESC, available_at ASC, created_at ASC, id ASC
+    FOR UPDATE SKIP LOCKED
+    LIMIT $1
+), claimed AS (
+    UPDATE durable_jobs j
+    SET status = 'running', lease_owner = $3, lease_token = uuid_generate_v4(),
+        lease_until = now() + make_interval(secs => $4::double precision), attempt_count = attempt_count + 1,
         started_at = COALESCE(started_at, now()), updated_at = now()
     FROM candidates c
     WHERE j.id = c.id
