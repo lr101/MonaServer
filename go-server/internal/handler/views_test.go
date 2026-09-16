@@ -34,16 +34,26 @@ func TestRecoverPasswordViewDoesNotGrantBearerJWT(t *testing.T) {
 	}
 	q := db.New(pool)
 	auth := service.NewAuth(q, token.NewHelper("test-secret", time.Minute), &config.Config{MaxLoginAttempts: 5})
-	pair, err := auth.Signup(context.Background(), "legacy_recovery_view", "password123", nil)
+	email := "legacy-recovery-view@example.test"
+	pair, err := auth.Signup(context.Background(), "legacy_recovery_view", "password123", &email)
 	if err != nil {
 		t.Fatalf("signup: %v", err)
 	}
+	if err := q.ConfirmUserEmail(context.Background(), pair.UserID); err != nil {
+		t.Fatalf("confirm email: %v", err)
+	}
 	legacyURL := "legacy-reset-slug"
+	security := auth.Security()
+	if _, err := security.ContainAccount(context.Background(), service.ContainmentRequest{AccountID: pair.UserID, Reason: "legacy view setup"}); err != nil {
+		t.Fatalf("contain account: %v", err)
+	}
+	// A legacy URL may still be present in an old database row. The adapter
+	// must bind it to the current restricted generation before rendering.
 	if err := q.SetUserResetPasswordUrl(context.Background(), pair.UserID, legacyURL, time.Now().Add(time.Minute)); err != nil {
 		t.Fatalf("set reset URL: %v", err)
 	}
 
-	view := NewViews(q, token.NewHelper("test-secret", time.Minute), "")
+	view := NewViews(q, token.NewHelper("test-secret", time.Minute), "", security)
 	req := httptest.NewRequest(http.MethodGet, "/public/recover/"+legacyURL, nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("url", legacyURL)
@@ -60,7 +70,7 @@ func TestRecoverPasswordViewDoesNotGrantBearerJWT(t *testing.T) {
 	if !strings.Contains(body, "/api/v3/public/auth/recovery/complete") {
 		t.Fatal("recovery view does not target the restricted recovery endpoint")
 	}
-	if _, err := auth.Security().ContainAccount(context.Background(), service.ContainmentRequest{AccountID: pair.UserID, Reason: "legacy link fence"}); err != nil {
+	if _, err := security.ContainAccount(context.Background(), service.ContainmentRequest{AccountID: pair.UserID, Reason: "legacy link fence"}); err != nil {
 		t.Fatalf("contain account: %v", err)
 	}
 	rec = httptest.NewRecorder()

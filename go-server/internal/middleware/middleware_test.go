@@ -87,10 +87,17 @@ func TestJWTAndRole(t *testing.T) {
 	uid := uuid.New()
 	adminUID := uuid.New()
 	tok := token.NewHelper("secret", time.Minute)
-	lookup := &fakeLookup{usernames: map[uuid.UUID]string{uid: "alice", adminUID: "root"}}
+	lookup := &fakeSecurityLookup{
+		fakeLookup: &fakeLookup{usernames: map[uuid.UUID]string{uid: "alice", adminUID: "root"}},
+		states: map[uuid.UUID]PrincipalSecurityState{
+			uid:      {AuthGeneration: 0, SecurityState: SecurityStateNormal},
+			adminUID: {AuthGeneration: 0, SecurityState: SecurityStateNormal},
+		},
+		adminUsers: map[uuid.UUID]bool{adminUID: true},
+	}
 
 	call := func(role, authHeader string) int {
-		h := JWT(tok, lookup, "root")(RequireRole(role)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := JWT(tok, lookup, "")(RequireRole(role)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))
 		req := httptest.NewRequest("GET", "/", nil)

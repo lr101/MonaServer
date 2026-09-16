@@ -47,7 +47,7 @@ func JWT(tok *token.Helper, lookup UserLookup, adminUsername string) func(http.H
 				return
 			}
 			uid := claims.UserID
-			username, err := lookup.GetUsername(r.Context(), uid)
+			_, err = lookup.GetUsername(r.Context(), uid)
 			if err != nil {
 				apperrors.WriteJSONError(w, "user not found", http.StatusUnauthorized)
 				return
@@ -72,9 +72,8 @@ func JWT(tok *token.Helper, lookup UserLookup, adminUsername string) func(http.H
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
-			if adminUsername != "" && username == adminUsername {
-				role = RoleAdmin
-			}
+			// Legacy lookup implementations still identify ordinary users by
+			// username, but username equality never grants administrator access.
 			ctx := WithUser(r.Context(), uid, role)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

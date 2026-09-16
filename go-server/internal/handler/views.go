@@ -50,19 +50,9 @@ func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	// The legacy reset URL predates the purpose-bound action token. Once an
-	// account is contained, that old URL must not mint a fresh recovery
-	// capability; only a recovery token queued for the current generation may
-	// be redeemed by the restricted endpoint.
-	state, err := v.security.GetSecurityState(r.Context(), u.ID)
-	if err != nil || state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
-		renderTemplate(w, "404.html", nil)
-		return
-	}
-	// A legacy reset URL is only a lookup handle. The page receives a
-	// purpose-bound opaque action token and submits it to the restricted
-	// recovery endpoint; it never receives a normal consumer JWT.
-	action, err := v.security.IssueActionToken(r.Context(), nil, u.ID, db.ActionTokenPurposeRecovery, nil, 10*time.Minute)
+	// The legacy URL is upgraded only once, under the account lock, into a
+	// current-generation recovery action bound to the account's owned email.
+	action, err := v.security.IssueLegacyActionToken(r.Context(), url, db.ActionTokenPurposeRecovery, 10*time.Minute)
 	if err != nil || action == nil {
 		renderTemplate(w, "404.html", nil)
 		return
@@ -81,7 +71,7 @@ func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	action, err := v.security.IssueActionToken(r.Context(), nil, u.ID, db.ActionTokenPurposeDeleteAccount, nil, 10*time.Minute)
+	action, err := v.security.IssueLegacyActionToken(r.Context(), url, db.ActionTokenPurposeDeleteAccount, 10*time.Minute)
 	if err != nil || action == nil {
 		renderTemplate(w, "404.html", nil)
 		return
@@ -91,13 +81,12 @@ func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
 
 func (v *Views) EmailConfirmation(w http.ResponseWriter, r *http.Request) {
 	url := chi.URLParam(r, "url")
-	u, err := v.q.GetUserByEmailConfirmationUrl(r.Context(), url)
-	if err != nil || u == nil {
+	username, err := v.security.ConfirmLegacyEmail(r.Context(), url)
+	if err != nil || username == "" {
 		renderTemplate(w, "404.html", nil)
 		return
 	}
-	_ = v.q.ConfirmUserEmail(r.Context(), u.ID)
-	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": u.Username})
+	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": username})
 }
 
 func (v *Views) RequestDeleteCode(w http.ResponseWriter, r *http.Request) {

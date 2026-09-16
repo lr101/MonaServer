@@ -6,10 +6,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
@@ -23,6 +25,14 @@ var (
 	ErrStaleGeneration   = apperrors.New(http.StatusUnauthorized, "invalid token")
 	ErrAccountRestricted = apperrors.New(http.StatusUnauthorized, "invalid token")
 	ErrInvalidAction     = apperrors.New(http.StatusBadRequest, "invalid action token")
+)
+
+// These limits are the security service boundary for incident/audit input.
+// Callers may impose stricter limits, but untrusted callers cannot bypass the
+// storage contract by invoking this service directly.
+const (
+	maxContainmentReasonBytes   = 1024
+	maxContainmentMetadataBytes = 16 * 1024
 )
 
 // ContainmentRequest is the security decision made by an administrative
@@ -126,6 +136,13 @@ func (s *AccountSecurity) AdvanceGenerationForMutation(ctx context.Context, q *d
 	if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
 		return 0, ErrAccountRestricted
 	}
+	verifiedEmail, err := canonicalVerifiedEmail(ctx, q, state)
+	if err != nil {
+		return 0, err
+	}
+	if err := invalidateLegacyActionValues(ctx, q, id, state.Email, verifiedEmail != nil, s.now()); err != nil {
+		return 0, err
+	}
 	generation, err := q.AdvanceUserAuthGeneration(ctx, id)
 	if err != nil {
 		return 0, err
@@ -181,6 +198,9 @@ func (s *AccountSecurity) ContainAccount(ctx context.Context, req ContainmentReq
 	if req.Reason == "" {
 		req.Reason = "account security containment"
 	}
+	if len(req.Reason) > maxContainmentReasonBytes || len(req.Metadata) > maxContainmentMetadataBytes {
+		return nil, apperrors.ErrBadRequest
+	}
 	now := req.Now
 	if now.IsZero() {
 		now = s.now()
@@ -208,18 +228,37 @@ func (s *AccountSecurity) ContainAccount(ctx context.Context, req ContainmentReq
 			(state.SecurityState == db.SecurityStateCompromised || state.SecurityState == db.SecurityStateSecuredManualRecovery)) {
 			result.NewState = state.SecurityState
 			result.Generation = state.AuthGeneration
-			if state.EmailConfirmed && state.Email != nil && db.CanonicalEmail(*state.Email) != "" {
-				result.Recovery.Status = RecoveryEnqueueQueued
-			} else {
+			if state.IsDeleted {
 				result.Recovery.Status = RecoveryEnqueueManualRecoveryRequired
+				return nil
 			}
+			verifiedEmail, err := canonicalVerifiedEmail(ctx, tx, state)
+			if err != nil {
+				return err
+			}
+			if verifiedEmail == nil {
+				result.Recovery.Status = RecoveryEnqueueManualRecoveryRequired
+				return nil
+			}
+			queued, enqueueErr := s.enqueuer.EnqueueRecovery(ctx, tx, RecoveryEnqueueRequest{
+				AccountID: req.AccountID, ActorID: req.ActorID, AuthGeneration: state.AuthGeneration,
+				Reason: RecoveryReasonCompromise, VerifiedEmail: verifiedEmail,
+			})
+			queued = normalizeRecoveryEnqueueResult(queued, enqueueErr, verifiedEmail)
+			result.Recovery = queued
 			return nil
 		}
 
-		verifiedEmail := canonicalVerifiedEmail(state)
+		verifiedEmail, err := canonicalVerifiedEmail(ctx, tx, state)
+		if err != nil {
+			return err
+		}
 		newState := db.SecurityStateCompromised
 		if verifiedEmail == nil {
 			newState = db.SecurityStateSecuredManualRecovery
+		}
+		if err := invalidateLegacyActionValues(ctx, tx, req.AccountID, state.Email, verifiedEmail != nil, now); err != nil {
+			return err
 		}
 		generation, err := tx.AdvanceUserAuthGeneration(ctx, req.AccountID)
 		if err != nil {
@@ -257,16 +296,7 @@ func (s *AccountSecurity) ContainAccount(ctx context.Context, req ContainmentReq
 			AccountID: req.AccountID, ActorID: req.ActorID, AuthGeneration: generation,
 			Reason: RecoveryReasonCompromise, VerifiedEmail: verifiedEmail,
 		})
-		if enqueueErr != nil {
-			queued = RecoveryEnqueueResult{Status: RecoveryEnqueueManualRecoveryRequired}
-		}
-		if queued.Status == "" {
-			if verifiedEmail == nil {
-				queued.Status = RecoveryEnqueueManualRecoveryRequired
-			} else {
-				queued.Status = RecoveryEnqueueQueued
-			}
-		}
+		queued = normalizeRecoveryEnqueueResult(queued, enqueueErr, verifiedEmail)
 		result.NewState = newState
 		result.Generation = generation
 		result.Recovery = queued
@@ -312,7 +342,10 @@ func (s *AccountSecurity) RevokeOwnSession(ctx context.Context, callerID, refres
 		}
 		stored, err := tx.FindRefreshToken(ctx, refreshID)
 		if err != nil {
-			return apperrors.ErrBadRequest
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			return err
 		}
 		if stored == nil || stored.UserID != callerID {
 			return apperrors.ErrBadRequest
@@ -372,34 +405,8 @@ func (s *AccountSecurity) IssueActionToken(ctx context.Context, q *db.Queries, u
 		if err != nil {
 			return err
 		}
-		if state == nil || state.IsDeleted {
-			return ErrInvalidAction
-		}
-		if purpose != db.ActionTokenPurposeRecovery && (state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired) {
-			return ErrInvalidAction
-		}
-		if emailBinding != nil {
-			canonical := db.CanonicalEmail(*emailBinding)
-			if canonical == "" || state.Email == nil || !state.EmailConfirmed || db.CanonicalEmail(*state.Email) != canonical {
-				return ErrInvalidAction
-			}
-			emailBinding = &canonical
-		}
-		raw, err := randomOpaqueToken()
-		if err != nil {
-			return err
-		}
-		hash := sha256.Sum256([]byte(raw))
-		expires := s.now().Add(ttl)
-		id := uuid.New()
-		if err := tx.CreateAccountActionToken(ctx, db.AccountActionTokenParams{
-			ID: id, TokenHash: hash[:], Purpose: purpose, AccountID: uid,
-			EmailBinding: emailBinding, AuthGeneration: state.AuthGeneration, ExpiresAt: expires,
-		}); err != nil {
-			return err
-		}
-		issued = &ActionToken{ID: id, Token: raw, Purpose: purpose, AccountID: uid, AuthGeneration: state.AuthGeneration, ExpiresAt: expires}
-		return nil
+		issued, err = s.issueActionTokenLocked(ctx, tx, state, purpose, emailBinding, ttl)
+		return err
 	}
 	var err error
 	if q.Pool() == nil {
@@ -413,6 +420,197 @@ func (s *AccountSecurity) IssueActionToken(ctx context.Context, q *db.Queries, u
 	return issued, nil
 }
 
+// IssueLegacyActionToken upgrades one still-current legacy URL to a
+// purpose-bound opaque action while holding the account lock. The legacy URL
+// is versioned in the same transaction, so a concurrent request cannot mint a
+// second action from it or carry it across an email/generation mutation.
+func (s *AccountSecurity) IssueLegacyActionToken(ctx context.Context, rawURL, purpose string, ttl time.Duration) (*ActionToken, error) {
+	if s == nil || s.q == nil || rawURL == "" || ttl <= 0 ||
+		(purpose != db.ActionTokenPurposeRecovery && purpose != db.ActionTokenPurposeDeleteAccount) {
+		return nil, ErrInvalidAction
+	}
+	var issued *ActionToken
+	now := s.now()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	issue := func(tx *db.Queries) error {
+		var lookup *db.UserURLLookup
+		var err error
+		switch purpose {
+		case db.ActionTokenPurposeRecovery:
+			lookup, err = tx.GetUserByResetPasswordUrl(ctx, rawURL)
+		case db.ActionTokenPurposeDeleteAccount:
+			lookup, err = tx.GetUserByDeletionUrl(ctx, rawURL)
+		}
+		if err != nil {
+			return err
+		}
+		if lookup == nil {
+			return ErrInvalidAction
+		}
+		state, err := tx.LockUserSecurity(ctx, lookup.ID)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted {
+			return ErrInvalidAction
+		}
+		// Re-read the full row after the lock. The URL lookup can have used a
+		// snapshot from before a concurrent email, containment, or recovery
+		// mutation committed.
+		u, err := tx.GetUserByID(ctx, lookup.ID)
+		if err != nil {
+			return err
+		}
+		if u == nil {
+			return ErrInvalidAction
+		}
+		var currentURL *string
+		var expiresAt *time.Time
+		switch purpose {
+		case db.ActionTokenPurposeRecovery:
+			currentURL, expiresAt = u.ResetPasswordUrl, u.ResetPasswordExpiration
+		case db.ActionTokenPurposeDeleteAccount:
+			currentURL, expiresAt = u.DeletionUrl, u.CodeExpiration
+		}
+		if currentURL == nil || *currentURL != rawURL || expiresAt == nil || !expiresAt.After(now) {
+			return ErrInvalidAction
+		}
+		var emailBinding *string
+		if purpose == db.ActionTokenPurposeRecovery {
+			emailBinding, err = canonicalVerifiedEmail(ctx, tx, state)
+			if err != nil {
+				return err
+			}
+			if emailBinding == nil {
+				return ErrInvalidAction
+			}
+		}
+		issued, err = s.issueActionTokenLocked(ctx, tx, state, purpose, emailBinding, ttl)
+		if err != nil {
+			return err
+		}
+		return versionLegacyActionURL(ctx, tx, lookup.ID, purpose, now)
+	}
+	var err error
+	if s.q.Pool() == nil {
+		err = issue(s.q)
+	} else {
+		err = s.q.InTxRetry(ctx, issue)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return issued, nil
+}
+
+// ConfirmLegacyEmail checks the presented confirmation URL after taking the
+// account lock. This closes the lookup-then-confirm race where an old link
+// could confirm a newly changed address.
+func (s *AccountSecurity) ConfirmLegacyEmail(ctx context.Context, rawURL string) (string, error) {
+	if s == nil || s.q == nil || rawURL == "" {
+		return "", ErrInvalidAction
+	}
+	var username string
+	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		lookup, err := tx.GetUserByEmailConfirmationUrl(ctx, rawURL)
+		if err != nil {
+			return err
+		}
+		if lookup == nil {
+			return ErrInvalidAction
+		}
+		state, err := tx.LockUserSecurity(ctx, lookup.ID)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordResetRequired {
+			return ErrInvalidAction
+		}
+		u, err := tx.GetUserByID(ctx, lookup.ID)
+		if err != nil {
+			return err
+		}
+		if u == nil || u.EmailConfirmationUrl == nil || *u.EmailConfirmationUrl != rawURL {
+			return ErrInvalidAction
+		}
+		confirmed, err := tx.ConfirmUserEmailWithClaim(ctx, lookup.ID)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return ErrInvalidAction
+		}
+		username = u.Username
+		return nil
+	})
+	return username, err
+}
+
+// issueActionTokenLocked is the common issuance boundary. Callers must hold
+// the account row lock before entering it; email binding validation acquires
+// the canonical claim lock in the documented account-then-claim order.
+func (s *AccountSecurity) issueActionTokenLocked(ctx context.Context, q *db.Queries, state *db.UserSecurityState, purpose string, emailBinding *string, ttl time.Duration) (*ActionToken, error) {
+	if s == nil || q == nil || state == nil || state.IsDeleted || ttl <= 0 || !validActionPurpose(purpose) {
+		return nil, ErrInvalidAction
+	}
+	if purpose == db.ActionTokenPurposeRecovery {
+		if !state.PasswordResetRequired || (state.SecurityState != db.SecurityStateNormal &&
+			state.SecurityState != db.SecurityStatePasswordDisabled && state.SecurityState != db.SecurityStateCompromised) {
+			return nil, ErrInvalidAction
+		}
+	} else if state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
+		return nil, ErrInvalidAction
+	}
+	if emailBinding != nil {
+		trusted, err := canonicalVerifiedEmail(ctx, q, state)
+		if err != nil {
+			return nil, err
+		}
+		canonical := db.CanonicalEmail(*emailBinding)
+		if trusted == nil || canonical == "" || canonical != *trusted {
+			return nil, ErrInvalidAction
+		}
+		emailBinding = trusted
+	} else if purpose == db.ActionTokenPurposeRecovery {
+		return nil, ErrInvalidAction
+	}
+	raw, err := randomOpaqueToken()
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.Sum256([]byte(raw))
+	now := s.now()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	expires := now.Add(ttl)
+	id := uuid.New()
+	if err := q.CreateAccountActionToken(ctx, db.AccountActionTokenParams{
+		ID: id, TokenHash: hash[:], Purpose: purpose, AccountID: state.ID,
+		EmailBinding: emailBinding, AuthGeneration: state.AuthGeneration, ExpiresAt: expires,
+	}); err != nil {
+		return nil, err
+	}
+	return &ActionToken{ID: id, Token: raw, Purpose: purpose, AccountID: state.ID, AuthGeneration: state.AuthGeneration, ExpiresAt: expires}, nil
+}
+
+// versionLegacyActionURL leaves a unique, already-expired replacement in the
+// legacy column because the old schema exposes setters but no nullable clear
+// primitive. The presented value is therefore unusable even to old adapters.
+func versionLegacyActionURL(ctx context.Context, q *db.Queries, id uuid.UUID, purpose string, now time.Time) error {
+	url := uuid.NewString()
+	switch purpose {
+	case db.ActionTokenPurposeRecovery:
+		return q.SetUserResetPasswordUrl(ctx, id, url, now)
+	case db.ActionTokenPurposeDeleteAccount:
+		return q.SetUserDeletionUrl(ctx, id, url, now)
+	default:
+		return ErrInvalidAction
+	}
+}
+
 // CompleteRecovery consumes a restricted recovery token, updates the
 // password, advances generation again, clears the restriction, revokes all
 // sibling capabilities, and intentionally returns no consumer credentials.
@@ -423,7 +621,7 @@ func (s *AccountSecurity) CompleteRecovery(ctx context.Context, rawToken, newPas
 	hash := sha256.Sum256([]byte(rawToken))
 	now := s.now()
 	return s.q.InTxRetry(ctx, func(tx *db.Queries) error {
-		consumed, ok, err := tx.ConsumeAccountActionToken(ctx, hash[:], db.ActionTokenPurposeRecovery, now)
+		consumed, ok, err := consumeBoundRecoveryToken(ctx, tx, hash[:], now)
 		if err != nil {
 			return err
 		}
@@ -441,6 +639,9 @@ func (s *AccountSecurity) CompleteRecovery(ctx context.Context, rawToken, newPas
 			return err
 		}
 		if err := tx.ClearUserRecoveryRestriction(ctx, consumed.AccountID); err != nil {
+			return err
+		}
+		if err := invalidateLegacyActionValues(ctx, tx, consumed.AccountID, consumed.EmailBinding, true, now); err != nil {
 			return err
 		}
 		if err := tx.InvalidateUserTokens(ctx, consumed.AccountID); err != nil {
@@ -462,15 +663,80 @@ func (s *AccountSecurity) CompleteRecoveryToken(ctx context.Context, rawToken, n
 	return s.CompleteRecovery(ctx, rawToken, newPassword)
 }
 
-func canonicalVerifiedEmail(state *db.UserSecurityState) *string {
-	if state == nil || !state.EmailConfirmed || state.Email == nil {
-		return nil
+func canonicalVerifiedEmail(ctx context.Context, q *db.Queries, state *db.UserSecurityState) (*string, error) {
+	if state == nil || q == nil || !state.EmailConfirmed || state.Email == nil {
+		return nil, nil
 	}
 	canonical := db.CanonicalEmail(*state.Email)
 	if canonical == "" {
-		return nil
+		return nil, nil
 	}
-	return &canonical
+	claim, err := q.LockEmailLoginClaim(ctx, canonical)
+	if err != nil {
+		return nil, err
+	}
+	if claim == nil || claim.State != db.EmailClaimOwned || claim.OwnerUserID == nil || *claim.OwnerUserID != state.ID {
+		return nil, nil
+	}
+	return &canonical, nil
+}
+
+// invalidateLegacyActionValues versions the legacy URL/code columns while the
+// account row is locked. The random replacement keeps the existing unique
+// indexes usable; expiry is set to now so the replacement cannot be redeemed.
+// A verified address is restored after clearing a pending confirmation URL.
+func invalidateLegacyActionValues(ctx context.Context, q *db.Queries, id uuid.UUID, email *string, restoreConfirmed bool, now time.Time) error {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if err := q.SetUserRecoveryCode(ctx, id, "", now); err != nil {
+		return err
+	}
+	reset := uuid.NewString()
+	if err := q.SetUserResetPasswordUrl(ctx, id, reset, now); err != nil {
+		return err
+	}
+	deletion := uuid.NewString()
+	if err := q.SetUserDeletionUrl(ctx, id, deletion, now); err != nil {
+		return err
+	}
+	if err := q.ChangeUserEmail(ctx, id, email, nil); err != nil {
+		return err
+	}
+	if restoreConfirmed {
+		confirmed, err := q.ConfirmUserEmailWithClaim(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return db.ErrEmailClaimUnavailable
+		}
+	}
+	return nil
+}
+
+// consumeBoundRecoveryToken validates the current claim while holding the
+// account and claim locks before invoking the DB single-use boundary. The DB
+// operation rechecks purpose, generation, expiry, and account email while the
+// locks remain held, so a claim becoming ambiguous cannot consume a token.
+func consumeBoundRecoveryToken(ctx context.Context, q *db.Queries, tokenHash []byte, now time.Time) (*db.AccountActionToken, bool, error) {
+	initial, err := q.GetAccountActionTokenByHash(ctx, tokenHash)
+	if err != nil || initial == nil || initial.Purpose != db.ActionTokenPurposeRecovery || initial.EmailBinding == nil {
+		return nil, false, err
+	}
+	state, err := q.LockUserSecurity(ctx, initial.AccountID)
+	if err != nil || state == nil || state.IsDeleted {
+		return nil, false, err
+	}
+	if !state.PasswordResetRequired || (state.SecurityState != db.SecurityStateNormal &&
+		state.SecurityState != db.SecurityStatePasswordDisabled && state.SecurityState != db.SecurityStateCompromised) {
+		return nil, false, nil
+	}
+	trusted, err := canonicalVerifiedEmail(ctx, q, state)
+	if err != nil || trusted == nil || db.CanonicalEmail(*initial.EmailBinding) != *trusted {
+		return nil, false, err
+	}
+	return q.ConsumeAccountActionToken(ctx, tokenHash, db.ActionTokenPurposeRecovery, now)
 }
 
 func validActionPurpose(purpose string) bool {
@@ -495,9 +761,16 @@ func stringPtr(s string) *string { return &s }
 
 type noOpRecoveryEnqueuer struct{}
 
-func (noOpRecoveryEnqueuer) EnqueueRecovery(_ context.Context, _ *db.Queries, req RecoveryEnqueueRequest) (RecoveryEnqueueResult, error) {
-	if req.VerifiedEmail == nil {
-		return RecoveryEnqueueResult{Status: RecoveryEnqueueManualRecoveryRequired}, nil
+func (noOpRecoveryEnqueuer) EnqueueRecovery(_ context.Context, _ *db.Queries, _ RecoveryEnqueueRequest) (RecoveryEnqueueResult, error) {
+	// T04's durable adapter is the only implementation allowed to report a
+	// queued attempt. A composition-time no-op must remain honest even when a
+	// trusted address exists.
+	return RecoveryEnqueueResult{Status: RecoveryEnqueueManualRecoveryRequired}, nil
+}
+
+func normalizeRecoveryEnqueueResult(result RecoveryEnqueueResult, enqueueErr error, verifiedEmail *string) RecoveryEnqueueResult {
+	if enqueueErr != nil || verifiedEmail == nil || result.Status != RecoveryEnqueueQueued {
+		result.Status = RecoveryEnqueueManualRecoveryRequired
 	}
-	return RecoveryEnqueueResult{Status: RecoveryEnqueueQueued}, nil
+	return result
 }

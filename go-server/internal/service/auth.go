@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/config"
 	"github.com/lrprojects/monaserver/internal/db"
@@ -181,8 +183,11 @@ func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPa
 		}
 		stored, err := q.FindRefreshToken(ctx, refresh)
 		if err != nil {
-			refreshErr = apperrors.ErrBadRequest
-			return nil
+			if mapped, handled := classifyRefreshLookupError(err); handled {
+				refreshErr = mapped
+				return nil
+			}
+			return err
 		}
 		if stored == nil || stored.UserID != userID {
 			refreshErr = apperrors.ErrBadRequest
@@ -219,6 +224,16 @@ func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPa
 	return pair, nil
 }
 
+// classifyRefreshLookupError preserves the v2 compatibility response only for
+// an absent credential. Infrastructure and transaction errors must propagate so
+// callers do not misreport an unavailable database as malformed input.
+func classifyRefreshLookupError(err error) (error, bool) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.ErrBadRequest, true
+	}
+	return err, false
+}
+
 func (s *Auth) issueTokens(ctx context.Context, uid uuid.UUID) (*TokenPair, error) {
 	return s.issueTokensWithQueries(ctx, s.q, uid)
 }
@@ -250,8 +265,8 @@ func (s *Auth) GetSecurityState(ctx context.Context, id uuid.UUID) (*middleware.
 	}, nil
 }
 
-// IsAdmin resolves role membership by stable user ID. A configured username
-// remains a compatibility fallback only when no membership row exists.
+// IsAdmin resolves role membership by stable user ID. A configured username is
+// never an authorization grant; ordinary legacy users remain USER principals.
 func (s *Auth) IsAdmin(ctx context.Context, id uuid.UUID) (bool, error) {
 	membership, err := s.q.GetAdminMembership(ctx, id)
 	if err != nil {
@@ -260,9 +275,5 @@ func (s *Auth) IsAdmin(ctx context.Context, id uuid.UUID) (bool, error) {
 	if membership != nil {
 		return membership.Active && membership.RevokedAt == nil, nil
 	}
-	u, err := s.q.GetUserByID(ctx, id)
-	if err != nil || u == nil {
-		return false, err
-	}
-	return s.cfg != nil && s.cfg.AdminUsername != "" && u.Username == s.cfg.AdminUsername, nil
+	return false, nil
 }

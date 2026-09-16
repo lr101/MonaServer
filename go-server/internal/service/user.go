@@ -268,7 +268,10 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 			return nil, apperrors.New(403, "email is not confirmed")
 		}
 		confirmUrl := randomURL()
-		if err := s.q.UpdateUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
+		// Keep the claim-aware mutation inside the caller-owned transaction.
+		// This also revokes capabilities bound to the previous address before
+		// the new confirmation URL is delivered.
+		if err := s.q.ChangeUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
 			return nil, err
 		}
 		if s.mail != nil {
