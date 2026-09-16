@@ -128,10 +128,11 @@ initial MFA, and step-up exhaustion with recovery after the shared window. The
 final review tests cover both single-report transition statuses through the
 `reports.review` middleware capability and reject bulk proofs. Break-glass
 service tests use valid actor IDs for inactive and revoked memberships,
-password-disabled and compromised actor security states, and inactive or
-revoked target memberships; they also cover missing, unknown, consumer, and
-insufficient actor IDs, with unchanged target ciphertext on every rejected
-call and successful audit attribution.
+password-disabled and compromised actor security states (with the compromised
+state isolated from both password flags), and inactive or revoked target
+memberships with unchanged membership fields; they also cover missing,
+unknown, consumer, and insufficient actor IDs, with unchanged target
+ciphertext on every rejected call and successful audit attribution.
 
 ```text
 mise exec -- go vet ./...
@@ -176,12 +177,12 @@ PASS
 ```
 
 The final review repair was verified at source head
-`1f6b2ff366ce668de45fd17799a4e25774550188` (the report-only metadata commit is
+`ba426373f5afbe0182650abd65aa9a9ddac7a6e6` (the report-only metadata commit is
 made afterward). The raw final-repair command output is recorded here:
 
 ```text
 $ git rev-parse HEAD
-1f6b2ff366ce668de45fd17799a4e25774550188
+ba426373f5afbe0182650abd65aa9a9ddac7a6e6
 
 $ mise exec -- make gen-api
 oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml
@@ -196,23 +197,23 @@ $ git status --short && git diff --check
 
 $ mise exec -- go test -count=1 ./internal/middleware ./cmd/admin-auth
 ok  github.com/lrprojects/monaserver/internal/middleware  0.005s
-ok  github.com/lrprojects/monaserver/cmd/admin-auth         0.009s
+ok  github.com/lrprojects/monaserver/cmd/admin-auth         0.008s
 
 $ set -a; source /root/.t3/worktrees/MonaServer/t3code-76e6aaef/.superpowers/sdd/web-admin-and-email-login/.env.test.T03; set +a; TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./internal/service -run '^(TestBreakGlassRecoveryRequiresActiveMembership|TestBreakGlassRecoveryRejectsInvalidActorStateBeforeMutation|TestBreakGlassRecoveryRequiresAuthorizedStableActor)$'
-ok  github.com/lrprojects/monaserver/internal/service  1.108s
+ok  github.com/lrprojects/monaserver/internal/service  1.095s
 
 $ set -a; source /root/.t3/worktrees/MonaServer/t3code-76e6aaef/.superpowers/sdd/web-admin-and-email-login/.env.test.T03; set +a; TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./...
-ok  github.com/lrprojects/monaserver/cmd/admin-auth  0.008s
-ok  github.com/lrprojects/monaserver/cmd/server  5.804s
-ok  github.com/lrprojects/monaserver/internal/config  0.003s
-ok  github.com/lrprojects/monaserver/internal/db  5.351s
-ok  github.com/lrprojects/monaserver/internal/handler  11.634s
-ok  github.com/lrprojects/monaserver/internal/image  0.159s
-ok  github.com/lrprojects/monaserver/internal/jobs  0.074s
-ok  github.com/lrprojects/monaserver/internal/middleware  0.004s
-ok  github.com/lrprojects/monaserver/internal/password  0.220s
-ok  github.com/lrprojects/monaserver/internal/service  23.300s
-ok  github.com/lrprojects/monaserver/internal/token  0.003s
+ok  github.com/lrprojects/monaserver/cmd/admin-auth  0.009s
+ok  github.com/lrprojects/monaserver/cmd/server  6.028s
+ok  github.com/lrprojects/monaserver/internal/config  0.004s
+ok  github.com/lrprojects/monaserver/internal/db  5.336s
+ok  github.com/lrprojects/monaserver/internal/handler  11.829s
+ok  github.com/lrprojects/monaserver/internal/image  0.122s
+ok  github.com/lrprojects/monaserver/internal/jobs  0.073s
+ok  github.com/lrprojects/monaserver/internal/middleware  0.003s
+ok  github.com/lrprojects/monaserver/internal/password  0.242s
+ok  github.com/lrprojects/monaserver/internal/service  23.260s
+ok  github.com/lrprojects/monaserver/internal/token  0.002s
 ?   github.com/lrprojects/monaserver/internal/apperrors [no test files]
 ?   github.com/lrprojects/monaserver/internal/gen/api [no test files]
 ?   github.com/lrprojects/monaserver/internal/gen/db [no test files]
@@ -233,10 +234,10 @@ $ mise exec -- flutter test --no-pub test/web_admin_contract_test.dart
 00:00 +10: All tests passed!
 
 $ mise exec -- flutter test --no-pub
-00:05 +203: All tests passed!
+00:04 +203: All tests passed!
 
 $ mise exec -- flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
-2 issues found. (ran in 0.3s)
+2 issues found. (ran in 0.2s)
 ```
 
 The two Dart analysis issues are the existing non-fatal generated-client
