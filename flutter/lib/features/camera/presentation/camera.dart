@@ -246,24 +246,45 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                                     ),
                                   ),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.all(2.5),
-                                  child: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Colors.grey.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    child: Center(
-                                      child: GestureDetector(
-                                        onTap: uploadFileImage,
-                                        child: const Icon(Icons.upload),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 48),
                               ],
                             ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 12,
+                        bottom: 12,
+                        child: Align(
+                          alignment: Alignment.bottomRight,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final maxMenuHeight =
+                                  (constraints.maxHeight - 48 - 8 - 56).clamp(
+                                    0.0,
+                                    240.0,
+                                  );
+                              return CameraSelectorButton(
+                                cameras: cameras,
+                                selectedIndex: cameraIndex,
+                                onSelected: handleCameraChange,
+                                maxMenuHeight: maxMenuHeight,
+                                menuBottomSpacing: 56,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 12,
+                        bottom: 68,
+                        child: Material(
+                          color: Colors.grey.withValues(alpha: 0.5),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: 'Upload photo',
+                            onPressed: uploadFileImage,
+                            icon: const Icon(Icons.upload),
                           ),
                         ),
                       ),
@@ -308,15 +329,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                   ),
                 const SizedBox(height: 5),
               ],
-            ),
-            Positioned(
-              right: 12,
-              bottom: 12,
-              child: CameraSelectorButton(
-                cameras: cameras,
-                selectedIndex: cameraIndex,
-                onSelected: handleCameraChange,
-              ),
             ),
           ],
         ),
