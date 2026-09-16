@@ -640,9 +640,13 @@ func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
 	ctx := context.Background()
 	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
 	userID := createTestUser(t, auth, "inactive-breakglass-admin")
+	actorID := createTestUser(t, auth, "active-breakglass-actor")
 	admin := NewAdminAuth(q, AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("inactive-breakglass-quota-key"),
 	})
+	if _, err := admin.EnrollAdminOperator(ctx, "active-breakglass-actor", []string{"security.recovery_resend"}); err != nil {
+		t.Fatalf("enroll actor: %v", err)
+	}
 	enrollment, err := admin.EnrollAdminOperator(ctx, "inactive-breakglass-admin", []string{"users.read"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
@@ -658,7 +662,7 @@ func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("disable membership: %v", err)
 	}
-	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", nil); err != ErrAdminForbidden {
+	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", &actorID); err != ErrAdminForbidden {
 		t.Fatalf("inactive recovery err=%v, want %v", err, ErrAdminForbidden)
 	}
 	after, err := q.GetAdminMembership(ctx, userID)
@@ -676,13 +680,82 @@ func TestBreakGlassRecoveryRequiresActiveMembership(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("revoke membership: %v", err)
 	}
-	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", nil); err != ErrAdminForbidden {
+	if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "inactive-breakglass-admin", &actorID); err != ErrAdminForbidden {
 		t.Fatalf("revoked recovery err=%v, want %v", err, ErrAdminForbidden)
 	}
 	revoked, err := q.GetAdminMembership(ctx, userID)
 	if err != nil || revoked == nil || revoked.RevokedAt == nil || !revoked.Active {
 		t.Fatalf("revoked membership changed: %v %#v", err, revoked)
 	}
+}
+
+func TestBreakGlassRecoveryRejectsInvalidActorStateBeforeMutation(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	targetID := createTestUser(t, auth, "breakglass-actor-state-target")
+	actorID := createTestUser(t, auth, "breakglass-actor-state-actor")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("actor-state-quota-key"),
+	})
+	if _, err := admin.EnrollAdminOperator(ctx, "breakglass-actor-state-target", []string{"users.read"}); err != nil {
+		t.Fatalf("enroll target: %v", err)
+	}
+	if _, err := admin.EnrollAdminOperator(ctx, "breakglass-actor-state-actor", []string{"security.recovery_resend"}); err != nil {
+		t.Fatalf("enroll actor: %v", err)
+	}
+	targetMembership, err := q.GetAdminMembership(ctx, targetID)
+	if err != nil || targetMembership == nil {
+		t.Fatalf("target membership: %v %#v", err, targetMembership)
+	}
+	originalCiphertext := string(targetMembership.TotpSecretCiphertext)
+	assertRejectedWithoutMutation := func(name string) {
+		t.Helper()
+		if _, err := admin.BreakGlassRecoverAdminMFA(ctx, "breakglass-actor-state-target", &actorID); err != ErrAdminForbidden {
+			t.Fatalf("%s actor err=%v, want %v", name, err, ErrAdminForbidden)
+		}
+		current, err := q.GetAdminMembership(ctx, targetID)
+		if err != nil || current == nil || string(current.TotpSecretCiphertext) != originalCiphertext {
+			t.Fatalf("%s actor mutated target membership: %v %#v", name, err, current)
+		}
+	}
+	setActorMembership := func(active bool, revokedAt *time.Time) {
+		t.Helper()
+		membership, err := q.GetAdminMembership(ctx, actorID)
+		if err != nil || membership == nil {
+			t.Fatalf("actor membership: %v %#v", err, membership)
+		}
+		if err := q.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+			ID: membership.ID, UserID: membership.UserID, Permissions: membership.Permissions, Active: active,
+			TotpSecretCiphertext: membership.TotpSecretCiphertext, TotpKeyID: membership.TotpKeyID,
+			TotpEnrolledAt: membership.TotpEnrolledAt, RevokedAt: revokedAt,
+		}); err != nil {
+			t.Fatalf("set actor membership: %v", err)
+		}
+	}
+
+	setActorMembership(false, nil)
+	assertRejectedWithoutMutation("inactive")
+	setActorMembership(true, nil)
+
+	revokedAt := time.Now().UTC()
+	setActorMembership(true, &revokedAt)
+	assertRejectedWithoutMutation("revoked")
+	setActorMembership(true, nil)
+
+	if err := q.SetUserSecurityState(ctx, actorID, db.SecurityStateNormal, true, false, nil); err != nil {
+		t.Fatalf("disable actor password: %v", err)
+	}
+	assertRejectedWithoutMutation("password-disabled")
+	if err := q.SetUserSecurityState(ctx, actorID, db.SecurityStateNormal, false, false, nil); err != nil {
+		t.Fatalf("restore actor password: %v", err)
+	}
+
+	compromisedAt := time.Now().UTC()
+	if err := q.SetUserSecurityState(ctx, actorID, db.SecurityStateCompromised, true, true, &compromisedAt); err != nil {
+		t.Fatalf("compromise actor: %v", err)
+	}
+	assertRejectedWithoutMutation("compromised")
 }
 
 func TestBreakGlassRecoveryRequiresAuthorizedStableActor(t *testing.T) {
