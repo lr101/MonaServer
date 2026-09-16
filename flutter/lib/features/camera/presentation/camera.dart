@@ -444,6 +444,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   Future<void> _handleImage(XFile file, {required bool fromGallery}) async {
     final controller = ref.read(cameraControllerProvider).value;
+    var openedReview = false;
     try {
       if (controller != null && controller.value.isInitialized) {
         await controller.pausePreview().catchError((_) {});
@@ -476,32 +477,43 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       }
 
       if (!mounted) return;
+      // Browser history can remove a pushed route without completing its
+      // Future. End capture when review opens; didChangeDependencies resumes
+      // the preview when the camera route becomes current again.
       if (coords != null && !fromGallery) {
-        await context.pushNamed(
-          'imageUpload',
-          queryParameters: {
-            "lat": coords.latitude.toString(),
-            "long": coords.longitude.toString(),
-          },
-          extra: croppedImage,
+        unawaited(
+          context.pushNamed<void>(
+            'imageUpload',
+            queryParameters: {
+              "lat": coords.latitude.toString(),
+              "long": coords.longitude.toString(),
+            },
+            extra: croppedImage,
+          ),
         );
       } else {
-        await context.pushNamed(
-          'selectLocation',
-          queryParameters: coords != null
-              ? {
-                  "lat": coords.latitude.toString(),
-                  "long": coords.longitude.toString(),
-                }
-              : {},
-          extra: croppedImage,
+        unawaited(
+          context.pushNamed<void>(
+            'selectLocation',
+            queryParameters: coords != null
+                ? {
+                    "lat": coords.latitude.toString(),
+                    "long": coords.longitude.toString(),
+                  }
+                : {},
+            extra: croppedImage,
+          ),
         );
       }
+      openedReview = true;
     } catch (e) {
       CustomErrorSnackBar.message(message: "Could not load or crop image");
       debugPrint(e.toString());
     } finally {
-      if (mounted && controller != null && controller.value.isInitialized) {
+      if (!openedReview &&
+          mounted &&
+          controller != null &&
+          controller.value.isInitialized) {
         await controller.resumePreview().catchError((_) {});
       }
     }
