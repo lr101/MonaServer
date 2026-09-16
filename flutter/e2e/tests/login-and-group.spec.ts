@@ -312,6 +312,12 @@ test.describe('web camera access', () => {
     })).toBeCloseTo(4 / 3, 2);
     await page.getByRole('button', { name: 'Take photo', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
+    await page.goBack();
+    await expect(video).toBeVisible();
+    await expect(page.getByText('Hold steady capturing ...', { exact: true })).toHaveCount(0);
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Approve' })).toBeVisible();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
