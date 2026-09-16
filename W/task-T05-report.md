@@ -126,9 +126,12 @@ concurrent service-level step-up test records one winner for a moving factor
 and rejects the simultaneous replay; the throttle test covers password,
 initial MFA, and step-up exhaustion with recovery after the shared window. The
 final review tests cover both single-report transition statuses through the
-`reports.review` middleware capability and reject bulk proofs, while the
-break-glass service test covers missing, consumer, and insufficient actor IDs,
-no mutation on rejected calls, and successful audit attribution.
+`reports.review` middleware capability and reject bulk proofs. Break-glass
+service tests use valid actor IDs for inactive and revoked memberships,
+password-disabled and compromised actor security states, and inactive or
+revoked target memberships; they also cover missing, unknown, consumer, and
+insufficient actor IDs, with unchanged target ciphertext on every rejected
+call and successful audit attribution.
 
 ```text
 mise exec -- go vet ./...
@@ -172,13 +175,73 @@ mise exec -- go build -o /tmp/monaserver-admin-t05 ./cmd/server
 PASS
 ```
 
-The final review repair was then rechecked with the focused middleware, CLI,
-and service tests, followed by a fresh serial full suite against the same
-disposable PostGIS database. Pinned Go API/server generation produced no diff;
-pinned Dart generation also matched `flutter/api` after the repository
-normalizer. The root Flutter contract fixtures passed after `flutter pub get`,
-and the generated-client suite passed 203 tests. Dart analysis retained only
-the two existing non-fatal generated-client warnings.
+The final review repair was verified at source head
+`1f6b2ff366ce668de45fd17799a4e25774550188` (the report-only metadata commit is
+made afterward). The raw final-repair command output is recorded here:
+
+```text
+$ git rev-parse HEAD
+1f6b2ff366ce668de45fd17799a4e25774550188
+
+$ mise exec -- make gen-api
+oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml
+
+$ set -o pipefail; OPENAPI_GENERATOR_JAR=/root/openapi-generator-cli.jar mise exec -- make gen-server >/tmp/t05-gen-server-final.log 2>&1; status=$?; tail -n 2 /tmp/t05-gen-server-final.log; printf 'exit=%s\n' "$status"; exit "$status"
+############################################################################################
+gofmt -w internal/gen/server/
+exit=0
+
+$ git status --short && git diff --check
+(no output; exit status 0)
+
+$ mise exec -- go test -count=1 ./internal/middleware ./cmd/admin-auth
+ok  github.com/lrprojects/monaserver/internal/middleware  0.005s
+ok  github.com/lrprojects/monaserver/cmd/admin-auth         0.009s
+
+$ set -a; source /root/.t3/worktrees/MonaServer/t3code-76e6aaef/.superpowers/sdd/web-admin-and-email-login/.env.test.T03; set +a; TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./internal/service -run '^(TestBreakGlassRecoveryRequiresActiveMembership|TestBreakGlassRecoveryRejectsInvalidActorStateBeforeMutation|TestBreakGlassRecoveryRequiresAuthorizedStableActor)$'
+ok  github.com/lrprojects/monaserver/internal/service  1.108s
+
+$ set -a; source /root/.t3/worktrees/MonaServer/t3code-76e6aaef/.superpowers/sdd/web-admin-and-email-login/.env.test.T03; set +a; TEST_DATABASE_URL="$TEST_DATABASE_URL" mise exec -- go test -count=1 -p 1 ./...
+ok  github.com/lrprojects/monaserver/cmd/admin-auth  0.008s
+ok  github.com/lrprojects/monaserver/cmd/server  5.804s
+ok  github.com/lrprojects/monaserver/internal/config  0.003s
+ok  github.com/lrprojects/monaserver/internal/db  5.351s
+ok  github.com/lrprojects/monaserver/internal/handler  11.634s
+ok  github.com/lrprojects/monaserver/internal/image  0.159s
+ok  github.com/lrprojects/monaserver/internal/jobs  0.074s
+ok  github.com/lrprojects/monaserver/internal/middleware  0.004s
+ok  github.com/lrprojects/monaserver/internal/password  0.220s
+ok  github.com/lrprojects/monaserver/internal/service  23.300s
+ok  github.com/lrprojects/monaserver/internal/token  0.003s
+?   github.com/lrprojects/monaserver/internal/apperrors [no test files]
+?   github.com/lrprojects/monaserver/internal/gen/api [no test files]
+?   github.com/lrprojects/monaserver/internal/gen/db [no test files]
+?   github.com/lrprojects/monaserver/internal/gen/server [no test files]
+?   github.com/lrprojects/monaserver/internal/scheduler [no test files]
+
+$ mise exec -- go vet ./...
+(no output; exit status 0)
+
+$ mise exec -- go build -o /tmp/monaserver-admin-t05-final ./cmd/server
+(no output; exit status 0)
+
+$ set -o pipefail; out_dir="$(mktemp -d)"; java -jar /root/.cache/openapi-generator/openapi-generator-cli-7.9.0.jar generate -i ../api/openapi.yaml -g dart -o "$out_dir" -t generator-templates --global-property modelTests=false,apiTests=false --skip-validate-spec >/tmp/t05-gen-dart-final.log 2>&1; status=$?; bash ../.github/scripts/normalize-openapi-generated.sh "$out_dir" api; diff -ru --exclude=pubspec.yaml --exclude=pubspec.lock --exclude=.dart_tool --exclude=build --exclude=test api "$out_dir"; printf 'generator_exit=%s\nDART_GENERATION_MATCH=1\n' "$status"; exit "$status"
+generator_exit=0
+DART_GENERATION_MATCH=1
+
+$ mise exec -- flutter test --no-pub test/web_admin_contract_test.dart
+00:00 +10: All tests passed!
+
+$ mise exec -- flutter test --no-pub
+00:05 +203: All tests passed!
+
+$ mise exec -- flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+2 issues found. (ran in 0.3s)
+```
+
+The two Dart analysis issues are the existing non-fatal generated-client
+`unawaited_return_in_try_block` warnings at `lib/api_client.dart:77` and
+`:87`; all commands above exited successfully.
 
 ## Local service availability
 
