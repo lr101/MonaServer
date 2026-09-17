@@ -708,6 +708,37 @@ WITH candidates AS (
 )
 SELECT * FROM claimed ORDER BY created_at ASC, id ASC;
 
+-- Claim one requested item for the T07 action boundary.  The candidate row
+-- lock and lease transition are one statement, so a concurrent worker either
+-- observes no claimable row or receives a fresh owner/token pair.  The token
+-- returned here is the acknowledgement fence for this lease attempt.
+-- name: ClaimJobItem :one
+WITH candidate AS (
+    SELECT i.id
+    FROM admin_job_items i
+    WHERE i.id = $1
+      AND i.job_id = $2
+      AND i.outcome IN ('queued', 'unknown_delivery')
+      AND (i.lease_until IS NULL OR i.lease_until <= now())
+    FOR UPDATE SKIP LOCKED
+), claimed AS (
+    UPDATE admin_job_items i
+    SET lease_owner = $3,
+        lease_token = uuid_generate_v4(),
+        lease_until = now() + make_interval(secs => $4::double precision),
+        attempt_count = attempt_count + 1,
+        updated_at = now()
+    FROM candidate c
+    WHERE i.id = c.id
+    RETURNING i.id, i.job_id, i.target_id, i.device_id, i.outcome, i.error_code,
+              i.provider_reference, i.attempt_count, i.lease_owner, i.lease_token,
+              i.lease_until, i.completed_at, i.created_at, i.updated_at
+)
+SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+       attempt_count, lease_owner, lease_token, lease_until, completed_at,
+       created_at, updated_at
+FROM claimed;
+
 -- name: FinishAdminJobItem :one
 UPDATE admin_job_items
 SET outcome = $2::varchar, error_code = $3, provider_reference = $4,
@@ -716,10 +747,34 @@ SET outcome = $2::varchar, error_code = $3, provider_reference = $4,
 WHERE id = $1 AND lease_owner = $5 AND lease_token = $6 AND lease_until > now()
 RETURNING id;
 
+-- Finish, heartbeat, and retry acknowledgement all carry the worker and the
+-- exact token returned by ClaimJobItem.  A reclaimed row has a different
+-- token, so an old worker's rows-affected result is zero even if it races the
+-- current owner.
+-- name: FinishJobItem :one
+UPDATE admin_job_items
+SET outcome = $4::varchar, error_code = $5, provider_reference = $6,
+    completed_at = CASE WHEN $4::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
+    lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
+RETURNING id;
+
 -- name: ExtendAdminJobItemLease :one
 UPDATE admin_job_items
 SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
 WHERE id = $1 AND lease_owner = $2 AND lease_token = $3 AND lease_until > now()
+RETURNING id, lease_until;
+
+-- name: HeartbeatJobItem :one
+UPDATE admin_job_items
+SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
 RETURNING id, lease_until;
 
 -- name: ReleaseAdminJobItemLease :one
@@ -727,6 +782,19 @@ UPDATE admin_job_items
 SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
     lease_until = NULL, updated_at = now()
 WHERE id = $1 AND lease_owner = $2 AND lease_token = $3 AND lease_until > now()
+RETURNING id;
+
+-- Retry acceptance returns the item to the retryable outcome only for the
+-- current lease owner.  The token check fences a stale worker from changing
+-- the outcome after another worker has reclaimed the item.
+-- name: RetryJobItem :one
+UPDATE admin_job_items
+SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
 RETURNING id;
 
 -- Durable jobs and outbox leases -------------------------------------------

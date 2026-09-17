@@ -1685,6 +1685,25 @@ func adminJobItemFromClaimRow(r dbgen.ClaimAdminJobItemsRow) AdminJobItem {
 	}
 }
 
+func adminJobItemFromSingularClaimRow(r dbgen.ClaimJobItemRow) AdminJobItem {
+	return AdminJobItem{
+		ID:                goUUID(r.ID),
+		JobID:             goUUID(r.JobID),
+		TargetID:          goUUID(r.TargetID),
+		DeviceID:          uuidPtrFromPG(r.DeviceID),
+		Outcome:           r.Outcome,
+		ErrorCode:         textPtrFromPG(r.ErrorCode),
+		ProviderReference: textPtrFromPG(r.ProviderReference),
+		AttemptCount:      r.AttemptCount,
+		LeaseOwner:        textPtrFromPG(r.LeaseOwner),
+		LeaseToken:        goUUID(r.LeaseToken),
+		LeaseUntil:        timePtrFromPG(r.LeaseUntil),
+		CompletedAt:       timePtrFromPG(r.CompletedAt),
+		CreatedAt:         timeFromPG(r.CreatedAt),
+		UpdatedAt:         timeFromPG(r.UpdatedAt),
+	}
+}
+
 func (q *Queries) AddAdminJobItem(ctx context.Context, p AdminJobItemParams) error {
 	if p.ID == uuid.Nil || p.JobID == uuid.Nil || p.TargetID == uuid.Nil {
 		return ErrInvalidJob
@@ -1746,6 +1765,33 @@ func (q *Queries) ClaimAdminJobItems(ctx context.Context, jobID uuid.UUID, worke
 	return out, nil
 }
 
+// ClaimJobItem atomically claims one requested administrative item and returns
+// the worker-bound lease token.  A false result means the item is missing,
+// already claimed, or terminal; callers must not execute the action then.
+func (q *Queries) ClaimJobItem(ctx context.Context, jobID, itemID uuid.UUID, worker string, lease time.Duration) (*AdminJobItem, bool, error) {
+	if jobID == uuid.Nil || itemID == uuid.Nil || worker == "" || lease <= 0 {
+		return nil, false, ErrInvalidLease
+	}
+	r, err := q.g.ClaimJobItem(ctx, dbgen.ClaimJobItemParams{
+		ID: pgUUID(itemID), JobID: pgUUID(jobID), LeaseOwner: pgTextS(worker), Column4: lease.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	v := adminJobItemFromSingularClaimRow(r)
+	return &v, true, nil
+}
+
+// ClaimAdminJobItem is the descriptive alias used by the administrative
+// service boundary.  Keep ClaimJobItem as the short compatibility name for
+// callers that already use the T07 job-store terminology.
+func (q *Queries) ClaimAdminJobItem(ctx context.Context, jobID, itemID uuid.UUID, worker string, lease time.Duration) (*AdminJobItem, bool, error) {
+	return q.ClaimJobItem(ctx, jobID, itemID, worker, lease)
+}
+
 func (q *Queries) FinishAdminJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
 	if id == uuid.Nil || worker == "" || token == uuid.Nil || outcome == "" {
 		return false, ErrInvalidLease
@@ -1758,6 +1804,30 @@ func (q *Queries) FinishAdminJobItem(ctx context.Context, id uuid.UUID, worker s
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// FinishJobItem acknowledges an item only while the supplied worker owns the
+// current, unexpired lease token.  The rows-affected result is false after a
+// reclaim, expiry, duplicate acknowledgement, or worker/token mismatch.
+func (q *Queries) FinishJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
+	if id == uuid.Nil || worker == "" || token == uuid.Nil || outcome == "" {
+		return false, ErrInvalidLease
+	}
+	_, err := q.g.FinishJobItem(ctx, dbgen.FinishJobItemParams{
+		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token), Column4: outcome,
+		ErrorCode: pgText(errorCode), ProviderReference: pgText(providerReference),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// FinishAdminJobItemWithFence is an explicit descriptive alias for consumers
+// that want to distinguish the fenced acknowledgement from the legacy
+// bool-returning method.  Both paths enforce the same worker/token predicate.
+func (q *Queries) FinishAdminJobItemWithFence(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
+	return q.FinishJobItem(ctx, id, worker, token, outcome, errorCode, providerReference)
 }
 
 func (q *Queries) ExtendAdminJobItemLease(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
@@ -1773,6 +1843,27 @@ func (q *Queries) ExtendAdminJobItemLease(ctx context.Context, id uuid.UUID, wor
 	return err == nil, err
 }
 
+// HeartbeatJobItem extends only the current worker's unexpired lease.  It is
+// deliberately token-bound so a stale heartbeat cannot resurrect a reclaimed
+// item.
+func (q *Queries) HeartbeatJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
+	if id == uuid.Nil || worker == "" || token == uuid.Nil || lease <= 0 {
+		return false, ErrInvalidLease
+	}
+	_, err := q.g.HeartbeatJobItem(ctx, dbgen.HeartbeatJobItemParams{
+		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token), Column4: lease.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// HeartbeatAdminJobItem is the descriptive alias for the T07 adapter.
+func (q *Queries) HeartbeatAdminJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
+	return q.HeartbeatJobItem(ctx, id, worker, token, lease)
+}
+
 func (q *Queries) ReleaseAdminJobItemLease(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
 	if id == uuid.Nil || worker == "" || token == uuid.Nil {
 		return false, ErrInvalidLease
@@ -1784,6 +1875,27 @@ func (q *Queries) ReleaseAdminJobItemLease(ctx context.Context, id uuid.UUID, wo
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// RetryJobItem accepts a retry result only from the current lease owner.  It
+// releases that lease into unknown_delivery, preserving the existing retry
+// outcome vocabulary while fencing stale workers.
+func (q *Queries) RetryJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
+	if id == uuid.Nil || worker == "" || token == uuid.Nil {
+		return false, ErrInvalidLease
+	}
+	_, err := q.g.RetryJobItem(ctx, dbgen.RetryJobItemParams{
+		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// RetryAdminJobItem is the descriptive alias for the T07 adapter.
+func (q *Queries) RetryAdminJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
+	return q.RetryJobItem(ctx, id, worker, token)
 }
 
 // ---- reports and report notes ---------------------------------------------

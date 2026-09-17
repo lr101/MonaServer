@@ -528,6 +528,89 @@ func (q *Queries) ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginC
 	return i, err
 }
 
+const claimJobItem = `-- name: ClaimJobItem :one
+WITH candidate AS (
+    SELECT i.id
+    FROM admin_job_items i
+    WHERE i.id = $1
+      AND i.job_id = $2
+      AND i.outcome IN ('queued', 'unknown_delivery')
+      AND (i.lease_until IS NULL OR i.lease_until <= now())
+    FOR UPDATE SKIP LOCKED
+), claimed AS (
+    UPDATE admin_job_items i
+    SET lease_owner = $3,
+        lease_token = uuid_generate_v4(),
+        lease_until = now() + make_interval(secs => $4::double precision),
+        attempt_count = attempt_count + 1,
+        updated_at = now()
+    FROM candidate c
+    WHERE i.id = c.id
+    RETURNING i.id, i.job_id, i.target_id, i.device_id, i.outcome, i.error_code,
+              i.provider_reference, i.attempt_count, i.lease_owner, i.lease_token,
+              i.lease_until, i.completed_at, i.created_at, i.updated_at
+)
+SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+       attempt_count, lease_owner, lease_token, lease_until, completed_at,
+       created_at, updated_at
+FROM claimed
+`
+
+type ClaimJobItemParams struct {
+	ID         pgtype.UUID `json:"id"`
+	JobID      pgtype.UUID `json:"job_id"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	Column4    float64     `json:"column_4"`
+}
+
+type ClaimJobItemRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	TargetID          pgtype.UUID        `json:"target_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	Outcome           string             `json:"outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	AttemptCount      int32              `json:"attempt_count"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Claim one requested item for the T07 action boundary.  The candidate row
+// lock and lease transition are one statement, so a concurrent worker either
+// observes no claimable row or receives a fresh owner/token pair.  The token
+// returned here is the acknowledgement fence for this lease attempt.
+func (q *Queries) ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error) {
+	row := q.db.QueryRow(ctx, claimJobItem,
+		arg.ID,
+		arg.JobID,
+		arg.LeaseOwner,
+		arg.Column4,
+	)
+	var i ClaimJobItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.TargetID,
+		&i.DeviceID,
+		&i.Outcome,
+		&i.ErrorCode,
+		&i.ProviderReference,
+		&i.AttemptCount,
+		&i.LeaseOwner,
+		&i.LeaseToken,
+		&i.LeaseUntil,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const claimOutboxEvents = `-- name: ClaimOutboxEvents :many
 WITH candidates AS (
     SELECT id
@@ -1450,6 +1533,45 @@ func (q *Queries) FinishDurableJob(ctx context.Context, arg FinishDurableJobPara
 	return id, err
 }
 
+const finishJobItem = `-- name: FinishJobItem :one
+UPDATE admin_job_items
+SET outcome = $4::varchar, error_code = $5, provider_reference = $6,
+    completed_at = CASE WHEN $4::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
+    lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
+RETURNING id
+`
+
+type FinishJobItemParams struct {
+	ID                pgtype.UUID `json:"id"`
+	LeaseOwner        pgtype.Text `json:"lease_owner"`
+	LeaseToken        pgtype.UUID `json:"lease_token"`
+	Column4           string      `json:"column_4"`
+	ErrorCode         pgtype.Text `json:"error_code"`
+	ProviderReference pgtype.Text `json:"provider_reference"`
+}
+
+// Finish, heartbeat, and retry acknowledgement all carry the worker and the
+// exact token returned by ClaimJobItem.  A reclaimed row has a different
+// token, so an old worker's rows-affected result is zero even if it races the
+// current owner.
+func (q *Queries) FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, finishJobItem,
+		arg.ID,
+		arg.LeaseOwner,
+		arg.LeaseToken,
+		arg.Column4,
+		arg.ErrorCode,
+		arg.ProviderReference,
+	)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const finishOutboxEvent = `-- name: FinishOutboxEvent :one
 UPDATE outbox_events
 SET status = $4::varchar, accepted_at = CASE WHEN $4::varchar = 'accepted' THEN now() ELSE accepted_at END,
@@ -1991,6 +2113,40 @@ func (q *Queries) GetUserSecurityState(ctx context.Context, id pgtype.UUID) (Get
 		&i.PasswordResetRequired,
 		&i.CompromisedAt,
 	)
+	return i, err
+}
+
+const heartbeatJobItem = `-- name: HeartbeatJobItem :one
+UPDATE admin_job_items
+SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
+RETURNING id, lease_until
+`
+
+type HeartbeatJobItemParams struct {
+	ID         pgtype.UUID `json:"id"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	LeaseToken pgtype.UUID `json:"lease_token"`
+	Column4    float64     `json:"column_4"`
+}
+
+type HeartbeatJobItemRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	LeaseUntil pgtype.Timestamptz `json:"lease_until"`
+}
+
+func (q *Queries) HeartbeatJobItem(ctx context.Context, arg HeartbeatJobItemParams) (HeartbeatJobItemRow, error) {
+	row := q.db.QueryRow(ctx, heartbeatJobItem,
+		arg.ID,
+		arg.LeaseOwner,
+		arg.LeaseToken,
+		arg.Column4,
+	)
+	var i HeartbeatJobItemRow
+	err := row.Scan(&i.ID, &i.LeaseUntil)
 	return i, err
 }
 
@@ -2887,6 +3043,33 @@ type ResetAdminMFAReplayScopeParams struct {
 func (q *Queries) ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error {
 	_, err := q.db.Exec(ctx, resetAdminMFAReplayScope, arg.MembershipID, arg.UserID)
 	return err
+}
+
+const retryJobItem = `-- name: RetryJobItem :one
+UPDATE admin_job_items
+SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE id = $1
+  AND lease_owner = $2
+  AND lease_token = $3
+  AND lease_until > now()
+RETURNING id
+`
+
+type RetryJobItemParams struct {
+	ID         pgtype.UUID `json:"id"`
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	LeaseToken pgtype.UUID `json:"lease_token"`
+}
+
+// Retry acceptance returns the item to the retryable outcome only for the
+// current lease owner.  The token check fences a stale worker from changing
+// the outcome after another worker has reclaimed the item.
+func (q *Queries) RetryJobItem(ctx context.Context, arg RetryJobItemParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, retryJobItem, arg.ID, arg.LeaseOwner, arg.LeaseToken)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const revokeAccountActionTokens = `-- name: RevokeAccountActionTokens :exec

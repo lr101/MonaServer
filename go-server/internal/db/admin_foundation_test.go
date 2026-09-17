@@ -742,6 +742,99 @@ func TestT02AllLeaseKindsRejectExpiredWorkers(t *testing.T) {
 	}
 }
 
+func TestT02AdminJobItemClaimFenceRejectsStaleWorkerAcknowledgements(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	snapshotID := uuid.New()
+	if err := q.CreateAudienceSnapshot(ctx, AudienceSnapshotParams{
+		ID: snapshotID, Resource: AudienceResourceAccounts, Action: "lease-fence",
+		PayloadHash: []byte("payload"), ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("snapshot create: %v", err)
+	}
+	adminJob, err := q.CreateAdminJob(ctx, AdminJobParams{
+		ID: uuid.New(), SnapshotID: &snapshotID, Action: "lease-fence",
+		PayloadHash: []byte("payload"), IdempotencyKey: "admin-item-lease-fence",
+	})
+	if err != nil {
+		t.Fatalf("admin job create: %v", err)
+	}
+	itemID := uuid.New()
+	if err := q.AddAdminJobItem(ctx, AdminJobItemParams{
+		ID: itemID, JobID: adminJob.ID, TargetID: uuid.New(),
+	}); err != nil {
+		t.Fatalf("item create: %v", err)
+	}
+
+	first, claimed, err := q.ClaimJobItem(ctx, adminJob.ID, itemID, "worker-a", time.Minute)
+	if err != nil {
+		t.Fatalf("first item claim: %v", err)
+	}
+	if !claimed || first == nil || first.LeaseToken == uuid.Nil || first.LeaseOwner == nil || *first.LeaseOwner != "worker-a" {
+		t.Fatalf("first item claim = %#v, claimed=%v; want worker-bound token", first, claimed)
+	}
+	if first.LeaseUntil == nil {
+		t.Fatal("first item claim has no lease expiry")
+	}
+
+	if _, claimed, err := q.ClaimJobItem(ctx, adminJob.ID, itemID, "worker-b", time.Minute); err != nil {
+		t.Fatalf("active item reclaim: %v", err)
+	} else if claimed {
+		t.Fatal("active item was reclaimed before its lease expired")
+	}
+	if ok, err := q.HeartbeatJobItem(ctx, itemID, "worker-b", first.LeaseToken, time.Minute); err != nil || ok {
+		t.Fatalf("wrong-worker heartbeat: ok=%v err=%v; lease token must remain worker-bound", ok, err)
+	}
+
+	// Force expiry in the database so reclaim behavior is deterministic and
+	// does not depend on a wall-clock sleep in the test.
+	if _, err := q.Pool().Exec(ctx, `
+		UPDATE admin_job_items
+		SET lease_until = NOW() - interval '1 second'
+		WHERE id = $1`, itemID); err != nil {
+		t.Fatalf("expire first lease: %v", err)
+	}
+	second, claimed, err := q.ClaimJobItem(ctx, adminJob.ID, itemID, "worker-b", time.Minute)
+	if err != nil {
+		t.Fatalf("reclaim item: %v", err)
+	}
+	if !claimed || second == nil || second.LeaseToken == uuid.Nil || second.LeaseToken == first.LeaseToken {
+		t.Fatalf("reclaimed item = %#v, claimed=%v; want a fresh fence token", second, claimed)
+	}
+
+	if ok, err := q.FinishJobItem(ctx, itemID, "worker-a", first.LeaseToken, "failed", nil, nil); err != nil || ok {
+		t.Fatalf("stale finish: ok=%v err=%v; stale worker must be fenced", ok, err)
+	}
+	if ok, err := q.HeartbeatJobItem(ctx, itemID, "worker-a", first.LeaseToken, time.Minute); err != nil || ok {
+		t.Fatalf("stale heartbeat: ok=%v err=%v; stale worker must be fenced", ok, err)
+	}
+	if ok, err := q.RetryJobItem(ctx, itemID, "worker-a", first.LeaseToken); err != nil || ok {
+		t.Fatalf("stale retry acceptance: ok=%v err=%v; stale worker must be fenced", ok, err)
+	}
+
+	if ok, err := q.HeartbeatJobItem(ctx, itemID, "worker-b", second.LeaseToken, time.Minute); err != nil || !ok {
+		t.Fatalf("fresh heartbeat: ok=%v err=%v; current worker must retain lease", ok, err)
+	}
+	if ok, err := q.FinishJobItem(ctx, itemID, "worker-b", second.LeaseToken, "provider_accepted", nil, nil); err != nil || !ok {
+		t.Fatalf("fresh finish: ok=%v err=%v", ok, err)
+	}
+	stored, err := q.GetAdminJobItem(ctx, itemID)
+	if err != nil {
+		t.Fatalf("read finished item: %v", err)
+	}
+	if stored == nil || stored.Outcome != "provider_accepted" || stored.LeaseOwner != nil || stored.LeaseToken != uuid.Nil {
+		t.Fatalf("finished item = %#v; want terminal outcome with cleared lease", stored)
+	}
+	if _, err := q.Pool().Exec(ctx, `
+		UPDATE admin_job_items
+		SET lease_token = $2
+		WHERE id = $1`, itemID, uuid.New()); err == nil {
+		t.Fatal("database accepted a lease token without its worker and expiry fence")
+	}
+}
+
 func TestT02SnapshotAppendAndReportRevisionAreStable(t *testing.T) {
 	q, cleanup := t02Database(t)
 	defer cleanup()
