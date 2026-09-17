@@ -61,8 +61,9 @@ actor membership, auth generation, and capabilities are required and reloaded
 before every item; revocation or demotion pauses the job. The creator may
 execute/resume using the durable creator proof. A takeover requires
 `jobs.execute_all` for execution or `jobs.control_all` plus `jobs.control` for
-retry/resume and the takeover actor's own fresh MFA bound to the job action;
-creator proof is never copied onto that actor. Security/report jobs and
+retry/resume. Its execution MFA is bound to the job action, while its
+retry/resume MFA is bound to the route's `jobs.control` command action; creator
+proof is never copied onto that actor. Security/report jobs and
 unconstrained all-account email, login-link, and push jobs retain and enforce
 the durable action-bound proof after restart. The legacy one-shot credential
 ports remain only for compatibility and are rejected for execution; production
@@ -127,15 +128,18 @@ preferences/device shrinkage, empty-filter MFA normalization, bounded async
 resolution with actor/action handoff, idempotent item processing, explicit
 safe retry, credential unknown-outcome suppression, terminal uncertain job
 progress, lease-loss terminalization/reclaim suppression and fail-closed
-terminal commit failure, creator/takeover MFA separation for execution and
-resume, durable proof enforcement for restarted all-account email/login-link/
+terminal commit failure, parent-cancellation quarantine during delayed lease
+renewal, creator/takeover MFA separation for execution and resume, route-bound
+command MFA, durable proof enforcement for restarted all-account email/login-link/
 push jobs, mandatory actor reload and keyed ports, atomic item/audit commit
 failure, per-item actor reload/pause, lease fencing, self-containment pause,
 eligibility recheck, actor/target audit binding, stale post-completion lease
 rejection, and rejection of stores without terminal unknown-delivery support.
 Handler tests cover generated DTO mapping, CSRF rejection, sanitized preview
 responses, immutable job commit, idempotent create, and routed explicit-false
-verified-email filtering.
+verified-email filtering. Middleware tests cover the routed retry boundary:
+`jobs.control` MFA reaches the command handler while an email-bound proof is
+rejected.
 
 ```text
 mise exec -- gofmt -w internal/service/admin_*.go internal/handler/admin_*.go
@@ -155,7 +159,7 @@ coordinator/DB-owner work described above. No provider send, deployment, or
 PR was performed.
 
 The T07 review follow-up in commit
-`286aa8ea476b30342e608005c4e5324bade39af8` was formatted and verified with
+`9e17963ce9421c27933163ffa5c1e75b1599961b` was formatted and verified with
 the following exact commands from `go-server`:
 
 ```text
@@ -163,7 +167,7 @@ mise exec -- go test -count=1 ./internal/service
 PASS
 mise exec -- go test -race -count=3 ./internal/service -run '^(TestBulkLeaseLoss|TestBulkTakeover|TestBulkRestartRequiresDurable)'
 PASS
-mise exec -- go test -race -count=1 -p 1 ./internal/service ./internal/handler ./cmd/server -run '^(Test(Bulk|Admin|T07|Report|EndpointReport|RealAdminRouterUsesBrowserSessionBoundary|WebAdminAPI|V3))'
+mise exec -- go test -race -count=1 -p 1 ./internal/service ./internal/handler ./cmd/server ./internal/middleware -run '^(Test(Bulk|Admin|T07|Report|EndpointReport|RealAdminRouterUsesBrowserSessionBoundary|WebAdminAPI|V3))'
 PASS
 mise exec -- go test -count=1 -p 1 ./...
 PASS
@@ -174,6 +178,7 @@ PASS
 ```
 
 The focused additions prove terminal unknown delivery on lease loss blocks a
-reclaim, terminal commit failure pauses and fails closed, takeover execution
-and resume require the takeover actor's own action-bound MFA, and restarted
+reclaim, terminal commit failure pauses and fails closed, parent cancellation
+with delayed renewal is quarantined before reclaim, takeover execution uses
+the job action while takeover resume uses `jobs.control`, and restarted
 all-account email/login-link/push jobs require their durable creator proof.
