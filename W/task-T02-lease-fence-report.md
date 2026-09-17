@@ -52,6 +52,31 @@ heartbeat / retry rejection, fresh heartbeat and finish acceptance, cleared
 terminal lease fields, and rejection of a partial lease tuple by the new
 constraint.
 
+The concurrency amendment was tested at commit
+`34b820a13b9a39d568b67e4b09a86655bc99329e`. Two claim calls are released
+from a readiness barrier together and produce exactly one winner. Each
+reclaim subtest releases a stale acknowledgement and reclaim call together
+after forcing expiry; finish, heartbeat, and retry all report stale false while
+the fresh token remains accepted.
+
+```text
+$ git rev-parse HEAD
+34b820a13b9a39d568b67e4b09a86655bc99329e
+$ TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db -run 'TestT02AdminJobItem(ConcurrentClaimsHaveOneWinner|ReclaimFencesOverlappingStaleAcknowledgements)$' -v
+=== RUN   TestT02AdminJobItemConcurrentClaimsHaveOneWinner
+--- PASS: TestT02AdminJobItemConcurrentClaimsHaveOneWinner (0.32s)
+=== RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements
+=== RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/finish
+=== RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/heartbeat
+=== RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/retry
+--- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements (0.85s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/finish (0.28s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/heartbeat (0.29s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/retry (0.28s)
+PASS
+ok   github.com/lrprojects/monaserver/internal/db 1.168s
+```
+
 ```text
 TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db -run '^TestT02AdminJobItemClaimFenceRejectsStaleWorkerAcknowledgements$'
 ok   github.com/lrprojects/monaserver/internal/db
