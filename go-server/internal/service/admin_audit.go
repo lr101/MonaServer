@@ -265,14 +265,20 @@ func (m *MemoryAdminStore) AppendAudit(_ context.Context, event AdminAuditEvent)
 	return nil
 }
 
-// RecordJobItemAudit is the in-memory equivalent of the durable finish/outbox
-// transaction. The composite key makes retries and outbox replays idempotent.
-func (m *MemoryAdminStore) RecordJobItemAudit(_ context.Context, item AdminJobItemAudit) error {
-	if m == nil || item.JobID == uuid.Nil || item.ItemID == uuid.Nil || item.ActorID == uuid.Nil || item.TargetID == uuid.Nil || !validOutcome(item.Outcome) || item.Action == "" {
+func validateJobItemAudit(item AdminJobItemAudit) error {
+	if item.JobID == uuid.Nil || item.ItemID == uuid.Nil || item.ActorID == uuid.Nil || item.TargetID == uuid.Nil || !validOutcome(item.Outcome) || item.Action == "" || len([]byte(item.Action)) > 64 || !validUTF8(item.Action) || strings.ContainsAny(item.Action, "\r\n\x00") {
 		return ErrInvalidAuditQuery
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	return nil
+}
+
+// recordJobItemAuditLocked appends the redacted item event while the store
+// mutex is held. It is shared by the standalone cancellation path and the
+// atomic item finish path.
+func (m *MemoryAdminStore) recordJobItemAuditLocked(item AdminJobItemAudit) error {
+	if err := validateJobItemAudit(item); err != nil {
+		return err
+	}
 	if m.jobAuditKeys == nil {
 		m.jobAuditKeys = make(map[string]struct{})
 	}
@@ -295,6 +301,17 @@ func (m *MemoryAdminStore) RecordJobItemAudit(_ context.Context, item AdminJobIt
 	}
 	m.Audit = append(m.Audit, redactAuditEvent(AdminAuditEvent{ID: uuid.New(), ActorID: &actorID, TargetID: &targetID, Action: item.Action, Outcome: item.Outcome, Reason: reason, Details: details, OccurredAt: time.Now().UTC()}))
 	return nil
+}
+
+// RecordJobItemAudit is the in-memory equivalent of the durable outbox append.
+// The composite key makes retries and outbox replays idempotent.
+func (m *MemoryAdminStore) RecordJobItemAudit(_ context.Context, item AdminJobItemAudit) error {
+	if m == nil {
+		return ErrAdminRepositoryAbsent
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.recordJobItemAuditLocked(item)
 }
 
 func (m *MemoryAdminStore) ListAudit(_ context.Context, query AdminAuditQuery) (AdminAuditPage, error) {

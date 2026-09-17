@@ -48,6 +48,7 @@ func TestBulkJobExecutionRechecksActorAndDoesNotRepeatCompletedItems(t *testing.
 		t.Fatalf("preview: %v", err)
 	}
 	bulk := NewAdminBulkService(store, audienceService, &AdminActionPorts{Email: bulkTestEmailSender{}})
+	bulk.SetActorReloader(dynamicAdminActorReloader{actor: &actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "same"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -145,6 +146,7 @@ func TestBulkWorkerRechecksRecipientEligibilityBeforeDelivery(t *testing.T) {
 	}
 	sender := &countingEmailSender{}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: alwaysIneligibleChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "eligibility"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -174,6 +176,7 @@ func TestBulkSecuritySelfContainmentPausesRemainingWork(t *testing.T) {
 		t.Fatalf("preview: %v", err)
 	}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "self-containment"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -200,6 +203,7 @@ func TestBulkRetryRequiresExplicitCommandForFailedItems(t *testing.T) {
 	}
 	sender := &flakyEmailSender{}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "retry-explicit"})
 	if err != nil {
 		t.Fatalf("create: %v", err)

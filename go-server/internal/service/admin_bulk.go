@@ -43,18 +43,22 @@ var (
 )
 
 type AdminJob struct {
-	ID                    uuid.UUID
-	ActorID               uuid.UUID
-	SnapshotID            uuid.UUID
-	Action                AdminAction
-	PayloadHash           string
-	IdempotencyKey        string
-	Status                string
-	AccountCount          int64
-	EligibleCount         int64
-	DeviceCount           int64
-	CompletedCount        int64
-	FailedCount           int64
+	ID             uuid.UUID
+	ActorID        uuid.UUID
+	SnapshotID     uuid.UUID
+	Action         AdminAction
+	PayloadHash    string
+	IdempotencyKey string
+	Status         string
+	AccountCount   int64
+	EligibleCount  int64
+	DeviceCount    int64
+	CompletedCount int64
+	FailedCount    int64
+	// UncertainCount is the number of terminal items whose provider delivery
+	// result could not be confirmed. They are included in CompletedCount so a
+	// job cannot remain running forever after an unknown_delivery outcome.
+	UncertainCount        int64
 	Reason                string
 	CancellationRequested bool
 	CreatedAt             time.Time
@@ -122,9 +126,11 @@ type AdminJobCommand struct {
 
 // AdminJobStore is the transaction boundary for durable administrative jobs.
 // CreateJob must commit the job and all recipient items atomically. Production
-// stores should implement FencedAdminJobStore and AdminJobItemStateStore so
-// claim/finish, operation state, and retries use a lease/fence CAS; the legacy
-// methods remain only as a migration seam for local adapters.
+// stores must implement FencedAdminJobStore, AdminJobItemCommitStore, and
+// AdminJobItemAuditStore so claims, operation state, retries, and audit events
+// use a lease/fence CAS and one durable item transition. The legacy methods
+// remain only as a migration seam for adapters that are not allowed to execute
+// a job.
 type AdminJobStore interface {
 	CreateJob(context.Context, AdminJob, []AdminJobItem) (*AdminJob, error)
 	GetJob(context.Context, uuid.UUID) (*AdminJob, error)
@@ -137,10 +143,9 @@ type AdminJobStore interface {
 	UpdateJobProgress(context.Context, uuid.UUID) error
 }
 
-// AdminJobItemStateStore is the additive durable-outcome boundary. Stores
-// that implement it persist the operation key and retry/ambiguity flags in the
-// same item transition as the outcome. Older stores can retain the legacy
-// FinishJobItem method while migrating to this shape.
+// AdminJobItemStateStore is retained as a descriptive migration seam. It is
+// insufficient for execution because it does not bind the item transition to
+// its audit event; executable stores must implement AdminJobItemCommitStore.
 type AdminJobItemStateStore interface {
 	FinishJobItemWithState(context.Context, uuid.UUID, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
 }
@@ -154,12 +159,22 @@ type AdminJobLease struct {
 	ExpiresAt time.Time
 }
 
-// FencedAdminJobStore is the optional DB primitive consumed by the service
-// when available. Claim and finish must be implemented by one transaction (or
-// an equivalent compare-and-set) in the production adapter.
+// FencedAdminJobStore is mandatory for execution. Claim and finish must be
+// implemented by one transaction (or an equivalent compare-and-set) in the
+// production adapter. The service rejects legacy unfenced adapters before an
+// item can reach an action port.
 type FencedAdminJobStore interface {
 	ClaimJobItemWithLease(context.Context, uuid.UUID, uuid.UUID, string, time.Duration) (*AdminJobItem, *AdminJobLease, bool, error)
 	FinishJobItemWithLease(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
+}
+
+// AdminJobItemCommitStore durably finishes an item and records its actor,
+// target, operation, and outcome audit event as one transaction. A database
+// adapter may implement this with an outbox row, but it must never expose a
+// successful item finish before the audit intent is durable. This interface is
+// mandatory alongside FencedAdminJobStore for executable jobs.
+type AdminJobItemCommitStore interface {
+	FinishJobItemWithAudit(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool, AdminJobItemAudit) (*AdminJobItem, error)
 }
 
 // AdminActorReloader supplies fresh membership, auth-generation, and
@@ -322,16 +337,24 @@ type AdminBulkService struct {
 	leaseTTL      time.Duration
 }
 
-func NewAdminBulkService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts) *AdminBulkService {
+// NewAdminBulkService accepts the actor reloader as an optional fourth
+// argument for compatibility with job-creation callers. Execution is always
+// fail-closed until a reloader is supplied, either here or through
+// SetActorReloader; there is no stale actor fallback.
+func NewAdminBulkService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts, reloaders ...AdminActorReloader) *AdminBulkService {
 	var configured AdminActionPorts
 	if ports != nil {
 		configured = *ports
 	}
-	return &AdminBulkService{store: store, aud: audience, ports: configured, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString(), leaseTTL: 5 * time.Minute}
+	var reloader AdminActorReloader
+	if len(reloaders) > 0 {
+		reloader = reloaders[0]
+	}
+	return &AdminBulkService{store: store, aud: audience, ports: configured, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString(), actorReloader: reloader, leaseTTL: 5 * time.Minute}
 }
 
-func NewAdminBulkActionService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts) *AdminBulkService {
-	return NewAdminBulkService(store, audience, ports)
+func NewAdminBulkActionService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts, reloaders ...AdminActorReloader) *AdminBulkService {
+	return NewAdminBulkService(store, audience, ports, reloaders...)
 }
 
 func (s *AdminBulkService) SetClock(clock func() time.Time) {
@@ -355,6 +378,52 @@ func (s *AdminBulkService) SetMaxItems(limit int) {
 func (s *AdminBulkService) SetActorReloader(reloader AdminActorReloader) {
 	if s != nil {
 		s.actorReloader = reloader
+	}
+}
+
+// requireExecutionSafety rejects adapters that cannot prove fresh authority,
+// fence an item claim, and durably bind its outcome to an audit intent. It is
+// called before every execution entry point, before any provider side effect.
+func (s *AdminBulkService) requireExecutionSafety(ctx context.Context, job AdminJob) error {
+	if s == nil || s.store == nil {
+		return ErrAdminRepositoryAbsent
+	}
+	pause := func(reason string, result error) error {
+		_ = s.store.PauseJob(ctx, job.ID, reason)
+		return result
+	}
+	if s.actorReloader == nil {
+		return pause("actor_reload_required", ErrAdminRepositoryAbsent)
+	}
+	if _, ok := s.store.(FencedAdminJobStore); !ok {
+		return pause("item_lease_fencing_required", ErrAdminRepositoryAbsent)
+	}
+	if _, ok := s.store.(AdminJobItemCommitStore); !ok {
+		return pause("item_audit_commit_required", ErrAdminRepositoryAbsent)
+	}
+	if _, ok := s.store.(AdminJobItemAuditStore); !ok {
+		return pause("audit_outbox_required", ErrAdminRepositoryAbsent)
+	}
+	if isCredentialAction(job.Action.Kind) && !s.hasKeyedCredentialPort(job.Action.Kind) {
+		return pause("credential_idempotency_required", ErrActionUnavailable)
+	}
+	return nil
+}
+
+func (s *AdminBulkService) hasKeyedCredentialPort(action string) bool {
+	if s == nil {
+		return false
+	}
+	if _, ok := s.ports.Executor.(IdempotentAdminActionExecutor); ok {
+		return true
+	}
+	switch action {
+	case ActionLoginLink:
+		return s.ports.LoginLinkIdempotent != nil
+	case ActionRecoveryResend:
+		return s.ports.RecoveryIdempotent != nil
+	default:
+		return true
 	}
 }
 
@@ -515,6 +584,9 @@ func (s *AdminBulkService) getExecutableJob(ctx context.Context, actor AdminActo
 }
 
 func (s *AdminBulkService) getExecutableJobAndActor(ctx context.Context, actor AdminActor, jobID uuid.UUID) (*AdminJob, AdminActor, error) {
+	if s == nil || s.store == nil {
+		return nil, AdminActor{}, ErrAdminRepositoryAbsent
+	}
 	if !actor.Valid() {
 		return nil, AdminActor{}, ErrAudienceUnauthorized
 	}
@@ -534,6 +606,9 @@ func (s *AdminBulkService) getExecutableJobAndActor(ctx context.Context, actor A
 	if job.Status == JobPaused && actor.ID == job.ActorID && !actor.Can("jobs.execute_all") {
 		return nil, AdminActor{}, ErrJobConflict
 	}
+	if err := s.requireExecutionSafety(ctx, *job); err != nil {
+		return nil, AdminActor{}, err
+	}
 	effective, reloadErr := s.reloadActorForJob(ctx, actor, *job)
 	if reloadErr != nil {
 		return nil, AdminActor{}, reloadErr
@@ -551,7 +626,8 @@ func (s *AdminBulkService) getExecutableJobAndActor(ctx context.Context, actor A
 
 func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminActor, job AdminJob) (AdminActor, error) {
 	if s.actorReloader == nil {
-		return actor, nil
+		_ = s.store.PauseJob(ctx, job.ID, "actor_reload_required")
+		return AdminActor{}, ErrAdminRepositoryAbsent
 	}
 	current, err := s.actorReloader.ReloadAdminActor(ctx, actor.ID)
 	if err != nil {
@@ -592,6 +668,9 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	if itemID == uuid.Nil {
 		return nil, ErrInvalidJobRequest
 	}
+	if err := s.requireExecutionSafety(ctx, job); err != nil {
+		return nil, err
+	}
 	var claimed *AdminJobItem
 	var lease *AdminJobLease
 	var ok bool
@@ -622,6 +701,10 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 			cursor = *page.Next
 		}
 		return nil, ErrJobNotFound
+	}
+	if claimed == nil || lease == nil {
+		_ = s.store.PauseJob(ctx, job.ID, "item_lease_proof_missing")
+		return nil, ErrAdminRepositoryAbsent
 	}
 	var result ActionResult
 	var executeErr error
@@ -707,28 +790,25 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	result.ErrorCode = safeErrorCode(result.ErrorCode)
 	result.ProviderReference = safeOptionalReason(result.ProviderReference)
 	var updated *AdminJobItem
-	if fenced, supportsFencing := s.store.(FencedAdminJobStore); supportsFencing && lease != nil {
-		updated, err = fenced.FinishJobItemWithLease(ctx, itemID, *lease, claimed.OperationID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference, result.Retryable, result.Ambiguous)
-	} else if stateStore, supportsState := s.store.(AdminJobItemStateStore); supportsState {
-		updated, err = stateStore.FinishJobItemWithState(ctx, itemID, claimed.OperationID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference, result.Retryable, result.Ambiguous)
-	} else {
-		updated, err = s.store.FinishJobItem(ctx, itemID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference)
+	commitStore, supportsCommit := s.store.(AdminJobItemCommitStore)
+	if !supportsCommit || lease == nil {
+		_ = s.store.PauseJob(ctx, job.ID, "item_audit_commit_required")
+		return nil, ErrAdminRepositoryAbsent
 	}
+	audit := AdminJobItemAudit{JobID: job.ID, ItemID: claimed.ID, OperationID: claimed.OperationID, ActorID: actor.ID, TargetID: claimed.TargetID, Action: job.Action.Kind, Outcome: result.Outcome, Reason: result.Reason, ErrorCode: result.ErrorCode}
+	updated, err = commitStore.FinishJobItemWithAudit(ctx, itemID, *lease, claimed.OperationID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference, result.Retryable, result.Ambiguous, audit)
 	if err != nil {
-		return nil, err
+		// The provider call may already have happened. Pause until the durable
+		// commit/outbox is available; the stable operation key makes recovery
+		// safe without minting another credential.
+		_ = s.store.PauseJob(ctx, job.ID, "item_audit_commit_unavailable")
+		if errors.Is(err, ErrJobConflict) {
+			return nil, err
+		}
+		return nil, ErrAdminRepositoryAbsent
 	}
 	if updated == nil {
 		return nil, ErrJobConflict
-	}
-	if auditStore, supportsAudit := s.store.(AdminJobItemAuditStore); supportsAudit {
-		auditErr := auditStore.RecordJobItemAudit(ctx, AdminJobItemAudit{JobID: job.ID, ItemID: updated.ID, OperationID: updated.OperationID, ActorID: actor.ID, TargetID: updated.TargetID, Action: job.Action.Kind, Outcome: updated.Outcome, Reason: updated.Reason, ErrorCode: updated.ErrorCode})
-		if auditErr != nil {
-			_ = s.store.PauseJob(ctx, job.ID, "audit_unavailable")
-			return updated, auditErr
-		}
-	} else {
-		_ = s.store.PauseJob(ctx, job.ID, "audit_unavailable")
-		return updated, ErrAdminRepositoryAbsent
 	}
 	if updated.Outcome == OutcomeSecured && isSecurityAction(job.Action.Kind) && claimed.TargetID == actor.ID {
 		// A successful self-containment operation may revoke the actor's
@@ -760,6 +840,9 @@ func safeErrorCode(value string) string {
 }
 
 func (s *AdminBulkService) executeAction(ctx context.Context, job AdminJob, targetID, actorID, operationID uuid.UUID) (ActionResult, error) {
+	if isCredentialAction(job.Action.Kind) && !s.hasKeyedCredentialPort(job.Action.Kind) {
+		return ActionResult{}, ErrActionUnavailable
+	}
 	if keyed, ok := s.ports.Executor.(IdempotentAdminActionExecutor); ok {
 		result, err := keyed.ExecuteWithKey(ctx, job.Action, targetID, actorID, job.ID, operationID)
 		if isCredentialAction(job.Action.Kind) {
@@ -1320,18 +1403,25 @@ func (m *MemoryAdminStore) claimJobItemLocked(jobID, itemID uuid.UUID, fenced bo
 }
 
 func (m *MemoryAdminStore) FinishJobItem(_ context.Context, itemID uuid.UUID, outcome, reason, errorCode, providerReference string) (*AdminJobItem, error) {
-	return m.finishJobItem(itemID, uuid.Nil, nil, outcome, reason, errorCode, providerReference, false, false, false)
+	return m.finishJobItem(itemID, uuid.Nil, nil, outcome, reason, errorCode, providerReference, false, false, false, nil)
 }
 
 func (m *MemoryAdminStore) FinishJobItemWithState(_ context.Context, itemID, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool) (*AdminJobItem, error) {
-	return m.finishJobItem(itemID, operationID, nil, outcome, reason, errorCode, providerReference, retryable, ambiguous, true)
+	return m.finishJobItem(itemID, operationID, nil, outcome, reason, errorCode, providerReference, retryable, ambiguous, true, nil)
 }
 
 func (m *MemoryAdminStore) FinishJobItemWithLease(_ context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool) (*AdminJobItem, error) {
-	return m.finishJobItem(itemID, operationID, &lease, outcome, reason, errorCode, providerReference, retryable, ambiguous, true)
+	return m.finishJobItem(itemID, operationID, &lease, outcome, reason, errorCode, providerReference, retryable, ambiguous, true, nil)
 }
 
-func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *AdminJobLease, outcome, reason, errorCode, providerReference string, retryable, ambiguous, setRetryState bool) (*AdminJobItem, error) {
+// FinishJobItemWithAudit atomically persists the fenced item outcome and its
+// audit/outbox intent under the same store lock. The production DB adapter
+// should provide the same transaction boundary.
+func (m *MemoryAdminStore) FinishJobItemWithAudit(_ context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool, audit AdminJobItemAudit) (*AdminJobItem, error) {
+	return m.finishJobItem(itemID, operationID, &lease, outcome, reason, errorCode, providerReference, retryable, ambiguous, true, &audit)
+}
+
+func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *AdminJobLease, outcome, reason, errorCode, providerReference string, retryable, ambiguous, setRetryState bool, audit *AdminJobItemAudit) (*AdminJobItem, error) {
 	if m == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
@@ -1356,6 +1446,17 @@ func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *A
 			if lease != nil && (item.leaseToken == "" || item.leaseToken != lease.Token || item.leaseFence != lease.Fence || (!item.leaseExpiresAt.IsZero() && time.Now().UTC().After(item.leaseExpiresAt))) {
 				return nil, ErrJobConflict
 			}
+			if audit != nil {
+				if audit.JobID != jobID || audit.ItemID != item.ID || audit.OperationID != item.OperationID || audit.TargetID != item.TargetID || audit.Outcome != outcome {
+					return nil, ErrJobConflict
+				}
+				if auditErr := validateJobItemAudit(*audit); auditErr != nil {
+					return nil, auditErr
+				}
+				if auditErr := m.recordJobItemAuditLocked(*audit); auditErr != nil {
+					return nil, auditErr
+				}
+			}
 			item.Outcome, item.Reason, item.ErrorCode, item.ProviderReference = outcome, safeOptionalReason(reason), safeOptionalReason(errorCode), safeOptionalReason(providerReference)
 			if setRetryState {
 				item.Retryable, item.Ambiguous = retryable, ambiguous
@@ -1366,9 +1467,9 @@ func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *A
 			item.leaseExpiresAt = time.Time{}
 			now := time.Now().UTC()
 			item.UpdatedAt = now
-			if outcome != OutcomeUnknownDelivery {
-				item.CompletedAt = &now
-			}
+			// Unknown delivery is terminal for scheduling even though its
+			// uncertainty is retained in the outcome and job counters.
+			item.CompletedAt = &now
 			m.JobItems[jobID] = items
 			return cloneJobItem(item), nil
 		}
@@ -1411,29 +1512,33 @@ func (m *MemoryAdminStore) UpdateJobProgress(_ context.Context, jobID uuid.UUID)
 		return ErrJobNotFound
 	}
 	items := m.JobItems[jobID]
-	var completed, failed, pending int64
+	var completed, failed, uncertain, pending int64
 	for _, item := range items {
 		switch item.Outcome {
 		case OutcomeQueued:
-			if item.AttemptCount == 0 {
+			if item.CompletedAt == nil {
 				pending++
 			} else {
 				completed++
 			}
 		case OutcomeUnknownDelivery:
-			pending++
+			// Unknown delivery is terminal from the job scheduler's point of
+			// view. It remains visible as uncertain for operator follow-up but
+			// must not keep the job running indefinitely.
+			completed++
+			uncertain++
 		case OutcomeFailed:
 			failed++
 		default:
 			completed++
 		}
 	}
-	job.CompletedCount, job.FailedCount = completed, failed
+	job.CompletedCount, job.FailedCount, job.UncertainCount = completed, failed, uncertain
 	if job.CancellationRequested {
 		job.Status = JobCancelled
 	} else if pending > 0 {
 		job.Status = JobRunning
-	} else if failed > 0 {
+	} else if failed > 0 || uncertain > 0 {
 		job.Status = JobCompletedWithError
 	} else {
 		job.Status = JobCompleted

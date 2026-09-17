@@ -54,13 +54,19 @@ type boundedAudienceProbe struct {
 	count     int64
 	listCalls int
 	queued    bool
+	actorID   uuid.UUID
+	action    AdminAction
 }
 
-func (p *boundedAudienceProbe) CountAudience(context.Context, Audience) (int64, error) {
+func (p *boundedAudienceProbe) CountAudience(_ context.Context, actorID uuid.UUID, _ Audience, action AdminAction) (int64, error) {
+	p.actorID = actorID
+	p.action = action
 	return p.count, nil
 }
 
-func (p *boundedAudienceProbe) ListAudienceMembers(context.Context, Audience, int64, int) ([]AudienceMember, error) {
+func (p *boundedAudienceProbe) ListAudienceMembers(_ context.Context, actorID uuid.UUID, _ Audience, action AdminAction, _ int64, _ int) ([]AudienceMember, error) {
+	p.actorID = actorID
+	p.action = action
 	p.listCalls++
 	return nil, nil
 }
@@ -82,6 +88,9 @@ func TestLargeAudienceUsesCountAndAsyncMaterializationWithoutPaging(t *testing.T
 	}
 	if preview.Status != AudienceSnapshotPending || !probe.queued || probe.listCalls != 0 {
 		t.Fatalf("large preview = %#v, queued=%v list calls=%d", preview, probe.queued, probe.listCalls)
+	}
+	if probe.actorID != actor.ID || probe.action.Kind != ActionEmail {
+		t.Fatalf("audience handoff = actor %s action %#v, want actor/action context", probe.actorID, probe.action)
 	}
 }
 
@@ -172,6 +181,7 @@ func TestCredentialItemUnknownOutcomeIsDurableAndNeverRetried(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "provider_timeout"}, second: ActionResult{Outcome: OutcomeProviderAccepted}}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	got, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID)
 	if err != nil {
@@ -195,6 +205,7 @@ func TestCredentialItemSafeFailureRetriesWithSameOperationID(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeFailed, ErrorCode: "rate_limited", SafeToRetry: true}, second: ActionResult{Outcome: OutcomeProviderAccepted}}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	failed, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID)
 	if err != nil || failed.Outcome != OutcomeFailed || !failed.Retryable || failed.Ambiguous {
@@ -216,6 +227,7 @@ func TestBulkItemOutcomeAppendsActorTargetAudit(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
 	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID); err != nil {
 		t.Fatalf("process: %v", err)
@@ -282,6 +294,178 @@ func TestFencedJobItemRejectsStaleWorkerFinish(t *testing.T) {
 	}
 	if _, err := store.FinishJobItemWithLease(context.Background(), itemID, *secondLease, second.OperationID, OutcomeProviderAccepted, "", "", "", false, false); err != nil {
 		t.Fatalf("current finish: %v", err)
+	}
+}
+
+type staticAdminActorReloader struct {
+	actor AdminActor
+}
+
+func (r staticAdminActorReloader) ReloadAdminActor(_ context.Context, _ uuid.UUID) (AdminActor, error) {
+	return r.actor, nil
+}
+
+type dynamicAdminActorReloader struct {
+	actor *AdminActor
+}
+
+func (r dynamicAdminActorReloader) ReloadAdminActor(_ context.Context, _ uuid.UUID) (AdminActor, error) {
+	if r.actor == nil {
+		return AdminActor{}, errors.New("missing actor")
+	}
+	return *r.actor, nil
+}
+
+func TestUnknownDeliveryCompletesJobWithUncertainProgress(t *testing.T) {
+	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
+	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "provider_timeout"}}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	if err := bulk.Process(context.Background(), actor, job.ID); err != nil {
+		t.Fatalf("process unknown job: %v", err)
+	}
+	stored, err := store.GetJob(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("get job: %v", err)
+	}
+	if stored.Status != JobCompletedWithError || stored.CompletedCount != 1 || stored.UncertainCount != 1 {
+		t.Fatalf("unknown progress = %#v, want completed uncertainty", stored)
+	}
+}
+
+type failingAtomicJobItemStore struct {
+	*MemoryAdminStore
+	fail bool
+}
+
+func (s *failingAtomicJobItemStore) FinishJobItemWithAudit(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool, AdminJobItemAudit) (*AdminJobItem, error) {
+	if s.fail {
+		return nil, errors.New("item/audit transaction unavailable")
+	}
+	return nil, errors.New("unexpected test path")
+}
+
+func TestBulkItemFinishAndAuditUseOneDurableCommit(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
+	store := &failingAtomicJobItemStore{MemoryAdminStore: base, fail: true}
+	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	itemID := store.JobItems[job.ID][0].ID
+	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); err == nil {
+		t.Fatal("item commit unexpectedly succeeded")
+	}
+	item := store.JobItems[job.ID][0]
+	if item.Outcome != OutcomeQueued || len(store.Audit) != 0 {
+		t.Fatalf("failed item/audit commit mutated durable state: item=%#v audit=%d", item, len(store.Audit))
+	}
+	stored, err := store.GetJob(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("get job: %v", err)
+	}
+	if stored.Status != JobPaused {
+		t.Fatalf("job status = %q, want paused after commit failure", stored.Status)
+	}
+}
+
+func TestBulkExecutionFailsClosedWithoutActorReloadAndKeyedCredentialPort(t *testing.T) {
+	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
+	legacy := &legacyLoginLinkSender{}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLink: legacy})
+	itemID := store.JobItems[job.ID][0].ID
+	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {
+		t.Fatalf("missing actor reloader error = %v, want repository unavailable", err)
+	}
+	if legacy.calls != 0 {
+		t.Fatalf("legacy sender called without actor reload: %d", legacy.calls)
+	}
+	paused, err := store.GetJob(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("get paused job: %v", err)
+	}
+	if paused.Status != JobPaused {
+		t.Fatalf("missing reloader status = %q, want paused", paused.Status)
+	}
+
+	actor.Capabilities = append(actor.Capabilities, "jobs.execute_all")
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrActionUnavailable) {
+		t.Fatalf("legacy credential port error = %v, want unavailable", err)
+	}
+	if legacy.calls != 0 {
+		t.Fatalf("legacy sender called despite keyed-port requirement: %d", legacy.calls)
+	}
+}
+
+type legacyLoginLinkSender struct{ calls int }
+
+func (s *legacyLoginLinkSender) SendCampaignLoginLink(context.Context, uuid.UUID, uuid.UUID) (ActionResult, error) {
+	s.calls++
+	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
+}
+
+// legacyOnlyJobStore deliberately exposes only the pre-fencing store methods.
+// It verifies that an adapter cannot execute a job by silently falling back to
+// an unfenced claim path.
+type legacyOnlyJobStore struct {
+	inner *MemoryAdminStore
+}
+
+func (s *legacyOnlyJobStore) CreateJob(ctx context.Context, job AdminJob, items []AdminJobItem) (*AdminJob, error) {
+	return s.inner.CreateJob(ctx, job, items)
+}
+
+func (s *legacyOnlyJobStore) GetJob(ctx context.Context, id uuid.UUID) (*AdminJob, error) {
+	return s.inner.GetJob(ctx, id)
+}
+
+func (s *legacyOnlyJobStore) ListJobs(ctx context.Context, cursor string, limit int, status, action string) (AdminJobPage, error) {
+	return s.inner.ListJobs(ctx, cursor, limit, status, action)
+}
+
+func (s *legacyOnlyJobStore) ListJobItems(ctx context.Context, id uuid.UUID, cursor string, limit int) (AdminJobRecipientPage, error) {
+	return s.inner.ListJobItems(ctx, id, cursor, limit)
+}
+
+func (s *legacyOnlyJobStore) ClaimJobItem(ctx context.Context, jobID, itemID uuid.UUID, worker string) (*AdminJobItem, bool, error) {
+	return s.inner.ClaimJobItem(ctx, jobID, itemID, worker)
+}
+
+func (s *legacyOnlyJobStore) FinishJobItem(ctx context.Context, itemID uuid.UUID, outcome, reason, errorCode, providerReference string) (*AdminJobItem, error) {
+	return s.inner.FinishJobItem(ctx, itemID, outcome, reason, errorCode, providerReference)
+}
+
+func (s *legacyOnlyJobStore) ApplyJobCommand(ctx context.Context, command AdminJobCommand) (*AdminJob, error) {
+	return s.inner.ApplyJobCommand(ctx, command)
+}
+
+func (s *legacyOnlyJobStore) PauseJob(ctx context.Context, id uuid.UUID, reason string) error {
+	return s.inner.PauseJob(ctx, id, reason)
+}
+
+func (s *legacyOnlyJobStore) UpdateJobProgress(ctx context.Context, id uuid.UUID) error {
+	return s.inner.UpdateJobProgress(ctx, id)
+}
+
+func TestBulkExecutionRejectsUnfencedLegacyStore(t *testing.T) {
+	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
+	legacyStore := &legacyOnlyJobStore{inner: store}
+	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
+	bulk := NewAdminBulkService(legacyStore, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	itemID := store.JobItems[job.ID][0].ID
+	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {
+		t.Fatalf("legacy store error = %v, want repository unavailable", err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("legacy store reached keyed sender: %d calls", sender.calls)
+	}
+	stored, err := store.GetJob(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("get paused job: %v", err)
+	}
+	if stored.Status != JobPaused {
+		t.Fatalf("legacy store job status = %q, want paused", stored.Status)
 	}
 }
 

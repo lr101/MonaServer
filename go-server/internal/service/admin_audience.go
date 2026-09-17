@@ -658,8 +658,12 @@ type AudienceSnapshot struct {
 // must evaluate filters in storage and return bounded pages; a full-slice
 // ResolveAudience method is intentionally not part of this contract.
 type AudienceSnapshotStore interface {
-	CountAudience(context.Context, Audience) (int64, error)
-	ListAudienceMembers(context.Context, Audience, int64, int) ([]AudienceMember, error)
+	// actorID and action are part of the storage authorization handoff. A
+	// production resolver must evaluate the bounded scope under the same actor
+	// and action context that was authorized by Preview; adapters must not
+	// silently resolve an unbound audience.
+	CountAudience(context.Context, uuid.UUID, Audience, AdminAction) (int64, error)
+	ListAudienceMembers(context.Context, uuid.UUID, Audience, AdminAction, int64, int) ([]AudienceMember, error)
 	SaveAudienceSnapshot(context.Context, AudienceSnapshot) error
 	GetAudienceSnapshot(context.Context, uuid.UUID) (*AudienceSnapshot, error)
 	ListAudienceSnapshotMembers(context.Context, uuid.UUID, int, int64) ([]AudienceMember, error)
@@ -747,8 +751,8 @@ func (s *AdminAudienceService) now() time.Time {
 	return now.UTC()
 }
 
-func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, audience Audience) ([]AudienceMember, int64, error) {
-	count, err := s.store.CountAudience(ctx, audience)
+func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, actorID uuid.UUID, audience Audience, action AdminAction) ([]AudienceMember, int64, error) {
+	count, err := s.store.CountAudience(ctx, actorID, audience, action)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -764,7 +768,7 @@ func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, audie
 	for len(members) < capacity {
 		remaining := capacity - len(members)
 		pageLimit := minInt(remaining, maxPageLimit)
-		page, pageErr := s.store.ListAudienceMembers(ctx, audience, ordinal, pageLimit)
+		page, pageErr := s.store.ListAudienceMembers(ctx, actorID, audience, action, ordinal, pageLimit)
 		if pageErr != nil {
 			return nil, 0, pageErr
 		}
@@ -821,7 +825,7 @@ func (s *AdminAudienceService) Preview(ctx context.Context, actor AdminActor, re
 	if request.Audience.Filter != nil && request.Audience.Filter.IncludeAdmins && !actor.Can("audience.include_admins") {
 		return nil, ErrAudienceForbidden
 	}
-	members, audienceCount, err := s.resolveBoundedAudience(ctx, request.Audience)
+	members, audienceCount, err := s.resolveBoundedAudience(ctx, actor.ID, request.Audience, action)
 	if err != nil {
 		return nil, err
 	}
@@ -1157,7 +1161,7 @@ func audienceRecordIncluded(record AudienceRecord, audience Audience) bool {
 
 // CountAudience evaluates a scope without allocating a result slice so
 // production stores can expose only bounded count/page operations.
-func (m *MemoryAdminStore) CountAudience(_ context.Context, audience Audience) (int64, error) {
+func (m *MemoryAdminStore) CountAudience(_ context.Context, _ uuid.UUID, audience Audience, _ AdminAction) (int64, error) {
 	if m == nil {
 		return 0, ErrAdminRepositoryAbsent
 	}
@@ -1214,7 +1218,7 @@ func (m *MemoryAdminStore) nextAudienceRecord(audience Audience, last uuid.UUID)
 // in-memory implementation repeatedly selects the next record to avoid making
 // a temporary slice proportional to the audience; a database adapter should
 // use ORDER BY plus a keyset/ordinal cursor instead.
-func (m *MemoryAdminStore) ListAudienceMembers(_ context.Context, audience Audience, afterOrdinal int64, limit int) ([]AudienceMember, error) {
+func (m *MemoryAdminStore) ListAudienceMembers(_ context.Context, _ uuid.UUID, audience Audience, _ AdminAction, afterOrdinal int64, limit int) ([]AudienceMember, error) {
 	if m == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
