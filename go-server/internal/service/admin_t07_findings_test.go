@@ -402,6 +402,344 @@ func TestBulkLeaseRenewalPreventsReclaimDuringLongAction(t *testing.T) {
 	}
 }
 
+// renewalLostMemoryStore models the durable adapter reporting that the lease
+// could not be renewed after the provider call had already started. The
+// terminal path is intentionally exposed by the adapter so the service must
+// use it instead of the ordinary expiry-sensitive finish CAS.
+type renewalLostMemoryStore struct {
+	*MemoryAdminStore
+	renewalCalls atomic.Int32
+}
+
+func (s *renewalLostMemoryStore) RenewJobItemLease(context.Context, uuid.UUID, AdminJobLease, time.Duration) (*AdminJobLease, error) {
+	s.renewalCalls.Add(1)
+	return nil, ErrJobLeaseLost
+}
+
+func waitForBulkItemOutcome(t *testing.T, store *MemoryAdminStore, jobID, itemID uuid.UUID, want string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		page, err := store.ListJobItems(context.Background(), jobID, "", maxPageLimit)
+		if err == nil {
+			for _, item := range page.Items {
+				if item.ID == itemID && item.Outcome == want {
+					return true
+				}
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
+}
+
+func waitForBulkJobStatus(t *testing.T, store *MemoryAdminStore, jobID uuid.UUID, want string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		job, err := store.GetJob(context.Background(), jobID)
+		if err == nil && job != nil && job.Status == want {
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
+}
+
+func TestBulkLeaseLossCommitsTerminalUnknownAndBlocksReclaim(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionEmail)
+	store := &renewalLostMemoryStore{MemoryAdminStore: base}
+	sender := &blockingEmailSender{started: make(chan struct{}), release: make(chan struct{})}
+	first := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
+	first.SetActorReloader(staticAdminActorReloader{actor: actor})
+	first.SetWorkerID("worker-one")
+	first.SetLeaseTTL(20 * time.Millisecond)
+	itemID := store.JobItems[job.ID][0].ID
+	firstResult := make(chan struct {
+		item *AdminJobItem
+		err  error
+	}, 1)
+	go func() {
+		item, err := first.ProcessItem(context.Background(), actor, job.ID, itemID)
+		firstResult <- struct {
+			item *AdminJobItem
+			err  error
+		}{item: item, err: err}
+	}()
+	select {
+	case <-sender.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider call did not start")
+	}
+	select {
+	case <-func() chan struct{} {
+		ready := make(chan struct{})
+		go func() {
+			for store.renewalCalls.Load() == 0 {
+				time.Sleep(time.Millisecond)
+			}
+			close(ready)
+		}()
+		return ready
+	}():
+	case <-time.After(time.Second):
+		t.Fatal("lease renewal was not attempted")
+	}
+	secondSender := &countingEmailSender{}
+	second := NewAdminBulkService(store, audience, &AdminActionPorts{Email: secondSender, Eligibility: readyEligibilityChecker{}})
+	second.SetActorReloader(staticAdminActorReloader{actor: actor})
+	second.SetWorkerID("worker-two")
+	second.SetLeaseTTL(20 * time.Millisecond)
+	if !waitForBulkItemOutcome(t, store.MemoryAdminStore, job.ID, itemID, OutcomeUnknownDelivery, 100*time.Millisecond) {
+		// A legacy implementation leaves the provider blocked and will only be
+		// observed by the reclaim assertion below.
+		time.Sleep(30 * time.Millisecond)
+	}
+	replayed, err := second.ProcessItem(context.Background(), actor, job.ID, itemID)
+	if err != nil || replayed == nil || replayed.Outcome != OutcomeUnknownDelivery {
+		t.Fatalf("reclaimed lease-loss item = %#v, %v; want terminal item before provider unblocks", replayed, err)
+	}
+	if secondSender.calls != 0 {
+		t.Fatalf("reclaimed uncertain item sent %d times, want zero", secondSender.calls)
+	}
+	close(sender.release)
+	var result struct {
+		item *AdminJobItem
+		err  error
+	}
+	select {
+	case result = <-firstResult:
+	case <-time.After(time.Second):
+		t.Fatal("lease-loss worker did not finish")
+	}
+	if !errors.Is(result.err, ErrJobLeaseLost) || result.item == nil || result.item.Outcome != OutcomeUnknownDelivery || !result.item.Ambiguous || result.item.Retryable {
+		t.Fatalf("lease-loss result = %#v, %v; want terminal uncertainty", result.item, result.err)
+	}
+	if len(store.Audit) != 1 || store.Audit[0].Outcome != OutcomeUnknownDelivery || store.Audit[0].Details["operation_id"] != result.item.OperationID.String() {
+		t.Fatalf("lease-loss audit = %#v; want one durable unknown outcome audit", store.Audit)
+	}
+}
+
+type failedUnknownCommitStore struct {
+	*renewalLostMemoryStore
+}
+
+func (s *failedUnknownCommitStore) CommitUnknownDeliveryAfterLeaseLoss(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, AdminJobItemAudit) (*AdminJobItem, error) {
+	return nil, errors.New("terminal uncertainty commit unavailable")
+}
+
+func TestBulkLeaseLossFailsClosedWhenTerminalCommitIsUnavailable(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionEmail)
+	store := &failedUnknownCommitStore{renewalLostMemoryStore: &renewalLostMemoryStore{MemoryAdminStore: base}}
+	sender := &blockingEmailSender{started: make(chan struct{}), release: make(chan struct{})}
+	first := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
+	first.SetActorReloader(staticAdminActorReloader{actor: actor})
+	first.SetLeaseTTL(20 * time.Millisecond)
+	itemID := store.JobItems[job.ID][0].ID
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := first.ProcessItem(context.Background(), actor, job.ID, itemID)
+		resultCh <- err
+	}()
+	select {
+	case <-sender.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider call did not start")
+	}
+	select {
+	case <-func() chan struct{} {
+		ready := make(chan struct{})
+		go func() {
+			for store.renewalCalls.Load() == 0 {
+				time.Sleep(time.Millisecond)
+			}
+			close(ready)
+		}()
+		return ready
+	}():
+	case <-time.After(time.Second):
+		t.Fatal("lease renewal was not attempted")
+	}
+	time.Sleep(30 * time.Millisecond)
+	secondSender := &countingEmailSender{}
+	second := NewAdminBulkService(store, audience, &AdminActionPorts{Email: secondSender, Eligibility: readyEligibilityChecker{}})
+	takeover := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"campaign.email", "jobs.execute_all"}}
+	now := time.Now().UTC()
+	takeover.RecentMFAAt = &now
+	takeover.RecentMFAAction = ActionEmail
+	second.SetActorReloader(staticAdminActorReloader{actor: takeover})
+	if !waitForBulkJobStatus(t, store.MemoryAdminStore, job.ID, JobPaused, 100*time.Millisecond) {
+		// A legacy implementation only pauses after the blocked provider
+		// returns; let the reclaim assertion exercise that unsafe window.
+		time.Sleep(30 * time.Millisecond)
+	}
+	item := store.JobItems[job.ID][0]
+	replayed, err := second.ProcessItem(context.Background(), takeover, job.ID, item.ID)
+	if err != nil || replayed == nil || replayed.Outcome != OutcomeQueued {
+		t.Fatalf("paused item result = %#v, %v; want unresolved queued item", replayed, err)
+	}
+	if secondSender.calls != 0 {
+		t.Fatalf("paused uncertain item sent %d times, want zero", secondSender.calls)
+	}
+	close(sender.release)
+	select {
+	case err := <-resultCh:
+		if !errors.Is(err, ErrAdminRepositoryAbsent) {
+			t.Fatalf("terminal commit failure = %v, want unavailable", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("lease-loss worker did not finish")
+	}
+	paused, err := store.GetJob(context.Background(), job.ID)
+	if err != nil || paused == nil || paused.Status != JobPaused {
+		t.Fatalf("job after terminal commit failure = %#v, %v; want paused", paused, err)
+	}
+	item = store.JobItems[job.ID][0]
+	if item.Outcome == OutcomeUnknownDelivery || !item.claimed {
+		t.Fatalf("item after terminal commit failure = %#v; want unresolved claimed item", item)
+	}
+}
+
+func TestBulkTakeoverCannotUseCreatorMFAProof(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
+	now := time.Now().UTC()
+	creator := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "security.revoke", "jobs.create"}, RecentMFAAt: &now, RecentMFAAction: ActionRevokeSessions}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), creator, AudiencePreviewRequest{Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}}, Action: AdminAction{Kind: ActionRevokeSessions, Reason: "operator recovery"}})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	job, err := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}}).Create(context.Background(), creator, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "takeover-mfa"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	takeover := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"security.revoke", "jobs.execute_all"}}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: takeover})
+	item, err := bulk.ProcessItem(context.Background(), takeover, job.ID, store.JobItems[job.ID][0].ID)
+	if !errors.Is(err, ErrRecentMFARequired) || item != nil {
+		t.Fatalf("takeover without own MFA = %#v, %v; want rejected", item, err)
+	}
+	paused, err := store.GetJob(context.Background(), job.ID)
+	if err != nil || paused == nil || paused.Status != JobPaused {
+		t.Fatalf("takeover job = %#v, %v; want paused", paused, err)
+	}
+
+	takeover.RecentMFAAt = &now
+	takeover.RecentMFAAction = ActionRevokeSessions
+	bulk.SetActorReloader(staticAdminActorReloader{actor: takeover})
+	allowedJob, err := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}}).Create(context.Background(), creator, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "takeover-mfa-allowed"})
+	if err != nil {
+		t.Fatalf("create allowed takeover job: %v", err)
+	}
+	item, err = bulk.ProcessItem(context.Background(), takeover, allowedJob.ID, store.JobItems[allowedJob.ID][0].ID)
+	if err != nil || item == nil || item.Outcome != OutcomeSecured {
+		t.Fatalf("takeover with own MFA = %#v, %v; want success", item, err)
+	}
+}
+
+func TestBulkTakeoverResumeRequiresOwnActionBoundMFA(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	email := "target@example.com"
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target", Email: &email, EmailVerified: true})
+	creator := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "jobs.create", "jobs.control"}}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), creator, AudiencePreviewRequest{Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}}, Action: AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"}})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	sender := &countingEmailSender{}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: creator})
+	job, err := bulk.Create(context.Background(), creator, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "takeover-resume-mfa"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	store.JobItems[job.ID][0].Outcome = OutcomeFailed
+	store.JobItems[job.ID][0].Retryable = true
+	takeover := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"campaign.email", "jobs.control", "jobs.control_all"}}
+	if _, err := bulk.Retry(context.Background(), takeover, AdminJobCommand{JobID: job.ID, IdempotencyKey: "takeover-resume-mfa-command"}); !errors.Is(err, ErrRecentMFARequired) {
+		t.Fatalf("takeover retry without own MFA = %v; want recent MFA required", err)
+	}
+	if store.JobItems[job.ID][0].Outcome != OutcomeFailed {
+		t.Fatalf("failed item was queued without takeover MFA: %#v", store.JobItems[job.ID][0])
+	}
+
+	now := time.Now().UTC()
+	takeover.RecentMFAAt = &now
+	takeover.RecentMFAAction = ActionEmail
+	if _, err := bulk.Retry(context.Background(), takeover, AdminJobCommand{JobID: job.ID, IdempotencyKey: "takeover-resume-mfa-command-2"}); err != nil {
+		t.Fatalf("takeover retry with own MFA: %v", err)
+	}
+}
+
+type countingPushSender struct{ calls int }
+
+func (s *countingPushSender) SendCampaignPush(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error) {
+	s.calls++
+	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
+}
+
+func allAudienceMessageAction(kind string) AdminAction {
+	switch kind {
+	case ActionEmail:
+		return AdminAction{Kind: kind, Subject: "A", Body: "B"}
+	case ActionLoginLink:
+		return AdminAction{Kind: kind, Reason: "account requested"}
+	default:
+		return AdminAction{Kind: kind, Title: "A", Body: "B"}
+	}
+}
+
+func TestBulkRestartRequiresDurableMFAProofForAllAccountMessages(t *testing.T) {
+	for _, kind := range []string{ActionEmail, ActionLoginLink, ActionPush} {
+		t.Run(kind, func(t *testing.T) {
+			store := NewMemoryAdminStore()
+			targetID := uuid.New()
+			email := "target@example.com"
+			store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target", Email: &email, EmailVerified: true, RegisteredDeviceCount: 1})
+			now := time.Now().UTC()
+			creator := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "campaign.login_link", "campaign.push", "jobs.create"}, RecentMFAAt: &now, RecentMFAAction: kind}
+			audience := NewAdminAudienceService(store)
+			action := allAudienceMessageAction(kind)
+			preview, err := audience.Preview(context.Background(), creator, AudiencePreviewRequest{Audience: Audience{Kind: AudienceAll, Resource: AudienceAccounts}, Action: action})
+			if err != nil {
+				t.Fatalf("preview: %v", err)
+			}
+			ports := &AdminActionPorts{Eligibility: readyEligibilityChecker{}}
+			switch kind {
+			case ActionEmail:
+				ports.Email = &countingEmailSender{}
+			case ActionLoginLink:
+				ports.LoginLinkIdempotent = &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
+			case ActionPush:
+				ports.Push = &countingPushSender{}
+			}
+			creatorService := NewAdminBulkService(store, audience, ports)
+			job, err := creatorService.Create(context.Background(), creator, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "all-message-restart-" + kind})
+			if err != nil {
+				t.Fatalf("create: %v", err)
+			}
+			stored := store.Jobs[job.ID]
+			stored.RecentMFAAt = nil
+			stored.RecentMFAAction = ""
+			store.Jobs[job.ID] = stored
+			restartedActor := creator
+			restartedActor.RecentMFAAt = nil
+			restartedActor.RecentMFAAction = ""
+			restarted := NewAdminBulkService(store, audience, ports)
+			restarted.SetActorReloader(staticAdminActorReloader{actor: restartedActor})
+			item, err := restarted.ProcessItem(context.Background(), restartedActor, job.ID, store.JobItems[job.ID][0].ID)
+			if !errors.Is(err, ErrRecentMFARequired) || item != nil {
+				t.Fatalf("missing durable all-account proof = %#v, %v; want rejected", item, err)
+			}
+		})
+	}
+}
+
 func TestBulkRestartReconstructsDurableMFAProof(t *testing.T) {
 	store := NewMemoryAdminStore()
 	targetID := uuid.New()
@@ -821,7 +1159,11 @@ func makeCredentialJob(t *testing.T, kind string) (*MemoryAdminStore, *AdminAudi
 	store.Users = append(store.Users, AdminUser{ID: target, Username: "alice", Email: &email, EmailVerified: true})
 	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.login_link", "campaign.email", "jobs.create", "jobs.control"}}
 	audience := NewAdminAudienceService(store)
-	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{target}}, Action: AdminAction{Kind: kind, Reason: "account requested"}})
+	action := allAudienceMessageAction(kind)
+	if kind == ActionRevokeSessions {
+		action = AdminAction{Kind: kind, Reason: "account requested"}
+	}
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{target}}, Action: action})
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
