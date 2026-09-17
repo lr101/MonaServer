@@ -197,6 +197,28 @@ func TestAdminCSRFAndRecentMFAGuardsProtectMutations(t *testing.T) {
 	}
 }
 
+func TestAdminJobCommandRouteBindsRecentMFAProofToJobsControl(t *testing.T) {
+	now := time.Now().UTC()
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	serve := func(action string) int {
+		r := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs/123/retry", nil)
+		r.Header.Set("X-CSRF-Token", "csrf")
+		r = r.WithContext(WithAdminPrincipal(r.Context(), AdminPrincipal{
+			State: "authenticated", Capabilities: []string{"jobs.control"}, CSRFHash: CSRFHash("csrf"),
+			RecentMFAAt: &now, RecentMFAAction: action,
+		}))
+		recorder := httptest.NewRecorder()
+		AdminCSRFGuard(AdminRecentMFAGuard(time.Minute)(AdminCapabilityGuard(next))).ServeHTTP(recorder, r)
+		return recorder.Code
+	}
+	if got := serve("jobs.control"); got != http.StatusNoContent {
+		t.Fatalf("jobs.control command proof status = %d, want 204", got)
+	}
+	if got := serve("email"); got != http.StatusForbidden {
+		t.Fatalf("email command proof status = %d, want 403", got)
+	}
+}
+
 func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 	paths := []struct {
 		method string

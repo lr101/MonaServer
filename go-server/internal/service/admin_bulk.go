@@ -30,9 +30,10 @@ const (
 	OutcomeFailed           = "failed"
 	OutcomeUnknownDelivery  = "unknown_delivery"
 
-	CommandRetry  = "retry"
-	CommandCancel = "cancel"
-	maxCommandKey = 255
+	CommandRetry        = "retry"
+	CommandCancel       = "cancel"
+	maxCommandKey       = 255
+	jobCommandMFAAction = "jobs.control"
 )
 
 var (
@@ -811,7 +812,7 @@ func (s *AdminBulkService) authorizeJobCommandActor(ctx context.Context, actor A
 		}
 		return nil
 	}
-	if !RecentMFAValid(actor.RecentMFAAt, s.now(), s.recentMFATTL()) || actor.RecentMFAAction != job.Action.Kind {
+	if !RecentMFAValid(actor.RecentMFAAt, s.now(), s.recentMFATTL()) || actor.RecentMFAAction != jobCommandMFAAction {
 		return ErrRecentMFARequired
 	}
 	if required && (job.RecentMFAAt == nil || job.RecentMFAAction != job.Action.Kind) {
@@ -1038,8 +1039,13 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	result.ProviderReference = safeOptionalReason(result.ProviderReference)
 	if errors.Is(executeErr, ErrJobLeaseLost) {
 		terminalStore, supportsTerminal := s.store.(AdminJobLeaseLossCommitStore)
+		pauseAfterLeaseLoss := func(reason string) {
+			pauseCtx, pauseCancel := adminLeaseCleanupContext(ctx)
+			defer pauseCancel()
+			_ = s.store.PauseJob(pauseCtx, job.ID, reason)
+		}
 		if !supportsTerminal || lease == nil {
-			_ = s.store.PauseJob(ctx, job.ID, "lease_loss_commit_required")
+			pauseAfterLeaseLoss("lease_loss_commit_required")
 			return nil, ErrAdminRepositoryAbsent
 		}
 		// The ordinary finish CAS deliberately rejects an expired lease. A
@@ -1052,16 +1058,18 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 			ActorID: actor.ID, TargetID: claimed.TargetID, Action: job.Action.Kind,
 			Outcome: OutcomeUnknownDelivery, Reason: "lease_lost", ErrorCode: "lease_lost",
 		}
-		updated, commitErr := terminalStore.CommitUnknownDeliveryAfterLeaseLoss(ctx, itemID, *lease, claimed.OperationID, leaseLossAudit)
+		commitCtx, commitCancel := adminLeaseCleanupContext(ctx)
+		updated, commitErr := terminalStore.CommitUnknownDeliveryAfterLeaseLoss(commitCtx, itemID, *lease, claimed.OperationID, leaseLossAudit)
+		commitCancel()
 		if commitErr != nil {
-			_ = s.store.PauseJob(ctx, job.ID, "lease_loss_commit_unavailable")
+			pauseAfterLeaseLoss("lease_loss_commit_unavailable")
 			if errors.Is(commitErr, ErrJobConflict) {
 				return nil, commitErr
 			}
 			return nil, ErrAdminRepositoryAbsent
 		}
 		if updated == nil {
-			_ = s.store.PauseJob(ctx, job.ID, "lease_loss_commit_unavailable")
+			pauseAfterLeaseLoss("lease_loss_commit_unavailable")
 			return nil, ErrAdminRepositoryAbsent
 		}
 		return updated, ErrJobLeaseLost
@@ -1113,11 +1121,24 @@ func (s *adminJobLeaseState) set(lease AdminJobLease) {
 	s.mu.Unlock()
 }
 
+const adminLeaseCleanupTimeout = 5 * time.Second
+
+// adminLeaseCleanupContext detaches the terminal lease transition from caller
+// cancellation while preserving context values. A cancelled request must
+// still be able to quarantine an item before a delayed renewal can expose it
+// to a reclaiming worker.
+func adminLeaseCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), adminLeaseCleanupTimeout)
+}
+
 // executeWithRenewingLease keeps the fencing proof alive around eligibility,
 // provider, security, report, and invalid-device cleanup calls. If the
-// durable store cannot renew, the action context is cancelled and the caller
-// records an uncertain terminal result instead of permitting a reclaiming
-// worker to repeat the side effect.
+// durable store cannot renew, or the parent is cancelled after a claim, the
+// action context is cancelled and the caller records an uncertain terminal
+// result instead of permitting a reclaiming worker to repeat the side effect.
 func (s *AdminBulkService) executeWithRenewingLease(ctx context.Context, lease AdminJobLease, itemID uuid.UUID, fn func(context.Context) (ActionResult, error)) (ActionResult, error, AdminJobLease) {
 	renewer, ok := s.store.(AdminJobLeaseRenewer)
 	if !ok {
@@ -1174,6 +1195,12 @@ func (s *AdminBulkService) executeWithRenewingLease(ctx context.Context, lease A
 	}()
 	select {
 	case run := <-actionResults:
+		if ctx.Err() != nil {
+			cancel()
+			// Do not wait for a renewal call that may ignore cancellation; the
+			// caller must quarantine the exact claim immediately.
+			return run.result, ErrJobLeaseLost, state.get()
+		}
 		cancel()
 		<-done
 		select {
@@ -1184,17 +1211,20 @@ func (s *AdminBulkService) executeWithRenewingLease(ctx context.Context, lease A
 		default:
 		}
 		return run.result, run.err, state.get()
-	case renewalErr := <-renewalErrors:
+	case <-renewalErrors:
 		cancel()
 		<-done
-		if ctx.Err() == nil && !errors.Is(renewalErr, context.Canceled) {
-			// Return as soon as the lease is lost. The caller must terminalize
-			// the item before expiry so a provider that ignores cancellation
-			// cannot leave a reclaim window open. The action goroutine drains
-			// through its buffered result channel after this return.
-			return ActionResult{}, ErrJobLeaseLost, state.get()
-		}
-		return ActionResult{}, ctx.Err(), state.get()
+		// Return as soon as the lease is lost. The caller must terminalize the
+		// item before expiry so a provider that ignores cancellation cannot leave
+		// a reclaim window open. The action goroutine drains through its buffered
+		// result channel after this return.
+		return ActionResult{}, ErrJobLeaseLost, state.get()
+	case <-ctx.Done():
+		cancel()
+		// The renewal goroutine may be blocked in an adapter that ignores its
+		// context. Return without waiting so the exact claim can be quarantined
+		// while the terminal path still has its fencing proof.
+		return ActionResult{}, ErrJobLeaseLost, state.get()
 	}
 }
 

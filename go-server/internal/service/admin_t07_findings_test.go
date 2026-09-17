@@ -416,6 +416,26 @@ func (s *renewalLostMemoryStore) RenewJobItemLease(context.Context, uuid.UUID, A
 	return nil, ErrJobLeaseLost
 }
 
+type delayedRenewalMemoryStore struct {
+	*MemoryAdminStore
+	renewalStarted   chan struct{}
+	renewalRelease   chan struct{}
+	renewalStartOnce sync.Once
+}
+
+func (s *delayedRenewalMemoryStore) RenewJobItemLease(context.Context, uuid.UUID, AdminJobLease, time.Duration) (*AdminJobLease, error) {
+	s.renewalStartOnce.Do(func() { close(s.renewalStarted) })
+	<-s.renewalRelease
+	return nil, ErrJobLeaseLost
+}
+
+func (s *delayedRenewalMemoryStore) CommitUnknownDeliveryAfterLeaseLoss(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, audit AdminJobItemAudit) (*AdminJobItem, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.MemoryAdminStore.CommitUnknownDeliveryAfterLeaseLoss(ctx, itemID, lease, operationID, audit)
+}
+
 func waitForBulkItemOutcome(t *testing.T, store *MemoryAdminStore, jobID, itemID uuid.UUID, want string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -600,6 +620,72 @@ func TestBulkLeaseLossFailsClosedWhenTerminalCommitIsUnavailable(t *testing.T) {
 	}
 }
 
+func TestBulkLeaseLossOnCancellationWithDelayedRenewalBlocksReclaim(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionEmail)
+	store := &delayedRenewalMemoryStore{
+		MemoryAdminStore: base,
+		renewalStarted:   make(chan struct{}),
+		renewalRelease:   make(chan struct{}),
+	}
+	sender := &blockingEmailSender{started: make(chan struct{}), release: make(chan struct{})}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	bulk.SetLeaseTTL(20 * time.Millisecond)
+	itemID := store.JobItems[job.ID][0].ID
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resultCh := make(chan struct {
+		item *AdminJobItem
+		err  error
+	}, 1)
+	go func() {
+		item, err := bulk.ProcessItem(ctx, actor, job.ID, itemID)
+		resultCh <- struct {
+			item *AdminJobItem
+			err  error
+		}{item: item, err: err}
+	}()
+	select {
+	case <-sender.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider call did not start")
+	}
+	select {
+	case <-store.renewalStarted:
+	case <-time.After(time.Second):
+		t.Fatal("delayed lease renewal was not started")
+	}
+	cancel()
+	var result struct {
+		item *AdminJobItem
+		err  error
+	}
+	select {
+	case result = <-resultCh:
+	case <-time.After(100 * time.Millisecond):
+		close(sender.release)
+		close(store.renewalRelease)
+		t.Fatal("cancellation did not quarantine the item while renewal was delayed")
+	}
+	if !errors.Is(result.err, ErrJobLeaseLost) || result.item == nil || result.item.Outcome != OutcomeUnknownDelivery {
+		close(sender.release)
+		close(store.renewalRelease)
+		t.Fatalf("cancelled lease result = %#v, %v; want terminal uncertainty", result.item, result.err)
+	}
+	secondSender := &countingEmailSender{}
+	second := NewAdminBulkService(store, audience, &AdminActionPorts{Email: secondSender, Eligibility: readyEligibilityChecker{}})
+	second.SetActorReloader(staticAdminActorReloader{actor: actor})
+	second.SetLeaseTTL(20 * time.Millisecond)
+	replayed, err := second.ProcessItem(context.Background(), actor, job.ID, itemID)
+	if err != nil || replayed == nil || replayed.Outcome != OutcomeUnknownDelivery || secondSender.calls != 0 {
+		close(sender.release)
+		close(store.renewalRelease)
+		t.Fatalf("replayed cancelled item = %#v, %v, sends=%d; want quarantined result", replayed, err, secondSender.calls)
+	}
+	close(sender.release)
+	close(store.renewalRelease)
+}
+
 func TestBulkTakeoverCannotUseCreatorMFAProof(t *testing.T) {
 	store := NewMemoryAdminStore()
 	targetID := uuid.New()
@@ -671,6 +757,11 @@ func TestBulkTakeoverResumeRequiresOwnActionBoundMFA(t *testing.T) {
 	now := time.Now().UTC()
 	takeover.RecentMFAAt = &now
 	takeover.RecentMFAAction = ActionEmail
+	if _, err := bulk.Retry(context.Background(), takeover, AdminJobCommand{JobID: job.ID, IdempotencyKey: "takeover-resume-mfa-command-1"}); !errors.Is(err, ErrRecentMFARequired) {
+		t.Fatalf("takeover retry with underlying action MFA = %v; want command MFA required", err)
+	}
+
+	takeover.RecentMFAAction = "jobs.control"
 	if _, err := bulk.Retry(context.Background(), takeover, AdminJobCommand{JobID: job.ID, IdempotencyKey: "takeover-resume-mfa-command-2"}); err != nil {
 		t.Fatalf("takeover retry with own MFA: %v", err)
 	}
