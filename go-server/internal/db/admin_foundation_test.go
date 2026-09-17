@@ -835,6 +835,234 @@ func TestT02AdminJobItemClaimFenceRejectsStaleWorkerAcknowledgements(t *testing.
 	}
 }
 
+func createAdminLeaseTestItem(t *testing.T, q *Queries, suffix string) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+	ctx := context.Background()
+	snapshotID := uuid.New()
+	payload := []byte("payload-" + suffix)
+	if err := q.CreateAudienceSnapshot(ctx, AudienceSnapshotParams{
+		ID: snapshotID, Resource: AudienceResourceAccounts, Action: "lease-race-" + suffix,
+		PayloadHash: payload, ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("snapshot create: %v", err)
+	}
+	adminJob, err := q.CreateAdminJob(ctx, AdminJobParams{
+		ID: uuid.New(), SnapshotID: &snapshotID, Action: "lease-race-" + suffix,
+		PayloadHash: payload, IdempotencyKey: "admin-item-lease-race-" + uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("admin job create: %v", err)
+	}
+	itemID := uuid.New()
+	if err := q.AddAdminJobItem(ctx, AdminJobItemParams{
+		ID: itemID, JobID: adminJob.ID, TargetID: uuid.New(),
+	}); err != nil {
+		t.Fatalf("item create: %v", err)
+	}
+	return adminJob.ID, itemID
+}
+
+func TestT02AdminJobItemConcurrentClaimsHaveOneWinner(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	jobID, itemID := createAdminLeaseTestItem(t, q, "claim")
+
+	type claimResult struct {
+		worker  string
+		item    *AdminJobItem
+		claimed bool
+		err     error
+	}
+	workers := []string{"worker-a", "worker-b"}
+	ready := make(chan struct{}, len(workers))
+	start := make(chan struct{})
+	results := make(chan claimResult, len(workers))
+	var wg sync.WaitGroup
+	for _, worker := range workers {
+		worker := worker
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ready <- struct{}{}
+			<-start
+			item, claimed, err := q.ClaimJobItem(ctx, jobID, itemID, worker, time.Minute)
+			results <- claimResult{worker: worker, item: item, claimed: claimed, err: err}
+		}()
+	}
+	for range workers {
+		select {
+		case <-ready:
+		case <-time.After(5 * time.Second):
+			t.Fatal("concurrent claim workers did not reach the start barrier")
+		}
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var winner claimResult
+	winners := 0
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("%s claim: %v", result.worker, result.err)
+		}
+		if result.claimed {
+			winners++
+			winner = result
+			continue
+		}
+		if result.item != nil {
+			t.Fatalf("losing claim returned item %#v", result.item)
+		}
+	}
+	if winners != 1 {
+		t.Fatalf("concurrent claim winners = %d, want exactly one", winners)
+	}
+	if winner.item == nil || winner.item.LeaseToken == uuid.Nil || winner.item.LeaseOwner == nil || *winner.item.LeaseOwner != winner.worker {
+		t.Fatalf("winning claim = %#v, want worker-bound fence", winner.item)
+	}
+	stored, err := q.GetAdminJobItem(ctx, itemID)
+	if err != nil {
+		t.Fatalf("read concurrently claimed item: %v", err)
+	}
+	if stored == nil || stored.LeaseToken != winner.item.LeaseToken || stored.LeaseOwner == nil || *stored.LeaseOwner != winner.worker {
+		t.Fatalf("stored concurrent claim = %#v, want the sole winner's lease", stored)
+	}
+}
+
+func TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements(t *testing.T) {
+	tests := []struct {
+		name       string
+		stale      func(context.Context, *Queries, uuid.UUID, string, uuid.UUID) (bool, error)
+		freshCheck func(*testing.T, context.Context, *Queries, uuid.UUID, string, uuid.UUID)
+	}{
+		{
+			name: "finish",
+			stale: func(ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) (bool, error) {
+				return q.FinishJobItem(ctx, itemID, worker, token, "failed", nil, nil)
+			},
+			freshCheck: func(t *testing.T, ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) {
+				t.Helper()
+				if ok, err := q.FinishJobItem(ctx, itemID, worker, token, "provider_accepted", nil, nil); err != nil || !ok {
+					t.Fatalf("fresh finish: ok=%v err=%v", ok, err)
+				}
+			},
+		},
+		{
+			name: "heartbeat",
+			stale: func(ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) (bool, error) {
+				return q.HeartbeatJobItem(ctx, itemID, worker, token, time.Minute)
+			},
+			freshCheck: func(t *testing.T, ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) {
+				t.Helper()
+				if ok, err := q.HeartbeatJobItem(ctx, itemID, worker, token, time.Minute); err != nil || !ok {
+					t.Fatalf("fresh heartbeat: ok=%v err=%v", ok, err)
+				}
+				if ok, err := q.FinishJobItem(ctx, itemID, worker, token, "provider_accepted", nil, nil); err != nil || !ok {
+					t.Fatalf("finish after fresh heartbeat: ok=%v err=%v", ok, err)
+				}
+			},
+		},
+		{
+			name: "retry",
+			stale: func(ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) (bool, error) {
+				return q.RetryJobItem(ctx, itemID, worker, token)
+			},
+			freshCheck: func(t *testing.T, ctx context.Context, q *Queries, itemID uuid.UUID, worker string, token uuid.UUID) {
+				t.Helper()
+				if ok, err := q.RetryJobItem(ctx, itemID, worker, token); err != nil || !ok {
+					t.Fatalf("fresh retry: ok=%v err=%v", ok, err)
+				}
+				stored, err := q.GetAdminJobItem(ctx, itemID)
+				if err != nil {
+					t.Fatalf("read retried item: %v", err)
+				}
+				if stored == nil || stored.Outcome != "unknown_delivery" || stored.LeaseOwner != nil || stored.LeaseToken != uuid.Nil {
+					t.Fatalf("retried item = %#v, want released retry outcome", stored)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			q, cleanup := t02Database(t)
+			defer cleanup()
+			ctx := context.Background()
+			jobID, itemID := createAdminLeaseTestItem(t, q, "reclaim-"+test.name)
+			first, claimed, err := q.ClaimJobItem(ctx, jobID, itemID, "worker-a", time.Minute)
+			if err != nil {
+				t.Fatalf("first claim: %v", err)
+			}
+			if !claimed || first == nil || first.LeaseToken == uuid.Nil {
+				t.Fatalf("first claim = %#v, claimed=%v", first, claimed)
+			}
+			if _, err := q.Pool().Exec(ctx, `
+				UPDATE admin_job_items
+				SET lease_until = NOW() - interval '1 second'
+				WHERE id = $1`, itemID); err != nil {
+				t.Fatalf("expire first lease: %v", err)
+			}
+
+			ready := make(chan struct{}, 2)
+			start := make(chan struct{})
+			type callResult struct {
+				item    *AdminJobItem
+				claimed bool
+				ok      bool
+				err     error
+			}
+			reclaimResult := make(chan callResult, 1)
+			staleResult := make(chan callResult, 1)
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				ready <- struct{}{}
+				<-start
+				item, reclaimed, err := q.ClaimJobItem(ctx, jobID, itemID, "worker-b", time.Minute)
+				reclaimResult <- callResult{item: item, claimed: reclaimed, err: err}
+			}()
+			go func() {
+				defer wg.Done()
+				ready <- struct{}{}
+				<-start
+				ok, err := test.stale(ctx, q, itemID, "worker-a", first.LeaseToken)
+				staleResult <- callResult{ok: ok, err: err}
+			}()
+			for range 2 {
+				select {
+				case <-ready:
+				case <-time.After(5 * time.Second):
+					t.Fatal("reclaim and stale acknowledgement did not reach the start barrier")
+				}
+			}
+			close(start)
+			wg.Wait()
+			reclaimed := <-reclaimResult
+			stale := <-staleResult
+			if reclaimed.err != nil {
+				t.Fatalf("reclaim: %v", reclaimed.err)
+			}
+			if !reclaimed.claimed || reclaimed.item == nil || reclaimed.item.LeaseToken == uuid.Nil || reclaimed.item.LeaseToken == first.LeaseToken {
+				t.Fatalf("reclaim = %#v, claimed=%v; want fresh lease fence", reclaimed.item, reclaimed.claimed)
+			}
+			if stale.err != nil {
+				t.Fatalf("stale %s acknowledgement: %v", test.name, stale.err)
+			}
+			if stale.ok {
+				t.Fatalf("stale %s acknowledgement was accepted", test.name)
+			}
+			if reclaimed.item.LeaseOwner == nil || *reclaimed.item.LeaseOwner != "worker-b" {
+				t.Fatalf("reclaimed lease owner = %#v, want worker-b", reclaimed.item.LeaseOwner)
+			}
+			test.freshCheck(t, ctx, q, itemID, "worker-b", reclaimed.item.LeaseToken)
+		})
+	}
+}
+
 func TestT02SnapshotAppendAndReportRevisionAreStable(t *testing.T) {
 	q, cleanup := t02Database(t)
 	defer cleanup()
