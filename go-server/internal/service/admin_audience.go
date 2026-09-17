@@ -103,6 +103,64 @@ type Audience struct {
 	Filter   *AudienceFilter
 }
 
+// Normalize trims user-entered filter values and turns a filter that contains
+// no effective criterion into the explicit all-audience variant. Keeping this
+// normalization in the service makes the authorization consequence visible:
+// an empty filter receives the same action-bound MFA requirement as all.
+func (a Audience) Normalize() Audience {
+	return normalizeAudience(a)
+}
+
+func normalizeAudience(audience Audience) Audience {
+	out := cloneAudience(audience)
+	if out.Kind != AudienceFilterKind || out.Filter == nil {
+		return out
+	}
+	filter := out.Filter
+	filter.Username = trimAudienceText(filter.Username)
+	filter.Email = trimAudienceText(filter.Email)
+	filter.ID = trimAudienceText(filter.ID)
+	filter.SecurityStatuses = trimAudienceValues(filter.SecurityStatuses)
+	filter.Statuses = trimAudienceValues(filter.Statuses)
+	filter.Types = trimAudienceValues(filter.Types)
+	if filter.Resource == out.Resource && filterCriteriaEmpty(*filter) && !filter.IncludeAdmins {
+		out.Kind = AudienceAll
+		out.Filter = nil
+	}
+	return out
+}
+
+func filterCriteriaEmpty(filter AudienceFilter) bool {
+	return trimAudienceText(filter.Username) == nil && trimAudienceText(filter.Email) == nil && trimAudienceText(filter.ID) == nil && filter.VerifiedEmail == nil && len(trimAudienceValues(filter.SecurityStatuses)) == 0 && filter.CreatedAfter == nil && filter.CreatedBefore == nil && filter.AssigneeUserID == nil && len(trimAudienceValues(filter.Statuses)) == 0 && len(trimAudienceValues(filter.Types)) == 0
+}
+
+func trimAudienceText(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func trimAudienceValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // AdminAction is the transport-independent closed action union.  Fields not
 // belonging to Kind are rejected by ValidateAndSanitize, preventing a caller
 // from changing the payload hash by adding ignored JSON fields.
@@ -241,6 +299,9 @@ func (a Audience) Validate() error {
 		if a.Filter == nil || len(a.IDs) != 0 || a.Filter.Resource != a.Resource {
 			return ErrInvalidAudience
 		}
+		if filterCriteriaEmpty(*a.Filter) && !a.Filter.IncludeAdmins {
+			return ErrInvalidAudience
+		}
 		if err := a.Filter.validate(); err != nil {
 			return err
 		}
@@ -304,6 +365,7 @@ func validSecurityState(value string) bool {
 }
 
 func (a Audience) canonicalJSON() ([]byte, error) {
+	a = normalizeAudience(a)
 	if err := a.Validate(); err != nil {
 		return nil, err
 	}
@@ -537,6 +599,20 @@ func allAudienceMFAValid(actor AdminActor, action string, now time.Time, recentM
 	return RecentMFAValid(actor.RecentMFAAt, now, recentMFATTL) && actor.RecentMFAAction == action
 }
 
+func audienceIsUnconstrained(audience Audience) bool {
+	if audience.Kind == AudienceAll {
+		return true
+	}
+	if audience.Kind != AudienceFilterKind || audience.Filter == nil {
+		return false
+	}
+	filter := audience.Filter
+	// IncludeAdmins is an acknowledgement modifier, not a narrowing
+	// criterion. A filter containing only that modifier still spans the full
+	// resource and therefore receives the all-audience MFA proof.
+	return filterCriteriaEmpty(*filter)
+}
+
 // AudienceMember is a stable target in a preview. ResourceID is a user ID for
 // accounts and a report ID for reports. ExclusionCode is safe enum-like text;
 // it must never contain provider or credential data.
@@ -578,8 +654,12 @@ type AudienceSnapshot struct {
 	PendingJobID   uuid.UUID
 }
 
+// AudienceSnapshotStore is deliberately count/page based. Implementations
+// must evaluate filters in storage and return bounded pages; a full-slice
+// ResolveAudience method is intentionally not part of this contract.
 type AudienceSnapshotStore interface {
-	ResolveAudience(context.Context, Audience) ([]AudienceMember, error)
+	CountAudience(context.Context, Audience) (int64, error)
+	ListAudienceMembers(context.Context, Audience, int64, int) ([]AudienceMember, error)
 	SaveAudienceSnapshot(context.Context, AudienceSnapshot) error
 	GetAudienceSnapshot(context.Context, uuid.UUID) (*AudienceSnapshot, error)
 	ListAudienceSnapshotMembers(context.Context, uuid.UUID, int, int64) ([]AudienceMember, error)
@@ -667,10 +747,54 @@ func (s *AdminAudienceService) now() time.Time {
 	return now.UTC()
 }
 
+func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, audience Audience) ([]AudienceMember, int64, error) {
+	count, err := s.store.CountAudience(ctx, audience)
+	if err != nil {
+		return nil, 0, err
+	}
+	if count < 0 {
+		return nil, 0, ErrInvalidAudience
+	}
+	if count == 0 || count > int64(s.materializeLimit) {
+		return nil, count, nil
+	}
+	capacity := int(count)
+	members := make([]AudienceMember, 0, capacity)
+	var ordinal int64 = -1
+	for len(members) < capacity {
+		remaining := capacity - len(members)
+		pageLimit := minInt(remaining, maxPageLimit)
+		page, pageErr := s.store.ListAudienceMembers(ctx, audience, ordinal, pageLimit)
+		if pageErr != nil {
+			return nil, 0, pageErr
+		}
+		if len(page) == 0 {
+			break
+		}
+		if len(page) > remaining {
+			// A changing resolver must never cause the service to grow beyond
+			// its configured materialization bound.
+			return nil, 0, ErrAudienceTooLarge
+		}
+		members = append(members, page...)
+		ordinal += int64(len(page))
+		if len(page) < pageLimit {
+			break
+		}
+	}
+	if int64(len(members)) != count {
+		// The count/page pair changed while resolving. Treat it as an unsafe
+		// materialization instead of creating a partial immutable snapshot.
+		return nil, 0, ErrAudienceTooLarge
+	}
+	return members, count, nil
+}
+
 func (s *AdminAudienceService) Preview(ctx context.Context, actor AdminActor, request AudiencePreviewRequest) (*AudiencePreview, error) {
 	if s == nil || s.store == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
+	request.Audience = request.Audience.Normalize()
 	if err := request.Audience.Validate(); err != nil {
 		return nil, err
 	}
@@ -691,21 +815,21 @@ func (s *AdminAudienceService) Preview(ctx context.Context, actor AdminActor, re
 	if err := actorCanPerform(actor, action.Kind, now, s.recentMFATTL); err != nil {
 		return nil, err
 	}
-	if request.Audience.Kind == AudienceAll && !allAudienceMFAValid(actor, action.Kind, now, s.recentMFATTL) {
+	if audienceIsUnconstrained(request.Audience) && !allAudienceMFAValid(actor, action.Kind, now, s.recentMFATTL) {
 		return nil, ErrRecentMFARequired
 	}
 	if request.Audience.Filter != nil && request.Audience.Filter.IncludeAdmins && !actor.Can("audience.include_admins") {
 		return nil, ErrAudienceForbidden
 	}
-	members, err := s.store.ResolveAudience(ctx, request.Audience)
+	members, audienceCount, err := s.resolveBoundedAudience(ctx, request.Audience)
 	if err != nil {
 		return nil, err
 	}
-	if len(members) == 0 {
+	if audienceCount == 0 {
 		return nil, ErrEmptyAudience
 	}
-	if len(members) > s.materializeLimit {
-		pending := AudienceSnapshot{ID: uuid.New(), ActorID: actor.ID, Resource: request.Audience.Resource, Action: action, PayloadHash: mustActionHash(action), Audience: cloneAudience(request.Audience), Status: AudienceSnapshotPending, ExpiresAt: now.Add(s.snapshotTTL), CreatedAt: now, UpdatedAt: now}
+	if audienceCount > int64(s.materializeLimit) {
+		pending := AudienceSnapshot{ID: uuid.New(), ActorID: actor.ID, Resource: request.Audience.Resource, Action: action, PayloadHash: mustActionHash(action), Audience: cloneAudience(request.Audience), Status: AudienceSnapshotPending, AccountCount: audienceCount, ExpiresAt: now.Add(s.snapshotTTL), CreatedAt: now, UpdatedAt: now}
 		async, ok := s.store.(AsyncAudienceMaterializer)
 		if !ok {
 			return nil, ErrAudienceTooLarge
@@ -716,6 +840,9 @@ func (s *AdminAudienceService) Preview(ctx context.Context, actor AdminActor, re
 		}
 		pending.PendingJobID = jobID
 		return snapshotToPreview(pending, nil), nil
+	}
+	if len(members) == 0 {
+		return nil, ErrEmptyAudience
 	}
 
 	// Recheck administrator targets after resolution. A filter/all request may
@@ -861,7 +988,7 @@ func (s *AdminAudienceService) CommitCheck(ctx context.Context, actor AdminActor
 	if snapshot.ActorID != actor.ID || snapshot.Resource != actionResource(clean.Kind) || snapshot.Status != AudienceSnapshotReady {
 		return ErrSnapshotBinding
 	}
-	if snapshot.Audience.Kind == AudienceAll && !allAudienceMFAValid(actor, clean.Kind, now, s.recentMFATTL) {
+	if audienceIsUnconstrained(snapshot.Audience) && !allAudienceMFAValid(actor, clean.Kind, now, s.recentMFATTL) {
 		return ErrRecentMFARequired
 	}
 	if !snapshot.ExpiresAt.After(now) {
@@ -958,14 +1085,15 @@ func (s *AdminAudienceService) Get(ctx context.Context, actor AdminActor, snapsh
 // adapter. Production composition can provide a PostgreSQL implementation
 // through AudienceSnapshotStore without changing this service.
 type MemoryAdminStore struct {
-	mu        sync.RWMutex
-	Users     []AdminUser
-	Reports   []AudienceRecord
-	Snapshots map[uuid.UUID]AudienceSnapshot
-	Jobs      map[uuid.UUID]AdminJob
-	JobItems  map[uuid.UUID][]AdminJobItem
-	Audit     []AdminAuditEvent
-	Commands  map[string]AdminJobCommand
+	mu           sync.RWMutex
+	Users        []AdminUser
+	Reports      []AudienceRecord
+	Snapshots    map[uuid.UUID]AudienceSnapshot
+	Jobs         map[uuid.UUID]AdminJob
+	JobItems     map[uuid.UUID][]AdminJobItem
+	Audit        []AdminAuditEvent
+	Commands     map[string]AdminJobCommand
+	jobAuditKeys map[string]struct{}
 }
 
 type AudienceRecord struct {
@@ -988,30 +1116,166 @@ type AudienceRecord struct {
 }
 
 func NewMemoryAdminStore() *MemoryAdminStore {
-	return &MemoryAdminStore{Snapshots: make(map[uuid.UUID]AudienceSnapshot), Jobs: make(map[uuid.UUID]AdminJob), JobItems: make(map[uuid.UUID][]AdminJobItem), Commands: make(map[string]AdminJobCommand)}
+	return &MemoryAdminStore{Snapshots: make(map[uuid.UUID]AudienceSnapshot), Jobs: make(map[uuid.UUID]AdminJob), JobItems: make(map[uuid.UUID][]AdminJobItem), Commands: make(map[string]AdminJobCommand), jobAuditKeys: make(map[string]struct{})}
 }
 
-func (m *MemoryAdminStore) ResolveAudience(_ context.Context, audience Audience) ([]AudienceMember, error) {
-	if m == nil {
-		return nil, ErrAdminRepositoryAbsent
+func memoryAudienceRecord(user AdminUser) AudienceRecord {
+	state := user.SecurityState
+	if state == "" {
+		state = "normal"
 	}
+	return AudienceRecord{ID: user.ID, Resource: AudienceAccounts, Username: user.Username, Email: user.Email, EmailVerified: user.EmailVerified, SecurityState: state, CreatedAt: user.CreatedAt, IsAdmin: user.IsAdmin, Eligible: len(user.EligibilityReasons) == 0, DeviceCount: int64(user.RegisteredDeviceCount), ExclusionCode: firstReason(user.EligibilityReasons), EmailOptedOut: user.CommunicationOptOut, PushOptedOut: user.CommunicationOptOut || user.PushOptedOut}
+}
+
+func audienceMemberFromRecord(record AudienceRecord) AudienceMember {
+	eligible := record.Eligible
+	// Memory report fixtures commonly omit eligibility because report records
+	// are actionable by default; an explicit exclusion still wins.
+	if record.Resource == AudienceReports && !eligible && record.ExclusionCode == "" {
+		eligible = true
+	}
+	exclusionCode := ""
+	if !eligible {
+		exclusionCode = safeReason(record.ExclusionCode)
+	}
+	return AudienceMember{ResourceID: record.ID, Resource: record.Resource, Eligible: eligible, ExclusionCode: exclusionCode, DeviceCount: maxInt64Local(record.DeviceCount, 0), IsAdmin: record.IsAdmin, EmailEligible: record.Email != nil && record.EmailVerified, EmailOptedOut: record.EmailOptedOut, PushEligible: record.DeviceCount > 0, PushOptedOut: record.PushOptedOut, EmailEligibilityKnown: record.Resource == AudienceAccounts, PushEligibilityKnown: record.Resource == AudienceAccounts}
+}
+
+func audienceRecordIncluded(record AudienceRecord, audience Audience) bool {
+	if record.ID == uuid.Nil || record.Resource != audience.Resource {
+		return false
+	}
+	switch audience.Kind {
+	case AudienceAll:
+		return true
+	case AudienceFilterKind:
+		return audience.Filter != nil && recordMatchesFilter(record, *audience.Filter)
+	default:
+		return false
+	}
+}
+
+// CountAudience evaluates a scope without allocating a result slice so
+// production stores can expose only bounded count/page operations.
+func (m *MemoryAdminStore) CountAudience(_ context.Context, audience Audience) (int64, error) {
+	if m == nil {
+		return 0, ErrAdminRepositoryAbsent
+	}
+	audience = audience.Normalize()
 	if err := audience.Validate(); err != nil {
-		return nil, err
+		return 0, err
+	}
+	if audience.Kind == AudienceSelected {
+		return int64(len(audience.IDs)), nil
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	var count int64
 	if audience.Resource == AudienceAccounts {
-		records := make([]AudienceRecord, 0, len(m.Users))
 		for _, user := range m.Users {
-			state := user.SecurityState
-			if state == "" {
-				state = "normal"
+			if audienceRecordIncluded(memoryAudienceRecord(user), audience) {
+				count++
 			}
-			records = append(records, AudienceRecord{ID: user.ID, Resource: AudienceAccounts, Username: user.Username, Email: user.Email, EmailVerified: user.EmailVerified, SecurityState: string(state), CreatedAt: user.CreatedAt, IsAdmin: user.IsAdmin, Eligible: len(user.EligibilityReasons) == 0, DeviceCount: int64(user.RegisteredDeviceCount), ExclusionCode: firstReason(user.EligibilityReasons), EmailOptedOut: user.CommunicationOptOut, PushOptedOut: user.CommunicationOptOut || user.PushOptedOut})
 		}
-		return resolveRecords(records, audience)
+		return count, nil
 	}
-	return resolveRecords(append([]AudienceRecord(nil), m.Reports...), audience)
+	for _, record := range m.Reports {
+		if audienceRecordIncluded(record, audience) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (m *MemoryAdminStore) nextAudienceRecord(audience Audience, last uuid.UUID) (AudienceRecord, bool) {
+	var best AudienceRecord
+	found := false
+	consider := func(record AudienceRecord) {
+		if !audienceRecordIncluded(record, audience) || (last != uuid.Nil && record.ID.String() <= last.String()) {
+			return
+		}
+		if !found || record.ID.String() < best.ID.String() {
+			best, found = record, true
+		}
+	}
+	if audience.Resource == AudienceAccounts {
+		for _, user := range m.Users {
+			consider(memoryAudienceRecord(user))
+		}
+	} else {
+		for _, record := range m.Reports {
+			consider(record)
+		}
+	}
+	return best, found
+}
+
+// ListAudienceMembers returns one bounded page in stable UUID order. The
+// in-memory implementation repeatedly selects the next record to avoid making
+// a temporary slice proportional to the audience; a database adapter should
+// use ORDER BY plus a keyset/ordinal cursor instead.
+func (m *MemoryAdminStore) ListAudienceMembers(_ context.Context, audience Audience, afterOrdinal int64, limit int) ([]AudienceMember, error) {
+	if m == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	audience = audience.Normalize()
+	if err := audience.Validate(); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > maxPageLimit || afterOrdinal < -1 {
+		return nil, ErrInvalidAudience
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	items := make([]AudienceMember, 0, limit)
+	if audience.Kind == AudienceSelected {
+		ids := append([]uuid.UUID(nil), audience.IDs...)
+		sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+		start := afterOrdinal + 1
+		if start < 0 {
+			start = 0
+		}
+		for ordinal := start; ordinal < int64(len(ids)) && len(items) < limit; ordinal++ {
+			id := ids[ordinal]
+			member := AudienceMember{ResourceID: id, Resource: audience.Resource, Eligible: false, ExclusionCode: "not_found", Ordinal: ordinal}
+			if audience.Resource == AudienceAccounts {
+				for _, user := range m.Users {
+					if user.ID == id {
+						member = audienceMemberFromRecord(memoryAudienceRecord(user))
+						member.Ordinal = ordinal
+						break
+					}
+				}
+			} else {
+				for _, record := range m.Reports {
+					if record.ID == id {
+						member = audienceMemberFromRecord(record)
+						member.Ordinal = ordinal
+						break
+					}
+				}
+			}
+			items = append(items, member)
+		}
+		return items, nil
+	}
+	last := uuid.Nil
+	ordinal := int64(-1)
+	for len(items) < limit {
+		record, found := m.nextAudienceRecord(audience, last)
+		if !found {
+			break
+		}
+		last = record.ID
+		ordinal++
+		if ordinal <= afterOrdinal {
+			continue
+		}
+		member := audienceMemberFromRecord(record)
+		member.Ordinal = ordinal
+		items = append(items, member)
+	}
+	return items, nil
 }
 
 func firstReason(reasons []string) string {
@@ -1035,58 +1299,6 @@ func safeOptionalReason(value string) string {
 		return ""
 	}
 	return value
-}
-
-func resolveRecords(records []AudienceRecord, audience Audience) ([]AudienceMember, error) {
-	selected := make(map[uuid.UUID]struct{}, len(audience.IDs))
-	for _, id := range audience.IDs {
-		selected[id] = struct{}{}
-	}
-	out := make([]AudienceMember, 0, len(records))
-	for _, record := range records {
-		if record.ID == uuid.Nil || record.Resource != audience.Resource {
-			continue
-		}
-		include := false
-		switch audience.Kind {
-		case AudienceSelected:
-			_, include = selected[record.ID]
-		case AudienceAll:
-			include = true
-		case AudienceFilterKind:
-			include = recordMatchesFilter(record, *audience.Filter)
-		}
-		if !include {
-			continue
-		}
-		eligible := record.Eligible
-		// Memory report fixtures commonly omit eligibility because report
-		// records are actionable by default; an explicit exclusion still wins.
-		if record.Resource == AudienceReports && !eligible && record.ExclusionCode == "" {
-			eligible = true
-		}
-		exclusionCode := ""
-		if !eligible {
-			exclusionCode = safeReason(record.ExclusionCode)
-		}
-		out = append(out, AudienceMember{ResourceID: record.ID, Resource: record.Resource, Eligible: eligible, ExclusionCode: exclusionCode, DeviceCount: maxInt64Local(record.DeviceCount, 0), IsAdmin: record.IsAdmin, EmailEligible: record.Email != nil && record.EmailVerified, EmailOptedOut: record.EmailOptedOut, PushEligible: record.DeviceCount > 0, PushOptedOut: record.PushOptedOut, EmailEligibilityKnown: record.Resource == AudienceAccounts, PushEligibilityKnown: record.Resource == AudienceAccounts})
-	}
-	if audience.Kind == AudienceSelected {
-		present := make(map[uuid.UUID]struct{}, len(out))
-		for _, member := range out {
-			present[member.ResourceID] = struct{}{}
-		}
-		for _, id := range audience.IDs {
-			if _, ok := present[id]; !ok {
-				out = append(out, AudienceMember{ResourceID: id, Resource: audience.Resource, Eligible: false, ExclusionCode: "not_found"})
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ResourceID.String() < out[j].ResourceID.String() })
-	for i := range out {
-		out[i].Ordinal = int64(i)
-	}
-	return out, nil
 }
 
 func maxInt64Local(value, minimum int64) int64 {

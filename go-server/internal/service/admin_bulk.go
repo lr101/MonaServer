@@ -64,14 +64,20 @@ type AdminJob struct {
 }
 
 type AdminJobItem struct {
-	ID                uuid.UUID
-	JobID             uuid.UUID
-	TargetID          uuid.UUID
+	ID       uuid.UUID
+	JobID    uuid.UUID
+	TargetID uuid.UUID
+	// OperationID is generated once when the item is committed and is reused
+	// for every retry. Credential-producing ports use it as their provider
+	// idempotency key.
+	OperationID       uuid.UUID
 	DeviceID          *uuid.UUID
 	Outcome           string
 	Reason            string
 	ErrorCode         string
 	ProviderReference string
+	Retryable         bool
+	Ambiguous         bool
 	AttemptCount      int32
 	DeviceCount       int32
 	LastAttemptAt     *time.Time
@@ -80,6 +86,9 @@ type AdminJobItem struct {
 	UpdatedAt         time.Time
 	claimed           bool
 	queuedForRetry    bool
+	leaseToken        string
+	leaseFence        int64
+	leaseExpiresAt    time.Time
 }
 
 type AdminJobPage struct {
@@ -112,9 +121,10 @@ type AdminJobCommand struct {
 }
 
 // AdminJobStore is the transaction boundary for durable administrative jobs.
-// CreateJob must commit the job and all recipient items atomically. Claim and
-// Finish must use a lease or equivalent compare-and-set so stale workers
-// cannot acknowledge another worker's item.
+// CreateJob must commit the job and all recipient items atomically. Production
+// stores should implement FencedAdminJobStore and AdminJobItemStateStore so
+// claim/finish, operation state, and retries use a lease/fence CAS; the legacy
+// methods remain only as a migration seam for local adapters.
 type AdminJobStore interface {
 	CreateJob(context.Context, AdminJob, []AdminJobItem) (*AdminJob, error)
 	GetJob(context.Context, uuid.UUID) (*AdminJob, error)
@@ -125,6 +135,61 @@ type AdminJobStore interface {
 	ApplyJobCommand(context.Context, AdminJobCommand) (*AdminJob, error)
 	PauseJob(context.Context, uuid.UUID, string) error
 	UpdateJobProgress(context.Context, uuid.UUID) error
+}
+
+// AdminJobItemStateStore is the additive durable-outcome boundary. Stores
+// that implement it persist the operation key and retry/ambiguity flags in the
+// same item transition as the outcome. Older stores can retain the legacy
+// FinishJobItem method while migrating to this shape.
+type AdminJobItemStateStore interface {
+	FinishJobItemWithState(context.Context, uuid.UUID, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
+}
+
+// AdminJobLease is the fencing proof returned by a durable item claim. Fence
+// is monotonic per item; a stale worker must be rejected even if its lease
+// token is replayed after a newer claim.
+type AdminJobLease struct {
+	Token     string
+	Fence     int64
+	ExpiresAt time.Time
+}
+
+// FencedAdminJobStore is the optional DB primitive consumed by the service
+// when available. Claim and finish must be implemented by one transaction (or
+// an equivalent compare-and-set) in the production adapter.
+type FencedAdminJobStore interface {
+	ClaimJobItemWithLease(context.Context, uuid.UUID, uuid.UUID, string, time.Duration) (*AdminJobItem, *AdminJobLease, bool, error)
+	FinishJobItemWithLease(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
+}
+
+// AdminActorReloader supplies fresh membership, auth-generation, and
+// capabilities immediately before each item. A revoked or demoted actor
+// causes the service to pause the durable job before another item runs.
+type AdminActorReloader interface {
+	ReloadAdminActor(context.Context, uuid.UUID) (AdminActor, error)
+}
+
+// AdminActorStateLoader is a descriptive compatibility alias for adapters
+// that name this fresh-membership lookup a state load.
+type AdminActorStateLoader = AdminActorReloader
+
+type AdminJobItemAudit struct {
+	JobID       uuid.UUID
+	ItemID      uuid.UUID
+	OperationID uuid.UUID
+	ActorID     uuid.UUID
+	TargetID    uuid.UUID
+	Action      string
+	Outcome     string
+	Reason      string
+	ErrorCode   string
+}
+
+// AdminJobItemAuditStore must append an actor/target/outcome record for every
+// durable item transition. A DB implementation should perform this in the
+// finish transaction or enqueue an idempotent outbox row keyed by JobID/ItemID.
+type AdminJobItemAuditStore interface {
+	RecordJobItemAudit(context.Context, AdminJobItemAudit) error
 }
 
 // ActionResult is the bounded result of one account/device operation. Error
@@ -138,10 +203,25 @@ type ActionResult struct {
 	DeviceCount       int32
 	InvalidDeviceIDs  []uuid.UUID
 	Retryable         bool
+	// SafeToRetry is an explicit provider classification. A failed item is
+	// retried only when this flag is true; transport errors default to an
+	// ambiguous outcome for credential-producing actions.
+	SafeToRetry bool
+	Ambiguous   bool
+	// Idempotent is set by the keyed action ports. Credential retries require
+	// it in addition to SafeToRetry.
+	Idempotent bool
 }
 
 type AdminActionExecutor interface {
 	Execute(context.Context, AdminAction, uuid.UUID, uuid.UUID, uuid.UUID) (ActionResult, error)
+}
+
+// IdempotentAdminActionExecutor is the keyed form for adapters that dispatch
+// more than one action family through a single port. Credential-producing
+// actions must receive OperationID through this interface.
+type IdempotentAdminActionExecutor interface {
+	ExecuteWithKey(context.Context, AdminAction, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (ActionResult, error)
 }
 
 // RecipientEligibility is evaluated immediately before an item is sent. A
@@ -151,6 +231,7 @@ type RecipientEligibility struct {
 	Eligible    bool
 	Reason      string
 	DeviceCount int32
+	IsAdmin     bool
 }
 
 type RecipientEligibilityChecker interface {
@@ -176,12 +257,26 @@ type RecoveryResender interface {
 	ResendRecovery(context.Context, uuid.UUID, uuid.UUID, string) (ActionResult, error)
 }
 
+// IdempotentRecoveryResender is required for durable retry of recovery
+// credential delivery. RecoveryResender remains as a compatibility seam for
+// adapters that only support one-shot delivery.
+type IdempotentRecoveryResender interface {
+	ResendRecoveryWithKey(context.Context, uuid.UUID, uuid.UUID, string, uuid.UUID) (ActionResult, error)
+}
+
 type CampaignEmailSender interface {
 	SendCampaignEmail(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error)
 }
 
 type CampaignLoginLinkSender interface {
 	SendCampaignLoginLink(context.Context, uuid.UUID, uuid.UUID) (ActionResult, error)
+}
+
+// IdempotentCampaignLoginLinkSender is required for durable retry of login
+// link delivery. CampaignLoginLinkSender remains a one-shot compatibility
+// seam.
+type IdempotentCampaignLoginLinkSender interface {
+	SendCampaignLoginLinkWithKey(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (ActionResult, error)
 }
 
 type CampaignPushSender interface {
@@ -201,26 +296,30 @@ type ReportActioner interface {
 }
 
 type AdminActionPorts struct {
-	Executor       AdminActionExecutor
-	Eligibility    RecipientEligibilityChecker
-	DeviceRemover  InvalidDeviceTokenRemover
-	SessionRevoker SessionRevoker
-	Compromiser    AccountCompromiser
-	Recovery       RecoveryResender
-	Email          CampaignEmailSender
-	LoginLink      CampaignLoginLinkSender
-	Push           CampaignPushSender
-	Test           AdminTestMessageSender
-	Report         ReportActioner
+	Executor            AdminActionExecutor
+	Eligibility         RecipientEligibilityChecker
+	DeviceRemover       InvalidDeviceTokenRemover
+	SessionRevoker      SessionRevoker
+	Compromiser         AccountCompromiser
+	Recovery            RecoveryResender
+	RecoveryIdempotent  IdempotentRecoveryResender
+	Email               CampaignEmailSender
+	LoginLink           CampaignLoginLinkSender
+	LoginLinkIdempotent IdempotentCampaignLoginLinkSender
+	Push                CampaignPushSender
+	Test                AdminTestMessageSender
+	Report              ReportActioner
 }
 
 type AdminBulkService struct {
-	store    AdminJobStore
-	aud      *AdminAudienceService
-	ports    AdminActionPorts
-	clock    func() time.Time
-	worker   string
-	maxItems int
+	store         AdminJobStore
+	aud           *AdminAudienceService
+	ports         AdminActionPorts
+	clock         func() time.Time
+	worker        string
+	maxItems      int
+	actorReloader AdminActorReloader
+	leaseTTL      time.Duration
 }
 
 func NewAdminBulkService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts) *AdminBulkService {
@@ -228,7 +327,7 @@ func NewAdminBulkService(store AdminJobStore, audience *AdminAudienceService, po
 	if ports != nil {
 		configured = *ports
 	}
-	return &AdminBulkService{store: store, aud: audience, ports: configured, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString()}
+	return &AdminBulkService{store: store, aud: audience, ports: configured, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString(), leaseTTL: 5 * time.Minute}
 }
 
 func NewAdminBulkActionService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts) *AdminBulkService {
@@ -250,6 +349,18 @@ func (s *AdminBulkService) SetWorkerID(worker string) {
 func (s *AdminBulkService) SetMaxItems(limit int) {
 	if s != nil && limit > 0 {
 		s.maxItems = limit
+	}
+}
+
+func (s *AdminBulkService) SetActorReloader(reloader AdminActorReloader) {
+	if s != nil {
+		s.actorReloader = reloader
+	}
+}
+
+func (s *AdminBulkService) SetLeaseTTL(ttl time.Duration) {
+	if s != nil && ttl > 0 {
+		s.leaseTTL = ttl
 	}
 }
 
@@ -310,7 +421,7 @@ func (s *AdminBulkService) Create(ctx context.Context, actor AdminActor, request
 	}
 	items := make([]AdminJobItem, 0, len(eligible))
 	for _, member := range eligible {
-		items = append(items, AdminJobItem{ID: uuid.New(), JobID: job.ID, TargetID: member.ResourceID, Outcome: OutcomeQueued, DeviceCount: int32(maxInt64Local(member.DeviceCount, 0)), CreatedAt: now, UpdatedAt: now})
+		items = append(items, AdminJobItem{ID: uuid.New(), JobID: job.ID, TargetID: member.ResourceID, OperationID: uuid.New(), Outcome: OutcomeQueued, DeviceCount: int32(maxInt64Local(member.DeviceCount, 0)), CreatedAt: now, UpdatedAt: now})
 	}
 	created, err := s.store.CreateJob(ctx, job, items)
 	if err != nil {
@@ -324,6 +435,9 @@ func (s *AdminBulkService) Create(ctx context.Context, actor AdminActor, request
 
 func (s *AdminBulkService) loadMembers(ctx context.Context, snapshot AudienceSnapshot) ([]AudienceMember, error) {
 	if len(snapshot.Members) > 0 {
+		if len(snapshot.Members) > s.maxItems {
+			return nil, ErrAudienceTooLarge
+		}
 		return cloneAudienceMembers(snapshot.Members), nil
 	}
 	all := make([]AudienceMember, 0)
@@ -336,10 +450,10 @@ func (s *AdminBulkService) loadMembers(ctx context.Context, snapshot AudienceSna
 		if len(page) == 0 {
 			break
 		}
-		all = append(all, page...)
-		if len(all) > s.maxItems {
+		if len(page) > s.maxItems-len(all) {
 			return nil, ErrAudienceTooLarge
 		}
+		all = append(all, page...)
 		if len(page) < maxPageLimit {
 			break
 		}
@@ -355,7 +469,7 @@ func (s *AdminBulkService) Process(ctx context.Context, actor AdminActor, jobID 
 	if s == nil || s.store == nil {
 		return ErrAdminRepositoryAbsent
 	}
-	job, err := s.getExecutableJob(ctx, actor, jobID)
+	job, effectiveActor, err := s.getExecutableJobAndActor(ctx, actor, jobID)
 	if err != nil {
 		return err
 	}
@@ -374,8 +488,12 @@ func (s *AdminBulkService) Process(ctx context.Context, actor AdminActor, jobID 
 					return nil
 				}
 			}
-			if _, err := s.processItemWithJob(ctx, actor, *job, item.ID); err != nil {
-				if errors.Is(err, ErrAudienceForbidden) || errors.Is(err, ErrRecentMFARequired) {
+			currentActor, reloadErr := s.reloadActorForJob(ctx, effectiveActor, *job)
+			if reloadErr != nil {
+				return reloadErr
+			}
+			if _, err := s.processItemWithJob(ctx, currentActor, *job, item.ID); err != nil {
+				if errors.Is(err, ErrAudienceForbidden) || errors.Is(err, ErrAudienceUnauthorized) || errors.Is(err, ErrRecentMFARequired) || errors.Is(err, ErrAdminRepositoryAbsent) || errors.Is(err, ErrJobConflict) {
 					return err
 				}
 			}
@@ -392,49 +510,97 @@ func (s *AdminBulkService) Process(ctx context.Context, actor AdminActor, jobID 
 }
 
 func (s *AdminBulkService) getExecutableJob(ctx context.Context, actor AdminActor, jobID uuid.UUID) (*AdminJob, error) {
+	job, _, err := s.getExecutableJobAndActor(ctx, actor, jobID)
+	return job, err
+}
+
+func (s *AdminBulkService) getExecutableJobAndActor(ctx context.Context, actor AdminActor, jobID uuid.UUID) (*AdminJob, AdminActor, error) {
 	if !actor.Valid() {
-		return nil, ErrAudienceUnauthorized
+		return nil, AdminActor{}, ErrAudienceUnauthorized
 	}
 	job, err := s.store.GetJob(ctx, jobID)
 	if err != nil {
-		return nil, err
+		return nil, AdminActor{}, err
 	}
 	if job == nil {
-		return nil, ErrJobNotFound
+		return nil, AdminActor{}, ErrJobNotFound
 	}
 	if actor.ID != job.ActorID && !actor.Can("jobs.execute_all") {
-		return nil, ErrAudienceForbidden
+		return nil, AdminActor{}, ErrAudienceForbidden
 	}
 	if job.Status == JobCancelled {
-		return nil, ErrJobCancelled
+		return nil, AdminActor{}, ErrJobCancelled
 	}
 	if job.Status == JobPaused && actor.ID == job.ActorID && !actor.Can("jobs.execute_all") {
-		return nil, ErrJobConflict
+		return nil, AdminActor{}, ErrJobConflict
+	}
+	effective, reloadErr := s.reloadActorForJob(ctx, actor, *job)
+	if reloadErr != nil {
+		return nil, AdminActor{}, reloadErr
 	}
 	recentMFATTL := 5 * time.Minute
 	if s.aud != nil && s.aud.recentMFATTL > 0 {
 		recentMFATTL = s.aud.recentMFATTL
 	}
-	if err := actorCanPerform(actor, job.Action.Kind, s.now(), recentMFATTL); err != nil {
+	if err := actorCanPerform(effective, job.Action.Kind, s.now(), recentMFATTL); err != nil {
 		_ = s.store.PauseJob(ctx, jobID, "actor_capability_revoked")
-		return nil, err
+		return nil, AdminActor{}, err
 	}
-	return job, nil
+	return job, effective, nil
+}
+
+func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminActor, job AdminJob) (AdminActor, error) {
+	if s.actorReloader == nil {
+		return actor, nil
+	}
+	current, err := s.actorReloader.ReloadAdminActor(ctx, actor.ID)
+	if err != nil {
+		_ = s.store.PauseJob(ctx, job.ID, "actor_reload_unavailable")
+		return AdminActor{}, ErrAdminRepositoryAbsent
+	}
+	if current.ID != actor.ID || current.AuthGeneration != actor.AuthGeneration || !current.Valid() {
+		_ = s.store.PauseJob(ctx, job.ID, "actor_membership_revoked")
+		if !current.Valid() {
+			return AdminActor{}, ErrAudienceUnauthorized
+		}
+		return AdminActor{}, ErrAudienceForbidden
+	}
+	if current.ID != job.ActorID && !current.Can("jobs.execute_all") {
+		_ = s.store.PauseJob(ctx, job.ID, "actor_capability_revoked")
+		return AdminActor{}, ErrAudienceForbidden
+	}
+	recentMFATTL := 5 * time.Minute
+	if s.aud != nil && s.aud.recentMFATTL > 0 {
+		recentMFATTL = s.aud.recentMFATTL
+	}
+	if err := actorCanPerform(current, job.Action.Kind, s.now(), recentMFATTL); err != nil {
+		_ = s.store.PauseJob(ctx, job.ID, "actor_capability_revoked")
+		return AdminActor{}, err
+	}
+	return current, nil
 }
 
 func (s *AdminBulkService) ProcessItem(ctx context.Context, actor AdminActor, jobID, itemID uuid.UUID) (*AdminJobItem, error) {
-	job, err := s.getExecutableJob(ctx, actor, jobID)
+	job, effective, err := s.getExecutableJobAndActor(ctx, actor, jobID)
 	if err != nil {
 		return nil, err
 	}
-	return s.processItemWithJob(ctx, actor, *job, itemID)
+	return s.processItemWithJob(ctx, effective, *job, itemID)
 }
 
 func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminActor, job AdminJob, itemID uuid.UUID) (*AdminJobItem, error) {
 	if itemID == uuid.Nil {
 		return nil, ErrInvalidJobRequest
 	}
-	claimed, ok, err := s.store.ClaimJobItem(ctx, job.ID, itemID, s.worker)
+	var claimed *AdminJobItem
+	var lease *AdminJobLease
+	var ok bool
+	var err error
+	if fenced, supportsFencing := s.store.(FencedAdminJobStore); supportsFencing {
+		claimed, lease, ok, err = fenced.ClaimJobItemWithLease(ctx, job.ID, itemID, s.worker, s.leaseTTL)
+	} else {
+		claimed, ok, err = s.store.ClaimJobItem(ctx, job.ID, itemID, s.worker)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -464,18 +630,48 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 		eligibility, executeErr = s.ports.Eligibility.CheckRecipient(ctx, claimed.TargetID, job.Action)
 		if executeErr == nil {
 			result.DeviceCount = eligibility.DeviceCount
-			if !eligibility.Eligible {
+			if eligibility.IsAdmin && !actor.Can("audience.include_admins") {
+				result.Outcome = OutcomeSkipped
+				result.Reason = "admin_target_requires_ack"
+			} else if !eligibility.Eligible {
 				result.Outcome = OutcomeSkipped
 				result.Reason = eligibility.Reason
 			} else {
-				result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID)
+				result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID, claimed.OperationID)
 			}
 		}
 	} else {
-		result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID)
+		result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID, claimed.OperationID)
 	}
+	credentialAction := isCredentialAction(job.Action.Kind)
 	if executeErr != nil {
-		result = ActionResult{Outcome: OutcomeFailed, ErrorCode: "action_failed", Retryable: true}
+		if credentialAction {
+			if result.SafeToRetry && result.Idempotent && !result.Ambiguous {
+				// A keyed provider explicitly classified this failure as safe;
+				// the stable operation key makes the retry idempotent.
+				result.Outcome = OutcomeFailed
+				if result.ErrorCode == "" {
+					result.ErrorCode = "credential_delivery_failed"
+				}
+				result.Retryable = true
+			} else {
+				// A timeout or transport error may have minted a credential
+				// before the response was lost. Preserve that ambiguity.
+				result = ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "credential_delivery_uncertain", Ambiguous: true}
+			}
+		} else if result.SafeToRetry && !result.Ambiguous {
+			result.Outcome = OutcomeFailed
+			if result.ErrorCode == "" {
+				result.ErrorCode = "action_failed"
+			}
+			result.Retryable = true
+		} else if errors.Is(executeErr, ErrActionUnavailable) {
+			// No provider call was possible, so no side effect can be
+			// duplicated. This is an explicit safe failure classification.
+			result = ActionResult{Outcome: OutcomeFailed, ErrorCode: "action_unavailable", Retryable: true, SafeToRetry: true}
+		} else {
+			result = ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "action_result_uncertain", Ambiguous: true}
+		}
 	}
 	if result.Outcome == "" {
 		result.Outcome = OutcomeFailed
@@ -483,6 +679,21 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	if !validOutcome(result.Outcome) {
 		result.Outcome = OutcomeFailed
 		result.ErrorCode = "invalid_outcome"
+	}
+	if credentialAction {
+		if result.Outcome == OutcomeUnknownDelivery || result.Ambiguous || (result.Outcome == OutcomeFailed && !(result.SafeToRetry && result.Idempotent)) {
+			result.Outcome = OutcomeUnknownDelivery
+			if result.ErrorCode == "" {
+				result.ErrorCode = "credential_delivery_uncertain"
+			}
+			result.Retryable = false
+			result.Ambiguous = true
+		} else if result.Outcome == OutcomeFailed {
+			result.Retryable = result.SafeToRetry && result.Idempotent
+		}
+	}
+	if result.Outcome == OutcomeFailed && (!result.Retryable || !result.SafeToRetry) {
+		result.Retryable = false
 	}
 	if s.ports.DeviceRemover != nil && len(result.InvalidDeviceIDs) <= 100 {
 		for _, deviceID := range result.InvalidDeviceIDs {
@@ -493,14 +704,31 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	}
 	result.InvalidDeviceIDs = nil
 	result.Reason = safeOptionalReason(result.Reason)
-	result.ErrorCode = safeOptionalReason(result.ErrorCode)
+	result.ErrorCode = safeErrorCode(result.ErrorCode)
 	result.ProviderReference = safeOptionalReason(result.ProviderReference)
-	updated, err := s.store.FinishJobItem(ctx, itemID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference)
+	var updated *AdminJobItem
+	if fenced, supportsFencing := s.store.(FencedAdminJobStore); supportsFencing && lease != nil {
+		updated, err = fenced.FinishJobItemWithLease(ctx, itemID, *lease, claimed.OperationID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference, result.Retryable, result.Ambiguous)
+	} else if stateStore, supportsState := s.store.(AdminJobItemStateStore); supportsState {
+		updated, err = stateStore.FinishJobItemWithState(ctx, itemID, claimed.OperationID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference, result.Retryable, result.Ambiguous)
+	} else {
+		updated, err = s.store.FinishJobItem(ctx, itemID, result.Outcome, result.Reason, result.ErrorCode, result.ProviderReference)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if updated == nil {
 		return nil, ErrJobConflict
+	}
+	if auditStore, supportsAudit := s.store.(AdminJobItemAuditStore); supportsAudit {
+		auditErr := auditStore.RecordJobItemAudit(ctx, AdminJobItemAudit{JobID: job.ID, ItemID: updated.ID, OperationID: updated.OperationID, ActorID: actor.ID, TargetID: updated.TargetID, Action: job.Action.Kind, Outcome: updated.Outcome, Reason: updated.Reason, ErrorCode: updated.ErrorCode})
+		if auditErr != nil {
+			_ = s.store.PauseJob(ctx, job.ID, "audit_unavailable")
+			return updated, auditErr
+		}
+	} else {
+		_ = s.store.PauseJob(ctx, job.ID, "audit_unavailable")
+		return updated, ErrAdminRepositoryAbsent
 	}
 	if updated.Outcome == OutcomeSecured && isSecurityAction(job.Action.Kind) && claimed.TargetID == actor.ID {
 		// A successful self-containment operation may revoke the actor's
@@ -511,7 +739,34 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	return updated, executeErr
 }
 
-func (s *AdminBulkService) executeAction(ctx context.Context, job AdminJob, targetID, actorID uuid.UUID) (ActionResult, error) {
+func isCredentialAction(action string) bool {
+	return action == ActionLoginLink || action == ActionRecoveryResend
+}
+
+func safeErrorCode(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if len([]byte(value)) > 64 || !validUTF8(value) {
+		return "provider_error"
+	}
+	for _, char := range value {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '_' && char != '-' && char != '.' {
+			return "provider_error"
+		}
+	}
+	return value
+}
+
+func (s *AdminBulkService) executeAction(ctx context.Context, job AdminJob, targetID, actorID, operationID uuid.UUID) (ActionResult, error) {
+	if keyed, ok := s.ports.Executor.(IdempotentAdminActionExecutor); ok {
+		result, err := keyed.ExecuteWithKey(ctx, job.Action, targetID, actorID, job.ID, operationID)
+		if isCredentialAction(job.Action.Kind) {
+			result.Idempotent = true
+		}
+		return result, err
+	}
 	if s.ports.Executor != nil {
 		return s.ports.Executor.Execute(ctx, job.Action, targetID, actorID, job.ID)
 	}
@@ -534,6 +789,11 @@ func (s *AdminBulkService) executeAction(ctx context.Context, job AdminJob, targ
 		}
 		return ActionResult{Outcome: OutcomeSecured, Reason: string(result.Recovery.Status)}, nil
 	case ActionRecoveryResend:
+		if s.ports.RecoveryIdempotent != nil {
+			result, err := s.ports.RecoveryIdempotent.ResendRecoveryWithKey(ctx, targetID, actorID, job.Action.Reason, operationID)
+			result.Idempotent = true
+			return result, err
+		}
 		if s.ports.Recovery == nil {
 			return ActionResult{}, ErrActionUnavailable
 		}
@@ -544,6 +804,11 @@ func (s *AdminBulkService) executeAction(ctx context.Context, job AdminJob, targ
 		}
 		return s.ports.Email.SendCampaignEmail(ctx, targetID, actorID, job.Action)
 	case ActionLoginLink:
+		if s.ports.LoginLinkIdempotent != nil {
+			result, err := s.ports.LoginLinkIdempotent.SendCampaignLoginLinkWithKey(ctx, targetID, actorID, operationID)
+			result.Idempotent = true
+			return result, err
+		}
 		if s.ports.LoginLink == nil {
 			return ActionResult{}, ErrActionUnavailable
 		}
@@ -601,7 +866,7 @@ func (s *AdminBulkService) SendTestMessage(ctx context.Context, actor AdminActor
 		result.ErrorCode = "invalid_outcome"
 	}
 	result.Reason = safeOptionalReason(result.Reason)
-	result.ErrorCode = safeOptionalReason(result.ErrorCode)
+	result.ErrorCode = safeErrorCode(result.ErrorCode)
 	result.ProviderReference = safeOptionalReason(result.ProviderReference)
 	return &result, nil
 }
@@ -730,7 +995,38 @@ func (s *AdminBulkService) applyCommand(ctx context.Context, actor AdminActor, c
 	if updated == nil {
 		return nil, ErrJobConflict
 	}
+	if kind == CommandCancel {
+		if err := s.auditSkippedItems(ctx, *updated, actor.ID); err != nil {
+			return updated, err
+		}
+	}
 	return updated, nil
+}
+
+func (s *AdminBulkService) auditSkippedItems(ctx context.Context, job AdminJob, actorID uuid.UUID) error {
+	auditStore, ok := s.store.(AdminJobItemAuditStore)
+	if !ok {
+		return ErrAdminRepositoryAbsent
+	}
+	cursor := ""
+	for {
+		page, err := s.store.ListJobItems(ctx, job.ID, cursor, maxPageLimit)
+		if err != nil {
+			return err
+		}
+		for _, item := range page.Items {
+			if item.Outcome != OutcomeSkipped {
+				continue
+			}
+			if err := auditStore.RecordJobItemAudit(ctx, AdminJobItemAudit{JobID: job.ID, ItemID: item.ID, OperationID: item.OperationID, ActorID: actorID, TargetID: item.TargetID, Action: job.Action.Kind, Outcome: item.Outcome, Reason: item.Reason, ErrorCode: item.ErrorCode}); err != nil {
+				return err
+			}
+		}
+		if page.Next == nil {
+			return nil
+		}
+		cursor = *page.Next
+	}
 }
 
 func cloneJob(job AdminJob) AdminJob {
@@ -773,10 +1069,18 @@ func (m *MemoryAdminStore) CreateJob(_ context.Context, job AdminJob, items []Ad
 	if job.Status == "" {
 		job.Status = JobPending
 	}
+	operationIDs := make(map[uuid.UUID]struct{}, len(items))
 	for i := range items {
 		if items[i].ID == uuid.Nil || items[i].JobID != job.ID || items[i].TargetID == uuid.Nil {
 			return nil, ErrInvalidJobRequest
 		}
+		if items[i].OperationID == uuid.Nil {
+			items[i].OperationID = uuid.New()
+		}
+		if _, exists := operationIDs[items[i].OperationID]; exists {
+			return nil, ErrInvalidJobRequest
+		}
+		operationIDs[items[i].OperationID] = struct{}{}
 		items[i].Outcome = OutcomeQueued
 		items[i].CreatedAt = nonZeroTime(items[i].CreatedAt)
 		items[i].UpdatedAt = nonZeroTime(items[i].UpdatedAt)
@@ -935,6 +1239,27 @@ func (m *MemoryAdminStore) ClaimJobItem(_ context.Context, jobID, itemID uuid.UU
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.claimJobItemLocked(jobID, itemID, false, "", 0)
+}
+
+func (m *MemoryAdminStore) ClaimJobItemWithLease(_ context.Context, jobID, itemID uuid.UUID, _ string, ttl time.Duration) (*AdminJobItem, *AdminJobLease, bool, error) {
+	if m == nil {
+		return nil, nil, false, ErrAdminRepositoryAbsent
+	}
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item, ok, err := m.claimJobItemLocked(jobID, itemID, true, "", ttl)
+	if err != nil || !ok {
+		return item, nil, ok, err
+	}
+	lease := &AdminJobLease{Token: item.leaseToken, Fence: item.leaseFence, ExpiresAt: item.leaseExpiresAt}
+	return item, lease, true, nil
+}
+
+func (m *MemoryAdminStore) claimJobItemLocked(jobID, itemID uuid.UUID, fenced bool, _ string, ttl time.Duration) (*AdminJobItem, bool, error) {
 	if job, exists := m.Jobs[jobID]; !exists {
 		return nil, false, ErrJobNotFound
 	} else if job.Status == JobCancelled || job.CancellationRequested {
@@ -957,10 +1282,20 @@ func (m *MemoryAdminStore) ClaimJobItem(_ context.Context, jobID, itemID uuid.UU
 		if item.ID != itemID {
 			continue
 		}
+		expiredLease := false
+		if item.claimed {
+			if !fenced || item.leaseExpiresAt.IsZero() || time.Now().UTC().Before(item.leaseExpiresAt) {
+				copy := *item
+				return &copy, false, nil
+			}
+			item.claimed = false
+			item.leaseToken = ""
+			expiredLease = true
+		}
 		// A freshly materialized queued item has no attempts. Once a provider
 		// accepts it, OutcomeQueued is terminal for this item; replaying the
 		// request must return the stored result instead of sending again.
-		if item.claimed || (item.Outcome == OutcomeQueued && item.AttemptCount > 0 && !item.queuedForRetry) || (item.Outcome != OutcomeQueued && item.Outcome != OutcomeFailed && item.Outcome != OutcomeUnknownDelivery) || (item.Outcome == OutcomeFailed && !item.queuedForRetry) || item.Outcome == OutcomeUnknownDelivery {
+		if item.claimed || (!expiredLease && item.Outcome == OutcomeQueued && item.AttemptCount > 0 && !item.queuedForRetry) || (item.Outcome != OutcomeQueued && item.Outcome != OutcomeFailed && item.Outcome != OutcomeUnknownDelivery) || (item.Outcome == OutcomeFailed && !item.queuedForRetry) || item.Outcome == OutcomeUnknownDelivery {
 			copy := *item
 			return &copy, false, nil
 		}
@@ -970,6 +1305,14 @@ func (m *MemoryAdminStore) ClaimJobItem(_ context.Context, jobID, itemID uuid.UU
 		now := time.Now().UTC()
 		item.LastAttemptAt = &now
 		item.UpdatedAt = now
+		if item.OperationID == uuid.Nil {
+			item.OperationID = uuid.New()
+		}
+		if fenced {
+			item.leaseFence++
+			item.leaseToken = uuid.NewString()
+			item.leaseExpiresAt = now.Add(ttl)
+		}
 		copy := *item
 		return &copy, true, nil
 	}
@@ -977,6 +1320,18 @@ func (m *MemoryAdminStore) ClaimJobItem(_ context.Context, jobID, itemID uuid.UU
 }
 
 func (m *MemoryAdminStore) FinishJobItem(_ context.Context, itemID uuid.UUID, outcome, reason, errorCode, providerReference string) (*AdminJobItem, error) {
+	return m.finishJobItem(itemID, uuid.Nil, nil, outcome, reason, errorCode, providerReference, false, false, false)
+}
+
+func (m *MemoryAdminStore) FinishJobItemWithState(_ context.Context, itemID, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool) (*AdminJobItem, error) {
+	return m.finishJobItem(itemID, operationID, nil, outcome, reason, errorCode, providerReference, retryable, ambiguous, true)
+}
+
+func (m *MemoryAdminStore) FinishJobItemWithLease(_ context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool) (*AdminJobItem, error) {
+	return m.finishJobItem(itemID, operationID, &lease, outcome, reason, errorCode, providerReference, retryable, ambiguous, true)
+}
+
+func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *AdminJobLease, outcome, reason, errorCode, providerReference string, retryable, ambiguous, setRetryState bool) (*AdminJobItem, error) {
 	if m == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
@@ -995,9 +1350,20 @@ func (m *MemoryAdminStore) FinishJobItem(_ context.Context, itemID uuid.UUID, ou
 				copy := *item
 				return &copy, nil
 			}
+			if operationID != uuid.Nil && item.OperationID != operationID {
+				return nil, ErrJobConflict
+			}
+			if lease != nil && (item.leaseToken == "" || item.leaseToken != lease.Token || item.leaseFence != lease.Fence || (!item.leaseExpiresAt.IsZero() && time.Now().UTC().After(item.leaseExpiresAt))) {
+				return nil, ErrJobConflict
+			}
 			item.Outcome, item.Reason, item.ErrorCode, item.ProviderReference = outcome, safeOptionalReason(reason), safeOptionalReason(errorCode), safeOptionalReason(providerReference)
+			if setRetryState {
+				item.Retryable, item.Ambiguous = retryable, ambiguous
+			}
 			item.DeviceCount = maxInt32(item.DeviceCount, 0)
 			item.claimed = false
+			item.leaseToken = ""
+			item.leaseExpiresAt = time.Time{}
 			now := time.Now().UTC()
 			item.UpdatedAt = now
 			if outcome != OutcomeUnknownDelivery {
@@ -1132,8 +1498,9 @@ func (m *MemoryAdminStore) ApplyJobCommand(_ context.Context, command AdminJobCo
 		items := m.JobItems[command.JobID]
 		retried := false
 		for i := range items {
-			if items[i].Outcome == OutcomeFailed {
+			if items[i].Outcome == OutcomeFailed && items[i].Retryable && !items[i].Ambiguous {
 				items[i].Outcome, items[i].Reason, items[i].ErrorCode = OutcomeQueued, "", ""
+				items[i].Retryable, items[i].Ambiguous = false, false
 				items[i].claimed = false
 				items[i].queuedForRetry = true
 				retried = true

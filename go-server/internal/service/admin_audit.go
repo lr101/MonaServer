@@ -265,6 +265,38 @@ func (m *MemoryAdminStore) AppendAudit(_ context.Context, event AdminAuditEvent)
 	return nil
 }
 
+// RecordJobItemAudit is the in-memory equivalent of the durable finish/outbox
+// transaction. The composite key makes retries and outbox replays idempotent.
+func (m *MemoryAdminStore) RecordJobItemAudit(_ context.Context, item AdminJobItemAudit) error {
+	if m == nil || item.JobID == uuid.Nil || item.ItemID == uuid.Nil || item.ActorID == uuid.Nil || item.TargetID == uuid.Nil || !validOutcome(item.Outcome) || item.Action == "" {
+		return ErrInvalidAuditQuery
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.jobAuditKeys == nil {
+		m.jobAuditKeys = make(map[string]struct{})
+	}
+	key := item.JobID.String() + ":" + item.ItemID.String() + ":" + item.Outcome
+	if _, exists := m.jobAuditKeys[key]; exists {
+		return nil
+	}
+	m.jobAuditKeys[key] = struct{}{}
+	actorID, targetID := item.ActorID, item.TargetID
+	var reason *string
+	if cleaned := safeOptionalReason(item.Reason); cleaned != "" {
+		reason = &cleaned
+	}
+	details := map[string]string{"job_id": item.JobID.String(), "item_id": item.ItemID.String()}
+	if item.OperationID != uuid.Nil {
+		details["operation_id"] = item.OperationID.String()
+	}
+	if item.ErrorCode != "" {
+		details["error_code"] = safeErrorCode(item.ErrorCode)
+	}
+	m.Audit = append(m.Audit, redactAuditEvent(AdminAuditEvent{ID: uuid.New(), ActorID: &actorID, TargetID: &targetID, Action: item.Action, Outcome: item.Outcome, Reason: reason, Details: details, OccurredAt: time.Now().UTC()}))
+	return nil
+}
+
 func (m *MemoryAdminStore) ListAudit(_ context.Context, query AdminAuditQuery) (AdminAuditPage, error) {
 	if m == nil {
 		return AdminAuditPage{}, ErrAdminRepositoryAbsent

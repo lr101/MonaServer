@@ -11,6 +11,11 @@ and [`go-server/internal/service/admin_audit.go`](../go-server/internal/service/
 Audience resolution validates the selected/filter/all union and resource-tagged
 filters, applies bounded content validation, resolves explicit records into an
 immutable actor/action/hash/expiry snapshot, and supports opaque cursor reads.
+Whitespace-only or otherwise empty filters are normalized to the explicit
+`all` variant before authorization, so they require an action-bound recent MFA
+proof. Filter resolution uses a count plus bounded page interface; the service
+never asks a store for one full audience slice and queues a safe asynchronous
+materialization when the count exceeds the configured limit.
 All-account and security actions require an action-bound recent MFA proof;
 administrator targets require the stronger include-admin capability and
 acknowledgement. Preview and commit capability checks are separate, and
@@ -29,6 +34,18 @@ that has not started and cannot undo a completed operation. Successful
 self-containment of the actor pauses the remaining job for another authorized
 operator. A pre-send eligibility port rechecks account state, preferences, and
 device ownership immediately before delivery.
+
+Each committed item receives one durable operation ID. Keyed login-link and
+recovery ports receive that same ID on every attempt; an ambiguous credential
+result is durable `unknown_delivery` and cannot be retried, while retryable
+failures require an explicit safe-to-retry classification. Every item finish
+also appends an actor/target/outcome audit record through an idempotent audit
+boundary. Workers consume the optional fenced claim/finish primitive when a
+store implements it, and fresh actor membership, auth generation, and
+capabilities are reloaded before every item; revocation or demotion pauses the
+job.
+The legacy one-shot credential ports remain only for compatibility and are
+treated as ambiguous on failure; production wiring must use the keyed ports.
 
 The user service exposes a bounded, credential-free account projection with
 search/security/verified-email/creation-date filters and cursor pagination.
@@ -54,32 +71,35 @@ facade needs these additive operations, each using PostgreSQL parameters and
 transactions where stated:
 
 1. `ListAdminUsers(ctx, cursor, limit, search, securityState, verifiedEmail, createdAfter, createdBefore)` and `GetAdminUserDetails(ctx, userID)` should return the safe user projection, including creation time, admin/security state, auth generation, compromise/password flags, communication opt-out, and an aggregate registered-device count. The query must perform filtering and stable cursor ordering in PostgreSQL and must never select passwords, token/code/url columns, or provider credentials.
-2. `ResolveAdminAudience(ctx, actorID, audience, action)` should evaluate accounts/reports server-side with stable ordering, per-record permission/state/ownership checks, email-ownership/verified-account checks, communication preferences, device eligibility, and explicit exclusion codes. A paged resolver or bounded count is required so a large filter is not loaded into one request. Report criteria must remain report-only.
+2. `CountAdminAudience(ctx, actorID, audience, action)` and `ListAdminAudienceMembers(ctx, actorID, audience, action, afterOrdinal, limit)` should evaluate accounts/reports server-side with stable ordering, per-record permission/state/ownership checks, email-ownership/verified-account checks, communication preferences, device eligibility, and explicit exclusion codes. Count must not materialize rows; list must return at most the requested bound. A large count should be handed to an asynchronous materializer rather than loaded into one request. Report criteria must remain report-only.
 3. `CreateAudienceSnapshot(ctx, snapshot, members)` must insert the snapshot and every member in one transaction, with an immutable canonical audience/action/hash, actor ID, expiry, ordinals, counts, and bounded exclusions. `GetAudienceSnapshot` and `ListAudienceSnapshotMembers(snapshotID, afterOrdinal, limit)` must enforce actor/resource access at the service boundary and stable ordinal cursors.
-4. `CreateAdminJobWithItems(ctx, job, items)` must atomically insert one job and all item rows and enforce an actor/action/snapshot/payload-bound idempotency key. `ClaimAdminJobItem(ctx, jobID, itemID, worker, lease)` and `FinishAdminJobItem(ctx, itemID, lease, outcome, reason, errorCode, providerReference)` must use compare-and-set leases, recover stale leases, and refuse stale-worker acknowledgements. `UpdateAdminJobProgress`, `PauseAdminJob`, and `Get/ListAdminJobs` must derive safe account/eligible/device and outcome counts.
-5. `ApplyAdminJobCommand(ctx, actorID, jobID, kind, idempotencyKey, reason)` must make retry (failed items only) and cancellation idempotent in one transaction. Cancellation must skip only unclaimed work; it cannot restore credentials or undo delivery. Commands and job/item reads must never return action tokens, passwords, provider payloads, or raw provider errors.
-6. `ListAdminAudit(ctx, cursor, limit, targetUserID, action)` and `AppendAdminAudit(ctx, event)` should provide append-only storage, stable cursor ordering, target/action filters, bounded safe metadata, and retention/deletion handling. For security operations, the job item transition and its actor/target/outcome audit should be coordinated transactionally where possible.
+4. `CreateAdminJobWithItems(ctx, job, items)` must atomically insert one job and all item rows, assign a stable per-item operation ID, and enforce an actor/action/snapshot/payload-bound idempotency key. The service consumes this exact optional lease interface: `ClaimJobItemWithLease(ctx, jobID, itemID, worker, ttl) (*AdminJobItem, *AdminJobLease, bool, error)` and `FinishJobItemWithLease(ctx, itemID, lease, operationID, outcome, reason, errorCode, providerReference, retryable, ambiguous)`. These operations must use compare-and-set fencing, recover stale leases, and refuse stale-worker acknowledgements. The additive `FinishJobItemWithState` shape persists operation/retry/ambiguity state when a store has not yet adopted fencing. `UpdateAdminJobProgress`, `PauseAdminJob`, and `Get/ListAdminJobs` must derive safe account/eligible/device and outcome counts.
+5. `ApplyAdminJobCommand(ctx, actorID, jobID, kind, idempotencyKey, reason)` must make retry (failed items only with a persisted safe-to-retry flag) and cancellation idempotent in one transaction. Cancellation must skip only unclaimed work; it cannot restore credentials or undo delivery. Commands and job/item reads must never return action tokens, passwords, provider payloads, or raw provider errors.
+6. `ListAdminAudit(ctx, cursor, limit, targetUserID, action)` and `AppendAdminAudit(ctx, event)` should provide append-only storage, stable cursor ordering, target/action filters, bounded safe metadata, and retention/deletion handling. The additive `RecordJobItemAudit(ctx, AdminJobItemAudit)` operation must be idempotent by job/item/outcome and coordinated with the item finish transaction or a durable outbox; it carries only actor ID, target ID, action, outcome, bounded reason/error classification, and the operation ID.
 
 The current generated users interface represents optional `verifiedEmail` as a
-plain `bool`, so an HTTP request cannot distinguish an omitted value from an
-explicit `false` through that frozen signature. The service API accepts a
-`*bool`; the adapter preserves omitted/default behavior for the generated
-route and direct service callers can express `false` explicitly. A future API
-owner can repair that generated contract if the false query case must be
-available over HTTP.
+plain `bool`. The handler-owned `CaptureAdminUsersQuery` wrapper records query
+presence before invoking the frozen generated controller, so routed
+`verifiedEmail=false` becomes `*bool(false)` while omission remains nil. The
+coordinator should compose this wrapper around the generated users route.
 
 ## Verification
 
 Service tests cover empty/invalid audiences, payload sanitization and binding,
 MFA/all-account checks, admin exclusions, filter-copy immutability,
-preferences/device shrinkage, idempotent item processing, explicit retry,
-self-containment pause, eligibility recheck, and audit actor/secret binding.
+preferences/device shrinkage, empty-filter MFA normalization, bounded async
+resolution, idempotent item processing, explicit safe retry, credential
+unknown-outcome suppression, per-item actor reload/pause, lease fencing,
+self-containment pause, eligibility recheck, and actor/target audit binding.
 Handler tests cover generated DTO mapping, CSRF rejection, sanitized preview
-responses, immutable job commit, and idempotent create.
+responses, immutable job commit, idempotent create, and routed explicit-false
+verified-email filtering.
 
 ```text
 mise exec -- gofmt -w internal/service/admin_*.go internal/handler/admin_*.go
 mise exec -- go test ./...
+PASS
+mise exec -- go test -race ./internal/service ./internal/handler
 PASS
 mise exec -- go vet ./...
 PASS

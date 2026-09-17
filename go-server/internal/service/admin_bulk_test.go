@@ -265,7 +265,7 @@ type flakyEmailSender struct{ calls int }
 func (s *flakyEmailSender) SendCampaignEmail(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error) {
 	s.calls++
 	if s.calls == 1 {
-		return ActionResult{}, errors.New("transient provider failure")
+		return ActionResult{SafeToRetry: true}, errors.New("transient provider failure")
 	}
 	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
 }

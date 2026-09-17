@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
@@ -17,6 +18,35 @@ type AdminUsersServicer struct {
 }
 
 type AdminUserServicer = AdminUsersServicer
+
+type adminUsersQueryKey struct{}
+
+// WithAdminUsersVerifiedEmailPresence carries the generated parser's query
+// presence bit across the frozen bool-only service signature. The value is
+// deliberately request-scoped and never enters a durable model.
+func WithAdminUsersVerifiedEmailPresence(ctx context.Context, verified bool) context.Context {
+	return context.WithValue(ctx, adminUsersQueryKey{}, verified)
+}
+
+func adminUsersVerifiedEmailPresence(ctx context.Context) (bool, bool) {
+	value, ok := ctx.Value(adminUsersQueryKey{}).(bool)
+	return value, ok
+}
+
+// CaptureAdminUsersQuery must wrap the generated users controller route. The
+// generated controller parses optional booleans into a plain bool, so this
+// adapter records presence before invoking it and preserves an explicit
+// verifiedEmail=false for the service layer.
+func CaptureAdminUsersQuery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if raw, ok := r.URL.Query()["verifiedEmail"]; ok && len(raw) > 0 {
+			if value, err := strconv.ParseBool(raw[0]); err == nil {
+				r = r.WithContext(WithAdminUsersVerifiedEmailPresence(r.Context(), value))
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func NewAdminUsersServicer(users *service.AdminUserService) *AdminUsersServicer {
 	return &AdminUsersServicer{users: users}
@@ -35,10 +65,12 @@ func (s *AdminUsersServicer) ListAdminUsers(ctx context.Context, cursor string, 
 		return adminResponse(ctx, err)
 	}
 	query := service.AdminUserQuery{Cursor: cursor, Limit: int(limit), Search: search, SecurityState: string(securityState)}
-	// The generated frozen interface represents an optional boolean as bool.
-	// Preserve the contract's omitted/default behavior for false; service
-	// callers that need an explicit false use AdminUserQuery directly.
-	if verifiedEmail {
+	if value, present := adminUsersVerifiedEmailPresence(ctx); present {
+		query.VerifiedEmail = &value
+	} else if verifiedEmail {
+		// Direct generated callers can still express true without the
+		// presence middleware; false remains the omitted default in that
+		// compatibility path.
 		query.VerifiedEmail = &verifiedEmail
 	}
 	if !createdAfter.IsZero() {
