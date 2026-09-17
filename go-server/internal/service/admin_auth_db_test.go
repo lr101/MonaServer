@@ -85,6 +85,52 @@ func TestAdminBootstrapMFAReplayAndDemotion(t *testing.T) {
 	}
 }
 
+func TestReloadAdminActorUsesFreshMembershipAndGeneration(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	auth := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	userID := createTestUser(t, auth, "bulk-reload-operator")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"), HMACKey: []byte("bulk-reload-quota-key"),
+	})
+	if _, err := admin.EnrollAdminOperator(ctx, "bulk-reload-operator", []string{"campaign.email", "jobs.execute_all"}); err != nil {
+		t.Fatalf("enroll operator: %v", err)
+	}
+	state, err := q.GetUserSecurityState(ctx, userID)
+	if err != nil || state == nil {
+		t.Fatalf("security state: %v %#v", err, state)
+	}
+	actor, err := admin.ReloadAdminActor(ctx, userID)
+	if err != nil {
+		t.Fatalf("reload actor: %v", err)
+	}
+	if !actor.Valid() || actor.AuthGeneration != state.AuthGeneration || !actor.Can("campaign.email") || !actor.Can("jobs.execute_all") {
+		t.Fatalf("reloaded actor = %#v, want active membership and current generation", actor)
+	}
+
+	if _, err := q.AdvanceUserAuthGeneration(ctx, userID); err != nil {
+		t.Fatalf("advance auth generation: %v", err)
+	}
+	advanced, err := admin.ReloadAdminActor(ctx, userID)
+	if err != nil {
+		t.Fatalf("reload advanced actor: %v", err)
+	}
+	if !advanced.Valid() || advanced.AuthGeneration <= actor.AuthGeneration {
+		t.Fatalf("advanced actor = %#v, want fresh generation", advanced)
+	}
+
+	if err := q.RevokeAdminMembership(ctx, userID); err != nil {
+		t.Fatalf("revoke membership: %v", err)
+	}
+	revoked, err := admin.ReloadAdminActor(ctx, userID)
+	if err != nil {
+		t.Fatalf("reload revoked actor: %v", err)
+	}
+	if revoked.Valid() || revoked.ID != userID {
+		t.Fatalf("revoked actor = %#v, want invalid actor with stable ID", revoked)
+	}
+}
+
 func TestAdminChallengeFailuresAreSharedAndNonLocking(t *testing.T) {
 	_, q := setupPool(t)
 	ctx := context.Background()

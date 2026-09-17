@@ -658,6 +658,16 @@ func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminAct
 		_ = s.store.PauseJob(ctx, job.ID, "actor_capability_revoked")
 		return AdminActor{}, ErrAudienceForbidden
 	}
+	// Recent MFA is bound to the authenticated browser session and therefore
+	// cannot be recovered from the membership lookup above. Preserve that
+	// request proof only when the reloader did not provide a newer one; all
+	// membership, generation, and capability fields remain fresh.
+	if current.RecentMFAAt == nil {
+		current.RecentMFAAt = cloneTime(actor.RecentMFAAt)
+	}
+	if current.RecentMFAAction == "" {
+		current.RecentMFAAction = actor.RecentMFAAction
+	}
 	recentMFATTL := 5 * time.Minute
 	if s.aud != nil && s.aud.recentMFATTL > 0 {
 		recentMFATTL = s.aud.recentMFATTL

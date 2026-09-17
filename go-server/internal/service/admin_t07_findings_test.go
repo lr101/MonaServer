@@ -161,6 +161,45 @@ func TestBulkProcessingReloadsActorBeforeEveryItemAndPausesOnDemotion(t *testing
 	}
 }
 
+func TestBulkReloadKeepsSessionMFAProofWhenMembershipLookupOmitsIt(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
+	now := time.Now().UTC()
+	actor := AdminActor{
+		ID: uuid.New(), State: "authenticated",
+		Capabilities: []string{"audience.preview", "security.revoke", "jobs.create", "jobs.execute_all"},
+		RecentMFAAt:  &now, RecentMFAAction: ActionRevokeSessions,
+	}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionRevokeSessions, Reason: "operator recovery"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}})
+	job, err := bulk.Create(context.Background(), actor, AdminJobCreateRequest{
+		SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "reload-mfa-proof",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	// A persistence-backed reloader refreshes membership and capabilities. MFA
+	// freshness remains the authenticated session's proof and is therefore
+	// deliberately absent from this reloaded actor.
+	reloaded := actor
+	reloaded.RecentMFAAt = nil
+	reloaded.RecentMFAAction = ""
+	bulk.SetActorReloader(staticAdminActorReloader{actor: reloaded})
+	itemID := store.JobItems[job.ID][0].ID
+	item, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID)
+	if err != nil || item == nil || item.Outcome != OutcomeSecured {
+		t.Fatalf("processed item = %#v, err=%v; want session MFA proof preserved", item, err)
+	}
+}
+
 type idempotentLoginLinkSender struct {
 	keys   []uuid.UUID
 	calls  int

@@ -140,6 +140,47 @@ func (a *AdminAuth) RecentMFATTL() time.Duration {
 	return a.cfg.RecentMFATTL
 }
 
+// ReloadAdminActor refreshes the account security state and admin membership
+// used by a durable bulk worker. Session-bound MFA proof is intentionally not
+// reconstructed here; the bulk service carries that proof from the
+// authenticated request while taking the membership, generation, and
+// capability fields from this fresh lookup.
+//
+// Invalid or revoked state is returned as an invalid actor so the caller can
+// pause its durable job with an authorization outcome. Storage failures are
+// returned as an unavailable error and never produce a usable actor.
+func (a *AdminAuth) ReloadAdminActor(ctx context.Context, userID uuid.UUID) (AdminActor, error) {
+	if a == nil || a.q == nil {
+		return AdminActor{}, ErrAdminUnavailable
+	}
+	if userID == uuid.Nil {
+		return AdminActor{}, ErrAdminUnauthorized
+	}
+	state, err := a.q.GetUserSecurityState(ctx, userID)
+	if err != nil {
+		return AdminActor{}, ErrAdminUnavailable
+	}
+	membership, err := a.q.GetAdminMembership(ctx, userID)
+	if err != nil {
+		return AdminActor{}, ErrAdminUnavailable
+	}
+	actor := AdminActor{ID: userID, State: adminSessionStateRevoked}
+	if state != nil {
+		actor.AuthGeneration = state.AuthGeneration
+	}
+	if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired ||
+		membership == nil || !membership.Active || membership.RevokedAt != nil || len(membership.TotpSecretCiphertext) == 0 || membership.TotpKeyID == nil {
+		return actor, nil
+	}
+	permissions := append([]string(nil), membership.Permissions...)
+	actor.State = adminSessionStateAuthenticated
+	actor.Permissions = permissions
+	actor.Capabilities = CapabilitiesForPermissions(permissions)
+	return actor, nil
+}
+
+var _ AdminActorReloader = (*AdminAuth)(nil)
+
 func (a *AdminAuth) SetClock(now func() time.Time) {
 	if now == nil {
 		now = time.Now
