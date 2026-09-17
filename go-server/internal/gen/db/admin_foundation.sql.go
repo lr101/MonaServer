@@ -219,14 +219,14 @@ WITH candidates AS (
     FROM admin_job_items
     WHERE admin_job_items.job_id = $1
       AND admin_job_items.outcome IN ('queued', 'unknown_delivery')
-      AND (admin_job_items.lease_until IS NULL OR admin_job_items.lease_until <= now())
+      AND (admin_job_items.lease_until IS NULL OR admin_job_items.lease_until <= clock_timestamp())
     ORDER BY admin_job_items.created_at ASC, admin_job_items.id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT $2
 ), claimed AS (
     UPDATE admin_job_items i
     SET lease_owner = $3, lease_token = uuid_generate_v4(),
-        lease_until = now() + make_interval(secs => $4::double precision),
+        lease_until = clock_timestamp() + make_interval(secs => $4::double precision),
         attempt_count = attempt_count + 1, updated_at = now()
     FROM candidates c
     WHERE i.id = c.id
@@ -305,7 +305,7 @@ const claimDurableJobs = `-- name: ClaimDurableJobs :many
 WITH candidates AS (
     SELECT id
     FROM durable_jobs
-    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= now()))
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= clock_timestamp()))
       AND available_at <= now()
       AND attempt_count < max_attempts
     ORDER BY priority DESC, available_at ASC, created_at ASC, id ASC
@@ -314,7 +314,7 @@ WITH candidates AS (
 ), claimed AS (
     UPDATE durable_jobs j
     SET status = 'running', lease_owner = $2, lease_token = uuid_generate_v4(),
-        lease_until = now() + make_interval(secs => $3::double precision), attempt_count = attempt_count + 1,
+        lease_until = clock_timestamp() + make_interval(secs => $3::double precision), attempt_count = attempt_count + 1,
         started_at = COALESCE(started_at, now()), updated_at = now()
     FROM candidates c
     WHERE j.id = c.id
@@ -396,7 +396,7 @@ const claimDurableJobsByKinds = `-- name: ClaimDurableJobsByKinds :many
 WITH candidates AS (
     SELECT id
     FROM durable_jobs
-    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= now()))
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= clock_timestamp()))
       AND available_at <= now()
       AND attempt_count < max_attempts
       AND (cardinality($2::text[]) = 0 OR kind = ANY($2::text[]))
@@ -406,7 +406,7 @@ WITH candidates AS (
 ), claimed AS (
     UPDATE durable_jobs j
     SET status = 'running', lease_owner = $3, lease_token = uuid_generate_v4(),
-        lease_until = now() + make_interval(secs => $4::double precision), attempt_count = attempt_count + 1,
+        lease_until = clock_timestamp() + make_interval(secs => $4::double precision), attempt_count = attempt_count + 1,
         started_at = COALESCE(started_at, now()), updated_at = now()
     FROM candidates c
     WHERE j.id = c.id
@@ -529,23 +529,23 @@ func (q *Queries) ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginC
 }
 
 const claimJobItem = `-- name: ClaimJobItem :one
-WITH candidate AS (
+WITH locked AS (
     SELECT i.id
     FROM admin_job_items i
     WHERE i.id = $1
       AND i.job_id = $2
-      AND i.outcome IN ('queued', 'unknown_delivery')
-      AND (i.lease_until IS NULL OR i.lease_until <= now())
     FOR UPDATE
 ), claimed AS (
     UPDATE admin_job_items i
     SET lease_owner = $3,
         lease_token = uuid_generate_v4(),
-        lease_until = now() + make_interval(secs => $4::double precision),
+        lease_until = clock_timestamp() + make_interval(secs => $4::double precision),
         attempt_count = attempt_count + 1,
         updated_at = now()
-    FROM candidate c
-    WHERE i.id = c.id
+    WHERE i.id = $1
+      AND EXISTS (SELECT 1 FROM locked)
+      AND i.outcome IN ('queued', 'unknown_delivery')
+      AND (i.lease_until IS NULL OR i.lease_until <= clock_timestamp())
     RETURNING i.id, i.job_id, i.target_id, i.device_id, i.outcome, i.error_code,
               i.provider_reference, i.attempt_count, i.lease_owner, i.lease_token,
               i.lease_until, i.completed_at, i.created_at, i.updated_at
@@ -616,7 +616,7 @@ const claimOutboxEvents = `-- name: ClaimOutboxEvents :many
 WITH candidates AS (
     SELECT id
     FROM outbox_events
-    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= now()))
+    WHERE (status = 'pending' OR (status = 'running' AND lease_until <= clock_timestamp()))
       AND available_at <= now()
     ORDER BY available_at ASC, created_at ASC, id ASC
     FOR UPDATE SKIP LOCKED
@@ -624,7 +624,7 @@ WITH candidates AS (
 ), claimed AS (
     UPDATE outbox_events e
     SET status = 'running', lease_owner = $2, lease_token = uuid_generate_v4(),
-        lease_until = now() + make_interval(secs => $3::double precision), attempt_count = attempt_count + 1,
+        lease_until = clock_timestamp() + make_interval(secs => $3::double precision), attempt_count = attempt_count + 1,
         updated_at = now()
     FROM candidates c
     WHERE e.id = c.id
@@ -1378,10 +1378,20 @@ func (q *Queries) DisableDeviceRegistration(ctx context.Context, arg DisableDevi
 }
 
 const extendAdminJobItemLease = `-- name: ExtendAdminJobItemLease :one
-UPDATE admin_job_items
-SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
-WHERE id = $1 AND lease_owner = $2 AND lease_token = $3 AND lease_until > now()
-RETURNING id, lease_until
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id, item.lease_until
 `
 
 type ExtendAdminJobItemLeaseParams struct {
@@ -1409,11 +1419,21 @@ func (q *Queries) ExtendAdminJobItemLease(ctx context.Context, arg ExtendAdminJo
 }
 
 const extendDurableJobLease = `-- name: ExtendDurableJobLease :one
-UPDATE durable_jobs
-SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id, lease_until
+WITH locked AS (
+    SELECT job.id
+    FROM durable_jobs AS job
+    WHERE job.id = $1
+    FOR UPDATE
+)
+UPDATE durable_jobs AS job
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE job.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND job.status = 'running'
+  AND job.lease_owner = $2
+  AND job.lease_token = $3
+  AND job.lease_until > clock_timestamp()
+RETURNING job.id, job.lease_until
 `
 
 type ExtendDurableJobLeaseParams struct {
@@ -1441,11 +1461,21 @@ func (q *Queries) ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJo
 }
 
 const extendOutboxEventLease = `-- name: ExtendOutboxEventLease :one
-UPDATE outbox_events
-SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id, lease_until
+WITH locked AS (
+    SELECT event.id
+    FROM outbox_events AS event
+    WHERE event.id = $1
+    FOR UPDATE
+)
+UPDATE outbox_events AS event
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE event.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND event.status = 'running'
+  AND event.lease_owner = $2
+  AND event.lease_token = $3
+  AND event.lease_until > clock_timestamp()
+RETURNING event.id, event.lease_until
 `
 
 type ExtendOutboxEventLeaseParams struct {
@@ -1473,12 +1503,22 @@ func (q *Queries) ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEv
 }
 
 const finishAdminJobItem = `-- name: FinishAdminJobItem :one
-UPDATE admin_job_items
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
 SET outcome = $2::varchar, error_code = $3, provider_reference = $4,
     completed_at = CASE WHEN $2::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
     lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
-WHERE id = $1 AND lease_owner = $5 AND lease_token = $6 AND lease_until > now()
-RETURNING id
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $5
+  AND item.lease_token = $6
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id
 `
 
 type FinishAdminJobItemParams struct {
@@ -1505,12 +1545,22 @@ func (q *Queries) FinishAdminJobItem(ctx context.Context, arg FinishAdminJobItem
 }
 
 const finishDurableJob = `-- name: FinishDurableJob :one
-UPDATE durable_jobs
+WITH locked AS (
+    SELECT job.id
+    FROM durable_jobs AS job
+    WHERE job.id = $1
+    FOR UPDATE
+)
+UPDATE durable_jobs AS job
 SET status = $4, last_error = $5, lease_owner = NULL, lease_token = NULL,
     lease_until = NULL, completed_at = now(), updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE job.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND job.status = 'running'
+  AND job.lease_owner = $2
+  AND job.lease_token = $3
+  AND job.lease_until > clock_timestamp()
+RETURNING job.id
 `
 
 type FinishDurableJobParams struct {
@@ -1535,15 +1585,22 @@ func (q *Queries) FinishDurableJob(ctx context.Context, arg FinishDurableJobPara
 }
 
 const finishJobItem = `-- name: FinishJobItem :one
-UPDATE admin_job_items
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
 SET outcome = $4::varchar, error_code = $5, provider_reference = $6,
     completed_at = CASE WHEN $4::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
     lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
-WHERE id = $1
-  AND lease_owner = $2
-  AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id
 `
 
 type FinishJobItemParams struct {
@@ -1574,12 +1631,22 @@ func (q *Queries) FinishJobItem(ctx context.Context, arg FinishJobItemParams) (p
 }
 
 const finishOutboxEvent = `-- name: FinishOutboxEvent :one
-UPDATE outbox_events
+WITH locked AS (
+    SELECT event.id
+    FROM outbox_events AS event
+    WHERE event.id = $1
+    FOR UPDATE
+)
+UPDATE outbox_events AS event
 SET status = $4::varchar, accepted_at = CASE WHEN $4::varchar = 'accepted' THEN now() ELSE accepted_at END,
     lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE event.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND event.status = 'running'
+  AND event.lease_owner = $2
+  AND event.lease_token = $3
+  AND event.lease_until > clock_timestamp()
+RETURNING event.id
 `
 
 type FinishOutboxEventParams struct {
@@ -2118,13 +2185,20 @@ func (q *Queries) GetUserSecurityState(ctx context.Context, id pgtype.UUID) (Get
 }
 
 const heartbeatJobItem = `-- name: HeartbeatJobItem :one
-UPDATE admin_job_items
-SET lease_until = now() + make_interval(secs => $4::double precision), updated_at = now()
-WHERE id = $1
-  AND lease_owner = $2
-  AND lease_token = $3
-  AND lease_until > now()
-RETURNING id, lease_until
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id, item.lease_until
 `
 
 type HeartbeatJobItemParams struct {
@@ -2955,11 +3029,21 @@ func (q *Queries) PurgeRateLimitBuckets(ctx context.Context, windowEnd pgtype.Ti
 }
 
 const releaseAdminJobItemLease = `-- name: ReleaseAdminJobItemLease :one
-UPDATE admin_job_items
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
 SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
     lease_until = NULL, updated_at = now()
-WHERE id = $1 AND lease_owner = $2 AND lease_token = $3 AND lease_until > now()
-RETURNING id
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id
 `
 
 type ReleaseAdminJobItemLeaseParams struct {
@@ -2976,12 +3060,22 @@ func (q *Queries) ReleaseAdminJobItemLease(ctx context.Context, arg ReleaseAdmin
 }
 
 const releaseDurableJobLease = `-- name: ReleaseDurableJobLease :one
-UPDATE durable_jobs
+WITH locked AS (
+    SELECT job.id
+    FROM durable_jobs AS job
+    WHERE job.id = $1
+    FOR UPDATE
+)
+UPDATE durable_jobs AS job
 SET status = 'pending', available_at = $4, lease_owner = NULL,
     lease_token = NULL, lease_until = NULL, updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE job.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND job.status = 'running'
+  AND job.lease_owner = $2
+  AND job.lease_token = $3
+  AND job.lease_until > clock_timestamp()
+RETURNING job.id
 `
 
 type ReleaseDurableJobLeaseParams struct {
@@ -3004,12 +3098,22 @@ func (q *Queries) ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurable
 }
 
 const releaseOutboxEventLease = `-- name: ReleaseOutboxEventLease :one
-UPDATE outbox_events
+WITH locked AS (
+    SELECT event.id
+    FROM outbox_events AS event
+    WHERE event.id = $1
+    FOR UPDATE
+)
+UPDATE outbox_events AS event
 SET status = 'pending', available_at = $4, lease_owner = NULL,
     lease_token = NULL, lease_until = NULL, updated_at = now()
-WHERE id = $1 AND status = 'running' AND lease_owner = $2 AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE event.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND event.status = 'running'
+  AND event.lease_owner = $2
+  AND event.lease_token = $3
+  AND event.lease_until > clock_timestamp()
+RETURNING event.id
 `
 
 type ReleaseOutboxEventLeaseParams struct {
@@ -3047,14 +3151,21 @@ func (q *Queries) ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMF
 }
 
 const retryJobItem = `-- name: RetryJobItem :one
-UPDATE admin_job_items
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
 SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
     lease_until = NULL, updated_at = now()
-WHERE id = $1
-  AND lease_owner = $2
-  AND lease_token = $3
-  AND lease_until > now()
-RETURNING id
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id
 `
 
 type RetryJobItemParams struct {

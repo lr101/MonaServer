@@ -935,7 +935,7 @@ func waitForAdminJobItemLeaseExpiry(t *testing.T, q *Queries, itemID uuid.UUID) 
 	for {
 		var expired bool
 		err := observer.QueryRow(ctx, `
-			SELECT lease_until IS NOT NULL AND lease_until <= now()
+			SELECT lease_until IS NOT NULL AND lease_until <= clock_timestamp()
 			FROM admin_job_items
 			WHERE id = $1`, itemID).Scan(&expired)
 		if err != nil {
@@ -1123,8 +1123,7 @@ func TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements(t *testing
 			staleTxStarted := make(chan error, 1)
 			allowStaleAck := make(chan struct{})
 			// Start the stale worker's transaction while the original lease is
-			// still valid.  Its transaction timestamp remains before expiry while
-			// the reclaim and acknowledgement statements are queued below.
+			// still valid, then queue its acknowledgement behind the row lock.
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -1132,7 +1131,7 @@ func TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements(t *testing
 				result.txErr = q.InTx(ctx, func(txQ *Queries) error {
 					var validAtStart bool
 					if err := txQ.runner.QueryRow(ctx, `
-						SELECT lease_until > now()
+						SELECT lease_until > clock_timestamp()
 						FROM admin_job_items
 						WHERE id = $1`, itemID).Scan(&validAtStart); err != nil {
 						staleTxStarted <- err
@@ -1198,6 +1197,9 @@ func TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements(t *testing
 			if stale.err != nil {
 				t.Fatalf("stale %s acknowledgement: %v", test.name, stale.err)
 			}
+			if stale.txErr != nil {
+				t.Fatalf("stale %s transaction: %v", test.name, stale.txErr)
+			}
 			if stale.ok {
 				t.Fatalf("stale %s acknowledgement was accepted", test.name)
 			}
@@ -1245,6 +1247,123 @@ func TestT02AdminJobItemRejectsWrongTokenWhileLeaseIsValid(t *testing.T) {
 	}
 	if stored == nil || stored.Outcome != "queued" || stored.LeaseOwner == nil || *stored.LeaseOwner != "worker-a" || stored.LeaseToken != claimed.LeaseToken || stored.LeaseUntil == nil || !stored.LeaseUntil.After(time.Now()) {
 		t.Fatalf("item after wrong-token acknowledgements = %#v; want the original unexpired lease", stored)
+	}
+}
+
+func TestT02AdminJobItemAcknowledgementRejectsAfterRealExpiryWithoutReclaim(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	jobID, itemID := createAdminLeaseTestItem(t, q, "real-expiry")
+	claimed, ok, err := q.ClaimJobItem(ctx, jobID, itemID, "worker-a", 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if !ok || claimed == nil || claimed.LeaseToken == uuid.Nil || claimed.LeaseUntil == nil {
+		t.Fatalf("claim = %#v, claimed=%v; want an active lease", claimed, ok)
+	}
+
+	holder := holdAdminJobItemLock(t, q, itemID)
+	lockReleased := false
+	defer func() {
+		if !lockReleased {
+			_ = holder.Rollback(ctx)
+		}
+	}()
+
+	type finishResult struct {
+		accepted bool
+		err      error
+		txErr    error
+	}
+	started := make(chan struct{})
+	results := make(chan finishResult, 1)
+	go func() {
+		var result finishResult
+		result.txErr = q.InTx(ctx, func(txQ *Queries) error {
+			close(started)
+			result.accepted, result.err = txQ.FinishJobItem(ctx, itemID, "worker-a", claimed.LeaseToken, "provider_accepted", nil, nil)
+			return result.err
+		})
+		results <- result
+	}()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("finish transaction did not start")
+	}
+	waitForAdminJobItemLockWaiters(t, q, 1)
+	waitForAdminJobItemLeaseExpiry(t, q, itemID)
+	if err := holder.Commit(ctx); err != nil {
+		t.Fatalf("release item lock: %v", err)
+	}
+	lockReleased = true
+
+	result := <-results
+	if result.txErr != nil {
+		t.Fatalf("finish transaction: %v", result.txErr)
+	}
+	if result.err != nil {
+		t.Fatalf("finish acknowledgement: %v", result.err)
+	}
+	if result.accepted {
+		t.Fatal("finish acknowledged an expired lease without a reclaim")
+	}
+	stored, err := q.GetAdminJobItem(ctx, itemID)
+	if err != nil {
+		t.Fatalf("read expired item: %v", err)
+	}
+	if stored == nil || stored.Outcome != "queued" || stored.LeaseOwner == nil || *stored.LeaseOwner != "worker-a" || stored.LeaseToken != claimed.LeaseToken {
+		t.Fatalf("expired item = %#v; want unchanged lease after rejected acknowledgement", stored)
+	}
+}
+
+func TestT02AdminJobItemClaimDeadlineUsesWallClockAfterLockWait(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	jobID, itemID := createAdminLeaseTestItem(t, q, "claim-deadline")
+	holder := holdAdminJobItemLock(t, q, itemID)
+	lockReleased := false
+	defer func() {
+		if !lockReleased {
+			_ = holder.Rollback(ctx)
+		}
+	}()
+
+	type claimResult struct {
+		item    *AdminJobItem
+		claimed bool
+		err     error
+	}
+	started := make(chan struct{})
+	results := make(chan claimResult, 1)
+	go func() {
+		close(started)
+		item, claimed, err := q.ClaimJobItem(ctx, jobID, itemID, "worker-a", 100*time.Millisecond)
+		results <- claimResult{item: item, claimed: claimed, err: err}
+	}()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("claim did not start")
+	}
+	waitForAdminJobItemLockWaiters(t, q, 1)
+	time.Sleep(250 * time.Millisecond)
+	if err := holder.Commit(ctx); err != nil {
+		t.Fatalf("release item lock: %v", err)
+	}
+	lockReleased = true
+
+	result := <-results
+	if result.err != nil {
+		t.Fatalf("claim after lock wait: %v", result.err)
+	}
+	if !result.claimed || result.item == nil || result.item.LeaseToken == uuid.Nil || result.item.LeaseUntil == nil {
+		t.Fatalf("claim after lock wait = %#v, claimed=%v; want a fresh lease", result.item, result.claimed)
+	}
+	if !result.item.LeaseUntil.After(time.Now()) {
+		t.Fatalf("claim lease_until = %s, want a future wall-clock deadline", result.item.LeaseUntil)
 	}
 }
 
