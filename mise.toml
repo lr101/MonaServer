@@ -59,6 +59,25 @@ else
 fi
 """
 
+[tasks.flutter-build-admin-web]
+description = "Build the independent Flutter admin web app"
+depends = ["flutter-setup"]
+dir = "flutter"
+run = """
+set -eu
+admin_output="$PWD/build/admin_web"
+if [ -n "${E2E_API_URL:-}" ]; then
+  flutter build web --wasm --release --no-pub \
+    --target lib/main_admin.dart \
+    --output "$admin_output" \
+    --dart-define=API_HOST="$E2E_API_URL"
+else
+  flutter build web --wasm --release --no-pub \
+    --target lib/main_admin.dart \
+    --output "$admin_output"
+fi
+"""
+
 [tasks.flutter-playwright-setup]
 description = "Install Playwright dependencies and Chromium for Flutter web checks"
 dir = "flutter/e2e"
