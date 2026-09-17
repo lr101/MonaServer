@@ -11,9 +11,10 @@ source of truth for ownership and acknowledgement:
   worker/token/expiry check constraint. Migration 000029 follows the 000028
   report-target migration present in the T08a lane; keep that order when
   integrating the branches.
-- `ClaimJobItem` is a single-row `SELECT ... FOR UPDATE SKIP LOCKED` plus
-  compare-and-set update. It returns the claimed item, including its fresh
-  `LeaseOwner`, `LeaseToken`, and `LeaseUntil` values. Expired leases are
+- `ClaimJobItem` is a single-row `SELECT ... FOR UPDATE` plus compare-and-set
+  update. A targeted claim waits for an in-flight transition and rechecks the
+  row after the lock is released. It returns the claimed item, including its
+  fresh `LeaseOwner`, `LeaseToken`, and `LeaseUntil` values. Expired leases are
   reclaimable and receive a new UUID token.
 - `FinishJobItem`, `HeartbeatJobItem`, and `RetryJobItem` all require the
   worker and exact lease token returned by the claim. Their `RETURNING id`
@@ -44,58 +45,73 @@ post-lease result from being applied.
 
 ## Verification
 
-The focused test first failed to compile because the singular lease methods did
-not exist. After implementation, it passed against a disposable local
-PostGIS database and covers active-lease non-reclaim, deterministic forced
-expiry, fresh-token reclaim, wrong-worker heartbeat rejection, stale finish /
-heartbeat / retry rejection, fresh heartbeat and finish acceptance, cleared
-terminal lease fields, and rejection of a partial lease tuple by the new
-constraint.
+The focused tests pass against a disposable local PostGIS database and cover
+active-lease non-reclaim, fresh-token reclaim, wrong-worker rejection, stale
+finish / heartbeat / retry rejection, fresh acknowledgement acceptance,
+cleared terminal lease fields, partial lease tuple rejection, and same-worker
+wrong-token rejection while the original lease is still unexpired.
 
-The concurrency amendment was tested at commit
-`34b820a13b9a39d568b67e4b09a86655bc99329e`. Two claim calls are released
-from a readiness barrier together and produce exactly one winner. Each
-reclaim subtest releases a stale acknowledgement and reclaim call together
-after forcing expiry; finish, heartbeat, and retry all report stale false while
-the fresh token remains accepted.
+The database contention repair is in commit
+`ecc4ed0aadf08ce49fd17bdcbc176a69745cc1f0`. The claim test holds the item row
+in a separate transaction, observes both `ClaimJobItem` sessions waiting on
+the row through `pg_locks` joined to `pg_stat_activity`, then releases the
+holder and asserts exactly one winner. Each reclaim subtest starts the stale
+worker transaction while its original lease is valid, waits for server-side
+expiry, queues worker-b's reclaim before the stale acknowledgement, observes
+both database lock waiters, then releases the holder. The fresh lease is
+asserted unexpired when finish, heartbeat, or retry rejects the old token.
 
 ```text
 $ git rev-parse HEAD
-34b820a13b9a39d568b67e4b09a86655bc99329e
-$ TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db -run 'TestT02AdminJobItem(ConcurrentClaimsHaveOneWinner|ReclaimFencesOverlappingStaleAcknowledgements)$' -v
+ecc4ed0aadf08ce49fd17bdcbc176a69745cc1f0
+$ TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db -run 'TestT02AdminJobItem(ConcurrentClaimsHaveOneWinner|ReclaimFencesOverlappingStaleAcknowledgements|RejectsWrongTokenWhileLeaseIsValid)$' -v
 === RUN   TestT02AdminJobItemConcurrentClaimsHaveOneWinner
---- PASS: TestT02AdminJobItemConcurrentClaimsHaveOneWinner (0.32s)
+--- PASS: TestT02AdminJobItemConcurrentClaimsHaveOneWinner (0.29s)
 === RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements
 === RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/finish
 === RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/heartbeat
 === RUN   TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/retry
---- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements (0.85s)
-    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/finish (0.28s)
-    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/heartbeat (0.29s)
-    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/retry (0.28s)
+--- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements (3.96s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/finish (1.33s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/heartbeat (1.31s)
+    --- PASS: TestT02AdminJobItemReclaimFencesOverlappingStaleAcknowledgements/retry (1.32s)
+=== RUN   TestT02AdminJobItemRejectsWrongTokenWhileLeaseIsValid
+--- PASS: TestT02AdminJobItemRejectsWrongTokenWhileLeaseIsValid (0.31s)
 PASS
-ok   github.com/lrprojects/monaserver/internal/db 1.168s
+ok  	github.com/lrprojects/monaserver/internal/db	4.557s
 ```
 
 ```text
-TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db -run '^TestT02AdminJobItemClaimFenceRejectsStaleWorkerAcknowledgements$'
-ok   github.com/lrprojects/monaserver/internal/db
-
 TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./internal/db
-ok   github.com/lrprojects/monaserver/internal/db
+ok  	github.com/lrprojects/monaserver/internal/db	10.210s
 
 TEST_DATABASE_URL=<disposable local PostGIS DSN> mise exec -- go test -count=1 -p 1 ./...
-ok   all tested packages
+ok  	github.com/lrprojects/monaserver/cmd/admin-auth	0.008s
+ok  	github.com/lrprojects/monaserver/cmd/server	5.472s
+?   	github.com/lrprojects/monaserver/internal/apperrors	[no test files]
+ok  	github.com/lrprojects/monaserver/internal/config	0.003s
+ok  	github.com/lrprojects/monaserver/internal/db	10.582s
+?   	github.com/lrprojects/monaserver/internal/gen/api	[no test files]
+?   	github.com/lrprojects/monaserver/internal/gen/db	[no test files]
+?   	github.com/lrprojects/monaserver/internal/gen/server	[no test files]
+ok  	github.com/lrprojects/monaserver/internal/handler	12.275s
+ok  	github.com/lrprojects/monaserver/internal/image	0.109s
+ok  	github.com/lrprojects/monaserver/internal/jobs	0.074s
+ok  	github.com/lrprojects/monaserver/internal/middleware	0.003s
+ok  	github.com/lrprojects/monaserver/internal/password	0.374s
+?   	github.com/lrprojects/monaserver/internal/scheduler	[no test files]
+ok  	github.com/lrprojects/monaserver/internal/service	32.645s
+ok  	github.com/lrprojects/monaserver/internal/token	0.003s
 
 mise exec -- make gen-db
-PASS
+cd internal/db && sqlc generate
 
 mise exec -- go vet ./...
-PASS
 
-gofmt -w internal/db/admin_repository.go internal/db/admin_foundation_test.go
+mise exec -- gofmt -d internal/db/admin_foundation_test.go
+
 git diff --check
-PASS
+
 ```
 
 PostgreSQL/PostGIS was available on the local disposable instance. No SMTP,
