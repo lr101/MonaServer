@@ -98,3 +98,84 @@ PASS — no diagnostics
 ```
 
 The resulting worktree was clean before adding this report.
+
+## Reviewer fix round
+
+The reviewer follow-up is implemented in `ae1aaa5` (`fix: close v2 report
+contract and quota configuration`). It keeps the v2 report success status at
+200, declares the optional consumed `Idempotency-Key` header and 409/429
+responses in both API authoring and bundled contracts, regenerates the Go and
+Flutter report clients, and passes the header from the generated Go controller
+to the report servicer. `ReportServiceConfig.Validate` rejects an empty or
+whitespace-only HMAC key, and startup validates the decoded
+`ADMIN_SESSION_HMAC_KEY` before migrations or route assembly. The startup
+configuration test covers both rejection and successful decoding. Flutter
+report note artifacts already required by the integrated T08a OpenAPI contract
+were generated at the same time so the checked-in client matches the contract.
+
+The final implementation SHA before this report update was:
+
+```text
+$ git rev-parse --short HEAD
+ae1aaa5
+```
+
+The fix-round verification was rerun from the same worktree, with the
+disposable native PostGIS database at `127.0.0.1:5432`:
+
+```text
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -count=1 -p 1 ./cmd/server ./internal/handler ./internal/service
+ok  github.com/lrprojects/monaserver/cmd/server       5.584s
+ok  github.com/lrprojects/monaserver/internal/handler 13.259s
+ok  github.com/lrprojects/monaserver/internal/service 38.572s
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -count=1 -p 1 ./...
+ok  github.com/lrprojects/monaserver/cmd/admin-auth    0.008s
+ok  github.com/lrprojects/monaserver/cmd/server        5.460s
+ok  github.com/lrprojects/monaserver/internal/config   0.003s
+ok  github.com/lrprojects/monaserver/internal/db       5.462s
+ok  github.com/lrprojects/monaserver/internal/handler  14.080s
+ok  github.com/lrprojects/monaserver/internal/image    0.107s
+ok  github.com/lrprojects/monaserver/internal/jobs     0.086s
+ok  github.com/lrprojects/monaserver/internal/middleware 0.004s
+ok  github.com/lrprojects/monaserver/internal/password 0.564s
+ok  github.com/lrprojects/monaserver/internal/service  36.840s
+ok  github.com/lrprojects/monaserver/internal/token    0.004s
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -race -count=1 -p 1 ./...
+ok  github.com/lrprojects/monaserver/cmd/admin-auth    1.035s
+ok  github.com/lrprojects/monaserver/cmd/server        25.908s
+ok  github.com/lrprojects/monaserver/internal/config  1.015s
+ok  github.com/lrprojects/monaserver/internal/db      6.925s
+ok  github.com/lrprojects/monaserver/internal/handler 33.064s
+ok  github.com/lrprojects/monaserver/internal/image   2.291s
+ok  github.com/lrprojects/monaserver/internal/jobs    1.086s
+ok  github.com/lrprojects/monaserver/internal/middleware 1.014s
+ok  github.com/lrprojects/monaserver/internal/password 5.778s
+ok  github.com/lrprojects/monaserver/internal/service 126.860s
+ok  github.com/lrprojects/monaserver/internal/token  1.013s
+
+$ mise exec -- go vet ./...
+$ mise exec -- go build -o /tmp/monaserver-admin-t08a ./cmd/server
+$ git diff --check
+PASS (no diagnostics)
+
+$ mise exec -- make gen-api
+oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml
+
+$ mise exec -- make gen-db
+cd internal/db && sqlc generate
+
+$ OPENAPI_GENERATOR_JAR=/root/.cache/openapi-generator/openapi-generator-cli-7.19.0.jar mise exec -- make gen-server
+PASS (OpenAPI Generator 7.19.0)
+
+$ java -jar /root/.cache/openapi-generator/openapi-generator-cli-7.9.0.jar generate ...
+$ bash ../.github/scripts/normalize-openapi-generated.sh <generated> api
+$ diff -ru --exclude=pubspec.yaml --exclude=pubspec.lock --exclude=.dart_tool --exclude=build --exclude=test api <generated>
+PASS (exact workflow-equivalent generated Flutter diff; exit 0)
+```
+
+The Flutter CLI and Dart SDK are not installed in this agent image, so Flutter
+analyze and Flutter test were unavailable; Java-based client generation and
+the exact normalized diff completed successfully. Docker and Podman also
+remain unavailable.
