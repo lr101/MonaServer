@@ -50,16 +50,26 @@ terminal for scheduling, contributes to completed progress, and is separately
 counted as uncertain so a job reaches `completed_with_errors`. Every item
 finish uses the required `FinishJobItemWithAudit` boundary, which commits the
 item outcome and actor/target/outcome audit intent together (or through a
-durable outbox). Workers require the fenced lease claim/finish primitive and
-the atomic audit commit before any provider call; legacy unfenced or
-operationless adapters fail closed. Fresh actor membership, auth generation,
-and capabilities are required and reloaded before every item; revocation or
-demotion pauses the job. The legacy one-shot credential ports remain only for
-compatibility and are rejected for execution; production wiring must use the
-keyed ports. The `TerminalUnknownDeliveryStore` capability marker is also
-required before execution; the in-memory store opts in, while a production
-adapter must leave it disabled until its claim and progress SQL support
-terminal `unknown_delivery` semantics.
+durable outbox). A lost lease renewal uses the separate
+`CommitUnknownDeliveryAfterLeaseLoss` exact-token/fence boundary, which may
+terminalize an expired current lease but rejects stale fences; if that commit
+is unavailable, the service pauses the job and fails closed and paused items
+cannot be reclaimed. Workers require the fenced lease claim/finish primitive,
+renewal, lease-loss terminal commit, and atomic audit commit before any
+provider call; legacy unfenced or operationless adapters fail closed. Fresh
+actor membership, auth generation, and capabilities are required and reloaded
+before every item; revocation or demotion pauses the job. The creator may
+execute/resume using the durable creator proof. A takeover requires
+`jobs.execute_all` for execution or `jobs.control_all` plus `jobs.control` for
+retry/resume and the takeover actor's own fresh MFA bound to the job action;
+creator proof is never copied onto that actor. Security/report jobs and
+unconstrained all-account email, login-link, and push jobs retain and enforce
+the durable action-bound proof after restart. The legacy one-shot credential
+ports remain only for compatibility and are rejected for execution; production
+wiring must use the keyed ports. The `TerminalUnknownDeliveryStore` capability
+marker and lease-loss terminal capability are required before execution; the
+in-memory store opts in, while a production adapter must leave them disabled
+until its claim, terminal, audit, and progress SQL support these semantics.
 
 The user service exposes a bounded, credential-free account projection with
 search/security/verified-email/creation-date filters and cursor pagination.
@@ -116,7 +126,10 @@ MFA/all-account checks, admin exclusions, filter-copy immutability,
 preferences/device shrinkage, empty-filter MFA normalization, bounded async
 resolution with actor/action handoff, idempotent item processing, explicit
 safe retry, credential unknown-outcome suppression, terminal uncertain job
-progress, mandatory actor reload and keyed ports, atomic item/audit commit
+progress, lease-loss terminalization/reclaim suppression and fail-closed
+terminal commit failure, creator/takeover MFA separation for execution and
+resume, durable proof enforcement for restarted all-account email/login-link/
+push jobs, mandatory actor reload and keyed ports, atomic item/audit commit
 failure, per-item actor reload/pause, lease fencing, self-containment pause,
 eligibility recheck, actor/target audit binding, stale post-completion lease
 rejection, and rejection of stores without terminal unknown-delivery support.
@@ -140,3 +153,27 @@ Database tests were not run with `TEST_DATABASE_URL`: this task deliberately
 does not add or change database primitives, and the production adapter remains
 coordinator/DB-owner work described above. No provider send, deployment, or
 PR was performed.
+
+The T07 review follow-up in commit
+`286aa8ea476b30342e608005c4e5324bade39af8` was formatted and verified with
+the following exact commands from `go-server`:
+
+```text
+mise exec -- go test -count=1 ./internal/service
+PASS
+mise exec -- go test -race -count=3 ./internal/service -run '^(TestBulkLeaseLoss|TestBulkTakeover|TestBulkRestartRequiresDurable)'
+PASS
+mise exec -- go test -race -count=1 -p 1 ./internal/service ./internal/handler ./cmd/server -run '^(Test(Bulk|Admin|T07|Report|EndpointReport|RealAdminRouterUsesBrowserSessionBoundary|WebAdminAPI|V3))'
+PASS
+mise exec -- go test -count=1 -p 1 ./...
+PASS
+mise exec -- go vet ./...
+PASS
+git diff --check
+PASS
+```
+
+The focused additions prove terminal unknown delivery on lease loss blocks a
+reclaim, terminal commit failure pauses and fails closed, takeover execution
+and resume require the takeover actor's own action-bound MFA, and restarted
+all-account email/login-link/push jobs require their durable creator proof.
