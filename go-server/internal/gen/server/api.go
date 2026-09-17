@@ -232,7 +232,7 @@ type RankingAPIServicer interface {
 // while the service implementation can be ignored with the .openapi-generator-ignore file
 // and updated with the logic required for the API.
 type ReportAPIServicer interface {
-	CreateReport(context.Context, ReportDto) (ImplResponse, error)
+	CreateReport(context.Context, ReportDto, string) (ImplResponse, error)
 }
 
 // UsersAPIServicer defines the api actions for the UsersAPI service

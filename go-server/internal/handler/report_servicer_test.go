@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
@@ -57,17 +58,69 @@ func reportAdminContext(adminID uuid.UUID) context.Context {
 	return middleware.WithUser(ctx, adminID, middleware.RoleAdmin)
 }
 
+type captureReportServicer struct {
+	idempotencyKey string
+}
+
+func (s *captureReportServicer) CreateReport(_ context.Context, _ genserver.ReportDto, idempotencyKey string) (genserver.ImplResponse, error) {
+	s.idempotencyKey = idempotencyKey
+	return genserver.Response(http.StatusOK, nil), nil
+}
+
+func TestReportControllerPassesIdempotencyKeyToServicer(t *testing.T) {
+	servicer := &captureReportServicer{}
+	controller := genserver.NewReportAPIController(servicer)
+	request := httptest.NewRequest(http.MethodPost, "/api/v2/report", strings.NewReader(`{"userId":"00000000-0000-0000-0000-000000000001","report":"Bug","message":"details"}`))
+	request.Header.Set("Idempotency-Key", "controller-key")
+	recorder := httptest.NewRecorder()
+
+	controller.CreateReport(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("controller status = %d, want 200", recorder.Code)
+	}
+	if servicer.idempotencyKey != "controller-key" {
+		t.Fatalf("servicer idempotency key = %q, want controller-key", servicer.idempotencyKey)
+	}
+}
+
+func TestReportErrorResponseExposesConflictAndRateLimit(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{name: "conflict", err: apperrors.ErrConflict, status: http.StatusConflict, code: "conflict"},
+		{name: "rate limited", err: apperrors.New(http.StatusTooManyRequests, "too many reports"), status: http.StatusTooManyRequests, code: "rate_limited"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := reportErrorResponse(context.Background(), test.err)
+			if response.Code != test.status {
+				t.Fatalf("response status = %d, want %d", response.Code, test.status)
+			}
+			body, ok := response.Body.(genserver.ApiErrorDto)
+			if !ok {
+				t.Fatalf("response body type = %T, want ApiErrorDto", response.Body)
+			}
+			if body.Code != test.code {
+				t.Fatalf("response code = %q, want %q", body.Code, test.code)
+			}
+		})
+	}
+}
+
 func TestCreateReportPersistsWithoutSMTPAndRejectsForgedReporter(t *testing.T) {
 	q, reporterID, _ := setupReportHandlerDB(t)
 	servicer := NewReportServicer(nil, q)
 	ctx := middleware.WithUser(context.Background(), reporterID, middleware.RoleUser)
 
-	response, err := servicer.CreateReport(ctx, genserver.ReportDto{UserId: reporterID.String(), Report: "Bug", Message: "details"})
+	response, err := servicer.CreateReport(ctx, genserver.ReportDto{UserId: reporterID.String(), Report: "Bug", Message: "details"}, "explicit-key")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
-	if response.Code != http.StatusCreated {
-		t.Fatalf("create report status = %d, want 201", response.Code)
+	if response.Code != http.StatusOK {
+		t.Fatalf("create report status = %d, want 200", response.Code)
 	}
 	var count int
 	if err := q.Pool().QueryRow(context.Background(), `SELECT count(*) FROM reports WHERE reporter_user_id = $1`, reporterID).Scan(&count); err != nil {
@@ -76,16 +129,23 @@ func TestCreateReportPersistsWithoutSMTPAndRejectsForgedReporter(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("stored reports = %d, want 1", count)
 	}
+	var requestID string
+	if err := q.Pool().QueryRow(context.Background(), `SELECT request_id FROM reports WHERE reporter_user_id = $1`, reporterID).Scan(&requestID); err != nil {
+		t.Fatalf("read report request id: %v", err)
+	}
+	if requestID != "explicit-key" {
+		t.Fatalf("stored request id = %q, want explicit-key", requestID)
+	}
 
 	forged := uuid.New()
-	response, err = servicer.CreateReport(ctx, genserver.ReportDto{UserId: forged.String(), Report: "Bug", Message: "forged"})
+	response, err = servicer.CreateReport(ctx, genserver.ReportDto{UserId: forged.String(), Report: "Bug", Message: "forged"}, "")
 	if err != nil {
 		t.Fatalf("forged report: %v", err)
 	}
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("forged reporter status = %d, want 403", response.Code)
 	}
-	unauthenticated, err := servicer.CreateReport(context.Background(), genserver.ReportDto{UserId: reporterID.String(), Report: "Bug", Message: "unauthenticated"})
+	unauthenticated, err := servicer.CreateReport(context.Background(), genserver.ReportDto{UserId: reporterID.String(), Report: "Bug", Message: "unauthenticated"}, "")
 	if err != nil {
 		t.Fatalf("unauthenticated report: %v", err)
 	}
@@ -94,7 +154,7 @@ func TestCreateReportPersistsWithoutSMTPAndRejectsForgedReporter(t *testing.T) {
 	}
 	invalid, err := servicer.CreateReport(ctx, genserver.ReportDto{
 		UserId: reporterID.String(), Report: "\n", Message: strings.Repeat("x", service.MaxLegacyReportMessageBytes+1),
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("invalid report: %v", err)
 	}
@@ -108,7 +168,7 @@ func TestCreateReportAuthenticatedWithoutRepositoryDoesNotMailOnly(t *testing.T)
 	userID := uuid.New()
 	response, err := servicer.CreateReport(middleware.WithUser(context.Background(), userID, middleware.RoleUser), genserver.ReportDto{
 		UserId: userID.String(), Report: "Bug", Message: "details",
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("repository-unavailable report: %v", err)
 	}

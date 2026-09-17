@@ -78,7 +78,7 @@ class AdminReportsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminReportNoteDto',) as AdminReportNoteDto;
-    
+
     }
     return null;
   }
@@ -143,7 +143,81 @@ class AdminReportsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminReportDto',) as AdminReportDto;
-    
+
+    }
+    return null;
+  }
+
+  /// List all administrative report notes
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] reportId (required):
+  ///   Report identifier.
+  ///
+  /// * [String] cursor:
+  ///   Opaque cursor returned by the preceding page.
+  ///
+  /// * [int] limit:
+  ///   Maximum number of records in the page; defaults to 25 and is capped at 100.
+  Future<Response> listAdminReportNotesWithHttpInfo(String reportId, { String? cursor, int? limit, }) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/admin/reports/{reportId}/notes'
+      .replaceAll('{reportId}', reportId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    if (cursor != null) {
+      queryParams.addAll(_queryParams('', 'cursor', cursor));
+    }
+    if (limit != null) {
+      queryParams.addAll(_queryParams('', 'limit', limit));
+    }
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// List all administrative report notes
+  ///
+  /// Parameters:
+  ///
+  /// * [String] reportId (required):
+  ///   Report identifier.
+  ///
+  /// * [String] cursor:
+  ///   Opaque cursor returned by the preceding page.
+  ///
+  /// * [int] limit:
+  ///   Maximum number of records in the page; defaults to 25 and is capped at 100.
+  Future<AdminReportNotePageDto?> listAdminReportNotes(String reportId, { String? cursor, int? limit, }) async {
+    final response = await listAdminReportNotesWithHttpInfo(reportId,  cursor: cursor, limit: limit, );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminReportNotePageDto',) as AdminReportNotePageDto;
+
     }
     return null;
   }
@@ -228,7 +302,7 @@ class AdminReportsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminReportPageDto',) as AdminReportPageDto;
-    
+
     }
     return null;
   }
@@ -295,7 +369,7 @@ class AdminReportsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminReportDto',) as AdminReportDto;
-    
+
     }
     return null;
   }

@@ -77,6 +77,7 @@ part 'model/admin_reauthenticate_request_dto.dart';
 part 'model/admin_report_dto.dart';
 part 'model/admin_report_filter_dto.dart';
 part 'model/admin_report_note_dto.dart';
+part 'model/admin_report_note_page_dto.dart';
 part 'model/admin_report_note_request_dto.dart';
 part 'model/admin_report_page_dto.dart';
 part 'model/admin_report_status.dart';

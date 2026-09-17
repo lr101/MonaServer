@@ -775,6 +775,17 @@ paths:
   /api/v2/report:
     post:
       operationId: createReport
+      parameters:
+      - description: Optional client-generated key; replaying it with a different
+          report returns 409.
+        explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          maxLength: 255
+          type: string
+        style: simple
       requestBody:
         content:
           application/json:
@@ -782,10 +793,31 @@ paths:
               $ref: "#/components/schemas/reportDto"
         required: true
       responses:
-        "201":
+        "200":
           description: Report submitted successfully
         "400":
           description: User not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Shared rate limit exceeded; response is membership independent.
+          headers:
+            Retry-After:
+              description: Number of seconds before retrying.
+              explode: false
+              schema:
+                minimum: 0
+                type: integer
+              style: simple
         "503":
           description: Mail service at the moment not reachable
       security:
@@ -3592,6 +3624,17 @@ components:
       schema:
         maxLength: 128
         minLength: 8
+        type: string
+      style: simple
+    reportIdempotencyKey:
+      description: Optional client-generated key; replaying it with a different report
+        returns 409.
+      explode: false
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        maxLength: 255
         type: string
       style: simple
   responses:

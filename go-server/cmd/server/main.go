@@ -46,6 +46,8 @@ func main() {
 
 	cfg, err := config.Load()
 	must(err, "load config")
+	reportConfig, err := newReportServiceConfig(cfg)
+	must(err, "report config")
 
 	ctx := context.Background()
 	if err := db.RunMigrations(cfg.DatabaseURL); err != nil {
@@ -115,10 +117,6 @@ func main() {
 		AdminOrigin:        cfg.AdminOrigin,
 	}
 	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
-	reportConfig := service.ReportServiceConfig{
-		HMACKey:   decodeAdminKey(cfg.AdminSessionHMACKey),
-		HMACKeyID: cfg.AdminSessionHMACKeyID,
-	}
 	reportServicer := handler.NewReportServicer(mailSvc, q, reportConfig)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
@@ -294,6 +292,20 @@ func decodeAdminKey(raw string) []byte {
 		return decoded
 	}
 	return []byte(raw)
+}
+
+func newReportServiceConfig(cfg *config.Config) (service.ReportServiceConfig, error) {
+	if cfg == nil {
+		return service.ReportServiceConfig{}, errors.New("config is nil")
+	}
+	reportConfig := service.ReportServiceConfig{
+		HMACKey:   decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID: cfg.AdminSessionHMACKeyID,
+	}
+	if err := reportConfig.Validate(); err != nil {
+		return service.ReportServiceConfig{}, err
+	}
+	return reportConfig, nil
 }
 
 // registerRoutes registers controller routes into r, filtered by predicate on the pattern.

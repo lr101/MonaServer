@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -143,13 +144,23 @@ func ReportClientIP(ctx context.Context) string {
 }
 
 type ReportServiceConfig struct {
-	// HMACKey is optional for local callers. When configured, report submission
-	// quotas use keyed identifiers and never persist raw addresses or IPs.
+	// HMACKey is required by the always-on HTTP report route. Direct service
+	// callers may omit it when they do not need quota admission.
 	HMACKey           []byte
 	HMACKeyID         string
 	SubmissionLimit   int64
 	SubmissionIPLimit int64
 	SubmissionWindow  time.Duration
+}
+
+// Validate checks the configuration required to protect report quota keys.
+// The HTTP route is always mounted, so its composition must fail closed when
+// the deployment has not supplied a secret.
+func (c ReportServiceConfig) Validate() error {
+	if len(bytes.TrimSpace(c.HMACKey)) == 0 {
+		return errors.New("report HMAC key is required")
+	}
+	return nil
 }
 
 func NewReportService(q *db.Queries, configs ...ReportServiceConfig) *ReportService {

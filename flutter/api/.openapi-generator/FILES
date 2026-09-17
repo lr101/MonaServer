@@ -36,6 +36,7 @@ doc/AdminReauthenticateRequestDto.md
 doc/AdminReportDto.md
 doc/AdminReportFilterDto.md
 doc/AdminReportNoteDto.md
+doc/AdminReportNotePageDto.md
 doc/AdminReportNoteRequestDto.md
 doc/AdminReportPageDto.md
 doc/AdminReportStatus.md
@@ -182,6 +183,7 @@ lib/model/admin_reauthenticate_request_dto.dart
 lib/model/admin_report_dto.dart
 lib/model/admin_report_filter_dto.dart
 lib/model/admin_report_note_dto.dart
+lib/model/admin_report_note_page_dto.dart
 lib/model/admin_report_note_request_dto.dart
 lib/model/admin_report_page_dto.dart
 lib/model/admin_report_status.dart

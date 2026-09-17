@@ -33,6 +33,20 @@ import (
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
+func TestNewReportServiceConfigRequiresHMACSecret(t *testing.T) {
+	if _, err := newReportServiceConfig(&config.Config{}); err == nil {
+		t.Fatal("report config accepted an empty HMAC secret")
+	}
+
+	reportConfig, err := newReportServiceConfig(&config.Config{AdminSessionHMACKey: "report-secret"})
+	if err != nil {
+		t.Fatalf("valid report config: %v", err)
+	}
+	if string(reportConfig.HMACKey) != "report-secret" {
+		t.Fatalf("report HMAC key = %q, want report-secret", reportConfig.HMACKey)
+	}
+}
+
 func testDSN(t *testing.T) string {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -1302,13 +1316,13 @@ func TestEndpointReport(t *testing.T) {
 		}
 		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		resp.Body.Close()
-		if resp.StatusCode != http.StatusCreated {
-			t.Fatalf("report status = %d, want 201", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("report status = %d, want 200", resp.StatusCode)
 		}
 		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		replay.Body.Close()
-		if replay.StatusCode != http.StatusCreated {
-			t.Fatalf("report replay status = %d, want 201", replay.StatusCode)
+		if replay.StatusCode != http.StatusOK {
+			t.Fatalf("report replay status = %d, want 200", replay.StatusCode)
 		}
 		var count int
 		if err := q.Pool().QueryRow(context.Background(), `SELECT count(*) FROM reports WHERE reporter_user_id = $1`, ar.UserID).Scan(&count); err != nil {

@@ -708,6 +708,8 @@ paths:
   /api/v2/report:
     post:
       operationId: createReport
+      parameters:
+      - $ref: "#/components/parameters/reportIdempotencyKey"
       requestBody:
         content:
           application/json:
@@ -715,10 +717,14 @@ paths:
               $ref: "#/components/schemas/reportDto"
         required: true
       responses:
-        "201":
+        "200":
           description: Report submitted successfully
         "400":
           description: User not found
+        "409":
+          $ref: "#/components/responses/conflict"
+        "429":
+          $ref: "#/components/responses/rateLimited"
         "503":
           description: Mail service at the moment not reachable
       security:
@@ -2533,6 +2539,14 @@ components:
       schema:
         maxLength: 128
         minLength: 8
+        type: string
+    reportIdempotencyKey:
+      description: Optional client-generated key; replaying it with a different report returns 409.
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        maxLength: 255
         type: string
   responses:
     badRequest:

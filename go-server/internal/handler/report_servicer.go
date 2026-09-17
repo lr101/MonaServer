@@ -31,9 +31,11 @@ func NewReportServicer(email *service.Email, q *db.Queries, configs ...service.R
 	return &ReportServicer{email: email, q: q, reports: service.NewReportService(q, configs...)}
 }
 
-// CaptureReportRequest carries the optional idempotency key and normalized
-// client address through the generated consumer-servicer signature. Mount it
-// around the legacy report route after the trusted-real-IP middleware.
+// CaptureReportRequest carries the normalized client address through the
+// generated consumer-servicer signature. Mount it around the legacy report
+// route after the trusted-real-IP middleware. The generated controller passes
+// Idempotency-Key explicitly; the context value remains a compatibility
+// fallback for direct callers.
 func CaptureReportRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil && r.Body != http.NoBody {
@@ -49,7 +51,7 @@ func CaptureReportRequest(next http.Handler) http.Handler {
 	})
 }
 
-func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportDto) (genserver.ImplResponse, error) {
+func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportDto, idempotencyKey string) (genserver.ImplResponse, error) {
 	if !validLegacyReportFields(dto.Report, dto.Message) {
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
@@ -111,7 +113,10 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 		return genserver.Response(http.StatusServiceUnavailable, nil), nil
 	}
 	legacy := dto.Report
-	request := strings.TrimSpace(service.ReportRequestID(ctx))
+	request := strings.TrimSpace(idempotencyKey)
+	if request == "" {
+		request = service.ReportRequestID(ctx)
+	}
 	var requestID *string
 	if request != "" {
 		requestID = &request
@@ -128,7 +133,7 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 		_ = s.email.SendReport(ctx, user.Username, dto.Report, dto.Message)
 	}
 	_ = stored
-	return genserver.Response(http.StatusCreated, nil), nil
+	return genserver.Response(http.StatusOK, nil), nil
 }
 
 func validLegacyReportFields(report, message string) bool {

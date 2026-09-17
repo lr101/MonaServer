@@ -78,6 +78,7 @@ Class | Method | HTTP request | Description
 *AdminMessagesApi* | [**sendAdminTestMessage**](doc//AdminMessagesApi.md#sendadmintestmessage) | **POST** /api/v3/admin/messages/test | Send an administrative test message
 *AdminReportsApi* | [**addAdminReportNote**](doc//AdminReportsApi.md#addadminreportnote) | **POST** /api/v3/admin/reports/{reportId}/notes | Add an administrative report note
 *AdminReportsApi* | [**getAdminReport**](doc//AdminReportsApi.md#getadminreport) | **GET** /api/v3/admin/reports/{reportId} | Read one report and its notes
+*AdminReportsApi* | [**listAdminReportNotes**](doc//AdminReportsApi.md#listadminreportnotes) | **GET** /api/v3/admin/reports/{reportId}/notes | List all administrative report notes
 *AdminReportsApi* | [**listAdminReports**](doc//AdminReportsApi.md#listadminreports) | **GET** /api/v3/admin/reports | List reports for administrative review
 *AdminReportsApi* | [**updateAdminReport**](doc//AdminReportsApi.md#updateadminreport) | **PATCH** /api/v3/admin/reports/{reportId} | Apply a revision-checked report transition
 *AdminSessionApi* | [**adminSessionLogin**](doc//AdminSessionApi.md#adminsessionlogin) | **POST** /api/v3/admin/session/login | Begin an admin password and MFA login
@@ -170,6 +171,7 @@ Class | Method | HTTP request | Description
  - [AdminReportDto](doc//AdminReportDto.md)
  - [AdminReportFilterDto](doc//AdminReportFilterDto.md)
  - [AdminReportNoteDto](doc//AdminReportNoteDto.md)
+ - [AdminReportNotePageDto](doc//AdminReportNotePageDto.md)
  - [AdminReportNoteRequestDto](doc//AdminReportNoteRequestDto.md)
  - [AdminReportPageDto](doc//AdminReportPageDto.md)
  - [AdminReportStatus](doc//AdminReportStatus.md)

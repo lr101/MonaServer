@@ -58,7 +58,7 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and recovery routes |
 | `WEB_ADMIN_API` | `true` | Enables the browser-admin session and migrated v2/v3 admin routes; `false` returns the unavailable response for the complete admin surface |
 | `ADMIN_TOTP_ENCRYPTION_KEY`, `ADMIN_TOTP_ENCRYPTION_KEY_ID` | — / `admin-totp-v1` | Key material and key ID for encrypted admin TOTP enrollment secrets |
-| `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Key material and key ID for admin login-failure quotas |
+| `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Required key material and key ID for admin login-failure and report submission quotas |
 | `ADMIN_ORIGIN` | — | Exact browser origin allowed for admin CORS and state-changing requests |
 | `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
 | `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |

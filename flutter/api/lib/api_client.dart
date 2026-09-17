@@ -238,6 +238,8 @@ class ApiClient {
           return AdminReportFilterDto.fromJson(value);
         case 'AdminReportNoteDto':
           return AdminReportNoteDto.fromJson(value);
+        case 'AdminReportNotePageDto':
+          return AdminReportNotePageDto.fromJson(value);
         case 'AdminReportNoteRequestDto':
           return AdminReportNoteRequestDto.fromJson(value);
         case 'AdminReportPageDto':
