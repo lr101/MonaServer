@@ -536,7 +536,7 @@ WITH candidate AS (
       AND i.job_id = $2
       AND i.outcome IN ('queued', 'unknown_delivery')
       AND (i.lease_until IS NULL OR i.lease_until <= now())
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE
 ), claimed AS (
     UPDATE admin_job_items i
     SET lease_owner = $3,
@@ -581,9 +581,10 @@ type ClaimJobItemRow struct {
 }
 
 // Claim one requested item for the T07 action boundary.  The candidate row
-// lock and lease transition are one statement, so a concurrent worker either
-// observes no claimable row or receives a fresh owner/token pair.  The token
-// returned here is the acknowledgement fence for this lease attempt.
+// lock and lease transition are one statement.  A targeted claim waits for an
+// in-flight row transition, then rechecks eligibility, so a concurrent worker
+// either observes no claimable row or receives a fresh owner/token pair.  The
+// token returned here is the acknowledgement fence for this lease attempt.
 func (q *Queries) ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error) {
 	row := q.db.QueryRow(ctx, claimJobItem,
 		arg.ID,

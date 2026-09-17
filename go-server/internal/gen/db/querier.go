@@ -39,9 +39,10 @@ type Querier interface {
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
 	// Claim one requested item for the T07 action boundary.  The candidate row
-	// lock and lease transition are one statement, so a concurrent worker either
-	// observes no claimable row or receives a fresh owner/token pair.  The token
-	// returned here is the acknowledgement fence for this lease attempt.
+	// lock and lease transition are one statement.  A targeted claim waits for an
+	// in-flight row transition, then rechecks eligibility, so a concurrent worker
+	// either observes no claimable row or receives a fresh owner/token pair.  The
+	// token returned here is the acknowledgement fence for this lease attempt.
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
