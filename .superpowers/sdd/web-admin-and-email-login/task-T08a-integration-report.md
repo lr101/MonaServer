@@ -179,3 +179,78 @@ The Flutter CLI and Dart SDK are not installed in this agent image, so Flutter
 analyze and Flutter test were unavailable; Java-based client generation and
 the exact normalized diff completed successfully. Docker and Podman also
 remain unavailable.
+
+## Retry-After fix round
+
+The final POC follow-up is implemented in `1c2c5ef` (`fix: expose report
+quota retry header`). A typed report quota error now carries the database
+window boundary, and the existing `CaptureReportRequest` composition retains
+the response writer long enough for the v2 handler to emit an integer
+`Retry-After`. The same positive value is present as `retryAfterSeconds` in
+the `rate_limited` error body. The routed test fills the configured account
+quota and asserts the 429 status, body, positive integer header, and equality
+between header and body.
+
+The final implementation SHA before this report update was:
+
+```text
+$ git rev-parse --short HEAD
+1c2c5ef
+```
+
+The new wire test first failed with the existing behavior:
+
+```text
+quota error body = genserver.ApiErrorDto{Code:"rate_limited", Message:"too many reports", RetryAfterSeconds:(*int32)(nil)}, want rate_limited with retry seconds
+FAIL
+```
+
+After the fix, the focused test passed:
+
+```text
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test ./cmd/server -run '^TestEndpointReport$/POST /api/v2/report quota response$' -count=1
+ok  github.com/lrprojects/monaserver/cmd/server 0.470s
+```
+
+The exact post-fix rerun from the native PostGIS stack produced:
+
+```text
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -count=1 -p 1 ./cmd/server ./internal/handler ./internal/service
+ok  github.com/lrprojects/monaserver/cmd/server        5.636s
+ok  github.com/lrprojects/monaserver/internal/handler 13.314s
+ok  github.com/lrprojects/monaserver/internal/service 35.392s
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -count=1 -p 1 ./...
+ok  github.com/lrprojects/monaserver/cmd/server        5.673s
+ok  github.com/lrprojects/monaserver/internal/db       5.446s
+ok  github.com/lrprojects/monaserver/internal/handler 13.436s
+ok  github.com/lrprojects/monaserver/internal/service 37.556s
+
+$ TEST_DATABASE_URL='<disposable-local-DSN>' mise exec -- go test -race -count=1 -p 1 ./...
+ok  github.com/lrprojects/monaserver/cmd/server        26.207s
+ok  github.com/lrprojects/monaserver/internal/db       6.973s
+ok  github.com/lrprojects/monaserver/internal/handler 32.809s
+ok  github.com/lrprojects/monaserver/internal/service 126.907s
+
+$ mise exec -- go vet ./...
+$ mise exec -- go build -o /tmp/monaserver-admin-t08a ./cmd/server
+$ git diff --check
+PASS (no diagnostics)
+
+$ mise exec -- make gen-api
+oapi-codegen --config=internal/gen/api/oapi-codegen.yaml ../api/openapi.yaml
+
+$ mise exec -- make gen-db
+cd internal/db && sqlc generate
+
+$ OPENAPI_GENERATOR_JAR=/root/.cache/openapi-generator/openapi-generator-cli-7.19.0.jar mise exec -- make gen-server
+gofmt -w internal/gen/server/
+
+$ java -jar /root/.cache/openapi-generator/openapi-generator-cli-7.9.0.jar generate ...
+$ bash ../.github/scripts/normalize-openapi-generated.sh <generated> api
+$ diff -ru --exclude=pubspec.yaml --exclude=pubspec.lock --exclude=.dart_tool --exclude=build --exclude=test api <generated>
+flutter generated diff: PASS (exit 0)
+```
+
+The Flutter CLI and Dart SDK remain unavailable in this agent image; the
+Java-based generation and normalized diff completed successfully.
