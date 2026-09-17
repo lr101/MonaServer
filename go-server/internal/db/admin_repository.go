@@ -1469,57 +1469,63 @@ func (q *Queries) ResetAdminMFAReplayScope(ctx context.Context, membershipID, us
 var ErrIdempotencyConflict = errors.New("idempotency key belongs to a different operation")
 
 type AdminJob struct {
-	ID             uuid.UUID
-	ActorID        *uuid.UUID
-	SnapshotID     *uuid.UUID
-	Action         string
-	PayloadHash    []byte
-	IdempotencyKey string
-	Status         string
-	AccountCount   int64
-	EligibleCount  int64
-	DeviceCount    int64
-	CompletedCount int64
-	FailedCount    int64
-	Reason         *string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	StartedAt      *time.Time
-	CompletedAt    *time.Time
+	ID              uuid.UUID
+	ActorID         *uuid.UUID
+	SnapshotID      *uuid.UUID
+	Action          string
+	PayloadHash     []byte
+	IdempotencyKey  string
+	Status          string
+	AccountCount    int64
+	EligibleCount   int64
+	DeviceCount     int64
+	CompletedCount  int64
+	FailedCount     int64
+	Reason          *string
+	RecentMFAAt     *time.Time
+	RecentMFAAction *string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	StartedAt       *time.Time
+	CompletedAt     *time.Time
 }
 
 type AdminJobParams struct {
-	ID             uuid.UUID
-	ActorID        *uuid.UUID
-	SnapshotID     *uuid.UUID
-	Action         string
-	PayloadHash    []byte
-	IdempotencyKey string
-	AccountCount   int64
-	EligibleCount  int64
-	DeviceCount    int64
-	Reason         *string
+	ID              uuid.UUID
+	ActorID         *uuid.UUID
+	SnapshotID      *uuid.UUID
+	Action          string
+	PayloadHash     []byte
+	IdempotencyKey  string
+	AccountCount    int64
+	EligibleCount   int64
+	DeviceCount     int64
+	Reason          *string
+	RecentMFAAt     *time.Time
+	RecentMFAAction *string
 }
 
 func adminJobFromRow(r dbgen.AdminJob) AdminJob {
 	return AdminJob{
-		ID:             goUUID(r.ID),
-		ActorID:        uuidPtrFromPG(r.ActorID),
-		SnapshotID:     uuidPtrFromPG(r.SnapshotID),
-		Action:         r.Action,
-		PayloadHash:    cloneBytes(r.PayloadHash),
-		IdempotencyKey: r.IdempotencyKey,
-		Status:         r.Status,
-		AccountCount:   r.AccountCount,
-		EligibleCount:  r.EligibleCount,
-		DeviceCount:    r.DeviceCount,
-		CompletedCount: r.CompletedCount,
-		FailedCount:    r.FailedCount,
-		Reason:         textPtrFromPG(r.Reason),
-		CreatedAt:      timeFromPG(r.CreatedAt),
-		UpdatedAt:      timeFromPG(r.UpdatedAt),
-		StartedAt:      timePtrFromPG(r.StartedAt),
-		CompletedAt:    timePtrFromPG(r.CompletedAt),
+		ID:              goUUID(r.ID),
+		ActorID:         uuidPtrFromPG(r.ActorID),
+		SnapshotID:      uuidPtrFromPG(r.SnapshotID),
+		Action:          r.Action,
+		PayloadHash:     cloneBytes(r.PayloadHash),
+		IdempotencyKey:  r.IdempotencyKey,
+		Status:          r.Status,
+		AccountCount:    r.AccountCount,
+		EligibleCount:   r.EligibleCount,
+		DeviceCount:     r.DeviceCount,
+		CompletedCount:  r.CompletedCount,
+		FailedCount:     r.FailedCount,
+		Reason:          textPtrFromPG(r.Reason),
+		RecentMFAAt:     timePtrFromPG(r.RecentMfaAt),
+		RecentMFAAction: textPtrFromPG(r.RecentMfaAction),
+		CreatedAt:       timeFromPG(r.CreatedAt),
+		UpdatedAt:       timeFromPG(r.UpdatedAt),
+		StartedAt:       timePtrFromPG(r.StartedAt),
+		CompletedAt:     timePtrFromPG(r.CompletedAt),
 	}
 }
 
@@ -1537,12 +1543,20 @@ func optionalStringEqual(a, b *string) bool {
 	return *a == *b
 }
 
+func optionalTimeEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Truncate(time.Microsecond).Equal(b.Truncate(time.Microsecond))
+}
+
 func adminJobMatches(p AdminJobParams, existing AdminJob) bool {
 	return optionalUUIDEqual(p.ActorID, existing.ActorID) &&
 		optionalUUIDEqual(p.SnapshotID, existing.SnapshotID) &&
 		p.Action == existing.Action && bytes.Equal(p.PayloadHash, existing.PayloadHash) &&
 		p.AccountCount == existing.AccountCount && p.EligibleCount == existing.EligibleCount &&
-		p.DeviceCount == existing.DeviceCount && optionalStringEqual(p.Reason, existing.Reason)
+		p.DeviceCount == existing.DeviceCount && optionalStringEqual(p.Reason, existing.Reason) &&
+		optionalTimeEqual(p.RecentMFAAt, existing.RecentMFAAt) && optionalStringEqual(p.RecentMFAAction, existing.RecentMFAAction)
 }
 
 // CreateAdminJob is idempotent on the database key.  A replay with the same
@@ -1550,7 +1564,7 @@ func adminJobMatches(p AdminJobParams, existing AdminJob) bool {
 // rejected before a caller can enqueue a different operation.
 func (q *Queries) CreateAdminJob(ctx context.Context, p AdminJobParams) (*AdminJob, error) {
 	if p.ID == uuid.Nil || p.Action == "" || p.IdempotencyKey == "" ||
-		p.AccountCount < 0 || p.EligibleCount < 0 || p.DeviceCount < 0 {
+		p.AccountCount < 0 || p.EligibleCount < 0 || p.DeviceCount < 0 || (p.RecentMFAAt == nil) != (p.RecentMFAAction == nil) {
 		return nil, ErrInvalidJob
 	}
 	payloadHash := cloneBytes(p.PayloadHash)
@@ -1558,16 +1572,18 @@ func (q *Queries) CreateAdminJob(ctx context.Context, p AdminJobParams) (*AdminJ
 		payloadHash = []byte{}
 	}
 	r, err := q.g.CreateAdminJob(ctx, dbgen.CreateAdminJobParams{
-		ID:             pgUUID(p.ID),
-		ActorID:        pgUUIDPtr(p.ActorID),
-		SnapshotID:     pgUUIDPtr(p.SnapshotID),
-		Action:         p.Action,
-		PayloadHash:    payloadHash,
-		IdempotencyKey: p.IdempotencyKey,
-		AccountCount:   p.AccountCount,
-		EligibleCount:  p.EligibleCount,
-		DeviceCount:    p.DeviceCount,
-		Reason:         pgText(p.Reason),
+		ID:              pgUUID(p.ID),
+		ActorID:         pgUUIDPtr(p.ActorID),
+		SnapshotID:      pgUUIDPtr(p.SnapshotID),
+		Action:          p.Action,
+		PayloadHash:     payloadHash,
+		IdempotencyKey:  p.IdempotencyKey,
+		AccountCount:    p.AccountCount,
+		EligibleCount:   p.EligibleCount,
+		DeviceCount:     p.DeviceCount,
+		Reason:          pgText(p.Reason),
+		RecentMfaAt:     pgTZ(p.RecentMFAAt),
+		RecentMfaAction: pgText(p.RecentMFAAction),
 	})
 	if err != nil {
 		return nil, err

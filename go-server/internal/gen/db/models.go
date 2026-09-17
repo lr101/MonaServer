@@ -42,23 +42,25 @@ type Admin2Boundary struct {
 }
 
 type AdminJob struct {
-	ID             pgtype.UUID        `json:"id"`
-	ActorID        pgtype.UUID        `json:"actor_id"`
-	SnapshotID     pgtype.UUID        `json:"snapshot_id"`
-	Action         string             `json:"action"`
-	PayloadHash    []byte             `json:"payload_hash"`
-	IdempotencyKey string             `json:"idempotency_key"`
-	Status         string             `json:"status"`
-	AccountCount   int64              `json:"account_count"`
-	EligibleCount  int64              `json:"eligible_count"`
-	DeviceCount    int64              `json:"device_count"`
-	CompletedCount int64              `json:"completed_count"`
-	FailedCount    int64              `json:"failed_count"`
-	Reason         pgtype.Text        `json:"reason"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	StartedAt      pgtype.Timestamptz `json:"started_at"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ID              pgtype.UUID        `json:"id"`
+	ActorID         pgtype.UUID        `json:"actor_id"`
+	SnapshotID      pgtype.UUID        `json:"snapshot_id"`
+	Action          string             `json:"action"`
+	PayloadHash     []byte             `json:"payload_hash"`
+	IdempotencyKey  string             `json:"idempotency_key"`
+	Status          string             `json:"status"`
+	AccountCount    int64              `json:"account_count"`
+	EligibleCount   int64              `json:"eligible_count"`
+	DeviceCount     int64              `json:"device_count"`
+	CompletedCount  int64              `json:"completed_count"`
+	FailedCount     int64              `json:"failed_count"`
+	Reason          pgtype.Text        `json:"reason"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+	RecentMfaAt     pgtype.Timestamptz `json:"recent_mfa_at"`
+	RecentMfaAction pgtype.Text        `json:"recent_mfa_action"`
 }
 
 type AdminJobItem struct {

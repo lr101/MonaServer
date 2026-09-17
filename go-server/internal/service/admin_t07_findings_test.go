@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -140,7 +142,7 @@ func TestBulkProcessingReloadsActorBeforeEveryItemAndPausesOnDemotion(t *testing
 		t.Fatalf("create: %v", err)
 	}
 	sender := &recordingBulkEmailSender{}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(&reloadActorSequence{actors: []AdminActor{
 		actor,
 		actor,
@@ -161,7 +163,7 @@ func TestBulkProcessingReloadsActorBeforeEveryItemAndPausesOnDemotion(t *testing
 	}
 }
 
-func TestBulkReloadKeepsSessionMFAProofWhenMembershipLookupOmitsIt(t *testing.T) {
+func TestBulkReloadUsesDurableMFAProofWhenMembershipLookupOmitsIt(t *testing.T) {
 	store := NewMemoryAdminStore()
 	targetID := uuid.New()
 	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
@@ -179,7 +181,7 @@ func TestBulkReloadKeepsSessionMFAProofWhenMembershipLookupOmitsIt(t *testing.T)
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
 	job, err := bulk.Create(context.Background(), actor, AdminJobCreateRequest{
 		SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "reload-mfa-proof",
 	})
@@ -187,8 +189,8 @@ func TestBulkReloadKeepsSessionMFAProofWhenMembershipLookupOmitsIt(t *testing.T)
 		t.Fatalf("create: %v", err)
 	}
 	// A persistence-backed reloader refreshes membership and capabilities. MFA
-	// freshness remains the authenticated session's proof and is therefore
-	// deliberately absent from this reloaded actor.
+	// freshness is reconstructed from the durable job and is deliberately
+	// absent from this reloaded actor.
 	reloaded := actor
 	reloaded.RecentMFAAt = nil
 	reloaded.RecentMFAAction = ""
@@ -197,6 +199,275 @@ func TestBulkReloadKeepsSessionMFAProofWhenMembershipLookupOmitsIt(t *testing.T)
 	item, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID)
 	if err != nil || item == nil || item.Outcome != OutcomeSecured {
 		t.Fatalf("processed item = %#v, err=%v; want session MFA proof preserved", item, err)
+	}
+}
+
+func TestBulkExecutionRequiresRecipientEligibilityChecker(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	email := "recipient@example.com"
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "recipient", Email: &email, EmailVerified: true})
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "jobs.create", "jobs.execute_all"}}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	sender := &countingEmailSender{}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	job, err := bulk.Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "missing-eligibility"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	item, err := bulk.ProcessItem(context.Background(), actor, job.ID, store.JobItems[job.ID][0].ID)
+	if !errors.Is(err, ErrAdminRepositoryAbsent) || item != nil {
+		t.Fatalf("missing eligibility result = %#v, %v; want fail closed", item, err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("sender calls without eligibility checker = %d, want zero", sender.calls)
+	}
+}
+
+func TestAdminTestMessageRequiresRecipientEligibilityChecker(t *testing.T) {
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"messages.test"}}
+	sender := &countingTestMessageSender{}
+	bulk := NewAdminBulkService(nil, nil, &AdminActionPorts{Test: sender})
+	result, err := bulk.SendTestMessage(context.Background(), actor, uuid.New(), AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"})
+	if !errors.Is(err, ErrAdminRepositoryAbsent) || result != nil {
+		t.Fatalf("missing direct-send eligibility result = %#v, %v; want fail closed", result, err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("direct test sender calls without eligibility = %d, want zero", sender.calls)
+	}
+}
+
+type countingTestMessageSender struct{ calls int }
+
+func (s *countingTestMessageSender) SendTestMessage(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error) {
+	s.calls++
+	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
+}
+
+type incompleteEligibilityChecker struct{}
+
+func (incompleteEligibilityChecker) CheckRecipient(context.Context, uuid.UUID, AdminAction) (RecipientEligibility, error) {
+	return RecipientEligibility{Eligible: true}, nil
+}
+
+func TestBulkExecutionRejectsIncompleteRecipientEligibility(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	email := "recipient@example.com"
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "recipient", Email: &email, EmailVerified: true})
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "jobs.create", "jobs.execute_all"}}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	sender := &countingEmailSender{}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: incompleteEligibilityChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	job, err := bulk.Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "incomplete-eligibility"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	item, err := bulk.ProcessItem(context.Background(), actor, job.ID, store.JobItems[job.ID][0].ID)
+	if err != nil || item == nil || item.Outcome != OutcomeSkipped || item.Reason != "recipient_eligibility_incomplete" {
+		t.Fatalf("incomplete eligibility result = %#v, %v; want skipped", item, err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("sender calls with incomplete eligibility = %d, want zero", sender.calls)
+	}
+}
+
+type readyEligibilityChecker struct{}
+
+func (readyEligibilityChecker) CheckRecipient(context.Context, uuid.UUID, AdminAction) (RecipientEligibility, error) {
+	return RecipientEligibility{Eligible: true, Complete: true}, nil
+}
+
+type promotedEligibilityChecker struct{}
+
+func (promotedEligibilityChecker) CheckRecipient(context.Context, uuid.UUID, AdminAction) (RecipientEligibility, error) {
+	return RecipientEligibility{Eligible: true, IsAdmin: true, Complete: true}, nil
+}
+
+func TestBulkExecutionRechecksSnapshotAdminAcknowledgementAfterPromotion(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	email := "recipient@example.com"
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "recipient", Email: &email, EmailVerified: true})
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "jobs.create", "jobs.execute_all", "audience.include_admins"}}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	sender := &countingEmailSender{}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: promotedEligibilityChecker{}})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	job, err := bulk.Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "promoted-after-preview"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	store.Users[0].IsAdmin = true
+	item, err := bulk.ProcessItem(context.Background(), actor, job.ID, store.JobItems[job.ID][0].ID)
+	if err != nil || item == nil || item.Outcome != OutcomeSkipped || item.Reason != "admin_target_requires_ack" {
+		t.Fatalf("promoted target result = %#v, %v; want snapshot acknowledgement skip", item, err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("promoted target sender calls = %d, want zero", sender.calls)
+	}
+}
+
+type blockingEmailSender struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	calls   atomic.Int32
+}
+
+func (s *blockingEmailSender) SendCampaignEmail(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error) {
+	s.calls.Add(1)
+	s.once.Do(func() { close(s.started) })
+	<-s.release
+	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
+}
+
+func TestBulkLeaseRenewalPreventsReclaimDuringLongAction(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	email := "recipient@example.com"
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "recipient", Email: &email, EmailVerified: true})
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "campaign.email", "jobs.create", "jobs.execute_all"}}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionEmail, Subject: "A", Body: "B"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	job, err := NewAdminBulkService(store, audience, &AdminActionPorts{Eligibility: readyEligibilityChecker{}}).Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "long-action-lease"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	firstSender := &blockingEmailSender{started: make(chan struct{}), release: make(chan struct{})}
+	first := NewAdminBulkService(store, audience, &AdminActionPorts{Email: firstSender, Eligibility: readyEligibilityChecker{}})
+	first.SetActorReloader(staticAdminActorReloader{actor: actor})
+	first.SetWorkerID("worker-one")
+	first.SetLeaseTTL(25 * time.Millisecond)
+	firstErr := make(chan error, 1)
+	go func() {
+		_, processErr := first.ProcessItem(context.Background(), actor, job.ID, store.JobItems[job.ID][0].ID)
+		firstErr <- processErr
+	}()
+	select {
+	case <-firstSender.started:
+	case <-time.After(time.Second):
+		t.Fatal("first action did not start")
+	}
+	time.Sleep(80 * time.Millisecond)
+	secondSender := &countingEmailSender{}
+	second := NewAdminBulkService(store, audience, &AdminActionPorts{Email: secondSender, Eligibility: readyEligibilityChecker{}})
+	second.SetActorReloader(staticAdminActorReloader{actor: actor})
+	second.SetWorkerID("worker-two")
+	second.SetLeaseTTL(25 * time.Millisecond)
+	secondItem, secondErr := second.ProcessItem(context.Background(), actor, job.ID, store.JobItems[job.ID][0].ID)
+	if secondErr != nil || secondItem == nil {
+		t.Fatalf("second worker result = %#v, %v; want current lease retained", secondItem, secondErr)
+	}
+	if secondSender.calls != 0 {
+		t.Fatalf("second worker calls = %d, want zero while first action is running", secondSender.calls)
+	}
+	close(firstSender.release)
+	select {
+	case processErr := <-firstErr:
+		if processErr != nil {
+			t.Fatalf("first worker: %v", processErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first worker did not finish")
+	}
+}
+
+func TestBulkRestartReconstructsDurableMFAProof(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
+	now := time.Now().UTC()
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "security.revoke", "jobs.create", "jobs.execute_all"}, RecentMFAAt: &now, RecentMFAAction: ActionRevokeSessions}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionRevokeSessions, Reason: "operator recovery"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	ports := &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}}
+	creator := NewAdminBulkService(store, audience, ports)
+	job, err := creator.Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "restart-mfa-proof"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	restartedActor := actor
+	restartedActor.RecentMFAAt = nil
+	restartedActor.RecentMFAAction = ""
+	restarted := NewAdminBulkService(store, audience, ports)
+	restarted.SetActorReloader(staticAdminActorReloader{actor: restartedActor})
+	item, err := restarted.ProcessItem(context.Background(), restartedActor, job.ID, store.JobItems[job.ID][0].ID)
+	if err != nil || item == nil || item.Outcome != OutcomeSecured {
+		t.Fatalf("restart item = %#v, err=%v; want durable MFA proof", item, err)
+	}
+}
+
+func TestBulkMissingDurableMFAProofFailsClosedAfterRestart(t *testing.T) {
+	store := NewMemoryAdminStore()
+	targetID := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
+	now := time.Now().UTC()
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"audience.preview", "security.revoke", "jobs.create", "jobs.execute_all"}, RecentMFAAt: &now, RecentMFAAction: ActionRevokeSessions}
+	audience := NewAdminAudienceService(store)
+	preview, err := audience.Preview(context.Background(), actor, AudiencePreviewRequest{
+		Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+		Action:   AdminAction{Kind: ActionRevokeSessions, Reason: "operator recovery"},
+	})
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	ports := &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}}
+	creator := NewAdminBulkService(store, audience, ports)
+	job, err := creator.Create(context.Background(), actor, AdminJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "missing-restart-mfa-proof"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	storedJob := store.Jobs[job.ID]
+	storedJob.RecentMFAAt = nil
+	storedJob.RecentMFAAction = ""
+	store.Jobs[job.ID] = storedJob
+	restartedActor := actor
+	restartedActor.RecentMFAAt = nil
+	restartedActor.RecentMFAAction = ""
+	restarted := NewAdminBulkService(store, audience, ports)
+	restarted.SetActorReloader(staticAdminActorReloader{actor: restartedActor})
+	if _, err := restarted.ProcessItem(context.Background(), restartedActor, job.ID, store.JobItems[job.ID][0].ID); !errors.Is(err, ErrRecentMFARequired) {
+		t.Fatalf("missing durable proof error = %v, want recent MFA required", err)
+	}
+	stored, err := store.GetJob(context.Background(), job.ID)
+	if err != nil || stored == nil || stored.Status != JobPaused {
+		t.Fatalf("missing durable proof job = %#v, %v; want paused", stored, err)
 	}
 }
 
@@ -219,7 +490,7 @@ func (s *idempotentLoginLinkSender) SendCampaignLoginLinkWithKey(_ context.Conte
 func TestCredentialItemUnknownOutcomeIsDurableAndNeverRetried(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "provider_timeout"}, second: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	got, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID)
@@ -243,7 +514,7 @@ func TestCredentialItemUnknownOutcomeIsDurableAndNeverRetried(t *testing.T) {
 func TestCredentialItemSafeFailureRetriesWithSameOperationID(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeFailed, ErrorCode: "rate_limited", SafeToRetry: true}, second: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	failed, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID)
@@ -265,7 +536,7 @@ func TestCredentialItemSafeFailureRetriesWithSameOperationID(t *testing.T) {
 func TestBulkItemOutcomeAppendsActorTargetAudit(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	item := store.JobItems[job.ID][0]
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, item.ID); err != nil {
@@ -362,7 +633,7 @@ func (r dynamicAdminActorReloader) ReloadAdminActor(_ context.Context, _ uuid.UU
 func TestUnknownDeliveryCompletesJobWithUncertainProgress(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeUnknownDelivery, ErrorCode: "provider_timeout"}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	if err := bulk.Process(context.Background(), actor, job.ID); err != nil {
 		t.Fatalf("process unknown job: %v", err)
@@ -392,7 +663,7 @@ func TestBulkItemFinishAndAuditUseOneDurableCommit(t *testing.T) {
 	base, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	store := &failingAtomicJobItemStore{MemoryAdminStore: base, fail: true}
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	itemID := store.JobItems[job.ID][0].ID
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); err == nil {
@@ -414,7 +685,7 @@ func TestBulkItemFinishAndAuditUseOneDurableCommit(t *testing.T) {
 func TestBulkExecutionFailsClosedWithoutActorReloadAndKeyedCredentialPort(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	legacy := &legacyLoginLinkSender{}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLink: legacy})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLink: legacy, Eligibility: readyEligibilityChecker{}})
 	itemID := store.JobItems[job.ID][0].ID
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {
 		t.Fatalf("missing actor reloader error = %v, want repository unavailable", err)
@@ -494,7 +765,7 @@ func TestBulkExecutionRejectsUnfencedLegacyStore(t *testing.T) {
 	store, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	legacyStore := &legacyOnlyJobStore{inner: store}
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(legacyStore, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(legacyStore, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	itemID := store.JobItems[job.ID][0].ID
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {
@@ -524,7 +795,7 @@ func TestBulkExecutionRejectsStoreWithoutTerminalUnknownDelivery(t *testing.T) {
 	base, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
 	store := &unsupportedUnknownDeliveryStore{MemoryAdminStore: base}
 	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	itemID := store.JobItems[job.ID][0].ID
 	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {

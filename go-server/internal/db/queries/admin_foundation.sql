@@ -627,24 +627,28 @@ DELETE FROM audience_snapshots WHERE expires_at < $1;
 -- name: CreateAdminJob :one
 INSERT INTO admin_jobs
     (id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
-     account_count, eligible_count, device_count, reason, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, now(), now())
+     account_count, eligible_count, device_count, reason, recent_mfa_at,
+     recent_mfa_action, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12, now(), now())
 ON CONFLICT (idempotency_key) DO UPDATE SET id = admin_jobs.id
 RETURNING id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
           account_count, eligible_count, device_count, completed_count, failed_count,
-          reason, created_at, updated_at, started_at, completed_at;
+          reason, created_at, updated_at, started_at, completed_at,
+          recent_mfa_at, recent_mfa_action;
 
 -- name: GetAdminJob :one
 SELECT id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
        account_count, eligible_count, device_count, completed_count, failed_count,
-       reason, created_at, updated_at, started_at, completed_at
+       reason, created_at, updated_at, started_at, completed_at,
+       recent_mfa_at, recent_mfa_action
 FROM admin_jobs
 WHERE id = $1;
 
 -- name: ListAdminJobs :many
 SELECT id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
        account_count, eligible_count, device_count, completed_count, failed_count,
-       reason, created_at, updated_at, started_at, completed_at
+       reason, created_at, updated_at, started_at, completed_at,
+       recent_mfa_at, recent_mfa_action
 FROM admin_jobs
 WHERE ($1::text = '' OR status = $1)
   AND ($2::timestamptz IS NULL OR created_at < $2)

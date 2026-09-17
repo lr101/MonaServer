@@ -697,9 +697,22 @@ func TestT02AllLeaseKindsRejectExpiredWorkers(t *testing.T) {
 	if err := q.CreateAudienceSnapshot(ctx, AudienceSnapshotParams{ID: snapshotID, Resource: AudienceResourceAccounts, Action: "lease", PayloadHash: []byte("p"), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatalf("snapshot create: %v", err)
 	}
-	adminJob, err := q.CreateAdminJob(ctx, AdminJobParams{ID: uuid.New(), SnapshotID: &snapshotID, Action: "lease", PayloadHash: []byte("p"), IdempotencyKey: "admin-lease"})
+	recentMFAAt := time.Now().UTC().Truncate(time.Microsecond)
+	recentMFAAction := "revoke_sessions"
+	adminJob, err := q.CreateAdminJob(ctx, AdminJobParams{ID: uuid.New(), SnapshotID: &snapshotID, Action: "lease", PayloadHash: []byte("p"), IdempotencyKey: "admin-lease", RecentMFAAt: &recentMFAAt, RecentMFAAction: &recentMFAAction})
 	if err != nil {
 		t.Fatalf("admin job create: %v", err)
+	}
+	if adminJob.RecentMFAAt == nil || !adminJob.RecentMFAAt.Equal(recentMFAAt) || adminJob.RecentMFAAction == nil || *adminJob.RecentMFAAction != recentMFAAction {
+		t.Fatalf("admin job MFA proof = %#v, %#v; want durable action-bound proof", adminJob.RecentMFAAt, adminJob.RecentMFAAction)
+	}
+	loadedJob, err := q.GetAdminJob(ctx, adminJob.ID)
+	if err != nil || loadedJob == nil || loadedJob.RecentMFAAt == nil || !loadedJob.RecentMFAAt.Equal(recentMFAAt) || loadedJob.RecentMFAAction == nil || *loadedJob.RecentMFAAction != recentMFAAction {
+		t.Fatalf("loaded admin job MFA proof = %#v, err=%v; want durable action-bound proof", loadedJob, err)
+	}
+	listedJobs, err := q.ListAdminJobs(ctx, "pending", nil, 10)
+	if err != nil || len(listedJobs) != 1 || listedJobs[0].RecentMFAAt == nil || !listedJobs[0].RecentMFAAt.Equal(recentMFAAt) || listedJobs[0].RecentMFAAction == nil || *listedJobs[0].RecentMFAAction != recentMFAAction {
+		t.Fatalf("listed admin job MFA proof = %#v, err=%v; want durable action-bound proof", listedJobs, err)
 	}
 	itemID := uuid.New()
 	if err := q.AddAdminJobItem(ctx, AdminJobItemParams{ID: itemID, JobID: adminJob.ID, TargetID: uuid.New()}); err != nil {

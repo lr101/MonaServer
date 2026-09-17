@@ -47,7 +47,7 @@ func TestBulkJobExecutionRechecksActorAndDoesNotRepeatCompletedItems(t *testing.
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
-	bulk := NewAdminBulkService(store, audienceService, &AdminActionPorts{Email: bulkTestEmailSender{}})
+	bulk := NewAdminBulkService(store, audienceService, &AdminActionPorts{Email: bulkTestEmailSender{}, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(dynamicAdminActorReloader{actor: &actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "same"})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestBulkSecuritySelfContainmentPausesRemainingWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "self-containment"})
 	if err != nil {
@@ -202,7 +202,7 @@ func TestBulkRetryRequiresExplicitCommandForFailedItems(t *testing.T) {
 		t.Fatalf("preview: %v", err)
 	}
 	sender := &flakyEmailSender{}
-	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender})
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
 	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
 	job, err := bulk.Create(context.Background(), actor, BulkJobCreateRequest{SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: "retry-explicit"})
 	if err != nil {
@@ -283,7 +283,7 @@ func (selfContainmentRevoker) RevokeSessions(context.Context, uuid.UUID, uuid.UU
 type alwaysIneligibleChecker struct{}
 
 func (alwaysIneligibleChecker) CheckRecipient(context.Context, uuid.UUID, AdminAction) (RecipientEligibility, error) {
-	return RecipientEligibility{Reason: "preference_changed"}, nil
+	return RecipientEligibility{Reason: "preference_changed", Complete: true}, nil
 }
 
 type countingEmailSender struct{ calls int }

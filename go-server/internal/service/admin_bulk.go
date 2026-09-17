@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,7 @@ var (
 	ErrJobNotFound       = apperrors.New(http.StatusNotFound, "job was not found")
 	ErrJobConflict       = apperrors.New(http.StatusConflict, "job command conflicts with current state")
 	ErrJobCancelled      = apperrors.New(http.StatusConflict, "job has been cancelled")
+	ErrJobLeaseLost      = apperrors.New(http.StatusConflict, "job item lease was lost")
 	ErrActionUnavailable = apperrors.New(http.StatusServiceUnavailable, "action delivery is unavailable")
 )
 
@@ -65,6 +67,11 @@ type AdminJob struct {
 	UpdatedAt             time.Time
 	StartedAt             *time.Time
 	CompletedAt           *time.Time
+	// RecentMFAAt and RecentMFAAction are the action-bound proof captured at
+	// job creation. They are durable execution state: a restarted worker must
+	// reconstruct this proof from the job rather than trust a browser session.
+	RecentMFAAt     *time.Time
+	RecentMFAAction string
 }
 
 type AdminJobItem struct {
@@ -126,11 +133,11 @@ type AdminJobCommand struct {
 
 // AdminJobStore is the transaction boundary for durable administrative jobs.
 // CreateJob must commit the job and all recipient items atomically. Production
-// stores must implement FencedAdminJobStore, AdminJobItemCommitStore, and
-// AdminJobItemAuditStore so claims, operation state, retries, and audit events
-// use a lease/fence CAS and one durable item transition. The legacy methods
-// remain only as a migration seam for adapters that are not allowed to execute
-// a job.
+// stores must implement FencedAdminJobStore, AdminJobLeaseRenewer,
+// AdminJobItemCommitStore, and AdminJobItemAuditStore so claims, operation
+// state, retries, audit events, and long-running action calls use a
+// lease/fence CAS and one durable item transition. The legacy methods remain
+// only as a migration seam for adapters that are not allowed to execute a job.
 type AdminJobStore interface {
 	CreateJob(context.Context, AdminJob, []AdminJobItem) (*AdminJob, error)
 	GetJob(context.Context, uuid.UUID) (*AdminJob, error)
@@ -166,6 +173,15 @@ type AdminJobLease struct {
 type FencedAdminJobStore interface {
 	ClaimJobItemWithLease(context.Context, uuid.UUID, uuid.UUID, string, time.Duration) (*AdminJobItem, *AdminJobLease, bool, error)
 	FinishJobItemWithLease(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
+}
+
+// AdminJobLeaseRenewer is mandatory for execution. An action port can block
+// longer than its initial lease, so the worker must renew the same fencing
+// proof until every provider/security/report call has returned. A failed
+// renewal cancels the action and makes its result terminally uncertain rather
+// than allowing another worker to send the same operation.
+type AdminJobLeaseRenewer interface {
+	RenewJobItemLease(context.Context, uuid.UUID, AdminJobLease, time.Duration) (*AdminJobLease, error)
 }
 
 // TerminalUnknownDeliveryStore is a mandatory capability marker for job
@@ -256,6 +272,10 @@ type RecipientEligibility struct {
 	Reason      string
 	DeviceCount int32
 	IsAdmin     bool
+	// Complete proves that the checker evaluated all state needed by the
+	// action, including current administrator status. Zero is deliberately
+	// incomplete so a partial adapter cannot direct-send.
+	Complete bool
 }
 
 type RecipientEligibilityChecker interface {
@@ -391,8 +411,9 @@ func (s *AdminBulkService) SetActorReloader(reloader AdminActorReloader) {
 }
 
 // requireExecutionSafety rejects adapters that cannot prove fresh authority,
-// fence an item claim, and durably bind its outcome to an audit intent. It is
-// called before every execution entry point, before any provider side effect.
+// recheck recipient state, fence and renew an item claim, and durably bind its
+// outcome to an audit intent. It is called before every execution entry point,
+// before any provider side effect.
 func (s *AdminBulkService) requireExecutionSafety(ctx context.Context, job AdminJob) error {
 	if s == nil || s.store == nil {
 		return ErrAdminRepositoryAbsent
@@ -416,6 +437,12 @@ func (s *AdminBulkService) requireExecutionSafety(ctx context.Context, job Admin
 	}
 	if _, ok := s.store.(AdminJobItemAuditStore); !ok {
 		return pause("audit_outbox_required", ErrAdminRepositoryAbsent)
+	}
+	if s.ports.Eligibility == nil {
+		return pause("recipient_eligibility_required", ErrAdminRepositoryAbsent)
+	}
+	if _, ok := s.store.(AdminJobLeaseRenewer); !ok {
+		return pause("item_lease_renewal_required", ErrAdminRepositoryAbsent)
 	}
 	if isCredentialAction(job.Action.Kind) && !s.hasKeyedCredentialPort(job.Action.Kind) {
 		return pause("credential_idempotency_required", ErrActionUnavailable)
@@ -495,11 +522,17 @@ func (s *AdminBulkService) Create(ctx context.Context, actor AdminActor, request
 		return nil, err
 	}
 	now := s.now()
+	recentMFAAt := cloneTime(actor.RecentMFAAt)
+	recentMFAAction := strings.TrimSpace(actor.RecentMFAAction)
+	if recentMFAAt == nil || recentMFAAction == "" {
+		recentMFAAt = nil
+		recentMFAAction = ""
+	}
 	job := AdminJob{
 		ID: uuid.New(), ActorID: actor.ID, SnapshotID: snapshot.ID, Action: clean, PayloadHash: clean.PayloadHash(),
 		IdempotencyKey: strings.TrimSpace(request.IdempotencyKey), Status: JobPending, AccountCount: snapshot.AccountCount,
 		EligibleCount: int64(len(eligible)), DeviceCount: snapshot.DeviceCount, Reason: clean.Reason,
-		CreatedAt: now, UpdatedAt: now,
+		CreatedAt: now, UpdatedAt: now, RecentMFAAt: recentMFAAt, RecentMFAAction: recentMFAAction,
 	}
 	items := make([]AdminJobItem, 0, len(eligible))
 	for _, member := range eligible {
@@ -626,14 +659,6 @@ func (s *AdminBulkService) getExecutableJobAndActor(ctx context.Context, actor A
 	if reloadErr != nil {
 		return nil, AdminActor{}, reloadErr
 	}
-	recentMFATTL := 5 * time.Minute
-	if s.aud != nil && s.aud.recentMFATTL > 0 {
-		recentMFATTL = s.aud.recentMFATTL
-	}
-	if err := actorCanPerform(effective, job.Action.Kind, s.now(), recentMFATTL); err != nil {
-		_ = s.store.PauseJob(ctx, jobID, "actor_capability_revoked")
-		return nil, AdminActor{}, err
-	}
 	return job, effective, nil
 }
 
@@ -658,25 +683,33 @@ func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminAct
 		_ = s.store.PauseJob(ctx, job.ID, "actor_capability_revoked")
 		return AdminActor{}, ErrAudienceForbidden
 	}
-	// Recent MFA is bound to the authenticated browser session and therefore
-	// cannot be recovered from the membership lookup above. Preserve that
-	// request proof only when the reloader did not provide a newer one; all
-	// membership, generation, and capability fields remain fresh.
-	if current.RecentMFAAt == nil {
-		current.RecentMFAAt = cloneTime(actor.RecentMFAAt)
+	// Recent MFA is an action-bound proof captured in the durable job. The
+	// membership reloader intentionally does not get to replace or invent it;
+	// this also lets a restarted worker execute without the original browser
+	// session while failing closed for legacy jobs that lack the proof.
+	if requiresRecentMFA(job.Action.Kind) && (job.RecentMFAAt == nil || job.RecentMFAAction != job.Action.Kind) {
+		_ = s.store.PauseJob(ctx, job.ID, "job_mfa_proof_missing")
+		return AdminActor{}, ErrRecentMFARequired
 	}
-	if current.RecentMFAAction == "" {
-		current.RecentMFAAction = actor.RecentMFAAction
-	}
-	recentMFATTL := 5 * time.Minute
-	if s.aud != nil && s.aud.recentMFATTL > 0 {
-		recentMFATTL = s.aud.recentMFATTL
-	}
+	current.RecentMFAAt = cloneTime(job.RecentMFAAt)
+	current.RecentMFAAction = job.RecentMFAAction
+	recentMFATTL := s.recentMFATTL()
 	if err := actorCanPerform(current, job.Action.Kind, s.now(), recentMFATTL); err != nil {
-		_ = s.store.PauseJob(ctx, job.ID, "actor_capability_revoked")
+		reason := "actor_capability_revoked"
+		if errors.Is(err, ErrRecentMFARequired) {
+			reason = "job_mfa_proof_expired"
+		}
+		_ = s.store.PauseJob(ctx, job.ID, reason)
 		return AdminActor{}, err
 	}
 	return current, nil
+}
+
+func (s *AdminBulkService) recentMFATTL() time.Duration {
+	if s != nil && s.aud != nil && s.aud.recentMFATTL > 0 {
+		return s.aud.recentMFATTL
+	}
+	return 5 * time.Minute
 }
 
 func (s *AdminBulkService) ProcessItem(ctx context.Context, actor AdminActor, jobID, itemID uuid.UUID) (*AdminJobItem, error) {
@@ -687,6 +720,82 @@ func (s *AdminBulkService) ProcessItem(ctx context.Context, actor AdminActor, jo
 	return s.processItemWithJob(ctx, effective, *job, itemID)
 }
 
+// executionSnapshot validates the immutable job binding before an item is
+// claimed. The member is looked up again at execution so a durable adapter
+// cannot execute an item that is absent from, or excluded by, its snapshot.
+func (s *AdminBulkService) executionSnapshot(ctx context.Context, job AdminJob, targetID uuid.UUID) (AudienceSnapshot, AudienceMember, bool, error) {
+	if s == nil {
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrAdminRepositoryAbsent
+	}
+	if s.store == nil || s.aud == nil || s.aud.store == nil {
+		if s.store != nil {
+			_ = s.store.PauseJob(ctx, job.ID, "snapshot_store_required")
+		}
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrAdminRepositoryAbsent
+	}
+	snapshot, err := s.aud.store.GetAudienceSnapshot(ctx, job.SnapshotID)
+	if err != nil {
+		_ = s.store.PauseJob(ctx, job.ID, "snapshot_lookup_unavailable")
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrAdminRepositoryAbsent
+	}
+	if snapshot == nil {
+		_ = s.store.PauseJob(ctx, job.ID, "snapshot_not_found")
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrSnapshotNotFound
+	}
+	clean, cleanErr := job.Action.ValidateAndSanitize()
+	if cleanErr != nil || snapshot.ID != job.SnapshotID || snapshot.ActorID != job.ActorID || snapshot.Status != AudienceSnapshotReady || snapshot.Resource != actionResource(clean.Kind) || snapshot.Action.Kind != clean.Kind || !strings.EqualFold(snapshot.PayloadHash, job.PayloadHash) || !strings.EqualFold(snapshot.PayloadHash, clean.PayloadHash()) {
+		_ = s.store.PauseJob(ctx, job.ID, "snapshot_binding_invalid")
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrSnapshotBinding
+	}
+	if !snapshot.ExpiresAt.After(s.now()) {
+		_ = s.store.PauseJob(ctx, job.ID, "snapshot_expired")
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrSnapshotExpired
+	}
+	if targetID == uuid.Nil {
+		return *snapshot, AudienceMember{}, false, nil
+	}
+	member, found, err := s.executionSnapshotMember(ctx, *snapshot, targetID)
+	if err != nil {
+		_ = s.store.PauseJob(ctx, job.ID, "snapshot_member_lookup_unavailable")
+		return AudienceSnapshot{}, AudienceMember{}, false, ErrAdminRepositoryAbsent
+	}
+	return *snapshot, member, found, nil
+}
+
+func (s *AdminBulkService) executionSnapshotMember(ctx context.Context, snapshot AudienceSnapshot, targetID uuid.UUID) (AudienceMember, bool, error) {
+	if targetID == uuid.Nil {
+		return AudienceMember{}, false, ErrInvalidJobRequest
+	}
+	if len(snapshot.Members) > 0 {
+		for _, member := range snapshot.Members {
+			if member.ResourceID == targetID && member.Resource == snapshot.Resource {
+				return member, true, nil
+			}
+		}
+		return AudienceMember{}, false, nil
+	}
+	var ordinal int64 = -1
+	for {
+		page, err := s.aud.store.ListAudienceSnapshotMembers(ctx, snapshot.ID, maxPageLimit, ordinal)
+		if err != nil {
+			return AudienceMember{}, false, err
+		}
+		for _, member := range page {
+			if member.ResourceID == targetID && member.Resource == snapshot.Resource {
+				return member, true, nil
+			}
+		}
+		if len(page) < maxPageLimit {
+			return AudienceMember{}, false, nil
+		}
+		ordinal += int64(len(page))
+	}
+}
+
+func snapshotIncludesAdmins(snapshot AudienceSnapshot) bool {
+	return snapshot.Audience.Filter != nil && snapshot.Audience.Filter.IncludeAdmins
+}
+
 func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminActor, job AdminJob, itemID uuid.UUID) (*AdminJobItem, error) {
 	if itemID == uuid.Nil {
 		return nil, ErrInvalidJobRequest
@@ -694,10 +803,13 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	if err := s.requireExecutionSafety(ctx, job); err != nil {
 		return nil, err
 	}
+	snapshot, snapshotMember, snapshotMemberFound, err := s.executionSnapshot(ctx, job, uuid.Nil)
+	if err != nil {
+		return nil, err
+	}
 	var claimed *AdminJobItem
 	var lease *AdminJobLease
 	var ok bool
-	var err error
 	if fenced, supportsFencing := s.store.(FencedAdminJobStore); supportsFencing {
 		claimed, lease, ok, err = fenced.ClaimJobItemWithLease(ctx, job.ID, itemID, s.worker, s.leaseTTL)
 	} else {
@@ -729,26 +841,37 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 		_ = s.store.PauseJob(ctx, job.ID, "item_lease_proof_missing")
 		return nil, ErrAdminRepositoryAbsent
 	}
-	var result ActionResult
-	var executeErr error
-	if s.ports.Eligibility != nil {
-		var eligibility RecipientEligibility
-		eligibility, executeErr = s.ports.Eligibility.CheckRecipient(ctx, claimed.TargetID, job.Action)
-		if executeErr == nil {
-			result.DeviceCount = eligibility.DeviceCount
-			if eligibility.IsAdmin && !actor.Can("audience.include_admins") {
-				result.Outcome = OutcomeSkipped
-				result.Reason = "admin_target_requires_ack"
-			} else if !eligibility.Eligible {
-				result.Outcome = OutcomeSkipped
-				result.Reason = eligibility.Reason
-			} else {
-				result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID, claimed.OperationID)
-			}
-		}
-	} else {
-		result, executeErr = s.executeAction(ctx, job, claimed.TargetID, actor.ID, claimed.OperationID)
+	snapshot, snapshotMember, snapshotMemberFound, err = s.executionSnapshot(ctx, job, claimed.TargetID)
+	if err != nil {
+		return nil, err
 	}
+	result, executeErr, renewedLease := s.executeWithRenewingLease(ctx, *lease, claimed.ID, func(actionCtx context.Context) (ActionResult, error) {
+		eligibility, checkErr := s.ports.Eligibility.CheckRecipient(actionCtx, claimed.TargetID, job.Action)
+		if checkErr != nil {
+			return ActionResult{Outcome: OutcomeSkipped, Reason: "recipient_eligibility_unavailable"}, nil
+		}
+		if !eligibility.Complete {
+			return ActionResult{Outcome: OutcomeSkipped, Reason: "recipient_eligibility_incomplete", DeviceCount: eligibility.DeviceCount}, nil
+		}
+		if !snapshotMemberFound || !snapshotMember.Eligible {
+			return ActionResult{Outcome: OutcomeSkipped, Reason: "snapshot_recipient_not_eligible", DeviceCount: eligibility.DeviceCount}, nil
+		}
+		if (snapshotMember.IsAdmin || eligibility.IsAdmin) && (!snapshotIncludesAdmins(snapshot) || !actor.Can("audience.include_admins")) {
+			return ActionResult{Outcome: OutcomeSkipped, Reason: "admin_target_requires_ack", DeviceCount: eligibility.DeviceCount}, nil
+		}
+		if !eligibility.Eligible {
+			reason := eligibility.Reason
+			if reason == "" {
+				reason = "recipient_ineligible"
+			}
+			return ActionResult{Outcome: OutcomeSkipped, Reason: reason, DeviceCount: eligibility.DeviceCount}, nil
+		}
+		if err := actionCtx.Err(); err != nil {
+			return ActionResult{}, err
+		}
+		return s.executeActionAndCleanup(actionCtx, job, claimed.TargetID, actor.ID, claimed.OperationID)
+	})
+	*lease = renewedLease
 	credentialAction := isCredentialAction(job.Action.Kind)
 	if executeErr != nil {
 		if credentialAction {
@@ -801,13 +924,6 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 	if result.Outcome == OutcomeFailed && (!result.Retryable || !result.SafeToRetry) {
 		result.Retryable = false
 	}
-	if s.ports.DeviceRemover != nil && len(result.InvalidDeviceIDs) <= 100 {
-		for _, deviceID := range result.InvalidDeviceIDs {
-			if deviceID != uuid.Nil {
-				_ = s.ports.DeviceRemover.RemoveInvalidDeviceToken(ctx, claimed.TargetID, deviceID, actor.ID)
-			}
-		}
-	}
 	result.InvalidDeviceIDs = nil
 	result.Reason = safeOptionalReason(result.Reason)
 	result.ErrorCode = safeErrorCode(result.ErrorCode)
@@ -840,6 +956,98 @@ func (s *AdminBulkService) processItemWithJob(ctx context.Context, actor AdminAc
 		_ = s.store.PauseJob(ctx, job.ID, "actor_self_contained")
 	}
 	return updated, executeErr
+}
+
+type adminJobLeaseState struct {
+	mu    sync.RWMutex
+	lease AdminJobLease
+}
+
+func (s *adminJobLeaseState) get() AdminJobLease {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lease
+}
+
+func (s *adminJobLeaseState) set(lease AdminJobLease) {
+	s.mu.Lock()
+	s.lease = lease
+	s.mu.Unlock()
+}
+
+// executeWithRenewingLease keeps the fencing proof alive around eligibility,
+// provider, security, report, and invalid-device cleanup calls. If the
+// durable store cannot renew, the action context is cancelled and the caller
+// records an uncertain terminal result instead of permitting a reclaiming
+// worker to repeat the side effect.
+func (s *AdminBulkService) executeWithRenewingLease(ctx context.Context, lease AdminJobLease, itemID uuid.UUID, fn func(context.Context) (ActionResult, error)) (ActionResult, error, AdminJobLease) {
+	renewer, ok := s.store.(AdminJobLeaseRenewer)
+	if !ok {
+		return ActionResult{}, ErrAdminRepositoryAbsent, lease
+	}
+	actionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	state := &adminJobLeaseState{lease: lease}
+	renewalErrors := make(chan error, 1)
+	done := make(chan struct{})
+	interval := s.leaseTTL / 3
+	if interval <= 0 {
+		interval = time.Millisecond
+	}
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-actionCtx.Done():
+				return
+			case <-ticker.C:
+				current := state.get()
+				next, err := renewer.RenewJobItemLease(actionCtx, itemID, current, s.leaseTTL)
+				if err != nil {
+					select {
+					case renewalErrors <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+				if next == nil {
+					select {
+					case renewalErrors <- ErrJobLeaseLost:
+					default:
+					}
+					cancel()
+					return
+				}
+				state.set(*next)
+			}
+		}
+	}()
+	result, runErr := fn(actionCtx)
+	cancel()
+	<-done
+	select {
+	case renewalErr := <-renewalErrors:
+		if ctx.Err() == nil && !errors.Is(renewalErr, context.Canceled) {
+			runErr = ErrJobLeaseLost
+		}
+	default:
+	}
+	return result, runErr, state.get()
+}
+
+func (s *AdminBulkService) executeActionAndCleanup(ctx context.Context, job AdminJob, targetID, actorID, operationID uuid.UUID) (ActionResult, error) {
+	result, err := s.executeAction(ctx, job, targetID, actorID, operationID)
+	if s.ports.DeviceRemover != nil && len(result.InvalidDeviceIDs) <= 100 {
+		for _, deviceID := range result.InvalidDeviceIDs {
+			if deviceID != uuid.Nil {
+				_ = s.ports.DeviceRemover.RemoveInvalidDeviceToken(ctx, targetID, deviceID, actorID)
+			}
+		}
+	}
+	return result, err
 }
 
 func isCredentialAction(action string) bool {
@@ -956,6 +1164,23 @@ func (s *AdminBulkService) SendTestMessage(ctx context.Context, actor AdminActor
 	}
 	if clean.Kind != ActionEmail && clean.Kind != ActionLoginLink && clean.Kind != ActionPush {
 		return nil, ErrInvalidAdminAction
+	}
+	if s.ports.Eligibility == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	eligibility, eligibilityErr := s.ports.Eligibility.CheckRecipient(ctx, targetID, clean)
+	if eligibilityErr != nil || !eligibility.Complete {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	if !eligibility.Eligible {
+		reason := eligibility.Reason
+		if reason == "" {
+			reason = "recipient_ineligible"
+		}
+		return &ActionResult{Outcome: OutcomeSkipped, Reason: reason, DeviceCount: eligibility.DeviceCount}, nil
+	}
+	if eligibility.IsAdmin && !actor.Can("audience.include_admins") {
+		return &ActionResult{Outcome: OutcomeSkipped, Reason: "admin_target_requires_ack", DeviceCount: eligibility.DeviceCount}, nil
 	}
 	if s.ports.Test == nil {
 		return nil, ErrActionUnavailable
@@ -1137,6 +1362,7 @@ func (s *AdminBulkService) auditSkippedItems(ctx context.Context, job AdminJob, 
 
 func cloneJob(job AdminJob) AdminJob {
 	job.Action, _ = job.Action.ValidateAndSanitize()
+	job.RecentMFAAt = cloneTime(job.RecentMFAAt)
 	return job
 }
 
@@ -1163,7 +1389,7 @@ func (m *MemoryAdminStore) CreateJob(_ context.Context, job AdminJob, items []Ad
 	}
 	for _, existing := range m.Jobs {
 		if existing.IdempotencyKey == job.IdempotencyKey {
-			if existing.ActorID != job.ActorID || existing.SnapshotID != job.SnapshotID || existing.PayloadHash != job.PayloadHash || existing.Action.Kind != job.Action.Kind {
+			if existing.ActorID != job.ActorID || existing.SnapshotID != job.SnapshotID || existing.PayloadHash != job.PayloadHash || existing.Action.Kind != job.Action.Kind || !optionalTimeEqual(existing.RecentMFAAt, job.RecentMFAAt) || existing.RecentMFAAction != job.RecentMFAAction {
 				return nil, ErrJobConflict
 			}
 			copy := cloneJob(existing)
@@ -1202,6 +1428,13 @@ func nonZeroTime(value time.Time) time.Time {
 		return time.Now().UTC()
 	}
 	return value
+}
+
+func optionalTimeEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
 }
 
 func (m *MemoryAdminStore) GetJob(_ context.Context, id uuid.UUID) (*AdminJob, error) {
@@ -1363,6 +1596,40 @@ func (m *MemoryAdminStore) ClaimJobItemWithLease(_ context.Context, jobID, itemI
 	}
 	lease := &AdminJobLease{Token: item.leaseToken, Fence: item.leaseFence, ExpiresAt: item.leaseExpiresAt}
 	return item, lease, true, nil
+}
+
+// RenewJobItemLease extends the current fencing proof without changing its
+// token or fence. A stale worker or an expired lease cannot renew and therefore
+// cannot keep an action alive after another worker has reclaimed the item.
+func (m *MemoryAdminStore) RenewJobItemLease(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, ttl time.Duration) (*AdminJobLease, error) {
+	if m == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, items := range m.JobItems {
+		for i := range items {
+			item := &items[i]
+			if item.ID != itemID {
+				continue
+			}
+			if !item.claimed || item.leaseToken == "" || item.leaseToken != lease.Token || item.leaseFence != lease.Fence || (!item.leaseExpiresAt.IsZero() && !time.Now().UTC().Before(item.leaseExpiresAt)) {
+				return nil, ErrJobConflict
+			}
+			now := time.Now().UTC()
+			item.leaseExpiresAt = now.Add(ttl)
+			item.UpdatedAt = now
+			next := AdminJobLease{Token: item.leaseToken, Fence: item.leaseFence, ExpiresAt: item.leaseExpiresAt}
+			return &next, nil
+		}
+	}
+	return nil, ErrJobNotFound
 }
 
 func (m *MemoryAdminStore) claimJobItemLocked(jobID, itemID uuid.UUID, fenced bool, _ string, ttl time.Duration) (*AdminJobItem, bool, error) {

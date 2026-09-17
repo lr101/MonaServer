@@ -833,25 +833,29 @@ const createAdminJob = `-- name: CreateAdminJob :one
 
 INSERT INTO admin_jobs
     (id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
-     account_count, eligible_count, device_count, reason, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, now(), now())
+     account_count, eligible_count, device_count, reason, recent_mfa_at,
+     recent_mfa_action, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10, $11, $12, now(), now())
 ON CONFLICT (idempotency_key) DO UPDATE SET id = admin_jobs.id
 RETURNING id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
           account_count, eligible_count, device_count, completed_count, failed_count,
-          reason, created_at, updated_at, started_at, completed_at
+          reason, created_at, updated_at, started_at, completed_at,
+          recent_mfa_at, recent_mfa_action
 `
 
 type CreateAdminJobParams struct {
-	ID             pgtype.UUID `json:"id"`
-	ActorID        pgtype.UUID `json:"actor_id"`
-	SnapshotID     pgtype.UUID `json:"snapshot_id"`
-	Action         string      `json:"action"`
-	PayloadHash    []byte      `json:"payload_hash"`
-	IdempotencyKey string      `json:"idempotency_key"`
-	AccountCount   int64       `json:"account_count"`
-	EligibleCount  int64       `json:"eligible_count"`
-	DeviceCount    int64       `json:"device_count"`
-	Reason         pgtype.Text `json:"reason"`
+	ID              pgtype.UUID        `json:"id"`
+	ActorID         pgtype.UUID        `json:"actor_id"`
+	SnapshotID      pgtype.UUID        `json:"snapshot_id"`
+	Action          string             `json:"action"`
+	PayloadHash     []byte             `json:"payload_hash"`
+	IdempotencyKey  string             `json:"idempotency_key"`
+	AccountCount    int64              `json:"account_count"`
+	EligibleCount   int64              `json:"eligible_count"`
+	DeviceCount     int64              `json:"device_count"`
+	Reason          pgtype.Text        `json:"reason"`
+	RecentMfaAt     pgtype.Timestamptz `json:"recent_mfa_at"`
+	RecentMfaAction pgtype.Text        `json:"recent_mfa_action"`
 }
 
 // Admin jobs and recipient items --------------------------------------------
@@ -867,6 +871,8 @@ func (q *Queries) CreateAdminJob(ctx context.Context, arg CreateAdminJobParams) 
 		arg.EligibleCount,
 		arg.DeviceCount,
 		arg.Reason,
+		arg.RecentMfaAt,
+		arg.RecentMfaAction,
 	)
 	var i AdminJob
 	err := row.Scan(
@@ -887,6 +893,8 @@ func (q *Queries) CreateAdminJob(ctx context.Context, arg CreateAdminJobParams) 
 		&i.UpdatedAt,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.RecentMfaAt,
+		&i.RecentMfaAction,
 	)
 	return i, err
 }
@@ -1508,7 +1516,8 @@ func (q *Queries) GetAccountActionTokenByHash(ctx context.Context, tokenHash []b
 const getAdminJob = `-- name: GetAdminJob :one
 SELECT id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
        account_count, eligible_count, device_count, completed_count, failed_count,
-       reason, created_at, updated_at, started_at, completed_at
+       reason, created_at, updated_at, started_at, completed_at,
+       recent_mfa_at, recent_mfa_action
 FROM admin_jobs
 WHERE id = $1
 `
@@ -1534,6 +1543,8 @@ func (q *Queries) GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, er
 		&i.UpdatedAt,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.RecentMfaAt,
+		&i.RecentMfaAction,
 	)
 	return i, err
 }
@@ -2122,7 +2133,8 @@ func (q *Queries) ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsPa
 const listAdminJobs = `-- name: ListAdminJobs :many
 SELECT id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
        account_count, eligible_count, device_count, completed_count, failed_count,
-       reason, created_at, updated_at, started_at, completed_at
+       reason, created_at, updated_at, started_at, completed_at,
+       recent_mfa_at, recent_mfa_action
 FROM admin_jobs
 WHERE ($1::text = '' OR status = $1)
   AND ($2::timestamptz IS NULL OR created_at < $2)
@@ -2163,6 +2175,8 @@ func (q *Queries) ListAdminJobs(ctx context.Context, arg ListAdminJobsParams) ([
 			&i.UpdatedAt,
 			&i.StartedAt,
 			&i.CompletedAt,
+			&i.RecentMfaAt,
+			&i.RecentMfaAction,
 		); err != nil {
 			return nil, err
 		}

@@ -87,6 +87,43 @@ func TestAdminJobServicerRequiresCSRFAndUsesIdempotentCommit(t *testing.T) {
 	}
 }
 
+func TestAdminJobServicerPersistsActionBoundMFAProofOnAcceptedCreate(t *testing.T) {
+	store := service.NewMemoryAdminStore()
+	targetID := uuid.New()
+	store.Users = append(store.Users, service.AdminUser{ID: targetID, Username: "target"})
+	actorID := uuid.New()
+	csrf := "csrf-mfa-job"
+	now := time.Now().UTC()
+	ctx := middleware.WithAdminPrincipal(context.Background(), middleware.AdminPrincipal{
+		UserID: actorID.String(), State: "authenticated", Capabilities: []string{"audience.preview", "security.revoke", "jobs.create"},
+		CSRFHash: middleware.CSRFHash(csrf), RecentMFAAt: &now, RecentMFAAction: service.ActionRevokeSessions,
+	})
+	audience := service.NewAdminAudienceService(store)
+	audienceHandler := NewAdminAudienceServicer(audience)
+	previewResponse, err := audienceHandler.PreviewAdminAudience(ctx, csrf, genserver.AdminAudiencePreviewRequestDto{
+		Audience: genserver.AdminAudience{Kind: genserver.SELECTED, Resource: genserver.ACCOUNTS, Ids: []string{targetID.String()}},
+		Action:   genserver.AdminAction{Action: genserver.REVOKE_SESSIONS, Reason: "operator recovery"},
+	})
+	if err != nil || previewResponse.Code != 200 {
+		t.Fatalf("preview = %#v, %v", previewResponse, err)
+	}
+	preview := previewResponse.Body.(genserver.AdminAudiencePreviewResponseDto)
+	j := NewAdminJobsServicer(service.NewAdminBulkService(store, audience, &service.AdminActionPorts{}))
+	accepted, err := j.CreateAdminJob(ctx, csrf, "mfa-job", genserver.AdminJobCreateRequestDto{SnapshotId: preview.SnapshotId, PayloadHash: *preview.PayloadHash, Action: *preview.Action})
+	if err != nil || accepted.Code != 202 {
+		t.Fatalf("create = %#v, %v", accepted, err)
+	}
+	acceptedJob := accepted.Body.(genserver.AdminJobAcceptedDto)
+	jobID, err := uuid.Parse(acceptedJob.JobId)
+	if err != nil {
+		t.Fatalf("accepted job id: %v", err)
+	}
+	job, err := store.GetJob(ctx, jobID)
+	if err != nil || job == nil || job.RecentMFAAt == nil || !job.RecentMFAAt.Equal(now) || job.RecentMFAAction != service.ActionRevokeSessions {
+		t.Fatalf("stored MFA proof = %#v, err=%v; want action-bound proof", job, err)
+	}
+}
+
 type handlerTestEmailSender struct{}
 
 func (handlerTestEmailSender) SendCampaignEmail(context.Context, uuid.UUID, uuid.UUID, service.AdminAction) (service.ActionResult, error) {
