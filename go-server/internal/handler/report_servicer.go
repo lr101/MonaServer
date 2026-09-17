@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -27,21 +28,37 @@ type ReportServicer struct {
 
 const maxLegacyReportHTTPBodyBytes int64 = 16 << 10
 
+type reportResponseWriterContextKey struct{}
+
+func withReportResponseWriter(ctx context.Context, w http.ResponseWriter) context.Context {
+	return context.WithValue(ctx, reportResponseWriterContextKey{}, w)
+}
+
+func reportResponseWriter(ctx context.Context) (http.ResponseWriter, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	w, ok := ctx.Value(reportResponseWriterContextKey{}).(http.ResponseWriter)
+	return w, ok && w != nil
+}
+
 func NewReportServicer(email *service.Email, q *db.Queries, configs ...service.ReportServiceConfig) *ReportServicer {
 	return &ReportServicer{email: email, q: q, reports: service.NewReportService(q, configs...)}
 }
 
 // CaptureReportRequest carries the normalized client address through the
-// generated consumer-servicer signature. Mount it around the legacy report
-// route after the trusted-real-IP middleware. The generated controller passes
-// Idempotency-Key explicitly; the context value remains a compatibility
-// fallback for direct callers.
+// generated consumer-servicer signature and retains the response writer for
+// quota headers. Mount it around the legacy report route after the
+// trusted-real-IP middleware. The generated controller passes Idempotency-Key
+// explicitly; the context value remains a compatibility fallback for direct
+// callers.
 func CaptureReportRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil && r.Body != http.NoBody {
 			r.Body = http.MaxBytesReader(w, r.Body, maxLegacyReportHTTPBodyBytes)
 		}
-		ctx := service.WithReportRequestID(r.Context(), strings.TrimSpace(r.Header.Get("Idempotency-Key")))
+		ctx := withReportResponseWriter(r.Context(), w)
+		ctx = service.WithReportRequestID(ctx, strings.TrimSpace(r.Header.Get("Idempotency-Key")))
 		clientIP := strings.TrimSpace(r.RemoteAddr)
 		if host, _, err := net.SplitHostPort(clientIP); err == nil {
 			clientIP = host
@@ -383,7 +400,14 @@ func reportErrorResponse(ctx context.Context, err error) genserver.ImplResponse 
 	case http.StatusServiceUnavailable:
 		code, message = "feature_unavailable", "report service is not available"
 	}
-	return genserver.Response(status, genserver.ApiErrorDto{Code: code, Message: message})
+	body := genserver.ApiErrorDto{Code: code, Message: message}
+	if retryAfter, ok := retryAfterSeconds(err); ok {
+		body.RetryAfterSeconds = &retryAfter
+		if writer, ok := reportResponseWriter(ctx); ok {
+			writer.Header().Set("Retry-After", strconv.FormatInt(int64(retryAfter), 10))
+		}
+	}
+	return genserver.Response(status, body)
 }
 
 var _ genserver.ReportAPIServicer = (*ReportServicer)(nil)

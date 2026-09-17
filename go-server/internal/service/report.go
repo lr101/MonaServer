@@ -40,6 +40,7 @@ var (
 	ErrReportUnauthorized  = apperrors.ErrUnauthorized
 	ErrReportForbidden     = apperrors.ErrForbidden
 	ErrReportConflict      = apperrors.ErrConflict
+	ErrReportRateLimited   = apperrors.New(http.StatusTooManyRequests, "too many reports")
 	ErrReportInvalidCursor = apperrors.ErrBadRequest
 )
 
@@ -151,6 +152,36 @@ type ReportServiceConfig struct {
 	SubmissionLimit   int64
 	SubmissionIPLimit int64
 	SubmissionWindow  time.Duration
+}
+
+// ReportRateLimitError keeps the quota window boundary at the service edge so
+// HTTP adapters can expose the same retry duration in the response envelope
+// and Retry-After header.
+type ReportRateLimitError struct {
+	RetryAt time.Time
+	Now     time.Time
+}
+
+func (e *ReportRateLimitError) Error() string { return ErrReportRateLimited.Error() }
+
+func (e *ReportRateLimitError) Unwrap() error { return ErrReportRateLimited }
+
+func (e *ReportRateLimitError) RetryAfterSeconds() int32 {
+	if e == nil {
+		return 1
+	}
+	remaining := e.RetryAt.Sub(e.Now)
+	if remaining <= 0 {
+		return 1
+	}
+	seconds := int64((remaining + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	if seconds > int64(^uint32(0)>>1) {
+		return int32(^uint32(0) >> 1)
+	}
+	return int32(seconds)
 }
 
 // Validate checks the configuration required to protect report quota keys.
@@ -747,7 +778,7 @@ func (s *ReportService) admitSubmissionTx(ctx context.Context, q *db.Queries, in
 			return apperrors.ErrUnavailable
 		}
 		if !decision.Allowed {
-			return apperrors.New(http.StatusTooManyRequests, "too many reports")
+			return &ReportRateLimitError{RetryAt: decision.RetryAt, Now: now}
 		}
 	}
 	return nil

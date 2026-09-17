@@ -1348,6 +1348,49 @@ func TestEndpointReport(t *testing.T) {
 			t.Fatalf("routed quota hits account=%d ip=%d, want one keyed hit each", accountHits, ipHits)
 		}
 	})
+
+	t.Run("POST /api/v2/report quota response", func(t *testing.T) {
+		ar := anon.signup(t, "report-quota", "pw123")
+		c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+		const forwardedIP = "203.0.113.42"
+		for i := 0; i < 10; i++ {
+			resp := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+				"userId": ar.UserID, "report": "spam", "message": fmt.Sprintf("quota report %d", i),
+			}, map[string]string{
+				"Idempotency-Key": fmt.Sprintf("quota-report-%d", i),
+				"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+			})
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("quota fill request %d status = %d, want 200", i, resp.StatusCode)
+			}
+		}
+
+		limited := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+			"userId": ar.UserID, "report": "spam", "message": "quota exhausted",
+		}, map[string]string{
+			"Idempotency-Key": "quota-report-limited",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		})
+		defer limited.Body.Close()
+		if limited.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("quota exhausted status = %d, want 429", limited.StatusCode)
+		}
+		var body genserver.ApiErrorDto
+		if err := json.NewDecoder(limited.Body).Decode(&body); err != nil {
+			t.Fatalf("decode quota error: %v", err)
+		}
+		if body.Code != "rate_limited" || body.RetryAfterSeconds == nil || *body.RetryAfterSeconds <= 0 {
+			t.Fatalf("quota error body = %#v, want rate_limited with retry seconds", body)
+		}
+		retryAfter, err := strconv.Atoi(limited.Header.Get("Retry-After"))
+		if err != nil || retryAfter <= 0 {
+			t.Fatalf("Retry-After = %q, want positive integer", limited.Header.Get("Retry-After"))
+		}
+		if retryAfter != int(*body.RetryAfterSeconds) {
+			t.Fatalf("Retry-After = %d, body retry seconds = %d", retryAfter, *body.RetryAfterSeconds)
+		}
+	})
 }
 
 func reportQuotaIdentifierHMAC(key []byte, scope, value string) []byte {
