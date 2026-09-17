@@ -168,6 +168,15 @@ type FencedAdminJobStore interface {
 	FinishJobItemWithLease(context.Context, uuid.UUID, AdminJobLease, uuid.UUID, string, string, string, string, bool, bool) (*AdminJobItem, error)
 }
 
+// TerminalUnknownDeliveryStore is a mandatory capability marker for job
+// execution. The adapter may return true only when its claim query excludes
+// terminal unknown_delivery rows and its progress transition counts them as
+// completed/uncertain. Until the production SQL is updated, the service fails
+// closed before any provider call.
+type TerminalUnknownDeliveryStore interface {
+	SupportsTerminalUnknownDelivery() bool
+}
+
 // AdminJobItemCommitStore durably finishes an item and records its actor,
 // target, operation, and outcome audit event as one transaction. A database
 // adapter may implement this with an outbox row, but it must never expose a
@@ -397,6 +406,10 @@ func (s *AdminBulkService) requireExecutionSafety(ctx context.Context, job Admin
 	}
 	if _, ok := s.store.(FencedAdminJobStore); !ok {
 		return pause("item_lease_fencing_required", ErrAdminRepositoryAbsent)
+	}
+	terminalUnknown, ok := s.store.(TerminalUnknownDeliveryStore)
+	if !ok || !terminalUnknown.SupportsTerminalUnknownDelivery() {
+		return pause("terminal_unknown_delivery_required", ErrAdminRepositoryAbsent)
 	}
 	if _, ok := s.store.(AdminJobItemCommitStore); !ok {
 		return pause("item_audit_commit_required", ErrAdminRepositoryAbsent)
@@ -1436,14 +1449,18 @@ func (m *MemoryAdminStore) finishJobItem(itemID, operationID uuid.UUID, lease *A
 			if item.ID != itemID {
 				continue
 			}
+			if lease != nil && (!item.claimed || item.leaseToken == "" || item.leaseToken != lease.Token || item.leaseFence != lease.Fence || (!item.leaseExpiresAt.IsZero() && time.Now().UTC().After(item.leaseExpiresAt))) {
+				// A fenced finish is an acknowledgement by the currently
+				// claimed worker. Once another worker has completed the item,
+				// the old lease must remain a conflict rather than becoming an
+				// idempotent success.
+				return nil, ErrJobConflict
+			}
 			if !item.claimed {
 				copy := *item
 				return &copy, nil
 			}
 			if operationID != uuid.Nil && item.OperationID != operationID {
-				return nil, ErrJobConflict
-			}
-			if lease != nil && (item.leaseToken == "" || item.leaseToken != lease.Token || item.leaseFence != lease.Fence || (!item.leaseExpiresAt.IsZero() && time.Now().UTC().After(item.leaseExpiresAt))) {
 				return nil, ErrJobConflict
 			}
 			if audit != nil {

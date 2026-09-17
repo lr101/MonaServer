@@ -295,6 +295,10 @@ func TestFencedJobItemRejectsStaleWorkerFinish(t *testing.T) {
 	if _, err := store.FinishJobItemWithLease(context.Background(), itemID, *secondLease, second.OperationID, OutcomeProviderAccepted, "", "", "", false, false); err != nil {
 		t.Fatalf("current finish: %v", err)
 	}
+	staleAudit := AdminJobItemAudit{JobID: job.ID, ItemID: itemID, OperationID: first.OperationID, ActorID: uuid.New(), TargetID: first.TargetID, Action: ActionLoginLink, Outcome: OutcomeProviderAccepted}
+	if _, err := store.FinishJobItemWithAudit(context.Background(), itemID, *firstLease, first.OperationID, OutcomeProviderAccepted, "", "", "", false, false, staleAudit); !errors.Is(err, ErrJobConflict) {
+		t.Fatalf("stale audit finish after completion error = %v, want conflict", err)
+	}
 }
 
 type staticAdminActorReloader struct {
@@ -466,6 +470,36 @@ func TestBulkExecutionRejectsUnfencedLegacyStore(t *testing.T) {
 	}
 	if stored.Status != JobPaused {
 		t.Fatalf("legacy store job status = %q, want paused", stored.Status)
+	}
+}
+
+type unsupportedUnknownDeliveryStore struct {
+	*MemoryAdminStore
+}
+
+func (s *unsupportedUnknownDeliveryStore) SupportsTerminalUnknownDelivery() bool {
+	return false
+}
+
+func TestBulkExecutionRejectsStoreWithoutTerminalUnknownDelivery(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionLoginLink)
+	store := &unsupportedUnknownDeliveryStore{MemoryAdminStore: base}
+	sender := &idempotentLoginLinkSender{first: ActionResult{Outcome: OutcomeProviderAccepted}}
+	bulk := NewAdminBulkService(store, audience, &AdminActionPorts{LoginLinkIdempotent: sender})
+	bulk.SetActorReloader(staticAdminActorReloader{actor: actor})
+	itemID := store.JobItems[job.ID][0].ID
+	if _, err := bulk.ProcessItem(context.Background(), actor, job.ID, itemID); !errors.Is(err, ErrAdminRepositoryAbsent) {
+		t.Fatalf("unsupported terminal unknown error = %v, want repository unavailable", err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("unsupported terminal unknown store reached sender: %d calls", sender.calls)
+	}
+	stored, err := store.GetJob(context.Background(), job.ID)
+	if err != nil {
+		t.Fatalf("get paused job: %v", err)
+	}
+	if stored.Status != JobPaused {
+		t.Fatalf("unsupported terminal unknown job status = %q, want paused", stored.Status)
 	}
 }
 

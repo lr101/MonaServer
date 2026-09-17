@@ -56,7 +56,10 @@ operationless adapters fail closed. Fresh actor membership, auth generation,
 and capabilities are required and reloaded before every item; revocation or
 demotion pauses the job. The legacy one-shot credential ports remain only for
 compatibility and are rejected for execution; production wiring must use the
-keyed ports.
+keyed ports. The `TerminalUnknownDeliveryStore` capability marker is also
+required before execution; the in-memory store opts in, while a production
+adapter must leave it disabled until its claim and progress SQL support
+terminal `unknown_delivery` semantics.
 
 The user service exposes a bounded, credential-free account projection with
 search/security/verified-email/creation-date filters and cursor pagination.
@@ -84,7 +87,19 @@ transactions where stated:
 1. `ListAdminUsers(ctx, cursor, limit, search, securityState, verifiedEmail, createdAfter, createdBefore)` and `GetAdminUserDetails(ctx, userID)` should return the safe user projection, including creation time, admin/security state, auth generation, compromise/password flags, communication opt-out, and an aggregate registered-device count. The query must perform filtering and stable cursor ordering in PostgreSQL and must never select passwords, token/code/url columns, or provider credentials.
 2. `CountAdminAudience(ctx, actorID, audience, action)` and `ListAdminAudienceMembers(ctx, actorID, audience, action, afterOrdinal, limit)` should evaluate accounts/reports server-side with stable ordering, per-record permission/state/ownership checks, email-ownership/verified-account checks, communication preferences, device eligibility, and explicit exclusion codes. The actor and sanitized action are required authorization context for both calls. Count must not materialize rows; list must return at most the requested bound. A large count should be handed to an asynchronous materializer rather than loaded into one request. Report criteria must remain report-only.
 3. `CreateAudienceSnapshot(ctx, snapshot, members)` must insert the snapshot and every member in one transaction, with an immutable canonical audience/action/hash, actor ID, expiry, ordinals, counts, and bounded exclusions. `GetAudienceSnapshot` and `ListAudienceSnapshotMembers(snapshotID, afterOrdinal, limit)` must enforce actor/resource access at the service boundary and stable ordinal cursors.
-4. `CreateAdminJobWithItems(ctx, job, items)` must atomically insert one job and all item rows, assign a stable per-item operation ID, and enforce an actor/action/snapshot/payload-bound idempotency key. The service requires this lease interface: `ClaimJobItemWithLease(ctx, jobID, itemID, worker, ttl) (*AdminJobItem, *AdminJobLease, bool, error)` and `FinishJobItemWithLease(ctx, itemID, lease, operationID, outcome, reason, errorCode, providerReference, retryable, ambiguous)`. It also requires `FinishJobItemWithAudit(ctx, itemID, lease, operationID, outcome, reason, errorCode, providerReference, retryable, ambiguous, audit)` so the outcome and audit intent are one transaction or durable outbox. These operations must use compare-and-set fencing, recover stale leases, and refuse stale-worker acknowledgements. The additive `FinishJobItemWithState` shape is a migration seam only and cannot execute a job. `UpdateAdminJobProgress`, `PauseAdminJob`, and `Get/ListAdminJobs` must derive safe account/eligible/device and outcome counts, including terminal uncertain delivery.
+4. `CreateAdminJobWithItems(ctx, job, items)` must atomically insert one job and all item rows, assign a stable per-item operation ID, and enforce an actor/action/snapshot/payload-bound idempotency key. The service requires this lease interface: `ClaimJobItemWithLease(ctx, jobID, itemID, worker, ttl) (*AdminJobItem, *AdminJobLease, bool, error)` and `FinishJobItemWithLease(ctx, itemID, lease, operationID, outcome, reason, errorCode, providerReference, retryable, ambiguous)`. It also requires `FinishJobItemWithAudit(ctx, itemID, lease, operationID, outcome, reason, errorCode, providerReference, retryable, ambiguous, audit)` so the outcome and audit intent are one transaction or durable outbox. These operations must use compare-and-set fencing, recover stale leases, and refuse stale-worker acknowledgements. The additive `FinishJobItemWithState` shape is a migration seam only and cannot execute a job. `UpdateAdminJobProgress`, `PauseAdminJob`, and `Get/ListAdminJobs` must derive safe account/eligible/device and outcome counts, including terminal uncertain delivery. The adapter must implement `SupportsTerminalUnknownDelivery() bool` only after these SQL changes are live.
+
+The current raw DB handoff is unsafe for that opt-in: `ClaimAdminJobItems` in
+`go-server/internal/db/queries/admin_foundation.sql` includes
+`unknown_delivery` in its claim candidates and the partial lease index in
+`go-server/internal/db/migrations/000024_admin_foundation.up.sql` also includes
+it. `UpdateAdminJobProgress` currently persists only completed and failed
+counts, and `FinishAdminJobItem` leaves `completed_at` unset for
+`unknown_delivery`. The DB owner must add the terminal exclusion/counting
+behavior, an uncertain-count column or equivalent projection, and the
+transactional fenced finish/audit outbox before implementing the capability
+marker. Until then, the service pauses with `ErrAdminRepositoryAbsent` before
+claiming or sending.
 5. `ApplyAdminJobCommand(ctx, actorID, jobID, kind, idempotencyKey, reason)` must make retry (failed items only with a persisted safe-to-retry flag) and cancellation idempotent in one transaction. Cancellation must skip only unclaimed work; it cannot restore credentials or undo delivery. Commands and job/item reads must never return action tokens, passwords, provider payloads, or raw provider errors.
 6. `ListAdminAudit(ctx, cursor, limit, targetUserID, action)` and `AppendAdminAudit(ctx, event)` should provide append-only storage, stable cursor ordering, target/action filters, bounded safe metadata, and retention/deletion handling. The additive `RecordJobItemAudit(ctx, AdminJobItemAudit)` operation must be idempotent by job/item/outcome and coordinated with the item finish transaction or a durable outbox; it carries only actor ID, target ID, action, outcome, bounded reason/error classification, and the operation ID.
 
@@ -103,7 +118,8 @@ resolution with actor/action handoff, idempotent item processing, explicit
 safe retry, credential unknown-outcome suppression, terminal uncertain job
 progress, mandatory actor reload and keyed ports, atomic item/audit commit
 failure, per-item actor reload/pause, lease fencing, self-containment pause,
-eligibility recheck, and actor/target audit binding.
+eligibility recheck, actor/target audit binding, stale post-completion lease
+rejection, and rejection of stores without terminal unknown-delivery support.
 Handler tests cover generated DTO mapping, CSRF rejection, sanitized preview
 responses, immutable job commit, idempotent create, and routed explicit-false
 verified-email filtering.

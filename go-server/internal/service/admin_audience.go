@@ -1123,6 +1123,13 @@ func NewMemoryAdminStore() *MemoryAdminStore {
 	return &MemoryAdminStore{Snapshots: make(map[uuid.UUID]AudienceSnapshot), Jobs: make(map[uuid.UUID]AdminJob), JobItems: make(map[uuid.UUID][]AdminJobItem), Commands: make(map[string]AdminJobCommand), jobAuditKeys: make(map[string]struct{})}
 }
 
+// SupportsTerminalUnknownDelivery declares that the in-memory adapter uses
+// terminal unknown_delivery semantics for claims and progress. A production
+// adapter must opt in only after its SQL has the same guarantees.
+func (m *MemoryAdminStore) SupportsTerminalUnknownDelivery() bool {
+	return m != nil
+}
+
 func memoryAudienceRecord(user AdminUser) AudienceRecord {
 	state := user.SecurityState
 	if state == "" {
