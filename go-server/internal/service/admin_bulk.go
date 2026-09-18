@@ -735,7 +735,7 @@ func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminAct
 			_ = s.store.PauseJob(ctx, job.ID, "job_mfa_proof_missing")
 			return AdminActor{}, ErrRecentMFARequired
 		}
-		if !RecentMFAValid(job.RecentMFAAt, s.now(), s.recentMFATTL()) {
+		if creator && !RecentMFAValid(job.RecentMFAAt, s.now(), s.recentMFATTL()) {
 			_ = s.store.PauseJob(ctx, job.ID, "job_mfa_proof_expired")
 			return AdminActor{}, ErrRecentMFARequired
 		}

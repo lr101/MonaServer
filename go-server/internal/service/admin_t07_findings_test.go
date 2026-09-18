@@ -840,6 +840,91 @@ func TestBulkTakeoverCannotUseCreatorMFAProof(t *testing.T) {
 	}
 }
 
+func TestBulkTakeoverUsesOwnFreshMFAWhenCreatorProofIsExpired(t *testing.T) {
+	newJob := func(t *testing.T) (*MemoryAdminStore, *AdminAudienceService, *AdminJob) {
+		t.Helper()
+		store := NewMemoryAdminStore()
+		targetID := uuid.New()
+		store.Users = append(store.Users, AdminUser{ID: targetID, Username: "target"})
+		creatorNow := time.Now().UTC()
+		creator := AdminActor{
+			ID: uuid.New(), State: "authenticated",
+			Capabilities: []string{"audience.preview", "security.revoke", "jobs.create"},
+			RecentMFAAt:  &creatorNow, RecentMFAAction: ActionRevokeSessions,
+		}
+		audience := NewAdminAudienceService(store)
+		preview, err := audience.Preview(context.Background(), creator, AudiencePreviewRequest{
+			Audience: Audience{Kind: AudienceSelected, Resource: AudienceAccounts, IDs: []uuid.UUID{targetID}},
+			Action:   AdminAction{Kind: ActionRevokeSessions, Reason: "operator recovery"},
+		})
+		if err != nil {
+			t.Fatalf("preview: %v", err)
+		}
+		creatorService := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
+		job, err := creatorService.Create(context.Background(), creator, AdminJobCreateRequest{
+			SnapshotID: preview.SnapshotID, PayloadHash: preview.PayloadHash, Action: preview.Action, IdempotencyKey: uuid.NewString(),
+		})
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		return store, audience, job
+	}
+
+	newTakeover := func() AdminActor {
+		takeoverNow := time.Now().UTC()
+		return AdminActor{
+			ID: uuid.New(), State: "authenticated",
+			Capabilities: []string{"security.revoke", "jobs.execute_all"},
+			RecentMFAAt:  &takeoverNow, RecentMFAAction: ActionRevokeSessions,
+		}
+	}
+
+	t.Run("fresh takeover proof satisfies freshness after creator proof expires", func(t *testing.T) {
+		store, audience, job := newJob(t)
+		old := time.Now().UTC().Add(-time.Hour)
+		stored := store.Jobs[job.ID]
+		stored.RecentMFAAt = &old
+		stored.RecentMFAAction = ActionRevokeSessions
+		store.Jobs[job.ID] = stored
+
+		takeover := newTakeover()
+		bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
+		bulk.SetActorReloader(staticAdminActorReloader{actor: takeover})
+		item, err := bulk.ProcessItem(context.Background(), takeover, job.ID, store.JobItems[job.ID][0].ID)
+		if err != nil || item == nil || item.Outcome != OutcomeSecured {
+			t.Fatalf("takeover with expired creator proof = %#v, %v; want secured", item, err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		change func(*AdminJob)
+	}{
+		{name: "missing creator proof", change: func(job *AdminJob) {
+			job.RecentMFAAt = nil
+			job.RecentMFAAction = ""
+		}},
+		{name: "mismatched creator proof", change: func(job *AdminJob) {
+			job.RecentMFAAction = ActionMarkCompromised
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, audience, job := newJob(t)
+			stored := store.Jobs[job.ID]
+			tc.change(&stored)
+			store.Jobs[job.ID] = stored
+
+			takeover := newTakeover()
+			bulk := NewAdminBulkService(store, audience, &AdminActionPorts{SessionRevoker: selfContainmentRevoker{}, Eligibility: readyEligibilityChecker{}})
+			bulk.SetActorReloader(staticAdminActorReloader{actor: takeover})
+			item, err := bulk.ProcessItem(context.Background(), takeover, job.ID, store.JobItems[job.ID][0].ID)
+			if !errors.Is(err, ErrRecentMFARequired) || item != nil {
+				t.Fatalf("takeover with %s = %#v, %v; want rejected", tc.name, item, err)
+			}
+		})
+	}
+}
+
 func TestBulkTakeoverResumeRequiresOwnActionBoundMFA(t *testing.T) {
 	store := NewMemoryAdminStore()
 	targetID := uuid.New()
