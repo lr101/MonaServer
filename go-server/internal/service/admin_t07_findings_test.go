@@ -436,6 +436,39 @@ func (s *delayedRenewalMemoryStore) CommitUnknownDeliveryAfterLeaseLoss(ctx cont
 	return s.MemoryAdminStore.CommitUnknownDeliveryAfterLeaseLoss(ctx, itemID, lease, operationID, audit)
 }
 
+type blockedRenewalMemoryStore struct {
+	*MemoryAdminStore
+	renewalStarted   chan struct{}
+	renewalRelease   chan struct{}
+	renewalResult    chan error
+	renewalStartOnce sync.Once
+}
+
+func (s *blockedRenewalMemoryStore) RenewJobItemLease(_ context.Context, itemID uuid.UUID, lease AdminJobLease, ttl time.Duration) (*AdminJobLease, error) {
+	s.renewalStartOnce.Do(func() { close(s.renewalStarted) })
+	<-s.renewalRelease
+	next, err := s.MemoryAdminStore.RenewJobItemLease(context.Background(), itemID, lease, ttl)
+	s.renewalResult <- err
+	return next, err
+}
+
+type returnAfterRenewalEmailSender struct {
+	renewalStarted <-chan struct{}
+	started        chan struct{}
+	returned       chan struct{}
+	startOnce      sync.Once
+	returnOnce     sync.Once
+	calls          atomic.Int32
+}
+
+func (s *returnAfterRenewalEmailSender) SendCampaignEmail(context.Context, uuid.UUID, uuid.UUID, AdminAction) (ActionResult, error) {
+	s.calls.Add(1)
+	s.startOnce.Do(func() { close(s.started) })
+	<-s.renewalStarted
+	s.returnOnce.Do(func() { close(s.returned) })
+	return ActionResult{Outcome: OutcomeProviderAccepted}, nil
+}
+
 func waitForBulkItemOutcome(t *testing.T, store *MemoryAdminStore, jobID, itemID uuid.UUID, want string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -464,6 +497,87 @@ func waitForBulkJobStatus(t *testing.T, store *MemoryAdminStore, jobID uuid.UUID
 		time.Sleep(time.Millisecond)
 	}
 	return false
+}
+
+func TestBulkProviderReturnDoesNotWaitForBlockedRenewalBeforeTerminalCommit(t *testing.T) {
+	base, audience, actor, job := makeCredentialJob(t, ActionEmail)
+	store := &blockedRenewalMemoryStore{
+		MemoryAdminStore: base,
+		renewalStarted:   make(chan struct{}),
+		renewalRelease:   make(chan struct{}),
+		renewalResult:    make(chan error, 1),
+	}
+	sender := &returnAfterRenewalEmailSender{
+		renewalStarted: store.renewalStarted,
+		started:        make(chan struct{}),
+		returned:       make(chan struct{}),
+	}
+	first := NewAdminBulkService(store, audience, &AdminActionPorts{Email: sender, Eligibility: readyEligibilityChecker{}})
+	first.SetActorReloader(staticAdminActorReloader{actor: actor})
+	first.SetWorkerID("worker-one")
+	first.SetLeaseTTL(20 * time.Millisecond)
+	itemID := store.JobItems[job.ID][0].ID
+	firstResult := make(chan struct {
+		item *AdminJobItem
+		err  error
+	}, 1)
+	go func() {
+		item, err := first.ProcessItem(context.Background(), actor, job.ID, itemID)
+		firstResult <- struct {
+			item *AdminJobItem
+			err  error
+		}{item: item, err: err}
+	}()
+	var releaseOnce sync.Once
+	releaseRenewal := func() { releaseOnce.Do(func() { close(store.renewalRelease) }) }
+	defer releaseRenewal()
+	select {
+	case <-sender.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider call did not start")
+	}
+	select {
+	case <-store.renewalStarted:
+	case <-time.After(time.Second):
+		t.Fatal("lease renewal did not start")
+	}
+	select {
+	case <-sender.returned:
+	case <-time.After(time.Second):
+		t.Fatal("provider did not return while renewal was blocked")
+	}
+
+	// Let the initial lease expire while the renewal adapter is still blocked.
+	time.Sleep(30 * time.Millisecond)
+	secondSender := &countingEmailSender{}
+	second := NewAdminBulkService(store, audience, &AdminActionPorts{Email: secondSender, Eligibility: readyEligibilityChecker{}})
+	second.SetActorReloader(staticAdminActorReloader{actor: actor})
+	second.SetWorkerID("worker-two")
+	second.SetLeaseTTL(20 * time.Millisecond)
+	secondItem, secondErr := second.ProcessItem(context.Background(), actor, job.ID, itemID)
+	if secondErr != nil || secondItem == nil || secondItem.Outcome != OutcomeProviderAccepted {
+		t.Fatalf("second worker result = %#v, %v; want first terminal outcome", secondItem, secondErr)
+	}
+	if secondSender.calls != 0 {
+		t.Fatalf("second worker calls = %d, want zero before first outcome", secondSender.calls)
+	}
+	releaseRenewal()
+	select {
+	case result := <-firstResult:
+		if result.err != nil || result.item == nil || result.item.Outcome != OutcomeProviderAccepted {
+			t.Fatalf("first worker result = %#v, %v; want provider accepted", result.item, result.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first worker did not terminalize before reclaim")
+	}
+	select {
+	case err := <-store.renewalResult:
+		if !errors.Is(err, ErrJobConflict) {
+			t.Fatalf("late renewal error = %v, want fenced conflict", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("blocked renewal did not finish")
+	}
 }
 
 func TestBulkLeaseLossCommitsTerminalUnknownAndBlocksReclaim(t *testing.T) {

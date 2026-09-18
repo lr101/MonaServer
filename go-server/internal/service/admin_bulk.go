@@ -1202,7 +1202,11 @@ func (s *AdminBulkService) executeWithRenewingLease(ctx context.Context, lease A
 			return run.result, ErrJobLeaseLost, state.get()
 		}
 		cancel()
-		<-done
+		// A renewal adapter may ignore cancellation while it is in flight.
+		// Do not wait for that call: the caller must reach the fenced finish
+		// CAS before this lease expires. Any late renewal still carries this
+		// token and fence, so the durable adapter rejects it after finish or
+		// reclaim rather than extending another worker's lease.
 		select {
 		case renewalErr := <-renewalErrors:
 			if ctx.Err() == nil && !errors.Is(renewalErr, context.Canceled) {
