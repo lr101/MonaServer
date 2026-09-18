@@ -106,6 +106,103 @@ void main() {
       );
     },
   );
+
+  test(
+    'logout clears the old CSRF and reboots pre-auth before the next login',
+    () async {
+      final client = _RecordingClient([
+        _response(200, {
+          'csrfToken': 'csrf-before-logout',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'pre_authentication',
+        }),
+        http.Response('', 204),
+        _response(200, {
+          'csrfToken': 'csrf-after-logout',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'pre_authentication',
+        }),
+        _response(202, {
+          'challengeId': 'challenge-after-logout',
+          'csrfToken': 'csrf-after-login',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'mfa_required',
+        }),
+      ]);
+      final adapter = AdminApiAdapter(
+        basePath: 'https://admin.example',
+        client: client,
+      );
+
+      await adapter.bootstrap();
+      await adapter.logout();
+      final challenge = await adapter.beginLogin(
+        username: 'operator',
+        password: 'password',
+      );
+
+      expect(challenge.challengeId, 'challenge-after-logout');
+      expect(client.requests.map((request) => request.method), [
+        'POST',
+        'POST',
+        'POST',
+        'POST',
+      ]);
+      expect(client.requests[1].url.path, '/api/v3/admin/session/logout');
+      expect(client.requests[1].headers['x-csrf-token'], 'csrf-before-logout');
+      expect(client.requests[2].url.path, '/api/v3/admin/session/bootstrap');
+      expect(client.requests[3].headers['x-csrf-token'], 'csrf-after-logout');
+    },
+  );
+
+  test(
+    'an unauthorized users response clears CSRF so the next login bootstraps',
+    () async {
+      final client = _RecordingClient([
+        _response(200, {
+          'csrfToken': 'csrf-before-expiry',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'pre_authentication',
+        }),
+        _response(401, {'error': 'expired'}),
+        _response(200, {
+          'csrfToken': 'csrf-after-expiry',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'pre_authentication',
+        }),
+        _response(202, {
+          'challengeId': 'challenge-after-expiry',
+          'csrfToken': 'csrf-after-login',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'mfa_required',
+        }),
+      ]);
+      final adapter = AdminApiAdapter(
+        basePath: 'https://admin.example',
+        client: client,
+      );
+
+      await adapter.bootstrap();
+      await expectLater(
+        adapter.listUsers(const AdminUserQuery()),
+        throwsA(
+          isA<AdminUsersTransportException>().having(
+            (error) => error.statusCode,
+            'status code',
+            401,
+          ),
+        ),
+      );
+      final challenge = await adapter.beginLogin(
+        username: 'operator',
+        password: 'password',
+      );
+
+      expect(challenge.challengeId, 'challenge-after-expiry');
+      expect(client.requests[2].url.path, '/api/v3/admin/session/bootstrap');
+      expect(client.requests[3].headers['x-csrf-token'], 'csrf-after-expiry');
+    },
+  );
 }
 
 http.Response _response(int statusCode, Map<String, Object?> body) =>

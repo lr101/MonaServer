@@ -46,6 +46,33 @@ void main() {
     },
   );
 
+  test(
+    'all matching preserves the visible search filter and account resource',
+    () {
+      final selection = AdminAudienceSelectionModel();
+      selection.setFilter(
+        const AdminAudienceFilter(search: 'alice', verifiedEmail: true),
+      );
+
+      selection.selectAllMatching();
+
+      expect(selection.audience.kind, AdminAudienceSelectionKind.filter);
+      expect(selection.audience.filter?.search, 'alice');
+      expect(selection.audience.filter?.verifiedEmail, isTrue);
+      expect(selection.audience.resource, AdminAudienceResource.accounts);
+    },
+  );
+
+  test('an unconstrained matching filter is not actionable', () {
+    final selection = AdminAudienceSelectionModel();
+
+    selection.setFilter(const AdminAudienceFilter());
+    selection.selectAllMatching();
+
+    expect(selection.audience.kind, AdminAudienceSelectionKind.filter);
+    expect(selection.audience.isActionable, isFalse);
+  });
+
   test('clearing selection returns a non-actionable selected audience', () {
     final selection = AdminAudienceSelectionModel();
     selection.toggleSelected('user-1');
@@ -54,5 +81,81 @@ void main() {
 
     expect(selection.audience.kind, AdminAudienceSelectionKind.selected);
     expect(selection.audience.isActionable, isFalse);
+  });
+
+  test(
+    'preview confirmation requires the exact audience, action, and payload',
+    () {
+      final audience = AdminAudienceSelection.selected(const {
+        'user-1',
+      }, resource: AdminAudienceResource.accounts);
+      const action = AdminAudienceAction(
+        kind: AdminAudienceActionKind.loginLink,
+      );
+      final preview = AdminAudiencePreview(
+        snapshotId: 'snapshot-1',
+        accountAudienceCount: 1,
+        eligibleRecipientCount: 1,
+        excludedCount: 0,
+        deviceDeliveryCount: 1,
+        expiresAt: DateTime.utc(2026, 1, 1, 1),
+        audience: audience,
+        action: action,
+        payloadHash: 'payload-hash-1',
+        resource: AdminAudienceResource.accounts,
+      );
+
+      expect(
+        preview.canConfirm(
+          DateTime.utc(2026, 1, 1),
+          audience,
+          action,
+          'payload-hash-1',
+        ),
+        isTrue,
+      );
+      expect(
+        preview.canConfirm(
+          DateTime.utc(2026, 1, 1),
+          AdminAudienceSelection.selected(const {
+            'user-1',
+          }, resource: AdminAudienceResource.reports),
+          action,
+          'payload-hash-1',
+        ),
+        isFalse,
+      );
+      expect(
+        preview.canConfirm(
+          DateTime.utc(2026, 1, 1),
+          audience,
+          const AdminAudienceAction(kind: AdminAudienceActionKind.email),
+          'payload-hash-1',
+        ),
+        isFalse,
+      );
+      expect(
+        preview.canConfirm(
+          DateTime.utc(2026, 1, 1),
+          audience,
+          action,
+          'payload-hash-2',
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test('ready previews without server binding cannot be confirmed', () {
+    final preview = AdminAudiencePreview(
+      snapshotId: 'snapshot-1',
+      accountAudienceCount: 1,
+      eligibleRecipientCount: 1,
+      excludedCount: 0,
+      deviceDeliveryCount: 1,
+      expiresAt: DateTime.utc(2026, 1, 1, 1),
+    );
+
+    expect(preview.canConfirm(DateTime.utc(2026, 1, 1)), isFalse);
   });
 }

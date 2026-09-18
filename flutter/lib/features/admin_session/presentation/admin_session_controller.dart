@@ -1,5 +1,7 @@
-import 'admin_session_models.dart';
-import 'admin_session_ports.dart';
+import 'dart:async';
+
+import '../domain/admin_session_models.dart';
+import '../domain/admin_session_ports.dart';
 
 typedef AdminSessionListener = void Function(AdminSessionState state);
 
@@ -13,6 +15,9 @@ final class AdminSessionController {
   final AdminSessionTransport transport;
   final _listeners = <AdminSessionListener>{};
   AdminSessionState _state = const AdminSessionState.signedOut();
+  Future<AdminBootstrap>? _preAuthBootstrap;
+  Future<void>? _logoutInFlight;
+  int _bootstrapGeneration = 0;
   int _operation = 0;
   bool _disposed = false;
 
@@ -25,11 +30,13 @@ final class AdminSessionController {
 
   Future<void> restore() async {
     if (_disposed) return;
+    await _waitForLogout();
+    if (_disposed) return;
     final operation = ++_operation;
     _emit(const AdminSessionState.restoring());
     try {
       // Bootstrap establishes the pre-authentication CSRF cookie/header pair.
-      await transport.bootstrap();
+      await _ensurePreAuth();
       if (!_isCurrent(operation)) return;
       final session = await transport.restore();
       if (!_isCurrent(operation)) return;
@@ -64,9 +71,15 @@ final class AdminSessionController {
       );
       return;
     }
+    await _waitForLogout();
+    if (_disposed) return;
     final operation = ++_operation;
     _emit(const AdminSessionState(phase: AdminSessionPhase.restoring));
     try {
+      // This also handles the first login after logout or an expired 401. The
+      // shared future prevents a background expiry reset racing this login.
+      await _ensurePreAuth();
+      if (!_isCurrent(operation)) return;
       final challenge = await transport.beginLogin(
         username: normalizedUsername,
         password: password,
@@ -136,15 +149,22 @@ final class AdminSessionController {
 
   /// Called by authenticated feature adapters when the cookie is rejected.
   /// A 401 expires all admin work; no request is retried with a consumer token.
-  void reportUnauthorized() {
+  Future<void> reportUnauthorized() async {
     if (_disposed) return;
+    final logout = _logoutInFlight;
+    if (logout != null) {
+      await logout;
+      return;
+    }
     ++_operation;
+    _invalidatePreAuth();
     _emit(
       const AdminSessionState(
         phase: AdminSessionPhase.expired,
         message: 'Your admin session has expired.',
       ),
     );
+    await _rebootstrapPreAuth();
   }
 
   /// Called for 403 responses. Capability denial retains the cookie session so
@@ -164,15 +184,53 @@ final class AdminSessionController {
     _emit(_state.copyWith(clearMessage: true, capabilityDenied: false));
   }
 
-  Future<void> logout() async {
-    if (_disposed) return;
+  Future<void> logout() {
+    if (_disposed) return Future<void>.value();
+    final pending = _logoutInFlight;
+    if (pending != null) return pending;
+
     ++_operation;
+    _invalidatePreAuth();
     _emit(const AdminSessionState.signedOut());
+
+    final logout = _performLogout();
+    _logoutInFlight = logout;
+    logout.then<void>(
+      (_) {
+        if (identical(_logoutInFlight, logout)) _logoutInFlight = null;
+      },
+      onError: (Object _, StackTrace __) {
+        if (identical(_logoutInFlight, logout)) _logoutInFlight = null;
+      },
+    );
+    return logout;
+  }
+
+  Future<void> _performLogout() async {
+    Object? failure;
     try {
       await transport.logout();
-    } catch (_) {
-      // Local state is already signed out. The adapter owns cookie revocation;
-      // no transport detail belongs in the next login screen.
+    } catch (error) {
+      failure = error;
+    }
+
+    // Re-establish a fresh pre-authentication CSRF/cookie pair even when
+    // revocation returned 401/503. This keeps the next login usable while the
+    // UI still reports that sign-out did not complete cleanly.
+    try {
+      await _ensurePreAuth();
+    } catch (error) {
+      failure ??= error;
+    }
+
+    if (!_isCurrent(_operation)) return;
+    if (failure != null) {
+      _emit(
+        const AdminSessionState(
+          phase: AdminSessionPhase.signedOut,
+          message: 'Unable to complete admin sign-out. Try again.',
+        ),
+      );
     }
   }
 
@@ -183,16 +241,60 @@ final class AdminSessionController {
     _listeners.clear();
   }
 
+  Future<AdminBootstrap> _ensurePreAuth() {
+    final pending = _preAuthBootstrap;
+    if (pending != null) return pending;
+
+    final generation = _bootstrapGeneration;
+    final bootstrap = transport.bootstrap();
+    _preAuthBootstrap = bootstrap;
+    bootstrap.then<void>(
+      (_) {
+        if (generation == _bootstrapGeneration &&
+            identical(_preAuthBootstrap, bootstrap)) {
+          _preAuthBootstrap = null;
+        }
+      },
+      onError: (Object _, StackTrace _) {
+        if (generation == _bootstrapGeneration &&
+            identical(_preAuthBootstrap, bootstrap)) {
+          _preAuthBootstrap = null;
+        }
+      },
+    );
+    return bootstrap;
+  }
+
+  Future<void> _waitForLogout() async {
+    final logout = _logoutInFlight;
+    if (logout != null) await logout;
+  }
+
+  void _invalidatePreAuth() {
+    ++_bootstrapGeneration;
+    _preAuthBootstrap = null;
+  }
+
+  Future<void> _rebootstrapPreAuth() async {
+    try {
+      await _ensurePreAuth();
+    } catch (_) {
+      // The expired state remains visible and the next login retries bootstrap.
+    }
+  }
+
   bool _isCurrent(int operation) => !_disposed && operation == _operation;
 
   void _handleFailure(AdminTransportException error, {bool restoring = false}) {
     if (error.isUnauthorized) {
+      _invalidatePreAuth();
       _emit(
         const AdminSessionState(
           phase: AdminSessionPhase.expired,
           message: 'Your admin session has expired.',
         ),
       );
+      unawaited(_rebootstrapPreAuth());
     } else if (error.isForbidden) {
       if (_state.isAuthenticated) {
         reportCapabilityDenied();

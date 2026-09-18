@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../domain/admin_session_controller.dart';
+import 'admin_session_controller.dart';
 
 final class AdminMfaScreen extends StatefulWidget {
   const AdminMfaScreen({required this.controller, super.key});

@@ -1,5 +1,5 @@
-import 'admin_user_models.dart';
-import 'admin_user_ports.dart';
+import '../domain/admin_user_models.dart';
+import '../domain/admin_user_ports.dart';
 
 typedef AdminUsersListener = void Function(AdminUsersState state);
 
@@ -67,7 +67,8 @@ final class AdminUsersController {
   final void Function()? onCapabilityDenied;
   final _listeners = <AdminUsersListener>{};
   AdminUsersState _state = const AdminUsersState();
-  int _requestGeneration = 0;
+  int _listGeneration = 0;
+  int _detailGeneration = 0;
   bool _disposed = false;
 
   AdminUsersState get state => _state;
@@ -80,34 +81,50 @@ final class AdminUsersController {
   Future<void> searchUsers(String rawQuery) async {
     if (_disposed) return;
     final query = rawQuery.trim();
-    final generation = ++_requestGeneration;
-    _emit(AdminUsersState(query: query, loading: true));
+    final generation = ++_listGeneration;
+    // A new visible result set cannot keep showing a detail from the old one.
+    ++_detailGeneration;
+    _emit(
+      _state.copyWith(
+        query: query,
+        users: const [],
+        clearNextCursor: true,
+        selectedIds: const {},
+        loading: true,
+        loadingDetail: false,
+        clearSelectedDetail: true,
+        clearError: true,
+      ),
+    );
     try {
       final page = await repository.listUsers(AdminUserQuery(search: query));
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentList(generation)) return;
       _emit(
-        AdminUsersState(
+        _state.copyWith(
           query: query,
           users: page.items,
           nextCursor: page.nextCursor,
+          clearNextCursor: page.nextCursor == null,
           selectedIds: const {},
+          loading: false,
         ),
       );
     } catch (error) {
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentList(generation)) return;
       _handleError(error);
     }
   }
 
   Future<void> loadNextPage() async {
     if (_disposed || _state.loading || _state.nextCursor == null) return;
-    final generation = _requestGeneration;
+    final generation = _listGeneration;
+    final cursor = _state.nextCursor;
     _emit(_state.copyWith(loading: true, clearError: true));
     try {
       final page = await repository.listUsers(
-        AdminUserQuery(search: _state.query, cursor: _state.nextCursor),
+        AdminUserQuery(search: _state.query, cursor: cursor),
       );
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentList(generation)) return;
       _emit(
         _state.copyWith(
           users: [..._state.users, ...page.items],
@@ -117,7 +134,7 @@ final class AdminUsersController {
         ),
       );
     } catch (error) {
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentList(generation)) return;
       _handleError(error);
     }
   }
@@ -131,7 +148,7 @@ final class AdminUsersController {
 
   Future<void> loadDetails(String userId) async {
     if (_disposed) return;
-    final generation = ++_requestGeneration;
+    final generation = ++_detailGeneration;
     _emit(
       _state.copyWith(
         loadingDetail: true,
@@ -141,7 +158,7 @@ final class AdminUsersController {
     );
     try {
       final details = await repository.getUser(userId);
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentDetail(generation)) return;
       _emit(
         _state.copyWith(
           selectedDetail: details,
@@ -151,7 +168,7 @@ final class AdminUsersController {
         ),
       );
     } catch (error) {
-      if (!_isCurrent(generation)) return;
+      if (!_isCurrentDetail(generation)) return;
       _handleError(error, detail: true);
     }
   }
@@ -159,20 +176,24 @@ final class AdminUsersController {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    ++_requestGeneration;
+    ++_listGeneration;
+    ++_detailGeneration;
     _listeners.clear();
   }
 
-  bool _isCurrent(int generation) =>
-      !_disposed && generation == _requestGeneration;
+  bool _isCurrentList(int generation) =>
+      !_disposed && generation == _listGeneration;
+
+  bool _isCurrentDetail(int generation) =>
+      !_disposed && generation == _detailGeneration;
 
   void _handleError(Object error, {bool detail = false}) {
     if (_isUnauthorized(error)) {
       onUnauthorized?.call();
       _emit(
         _state.copyWith(
-          loading: false,
-          loadingDetail: false,
+          loading: detail ? null : false,
+          loadingDetail: detail ? false : null,
           error: 'Your admin session has expired.',
         ),
       );
@@ -182,8 +203,8 @@ final class AdminUsersController {
       onCapabilityDenied?.call();
       _emit(
         _state.copyWith(
-          loading: false,
-          loadingDetail: false,
+          loading: detail ? null : false,
+          loadingDetail: detail ? false : null,
           error: 'You do not have permission to view this information.',
         ),
       );
@@ -191,8 +212,8 @@ final class AdminUsersController {
     }
     _emit(
       _state.copyWith(
-        loading: false,
-        loadingDetail: false,
+        loading: detail ? null : false,
+        loadingDetail: detail ? false : null,
         error: detail
             ? 'User details are unavailable.'
             : 'Users are unavailable. Try again.',

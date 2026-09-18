@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../admin_audience/domain/admin_audience_models.dart';
 import '../../admin_audience/presentation/admin_audience_confirmation.dart';
 import '../domain/admin_user_models.dart';
-import '../domain/admin_users_controller.dart';
+import 'admin_users_controller.dart';
 
 final class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({
@@ -73,6 +73,9 @@ final class _AdminUsersScreenState extends State<AdminUsersScreen> {
         );
         final tools = _AudienceTools(
           selection: _selection,
+          visibleFilter: AdminAudienceFilter(
+            search: state.query.isEmpty ? null : state.query,
+          ),
           onChanged: () => setState(() {}),
         );
         if (!wide) {
@@ -317,9 +320,14 @@ final class _UserRow extends StatelessWidget {
 }
 
 final class _AudienceTools extends StatelessWidget {
-  const _AudienceTools({required this.selection, required this.onChanged});
+  const _AudienceTools({
+    required this.selection,
+    required this.visibleFilter,
+    required this.onChanged,
+  });
 
   final AdminAudienceSelectionModel selection;
+  final AdminAudienceFilter visibleFilter;
   final VoidCallback onChanged;
 
   @override
@@ -346,7 +354,7 @@ final class _AudienceTools extends StatelessWidget {
                 OutlinedButton.icon(
                   key: const ValueKey('admin-audience-all'),
                   onPressed: () {
-                    selection.selectAllMatching();
+                    selection.selectAllEligible();
                     onChanged();
                   },
                   icon: const Icon(Icons.select_all),
@@ -355,7 +363,7 @@ final class _AudienceTools extends StatelessWidget {
                 OutlinedButton.icon(
                   key: const ValueKey('admin-audience-filter'),
                   onPressed: () {
-                    selection.setFilter(const AdminAudienceFilter());
+                    selection.setFilter(visibleFilter);
                     onChanged();
                   },
                   icon: const Icon(Icons.filter_alt_outlined),

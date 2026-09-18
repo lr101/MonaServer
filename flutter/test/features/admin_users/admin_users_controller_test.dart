@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:buff_lisa/features/admin_users/domain/admin_user_models.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_ports.dart';
-import 'package:buff_lisa/features/admin_users/domain/admin_users_controller.dart';
+import 'package:buff_lisa/features/admin_users/presentation/admin_users_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -53,6 +53,31 @@ void main() {
     expect(controller.state.selectedIds, isEmpty);
     expect(controller.state.users.single.id, 'two');
   });
+
+  test(
+    'overlapping pagination and detail requests both settle loading state',
+    () async {
+      final nextPage = Completer<AdminUserPage>();
+      final details = Completer<AdminUserDetails?>();
+      final repository = _OverlappingAdminUsersRepository(nextPage, details);
+      final controller = AdminUsersController(repository);
+
+      await controller.searchUsers('');
+      final pageLoad = controller.loadNextPage();
+      final detailLoad = controller.loadDetails('one');
+
+      nextPage.complete(AdminUserPage(items: [_user('two')]));
+      await pageLoad;
+      expect(controller.state.loading, isFalse);
+      expect(controller.state.loadingDetail, isTrue);
+
+      details.complete(_details('one'));
+      await detailLoad;
+      expect(controller.state.loading, isFalse);
+      expect(controller.state.loadingDetail, isFalse);
+      expect(controller.state.selectedDetail?.id, 'one');
+    },
+  );
 }
 
 AdminUserRecord _user(String id) => AdminUserRecord(
@@ -96,3 +121,41 @@ final class _SequencedAdminUsersRepository implements AdminUsersRepository {
   Future<AdminUserPage> listUsers(AdminUserQuery query) =>
       results[query.search]!;
 }
+
+final class _OverlappingAdminUsersRepository implements AdminUsersRepository {
+  _OverlappingAdminUsersRepository(this.nextPage, this.details);
+
+  final Completer<AdminUserPage> nextPage;
+  final Completer<AdminUserDetails?> details;
+  var firstCall = true;
+
+  @override
+  Future<AdminUserDetails?> getUser(String userId) => details.future;
+
+  @override
+  Future<AdminUserPage> listUsers(AdminUserQuery query) {
+    if (firstCall) {
+      firstCall = false;
+      return Future.value(
+        AdminUserPage(items: [_user('one')], nextCursor: 'next'),
+      );
+    }
+    return nextPage.future;
+  }
+}
+
+AdminUserDetails _details(String id) => AdminUserDetails(
+  id: id,
+  username: id,
+  email: '$id@example.com',
+  emailVerified: true,
+  securityStatus: AdminSecurityStatus.normal,
+  createdAt: DateTime.utc(2026, 1, 1),
+  isAdmin: false,
+  passwordDisabled: false,
+  passwordResetRequired: false,
+  authGeneration: 0,
+  eligibilityReasons: const [],
+  communicationOptOut: false,
+  registeredDeviceCount: 1,
+);

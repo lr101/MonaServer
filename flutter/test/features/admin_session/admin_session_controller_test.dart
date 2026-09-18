@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:buff_lisa/features/admin_session/domain/admin_session_controller.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_models.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_ports.dart';
+import 'package:buff_lisa/features/admin_session/presentation/admin_session_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -68,6 +68,62 @@ void main() {
   });
 
   test(
+    'logout reports a transport failure after restoring pre-auth state',
+    () async {
+      final transport = _FakeAdminSessionTransport(
+        logoutError: const AdminTransportException(503),
+      );
+      final controller = AdminSessionController(transport);
+
+      await controller.logout();
+
+      expect(controller.state.phase, AdminSessionPhase.signedOut);
+      expect(
+        controller.state.message,
+        'Unable to complete admin sign-out. Try again.',
+      );
+      expect(transport.calls, ['logout', 'bootstrap']);
+    },
+  );
+
+  test('401 expiry reboots pre-auth and a later login can proceed', () async {
+    final transport = _FakeAdminSessionTransport(
+      restoredError: const AdminTransportException(401),
+    );
+    final controller = AdminSessionController(transport);
+
+    await controller.restore();
+    await Future<void>.delayed(Duration.zero);
+    await controller.beginLogin('operator', 'password');
+
+    expect(controller.state.phase, AdminSessionPhase.mfaRequired);
+    expect(
+      transport.calls.where((call) => call == 'bootstrap').length,
+      greaterThanOrEqualTo(2),
+    );
+  });
+
+  test(
+    'a login started during logout waits for the fresh CSRF bootstrap',
+    () async {
+      final logout = Completer<void>();
+      final transport = _FakeAdminSessionTransport(logoutFuture: logout.future);
+      final controller = AdminSessionController(transport);
+
+      final logoutRequest = controller.logout();
+      await Future<void>.delayed(Duration.zero);
+      final loginRequest = controller.beginLogin('operator', 'password');
+
+      expect(transport.calls, ['logout']);
+      logout.complete();
+      await Future.wait([logoutRequest, loginRequest]);
+
+      expect(transport.calls, ['logout', 'bootstrap', 'login']);
+      expect(controller.state.phase, AdminSessionPhase.mfaRequired);
+    },
+  );
+
+  test(
     'passwords, MFA codes, and CSRF values never appear in state text',
     () async {
       final transport = _FakeAdminSessionTransport(
@@ -108,12 +164,16 @@ final class _FakeAdminSessionTransport implements AdminSessionTransport {
     this.restored,
     this.restoredError,
     Future<AdminLoginChallenge>? loginFuture,
+    this.logoutError,
+    this.logoutFuture,
   }) : _loginFuture = loginFuture;
 
   final List<String> calls = [];
   final AdminSessionSnapshot? restored;
   final Object? restoredError;
   final Future<AdminLoginChallenge>? _loginFuture;
+  final Object? logoutError;
+  final Future<void>? logoutFuture;
 
   @override
   Future<AdminBootstrap> bootstrap() async {
@@ -150,5 +210,9 @@ final class _FakeAdminSessionTransport implements AdminSessionTransport {
   }
 
   @override
-  Future<void> logout() async => calls.add('logout');
+  Future<void> logout() async {
+    calls.add('logout');
+    if (logoutError != null) throw logoutError!;
+    if (logoutFuture != null) await logoutFuture;
+  }
 }

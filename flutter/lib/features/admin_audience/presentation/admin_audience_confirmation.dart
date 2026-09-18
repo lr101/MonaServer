@@ -8,6 +8,8 @@ final class AdminAudienceConfirmation extends StatelessWidget {
   const AdminAudienceConfirmation({
     required this.selection,
     this.preview,
+    this.action,
+    this.payloadHash,
     this.loading = false,
     this.onPreview,
     this.onConfirm,
@@ -17,6 +19,8 @@ final class AdminAudienceConfirmation extends StatelessWidget {
 
   final AdminAudienceSelection selection;
   final AdminAudiencePreview? preview;
+  final AdminAudienceAction? action;
+  final String? payloadHash;
   final bool loading;
   final VoidCallback? onPreview;
   final VoidCallback? onConfirm;
@@ -27,11 +31,14 @@ final class AdminAudienceConfirmation extends StatelessWidget {
     final theme = Theme.of(context);
     final canConfirm =
         selection.isActionable &&
-        (preview?.canConfirm(now) ?? false) &&
+        (preview?.canConfirm(now, selection, action, payloadHash) ?? false) &&
         !loading;
     final hasEmptySelection =
         selection.kind == AdminAudienceSelectionKind.selected &&
         selection.selectedIds.isEmpty;
+    final hasUnconstrainedFilter =
+        selection.kind == AdminAudienceSelectionKind.filter &&
+        !selection.isActionable;
 
     return Card(
       key: const ValueKey('admin-audience-confirmation'),
@@ -66,6 +73,13 @@ final class AdminAudienceConfirmation extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Select at least one account.',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ],
+            if (hasUnconstrainedFilter) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Add a search or filter before using all matching accounts.',
                 style: TextStyle(color: theme.colorScheme.error),
               ),
             ],

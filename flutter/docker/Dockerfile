@@ -4,8 +4,8 @@
 # Install the exact stable SDK used by the repository.
 FROM debian:bookworm-slim AS build
 
-ARG FLUTTER_VERSION=3.47.3
-ARG FLUTTER_SHA256=988665565cad9091db1baa54bf6d3868bb40e29719592f3c3a164deefd4208e1
+ARG FLUTTER_VERSION=3.47.4
+ARG FLUTTER_SHA256=5b45f0ceda99b9bebdc873e7e69f6450aeb4c30f454b505e2e62fc9255a907d3
 
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PATH=${FLUTTER_ROOT}/bin:${FLUTTER_ROOT}/bin/cache/dart-sdk/bin:${PATH}

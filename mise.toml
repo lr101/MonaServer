@@ -76,6 +76,11 @@ else
     --target lib/main_admin.dart \
     --output "$admin_output"
 fi
+cp web_admin/index.html "$admin_output/index.html"
+cp web_admin/admin-manifest.json "$admin_output/admin-manifest.json"
+cp web_admin/admin-logo.svg "$admin_output/admin-logo.svg"
+cp web_admin/admin_splash.js "$admin_output/admin_splash.js"
+bash docker/test_admin_web_build.sh "$admin_output"
 """
 
 [tasks.flutter-playwright-setup]

@@ -22,7 +22,7 @@ The specification is the behavioral authority. This plan allocates work; a task 
 | `flutter/lib/data/config/openapi_config.dart` | Per-session client, serialized refresh, one 401 replay, disposal fences; 403 application failures do not trigger refresh. Preserve this. |
 | `flutter/lib/app/lifecycle/sync_lifecycle.dart`, `core/sync/sync_coordinator.dart` | Own automatic session/resume sync and serialization; feature screens must not start duplicate sync. |
 | `flutter/ARCHITECTURE.md`, `test/architecture_test.dart` | One Flutter package and target feature boundaries. Auth remains legacy; new isolated features get boundaries without forcing a whole auth migration. |
-| `mise.toml`, `.github/workflows/build-flutter.yml` | Local pins are Go 1.27.1, Flutter 3.47.4, Node 24.21.0, sqlc 1.31.1. Flutter CI/docs still name 3.47.3: reconcile build configuration in T10 before claiming a single toolchain, without an unrelated SDK upgrade. |
+| `mise.toml`, `.github/workflows/build-flutter.yml` | Local and release configuration pins are Go 1.27.1, Flutter 3.47.4, Node 24.21.0, sqlc 1.31.1. T10 records the Flutter 3.47.4 reconciliation without an unrelated SDK upgrade. |
 
 ## 2. Global constraints and coordination
 

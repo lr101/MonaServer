@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../domain/admin_session_controller.dart';
+import 'admin_session_controller.dart';
 
 final class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({required this.controller, super.key});

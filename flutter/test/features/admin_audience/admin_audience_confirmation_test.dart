@@ -39,6 +39,12 @@ void main() {
       excludedCount: 1,
       deviceDeliveryCount: 5,
       expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      audience: AdminAudienceSelection.selected(const {'user-1', 'user-2'}),
+      action: const AdminAudienceAction(
+        kind: AdminAudienceActionKind.loginLink,
+      ),
+      payloadHash: 'payload-hash-1',
+      resource: AdminAudienceResource.accounts,
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -48,6 +54,10 @@ void main() {
               'user-1',
               'user-2',
             }),
+            action: const AdminAudienceAction(
+              kind: AdminAudienceActionKind.loginLink,
+            ),
+            payloadHash: 'payload-hash-1',
             preview: preview,
             onConfirm: () => confirmed = true,
           ),
@@ -60,5 +70,78 @@ void main() {
     expect(find.text('1 excluded'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('admin-audience-confirm')));
     expect(confirmed, isTrue);
+  });
+
+  testWidgets('confirmation rejects a preview bound to another audience', (
+    tester,
+  ) async {
+    final preview = AdminAudiencePreview(
+      snapshotId: 'snapshot-1',
+      accountAudienceCount: 1,
+      eligibleRecipientCount: 1,
+      excludedCount: 0,
+      deviceDeliveryCount: 1,
+      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      audience: AdminAudienceSelection.selected(const {'user-1'}),
+      action: const AdminAudienceAction(
+        kind: AdminAudienceActionKind.loginLink,
+      ),
+      payloadHash: 'payload-hash-1',
+      resource: AdminAudienceResource.accounts,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminAudienceConfirmation(
+            selection: AdminAudienceSelection.selected(const {'user-2'}),
+            action: const AdminAudienceAction(
+              kind: AdminAudienceActionKind.loginLink,
+            ),
+            payloadHash: 'payload-hash-1',
+            preview: preview,
+            onConfirm: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.byKey(const ValueKey('admin-audience-confirm')),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('confirmation rejects an unconstrained matching filter', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminAudienceConfirmation(
+            selection: AdminAudienceSelection.filter(
+              const AdminAudienceFilter(),
+            ),
+            onConfirm: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Add a search or filter before using all matching accounts.'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.byKey(const ValueKey('admin-audience-confirm')),
+          )
+          .onPressed,
+      isNull,
+    );
   });
 }

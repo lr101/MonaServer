@@ -1,7 +1,8 @@
 import 'package:buff_lisa/app/admin/admin_app.dart';
-import 'package:buff_lisa/features/admin_session/domain/admin_session_controller.dart';
+import 'package:buff_lisa/app/admin/admin_bootstrap.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_models.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_ports.dart';
+import 'package:buff_lisa/features/admin_session/presentation/admin_session_controller.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_models.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_ports.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +106,25 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('admin composition mounts without consumer initialization work', (
+    tester,
+  ) async {
+    final sessionTransport = _FakeAdminSessionTransport();
+    final usersRepository = _FakeAdminUsersRepository();
+
+    await tester.pumpWidget(
+      createAdminApplication(
+        sessionTransport: sessionTransport,
+        usersRepository: usersRepository,
+        autoRestore: false,
+      ),
+    );
+
+    expect(find.text('Admin sign in'), findsOneWidget);
+    expect(sessionTransport.calls, isEmpty);
+    expect(usersRepository.calls, isEmpty);
+  });
 }
 
 AdminSessionSnapshot _session() => AdminSessionSnapshot(
@@ -123,12 +143,16 @@ final class _FakeAdminSessionTransport implements AdminSessionTransport {
   _FakeAdminSessionTransport({this.restored});
 
   final AdminSessionSnapshot? restored;
+  final calls = <String>[];
 
   @override
-  Future<AdminBootstrap> bootstrap() async => AdminBootstrap(
-    csrfToken: 'csrf-secret',
-    expiresAt: DateTime.utc(2026, 1, 1, 1),
-  );
+  Future<AdminBootstrap> bootstrap() async {
+    calls.add('bootstrap');
+    return AdminBootstrap(
+      csrfToken: 'csrf-secret',
+      expiresAt: DateTime.utc(2026, 1, 1, 1),
+    );
+  }
 
   @override
   Future<AdminLoginChallenge> beginLogin({
@@ -146,17 +170,27 @@ final class _FakeAdminSessionTransport implements AdminSessionTransport {
   }) async => _session();
 
   @override
-  Future<AdminSessionSnapshot?> restore() async => restored;
+  Future<AdminSessionSnapshot?> restore() async {
+    calls.add('restore');
+    return restored;
+  }
 
   @override
   Future<void> logout() async {}
 }
 
 final class _FakeAdminUsersRepository implements AdminUsersRepository {
-  @override
-  Future<AdminUserDetails?> getUser(String userId) async => null;
+  final calls = <String>[];
 
   @override
-  Future<AdminUserPage> listUsers(AdminUserQuery query) async =>
-      AdminUserPage(items: const []);
+  Future<AdminUserDetails?> getUser(String userId) async {
+    calls.add('details');
+    return null;
+  }
+
+  @override
+  Future<AdminUserPage> listUsers(AdminUserQuery query) async {
+    calls.add('users');
+    return AdminUserPage(items: const []);
+  }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../features/admin_session/domain/admin_session_controller.dart';
 import '../../features/admin_session/domain/admin_session_models.dart';
+import '../../features/admin_session/presentation/admin_session_controller.dart';
 import '../../features/admin_users/domain/admin_user_ports.dart';
-import '../../features/admin_users/domain/admin_users_controller.dart';
+import '../../features/admin_users/presentation/admin_users_controller.dart';
 import '../../features/admin_users/presentation/admin_users_screen.dart';
 
 enum AdminRoute { overview, users, reports, jobs }

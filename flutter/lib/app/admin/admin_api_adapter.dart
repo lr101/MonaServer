@@ -37,6 +37,9 @@ final class AdminApiAdapter
     try {
       final response = await _sessionApi.bootstrapAdminSession();
       if (response == null) throw const AdminTransportException(502);
+      if (response.csrfToken.trim().isEmpty) {
+        throw const AdminTransportException(428);
+      }
       _csrfToken = response.csrfToken;
       return AdminBootstrap(
         csrfToken: response.csrfToken,
@@ -53,11 +56,18 @@ final class AdminApiAdapter
     required String password,
   }) async {
     _checkOpen();
-    final csrfToken = _csrfToken;
-    if (csrfToken == null || csrfToken.isEmpty) {
-      throw const AdminTransportException(428);
-    }
     try {
+      var csrfToken = _csrfToken;
+      // Logout and an expired session deliberately clear the in-memory CSRF
+      // value. A login is allowed to start a fresh pre-auth cookie lifecycle
+      // instead of surfacing an opaque "precondition" failure to the user.
+      if (csrfToken == null || csrfToken.isEmpty) {
+        final bootstrap = await this.bootstrap();
+        if (bootstrap.csrfToken.isEmpty) {
+          throw const AdminTransportException(428);
+        }
+        csrfToken = bootstrap.csrfToken;
+      }
       final response = await _sessionApi.adminSessionLogin(
         csrfToken,
         AdminSessionLoginRequestDto(username: username, password: password),
@@ -164,14 +174,26 @@ final class AdminApiAdapter
   }
 
   AdminTransportException _mapSessionError(Object error) {
-    if (error is AdminTransportException) return error;
-    if (error is ApiException) return AdminTransportException(error.code);
+    if (error is AdminTransportException) {
+      if (error.isUnauthorized) _csrfToken = null;
+      return error;
+    }
+    if (error is ApiException) {
+      if (error.code == 401) _csrfToken = null;
+      return AdminTransportException(error.code);
+    }
     return const AdminTransportException(503);
   }
 
   AdminUsersTransportException _mapUsersError(Object error) {
-    if (error is AdminUsersTransportException) return error;
-    if (error is ApiException) return AdminUsersTransportException(error.code);
+    if (error is AdminUsersTransportException) {
+      if (error.isUnauthorized) _csrfToken = null;
+      return error;
+    }
+    if (error is ApiException) {
+      if (error.code == 401) _csrfToken = null;
+      return AdminUsersTransportException(error.code);
+    }
     return const AdminUsersTransportException(503);
   }
 
