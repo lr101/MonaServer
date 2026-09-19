@@ -83,6 +83,26 @@ final class AdminCampaignController {
   void removeListener(AdminCampaignListener listener) =>
       _listeners.remove(listener);
 
+  /// A changed composer draft can no longer use a preview bound to prior text.
+  void updateDraft(AdminAudienceSelection audience, AdminCampaignDraft draft) {
+    if (_expired ||
+        (_state.audience == audience && _state.draft?.action == draft.action)) {
+      return;
+    }
+    ++_generation;
+    _emit(
+      _state.copyWith(
+        audience: audience,
+        draft: draft,
+        clearPreview: true,
+        clearCommitIdempotencyKey: true,
+        clearJobId: true,
+        submitting: false,
+        clearMessage: true,
+      ),
+    );
+  }
+
   Future<void> preview(
     AdminAudienceSelection audience,
     AdminCampaignDraft draft,

@@ -5,6 +5,21 @@ enum AdminAuditOutcome {
   skipped,
   failed,
   cancelled,
+  providerAccepted,
+  unknownDelivery,
+  unknown;
+
+  static AdminAuditOutcome fromWire(String value) => switch (value) {
+    'completed' => AdminAuditOutcome.completed,
+    'secured' => AdminAuditOutcome.secured,
+    'queued' => AdminAuditOutcome.queued,
+    'skipped' => AdminAuditOutcome.skipped,
+    'failed' => AdminAuditOutcome.failed,
+    'cancelled' => AdminAuditOutcome.cancelled,
+    'provider_accepted' => AdminAuditOutcome.providerAccepted,
+    'unknown_delivery' => AdminAuditOutcome.unknownDelivery,
+    _ => AdminAuditOutcome.unknown,
+  };
 }
 
 /// A safe, displayable audit event. Secret-bearing values and provider payloads
@@ -34,6 +49,9 @@ final class AdminAuditEvent {
         AdminAuditOutcome.skipped => 'skipped',
         AdminAuditOutcome.failed => 'failed to process',
         AdminAuditOutcome.cancelled => 'cancelled work for',
+        AdminAuditOutcome.providerAccepted => 'recorded provider acceptance for',
+        AdminAuditOutcome.unknownDelivery => 'recorded unconfirmed delivery for',
+        AdminAuditOutcome.unknown => 'recorded an unknown outcome for',
       }} $targetLabel';
 
   @override

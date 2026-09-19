@@ -44,9 +44,18 @@ final class _AdminJobsScreenState extends State<AdminJobsScreen> {
           const SizedBox(height: 12),
           Text(state.message!, key: const ValueKey('admin-jobs-message')),
         ],
+        Text(
+          state.loadedAt == null
+              ? 'Job data has not been refreshed yet.'
+              : 'Last refreshed: ${state.loadedAt!.toUtc().toIso8601String()}',
+        ),
         const SizedBox(height: 12),
         for (final job in state.jobs)
-          _JobCard(job: job, controller: widget.controller),
+          _JobCard(
+            job: job,
+            controller: widget.controller,
+            onCancel: () => _confirmCancellation(job.id),
+          ),
         if (state.nextCursor != null)
           OutlinedButton(
             onPressed: state.loading ? null : widget.controller.loadNextPage,
@@ -60,13 +69,45 @@ final class _AdminJobsScreenState extends State<AdminJobsScreen> {
       ],
     );
   }
+
+  Future<void> _confirmCancellation(String jobId) async {
+    widget.controller.requestCancellation(jobId);
+    final acknowledged = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel pending work?'),
+        content: const Text(
+          'Cancellation stops pending work only. Accepted deliveries cannot be unsent.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep job'),
+          ),
+          ElevatedButton(
+            key: const ValueKey('admin-job-cancel-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cancel pending work'),
+          ),
+        ],
+      ),
+    );
+    if (acknowledged == true) {
+      await widget.controller.confirmCancellation(acknowledged: true);
+    }
+  }
 }
 
 final class _JobCard extends StatelessWidget {
-  const _JobCard({required this.job, required this.controller});
+  const _JobCard({
+    required this.job,
+    required this.controller,
+    required this.onCancel,
+  });
 
   final AdminJobRecord job;
   final AdminJobsController controller;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -87,7 +128,7 @@ final class _JobCard extends StatelessWidget {
                 child: const Text('Retry eligible failures'),
               ),
               OutlinedButton(
-                onPressed: () => controller.requestCancellation(job.id),
+                onPressed: onCancel,
                 child: const Text('Cancel pending work'),
               ),
             ],

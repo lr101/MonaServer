@@ -17,6 +17,7 @@ final class AdminJobRecord {
     required this.failedCount,
     required this.unknownDeliveryCount,
     required this.cancellationRequested,
+    this.updatedAt,
   });
 
   final String id;
@@ -27,6 +28,7 @@ final class AdminJobRecord {
   final int failedCount;
   final int unknownDeliveryCount;
   final bool cancellationRequested;
+  final DateTime? updatedAt;
 
   String get statusExplanation => switch (status) {
     AdminJobStatus.pending => 'Waiting to start.',
@@ -42,7 +44,17 @@ final class AdminJobRecord {
 
   String? get deliveryExplanation => unknownDeliveryCount == 0
       ? null
-      : '$unknownDeliveryCount ${unknownDeliveryCount == 1 ? 'delivery is' : 'deliveries are'} uncertain after provider acceptance. Retrying may duplicate ${unknownDeliveryCount == 1 ? 'it' : 'them'}.';
+      : '$unknownDeliveryCount ${unknownDeliveryCount == 1 ? 'delivery has' : 'deliveries have'} unconfirmed provider acceptance. Retrying may duplicate ${unknownDeliveryCount == 1 ? 'it' : 'them'}.';
+
+  String freshnessDescription(DateTime refreshedAt) {
+    final timestamp = updatedAt;
+    if (timestamp == null) return 'Update time unavailable.';
+    final age = refreshedAt.difference(timestamp);
+    if (age <= Duration.zero) return 'Updated during this refresh.';
+    final minutes = age.inMinutes;
+    if (minutes < 1) return 'Updated less than a minute before this refresh.';
+    return 'Updated $minutes minute${minutes == 1 ? '' : 's'} before this refresh.';
+  }
 }
 
 final class AdminJobPage {
@@ -63,6 +75,14 @@ final class AdminJobCommandResult {
   const AdminJobCommandResult({required this.jobId});
 
   final String jobId;
+}
+
+/// A command's key survives an ambiguous transport result for safe replay.
+final class AdminJobCommand {
+  const AdminJobCommand({required this.jobId, required this.idempotencyKey});
+
+  final String jobId;
+  final String idempotencyKey;
 }
 
 final class AdminJobsTransportException implements Exception {

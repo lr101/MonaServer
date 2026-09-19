@@ -100,3 +100,50 @@ attempted.
 ## Commit
 
 Commit SHA is added after the task-scoped commit is created.
+
+## Fix round 1 — review findings
+
+### Changes
+
+- Job retry and cancellation ports now receive an `AdminJobCommand` with a
+  client-generated idempotency key. The controller retains that key after an
+  unconfirmed/failed command result and removes it only after a confirmed
+  success, so the next intentional operation receives a new key.
+- Composer input changes call `updateDraft`, invalidating the preview and its
+  commit key. The confirmation control is disabled until a new frozen preview
+  is prepared.
+- The jobs screen opens an explicit cancellation confirmation dialog and calls
+  `confirmCancellation(acknowledged: true)` only when it is accepted.
+- Job records now expose `updatedAt` relative to controller load time, and
+  unknown delivery copy says provider acceptance is unconfirmed.
+- Audit outcomes now map `provider_accepted`, `unknown_delivery`, and unknown
+  future wire values into bounded safe display states.
+
+### TDD and verification evidence
+
+The added regressions were first run red:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart
+exit 1: edit-after-preview committed once (expected 0, actual 1).
+
+mise exec -- flutter test --no-pub test/features/admin_jobs/admin_jobs_controller_test.dart
+exit 1: AdminJobCommand, updatedAt, idempotencyKey, and clock contracts were absent.
+
+mise exec -- flutter test --no-pub test/features/admin_audit/admin_audit_controller_test.dart
+exit 1: provider/unknown audit outcome mapping was absent.
+```
+
+Final focused command and output:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns lib/features/admin_jobs lib/features/admin_audit test/features/admin_campaigns test/features/admin_jobs test/features/admin_audit
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+Formatted 15 files (0 changed).
+exit 0: 23 tests passed.
+```
+
+No broad suites, services, browser sessions, or external providers were run in
+this fix round.

@@ -36,6 +36,43 @@ void main() {
     );
   });
 
+  testWidgets('editing a previewed campaign invalidates stale confirmation', (
+    tester,
+  ) async {
+    final repository = _CampaignRepository();
+    final controller = AdminCampaignController(repository);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdminCampaignScreen(
+            controller: controller,
+            audience: AdminAudienceSelection.selected(const {'one'}),
+            testRecipientUserId: 'operator',
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.bySemanticsLabel('Subject'), 'Original');
+    await tester.enterText(find.bySemanticsLabel('Message'), 'Original copy');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Preview audience'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.bySemanticsLabel('Message'), 'Edited copy');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm campaign'));
+
+    expect(repository.commitCount, 0);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'Confirm campaign'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
   test(
     'previews selected, filtered, and all audiences without changing scope',
     () async {

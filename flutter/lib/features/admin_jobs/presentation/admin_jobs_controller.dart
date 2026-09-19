@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:buff_lisa/features/admin_jobs/domain/admin_job_models.dart';
 import 'package:buff_lisa/features/admin_jobs/domain/admin_job_ports.dart';
 
@@ -6,6 +8,7 @@ final class AdminJobsState {
     this.jobs = const [],
     this.nextCursor,
     this.loading = false,
+    this.loadedAt,
     this.pendingCancellationJobId,
     this.message,
   });
@@ -13,6 +16,7 @@ final class AdminJobsState {
   final List<AdminJobRecord> jobs;
   final String? nextCursor;
   final bool loading;
+  final DateTime? loadedAt;
   final String? pendingCancellationJobId;
   final String? message;
 
@@ -21,6 +25,8 @@ final class AdminJobsState {
     String? nextCursor,
     bool clearNextCursor = false,
     bool? loading,
+    DateTime? loadedAt,
+    bool clearLoadedAt = false,
     String? pendingCancellationJobId,
     bool clearPendingCancellation = false,
     String? message,
@@ -29,6 +35,7 @@ final class AdminJobsState {
     jobs: jobs ?? this.jobs,
     nextCursor: clearNextCursor ? null : nextCursor ?? this.nextCursor,
     loading: loading ?? this.loading,
+    loadedAt: clearLoadedAt ? null : loadedAt ?? this.loadedAt,
     pendingCancellationJobId: clearPendingCancellation
         ? null
         : pendingCancellationJobId ?? this.pendingCancellationJobId,
@@ -41,16 +48,22 @@ typedef AdminJobsListener = void Function(AdminJobsState state);
 final class AdminJobsController {
   AdminJobsController(
     this.repository, {
+    DateTime Function()? clock,
+    String Function()? idempotencyKey,
     this.onUnauthorized,
     this.onCapabilityDenied,
-  });
+  }) : _clock = clock ?? DateTime.now,
+       _idempotencyKey = idempotencyKey ?? _newIdempotencyKey;
 
   final AdminJobsRepository repository;
   final void Function()? onUnauthorized;
   final void Function()? onCapabilityDenied;
+  final DateTime Function() _clock;
+  final String Function() _idempotencyKey;
   final _listeners = <AdminJobsListener>{};
   AdminJobsState _state = const AdminJobsState();
   final _commands = <String, Future<void>>{};
+  final _commandKeys = <String, String>{};
   int _generation = 0;
   bool _expired = false;
 
@@ -71,6 +84,7 @@ final class AdminJobsController {
       _state.copyWith(
         jobs: reset ? const [] : null,
         clearNextCursor: reset,
+        clearLoadedAt: reset,
         loading: true,
         clearMessage: true,
       ),
@@ -84,6 +98,7 @@ final class AdminJobsController {
           nextCursor: page.nextCursor,
           clearNextCursor: page.nextCursor == null,
           loading: false,
+          loadedAt: _clock(),
         ),
       );
     } catch (error) {
@@ -123,21 +138,27 @@ final class AdminJobsController {
     final key = '${cancel ? 'cancel' : 'retry'}:$jobId';
     final current = _commands[key];
     if (current != null) return current;
-    final future = _runCommand(jobId, cancel: cancel, key: key);
+    final command = AdminJobCommand(
+      jobId: jobId,
+      idempotencyKey: _commandKeys[key] ?? _idempotencyKey(),
+    );
+    _commandKeys[key] = command.idempotencyKey;
+    final future = _runCommand(command, cancel: cancel, key: key);
     _commands[key] = future;
     return future;
   }
 
   Future<void> _runCommand(
-    String jobId, {
+    AdminJobCommand command, {
     required bool cancel,
     required String key,
   }) async {
     final generation = _generation;
     _emit(_state.copyWith(loading: true, clearMessage: true));
     try {
-      await (cancel ? repository.cancel(jobId) : repository.retry(jobId));
+      await (cancel ? repository.cancel(command) : repository.retry(command));
       if (!_isCurrent(generation)) return;
+      _commandKeys.remove(key);
       _emit(
         _state.copyWith(
           loading: false,
@@ -194,5 +215,15 @@ final class AdminJobsController {
     for (final listener in List<AdminJobsListener>.of(_listeners)) {
       listener(state);
     }
+  }
+
+  static String _newIdempotencyKey() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List<String>.generate(
+      32,
+      (_) => alphabet[random.nextInt(alphabet.length)],
+      growable: false,
+    ).join();
   }
 }

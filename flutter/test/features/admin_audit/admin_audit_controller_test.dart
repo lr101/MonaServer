@@ -36,6 +36,38 @@ void main() {
   });
 
   test(
+    'maps provider delivery outcomes and unknown values to safe display',
+    () {
+      expect(
+        AdminAuditOutcome.fromWire('provider_accepted'),
+        AdminAuditOutcome.providerAccepted,
+      );
+      expect(
+        AdminAuditOutcome.fromWire('unknown_delivery'),
+        AdminAuditOutcome.unknownDelivery,
+      );
+      expect(
+        AdminAuditOutcome.fromWire('future_outcome'),
+        AdminAuditOutcome.unknown,
+      );
+
+      final unknownDelivery = _event(
+        'delivery-1',
+        outcome: AdminAuditOutcome.unknownDelivery,
+      );
+      final unknown = _event('unknown-1', outcome: AdminAuditOutcome.unknown);
+      expect(
+        unknownDelivery.summary,
+        'operator recorded unconfirmed delivery for account',
+      );
+      expect(
+        unknown.summary,
+        'operator recorded an unknown outcome for account',
+      );
+    },
+  );
+
+  test(
     'session expiry ignores a late audit response and stops more reads',
     () async {
       final page = Completer<AdminAuditPage>();
@@ -73,11 +105,14 @@ final class _AuditRepository implements AdminAuditRepository {
   }
 }
 
-AdminAuditEvent _event(String id) => AdminAuditEvent(
+AdminAuditEvent _event(
+  String id, {
+  AdminAuditOutcome outcome = AdminAuditOutcome.completed,
+}) => AdminAuditEvent(
   id: id,
   actorLabel: 'operator',
   targetLabel: 'account',
   actionLabel: 'Revoke sessions',
-  outcome: AdminAuditOutcome.completed,
+  outcome: outcome,
   occurredAt: DateTime.utc(2026, 9, 19, 12),
 );
