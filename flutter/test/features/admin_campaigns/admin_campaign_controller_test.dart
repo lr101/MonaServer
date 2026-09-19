@@ -139,6 +139,96 @@ void main() {
   });
 
   test(
+    'reconciles A-to-B-to-A audience changes after an accepted commit',
+    () async {
+      final accepted = Completer<AdminCampaignCommitResult>();
+      final repository = _CampaignRepository(commitFuture: accepted.future);
+      final controller = AdminCampaignController(repository);
+      final firstAudience = AdminAudienceSelection.selected(const {'one'});
+      final secondAudience = AdminAudienceSelection.selected(const {'two'});
+      const draft = AdminCampaignDraft.loginLink();
+
+      await controller.preview(firstAudience, draft);
+      final commit = controller.confirm();
+      controller.updateDraft(secondAudience, draft);
+      controller.updateDraft(firstAudience, draft);
+      accepted.complete(const AdminCampaignCommitResult(jobId: 'job-1'));
+      await commit;
+
+      expect(controller.state.audience, firstAudience);
+      expect(controller.state.jobId, 'job-1');
+      expect(controller.state.preview, isNull);
+      expect(controller.state.commitIdempotencyKey, isNull);
+      await controller.confirm();
+      expect(repository.commitCount, 1);
+    },
+  );
+
+  testWidgets('rebinding audience during commit clears the frozen preview', (
+    tester,
+  ) async {
+    final accepted = Completer<AdminCampaignCommitResult>();
+    final repository = _CampaignRepository(commitFuture: accepted.future);
+    final controller = AdminCampaignController(repository);
+    final firstAudience = AdminAudienceSelection.selected(const {'one'});
+    final secondAudience = AdminAudienceSelection.selected(const {'two'});
+
+    Widget screenFor(AdminAudienceSelection audience) => MaterialApp(
+      home: Scaffold(
+        body: AdminCampaignScreen(
+          controller: controller,
+          audience: audience,
+          testRecipientUserId: 'operator',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(screenFor(firstAudience));
+    await controller.preview(
+      firstAudience,
+      const AdminCampaignDraft.loginLink(),
+    );
+    final commit = controller.confirm();
+    await tester.pump();
+    await tester.pumpWidget(screenFor(secondAudience));
+    await tester.pump();
+    await tester.pumpWidget(screenFor(firstAudience));
+    await tester.pump();
+
+    accepted.complete(const AdminCampaignCommitResult(jobId: 'job-1'));
+    await commit;
+
+    expect(repository.commitCount, 1);
+    expect(controller.state.jobId, 'job-1');
+    expect(controller.state.preview, isNull);
+    expect(controller.state.commitIdempotencyKey, isNull);
+  });
+
+  test('reconciles a queued audience change after preview completes', () async {
+    final preview = Completer<AdminAudiencePreview>();
+    final repository = _CampaignRepository(previewFuture: preview.future);
+    final controller = AdminCampaignController(repository);
+    final firstAudience = AdminAudienceSelection.selected(const {'one'});
+    final secondAudience = AdminAudienceSelection.selected(const {'two'});
+    const draft = AdminCampaignDraft.loginLink();
+
+    final pending = controller.preview(firstAudience, draft);
+    controller.updateDraft(secondAudience, draft);
+    preview.complete(
+      _preview(
+        AdminAudiencePreviewRequest(
+          audience: firstAudience,
+          action: draft.action,
+        ),
+      ),
+    );
+    await pending;
+
+    expect(controller.state.audience, secondAudience);
+    expect(controller.state.preview, isNull);
+  });
+
+  test(
     'previews selected, filtered, and all audiences without changing scope',
     () async {
       final repository = _CampaignRepository();
@@ -253,6 +343,44 @@ void main() {
   );
 
   test(
+    'preserves accepted test-send result while reconciling an edit',
+    () async {
+      final accepted = Completer<AdminCampaignTestResult>();
+      final repository = _CampaignRepository(testFuture: accepted.future);
+      final controller = AdminCampaignController(repository);
+      final audience = AdminAudienceSelection.selected(const {'one'});
+      const original = AdminCampaignDraft.email(
+        subject: 'Original',
+        body: 'Original copy',
+      );
+      const edited = AdminCampaignDraft.email(
+        subject: 'Edited',
+        body: 'Edited copy',
+      );
+
+      await controller.preview(audience, original);
+      final send = controller.sendTest(
+        recipientUserId: 'operator',
+        draft: original,
+      );
+      controller.updateDraft(audience, edited);
+      final duplicate = controller.sendTest(
+        recipientUserId: 'operator',
+        draft: edited,
+      );
+      accepted.complete(const AdminCampaignTestResult.accepted());
+      await Future.wait([send, duplicate]);
+
+      expect(repository.testSendCount, 1);
+      expect(controller.state.submitting, isFalse);
+      expect(controller.state.testDelivery, AdminCampaignTestDelivery.accepted);
+      expect(controller.state.message, 'Test delivery was accepted.');
+      expect(controller.state.preview, isNull);
+      expect(controller.state.draft?.body, 'Edited copy');
+    },
+  );
+
+  test(
     'session expiry ignores a late preview response and stops later work',
     () async {
       final preview = Completer<AdminAudiencePreview>();
@@ -297,6 +425,7 @@ final class _CampaignRepository implements AdminCampaignRepository {
     this._previewFuture,
     this._commitFuture,
     this._commitResults,
+    this._testFuture,
     this.testResult = const AdminCampaignTestResult.accepted(),
   });
 
@@ -305,6 +434,7 @@ final class _CampaignRepository implements AdminCampaignRepository {
   final Future<AdminAudiencePreview>? _previewFuture;
   final Future<AdminCampaignCommitResult>? _commitFuture;
   final List<Future<AdminCampaignCommitResult> Function()>? _commitResults;
+  final Future<AdminCampaignTestResult>? _testFuture;
   final AdminCampaignTestResult testResult;
   final List<AdminCampaignCommitCommand> commits = [];
   int commitCount = 0;
@@ -333,7 +463,7 @@ final class _CampaignRepository implements AdminCampaignRepository {
     required AdminAudienceAction action,
   }) async {
     testSendCount++;
-    return testResult;
+    return _testFuture ?? testResult;
   }
 }
 

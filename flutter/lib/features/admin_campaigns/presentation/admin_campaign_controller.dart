@@ -58,6 +58,13 @@ final class AdminCampaignState {
 
 typedef AdminCampaignListener = void Function(AdminCampaignState state);
 
+final class _PendingCampaignDraft {
+  const _PendingCampaignDraft({required this.audience, required this.draft});
+
+  final AdminAudienceSelection audience;
+  final AdminCampaignDraft draft;
+}
+
 /// Owns a preview/commit cycle and fences all late work after session expiry.
 final class AdminCampaignController {
   AdminCampaignController(
@@ -74,6 +81,8 @@ final class AdminCampaignController {
   final _listeners = <AdminCampaignListener>{};
   AdminCampaignState _state = const AdminCampaignState();
   Future<void>? _commitInFlight;
+  Future<void>? _testInFlight;
+  _PendingCampaignDraft? _pendingDraft;
   int _generation = 0;
   bool _expired = false;
 
@@ -85,9 +94,12 @@ final class AdminCampaignController {
 
   /// A changed composer draft can no longer use a preview bound to prior text.
   void updateDraft(AdminAudienceSelection audience, AdminCampaignDraft draft) {
-    if (_expired ||
-        _state.submitting ||
-        (_state.audience == audience && _state.draft?.action == draft.action)) {
+    if (_expired) return;
+    if (_state.submitting) {
+      _pendingDraft = _PendingCampaignDraft(audience: audience, draft: draft);
+      return;
+    }
+    if (_state.audience == audience && _state.draft?.action == draft.action) {
       return;
     }
     ++_generation;
@@ -141,12 +153,14 @@ final class AdminCampaignController {
       final preview = await repository.preview(request);
       if (!_isCurrent(generation)) return;
       _emit(_state.copyWith(preview: preview, submitting: false));
+      _reconcilePendingDraft();
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(
         error,
         fallback: 'Audience preview is unavailable. Try again.',
       );
+      _reconcilePendingDraft();
     }
   }
 
@@ -195,12 +209,14 @@ final class AdminCampaignController {
           message: 'Campaign accepted for delivery.',
         ),
       );
+      _reconcilePendingDraft();
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(
         error,
         fallback: 'Campaign could not be accepted. Try again.',
       );
+      _reconcilePendingDraft();
     } finally {
       _commitInFlight = null;
     }
@@ -209,8 +225,21 @@ final class AdminCampaignController {
   Future<void> sendTest({
     required String recipientUserId,
     required AdminCampaignDraft draft,
+  }) {
+    if (_expired || recipientUserId.trim().isEmpty || !draft.isValid) {
+      return Future<void>.value();
+    }
+    final existing = _testInFlight;
+    if (existing != null) return existing;
+    final future = _sendTest(recipientUserId: recipientUserId, draft: draft);
+    _testInFlight = future;
+    return future;
+  }
+
+  Future<void> _sendTest({
+    required String recipientUserId,
+    required AdminCampaignDraft draft,
   }) async {
-    if (_expired || recipientUserId.trim().isEmpty || !draft.isValid) return;
     final generation = _generation;
     _emit(_state.copyWith(submitting: true, clearMessage: true));
     try {
@@ -234,15 +263,35 @@ final class AdminCampaignController {
           message: message,
         ),
       );
+      _reconcilePendingDraft();
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(error, fallback: 'Test delivery failed. Nothing was sent.');
+      _reconcilePendingDraft();
+    } finally {
+      _testInFlight = null;
     }
+  }
+
+  void _reconcilePendingDraft() {
+    final pending = _pendingDraft;
+    _pendingDraft = null;
+    if (pending == null || _expired) return;
+    ++_generation;
+    _emit(
+      _state.copyWith(
+        audience: pending.audience,
+        draft: pending.draft,
+        clearPreview: true,
+        clearCommitIdempotencyKey: true,
+      ),
+    );
   }
 
   void expireSession() {
     if (_expired) return;
     _expired = true;
+    _pendingDraft = null;
     ++_generation;
     _emit(
       _state.copyWith(

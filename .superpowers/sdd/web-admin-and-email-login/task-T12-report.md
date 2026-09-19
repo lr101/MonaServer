@@ -202,3 +202,49 @@ exit 0: 27 tests passed.
 
 No services, browser sessions, or external providers were needed for these
 widget/controller checks.
+
+## Fix round 3 — in-flight audience and test-send review
+
+### Changes
+
+- Campaign draft/audience changes received while preview, commit, or test-send
+  work is submitting are now queued rather than discarded. The latest queued
+  value wins, so A-to-B-to-A still invalidates the frozen preview after the
+  operation completes.
+- Reconciliation preserves the accepted commit job or test-send result while
+  clearing the frozen preview and commit idempotency key. A completed
+  operation cannot silently make its old snapshot confirmable again.
+- Test-send calls now coalesce while one is in flight, matching commit
+  behavior and preventing a second accepted test send from being started.
+- Added controller coverage for queued commit invalidation and accepted
+  test-send completion, plus a widget regression for `didUpdateWidget`
+  audience rebinding during commit.
+
+### TDD and verification evidence
+
+The new regressions were run before the implementation:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart
+exit 1:
+- A-to-B-to-A audience mutation left the old preview present (expected null,
+  actual AdminAudiencePreview).
+- A queued audience change after preview completion was discarded (expected the
+  second audience, actual the first audience instance).
+- Editing during test-send started duplicate work (expected testSendCount 1,
+  actual 2).
+```
+
+Final focused verification:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart test/features/admin_campaigns/admin_campaign_controller_test.dart
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+Formatted 2 files (0 changed).
+exit 0: 31 tests passed.
+```
+
+No broad suites, services, browser sessions, or external providers were run in
+this fix round.
