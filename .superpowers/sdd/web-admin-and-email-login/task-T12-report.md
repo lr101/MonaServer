@@ -1,0 +1,102 @@
+# T12 report — Admin communication, security actions, jobs, and audit UI
+
+## Scope delivered
+
+- Added pure-Dart domain models and ports plus presentation controllers/screens
+  for campaigns, security actions, jobs, and audit history under the four T12
+  feature directories.
+- Campaigns support email, push, and login-link drafts; explicit selected,
+  filtered, or all-account audiences; frozen preview counts/exclusions; a
+  single-recipient safe test-send result; confirmation; stale-preview refusal;
+  concurrent-commit coalescing; and a stable per-preview idempotency key for
+  uncertain commit retries.
+- Security actions require a reason and recent MFA, require a separate
+  acknowledgement for administrator inclusion, support revoke/compromise/
+  recovery resend, and never offer ordinary sign-in after containment. Manual
+  recovery is shown as an outcome.
+- Job monitoring explains partial failures, uncertain provider acceptance, and
+  cancellation limits. Retry/cancel commands are coalesced and cancellation
+  needs a warning acknowledgement.
+- Audit models only represent actor, target, action, time, and bounded outcome;
+  they intentionally have no credential, token, password, provider-payload, or
+  arbitrary audit-value fields.
+- Every controller fences late responses and future UI work after actor-session
+  expiry. No feature domain imports generated DTOs or repository implementations.
+
+## Changed files
+
+- `flutter/lib/features/admin_campaigns/{domain,presentation}/...`
+- `flutter/lib/features/admin_security/{domain,presentation}/...`
+- `flutter/lib/features/admin_jobs/{domain,presentation}/...`
+- `flutter/lib/features/admin_audit/{domain,presentation}/...`
+- `flutter/test/features/admin_campaigns/admin_campaign_controller_test.dart`
+- `flutter/test/features/admin_security/admin_security_controller_test.dart`
+- `flutter/test/features/admin_jobs/admin_jobs_controller_test.dart`
+- `flutter/test/features/admin_audit/admin_audit_controller_test.dart`
+
+## Interfaces for final T10 composition
+
+- Screen constructors: `AdminCampaignScreen`, `AdminSecurityScreen`,
+  `AdminJobsScreen`, and `AdminAuditScreen`.
+- Pure ports: `AdminCampaignRepository`, `AdminSecurityRepository`,
+  `AdminJobsRepository`, and `AdminAuditRepository`.
+- `AdminCampaignRepository.commit` receives an
+  `AdminCampaignCommitCommand`, preserving a client-generated idempotency key
+  for a frozen snapshot retry.
+
+The current T10-owned `app/admin/AdminApiAdapter`, shell, and composition root
+only wire session/users. T10's final composition pass must adapt the existing
+T07 generated admin audience/message/job/audit endpoints to these ports, pass
+the shared audience selection and authenticated test-recipient ID into the
+screens, connect recent-MFA/session-expiry callbacks, and preserve CSRF plus
+the commit idempotency key. Those owner files were intentionally not edited.
+
+## Verification
+
+TDD red evidence was recorded before implementation:
+
+```text
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+exit 1: T12 model/port/controller libraries did not yet exist.
+```
+
+Focused final checks:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns lib/features/admin_security lib/features/admin_jobs lib/features/admin_audit test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+exit 0: 18 tests passed.
+```
+
+Additional checks:
+
+```text
+mise run flutter-analyze
+exit 0: 97 existing repository-wide informational diagnostics; no diagnostics in T12 paths.
+
+mise run flutter-build-admin-web
+build artifact produced at flutter/build/admin_web.
+
+test -f flutter/build/admin_web/index.html && test -f flutter/build/admin_web/main.dart.js && test -f flutter/build/admin_web/main.dart.wasm && bash flutter/docker/test_admin_web_build.sh flutter/build/admin_web
+exit 0.
+```
+
+The full suite was also run with `mise run flutter-test`. It reached 311 tests
+with one failure. The coordinator supplied this as a T10 dependency baseline;
+it reproduces directly with exit 1:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_session/admin_session_controller_test.dart
+expected ['logout', 'bootstrap', 'login']
+actual   ['logout', 'bootstrap', 'bootstrap', 'login']
+```
+
+No Go API, PostGIS, RustFS, SMTP, fake FCM, browser, or external provider was
+started. This is an uncomposed Flutter-only feature slice; no real delivery was
+attempted.
+
+## Commit
+
+Commit SHA is added after the task-scoped commit is created.
