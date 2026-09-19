@@ -47,6 +47,12 @@ final class _AdminCampaignScreenState extends State<AdminCampaignScreen> {
 
   void _syncDraft() => widget.controller.updateDraft(widget.audience, _draft);
 
+  @override
+  void didUpdateWidget(covariant AdminCampaignScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.audience != widget.audience) _syncDraft();
+  }
+
   AdminCampaignDraft get _draft => switch (_kind) {
     AdminCampaignKind.email => AdminCampaignDraft.email(
       subject: _subject.text,
@@ -109,18 +115,21 @@ final class _AdminCampaignScreenState extends State<AdminCampaignScreen> {
         if (_kind == AdminCampaignKind.email)
           TextField(
             controller: _subject,
+            enabled: !state.submitting,
             onChanged: (_) => _syncDraft(),
             decoration: const InputDecoration(labelText: 'Subject'),
           ),
         if (_kind == AdminCampaignKind.push)
           TextField(
             controller: _title,
+            enabled: !state.submitting,
             onChanged: (_) => _syncDraft(),
             decoration: const InputDecoration(labelText: 'Title'),
           ),
         if (_kind != AdminCampaignKind.loginLink)
           TextField(
             controller: _body,
+            enabled: !state.submitting,
             onChanged: (_) => _syncDraft(),
             maxLines: 5,
             decoration: const InputDecoration(labelText: 'Message'),

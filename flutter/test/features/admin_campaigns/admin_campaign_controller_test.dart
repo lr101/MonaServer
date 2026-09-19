@@ -73,6 +73,71 @@ void main() {
     );
   });
 
+  testWidgets('changing audience away and back invalidates a frozen preview', (
+    tester,
+  ) async {
+    final repository = _CampaignRepository();
+    final controller = AdminCampaignController(repository);
+    final firstAudience = AdminAudienceSelection.selected(const {'one'});
+    final secondAudience = AdminAudienceSelection.selected(const {'two'});
+
+    Widget screenFor(AdminAudienceSelection audience) => MaterialApp(
+      home: Scaffold(
+        body: AdminCampaignScreen(
+          controller: controller,
+          audience: audience,
+          testRecipientUserId: 'operator',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(screenFor(firstAudience));
+    await tester.enterText(find.bySemanticsLabel('Subject'), 'Original');
+    await tester.enterText(find.bySemanticsLabel('Message'), 'Original copy');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Preview audience'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(screenFor(secondAudience));
+    await tester.pump();
+    await tester.pumpWidget(screenFor(firstAudience));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Confirm campaign'));
+
+    expect(repository.commitCount, 0);
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'Confirm campaign'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  test('an edit cannot fence a late accepted campaign commit', () async {
+    final accepted = Completer<AdminCampaignCommitResult>();
+    final repository = _CampaignRepository(commitFuture: accepted.future);
+    final controller = AdminCampaignController(repository);
+    final audience = AdminAudienceSelection.selected(const {'one'});
+    const original = AdminCampaignDraft.email(
+      subject: 'Original',
+      body: 'Original copy',
+    );
+
+    await controller.preview(audience, original);
+    final commit = controller.confirm();
+    controller.updateDraft(
+      audience,
+      const AdminCampaignDraft.email(subject: 'Edited', body: 'Edited copy'),
+    );
+    accepted.complete(const AdminCampaignCommitResult(jobId: 'job-1'));
+    await commit;
+
+    expect(controller.state.submitting, isFalse);
+    expect(controller.state.jobId, 'job-1');
+    expect(controller.state.message, 'Campaign accepted for delivery.');
+  });
+
   test(
     'previews selected, filtered, and all audiences without changing scope',
     () async {

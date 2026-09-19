@@ -54,6 +54,7 @@ final class _AdminJobsScreenState extends State<AdminJobsScreen> {
           _JobCard(
             job: job,
             controller: widget.controller,
+            refreshedAt: state.loadedAt,
             onCancel: () => _confirmCancellation(job.id),
           ),
         if (state.nextCursor != null)
@@ -102,11 +103,13 @@ final class _JobCard extends StatelessWidget {
   const _JobCard({
     required this.job,
     required this.controller,
+    required this.refreshedAt,
     required this.onCancel,
   });
 
   final AdminJobRecord job;
   final AdminJobsController controller;
+  final DateTime? refreshedAt;
   final VoidCallback onCancel;
 
   @override
@@ -119,6 +122,11 @@ final class _JobCard extends StatelessWidget {
           Text(job.actionLabel, style: Theme.of(context).textTheme.titleMedium),
           Text(job.statusExplanation),
           if (job.deliveryExplanation != null) Text(job.deliveryExplanation!),
+          Text(
+            refreshedAt == null
+                ? 'Job freshness is unavailable until data refreshes.'
+                : job.freshnessDescription(refreshedAt!),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

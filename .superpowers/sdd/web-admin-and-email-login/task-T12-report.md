@@ -147,3 +147,58 @@ exit 0: 23 tests passed.
 
 No broad suites, services, browser sessions, or external providers were run in
 this fix round.
+
+## Fix round 2 — review findings
+
+### Changes
+
+- `AdminCampaignScreen.didUpdateWidget` now synchronizes a changed audience
+  into the controller. Any audience transition invalidates the frozen preview,
+  including an A-to-B-to-A transition.
+- Campaign composer fields are disabled during preview, commit, and test-send
+  work. `updateDraft` also refuses to mutate state during a submission, so a
+  delayed edit callback cannot clear the in-flight state or fence an accepted
+  result.
+- Each job card now renders the record's `updatedAt` relative to the most
+  recent controller refresh. Unknown deliveries remain explicitly described as
+  unconfirmed provider acceptance.
+- Audit screen coverage now renders `provider_accepted`, `unknown_delivery`,
+  and a forward-compatible unknown outcome through the safe bounded summary.
+
+### TDD and verification evidence
+
+The behavioral regressions were run before the production changes:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart test/features/admin_jobs/admin_jobs_controller_test.dart test/features/admin_audit/admin_audit_controller_test.dart
+exit 1:
+- A-to-B-to-A audience mutation committed once (expected 0, actual 1).
+- An edit during a pending commit lost the late accepted job (expected job-1,
+  actual null).
+- The jobs screen did not render "Updated 2 minutes before this refresh.".
+The new audit display path passed against the existing bounded summary render.
+```
+
+Targeted green verification after the implementation:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart lib/features/admin_campaigns/presentation/admin_campaign_screen.dart lib/features/admin_jobs/presentation/admin_jobs_screen.dart test/features/admin_campaigns/admin_campaign_controller_test.dart test/features/admin_jobs/admin_jobs_controller_test.dart test/features/admin_audit/admin_audit_controller_test.dart
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart test/features/admin_jobs/admin_jobs_controller_test.dart test/features/admin_audit/admin_audit_controller_test.dart
+Formatted 6 files (3 changed).
+exit 0: 23 tests passed.
+```
+
+Final all-T12 focused verification:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart lib/features/admin_campaigns/presentation/admin_campaign_screen.dart lib/features/admin_jobs/presentation/admin_jobs_screen.dart test/features/admin_campaigns/admin_campaign_controller_test.dart test/features/admin_jobs/admin_jobs_controller_test.dart test/features/admin_audit/admin_audit_controller_test.dart
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+Formatted 6 files (0 changed).
+exit 0: 27 tests passed.
+```
+
+No services, browser sessions, or external providers were needed for these
+widget/controller checks.

@@ -134,6 +134,40 @@ void main() {
     },
   );
 
+  testWidgets('shows per-job freshness and unconfirmed provider acceptance', (
+    tester,
+  ) async {
+    final refreshedAt = DateTime.utc(2026, 9, 19, 12, 10);
+    final controller = AdminJobsController(
+      _JobsRepository(
+        page: AdminJobPage(
+          items: [
+            _job(
+              updatedAt: refreshedAt.subtract(const Duration(minutes: 2)),
+              unknownDeliveryCount: 1,
+            ),
+          ],
+        ),
+      ),
+      clock: () => refreshedAt,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: AdminJobsScreen(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Updated 2 minutes before this refresh.'), findsOneWidget);
+    expect(
+      find.text(
+        '1 delivery has unconfirmed provider acceptance. Retrying may duplicate it.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   test(
     'session expiry stops a late page response from updating the UI',
     () async {
@@ -202,14 +236,15 @@ final class _JobsRepository implements AdminJobsRepository {
   }
 }
 
-AdminJobRecord _job({DateTime? updatedAt}) => AdminJobRecord(
-  id: 'job-1',
-  actionLabel: 'Email campaign',
-  status: AdminJobStatus.running,
-  pendingCount: 1,
-  completedCount: 0,
-  failedCount: 0,
-  unknownDeliveryCount: 0,
-  cancellationRequested: false,
-  updatedAt: updatedAt,
-);
+AdminJobRecord _job({DateTime? updatedAt, int unknownDeliveryCount = 0}) =>
+    AdminJobRecord(
+      id: 'job-1',
+      actionLabel: 'Email campaign',
+      status: AdminJobStatus.running,
+      pendingCount: 1,
+      completedCount: 0,
+      failedCount: 0,
+      unknownDeliveryCount: unknownDeliveryCount,
+      cancellationRequested: false,
+      updatedAt: updatedAt,
+    );

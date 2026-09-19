@@ -86,6 +86,7 @@ final class AdminCampaignController {
   /// A changed composer draft can no longer use a preview bound to prior text.
   void updateDraft(AdminAudienceSelection audience, AdminCampaignDraft draft) {
     if (_expired ||
+        _state.submitting ||
         (_state.audience == audience && _state.draft?.action == draft.action)) {
       return;
     }

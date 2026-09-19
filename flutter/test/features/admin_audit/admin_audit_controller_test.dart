@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:buff_lisa/features/admin_audit/domain/admin_audit_models.dart';
 import 'package:buff_lisa/features/admin_audit/domain/admin_audit_ports.dart';
 import 'package:buff_lisa/features/admin_audit/presentation/admin_audit_controller.dart';
+import 'package:buff_lisa/features/admin_audit/presentation/admin_audit_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -67,11 +69,47 @@ void main() {
     },
   );
 
+  testWidgets('renders provider and forward-compatible audit outcomes', (
+    tester,
+  ) async {
+    final controller = AdminAuditController(
+      _AuditRepository(
+        firstPage: AdminAuditPage(
+          items: [
+            _event('accepted', outcome: AdminAuditOutcome.providerAccepted),
+            _event('delivery', outcome: AdminAuditOutcome.unknownDelivery),
+            _event('unknown', outcome: AdminAuditOutcome.unknown),
+          ],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: AdminAuditScreen(controller: controller)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('operator recorded provider acceptance for account'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('operator recorded unconfirmed delivery for account'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('operator recorded an unknown outcome for account'),
+      findsOneWidget,
+    );
+  });
+
   test(
     'session expiry ignores a late audit response and stops more reads',
     () async {
       final page = Completer<AdminAuditPage>();
-      final repository = _AuditRepository(firstPage: page.future);
+      final repository = _AuditRepository(pendingFirstPage: page.future);
       final controller = AdminAuditController(repository);
 
       final load = controller.load();
@@ -87,15 +125,20 @@ void main() {
 }
 
 final class _AuditRepository implements AdminAuditRepository {
-  _AuditRepository({this._firstPage});
+  _AuditRepository({this.pendingFirstPage, this.firstPage});
 
-  final Future<AdminAuditPage>? _firstPage;
+  final Future<AdminAuditPage>? pendingFirstPage;
+  final AdminAuditPage? firstPage;
   final List<AdminAuditQuery> queries = [];
 
   @override
   Future<AdminAuditPage> list(AdminAuditQuery query) {
     queries.add(query);
-    if (queries.length == 1 && _firstPage != null) return _firstPage;
+    if (queries.length == 1 && pendingFirstPage != null) {
+      return pendingFirstPage!;
+    }
+    if (queries.length == 1 && firstPage != null)
+      return Future.value(firstPage);
     return Future.value(
       AdminAuditPage(
         items: [_event('event-${queries.length}')],
