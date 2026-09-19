@@ -1,0 +1,17 @@
+{
+  "name": "Stick-It Admin",
+  "short_name": "Stick-It Admin",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#005cbb",
+  "description": "Stick-It administrative workspace.",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "admin-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

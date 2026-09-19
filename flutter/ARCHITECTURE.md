@@ -174,6 +174,16 @@ keep operational diagnostics minimal and redact credentials, headers, payloads,
 images, precise coordinates and personal data. Sync no longer logs raw errors,
 account identifiers or pin payloads. Other legacy diagnostics still need review.
 
+The admin entry point is a separate composition root: `main_admin.dart` calls
+`app/admin/admin_bootstrap.dart`, which wires only the cookie/CSRF adapter and
+the in-memory admin session controller. Admin session and users controllers
+live in their feature `presentation/` layers; their `domain/` siblings contain
+only models and ports. `web_admin/index.html` and `admin-manifest.json` are
+copied into the `build/admin_web` artifact after the admin target is compiled,
+so the admin host does not inherit the consumer HTML or its third-party cropper
+script. The admin artifact is served at the host root and uses only local
+bootstrap assets.
+
 [`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart), mounted at the app
 root, owns session and Flutter lifecycle subscriptions. It triggers sync when a
 restored or newly authenticated session becomes active and on resume, with a
@@ -305,7 +315,7 @@ Android target and record its installed build/One UI patch. Also test the resolv
 Android lower bound and supported browser lower/current versions.
 
 Use pinned build configuration: `mise.toml`, GitHub Actions, Codemagic, and the
-standalone web Dockerfile use Flutter 3.47.3. Web production release remains
+standalone web Dockerfile use Flutter 3.47.4. Web production release remains
 independent of Android testing/promotion; staging is optional.
 Existing German privacy and retention requirements remain in force.
 

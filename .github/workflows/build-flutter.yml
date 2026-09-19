@@ -37,7 +37,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Detect API generator changes
@@ -131,7 +131,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Build web release
@@ -202,7 +202,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Set up Java
@@ -324,7 +324,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Select Xcode 16.4

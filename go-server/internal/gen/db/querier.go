@@ -38,6 +38,12 @@ type Querier interface {
 	// not own that kind.
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
+	// Claim one requested item for the T07 action boundary.  The candidate row
+	// lock and lease transition are one statement.  A targeted claim waits for an
+	// in-flight row transition, then rechecks eligibility, so a concurrent worker
+	// either observes no claimable row or receives a fresh owner/token pair.  The
+	// token returned here is the acknowledgement fence for this lease attempt.
+	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
@@ -105,6 +111,11 @@ type Querier interface {
 	FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]FindUsersWithNewPinsSinceLastActiveRow, error)
 	FinishAdminJobItem(ctx context.Context, arg FinishAdminJobItemParams) (pgtype.UUID, error)
 	FinishDurableJob(ctx context.Context, arg FinishDurableJobParams) (pgtype.UUID, error)
+	// Finish, heartbeat, and retry acknowledgement all carry the worker and the
+	// exact token returned by ClaimJobItem.  A reclaimed row has a different
+	// token, so an old worker's rows-affected result is zero even if it races the
+	// current owner.
+	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
@@ -157,6 +168,7 @@ type Querier interface {
 	HardDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	HardDeletePin(ctx context.Context, id pgtype.UUID) error
 	HardDeleteUser(ctx context.Context, id pgtype.UUID) error
+	HeartbeatJobItem(ctx context.Context, arg HeartbeatJobItemParams) (HeartbeatJobItemRow, error)
 	IncrementAdminChallengeFailure(ctx context.Context, id pgtype.UUID) (int32, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
 	// InsertReport reports whether this transaction won a request-key race. A
@@ -229,6 +241,10 @@ type Querier interface {
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
 	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
+	// Retry acceptance returns the item to the retryable outcome only for the
+	// current lease owner.  The token check fences a stale worker from changing
+	// the outcome after another worker has reclaimed the item.
+	RetryJobItem(ctx context.Context, arg RetryJobItemParams) (pgtype.UUID, error)
 	RevokeAccountActionTokens(ctx context.Context, arg RevokeAccountActionTokensParams) error
 	RevokeAccountActionTokensExcept(ctx context.Context, arg RevokeAccountActionTokensExceptParams) error
 	RevokeAdminLoginChallengesForUser(ctx context.Context, userID pgtype.UUID) error
