@@ -229,6 +229,57 @@ void main() {
   });
 
   test(
+    'reconciles a queued edit before preview completion can confirm it',
+    () async {
+      final preview = Completer<AdminAudiencePreview>();
+      final repository = _CampaignRepository(previewFuture: preview.future);
+      final controller = AdminCampaignController(repository);
+      final audience = AdminAudienceSelection.selected(const {'one'});
+      const original = AdminCampaignDraft.email(
+        subject: 'Original',
+        body: 'Original copy',
+      );
+      const edited = AdminCampaignDraft.email(
+        subject: 'Edited',
+        body: 'Edited copy',
+      );
+      final nonSubmittingStates = <AdminCampaignState>[];
+      var attemptedStaleConfirmation = false;
+
+      final pending = controller.preview(audience, original);
+      controller.updateDraft(audience, edited);
+      controller.addListener((state) {
+        if (state.submitting) return;
+        nonSubmittingStates.add(state);
+        if (!attemptedStaleConfirmation && state.preview != null) {
+          attemptedStaleConfirmation = true;
+          controller.confirm();
+        }
+      });
+
+      preview.complete(
+        _preview(
+          AdminAudiencePreviewRequest(
+            audience: audience,
+            action: original.action,
+          ),
+        ),
+      );
+      await pending;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(attemptedStaleConfirmation, isFalse);
+      expect(repository.commitCount, 0);
+      expect(nonSubmittingStates, isNotEmpty);
+      expect(
+        nonSubmittingStates.every((state) => state.preview == null),
+        isTrue,
+      );
+      expect(controller.state.draft?.body, 'Edited copy');
+    },
+  );
+
+  test(
     'previews selected, filtered, and all audiences without changing scope',
     () async {
       final repository = _CampaignRepository();
@@ -288,6 +339,58 @@ void main() {
     expect(repository.commitCount, 1);
     expect(controller.state.jobId, 'job-1');
   });
+
+  test(
+    'test-send blocks commit until its accepted result is visible',
+    () async {
+      final accepted = Completer<AdminCampaignTestResult>();
+      final repository = _CampaignRepository(testFuture: accepted.future);
+      final controller = AdminCampaignController(repository);
+      final audience = AdminAudienceSelection.selected(const {'one'});
+      const draft = AdminCampaignDraft.loginLink();
+
+      await controller.preview(audience, draft);
+      final send = controller.sendTest(
+        recipientUserId: 'operator',
+        draft: draft,
+      );
+      final blockedCommit = controller.confirm();
+      accepted.complete(const AdminCampaignTestResult.accepted());
+      await Future.wait([send, blockedCommit]);
+
+      expect(repository.testSendCount, 1);
+      expect(repository.commitCount, 0);
+      expect(controller.state.testDelivery, AdminCampaignTestDelivery.accepted);
+      expect(controller.state.message, 'Test delivery was accepted.');
+      expect(controller.state.jobId, isNull);
+    },
+  );
+
+  test(
+    'commit blocks test-send until its accepted result is visible',
+    () async {
+      final accepted = Completer<AdminCampaignCommitResult>();
+      final repository = _CampaignRepository(commitFuture: accepted.future);
+      final controller = AdminCampaignController(repository);
+      final audience = AdminAudienceSelection.selected(const {'one'});
+      const draft = AdminCampaignDraft.loginLink();
+
+      await controller.preview(audience, draft);
+      final commit = controller.confirm();
+      final blockedSend = controller.sendTest(
+        recipientUserId: 'operator',
+        draft: draft,
+      );
+      accepted.complete(const AdminCampaignCommitResult(jobId: 'job-1'));
+      await Future.wait([commit, blockedSend]);
+
+      expect(repository.commitCount, 1);
+      expect(repository.testSendCount, 0);
+      expect(controller.state.jobId, 'job-1');
+      expect(controller.state.message, 'Campaign accepted for delivery.');
+      expect(controller.state.testDelivery, AdminCampaignTestDelivery.idle);
+    },
+  );
 
   test(
     'reuses one idempotency key after an uncertain commit failure',

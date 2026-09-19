@@ -80,10 +80,10 @@ final class AdminCampaignController {
   final String Function() _idempotencyKey;
   final _listeners = <AdminCampaignListener>{};
   AdminCampaignState _state = const AdminCampaignState();
-  Future<void>? _commitInFlight;
-  Future<void>? _testInFlight;
+  Future<void>? _operationFuture;
   _PendingCampaignDraft? _pendingDraft;
   int _generation = 0;
+  bool _operationInFlight = false;
   bool _expired = false;
 
   AdminCampaignState get state => _state;
@@ -152,22 +152,25 @@ final class AdminCampaignController {
     try {
       final preview = await repository.preview(request);
       if (!_isCurrent(generation)) return;
-      _emit(_state.copyWith(preview: preview, submitting: false));
-      _reconcilePendingDraft();
+      _emit(
+        _withPendingDraftReconciled(
+          _state.copyWith(preview: preview, submitting: false),
+        ),
+      );
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(
         error,
         fallback: 'Audience preview is unavailable. Try again.',
       );
-      _reconcilePendingDraft();
     }
   }
 
   Future<void> confirm() {
     if (_expired || _state.jobId != null) return Future.value();
-    final existing = _commitInFlight;
-    if (existing != null) return existing;
+    if (_operationInFlight) {
+      return _operationFuture ?? Future<void>.value();
+    }
     final audience = _state.audience;
     final draft = _state.draft;
     final preview = _state.preview;
@@ -188,37 +191,42 @@ final class AdminCampaignController {
       commit: request,
       idempotencyKey: _state.commitIdempotencyKey ?? _idempotencyKey(),
     );
-    if (_state.commitIdempotencyKey == null) {
-      _emit(_state.copyWith(commitIdempotencyKey: command.idempotencyKey));
-    }
+    _operationInFlight = true;
     final future = _commit(command);
-    _commitInFlight = future;
+    _operationFuture = future;
     return future;
   }
 
   Future<void> _commit(AdminCampaignCommitCommand command) async {
     final generation = _generation;
-    _emit(_state.copyWith(submitting: true, clearMessage: true));
+    _emit(
+      _state.copyWith(
+        submitting: true,
+        commitIdempotencyKey: command.idempotencyKey,
+        clearMessage: true,
+      ),
+    );
     try {
       final result = await repository.commit(command);
       if (!_isCurrent(generation)) return;
       _emit(
-        _state.copyWith(
-          submitting: false,
-          jobId: result.jobId,
-          message: 'Campaign accepted for delivery.',
+        _withPendingDraftReconciled(
+          _state.copyWith(
+            submitting: false,
+            jobId: result.jobId,
+            message: 'Campaign accepted for delivery.',
+          ),
         ),
       );
-      _reconcilePendingDraft();
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(
         error,
         fallback: 'Campaign could not be accepted. Try again.',
       );
-      _reconcilePendingDraft();
     } finally {
-      _commitInFlight = null;
+      _operationInFlight = false;
+      _operationFuture = null;
     }
   }
 
@@ -229,10 +237,12 @@ final class AdminCampaignController {
     if (_expired || recipientUserId.trim().isEmpty || !draft.isValid) {
       return Future<void>.value();
     }
-    final existing = _testInFlight;
-    if (existing != null) return existing;
+    if (_operationInFlight) {
+      return _operationFuture ?? Future<void>.value();
+    }
+    _operationInFlight = true;
     final future = _sendTest(recipientUserId: recipientUserId, draft: draft);
-    _testInFlight = future;
+    _operationFuture = future;
     return future;
   }
 
@@ -257,34 +267,35 @@ final class AdminCampaignController {
         AdminCampaignTestDelivery.idle => null,
       };
       _emit(
-        _state.copyWith(
-          submitting: false,
-          testDelivery: result.delivery,
-          message: message,
+        _withPendingDraftReconciled(
+          _state.copyWith(
+            submitting: false,
+            testDelivery: result.delivery,
+            message: message,
+          ),
         ),
       );
-      _reconcilePendingDraft();
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(error, fallback: 'Test delivery failed. Nothing was sent.');
-      _reconcilePendingDraft();
     } finally {
-      _testInFlight = null;
+      _operationInFlight = false;
+      _operationFuture = null;
     }
   }
 
-  void _reconcilePendingDraft() {
+  AdminCampaignState _withPendingDraftReconciled(
+    AdminCampaignState completedState,
+  ) {
     final pending = _pendingDraft;
     _pendingDraft = null;
-    if (pending == null || _expired) return;
+    if (pending == null || _expired) return completedState;
     ++_generation;
-    _emit(
-      _state.copyWith(
-        audience: pending.audience,
-        draft: pending.draft,
-        clearPreview: true,
-        clearCommitIdempotencyKey: true,
-      ),
+    return completedState.copyWith(
+      audience: pending.audience,
+      draft: pending.draft,
+      clearPreview: true,
+      clearCommitIdempotencyKey: true,
     );
   }
 
@@ -314,14 +325,20 @@ final class AdminCampaignController {
     if (error is AdminCampaignTransportException && error.isForbidden) {
       onCapabilityDenied?.call();
       _emit(
-        _state.copyWith(
-          submitting: false,
-          message: 'You do not have permission for that action.',
+        _withPendingDraftReconciled(
+          _state.copyWith(
+            submitting: false,
+            message: 'You do not have permission for that action.',
+          ),
         ),
       );
       return;
     }
-    _emit(_state.copyWith(submitting: false, message: fallback));
+    _emit(
+      _withPendingDraftReconciled(
+        _state.copyWith(submitting: false, message: fallback),
+      ),
+    );
   }
 
   void _emit(AdminCampaignState state) {

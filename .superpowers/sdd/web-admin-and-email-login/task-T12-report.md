@@ -248,3 +248,75 @@ exit 0: 31 tests passed.
 
 No broad suites, services, browser sessions, or external providers were run in
 this fix round.
+
+## Fix round 4 — atomic completion and shared campaign operation gate
+
+### Changes
+
+- Preview, commit, and test-send completions now reconcile the latest queued
+  draft/audience mutation into the terminal state before notifying listeners.
+  No non-submitting notification exposes the old frozen preview after a queued
+  mutation, including failure completions.
+- Commit and test-send now share one operation gate. A valid second operation
+  coalesces with the active future and cannot start its repository call, while
+  the accepted first result remains visible.
+- Commit establishes the shared gate before emitting operation state and writes
+  its retained idempotency key in the submitting transition, preserving stable
+  uncertain-retry behavior without an ungated intermediate notification.
+- Added a listener regression that attempts confirmation from a preview
+  completion callback, plus focused cross-operation tests in both orderings.
+
+### TDD and verification evidence
+
+The three regressions were run before the production change:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart
+exit 1:
+- Completion listener observed a non-submitting stale preview and attempted
+  confirmation (expected false, actual true).
+- Test-send followed by commit started one commit (expected 0, actual 1).
+- Commit followed by test-send started one test-send (expected 0, actual 1).
+```
+
+Focused campaign green verification:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart test/features/admin_campaigns/admin_campaign_controller_test.dart
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart
+Formatted 2 files (1 changed).
+exit 0: 17 tests passed.
+```
+
+Final all-T12 focused verification:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart test/features/admin_campaigns/admin_campaign_controller_test.dart
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+Formatted 2 files (0 changed).
+exit 0: 34 tests passed.
+```
+
+Repository-required Flutter checks:
+
+```text
+mise run flutter-analyze
+exit 0: 98 repository-wide informational diagnostics; none in the touched T12
+files.
+
+mise run flutter-test
+exit 1 after 329 passed and 2 skipped: the existing out-of-scope T10 failure
+remains in admin_session_controller_test.dart.
+
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_session/admin_session_controller_test.dart --plain-name 'a login started during logout waits for the fresh CSRF bootstrap'
+exit 1:
+expected ['logout', 'bootstrap', 'login']
+actual   ['logout', 'bootstrap', 'bootstrap', 'login']
+```
+
+No services, browser sessions, or external providers were needed for this
+controller-only fix round.
