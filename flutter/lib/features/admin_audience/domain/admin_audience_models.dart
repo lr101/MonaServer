@@ -106,6 +106,8 @@ enum AdminAudienceSecurityStatus {
   deleted,
 }
 
+enum AdminAudienceReportStatus { open, resolved, dismissed }
+
 final class AdminAudienceFilter {
   const AdminAudienceFilter({
     this.resource = AdminAudienceResource.accounts,
@@ -115,7 +117,50 @@ final class AdminAudienceFilter {
     this.securityStatus,
     this.createdAfter,
     this.createdBefore,
-  });
+  }) : _statuses = const {},
+       _types = const {},
+       assigneeUserId = null;
+
+  AdminAudienceFilter._reports({
+    required this.createdAfter,
+    required this.createdBefore,
+    required this._statuses,
+    required this._types,
+    required this.assigneeUserId,
+  }) : resource = AdminAudienceResource.reports,
+       search = null,
+       includeAdmins = null,
+       verifiedEmail = null,
+       securityStatus = null;
+
+  factory AdminAudienceFilter.reports({
+    Iterable<AdminAudienceReportStatus> statuses = const {},
+    Iterable<String> types = const {},
+    String? assigneeUserId,
+    DateTime? createdAfter,
+    DateTime? createdBefore,
+  }) {
+    final normalizedAssigneeUserId = assigneeUserId?.trim();
+    final trimmedTypes = types.map((type) => type.trim()).toList();
+    final normalizedTypes = trimmedTypes.toSet();
+    if (trimmedTypes.length > 32 ||
+        normalizedTypes.any((type) => type.isEmpty || type.length > 64)) {
+      throw ArgumentError.value(
+        types,
+        'types',
+        'must contain at most 32 non-blank values of at most 64 characters',
+      );
+    }
+    return AdminAudienceFilter._reports(
+      statuses: Set.unmodifiable(statuses),
+      types: Set.unmodifiable(normalizedTypes),
+      assigneeUserId: normalizedAssigneeUserId?.isEmpty == true
+          ? null
+          : normalizedAssigneeUserId,
+      createdAfter: createdAfter,
+      createdBefore: createdBefore,
+    );
+  }
 
   final AdminAudienceResource resource;
   final String? search;
@@ -124,14 +169,28 @@ final class AdminAudienceFilter {
   final AdminAudienceSecurityStatus? securityStatus;
   final DateTime? createdAfter;
   final DateTime? createdBefore;
+  final Set<AdminAudienceReportStatus> _statuses;
+  final Set<String> _types;
+  final String? assigneeUserId;
 
-  bool get hasCriteria =>
-      (search?.trim().isNotEmpty ?? false) ||
-      includeAdmins != null ||
-      verifiedEmail != null ||
-      securityStatus != null ||
-      createdAfter != null ||
-      createdBefore != null;
+  Set<AdminAudienceReportStatus> get statuses => _statuses;
+  Set<String> get types => _types;
+
+  bool get hasCriteria {
+    if (resource == AdminAudienceResource.reports) {
+      return statuses.isNotEmpty ||
+          types.isNotEmpty ||
+          assigneeUserId != null ||
+          createdAfter != null ||
+          createdBefore != null;
+    }
+    return (search?.trim().isNotEmpty ?? false) ||
+        includeAdmins != null ||
+        verifiedEmail != null ||
+        securityStatus != null ||
+        createdAfter != null ||
+        createdBefore != null;
+  }
 
   AdminAudienceFilter copyWith({
     AdminAudienceResource? resource,
@@ -147,7 +206,38 @@ final class AdminAudienceFilter {
     bool clearCreatedAfter = false,
     DateTime? createdBefore,
     bool clearCreatedBefore = false,
+    Iterable<AdminAudienceReportStatus>? statuses,
+    bool clearStatuses = false,
+    Iterable<String>? types,
+    bool clearTypes = false,
+    String? assigneeUserId,
+    bool clearAssigneeUserId = false,
   }) {
+    if (this.resource == AdminAudienceResource.reports) {
+      return AdminAudienceFilter.reports(
+        statuses: clearStatuses ? const {} : statuses ?? this.statuses,
+        types: clearTypes ? const {} : types ?? this.types,
+        assigneeUserId: clearAssigneeUserId
+            ? null
+            : assigneeUserId ?? this.assigneeUserId,
+        createdAfter: clearCreatedAfter
+            ? null
+            : createdAfter ?? this.createdAfter,
+        createdBefore: clearCreatedBefore
+            ? null
+            : createdBefore ?? this.createdBefore,
+      );
+    }
+    if (statuses != null ||
+        clearStatuses ||
+        types != null ||
+        clearTypes ||
+        assigneeUserId != null ||
+        clearAssigneeUserId) {
+      throw ArgumentError(
+        'Report criteria require AdminAudienceFilter.reports.',
+      );
+    }
     return AdminAudienceFilter(
       resource: resource ?? this.resource,
       search: clearSearch ? null : search ?? this.search,
@@ -178,7 +268,12 @@ final class AdminAudienceFilter {
       other.verifiedEmail == verifiedEmail &&
       other.securityStatus == securityStatus &&
       other.createdAfter == createdAfter &&
-      other.createdBefore == createdBefore;
+      other.createdBefore == createdBefore &&
+      other.assigneeUserId == assigneeUserId &&
+      other.statuses.length == statuses.length &&
+      other.statuses.containsAll(statuses) &&
+      other.types.length == types.length &&
+      other.types.containsAll(types);
 
   @override
   int get hashCode => Object.hash(
@@ -189,6 +284,9 @@ final class AdminAudienceFilter {
     securityStatus,
     createdAfter,
     createdBefore,
+    assigneeUserId,
+    Object.hashAllUnordered(statuses),
+    Object.hashAllUnordered(types),
   );
 
   @override
@@ -259,6 +357,24 @@ final class AdminAudienceSelection {
         return '${selectedIds.length} selected ${selectedIds.length == 1 ? noun : pluralNoun}';
       case AdminAudienceSelectionKind.filter:
         final search = filter?.search?.trim();
+        if (resource == AdminAudienceResource.reports) {
+          final reportFilter = filter;
+          final criteria = <String>[
+            if (reportFilter?.statuses.isNotEmpty == true)
+              'status: ${reportFilter!.statuses.map((status) => status.name).join(', ')}',
+            if (reportFilter?.types.isNotEmpty == true)
+              'type: ${reportFilter!.types.join(', ')}',
+            if (reportFilter?.assigneeUserId != null)
+              'assignee: ${reportFilter!.assigneeUserId}',
+            if (reportFilter?.createdAfter != null)
+              'created after: ${reportFilter!.createdAfter!.toIso8601String()}',
+            if (reportFilter?.createdBefore != null)
+              'created before: ${reportFilter!.createdBefore!.toIso8601String()}',
+          ];
+          return criteria.isEmpty
+              ? 'All $pluralNoun matching this filter'
+              : 'All $pluralNoun matching ${criteria.join('; ')}';
+        }
         return search?.isNotEmpty == true
             ? 'All $pluralNoun matching “$search”'
             : 'All $pluralNoun matching this filter';

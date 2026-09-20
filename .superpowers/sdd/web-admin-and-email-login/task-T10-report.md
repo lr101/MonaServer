@@ -90,3 +90,33 @@ was compiled and its static artifact check passed, but no browser interaction
 claim is made.
 
 Implementation commit SHA: recorded in the handoff after commit.
+
+## T10 report-audience follow-up
+
+Base: `9b42875`.
+
+Added the pure-Dart report audience seam: domain-owned `open`/`resolved`/
+`dismissed` statuses, bounded immutable report types, trimmed optional assignee
+IDs, report-aware actionability/copy/equality/hash behavior, and explicit
+report scope summaries. Account filters retain their existing criteria and
+summary behavior; report-only copy criteria are rejected for account filters.
+
+### Verification
+
+All commands ran from `flutter/` in this worktree.
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — 2 files checked; no changes
+
+mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart
+PASS — 22 tests
+
+mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — exit 0; 6 existing info diagnostics in unchanged selection-test cases, with no warnings or errors
+
+git -C .. diff --check
+PASS
+```
+
+No services, browser, providers, or external systems were started or used.
