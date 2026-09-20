@@ -141,6 +141,39 @@ git -C .. diff --check
 PASS
 ```
 
+## Fix round 3 — account-scoped unnamed filter construction
+
+Base: `4d53f9c`.
+
+Removed the `resource` parameter from the unnamed const-compatible
+`AdminAudienceFilter` constructor, so it always constructs an account filter.
+Report filters are constructed only through `AdminAudienceFilter.reports(...)`.
+The existing `copyWith` cross-resource rejection and immutable, bounded report
+criteria remain intact.
+
+### Verification
+
+The following combined command ran from `flutter/` in this worktree and
+returned exit code 0:
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart && mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && git -C .. diff --check
+Formatted 2 files (0 changed) in 0.02 seconds.
+00:00 +27: All tests passed!
+Analyzing admin_audience_models.dart, admin_audience_selection_test.dart...
+info - test/features/admin_audience/admin_audience_selection_test.dart:285:20 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+info - test/features/admin_audience/admin_audience_selection_test.dart:304:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+info - test/features/admin_audience/admin_audience_selection_test.dart:313:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+info - test/features/admin_audience/admin_audience_selection_test.dart:324:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+info - test/features/admin_audience/admin_audience_selection_test.dart:333:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+info - test/features/admin_audience/admin_audience_selection_test.dart:353:53 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+6 issues found.
+```
+
+The focused suite passed 28 tests. The six analyzer infos are existing
+`avoid_redundant_argument_values` diagnostics; there were no warnings or
+errors. `git diff --check` produced no output and passed.
+
 No services, browser, providers, or external systems were started or used.
 
 ## Fix round 1 — resource-discriminated filter invariant
