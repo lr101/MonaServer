@@ -72,6 +72,10 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 	if !validLegacyReportFields(dto.Report, dto.Message) {
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
+	targetID, targetKind, err := reportTargetFromDTO(dto)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
 	// Keep the old direct, mail-only adapter behavior for deployments and unit
 	// callers that have not wired the additive report repository yet. Routed
 	// production calls always have q and an authenticated user context.
@@ -139,7 +143,8 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 		requestID = &request
 	}
 	stored, err := s.reports.Submit(ctx, service.ReportSubmission{
-		ReporterID: reporterID, Body: dto.Message, LegacyText: &legacy, RequestID: requestID, ClientIP: service.ReportClientIP(ctx),
+		ReporterID: reporterID, TargetID: targetID, TargetKind: targetKind, Body: dto.Message,
+		LegacyText: &legacy, RequestID: requestID, ClientIP: service.ReportClientIP(ctx),
 	})
 	if err != nil {
 		return reportErrorResponse(ctx, err), nil
@@ -151,6 +156,37 @@ func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportD
 	}
 	_ = stored
 	return genserver.Response(http.StatusOK, nil), nil
+}
+
+// reportTargetFromDTO parses only client-supplied target identity. The report
+// service owns the target snapshot and deletion state once the submission is
+// persisted.
+func reportTargetFromDTO(dto genserver.ReportDto) (*uuid.UUID, *string, error) {
+	if dto.TargetId == nil {
+		if dto.TargetKind != nil {
+			return nil, nil, apperrors.ErrBadRequest
+		}
+		return nil, nil, nil
+	}
+
+	targetIDText := *dto.TargetId
+	if targetIDText != strings.TrimSpace(targetIDText) || strings.ContainsAny(targetIDText, "\x00\r\n") {
+		return nil, nil, apperrors.ErrBadRequest
+	}
+	targetID, err := uuid.Parse(targetIDText)
+	if err != nil || targetID == uuid.Nil {
+		return nil, nil, apperrors.ErrBadRequest
+	}
+	if dto.TargetKind == nil {
+		return &targetID, nil, nil
+	}
+
+	targetKindText := *dto.TargetKind
+	targetKind := strings.TrimSpace(targetKindText)
+	if targetKind == "" || len([]byte(targetKindText)) > 32 || strings.ContainsAny(targetKindText, "\x00\r\n") || !utf8.ValidString(targetKindText) {
+		return nil, nil, apperrors.ErrBadRequest
+	}
+	return &targetID, &targetKind, nil
 }
 
 func validLegacyReportFields(report, message string) bool {

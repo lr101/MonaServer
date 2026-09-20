@@ -6019,6 +6019,14 @@ components:
         message:
           maximum: 5000
           type: string
+        targetId:
+          format: uuid
+          nullable: true
+          type: string
+        targetKind:
+          maxLength: 32
+          nullable: true
+          type: string
       required:
       - message
       - report

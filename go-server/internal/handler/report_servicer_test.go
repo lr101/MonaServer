@@ -138,7 +138,9 @@ func TestCreateReportPersistsWithoutSMTPAndRejectsForgedReporter(t *testing.T) {
 	}
 
 	forged := uuid.New()
-	response, err = servicer.CreateReport(ctx, genserver.ReportDto{UserId: forged.String(), Report: "Bug", Message: "forged"}, "")
+	targetID := uuid.New()
+	targetIDText := targetID.String()
+	response, err = servicer.CreateReport(ctx, genserver.ReportDto{UserId: forged.String(), Report: "Bug", Message: "forged", TargetId: &targetIDText}, "")
 	if err != nil {
 		t.Fatalf("forged report: %v", err)
 	}
@@ -161,6 +163,111 @@ func TestCreateReportPersistsWithoutSMTPAndRejectsForgedReporter(t *testing.T) {
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid report status = %d, want 400", invalid.Code)
 	}
+}
+
+func TestReportTargetFromDTOUsesUserDefaultWhenKindIsOmitted(t *testing.T) {
+	targetID := uuid.New()
+	targetIDText := targetID.String()
+
+	parsedID, parsedKind, err := reportTargetFromDTO(genserver.ReportDto{TargetId: &targetIDText})
+	if err != nil {
+		t.Fatalf("parse target: %v", err)
+	}
+	if parsedID == nil || *parsedID != targetID {
+		t.Fatalf("parsed target id = %v, want %s", parsedID, targetID)
+	}
+	if parsedKind != nil {
+		t.Fatalf("parsed target kind = %v, want nil user default", *parsedKind)
+	}
+}
+
+func TestReportTargetFromDTOCarriesExplicitKind(t *testing.T) {
+	targetID := uuid.New()
+	targetIDText := targetID.String()
+	targetKind := "pin"
+
+	parsedID, parsedKind, err := reportTargetFromDTO(genserver.ReportDto{TargetId: &targetIDText, TargetKind: &targetKind})
+	if err != nil {
+		t.Fatalf("parse target: %v", err)
+	}
+	if parsedID == nil || *parsedID != targetID {
+		t.Fatalf("parsed target id = %v, want %s", parsedID, targetID)
+	}
+	if parsedKind == nil || *parsedKind != targetKind {
+		t.Fatalf("parsed target kind = %v, want %q", parsedKind, targetKind)
+	}
+}
+
+func TestCreateReportRejectsInvalidTargetBeforePersistence(t *testing.T) {
+	userID := uuid.New()
+	servicer := NewReportServicer(nil, nil)
+	ctx := middleware.WithUser(context.Background(), userID, middleware.RoleUser)
+
+	for _, test := range []struct {
+		name       string
+		targetID   *string
+		targetKind *string
+	}{
+		{name: "malformed target id", targetID: stringPointer("not-a-uuid")},
+		{name: "empty target id", targetID: stringPointer("")},
+		{name: "kind without target id", targetKind: stringPointer("pin")},
+		{name: "empty target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer(" ")},
+		{name: "overlong target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer(strings.Repeat("p", 33))},
+		{name: "invalid target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer("pin\n")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := servicer.CreateReport(ctx, genserver.ReportDto{
+				UserId: userID.String(), Report: "Bug", Message: "details", TargetId: test.targetID, TargetKind: test.targetKind,
+			}, "")
+			if err != nil {
+				t.Fatalf("create report: %v", err)
+			}
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("create report status = %d, want 400", response.Code)
+			}
+		})
+	}
+}
+
+func TestCreateReportPersistsStructuredTarget(t *testing.T) {
+	q, reporterID, _ := setupReportHandlerDB(t)
+	targetID := uuid.New()
+	if _, err := q.Pool().Exec(context.Background(), `
+		INSERT INTO users (id, username, password, email_confirmed, creation_date, update_date)
+		VALUES ($1, 'handler-report-target', 'hash', FALSE, NOW(), NOW())`, targetID); err != nil {
+		t.Fatalf("insert target user: %v", err)
+	}
+	targetIDText := targetID.String()
+	targetKind := "user"
+
+	response, err := NewReportServicer(nil, q).CreateReport(
+		middleware.WithUser(context.Background(), reporterID, middleware.RoleUser),
+		genserver.ReportDto{UserId: reporterID.String(), Report: "Bug", Message: "target details", TargetId: &targetIDText, TargetKind: &targetKind},
+		"structured-target-key",
+	)
+	if err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+	if response.Code != http.StatusOK {
+		t.Fatalf("create report status = %d, want 200", response.Code)
+	}
+	stored, err := q.GetReportByRequestID(context.Background(), "structured-target-key")
+	if err != nil {
+		t.Fatalf("get stored report: %v", err)
+	}
+	if stored == nil || stored.TargetID == nil || *stored.TargetID != targetID {
+		t.Fatalf("stored target id = %#v, want %s", stored, targetID)
+	}
+	if stored.TargetKind == nil || *stored.TargetKind != targetKind {
+		t.Fatalf("stored target kind = %#v, want %q", stored.TargetKind, targetKind)
+	}
+	if stored.TargetName == nil || *stored.TargetName != "handler-report-target" || stored.TargetDeleted {
+		t.Fatalf("stored target snapshot = %#v, want server-owned user snapshot", stored)
+	}
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func TestCreateReportAuthenticatedWithoutRepositoryDoesNotMailOnly(t *testing.T) {
