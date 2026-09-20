@@ -266,3 +266,76 @@ Analyzing admin_audience_models.dart, admin_audience_selection_test.dart...
 tests; the analyzer returned exit 0 with the six existing informational
 diagnostics and no warnings or errors. No services, browser, providers, or
 external systems were started or used.
+
+## Fix round 5 — verification transcript correction
+
+Base: `d3f03ab`.
+
+This bookkeeping-only round corrects the internally inconsistent formatter
+transcript in Fix round 4. The fresh formatter output below contains no
+per-file formatting line and reports zero changes. The intentional red
+mutation-check evidence above is preserved unchanged; the final focused-suite
+count remains 28 tests. No source or test files changed in this round.
+
+### Verification
+
+All commands ran separately from `flutter/` in this worktree, except the final
+repository-level diff check.
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+Formatted 2 files (0 changed) in 0.02 seconds.
+
+mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart
+00:00 +0: loading /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart
+00:00 +0: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: unnamed filters are account-scoped
+00:00 +1: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: unnamed filters reject the legacy resource argument at runtime
+00:00 +2: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: reports factory constructs the report resource
+00:00 +3: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: account filters reject copy transitions to reports
+00:00 +4: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject copy transitions to accounts
+00:00 +5: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject account-only copy criteria
+00:00 +6: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report criteria make a matching audience actionable
+00:00 +7: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: each report criterion makes a matching audience actionable
+00:00 +8: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: changing report criteria invalidates an equal frozen audience
+00:00 +9: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject blank report types
+00:00 +10: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject report types longer than 64 characters
+00:00 +11: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject more than 32 report types
+00:00 +12: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters reject more than 32 repeated report types
+00:00 +13: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: account filters reject report-only copy criteria
+00:00 +14: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report filters freeze normalized status and type state
+00:00 +15: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: report summaries include date criteria
+00:00 +16: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: selected IDs survive pagination and produce an actionable audience
+00:00 +17: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: changing the matching filter invalidates selected IDs
+00:00 +18: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: all matching is explicit and cannot be confused with an empty selection
+00:00 +19: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: all matching preserves the visible search filter and account resource
+00:00 +20: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: an unconstrained matching filter is not actionable
+00:00 +21: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: clearing selection returns a non-actionable selected audience
+00:00 +22: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: preview confirmation requires the exact audience, action, and payload
+00:00 +23: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: ready previews without server binding cannot be confirmed
+00:00 +24: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_confirmation_test.dart: confirmation is disabled for an empty selected audience
+00:00 +25: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_confirmation_test.dart: confirmation shows frozen preview counts and confirms
+00:00 +26: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_confirmation_test.dart: confirmation rejects a preview bound to another audience
+00:00 +27: /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_confirmation_test.dart: confirmation rejects an unconstrained matching filter
+00:00 +28: All tests passed!
+
+mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+Analyzing admin_audience_models.dart, admin_audience_selection_test.dart...
+
+   info - test/features/admin_audience/admin_audience_selection_test.dart:294:20 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:313:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:322:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:333:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:342:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:362:53 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+
+6 issues found.
+
+git diff --check
+(no output; exit 0)
+```
+
+The formatter, focused tests, analyzer, and diff check each returned exit code
+0. Analyzer output contains the six pre-existing
+`avoid_redundant_argument_values` informational diagnostics and no warnings or
+errors. No services, browser, providers, or external systems were started or
+used.
