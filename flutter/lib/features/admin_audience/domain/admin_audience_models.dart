@@ -108,22 +108,29 @@ enum AdminAudienceSecurityStatus {
 
 enum AdminAudienceReportStatus { open, resolved, dismissed }
 
+// Keep the unnamed constructor const-compatible for account callers. If a
+// legacy account criterion is tagged as reports, normalize the discriminator
+// to the valid account resource; report filters use the reports factory.
 final class AdminAudienceFilter {
   const AdminAudienceFilter({
-    this.resource = AdminAudienceResource.accounts,
+    AdminAudienceResource resource = AdminAudienceResource.accounts,
     this.search,
     this.includeAdmins,
     this.verifiedEmail,
     this.securityStatus,
     this.createdAfter,
     this.createdBefore,
-  }) : _statuses = const {},
+  }) : resource =
+           resource == AdminAudienceResource.reports &&
+               (search != null ||
+                   includeAdmins != null ||
+                   verifiedEmail != null ||
+                   securityStatus != null)
+           ? AdminAudienceResource.accounts
+           : resource,
+       _statuses = const {},
        _types = const {},
-       assigneeUserId = null,
-       assert(
-         resource == AdminAudienceResource.accounts,
-         'Report filters require AdminAudienceFilter.reports.',
-       );
+       assigneeUserId = null;
 
   AdminAudienceFilter._reports({
     required this.createdAfter,

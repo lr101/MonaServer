@@ -2,15 +2,20 @@ import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.d
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('unnamed filters reject report resources', () {
-    expect(
-      () => AdminAudienceFilter(
-        resource: AdminAudienceResource.reports,
+  test(
+    'unnamed filters rebuild report-tagged account criteria as accounts',
+    () {
+      final invalidResource = AdminAudienceResource.values.last;
+      final filter = AdminAudienceFilter(
+        resource: invalidResource,
         search: 'must-use-report-factory',
-      ),
-      throwsA(isA<AssertionError>()),
-    );
-  });
+      );
+
+      expect(filter.resource, AdminAudienceResource.accounts);
+      expect(filter.search, 'must-use-report-factory');
+      expect(filter.hasCriteria, isTrue);
+    },
+  );
 
   test('account filters reject copy transitions to reports', () {
     const filter = AdminAudienceFilter(search: 'alice');

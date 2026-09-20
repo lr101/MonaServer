@@ -78,6 +78,28 @@ git diff --check
 PASS
 ```
 
+## Fix round 2 — production-safe unnamed filter construction
+
+Base: `57c838e`.
+
+The unnamed const-compatible constructor now normalizes legacy account
+criteria tagged with `resource: reports` back to the valid accounts resource;
+it no longer relies on an assertion, so non-const production callers cannot
+retain invalid report/account state. The existing `copyWith` transition and
+resource-specific report criteria behavior remains unchanged.
+
+### Verification
+
+The independently rerun combined command and output were:
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart && mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && git -C .. diff --check
+PASS — formatting unchanged
+PASS — 26/26 tests; All tests passed!
+PASS — dart analyze exit 0; 6 existing info diagnostics, with no warnings or errors
+PASS — git diff --check
+```
+
 ## Availability and limitations
 
 Flutter dependencies were installed by the existing `flutter-setup` task. No
