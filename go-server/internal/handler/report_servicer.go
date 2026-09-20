@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -183,7 +184,7 @@ func reportTargetFromDTO(dto genserver.ReportDto) (*uuid.UUID, *string, error) {
 
 	targetKindText := *dto.TargetKind
 	targetKind := strings.TrimSpace(targetKindText)
-	if targetKind == "" || len([]byte(targetKindText)) > 32 || strings.ContainsAny(targetKindText, "\x00\r\n") || !utf8.ValidString(targetKindText) {
+	if targetKind == "" || len([]byte(targetKindText)) > 32 || strings.IndexFunc(targetKindText, unicode.IsControl) >= 0 || !utf8.ValidString(targetKindText) {
 		return nil, nil, apperrors.ErrBadRequest
 	}
 	return &targetID, &targetKind, nil

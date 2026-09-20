@@ -214,6 +214,8 @@ func TestCreateReportRejectsInvalidTargetBeforePersistence(t *testing.T) {
 		{name: "empty target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer(" ")},
 		{name: "overlong target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer(strings.Repeat("p", 33))},
 		{name: "invalid target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer("pin\n")},
+		{name: "tab target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer("pin\t")},
+		{name: "unit separator target kind", targetID: stringPointer(uuid.NewString()), targetKind: stringPointer("pin\x1f")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response, err := servicer.CreateReport(ctx, genserver.ReportDto{

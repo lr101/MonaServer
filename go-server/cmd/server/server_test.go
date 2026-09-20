@@ -1393,6 +1393,94 @@ func TestEndpointReport(t *testing.T) {
 	})
 }
 
+func TestEndpointReportTargetFieldsRoute(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
+
+	anon := &apiClient{base: srv.URL}
+	ar := anon.signup(t, "report-target-route", "pw123")
+	reporterID := uuid.MustParse(ar.UserID)
+	client := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+	targetID := reporterID
+	explicitKind := "user"
+
+	tests := []struct {
+		name           string
+		targetFields   map[string]any
+		bodyUserID     string
+		wantStatus     int
+		wantStored     bool
+		wantTargetID   *uuid.UUID
+		wantTargetKind *string
+	}{
+		{name: "omitted", wantStatus: http.StatusOK, wantStored: true},
+		{name: "explicit null", targetFields: map[string]any{"targetId": nil, "targetKind": nil}, wantStatus: http.StatusOK, wantStored: true},
+		{name: "target id uses user default", targetFields: map[string]any{"targetId": ar.UserID}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID},
+		{name: "target id and kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID, wantTargetKind: &explicitKind},
+		{name: "malformed target id", targetFields: map[string]any{"targetId": "not-a-uuid"}, wantStatus: http.StatusBadRequest},
+		{name: "kind without target id", targetFields: map[string]any{"targetKind": explicitKind}, wantStatus: http.StatusBadRequest},
+		{name: "control character target kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": "pin\t"}, wantStatus: http.StatusBadRequest},
+		{name: "forged body reporter", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, bodyUserID: uuid.NewString(), wantStatus: http.StatusForbidden},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requestID := "route-target-" + strings.ReplaceAll(test.name, " ", "-")
+			body := map[string]any{
+				"userId":  ar.UserID,
+				"report":  "route target report",
+				"message": "route target details",
+			}
+			if test.bodyUserID != "" {
+				body["userId"] = test.bodyUserID
+			}
+			for key, value := range test.targetFields {
+				body[key] = value
+			}
+
+			resp := client.doWithHeaders(t, http.MethodPost, "/api/v2/report", body, map[string]string{"Idempotency-Key": requestID})
+			resp.Body.Close()
+			if resp.StatusCode != test.wantStatus {
+				t.Fatalf("report status = %d, want %d", resp.StatusCode, test.wantStatus)
+			}
+
+			stored, err := q.GetReportByRequestID(context.Background(), requestID)
+			if err != nil {
+				t.Fatalf("get routed report: %v", err)
+			}
+			if !test.wantStored {
+				if stored != nil {
+					t.Fatalf("stored report = %#v, want no row", stored)
+				}
+				return
+			}
+			if stored == nil {
+				t.Fatal("stored report is nil")
+			}
+			if stored.ReporterUserID == nil || *stored.ReporterUserID != reporterID {
+				t.Fatalf("stored reporter = %#v, want authenticated user %s", stored.ReporterUserID, reporterID)
+			}
+			if test.wantTargetID == nil {
+				if stored.TargetID != nil {
+					t.Fatalf("stored target id = %v, want nil", stored.TargetID)
+				}
+			} else if stored.TargetID == nil || *stored.TargetID != *test.wantTargetID {
+				t.Fatalf("stored target id = %v, want %s", stored.TargetID, *test.wantTargetID)
+			}
+			if test.wantTargetKind == nil {
+				if stored.TargetKind != nil {
+					t.Fatalf("stored target kind = %v, want nil", stored.TargetKind)
+				}
+			} else if stored.TargetKind == nil || *stored.TargetKind != *test.wantTargetKind {
+				t.Fatalf("stored target kind = %v, want %q", stored.TargetKind, *test.wantTargetKind)
+			}
+		})
+	}
+}
+
 func reportQuotaIdentifierHMAC(key []byte, scope, value string) []byte {
 	h := hmac.New(sha256.New, key)
 	_, _ = h.Write([]byte(scope + "\x00" + value))
