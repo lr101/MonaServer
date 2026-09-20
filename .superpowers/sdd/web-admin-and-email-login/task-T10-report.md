@@ -141,6 +141,36 @@ git -C .. diff --check
 PASS
 ```
 
+No services, browser, providers, or external systems were started or used.
+
+## Fix round 1 — resource-discriminated filter invariant
+
+Base: `b2d7d81`.
+
+The unnamed const-compatible constructor now rejects `reports`, resource
+transitions through `copyWith` are rejected, and both account-only and
+report-only copy criteria are rejected outside their resource. This prevents
+ignored criteria from creating invalid filter state or affecting stale-preview
+equality.
+
+### Verification
+
+All commands ran from `flutter/` in this worktree.
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — 2 files checked; no changes
+
+mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart
+PASS — 26 tests
+
+mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — exit 0; 6 existing info diagnostics in unchanged selection-test cases, with no warnings or errors
+
+git -C .. diff --check
+PASS
+```
+
 ## Fix round 3 — account-scoped unnamed filter construction
 
 Base: `4d53f9c`.
@@ -174,32 +204,65 @@ The focused suite passed 28 tests. The six analyzer infos are existing
 `avoid_redundant_argument_values` diagnostics; there were no warnings or
 errors. `git diff --check` produced no output and passed.
 
-No services, browser, providers, or external systems were started or used.
+## Fix round 4 — runtime legacy-constructor regression
 
-## Fix round 1 — resource-discriminated filter invariant
+Base: `a109fc3`.
 
-Base: `b2d7d81`.
+Added a runtime API-surface regression for the unnamed constructor. Calling
+its real constructor tear-off through `Function.apply` with the removed
+`resource: reports` named argument now throws `NoSuchMethodError`. This
+distinguishes the current account-only API from `4d53f9c`, whose former
+constructor accepted that invocation and returned a report filter. Report
+construction remains exclusively `AdminAudienceFilter.reports(...)`; no
+production constructor behavior changed in this round.
 
-The unnamed const-compatible constructor now rejects `reports`, resource
-transitions through `copyWith` are rejected, and both account-only and
-report-only copy criteria are rejected outside their resource. This prevents
-ignored criteria from creating invalid filter state or affecting stale-preview
-equality.
+### Mutation check
+
+The focused test was run against the temporary prior constructor signature,
+then the account-only constructor was restored before final verification. The
+exact command and output were:
+
+```text
+mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart --plain-name 'unnamed filters reject the legacy resource argument at runtime'; test_status=$?; test "$test_status" -ne 0
+00:00 +0: loading /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart
+00:00 +0: unnamed filters reject the legacy resource argument at runtime
+00:00 +0 -1: unnamed filters reject the legacy resource argument at runtime [E]
+  Expected: throws <Instance of 'NoSuchMethodError'>
+    Actual: <Closure: () => dynamic>
+     Which: returned AdminAudienceFilter:<AdminAudienceFilter(criteria: false)>
+
+  package:matcher                                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18                    expect
+  test/features/admin_audience/admin_audience_selection_test.dart 14:5  main.<fn>
+
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /root/.t3/worktrees/MonaServer/t3code-59827f46/flutter/test/features/admin_audience/admin_audience_selection_test.dart: unnamed filters reject the legacy resource argument at runtime
+```
 
 ### Verification
 
-All commands ran from `flutter/` in this worktree.
+The following command ran from `flutter/` in this worktree and returned exit
+code 0:
 
 ```text
-mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
-PASS — 2 files checked; no changes
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart && mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart && git -C .. diff --check
+Formatted test/features/admin_audience/admin_audience_selection_test.dart
+Formatted 2 files (0 changed) in 0.02 seconds.
+00:00 +28: All tests passed!
+Analyzing admin_audience_models.dart, admin_audience_selection_test.dart...
 
-mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart
-PASS — 26 tests
-
-mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
-PASS — exit 0; 6 existing info diagnostics in unchanged selection-test cases, with no warnings or errors
-
-git -C .. diff --check
-PASS
+   info - test/features/admin_audience/admin_audience_selection_test.dart:294:20 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:313:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:322:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:333:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:342:33 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+   info - test/features/admin_audience/admin_audience_selection_test.dart:362:53 - The value of the argument is redundant because it matches the default value. Try removing the argument. - avoid_redundant_argument_values
+6 issues found.
 ```
+
+`git diff --check` emitted no output and passed. The focused suite count is 28
+tests; the analyzer returned exit 0 with the six existing informational
+diagnostics and no warnings or errors. No services, browser, providers, or
+external systems were started or used.

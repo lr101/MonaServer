@@ -10,6 +10,15 @@ void main() {
     expect(filter.hasCriteria, isTrue);
   });
 
+  test('unnamed filters reject the legacy resource argument at runtime', () {
+    expect(
+      () => Function.apply(AdminAudienceFilter.new, const [], const {
+        #resource: AdminAudienceResource.reports,
+      }),
+      throwsA(isA<NoSuchMethodError>()),
+    );
+  });
+
   test('reports factory constructs the report resource', () {
     final filter = AdminAudienceFilter.reports(
       statuses: const {AdminAudienceReportStatus.open},
