@@ -120,3 +120,31 @@ PASS
 ```
 
 No services, browser, providers, or external systems were started or used.
+
+## Fix round 1 — resource-discriminated filter invariant
+
+Base: `b2d7d81`.
+
+The unnamed const-compatible constructor now rejects `reports`, resource
+transitions through `copyWith` are rejected, and both account-only and
+report-only copy criteria are rejected outside their resource. This prevents
+ignored criteria from creating invalid filter state or affecting stale-preview
+equality.
+
+### Verification
+
+All commands ran from `flutter/` in this worktree.
+
+```text
+mise exec -- dart format lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — 2 files checked; no changes
+
+mise exec -- flutter test --no-pub test/features/admin_audience/admin_audience_selection_test.dart test/features/admin_audience/admin_audience_confirmation_test.dart
+PASS — 26 tests
+
+mise exec -- dart analyze lib/features/admin_audience/domain/admin_audience_models.dart test/features/admin_audience/admin_audience_selection_test.dart
+PASS — exit 0; 6 existing info diagnostics in unchanged selection-test cases, with no warnings or errors
+
+git -C .. diff --check
+PASS
+```

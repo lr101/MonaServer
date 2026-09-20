@@ -119,7 +119,11 @@ final class AdminAudienceFilter {
     this.createdBefore,
   }) : _statuses = const {},
        _types = const {},
-       assigneeUserId = null;
+       assigneeUserId = null,
+       assert(
+         resource == AdminAudienceResource.accounts,
+         'Report filters require AdminAudienceFilter.reports.',
+       );
 
   AdminAudienceFilter._reports({
     required this.createdAfter,
@@ -213,7 +217,24 @@ final class AdminAudienceFilter {
     String? assigneeUserId,
     bool clearAssigneeUserId = false,
   }) {
+    if (resource != null && resource != this.resource) {
+      throw ArgumentError.value(
+        resource,
+        'resource',
+        'Resource transitions require a new resource-specific filter.',
+      );
+    }
     if (this.resource == AdminAudienceResource.reports) {
+      if (search != null ||
+          clearSearch ||
+          includeAdmins != null ||
+          clearIncludeAdmins ||
+          verifiedEmail != null ||
+          clearVerifiedEmail ||
+          securityStatus != null ||
+          clearSecurityStatus) {
+        throw ArgumentError('Account criteria require an account filter.');
+      }
       return AdminAudienceFilter.reports(
         statuses: clearStatuses ? const {} : statuses ?? this.statuses,
         types: clearTypes ? const {} : types ?? this.types,

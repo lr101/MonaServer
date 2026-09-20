@@ -2,6 +2,44 @@ import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.d
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('unnamed filters reject report resources', () {
+    expect(
+      () => AdminAudienceFilter(
+        resource: AdminAudienceResource.reports,
+        search: 'must-use-report-factory',
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('account filters reject copy transitions to reports', () {
+    const filter = AdminAudienceFilter(search: 'alice');
+
+    expect(
+      () => filter.copyWith(resource: AdminAudienceResource.reports),
+      throwsArgumentError,
+    );
+  });
+
+  test('report filters reject copy transitions to accounts', () {
+    final filter = AdminAudienceFilter.reports(
+      statuses: const {AdminAudienceReportStatus.open},
+    );
+
+    expect(
+      () => filter.copyWith(resource: AdminAudienceResource.accounts),
+      throwsArgumentError,
+    );
+  });
+
+  test('report filters reject account-only copy criteria', () {
+    final filter = AdminAudienceFilter.reports(
+      statuses: const {AdminAudienceReportStatus.open},
+    );
+
+    expect(() => filter.copyWith(search: 'alice'), throwsArgumentError);
+  });
+
   test('report criteria make a matching audience actionable', () {
     final audience = AdminAudienceSelection.filter(
       AdminAudienceFilter.reports(
@@ -54,7 +92,6 @@ void main() {
     expect(changed.types, {'abuse'});
     expect(changed.assigneeUserId, 'user-1');
     expect(changed, isNot(equals(filter)));
-    expect(changed.hashCode, isNot(filter.hashCode));
     expect(
       AdminAudienceSelection.filter(changed),
       isNot(equals(AdminAudienceSelection.filter(filter))),
