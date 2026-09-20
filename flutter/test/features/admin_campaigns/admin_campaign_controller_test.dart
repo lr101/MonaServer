@@ -392,6 +392,112 @@ void main() {
     },
   );
 
+  test('re-entrant confirmation waits for the accepted test-send', () async {
+    final accepted = Completer<AdminCampaignTestResult>();
+    final repository = _CampaignRepository(testFuture: accepted.future);
+    final controller = AdminCampaignController(repository);
+    final audience = AdminAudienceSelection.selected(const {'one'});
+    const draft = AdminCampaignDraft.loginLink();
+    Future<void>? blockedCommit;
+    var sendCompleted = false;
+    var blockedCommitCompleted = false;
+    AdminCampaignState? stateAtBlockedCompletion;
+
+    await controller.preview(audience, draft);
+    late AdminCampaignListener listener;
+    listener = (state) {
+      if (!state.submitting) return;
+      controller.removeListener(listener);
+      blockedCommit = controller.confirm();
+      unawaited(
+        blockedCommit!.then((_) {
+          blockedCommitCompleted = true;
+          stateAtBlockedCompletion = controller.state;
+        }),
+      );
+    };
+    controller.addListener(listener);
+
+    final send = controller.sendTest(recipientUserId: 'operator', draft: draft);
+    unawaited(send.then((_) => sendCompleted = true));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(blockedCommit, isNotNull);
+    expect(sendCompleted, isFalse);
+    expect(blockedCommitCompleted, isFalse);
+    expect(blockedCommit, same(send));
+    expect(repository.testSendCount, 1);
+    expect(repository.commitCount, 0);
+
+    accepted.complete(const AdminCampaignTestResult.accepted());
+    await Future.wait([send, blockedCommit!]);
+
+    expect(sendCompleted, isTrue);
+    expect(blockedCommitCompleted, isTrue);
+    expect(stateAtBlockedCompletion?.submitting, isFalse);
+    expect(
+      stateAtBlockedCompletion?.testDelivery,
+      AdminCampaignTestDelivery.accepted,
+    );
+    expect(controller.state.testDelivery, AdminCampaignTestDelivery.accepted);
+    expect(controller.state.message, 'Test delivery was accepted.');
+    expect(controller.state.jobId, isNull);
+    expect(repository.commitCount, 0);
+  });
+
+  test('re-entrant test-send waits for the accepted commit', () async {
+    final accepted = Completer<AdminCampaignCommitResult>();
+    final repository = _CampaignRepository(commitFuture: accepted.future);
+    final controller = AdminCampaignController(repository);
+    final audience = AdminAudienceSelection.selected(const {'one'});
+    const draft = AdminCampaignDraft.loginLink();
+    Future<void>? blockedSend;
+    var commitCompleted = false;
+    var blockedSendCompleted = false;
+    AdminCampaignState? stateAtBlockedCompletion;
+
+    await controller.preview(audience, draft);
+    late AdminCampaignListener listener;
+    listener = (state) {
+      if (!state.submitting) return;
+      controller.removeListener(listener);
+      blockedSend = controller.sendTest(
+        recipientUserId: 'operator',
+        draft: draft,
+      );
+      unawaited(
+        blockedSend!.then((_) {
+          blockedSendCompleted = true;
+          stateAtBlockedCompletion = controller.state;
+        }),
+      );
+    };
+    controller.addListener(listener);
+
+    final commit = controller.confirm();
+    unawaited(commit.then((_) => commitCompleted = true));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(blockedSend, isNotNull);
+    expect(commitCompleted, isFalse);
+    expect(blockedSendCompleted, isFalse);
+    expect(blockedSend, same(commit));
+    expect(repository.commitCount, 1);
+    expect(repository.testSendCount, 0);
+
+    accepted.complete(const AdminCampaignCommitResult(jobId: 'job-1'));
+    await Future.wait([commit, blockedSend!]);
+
+    expect(commitCompleted, isTrue);
+    expect(blockedSendCompleted, isTrue);
+    expect(stateAtBlockedCompletion?.submitting, isFalse);
+    expect(stateAtBlockedCompletion?.jobId, 'job-1');
+    expect(controller.state.jobId, 'job-1');
+    expect(controller.state.message, 'Campaign accepted for delivery.');
+    expect(controller.state.testDelivery, AdminCampaignTestDelivery.idle);
+    expect(repository.testSendCount, 0);
+  });
+
   test(
     'reuses one idempotency key after an uncertain commit failure',
     () async {

@@ -320,3 +320,75 @@ actual   ['logout', 'bootstrap', 'bootstrap', 'login']
 
 No services, browser sessions, or external providers were needed for this
 controller-only fix round.
+
+## Fix round 5 — install the active Future before operation dispatch
+
+### Changes
+
+- Reviewed starting commit: `6637a07`. This round changes only
+  `flutter/lib/features/admin_campaigns/presentation/admin_campaign_controller.dart`,
+  `flutter/test/features/admin_campaigns/admin_campaign_controller_test.dart`,
+  and this report.
+- Removed the separate `_operationInFlight` Boolean. The active Future itself
+  is the shared commit/test-send gate, so a busy gate cannot lack its Future.
+- A shared operation helper installs a `Completer<void>` Future before invoking
+  either operation body or notifying listeners. Re-entrant cross-operation
+  calls receive the same active Future, which completes after the accepted
+  result is published. The helper also releases the gate on success or error.
+- Added regressions for confirmation from a test-send submitting listener and
+  test-send from a commit submitting listener. Each verifies that both calls
+  remain pending while the first repository request is pending, that they share
+  the same Future, that no second repository operation starts, and that the
+  accepted first result is visible when the waiting call completes.
+- Queued draft/audience reconciliation, retained retry idempotency, and stale
+  preview refusal were preserved; their existing focused regressions pass.
+
+### TDD and verification evidence
+
+The new regressions ran before the production change:
+
+```text
+cd flutter
+mise exec -- flutter test --no-pub test/features/admin_campaigns/admin_campaign_controller_test.dart
+exit 1: 17 passed, 2 failed.
+- re-entrant confirmation waits for the accepted test-send:
+  blockedCommitCompleted expected false, actual true while sendCompleted was false.
+- re-entrant test-send waits for the accepted commit:
+  blockedSendCompleted expected false, actual true while commitCompleted was false.
+```
+
+Formatting and all-T12 focused verification after the fix:
+
+```text
+cd flutter
+mise exec -- dart format lib/features/admin_campaigns/presentation/admin_campaign_controller.dart test/features/admin_campaigns/admin_campaign_controller_test.dart
+exit 0: Formatted 2 files (1 changed).
+
+mise exec -- flutter test --no-pub test/features/admin_campaigns test/features/admin_security test/features/admin_jobs test/features/admin_audit
+exit 0: 36 tests passed.
+```
+
+Repository-required checks from the repository root:
+
+```text
+mise run flutter-analyze
+exit 0: 98 informational diagnostics; none in the two touched Dart files.
+
+mise run flutter-test
+exit 1: 331 passed, 2 skipped, 1 failed.
+The previously recorded T10 failure remains:
+test/features/admin_session/admin_session_controller_test.dart
+  a login started during logout waits for the fresh CSRF bootstrap
+expected ['logout', 'bootstrap', 'login']
+actual   ['logout', 'bootstrap', 'bootstrap', 'login']
+
+git diff --check
+exit 0.
+```
+
+The round-5 worker could not return a commit because its session hit a usage
+limit, but its source and test changes were present in this continuation
+worktree and were validated here. No new T12 concerns were found. The existing
+T10 composition seams and its unrelated session-test failure remain with that
+owner. No Go API, PostGIS, RustFS, SMTP, FCM, browser, or external provider was
+started. No real delivery was attempted.

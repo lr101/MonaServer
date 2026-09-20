@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.dart';
@@ -83,7 +84,6 @@ final class AdminCampaignController {
   Future<void>? _operationFuture;
   _PendingCampaignDraft? _pendingDraft;
   int _generation = 0;
-  bool _operationInFlight = false;
   bool _expired = false;
 
   AdminCampaignState get state => _state;
@@ -168,9 +168,8 @@ final class AdminCampaignController {
 
   Future<void> confirm() {
     if (_expired || _state.jobId != null) return Future.value();
-    if (_operationInFlight) {
-      return _operationFuture ?? Future<void>.value();
-    }
+    final activeOperation = _operationFuture;
+    if (activeOperation != null) return activeOperation;
     final audience = _state.audience;
     final draft = _state.draft;
     final preview = _state.preview;
@@ -191,10 +190,7 @@ final class AdminCampaignController {
       commit: request,
       idempotencyKey: _state.commitIdempotencyKey ?? _idempotencyKey(),
     );
-    _operationInFlight = true;
-    final future = _commit(command);
-    _operationFuture = future;
-    return future;
+    return _startOperation(() => _commit(command));
   }
 
   Future<void> _commit(AdminCampaignCommitCommand command) async {
@@ -224,9 +220,6 @@ final class AdminCampaignController {
         error,
         fallback: 'Campaign could not be accepted. Try again.',
       );
-    } finally {
-      _operationInFlight = false;
-      _operationFuture = null;
     }
   }
 
@@ -237,12 +230,23 @@ final class AdminCampaignController {
     if (_expired || recipientUserId.trim().isEmpty || !draft.isValid) {
       return Future<void>.value();
     }
-    if (_operationInFlight) {
-      return _operationFuture ?? Future<void>.value();
-    }
-    _operationInFlight = true;
-    final future = _sendTest(recipientUserId: recipientUserId, draft: draft);
+    final activeOperation = _operationFuture;
+    if (activeOperation != null) return activeOperation;
+    return _startOperation(
+      () => _sendTest(recipientUserId: recipientUserId, draft: draft),
+    );
+  }
+
+  Future<void> _startOperation(Future<void> Function() operation) {
+    final completer = Completer<void>();
+    final future = completer.future;
+    // Install the gate before the operation can synchronously notify listeners.
     _operationFuture = future;
+    completer.complete(
+      Future<void>.sync(operation).whenComplete(() {
+        _operationFuture = null;
+      }),
+    );
     return future;
   }
 
@@ -278,9 +282,6 @@ final class AdminCampaignController {
     } catch (error) {
       if (!_isCurrent(generation)) return;
       _handleError(error, fallback: 'Test delivery failed. Nothing was sent.');
-    } finally {
-      _operationInFlight = false;
-      _operationFuture = null;
     }
   }
 
