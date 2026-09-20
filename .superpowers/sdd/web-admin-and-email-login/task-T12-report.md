@@ -392,3 +392,12 @@ worktree and were validated here. No new T12 concerns were found. The existing
 T10 composition seams and its unrelated session-test failure remain with that
 owner. No Go API, PostGIS, RustFS, SMTP, FCM, browser, or external provider was
 started. No real delivery was attempted.
+
+### Final scoped re-review
+
+Commit `1a13b12` was reviewed against `6637a07` with the exact T12 brief and
+review package `review-6637a07..1a13b12.diff`. The reviewer found no blocking
+findings and marked T12 **APPROVED**. The previous non-atomic operation-gate
+finding is resolved; both re-entrant directions are covered by tests. The
+reviewer independently confirmed 19 campaign-controller tests, 36 T12-focused
+tests, clean diff checks, and the same unrelated T10 repository-wide failure.
