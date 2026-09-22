@@ -81,6 +81,13 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
   Widget build(BuildContext context) {
     if (!widget.canRead) return const _PermissionDeniedView();
     final state = widget.controller.state;
+    final canConfirmBulk = switch (state.bulkPreview?.action?.kind) {
+      AdminAudienceActionKind.reportResolve =>
+        widget.canReview && widget.canResolve,
+      AdminAudienceActionKind.reportDismiss =>
+        widget.canReview && widget.canDismiss,
+      _ => false,
+    };
     return ListView(
       key: const ValueKey('admin-reports-screen'),
       padding: const EdgeInsets.all(24),
@@ -160,7 +167,7 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
             action: state.bulkPreview!.action,
             payloadHash: state.bulkPreview!.payloadHash,
             loading: state.bulkLoading,
-            onConfirm: widget.canReview ? widget.controller.confirmBulk : null,
+            onConfirm: canConfirmBulk ? widget.controller.confirmBulk : null,
           ),
         ],
         if (state.bulkMessage != null)
