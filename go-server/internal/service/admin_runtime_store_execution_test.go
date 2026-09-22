@@ -10,7 +10,7 @@ func TestProductionAdminStoreExposesOnlyDurableExecutionCapabilities(t *testing.
 		"lease renewal":           func() bool { _, ok := any(store).(AdminJobLeaseRenewer); return ok }(),
 		"terminal unknown delivery": func() bool {
 			capability, ok := any(store).(TerminalUnknownDeliveryStore)
-			return ok && capability.SupportsTerminalUnknownDelivery()
+			return ok && !capability.SupportsTerminalUnknownDelivery()
 		}(),
 		"atomic audit finish": func() bool { _, ok := any(store).(AdminJobItemCommitStore); return ok }(),
 		"lease-loss commit":   func() bool { _, ok := any(store).(AdminJobLeaseLossCommitStore); return ok }(),

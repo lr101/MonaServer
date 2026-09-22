@@ -1722,15 +1722,15 @@ func adminJobItemFromRow(r dbgen.AdminJobItem) AdminJobItem {
 }
 
 func adminJobItemFromGetRow(r dbgen.GetAdminJobItemRow) AdminJobItem {
-	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func adminJobItemFromListRow(r dbgen.ListAdminJobItemsRow) AdminJobItem {
-	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func adminJobItemFromClaimRow(r dbgen.ClaimAdminJobItemsRow) AdminJobItem {
-	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func adminJobItemFromFencedClaimRow(r dbgen.ClaimAdminJobItemWithFenceRow) AdminJobItem {

@@ -734,9 +734,10 @@ func (s *ProductionAdminStore) RecordJobItemAudit(ctx context.Context, audit Adm
 }
 
 func (s *ProductionAdminStore) SupportsTerminalUnknownDelivery() bool {
-	// This is a type-level capability declaration: construction with a nil
-	// query facade is still rejected by every execution method above.
-	return s != nil
+	// The service may only advertise terminal-unknown semantics when the
+	// durable SQL facade is present. A nil compatibility store must remain
+	// unavailable rather than satisfying the capability marker by type alone.
+	return s != nil && s.queries != nil
 }
 
 func runtimeAuditParams(audit AdminJobItemAudit) db.AdminJobItemAuditParams {

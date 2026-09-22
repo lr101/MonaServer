@@ -821,6 +821,8 @@ WITH updated AS (
                'error_code', NULLIF($17::text, '')
            )), now(), updated.id, updated.operation_id, updated.lease_fence
     FROM updated
+    ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL
+    DO UPDATE SET id = audit_events.id
     RETURNING id
 )
 SELECT updated.id, updated.job_id, updated.target_id, updated.operation_id, updated.device_id,
@@ -862,7 +864,8 @@ WITH updated AS (
                               'operation_id', updated.operation_id::text, 'error_code', 'lease_lost'),
            now(), updated.id, updated.operation_id, updated.lease_fence
     FROM updated
-    ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL DO NOTHING
+    ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL
+    DO UPDATE SET id = audit_events.id
     RETURNING id
 )
 SELECT updated.id, updated.job_id, updated.target_id, updated.operation_id, updated.device_id,
@@ -888,6 +891,7 @@ FROM admin_job_items item
 WHERE item.id = $8
   AND item.job_id = $9
   AND item.operation_id = $10
+  AND item.completed_at IS NOT NULL
 ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL DO NOTHING;
 
 -- Durable jobs and outbox leases -------------------------------------------
