@@ -17,6 +17,7 @@ final class AdminReportsState {
     this.bulkPreview,
     this.bulkStatus,
     this.bulkMessage,
+    this.bulkLoading = false,
   });
 
   final AdminReportQuery query;
@@ -30,6 +31,7 @@ final class AdminReportsState {
   final AdminAudiencePreview? bulkPreview;
   final AdminReportStatus? bulkStatus;
   final String? bulkMessage;
+  final bool bulkLoading;
 
   AdminReportsState copyWith({
     AdminReportQuery? query,
@@ -49,6 +51,7 @@ final class AdminReportsState {
     bool clearBulkStatus = false,
     String? bulkMessage,
     bool clearBulkMessage = false,
+    bool? bulkLoading,
   }) => AdminReportsState(
     query: query ?? this.query,
     reports: reports ?? this.reports,
@@ -61,6 +64,7 @@ final class AdminReportsState {
     bulkPreview: clearBulkPreview ? null : bulkPreview ?? this.bulkPreview,
     bulkStatus: clearBulkStatus ? null : bulkStatus ?? this.bulkStatus,
     bulkMessage: clearBulkMessage ? null : bulkMessage ?? this.bulkMessage,
+    bulkLoading: bulkLoading ?? this.bulkLoading,
   );
 }
 
@@ -93,6 +97,8 @@ final class AdminReportsController {
     String? search,
     AdminReportStatus? status,
     bool clearStatus = false,
+    bool preserveBulkMessage = false,
+    bool bulkRefresh = false,
   }) async {
     if (_disposed) return;
     final query = AdminReportQuery(
@@ -114,7 +120,8 @@ final class AdminReportsController {
         clearError: true,
         clearBulkPreview: true,
         clearBulkStatus: true,
-        clearBulkMessage: true,
+        clearBulkMessage: !preserveBulkMessage,
+        bulkLoading: bulkRefresh,
       ),
     );
     try {
@@ -126,10 +133,13 @@ final class AdminReportsController {
           nextCursor: page.nextCursor,
           clearNextCursor: page.nextCursor == null,
           loading: false,
+          bulkLoading: false,
         ),
       );
     } catch (error) {
-      if (_isCurrentList(generation)) _handleError(error);
+      if (_isCurrentList(generation)) {
+        _handleError(error, bulk: bulkRefresh);
+      }
     }
   }
 
@@ -155,7 +165,9 @@ final class AdminReportsController {
   }
 
   void toggleSelection(String reportId) {
-    if (_disposed) return;
+    if (_disposed || (_state.bulkLoading && _state.bulkPreview != null)) {
+      return;
+    }
     ++_bulkGeneration;
     final selected = {..._state.selectedIds};
     if (!selected.add(reportId)) selected.remove(reportId);
@@ -164,6 +176,7 @@ final class AdminReportsController {
         selectedIds: selected,
         clearBulkPreview: true,
         clearBulkStatus: true,
+        bulkLoading: false,
       ),
     );
   }
@@ -197,7 +210,7 @@ final class AdminReportsController {
     String? note,
   }) async {
     final detail = _state.detail;
-    if (_disposed || detail == null) return;
+    if (_disposed || detail == null || _state.loadingDetail) return;
     final generation = _detailGeneration;
     final normalizedAssignee = assigneeUserId?.trim();
     final shouldClearAssignee =
@@ -236,7 +249,12 @@ final class AdminReportsController {
   Future<void> addNote(String text) async {
     final detail = _state.detail;
     final trimmed = text.trim();
-    if (_disposed || detail == null || trimmed.isEmpty) return;
+    if (_disposed ||
+        detail == null ||
+        trimmed.isEmpty ||
+        _state.loadingDetail) {
+      return;
+    }
     final generation = _detailGeneration;
     _emit(_state.copyWith(loadingDetail: true, clearError: true));
     try {
@@ -254,20 +272,29 @@ final class AdminReportsController {
     AdminReportStatus status, {
     bool allMatching = false,
   }) async {
-    if (_disposed) return;
+    if (_disposed || (_state.bulkLoading && _state.bulkPreview != null)) {
+      return;
+    }
     final generation = ++_bulkGeneration;
     if (allMatching && _state.query.search.trim().isNotEmpty) {
       _emit(
         _state.copyWith(
-          error: 'Clear the text search before using all-matching report actions.',
+          error:
+              'Clear the text search before using all-matching report actions.',
           clearBulkPreview: true,
           clearBulkStatus: true,
+          bulkLoading: false,
         ),
       );
       return;
     }
+    final reportFilter = _state.query.audienceFilter;
     final audience = allMatching
-        ? AdminAudienceSelection.filter(_state.query.audienceFilter)
+        ? reportFilter.hasCriteria
+              ? AdminAudienceSelection.filter(reportFilter)
+              : AdminAudienceSelection.all(
+                  resource: AdminAudienceResource.reports,
+                )
         : AdminAudienceSelection.selected(
             _state.selectedIds,
             resource: AdminAudienceResource.reports,
@@ -283,24 +310,41 @@ final class AdminReportsController {
           error: 'Select at least one report or choose all matching reports.',
           clearBulkPreview: true,
           clearBulkStatus: true,
+          bulkLoading: false,
         ),
       );
       return;
     }
-    _emit(_state.copyWith(clearError: true, clearBulkMessage: true));
+    _emit(
+      _state.copyWith(
+        clearError: true,
+        clearBulkMessage: true,
+        clearBulkPreview: true,
+        clearBulkStatus: true,
+        bulkLoading: true,
+      ),
+    );
     try {
       final preview = await repository.preview(request);
       if (!_isCurrentBulk(generation)) return;
-      _emit(_state.copyWith(bulkPreview: preview, bulkStatus: status));
+      _emit(
+        _state.copyWith(
+          bulkPreview: preview,
+          bulkStatus: status,
+          bulkLoading: false,
+        ),
+      );
     } catch (error) {
-      if (_isCurrentBulk(generation)) _handleError(error);
+      if (_isCurrentBulk(generation)) _handleError(error, bulk: true);
     }
   }
 
   Future<void> confirmBulk() async {
     final preview = _state.bulkPreview;
     final status = _state.bulkStatus;
-    if (_disposed || preview == null || status == null) return;
+    if (_disposed || preview == null || status == null || _state.bulkLoading) {
+      return;
+    }
     final generation = _bulkGeneration;
     final commit = preview.commitRequest(
       expectedAudience: preview.audience,
@@ -315,23 +359,43 @@ final class AdminReportsController {
       );
       return;
     }
+    _emit(_state.copyWith(clearError: true, bulkLoading: true));
     try {
       final outcome = await repository.commitBulk(
         AdminReportBulkCommand(commit: commit, status: status),
       );
-      if (!_isCurrentBulk(generation)) return;
       final changed = outcome.changed;
+      if (!_isCurrentBulk(generation)) {
+        if (!_disposed) {
+          _emit(
+            _state.copyWith(
+              bulkMessage:
+                  '$changed report${changed == 1 ? '' : 's'} ${changed == 1 ? 'was' : 'were'} ${_pastTense(status)} while the inbox changed. Refresh to see the latest results.',
+            ),
+          );
+        }
+        return;
+      }
+      final query = _state.query;
       _emit(
         _state.copyWith(
           selectedIds: const {},
           bulkMessage:
-              '$changed report${changed == 1 ? '' : 's'} were ${_pastTense(status)}.',
+              '$changed report${changed == 1 ? '' : 's'} ${changed == 1 ? 'was' : 'were'} ${_pastTense(status)}.',
           clearBulkPreview: true,
           clearBulkStatus: true,
+          bulkLoading: true,
         ),
       );
+      await loadInbox(
+        search: query.search,
+        status: query.status,
+        clearStatus: query.status == null,
+        preserveBulkMessage: true,
+        bulkRefresh: true,
+      );
     } catch (error) {
-      if (_isCurrentBulk(generation)) _handleError(error);
+      if (_isCurrentBulk(generation)) _handleError(error, bulk: true);
     }
   }
 
@@ -377,13 +441,14 @@ final class AdminReportsController {
     _state = _state.copyWith(reports: reports);
   }
 
-  void _handleError(Object error, {bool detail = false}) {
+  void _handleError(Object error, {bool detail = false, bool bulk = false}) {
     if (_isUnauthorized(error)) {
       onUnauthorized?.call();
       _emit(
         _state.copyWith(
           loading: detail ? null : false,
           loadingDetail: detail ? false : null,
+          bulkLoading: bulk ? false : null,
           error: 'Your admin session has expired.',
         ),
       );
@@ -395,6 +460,7 @@ final class AdminReportsController {
         _state.copyWith(
           loading: detail ? null : false,
           loadingDetail: detail ? false : null,
+          bulkLoading: bulk ? false : null,
           error: 'You do not have permission to review reports.',
         ),
       );
@@ -404,6 +470,7 @@ final class AdminReportsController {
       _state.copyWith(
         loading: detail ? null : false,
         loadingDetail: detail ? false : null,
+        bulkLoading: bulk ? false : null,
         error: detail
             ? 'Report details are unavailable.'
             : 'Reports are unavailable. Try again.',

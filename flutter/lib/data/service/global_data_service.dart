@@ -277,15 +277,23 @@ class AuthService extends _$AuthService {
   Future<String?> report(
     String reportedReferences,
     String reportMessage,
-  ) async {
-    final reportApi = ref.watch(reportApiProvider);
+  ) {
     final userId = ref.read(userIdProvider);
-    try {
-      final request = ReportDto(
+    return reportDto(
+      ReportDto(
         report: reportedReferences,
         userId: userId,
         message: reportMessage,
-      );
+      ),
+    );
+  }
+
+  /// Sends a fully adapted report request. The server derives the
+  /// authenticated reporter; [request.userId] remains only for legacy wire
+  /// compatibility.
+  Future<String?> reportDto(ReportDto request) async {
+    final reportApi = ref.watch(reportApiProvider);
+    try {
       await reportApi.createReport(request);
       return null;
     } on ApiException catch (e) {

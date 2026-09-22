@@ -12,12 +12,18 @@ final class AdminReportsScreen extends StatefulWidget {
   const AdminReportsScreen({
     required this.controller,
     required this.canRead,
+    this.canReview = true,
+    this.canResolve = true,
+    this.canDismiss = true,
     this.onOpenRelatedTarget,
     super.key,
   });
 
   final AdminReportsController controller;
   final bool canRead;
+  final bool canReview;
+  final bool canResolve;
+  final bool canDismiss;
   final ValueChanged<String>? onOpenRelatedTarget;
 
   @override
@@ -29,6 +35,7 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
   final _assigneeController = TextEditingController();
   final _noteController = TextEditingController();
   bool _allMatching = false;
+  String? _assigneeReportId;
 
   @override
   void initState() {
@@ -46,7 +53,13 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
     super.dispose();
   }
 
-  void _onStateChanged(AdminReportsState _) {
+  void _onStateChanged(AdminReportsState state) {
+    final detailId = state.detail?.id;
+    if (detailId != _assigneeReportId) {
+      _assigneeReportId = detailId;
+      _assigneeController.text = state.detail?.assigneeUserId ?? '';
+      _noteController.clear();
+    }
     if (mounted) setState(() {});
   }
 
@@ -88,16 +101,19 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
         if (state.error != null)
           _ErrorMessage(
             message: state.error!,
-            onRetry: state.loading ? null : _search,
+            onRetry: state.loading || state.bulkLoading ? null : _search,
           ),
         if (state.loading && state.reports.isEmpty)
           const _LoadingView()
-        else if (state.reports.isEmpty)
+        else if (state.error == null && state.reports.isEmpty)
           const _EmptyView()
         else ...[
           _BulkActions(
             state: state,
             allMatching: _allMatching,
+            canReview: widget.canReview,
+            canResolve: widget.canResolve,
+            canDismiss: widget.canDismiss,
             onSelected: (status) {
               _allMatching = false;
               unawaited(widget.controller.previewBulk(status));
@@ -114,6 +130,7 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
             (report) => _ReportRow(
               report: report,
               selected: state.selectedIds.contains(report.id),
+              selectionEnabled: !state.bulkLoading,
               onSelected: () => widget.controller.toggleSelection(report.id),
               onOpen: () => unawaited(widget.controller.loadDetail(report.id)),
             ),
@@ -123,7 +140,7 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
                 key: const ValueKey('admin-reports-load-more'),
-                onPressed: state.loading
+                onPressed: state.loading || state.bulkLoading
                     ? null
                     : widget.controller.loadNextPage,
                 child: Text(state.loading ? 'Loading…' : 'Load more reports'),
@@ -142,7 +159,8 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
             preview: state.bulkPreview,
             action: state.bulkPreview!.action,
             payloadHash: state.bulkPreview!.payloadHash,
-            onConfirm: widget.controller.confirmBulk,
+            loading: state.bulkLoading,
+            onConfirm: widget.canReview ? widget.controller.confirmBulk : null,
           ),
         ],
         if (state.bulkMessage != null)
@@ -156,6 +174,9 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
         const SizedBox(height: 20),
         _DetailPanel(
           state: state,
+          canReview: widget.canReview,
+          canResolve: widget.canResolve,
+          canDismiss: widget.canDismiss,
           assigneeController: _assigneeController,
           noteController: _noteController,
           onOpenRelatedTarget: widget.onOpenRelatedTarget,
@@ -222,7 +243,7 @@ final class _InboxControls extends StatelessWidget {
             children: [
               FilledButton.icon(
                 key: const ValueKey('admin-report-search-submit'),
-                onPressed: state.loading ? null : onSearch,
+                onPressed: state.loading || state.bulkLoading ? null : onSearch,
                 icon: const Icon(Icons.search),
                 label: const Text('Search'),
               ),
@@ -245,14 +266,14 @@ final class _InboxControls extends StatelessWidget {
                         ),
                       )
                       .toList(growable: false),
-                  onChanged: state.loading
+                  onChanged: state.loading || state.bulkLoading
                       ? null
                       : (status) => unawaited(onStatusChanged(status)),
                 ),
               ),
               if (state.query.status != null)
                 TextButton(
-                  onPressed: state.loading
+                  onPressed: state.loading || state.bulkLoading
                       ? null
                       : () => unawaited(onStatusChanged(null)),
                   child: const Text('Clear status'),
@@ -269,19 +290,28 @@ final class _BulkActions extends StatelessWidget {
   const _BulkActions({
     required this.state,
     required this.allMatching,
+    required this.canReview,
+    required this.canResolve,
+    required this.canDismiss,
     required this.onSelected,
     required this.onAllMatching,
   });
 
   final AdminReportsState state;
   final bool allMatching;
+  final bool canReview;
+  final bool canResolve;
+  final bool canDismiss;
   final ValueChanged<AdminReportStatus> onSelected;
   final ValueChanged<AdminReportStatus> onAllMatching;
 
   @override
   Widget build(BuildContext context) {
     final selected = state.selectedIds.length;
-    final allMatchingAllowed = state.query.search.trim().isEmpty;
+    final allMatchingAllowed =
+        state.query.search.trim().isEmpty && !state.bulkLoading;
+    final resolveAllowed = canReview && canResolve && !state.bulkLoading;
+    final dismissAllowed = canReview && canDismiss && !state.bulkLoading;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -297,21 +327,21 @@ final class _BulkActions extends StatelessWidget {
             ),
             OutlinedButton(
               key: const ValueKey('admin-reports-preview-resolve-selected'),
-              onPressed: selected == 0
+              onPressed: selected == 0 || !resolveAllowed
                   ? null
                   : () => onSelected(AdminReportStatus.resolved),
               child: const Text('Preview resolve selected'),
             ),
             OutlinedButton(
               key: const ValueKey('admin-reports-preview-dismiss-selected'),
-              onPressed: selected == 0
+              onPressed: selected == 0 || !dismissAllowed
                   ? null
                   : () => onSelected(AdminReportStatus.dismissed),
               child: const Text('Preview dismiss selected'),
             ),
             OutlinedButton(
               key: const ValueKey('admin-reports-preview-resolve-all'),
-              onPressed: allMatchingAllowed
+              onPressed: allMatchingAllowed && resolveAllowed
                   ? () => onAllMatching(AdminReportStatus.resolved)
                   : null,
               child: Text(
@@ -322,7 +352,7 @@ final class _BulkActions extends StatelessWidget {
             ),
             OutlinedButton(
               key: const ValueKey('admin-reports-preview-dismiss-all'),
-              onPressed: allMatchingAllowed
+              onPressed: allMatchingAllowed && dismissAllowed
                   ? () => onAllMatching(AdminReportStatus.dismissed)
                   : null,
               child: const Text('Preview dismiss all matching'),
@@ -340,12 +370,14 @@ final class _ReportRow extends StatelessWidget {
   const _ReportRow({
     required this.report,
     required this.selected,
+    required this.selectionEnabled,
     required this.onSelected,
     required this.onOpen,
   });
 
   final AdminReport report;
   final bool selected;
+  final bool selectionEnabled;
   final VoidCallback onSelected;
   final VoidCallback onOpen;
 
@@ -364,7 +396,7 @@ final class _ReportRow extends StatelessWidget {
           key: ValueKey('admin-report-${report.id}'),
           leading: Checkbox(
             value: selected,
-            onChanged: (_) => onSelected(),
+            onChanged: selectionEnabled ? (_) => onSelected() : null,
             semanticLabel: 'Select report ${report.id}',
           ),
           title: Text(report.text),
@@ -383,6 +415,9 @@ final class _ReportRow extends StatelessWidget {
 final class _DetailPanel extends StatelessWidget {
   const _DetailPanel({
     required this.state,
+    required this.canReview,
+    required this.canResolve,
+    required this.canDismiss,
     required this.assigneeController,
     required this.noteController,
     required this.onOpenRelatedTarget,
@@ -391,6 +426,9 @@ final class _DetailPanel extends StatelessWidget {
   });
 
   final AdminReportsState state;
+  final bool canReview;
+  final bool canResolve;
+  final bool canDismiss;
   final TextEditingController assigneeController;
   final TextEditingController noteController;
   final ValueChanged<String>? onOpenRelatedTarget;
@@ -447,7 +485,9 @@ final class _DetailPanel extends StatelessWidget {
               ),
             const SizedBox(height: 12),
             TextField(
+              key: const ValueKey('admin-report-assignee'),
               controller: assigneeController,
+              enabled: canReview && !state.loadingDetail,
               decoration: const InputDecoration(
                 labelText: 'Assignee user ID',
                 hintText: 'Leave blank to clear assignment',
@@ -460,19 +500,19 @@ final class _DetailPanel extends StatelessWidget {
               runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: state.loadingDetail
+                  onPressed: state.loadingDetail || !canReview || !canResolve
                       ? null
                       : () => onUpdate(AdminReportStatus.resolved),
                   child: const Text('Resolve'),
                 ),
                 OutlinedButton(
-                  onPressed: state.loadingDetail
+                  onPressed: state.loadingDetail || !canReview || !canDismiss
                       ? null
                       : () => onUpdate(AdminReportStatus.dismissed),
                   child: const Text('Dismiss'),
                 ),
                 OutlinedButton(
-                  onPressed: state.loadingDetail
+                  onPressed: state.loadingDetail || !canReview || !canResolve
                       ? null
                       : () => onUpdate(AdminReportStatus.open),
                   child: const Text('Reopen'),
@@ -482,6 +522,7 @@ final class _DetailPanel extends StatelessWidget {
             const SizedBox(height: 12),
             TextField(
               controller: noteController,
+              enabled: canReview && !state.loadingDetail,
               minLines: 2,
               maxLines: 5,
               decoration: const InputDecoration(
@@ -493,7 +534,7 @@ final class _DetailPanel extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton(
-                onPressed: state.loadingDetail ? null : onAddNote,
+                onPressed: state.loadingDetail || !canReview ? null : onAddNote,
                 child: const Text('Add note'),
               ),
             ),

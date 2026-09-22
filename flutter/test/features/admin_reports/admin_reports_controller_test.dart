@@ -89,6 +89,27 @@ void main() {
     },
   );
 
+  test('does not overlap detail mutations while one is saving', () async {
+    final update = Completer<AdminReport>();
+    final repository = _ReportsRepository(
+      detail: _report('one', revision: 2),
+      updateFuture: update.future,
+    );
+    final controller = AdminReportsController(repository);
+
+    await controller.loadDetail('one');
+    final first = controller.updateDetail(status: AdminReportStatus.resolved);
+    final second = controller.addNote('Must wait');
+
+    await second;
+    expect(repository.updates, hasLength(1));
+    update.complete(
+      _report('one', revision: 3).copyWith(status: AdminReportStatus.resolved),
+    );
+    await first;
+    expect(controller.state.loadingDetail, isFalse);
+  });
+
   test(
     'clears an empty assignee instead of sending a blank identity',
     () async {
@@ -136,13 +157,31 @@ void main() {
       await controller.previewBulk(AdminReportStatus.resolved);
 
       final pending = controller.confirmBulk();
-      controller.toggleSelection('two');
+      await controller.loadInbox(search: 'new-filter');
       commit.completeError(const AdminReportsTransportException(503));
       await pending;
 
       expect(controller.state.error, isNull);
     },
   );
+
+  test('surfaces a successful bulk outcome after the inbox changes', () async {
+    final commit = Completer<AdminReportBulkOutcome>();
+    final repository = _ReportsRepository(bulkFuture: commit.future);
+    final controller = AdminReportsController(repository);
+    controller.toggleSelection('one');
+    await controller.previewBulk(AdminReportStatus.resolved);
+
+    final pending = controller.confirmBulk();
+    await controller.loadInbox(search: 'changed');
+    commit.complete(const AdminReportBulkOutcome(changed: 1, skipped: 0));
+    await pending;
+
+    expect(
+      controller.state.bulkMessage,
+      '1 report was resolved while the inbox changed. Refresh to see the latest results.',
+    );
+  });
 
   test(
     'previews and confirms selected report actions using the frozen audience',
@@ -162,6 +201,25 @@ void main() {
       expect(repository.previewed.single.audience.selectedIds, {'one', 'two'});
       expect(repository.bulkCommands.single.commit.snapshotId, 'snapshot-1');
       expect(controller.state.bulkMessage, '2 reports were dismissed.');
+      expect(repository.queries, isNotEmpty);
+    },
+  );
+
+  test(
+    'does not send a second bulk commit while the first is in flight',
+    () async {
+      final commit = Completer<AdminReportBulkOutcome>();
+      final repository = _ReportsRepository(bulkFuture: commit.future);
+      final controller = AdminReportsController(repository);
+      controller.toggleSelection('one');
+      await controller.previewBulk(AdminReportStatus.resolved);
+
+      final first = controller.confirmBulk();
+      final second = controller.confirmBulk();
+      commit.complete(const AdminReportBulkOutcome(changed: 1, skipped: 0));
+      await Future.wait([first, second]);
+
+      expect(repository.bulkCommands, hasLength(1));
     },
   );
 
@@ -182,6 +240,18 @@ void main() {
       expect(audience.filter?.statuses, {AdminAudienceReportStatus.open});
     },
   );
+
+  test('uses the explicit reports all selection without a filter', () async {
+    final repository = _ReportsRepository();
+    final controller = AdminReportsController(repository);
+
+    await controller.loadInbox();
+    await controller.previewBulk(AdminReportStatus.resolved, allMatching: true);
+
+    final audience = repository.previewed.single.audience;
+    expect(audience.kind, AdminAudienceSelectionKind.all);
+    expect(audience.resource, AdminAudienceResource.reports);
+  });
 
   test(
     'does not broaden an all-matching action beyond a text search',
@@ -250,6 +320,7 @@ final class _ReportsRepository implements AdminReportsRepository {
     List<Object>? futures,
     this.detail,
     this.updateError,
+    this.updateFuture,
     this.previewFuture,
     this.bulkFuture,
   }) : _pages = [...?pages, ...?futures];
@@ -257,6 +328,7 @@ final class _ReportsRepository implements AdminReportsRepository {
   final List<Object> _pages;
   final AdminReport? detail;
   final Object? updateError;
+  final Future<AdminReport>? updateFuture;
   final Future<AdminAudiencePreview>? previewFuture;
   final Future<AdminReportBulkOutcome>? bulkFuture;
   final queries = <AdminReportQuery>[];
@@ -279,6 +351,7 @@ final class _ReportsRepository implements AdminReportsRepository {
   Future<AdminReport> update(AdminReportUpdate update) async {
     updates.add(update);
     if (updateError != null) throw updateError!;
+    if (updateFuture != null) return updateFuture!;
     return _report(
       update.reportId,
       revision: update.expectedRevision + 1,

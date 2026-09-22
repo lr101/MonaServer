@@ -12,7 +12,8 @@ void main() {
   testWidgets(
     'renders deleted targets as text and exposes report review controls',
     (tester) async {
-      final controller = AdminReportsController(_ScreenReportsRepository());
+      final repository = _ScreenReportsRepository();
+      final controller = AdminReportsController(repository);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -40,8 +41,23 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Open report one'));
       await tester.pumpAndSettle();
       expect(find.text('Report detail'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const ValueKey('admin-report-assignee')),
+            )
+            .controller
+            ?.text,
+        'assigned-admin',
+      );
       expect(find.widgetWithText(FilledButton, 'Resolve'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'Dismiss'), findsOneWidget);
+
+      final resolve = find.widgetWithText(FilledButton, 'Resolve');
+      tester.widget<FilledButton>(resolve).onPressed!.call();
+      await tester.pumpAndSettle();
+      expect(repository.updates.single.assigneeUserId, 'assigned-admin');
+      expect(repository.updates.single.clearAssignee, isFalse);
     },
   );
 
@@ -124,6 +140,55 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'honors review capabilities and activates search from the keyboard',
+    (tester) async {
+      final repository = _ScreenReportsRepository();
+      final controller = AdminReportsController(repository);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminReportsScreen(
+            controller: controller,
+            canRead: true,
+            canReview: false,
+            canResolve: false,
+            canDismiss: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(
+                const ValueKey('admin-reports-preview-resolve-selected'),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(const ValueKey('admin-reports-preview-resolve-all')),
+            )
+            .onPressed,
+        isNull,
+      );
+
+      final searchField = find.byKey(const ValueKey('admin-report-search'));
+      await tester.tap(searchField);
+      await tester.enterText(searchField, 'keyboard');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(repository.queries, hasLength(2));
+      expect(repository.queries.last.search, 'keyboard');
+    },
+  );
 }
 
 final class _ScreenReportsRepository implements AdminReportsRepository {
@@ -136,6 +201,8 @@ final class _ScreenReportsRepository implements AdminReportsRepository {
   final Future<AdminReportPage>? listFuture;
   final Object? listError;
   final AdminReportPage page;
+  final updates = <AdminReportUpdate>[];
+  final queries = <AdminReportQuery>[];
   bool listed = false;
 
   @override
@@ -152,6 +219,7 @@ final class _ScreenReportsRepository implements AdminReportsRepository {
   @override
   Future<AdminReportPage> list(AdminReportQuery query) async {
     listed = true;
+    queries.add(query);
     if (listFuture != null) return listFuture!;
     if (listError != null) throw listError!;
     return page;
@@ -162,8 +230,14 @@ final class _ScreenReportsRepository implements AdminReportsRepository {
       throw UnimplementedError();
 
   @override
-  Future<AdminReport> update(AdminReportUpdate update) =>
-      throw UnimplementedError();
+  Future<AdminReport> update(AdminReportUpdate update) async {
+    updates.add(update);
+    return _report.copyWith(
+      status: update.status,
+      assigneeUserId: update.assigneeUserId,
+      clearAssigneeUserId: update.clearAssignee,
+    );
+  }
 }
 
 final _report = AdminReport(
@@ -171,6 +245,7 @@ final _report = AdminReport(
   text: 'Safe text-only report',
   reporterUserId: 'reporter-one',
   reporterUsername: 'reporter',
+  assigneeUserId: 'assigned-admin',
   target: const AdminReportTarget(userId: null, username: null, deleted: true),
   status: AdminReportStatus.open,
   revision: 1,
