@@ -3,10 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -121,13 +118,6 @@ func (s *ProductionAdminStore) CountAudience(ctx context.Context, _ uuid.UUID, a
 	if s == nil || s.queries == nil {
 		return 0, ErrAdminRepositoryAbsent
 	}
-	// A selected audience is the operator's requested scope. Missing or
-	// deleted targets remain members of that scope and are materialized as
-	// explicit exclusions, matching the in-memory contract and preserving the
-	// preview's requested-vs-eligible counts.
-	if audience.Kind == AudienceSelected {
-		return int64(len(audience.IDs)), nil
-	}
 	if audience.Resource == AudienceAccounts {
 		return s.queries.CountAdminRuntimeAccounts(ctx, runtimeAccountAudienceQuery(audience, 1, 0))
 	}
@@ -137,89 +127,12 @@ func (s *ProductionAdminStore) CountAudience(ctx context.Context, _ uuid.UUID, a
 	return 0, ErrInvalidAudience
 }
 
-func sortedRuntimeAudienceIDs(ids []uuid.UUID) []uuid.UUID {
-	out := append([]uuid.UUID(nil), ids...)
-	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
-	return out
-}
-
-func runtimeAccountAudienceMember(row db.AdminRuntimeAccount, action AdminAction, ordinal int64) AudienceMember {
-	reasons := runtimeAccountEligibility(row, action)
-	return AudienceMember{
-		ResourceID: row.ID, Resource: AudienceAccounts, Eligible: len(reasons) == 0,
-		ExclusionCode: firstReason(reasons), DeviceCount: int64(row.DeviceCount), IsAdmin: row.IsAdmin,
-		EmailEligible: row.Email != nil && row.EmailConfirmed && row.GeneralEmailEnabled,
-		EmailOptedOut: !row.GeneralEmailEnabled, PushEligible: row.DeviceCount > 0 && row.PushEnabled,
-		PushOptedOut: !row.PushEnabled, EmailEligibilityKnown: true, PushEligibilityKnown: true,
-		Ordinal: ordinal,
-	}
-}
-
-func runtimeReportAudienceMember(row db.Report, ordinal int64) AudienceMember {
-	member := AudienceMember{ResourceID: row.ID, Resource: AudienceReports, Eligible: row.Status == "open", Ordinal: ordinal}
-	if !member.Eligible {
-		member.ExclusionCode = "report_not_open"
-	}
-	return member
-}
-
-func (s *ProductionAdminStore) listSelectedAudienceMembers(ctx context.Context, audience Audience, action AdminAction, afterID *uuid.UUID, afterOrdinal int64, limit int) ([]AudienceMember, error) {
-	ids := sortedRuntimeAudienceIDs(audience.IDs)
-	start := int(afterOrdinal + 1)
-	if afterID != nil {
-		start = sort.Search(len(ids), func(index int) bool { return ids[index].String() > afterID.String() })
-	}
-	if start < 0 {
-		start = 0
-	}
-	if start >= len(ids) {
-		return []AudienceMember{}, nil
-	}
-	end := start + limit
-	if end > len(ids) {
-		end = len(ids)
-	}
-	items := make([]AudienceMember, 0, end-start)
-	for ordinal, id := range ids[start:end] {
-		absoluteOrdinal := int64(start + ordinal)
-		if audience.Resource == AudienceAccounts {
-			row, err := s.queries.GetAdminRuntimeAccount(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			if row == nil {
-				items = append(items, AudienceMember{ResourceID: id, Resource: AudienceAccounts, ExclusionCode: "not_found", Ordinal: absoluteOrdinal})
-				continue
-			}
-			items = append(items, runtimeAccountAudienceMember(*row, action, absoluteOrdinal))
-			continue
-		}
-		if audience.Resource == AudienceReports {
-			row, err := s.queries.GetReport(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			if row == nil {
-				items = append(items, AudienceMember{ResourceID: id, Resource: AudienceReports, ExclusionCode: "not_found", Ordinal: absoluteOrdinal})
-				continue
-			}
-			items = append(items, runtimeReportAudienceMember(*row, absoluteOrdinal))
-			continue
-		}
-		return nil, ErrInvalidAudience
-	}
-	return items, nil
-}
-
 func (s *ProductionAdminStore) ListAudienceMembers(ctx context.Context, _ uuid.UUID, audience Audience, action AdminAction, afterOrdinal int64, limit int) ([]AudienceMember, error) {
 	if s == nil || s.queries == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
 	if afterOrdinal < -1 || limit < 1 {
 		return nil, ErrInvalidAudience
-	}
-	if audience.Kind == AudienceSelected {
-		return s.listSelectedAudienceMembers(ctx, audience, action, nil, afterOrdinal, limit)
 	}
 	offset := int(afterOrdinal + 1)
 	if audience.Resource == AudienceAccounts {
@@ -259,55 +172,6 @@ func (s *ProductionAdminStore) ListAudienceMembers(ctx context.Context, _ uuid.U
 	return nil, ErrInvalidAudience
 }
 
-// ListAudienceMembersAfterID is the production keyset path used by bounded
-// preview materialization. UUID ordering is stable across inserts/deletes, so
-// a page cannot duplicate or skip a row merely because the underlying table
-// changes between calls. The service still compares the final page count with
-// the initial count and rejects a moving scope rather than persisting a partial
-// snapshot.
-func (s *ProductionAdminStore) ListAudienceMembersAfterID(ctx context.Context, _ uuid.UUID, audience Audience, action AdminAction, afterID *uuid.UUID, afterOrdinal int64, limit int) ([]AudienceMember, error) {
-	if s == nil || s.queries == nil {
-		return nil, ErrAdminRepositoryAbsent
-	}
-	if afterOrdinal < -1 || limit < 1 {
-		return nil, ErrInvalidAudience
-	}
-	if audience.Kind == AudienceSelected {
-		return s.listSelectedAudienceMembers(ctx, audience, action, afterID, afterOrdinal, limit)
-	}
-	if audience.Resource == AudienceAccounts {
-		query := runtimeAccountAudienceQuery(audience, limit, 0)
-		query.AfterID = afterID
-		rows, err := s.queries.ListAdminRuntimeAccounts(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		items := make([]AudienceMember, 0, len(rows))
-		for index, row := range rows {
-			items = append(items, runtimeAccountAudienceMember(row, action, afterOrdinal+int64(index)+1))
-		}
-		return items, nil
-	}
-	if audience.Resource == AudienceReports {
-		query := runtimeReportAudienceQuery(audience, limit, 0)
-		query.AfterID = afterID
-		rows, err := s.queries.ListAdminRuntimeReports(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		items := make([]AudienceMember, 0, len(rows))
-		for index, row := range rows {
-			member := AudienceMember{ResourceID: row.ID, Resource: AudienceReports, Eligible: row.Status == "open", Ordinal: afterOrdinal + int64(index) + 1}
-			if !member.Eligible {
-				member.ExclusionCode = "report_not_open"
-			}
-			items = append(items, member)
-		}
-		return items, nil
-	}
-	return nil, ErrInvalidAudience
-}
-
 func runtimeAccountAudienceQuery(audience Audience, limit, offset int) db.AdminRuntimeAccountQuery {
 	query := db.AdminRuntimeAccountQuery{SelectedIDs: audience.IDs, IncludeAdmins: true, Limit: limit, Offset: offset}
 	if audience.Filter == nil {
@@ -337,8 +201,6 @@ func runtimeReportAudienceQuery(audience Audience, limit, offset int) db.AdminRu
 	query.Statuses = append([]string(nil), audience.Filter.Statuses...)
 	query.TargetTypes = append([]string(nil), audience.Filter.Types...)
 	query.AssigneeUserID = audience.Filter.AssigneeUserID
-	query.CreatedAfter = audience.Filter.CreatedAfter
-	query.CreatedBefore = audience.Filter.CreatedBefore
 	return query
 }
 
@@ -477,16 +339,13 @@ func (s *ProductionAdminStore) CreateJob(ctx context.Context, job AdminJob, item
 			return err
 		}
 		for _, item := range items {
-			if err := tx.AddAdminJobItem(ctx, db.AdminJobItemParams{ID: item.ID, JobID: job.ID, TargetID: item.TargetID, DeviceID: item.DeviceID, DeviceCount: item.DeviceCount, Outcome: item.Outcome, ErrorCode: stringPointer(item.ErrorCode), ProviderReference: stringPointer(item.ProviderReference)}); err != nil {
+			if err := tx.AddAdminJobItem(ctx, db.AdminJobItemParams{ID: item.ID, JobID: job.ID, TargetID: item.TargetID, DeviceID: item.DeviceID, Outcome: item.Outcome, ErrorCode: stringPointer(item.ErrorCode), ProviderReference: stringPointer(item.ProviderReference)}); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, db.ErrIdempotencyConflict) {
-			return nil, ErrJobConflict
-		}
 		return nil, err
 	}
 	if created == nil {
@@ -511,14 +370,7 @@ func (s *ProductionAdminStore) runtimeJob(ctx context.Context, raw db.AdminJob) 
 		return nil, ErrAdminRepositoryAbsent
 	}
 	action := AdminAction{Kind: raw.Action}
-	snapshot, err := s.GetAudienceSnapshot(ctx, *raw.SnapshotID)
-	if err != nil {
-		return nil, err
-	}
-	if snapshot == nil {
-		return nil, ErrSnapshotNotFound
-	}
-	if snapshot.Action.Kind == raw.Action {
+	if snapshot, err := s.GetAudienceSnapshot(ctx, *raw.SnapshotID); err == nil && snapshot != nil && snapshot.Action.Kind == raw.Action {
 		action = snapshot.Action
 	}
 	reason := ""
@@ -589,7 +441,7 @@ func (s *ProductionAdminStore) ListJobItems(ctx context.Context, jobID uuid.UUID
 		if row.ProviderReference != nil {
 			providerReference = *row.ProviderReference
 		}
-		page.Items = append(page.Items, AdminJobItem{ID: row.ID, JobID: row.JobID, TargetID: row.TargetID, DeviceID: row.DeviceID, Outcome: row.Outcome, ErrorCode: errorCode, ProviderReference: providerReference, AttemptCount: row.AttemptCount, DeviceCount: row.DeviceCount, CompletedAt: row.CompletedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		page.Items = append(page.Items, AdminJobItem{ID: row.ID, JobID: row.JobID, TargetID: row.TargetID, DeviceID: row.DeviceID, Outcome: row.Outcome, ErrorCode: errorCode, ProviderReference: providerReference, AttemptCount: row.AttemptCount, CompletedAt: row.CompletedAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
 	}
 	if len(page.Items) > limit {
 		page.Items = page.Items[:limit]
@@ -622,130 +474,6 @@ func (*ProductionAdminStore) UpdateJobProgress(context.Context, uuid.UUID) error
 	return ErrActionUnavailable
 }
 
-func runtimeAdminJobItem(raw db.AdminJobItem) *AdminJobItem {
-	reason, errorCode, providerReference := "", "", ""
-	if raw.Reason != nil {
-		reason = *raw.Reason
-	}
-	if raw.ErrorCode != nil {
-		errorCode = *raw.ErrorCode
-	}
-	if raw.ProviderReference != nil {
-		providerReference = *raw.ProviderReference
-	}
-	return &AdminJobItem{ID: raw.ID, JobID: raw.JobID, TargetID: raw.TargetID, OperationID: raw.OperationID,
-		DeviceID: raw.DeviceID, DeviceCount: raw.DeviceCount, Outcome: raw.Outcome, Reason: reason,
-		ErrorCode: errorCode, ProviderReference: providerReference, Retryable: raw.Retryable,
-		Ambiguous: raw.Ambiguous, AttemptCount: raw.AttemptCount, LastAttemptAt: raw.LastAttemptAt,
-		CompletedAt: raw.CompletedAt, CreatedAt: raw.CreatedAt, UpdatedAt: raw.UpdatedAt}
-}
-
-func (s *ProductionAdminStore) ClaimJobItemWithLease(ctx context.Context, jobID, itemID uuid.UUID, worker string, ttl time.Duration) (*AdminJobItem, *AdminJobLease, bool, error) {
-	if s == nil || s.queries == nil {
-		return nil, nil, false, ErrAdminRepositoryAbsent
-	}
-	raw, claimed, err := s.queries.ClaimAdminJobItemWithFence(ctx, jobID, itemID, worker, ttl)
-	if err != nil || !claimed || raw == nil {
-		return nil, nil, claimed, err
-	}
-	if raw.LeaseToken == uuid.Nil || raw.LeaseFence <= 0 || raw.LeaseUntil == nil || raw.OperationID == uuid.Nil {
-		return nil, nil, false, ErrAdminRepositoryAbsent
-	}
-	return runtimeAdminJobItem(*raw), &AdminJobLease{Token: raw.LeaseToken.String(), Fence: raw.LeaseFence, ExpiresAt: *raw.LeaseUntil}, true, nil
-}
-
-func (s *ProductionAdminStore) RenewJobItemLease(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, ttl time.Duration) (*AdminJobLease, error) {
-	if s == nil || s.queries == nil {
-		return nil, ErrAdminRepositoryAbsent
-	}
-	token, err := uuid.Parse(lease.Token)
-	if err != nil || token == uuid.Nil || lease.Fence <= 0 {
-		return nil, ErrJobConflict
-	}
-	expiresAt, renewed, err := s.queries.RenewAdminJobItemLeaseWithFence(ctx, itemID, token, lease.Fence, ttl)
-	if err != nil {
-		return nil, err
-	}
-	if !renewed || expiresAt == nil {
-		return nil, ErrJobConflict
-	}
-	return &AdminJobLease{Token: lease.Token, Fence: lease.Fence, ExpiresAt: *expiresAt}, nil
-}
-
-func (s *ProductionAdminStore) FinishJobItemWithLease(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool) (*AdminJobItem, error) {
-	if s == nil || s.queries == nil {
-		return nil, ErrAdminRepositoryAbsent
-	}
-	token, err := uuid.Parse(lease.Token)
-	if err != nil || token == uuid.Nil || lease.Fence <= 0 {
-		return nil, ErrJobConflict
-	}
-	raw, finished, err := s.queries.FinishAdminJobItemWithFence(ctx, itemID, token, lease.Fence, operationID, outcome, stringPointer(reason), stringPointer(errorCode), stringPointer(providerReference), retryable, ambiguous)
-	if err != nil {
-		return nil, err
-	}
-	if !finished || raw == nil {
-		return nil, ErrJobConflict
-	}
-	return runtimeAdminJobItem(*raw), nil
-}
-
-func (s *ProductionAdminStore) FinishJobItemWithAudit(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, outcome, reason, errorCode, providerReference string, retryable, ambiguous bool, audit AdminJobItemAudit) (*AdminJobItem, error) {
-	if s == nil || s.queries == nil {
-		return nil, ErrAdminRepositoryAbsent
-	}
-	token, err := uuid.Parse(lease.Token)
-	if err != nil || token == uuid.Nil || lease.Fence <= 0 {
-		return nil, ErrJobConflict
-	}
-	raw, finished, err := s.queries.FinishAdminJobItemWithAudit(ctx, itemID, token, lease.Fence, operationID, outcome, stringPointer(reason), stringPointer(errorCode), stringPointer(providerReference), retryable, ambiguous, runtimeAuditParams(audit))
-	if err != nil {
-		return nil, err
-	}
-	if !finished || raw == nil {
-		return nil, ErrJobConflict
-	}
-	return runtimeAdminJobItem(*raw), nil
-}
-
-func (s *ProductionAdminStore) CommitUnknownDeliveryAfterLeaseLoss(ctx context.Context, itemID uuid.UUID, lease AdminJobLease, operationID uuid.UUID, audit AdminJobItemAudit) (*AdminJobItem, error) {
-	if s == nil || s.queries == nil {
-		return nil, ErrAdminRepositoryAbsent
-	}
-	token, err := uuid.Parse(lease.Token)
-	if err != nil || token == uuid.Nil || lease.Fence <= 0 {
-		return nil, ErrJobConflict
-	}
-	raw, committed, err := s.queries.CommitAdminJobItemUnknownDeliveryAfterLeaseLoss(ctx, itemID, token, lease.Fence, operationID, runtimeAuditParams(audit))
-	if err != nil {
-		return nil, err
-	}
-	if !committed || raw == nil {
-		return nil, ErrJobConflict
-	}
-	return runtimeAdminJobItem(*raw), nil
-}
-
-func (s *ProductionAdminStore) RecordJobItemAudit(ctx context.Context, audit AdminJobItemAudit) error {
-	if s == nil || s.queries == nil {
-		return ErrAdminRepositoryAbsent
-	}
-	return s.queries.RecordAdminJobItemAudit(ctx, runtimeAuditParams(audit))
-}
-
-func (s *ProductionAdminStore) SupportsTerminalUnknownDelivery() bool {
-	// The service may only advertise terminal-unknown semantics when the
-	// durable SQL facade is present. A nil compatibility store must remain
-	// unavailable rather than satisfying the capability marker by type alone.
-	return s != nil && s.queries != nil
-}
-
-func runtimeAuditParams(audit AdminJobItemAudit) db.AdminJobItemAuditParams {
-	return db.AdminJobItemAuditParams{JobID: audit.JobID, ItemID: audit.ItemID, OperationID: audit.OperationID,
-		ActorID: audit.ActorID, TargetID: audit.TargetID, Action: audit.Action, Outcome: audit.Outcome,
-		Reason: audit.Reason, ErrorCode: audit.ErrorCode}
-}
-
 func stringPointer(value string) *string {
 	if strings.TrimSpace(value) == "" {
 		return nil
@@ -757,9 +485,3 @@ var _ AdminUserStore = (*ProductionAdminStore)(nil)
 var _ AudienceSnapshotStore = (*ProductionAdminStore)(nil)
 var _ AdminAuditStore = (*ProductionAdminStore)(nil)
 var _ AdminJobStore = (*ProductionAdminStore)(nil)
-var _ FencedAdminJobStore = (*ProductionAdminStore)(nil)
-var _ AdminJobLeaseRenewer = (*ProductionAdminStore)(nil)
-var _ TerminalUnknownDeliveryStore = (*ProductionAdminStore)(nil)
-var _ AdminJobItemCommitStore = (*ProductionAdminStore)(nil)
-var _ AdminJobLeaseLossCommitStore = (*ProductionAdminStore)(nil)
-var _ AdminJobItemAuditStore = (*ProductionAdminStore)(nil)

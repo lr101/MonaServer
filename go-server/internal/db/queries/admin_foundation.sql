@@ -667,23 +667,21 @@ WHERE id = $1;
 
 -- name: AddAdminJobItem :exec
 INSERT INTO admin_job_items
-    (id, job_id, target_id, device_id, device_count, outcome, error_code, provider_reference,
+    (id, job_id, target_id, device_id, outcome, error_code, provider_reference,
      attempt_count, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, now(), now())
+VALUES ($1, $2, $3, $4, $5, $6, $7, 0, now(), now())
 ON CONFLICT DO NOTHING;
 
 -- name: GetAdminJobItem :one
-SELECT id, job_id, target_id, operation_id, device_id, device_count, outcome, reason, error_code,
-       provider_reference, retryable, ambiguous, attempt_count, last_attempt_at,
-       lease_owner, lease_token, lease_fence, lease_until, completed_at,
+SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+       attempt_count, lease_owner, lease_token, lease_until, completed_at,
        created_at, updated_at
 FROM admin_job_items
 WHERE id = $1;
 
 -- name: ListAdminJobItems :many
-SELECT id, job_id, target_id, operation_id, device_id, device_count, outcome, reason, error_code,
-       provider_reference, retryable, ambiguous, attempt_count, last_attempt_at,
-       lease_owner, lease_token, lease_fence, lease_until, completed_at,
+SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+       attempt_count, lease_owner, lease_token, lease_until, completed_at,
        created_at, updated_at
 FROM admin_job_items
 WHERE job_id = $1
@@ -696,8 +694,7 @@ WITH candidates AS (
     SELECT id
     FROM admin_job_items
     WHERE admin_job_items.job_id = $1
-      AND admin_job_items.outcome = 'queued'
-      AND admin_job_items.completed_at IS NULL
+      AND admin_job_items.outcome IN ('queued', 'unknown_delivery')
       AND (admin_job_items.lease_until IS NULL OR admin_job_items.lease_until <= clock_timestamp())
     ORDER BY admin_job_items.created_at ASC, admin_job_items.id ASC
     FOR UPDATE SKIP LOCKED
@@ -706,13 +703,11 @@ WITH candidates AS (
     UPDATE admin_job_items i
     SET lease_owner = $3, lease_token = uuid_generate_v4(),
         lease_until = clock_timestamp() + make_interval(secs => $4::double precision),
-        lease_fence = i.lease_fence + 1,
-        attempt_count = attempt_count + 1, last_attempt_at = now(), updated_at = now()
+        attempt_count = attempt_count + 1, updated_at = now()
     FROM candidates c
     WHERE i.id = c.id
-    RETURNING i.id, i.job_id, i.target_id, i.operation_id, i.device_id, i.device_count, i.outcome,
-              i.reason, i.error_code, i.provider_reference, i.retryable, i.ambiguous,
-              i.attempt_count, i.last_attempt_at, i.lease_owner, i.lease_token, i.lease_fence,
+    RETURNING i.id, i.job_id, i.target_id, i.device_id, i.outcome, i.error_code,
+              i.provider_reference, i.attempt_count, i.lease_owner, i.lease_token,
               i.lease_until, i.completed_at, i.created_at, i.updated_at
 )
 SELECT * FROM claimed ORDER BY created_at ASC, id ASC;
@@ -721,9 +716,8 @@ SELECT * FROM claimed ORDER BY created_at ASC, id ASC;
 -- lock and lease transition are one statement.  A targeted claim waits for an
 -- in-flight row transition, then rechecks eligibility, so a concurrent worker
 -- either observes no claimable row or receives a fresh owner/token pair.  The
--- token and incremented fence returned here are the acknowledgement proof for
--- this lease attempt. Unknown delivery is intentionally not claimable.
--- name: ClaimAdminJobItemWithFence :one
+-- token returned here is the acknowledgement fence for this lease attempt.
+-- name: ClaimJobItem :one
 WITH locked AS (
     SELECT i.id
     FROM admin_job_items i
@@ -735,164 +729,129 @@ WITH locked AS (
     SET lease_owner = $3,
         lease_token = uuid_generate_v4(),
         lease_until = clock_timestamp() + make_interval(secs => $4::double precision),
-        lease_fence = i.lease_fence + 1,
         attempt_count = attempt_count + 1,
-        last_attempt_at = now(),
         updated_at = now()
     WHERE i.id = $1
       AND EXISTS (SELECT 1 FROM locked)
-      AND i.outcome = 'queued'
-      AND i.completed_at IS NULL
+      AND i.outcome IN ('queued', 'unknown_delivery')
       AND (i.lease_until IS NULL OR i.lease_until <= clock_timestamp())
-    RETURNING i.id, i.job_id, i.target_id, i.operation_id, i.device_id, i.device_count, i.outcome,
-              i.reason, i.error_code, i.provider_reference, i.retryable, i.ambiguous,
-              i.attempt_count, i.last_attempt_at, i.lease_owner, i.lease_token, i.lease_fence,
+    RETURNING i.id, i.job_id, i.target_id, i.device_id, i.outcome, i.error_code,
+              i.provider_reference, i.attempt_count, i.lease_owner, i.lease_token,
               i.lease_until, i.completed_at, i.created_at, i.updated_at
 )
-SELECT id, job_id, target_id, operation_id, device_id, device_count, outcome, reason, error_code,
-       provider_reference, retryable, ambiguous, attempt_count, last_attempt_at,
-       lease_owner, lease_token, lease_fence, lease_until, completed_at,
+SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+       attempt_count, lease_owner, lease_token, lease_until, completed_at,
        created_at, updated_at
 FROM claimed;
 
--- name: RenewAdminJobItemLeaseWithFence :one
+-- name: FinishAdminJobItem :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
 UPDATE admin_job_items AS item
-SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision),
-    updated_at = now()
+SET outcome = $2::varchar, error_code = $3, provider_reference = $4,
+    completed_at = CASE WHEN $2::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
+    lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
 WHERE item.id = $1
-  AND item.lease_token = $2
-  AND item.lease_fence = $3
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $5
+  AND item.lease_token = $6
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id;
+
+-- Finish, heartbeat, and retry acknowledgement all carry the worker and the
+-- exact token returned by ClaimJobItem.  A reclaimed row has a different
+-- token, so an old worker's rows-affected result is zero even if it races the
+-- current owner.
+-- name: FinishJobItem :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
+SET outcome = $4::varchar, error_code = $5, provider_reference = $6,
+    completed_at = CASE WHEN $4::varchar IN ('skipped', 'secured', 'provider_accepted', 'failed') THEN now() ELSE completed_at END,
+    lease_owner = NULL, lease_token = NULL, lease_until = NULL, updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id;
+
+-- name: ExtendAdminJobItemLease :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
+UPDATE admin_job_items AS item
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
   AND item.lease_until > clock_timestamp()
 RETURNING item.id, item.lease_until;
 
--- name: FinishAdminJobItemWithFence :one
+-- name: HeartbeatJobItem :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
+    WHERE item.id = $1
+    FOR UPDATE
+)
 UPDATE admin_job_items AS item
-SET outcome = $5::varchar,
-    reason = $6,
-    error_code = $7,
-    provider_reference = $8,
-    retryable = $9,
-    ambiguous = $10,
-    completed_at = now(),
-    lease_owner = NULL,
-    lease_token = NULL,
-    lease_until = NULL,
-    updated_at = now()
+SET lease_until = clock_timestamp() + make_interval(secs => $4::double precision), updated_at = now()
 WHERE item.id = $1
-  AND item.lease_token = $2
-  AND item.lease_fence = $3
-  AND item.operation_id = $4
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
   AND item.lease_until > clock_timestamp()
-RETURNING item.id, item.job_id, item.target_id, item.operation_id, item.device_id, item.device_count,
-          item.outcome, item.reason, item.error_code, item.provider_reference, item.retryable,
-          item.ambiguous, item.attempt_count, item.last_attempt_at, item.lease_owner,
-          item.lease_token, item.lease_fence, item.lease_until, item.completed_at,
-          item.created_at, item.updated_at;
+RETURNING item.id, item.lease_until;
 
--- name: FinishAdminJobItemWithAudit :one
-WITH updated AS (
-    UPDATE admin_job_items AS item
-    SET outcome = $5::varchar,
-        reason = $6,
-        error_code = $7,
-        provider_reference = $8,
-        retryable = $9,
-        ambiguous = $10,
-        completed_at = now(),
-        lease_owner = NULL,
-        lease_token = NULL,
-        lease_until = NULL,
-        updated_at = now()
+-- name: ReleaseAdminJobItemLease :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
     WHERE item.id = $1
-      AND item.lease_token = $2
-      AND item.lease_fence = $3
-      AND item.operation_id = $4
-      AND item.lease_until > clock_timestamp()
-    RETURNING item.*
-), recorded AS (
-    INSERT INTO audit_events
-        (id, actor_id, target_account_id, action, reason, outcome, metadata, created_at,
-         admin_job_item_id, operation_id, lease_fence)
-    SELECT $11, $12, $13, $14, $15, $16,
-           jsonb_strip_nulls(jsonb_build_object(
-               'job_id', updated.job_id::text,
-               'item_id', updated.id::text,
-               'operation_id', updated.operation_id::text,
-               'error_code', NULLIF($17::text, '')
-           )), now(), updated.id, updated.operation_id, updated.lease_fence
-    FROM updated
-    ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL
-    DO UPDATE SET id = audit_events.id
-    RETURNING id
+    FOR UPDATE
 )
-SELECT updated.id, updated.job_id, updated.target_id, updated.operation_id, updated.device_id,
-       updated.device_count, updated.outcome, updated.reason, updated.error_code,
-       updated.provider_reference, updated.retryable, updated.ambiguous, updated.attempt_count,
-       updated.last_attempt_at, updated.lease_owner, updated.lease_token, updated.lease_fence,
-       updated.lease_until, updated.completed_at, updated.created_at, updated.updated_at
-FROM updated
-WHERE EXISTS (SELECT 1 FROM recorded);
+UPDATE admin_job_items AS item
+SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id;
 
--- This is deliberately allowed after expiry, but only for the exact lease
--- token and monotonic fence. A newer claim increments the fence and cannot be
--- overwritten by the former worker's uncertain provider result.
--- name: CommitAdminJobItemUnknownDeliveryAfterLeaseLoss :one
-WITH updated AS (
-    UPDATE admin_job_items AS item
-    SET outcome = 'unknown_delivery',
-        reason = 'lease_lost',
-        error_code = 'lease_lost',
-        provider_reference = NULL,
-        retryable = FALSE,
-        ambiguous = TRUE,
-        completed_at = now(),
-        lease_owner = NULL,
-        lease_token = NULL,
-        lease_until = NULL,
-        updated_at = now()
+-- Retry acceptance returns the item to the retryable outcome only for the
+-- current lease owner.  The token check fences a stale worker from changing
+-- the outcome after another worker has reclaimed the item.
+-- name: RetryJobItem :one
+WITH locked AS (
+    SELECT item.id
+    FROM admin_job_items AS item
     WHERE item.id = $1
-      AND item.lease_token = $2
-      AND item.lease_fence = $3
-      AND item.operation_id = $4
-    RETURNING item.*
-), recorded AS (
-    INSERT INTO audit_events
-        (id, actor_id, target_account_id, action, reason, outcome, metadata, created_at,
-         admin_job_item_id, operation_id, lease_fence)
-    SELECT $5, $6, $7, $8, 'lease_lost', 'unknown_delivery',
-           jsonb_build_object('job_id', updated.job_id::text, 'item_id', updated.id::text,
-                              'operation_id', updated.operation_id::text, 'error_code', 'lease_lost'),
-           now(), updated.id, updated.operation_id, updated.lease_fence
-    FROM updated
-    ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL
-    DO UPDATE SET id = audit_events.id
-    RETURNING id
+    FOR UPDATE
 )
-SELECT updated.id, updated.job_id, updated.target_id, updated.operation_id, updated.device_id,
-       updated.device_count, updated.outcome, updated.reason, updated.error_code,
-       updated.provider_reference, updated.retryable, updated.ambiguous, updated.attempt_count,
-       updated.last_attempt_at, updated.lease_owner, updated.lease_token, updated.lease_fence,
-       updated.lease_until, updated.completed_at, updated.created_at, updated.updated_at
-FROM updated
-WHERE EXISTS (SELECT 1 FROM recorded);
-
--- name: RecordAdminJobItemAudit :exec
-INSERT INTO audit_events
-    (id, actor_id, target_account_id, action, reason, outcome, metadata, created_at,
-     admin_job_item_id, operation_id, lease_fence)
-SELECT $1, $2, $3, $4, $5, $6,
-       jsonb_strip_nulls(jsonb_build_object(
-           'job_id', item.job_id::text,
-           'item_id', item.id::text,
-           'operation_id', item.operation_id::text,
-           'error_code', NULLIF($7::text, '')
-       )), now(), item.id, item.operation_id, item.lease_fence
-FROM admin_job_items item
-WHERE item.id = $8
-  AND item.job_id = $9
-  AND item.operation_id = $10
-  AND item.completed_at IS NOT NULL
-ON CONFLICT (admin_job_item_id, lease_fence) WHERE admin_job_item_id IS NOT NULL DO NOTHING;
+UPDATE admin_job_items AS item
+SET outcome = 'unknown_delivery', lease_owner = NULL, lease_token = NULL,
+    lease_until = NULL, updated_at = now()
+WHERE item.id = $1
+  AND EXISTS (SELECT 1 FROM locked)
+  AND item.lease_owner = $2
+  AND item.lease_token = $3
+  AND item.lease_until > clock_timestamp()
+RETURNING item.id;
 
 -- Durable jobs and outbox leases -------------------------------------------
 
