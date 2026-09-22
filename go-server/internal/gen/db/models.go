@@ -78,6 +78,13 @@ type AdminJobItem struct {
 	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	DeviceCount       int32              `json:"device_count"`
+	OperationID       pgtype.UUID        `json:"operation_id"`
+	LeaseFence        int64              `json:"lease_fence"`
+	Reason            pgtype.Text        `json:"reason"`
+	Retryable         bool               `json:"retryable"`
+	Ambiguous         bool               `json:"ambiguous"`
+	LastAttemptAt     pgtype.Timestamptz `json:"last_attempt_at"`
 }
 
 type AdminLoginChallenge struct {
@@ -170,6 +177,9 @@ type AuditEvent struct {
 	Outcome         pgtype.Text        `json:"outcome"`
 	Metadata        []byte             `json:"metadata"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	AdminJobItemID  pgtype.UUID        `json:"admin_job_item_id"`
+	OperationID     pgtype.UUID        `json:"operation_id"`
+	LeaseFence      pgtype.Int8        `json:"lease_fence"`
 }
 
 type CommunicationPreference struct {

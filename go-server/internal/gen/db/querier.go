@@ -28,6 +28,13 @@ type Querier interface {
 	// code does not duplicate SQL or accidentally escape a caller transaction.
 	// Canonical email claims -----------------------------------------------------
 	BackfillEmailLoginClaims(ctx context.Context) error
+	// Claim one requested item for the T07 action boundary.  The candidate row
+	// lock and lease transition are one statement.  A targeted claim waits for an
+	// in-flight row transition, then rechecks eligibility, so a concurrent worker
+	// either observes no claimable row or receives a fresh owner/token pair.  The
+	// token and incremented fence returned here are the acknowledgement proof for
+	// this lease attempt. Unknown delivery is intentionally not claimable.
+	ClaimAdminJobItemWithFence(ctx context.Context, arg ClaimAdminJobItemWithFenceParams) (ClaimAdminJobItemWithFenceRow, error)
 	ClaimAdminJobItems(ctx context.Context, arg ClaimAdminJobItemsParams) ([]ClaimAdminJobItemsRow, error)
 	// Expired running leases are made claimable in the same statement that claims
 	// work.  A fresh lease token makes an old worker's acknowledgement harmless.
@@ -38,12 +45,6 @@ type Querier interface {
 	// not own that kind.
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
-	// Claim one requested item for the T07 action boundary.  The candidate row
-	// lock and lease transition are one statement.  A targeted claim waits for an
-	// in-flight row transition, then rechecks eligibility, so a concurrent worker
-	// either observes no claimable row or receives a fresh owner/token pair.  The
-	// token returned here is the acknowledgement fence for this lease attempt.
-	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
@@ -54,6 +55,10 @@ type Querier interface {
 	ClearDeliveryAttemptPayload(ctx context.Context, arg ClearDeliveryAttemptPayloadParams) (pgtype.UUID, error)
 	ClearExpiredDeliveryPayloads(ctx context.Context, arg ClearExpiredDeliveryPayloadsParams) error
 	ClearUserRecoveryRestriction(ctx context.Context, id pgtype.UUID) error
+	// This is deliberately allowed after expiry, but only for the exact lease
+	// token and monotonic fence. A newer claim increments the fence and cannot be
+	// overwritten by the former worker's uncertain provider result.
+	CommitAdminJobItemUnknownDeliveryAfterLeaseLoss(ctx context.Context, arg CommitAdminJobItemUnknownDeliveryAfterLeaseLossParams) (CommitAdminJobItemUnknownDeliveryAfterLeaseLossRow, error)
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error
 	// The update is the single-use boundary.  Concurrent redemptions can both
 	// read a token, but only one can satisfy consumed_at/revoked_at being NULL.
@@ -105,23 +110,18 @@ type Querier interface {
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
 	DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error
 	DisableDeviceRegistration(ctx context.Context, arg DisableDeviceRegistrationParams) error
-	ExtendAdminJobItemLease(ctx context.Context, arg ExtendAdminJobItemLeaseParams) (ExtendAdminJobItemLeaseRow, error)
 	ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJobLeaseParams) (ExtendDurableJobLeaseRow, error)
 	ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEventLeaseParams) (ExtendOutboxEventLeaseRow, error)
 	FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForPointParams) (pgtype.UUID, error)
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (FindRefreshTokenRow, error)
 	FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]FindUsersWithNewPinsSinceLastActiveRow, error)
-	FinishAdminJobItem(ctx context.Context, arg FinishAdminJobItemParams) (pgtype.UUID, error)
+	FinishAdminJobItemWithAudit(ctx context.Context, arg FinishAdminJobItemWithAuditParams) (FinishAdminJobItemWithAuditRow, error)
+	FinishAdminJobItemWithFence(ctx context.Context, arg FinishAdminJobItemWithFenceParams) (FinishAdminJobItemWithFenceRow, error)
 	FinishDurableJob(ctx context.Context, arg FinishDurableJobParams) (pgtype.UUID, error)
-	// Finish, heartbeat, and retry acknowledgement all carry the worker and the
-	// exact token returned by ClaimJobItem.  A reclaimed row has a different
-	// token, so an old worker's rows-affected result is zero even if it races the
-	// current owner.
-	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
-	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (AdminJobItem, error)
+	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (GetAdminJobItemRow, error)
 	GetAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
 	GetAdminMFAReplayCounter(ctx context.Context, sessionID pgtype.UUID) (AdminMfaReplayCounter, error)
 	// The replay scope is membership/user enrollment scoped and therefore shared
@@ -171,7 +171,6 @@ type Querier interface {
 	HardDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	HardDeletePin(ctx context.Context, id pgtype.UUID) error
 	HardDeleteUser(ctx context.Context, id pgtype.UUID) error
-	HeartbeatJobItem(ctx context.Context, arg HeartbeatJobItemParams) (HeartbeatJobItemRow, error)
 	IncrementAdminChallengeFailure(ctx context.Context, id pgtype.UUID) (int32, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
 	// InsertReport reports whether this transaction won a request-key race. A
@@ -188,19 +187,19 @@ type Querier interface {
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
 	ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error)
-	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]AdminJobItem, error)
+	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]ListAdminJobItemsRow, error)
 	ListAdminJobs(ctx context.Context, arg ListAdminJobsParams) ([]AdminJob, error)
 	// Bounded production projections used by the browser-admin runtime adapter.
 	// The service layer owns authorization; these queries deliberately keep all
 	// filtering, counting, and page limits in PostgreSQL.
 	ListAdminRuntimeAccounts(ctx context.Context, arg ListAdminRuntimeAccountsParams) ([]ListAdminRuntimeAccountsRow, error)
-	ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdminRuntimeAuditEventsParams) ([]AuditEvent, error)
-	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]AdminJobItem, error)
+	ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdminRuntimeAuditEventsParams) ([]ListAdminRuntimeAuditEventsRow, error)
+	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]ListAdminRuntimeJobItemsRow, error)
 	ListAdminRuntimeJobs(ctx context.Context, arg ListAdminRuntimeJobsParams) ([]AdminJob, error)
 	ListAdminRuntimeReports(ctx context.Context, arg ListAdminRuntimeReportsParams) ([]ListAdminRuntimeReportsRow, error)
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
 	ListAudienceSnapshotMembers(ctx context.Context, arg ListAudienceSnapshotMembersParams) ([]AudienceSnapshotMember, error)
-	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
+	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]ListAuditEventsRow, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
@@ -246,16 +245,13 @@ type Querier interface {
 	PurgeDeletedAccountData(ctx context.Context, id pgtype.UUID) error
 	PurgeExpiredAdminChallenges(ctx context.Context, arg PurgeExpiredAdminChallengesParams) error
 	PurgeRateLimitBuckets(ctx context.Context, windowEnd pgtype.Timestamptz) error
-	ReleaseAdminJobItemLease(ctx context.Context, arg ReleaseAdminJobItemLeaseParams) (pgtype.UUID, error)
+	RecordAdminJobItemAudit(ctx context.Context, arg RecordAdminJobItemAuditParams) error
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
+	RenewAdminJobItemLeaseWithFence(ctx context.Context, arg RenewAdminJobItemLeaseWithFenceParams) (RenewAdminJobItemLeaseWithFenceRow, error)
 	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
-	// Retry acceptance returns the item to the retryable outcome only for the
-	// current lease owner.  The token check fences a stale worker from changing
-	// the outcome after another worker has reclaimed the item.
-	RetryJobItem(ctx context.Context, arg RetryJobItemParams) (pgtype.UUID, error)
 	RevokeAccountActionTokens(ctx context.Context, arg RevokeAccountActionTokensParams) error
 	RevokeAccountActionTokensExcept(ctx context.Context, arg RevokeAccountActionTokensExceptParams) error
 	RevokeAdminLoginChallengesForUser(ctx context.Context, userID pgtype.UUID) error

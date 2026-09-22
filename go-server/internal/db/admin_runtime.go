@@ -174,6 +174,8 @@ type AdminRuntimeReportQuery struct {
 	Statuses       []string
 	TargetTypes    []string
 	AssigneeUserID *uuid.UUID
+	CreatedAfter   *time.Time
+	CreatedBefore  *time.Time
 	Offset         int
 	Limit          int
 }
@@ -202,6 +204,8 @@ func adminRuntimeReportParams(query AdminRuntimeReportQuery) (dbgen.ListAdminRun
 		Statuses:       append([]string(nil), query.Statuses...),
 		TargetTypes:    append([]string(nil), query.TargetTypes...),
 		AssigneeUserID: pgUUIDPtr(query.AssigneeUserID),
+		CreatedAfter:   pgTZ(query.CreatedAfter),
+		CreatedBefore:  pgTZ(query.CreatedBefore),
 		PageOffset:     int32(query.Offset),
 		PageLimit:      int32(query.Limit),
 	}, nil
@@ -234,7 +238,10 @@ func (q *Queries) CountAdminRuntimeReports(ctx context.Context, query AdminRunti
 		}
 		selected = append(selected, pgUUID(id))
 	}
-	return q.g.CountAdminRuntimeReports(ctx, dbgen.CountAdminRuntimeReportsParams{SelectedIds: selected, Statuses: append([]string(nil), query.Statuses...), TargetTypes: append([]string(nil), query.TargetTypes...), AssigneeUserID: pgUUIDPtr(query.AssigneeUserID)})
+	return q.g.CountAdminRuntimeReports(ctx, dbgen.CountAdminRuntimeReportsParams{
+		SelectedIds: selected, Statuses: append([]string(nil), query.Statuses...), TargetTypes: append([]string(nil), query.TargetTypes...),
+		AssigneeUserID: pgUUIDPtr(query.AssigneeUserID), CreatedAfter: pgTZ(query.CreatedAfter), CreatedBefore: pgTZ(query.CreatedBefore),
+	})
 }
 
 type AdminRuntimeAuditQuery struct {
@@ -254,7 +261,7 @@ func (q *Queries) ListAdminRuntimeAuditEvents(ctx context.Context, query AdminRu
 	}
 	items := make([]AuditEvent, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, auditEventFromRow(row))
+		items = append(items, auditEventFromValues(row.ID, row.ActorID, row.TargetAccountID, row.Action, row.Reason, row.Outcome, row.Metadata, row.CreatedAt))
 	}
 	return items, nil
 }
@@ -284,9 +291,13 @@ func (q *Queries) ListAdminRuntimeJobItems(ctx context.Context, jobID uuid.UUID,
 	}
 	items := make([]AdminJobItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, adminJobItemFromRow(row))
+		items = append(items, adminJobItemFromRuntimeRow(row))
 	}
 	return items, nil
+}
+
+func adminJobItemFromRuntimeRow(r dbgen.ListAdminRuntimeJobItemsRow) AdminJobItem {
+	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func pgBool(value *bool) pgtype.Bool {

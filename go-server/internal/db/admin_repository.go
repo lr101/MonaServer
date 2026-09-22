@@ -1640,13 +1640,20 @@ type AdminJobItem struct {
 	ID                uuid.UUID
 	JobID             uuid.UUID
 	TargetID          uuid.UUID
+	OperationID       uuid.UUID
 	DeviceID          *uuid.UUID
+	DeviceCount       int32
 	Outcome           string
+	Reason            *string
 	ErrorCode         *string
 	ProviderReference *string
+	Retryable         bool
+	Ambiguous         bool
 	AttemptCount      int32
+	LastAttemptAt     *time.Time
 	LeaseOwner        *string
 	LeaseToken        uuid.UUID
+	LeaseFence        int64
 	LeaseUntil        *time.Time
 	CompletedAt       *time.Time
 	CreatedAt         time.Time
@@ -1658,70 +1665,92 @@ type AdminJobItemParams struct {
 	JobID             uuid.UUID
 	TargetID          uuid.UUID
 	DeviceID          *uuid.UUID
+	DeviceCount       int32
 	Outcome           string
 	ErrorCode         *string
 	ProviderReference *string
 }
 
-func adminJobItemFromRow(r dbgen.AdminJobItem) AdminJobItem {
+func adminJobItemFromValues(id, jobID, targetID pgtype.UUID, deviceID pgtype.UUID, deviceCount int32, outcome string, errorCode, providerReference pgtype.Text, attemptCount int32, leaseOwner pgtype.Text, leaseToken pgtype.UUID, leaseUntil, completedAt, createdAt, updatedAt pgtype.Timestamptz) AdminJobItem {
 	return AdminJobItem{
-		ID:                goUUID(r.ID),
-		JobID:             goUUID(r.JobID),
-		TargetID:          goUUID(r.TargetID),
-		DeviceID:          uuidPtrFromPG(r.DeviceID),
-		Outcome:           r.Outcome,
-		ErrorCode:         textPtrFromPG(r.ErrorCode),
-		ProviderReference: textPtrFromPG(r.ProviderReference),
-		AttemptCount:      r.AttemptCount,
-		LeaseOwner:        textPtrFromPG(r.LeaseOwner),
-		LeaseToken:        goUUID(r.LeaseToken),
-		LeaseUntil:        timePtrFromPG(r.LeaseUntil),
-		CompletedAt:       timePtrFromPG(r.CompletedAt),
-		CreatedAt:         timeFromPG(r.CreatedAt),
-		UpdatedAt:         timeFromPG(r.UpdatedAt),
+		ID:                goUUID(id),
+		JobID:             goUUID(jobID),
+		TargetID:          goUUID(targetID),
+		DeviceID:          uuidPtrFromPG(deviceID),
+		DeviceCount:       deviceCount,
+		Outcome:           outcome,
+		ErrorCode:         textPtrFromPG(errorCode),
+		ProviderReference: textPtrFromPG(providerReference),
+		AttemptCount:      attemptCount,
+		LeaseOwner:        textPtrFromPG(leaseOwner),
+		LeaseToken:        goUUID(leaseToken),
+		LeaseUntil:        timePtrFromPG(leaseUntil),
+		CompletedAt:       timePtrFromPG(completedAt),
+		CreatedAt:         timeFromPG(createdAt),
+		UpdatedAt:         timeFromPG(updatedAt),
 	}
+}
+
+func adminJobItemFromExecutionValues(id, jobID, targetID, operationID, deviceID pgtype.UUID, deviceCount int32, outcome string, reason, errorCode, providerReference pgtype.Text, retryable, ambiguous bool, attemptCount int32, lastAttemptAt pgtype.Timestamptz, leaseOwner pgtype.Text, leaseToken pgtype.UUID, leaseFence int64, leaseUntil, completedAt, createdAt, updatedAt pgtype.Timestamptz) AdminJobItem {
+	return AdminJobItem{
+		ID:                goUUID(id),
+		JobID:             goUUID(jobID),
+		TargetID:          goUUID(targetID),
+		OperationID:       goUUID(operationID),
+		DeviceID:          uuidPtrFromPG(deviceID),
+		DeviceCount:       deviceCount,
+		Outcome:           outcome,
+		Reason:            textPtrFromPG(reason),
+		ErrorCode:         textPtrFromPG(errorCode),
+		ProviderReference: textPtrFromPG(providerReference),
+		Retryable:         retryable,
+		Ambiguous:         ambiguous,
+		AttemptCount:      attemptCount,
+		LastAttemptAt:     timePtrFromPG(lastAttemptAt),
+		LeaseOwner:        textPtrFromPG(leaseOwner),
+		LeaseToken:        goUUID(leaseToken),
+		LeaseFence:        leaseFence,
+		LeaseUntil:        timePtrFromPG(leaseUntil),
+		CompletedAt:       timePtrFromPG(completedAt),
+		CreatedAt:         timeFromPG(createdAt),
+		UpdatedAt:         timeFromPG(updatedAt),
+	}
+}
+
+func adminJobItemFromRow(r dbgen.AdminJobItem) AdminJobItem {
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+}
+
+func adminJobItemFromGetRow(r dbgen.GetAdminJobItemRow) AdminJobItem {
+	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+}
+
+func adminJobItemFromListRow(r dbgen.ListAdminJobItemsRow) AdminJobItem {
+	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func adminJobItemFromClaimRow(r dbgen.ClaimAdminJobItemsRow) AdminJobItem {
-	return AdminJobItem{
-		ID:                goUUID(r.ID),
-		JobID:             goUUID(r.JobID),
-		TargetID:          goUUID(r.TargetID),
-		DeviceID:          uuidPtrFromPG(r.DeviceID),
-		Outcome:           r.Outcome,
-		ErrorCode:         textPtrFromPG(r.ErrorCode),
-		ProviderReference: textPtrFromPG(r.ProviderReference),
-		AttemptCount:      r.AttemptCount,
-		LeaseOwner:        textPtrFromPG(r.LeaseOwner),
-		LeaseToken:        goUUID(r.LeaseToken),
-		LeaseUntil:        timePtrFromPG(r.LeaseUntil),
-		CompletedAt:       timePtrFromPG(r.CompletedAt),
-		CreatedAt:         timeFromPG(r.CreatedAt),
-		UpdatedAt:         timeFromPG(r.UpdatedAt),
-	}
+	return adminJobItemFromValues(r.ID, r.JobID, r.TargetID, r.DeviceID, r.DeviceCount, r.Outcome, r.ErrorCode, r.ProviderReference, r.AttemptCount, r.LeaseOwner, r.LeaseToken, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
-func adminJobItemFromSingularClaimRow(r dbgen.ClaimJobItemRow) AdminJobItem {
-	return AdminJobItem{
-		ID:                goUUID(r.ID),
-		JobID:             goUUID(r.JobID),
-		TargetID:          goUUID(r.TargetID),
-		DeviceID:          uuidPtrFromPG(r.DeviceID),
-		Outcome:           r.Outcome,
-		ErrorCode:         textPtrFromPG(r.ErrorCode),
-		ProviderReference: textPtrFromPG(r.ProviderReference),
-		AttemptCount:      r.AttemptCount,
-		LeaseOwner:        textPtrFromPG(r.LeaseOwner),
-		LeaseToken:        goUUID(r.LeaseToken),
-		LeaseUntil:        timePtrFromPG(r.LeaseUntil),
-		CompletedAt:       timePtrFromPG(r.CompletedAt),
-		CreatedAt:         timeFromPG(r.CreatedAt),
-		UpdatedAt:         timeFromPG(r.UpdatedAt),
-	}
+func adminJobItemFromFencedClaimRow(r dbgen.ClaimAdminJobItemWithFenceRow) AdminJobItem {
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+}
+
+func adminJobItemFromFencedFinishRow(r dbgen.FinishAdminJobItemWithFenceRow) AdminJobItem {
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+}
+
+func adminJobItemFromAuditedFinishRow(r dbgen.FinishAdminJobItemWithAuditRow) AdminJobItem {
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
+}
+
+func adminJobItemFromLeaseLossRow(r dbgen.CommitAdminJobItemUnknownDeliveryAfterLeaseLossRow) AdminJobItem {
+	return adminJobItemFromExecutionValues(r.ID, r.JobID, r.TargetID, r.OperationID, r.DeviceID, r.DeviceCount, r.Outcome, r.Reason, r.ErrorCode, r.ProviderReference, r.Retryable, r.Ambiguous, r.AttemptCount, r.LastAttemptAt, r.LeaseOwner, r.LeaseToken, r.LeaseFence, r.LeaseUntil, r.CompletedAt, r.CreatedAt, r.UpdatedAt)
 }
 
 func (q *Queries) AddAdminJobItem(ctx context.Context, p AdminJobItemParams) error {
-	if p.ID == uuid.Nil || p.JobID == uuid.Nil || p.TargetID == uuid.Nil {
+	if p.ID == uuid.Nil || p.JobID == uuid.Nil || p.TargetID == uuid.Nil || p.DeviceCount < 0 {
 		return ErrInvalidJob
 	}
 	if p.Outcome == "" {
@@ -1729,7 +1758,7 @@ func (q *Queries) AddAdminJobItem(ctx context.Context, p AdminJobItemParams) err
 	}
 	return q.g.AddAdminJobItem(ctx, dbgen.AddAdminJobItemParams{
 		ID:    pgUUID(p.ID),
-		JobID: pgUUID(p.JobID), TargetID: pgUUID(p.TargetID), DeviceID: pgUUIDPtr(p.DeviceID),
+		JobID: pgUUID(p.JobID), TargetID: pgUUID(p.TargetID), DeviceID: pgUUIDPtr(p.DeviceID), DeviceCount: p.DeviceCount,
 		Outcome: p.Outcome, ErrorCode: pgText(p.ErrorCode), ProviderReference: pgText(p.ProviderReference),
 	})
 }
@@ -1745,7 +1774,7 @@ func (q *Queries) GetAdminJobItem(ctx context.Context, id uuid.UUID) (*AdminJobI
 	if err != nil {
 		return nil, err
 	}
-	v := adminJobItemFromRow(r)
+	v := adminJobItemFromGetRow(r)
 	return &v, nil
 }
 
@@ -1759,7 +1788,7 @@ func (q *Queries) ListAdminJobItems(ctx context.Context, jobID uuid.UUID, before
 	}
 	out := make([]AdminJobItem, 0, len(rs))
 	for _, r := range rs {
-		out = append(out, adminJobItemFromRow(r))
+		out = append(out, adminJobItemFromListRow(r))
 	}
 	return out, nil
 }
@@ -1785,20 +1814,7 @@ func (q *Queries) ClaimAdminJobItems(ctx context.Context, jobID uuid.UUID, worke
 // the worker-bound lease token.  A false result means the item is missing,
 // already claimed, or terminal; callers must not execute the action then.
 func (q *Queries) ClaimJobItem(ctx context.Context, jobID, itemID uuid.UUID, worker string, lease time.Duration) (*AdminJobItem, bool, error) {
-	if jobID == uuid.Nil || itemID == uuid.Nil || worker == "" || lease <= 0 {
-		return nil, false, ErrInvalidLease
-	}
-	r, err := q.g.ClaimJobItem(ctx, dbgen.ClaimJobItemParams{
-		ID: pgUUID(itemID), JobID: pgUUID(jobID), LeaseOwner: pgTextS(worker), Column4: lease.Seconds(),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	v := adminJobItemFromSingularClaimRow(r)
-	return &v, true, nil
+	return q.ClaimAdminJobItemWithFence(ctx, jobID, itemID, worker, lease)
 }
 
 // ClaimAdminJobItem is the descriptive alias used by the administrative
@@ -1809,70 +1825,31 @@ func (q *Queries) ClaimAdminJobItem(ctx context.Context, jobID, itemID uuid.UUID
 }
 
 func (q *Queries) FinishAdminJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil || outcome == "" {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.FinishAdminJobItem(ctx, dbgen.FinishAdminJobItemParams{
-		ID: pgUUID(id), Column2: outcome, ErrorCode: pgText(errorCode), ProviderReference: pgText(providerReference),
-		LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.finishAdminJobItemLegacy(ctx, id, worker, token, outcome, errorCode, providerReference)
 }
 
 // FinishJobItem acknowledges an item only while the supplied worker owns the
 // current, unexpired lease token.  The rows-affected result is false after a
 // reclaim, expiry, duplicate acknowledgement, or worker/token mismatch.
 func (q *Queries) FinishJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil || outcome == "" {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.FinishJobItem(ctx, dbgen.FinishJobItemParams{
-		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token), Column4: outcome,
-		ErrorCode: pgText(errorCode), ProviderReference: pgText(providerReference),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.finishAdminJobItemLegacy(ctx, id, worker, token, outcome, errorCode, providerReference)
 }
 
-// FinishAdminJobItemWithFence is an explicit descriptive alias for consumers
-// that want to distinguish the fenced acknowledgement from the legacy
-// bool-returning method.  Both paths enforce the same worker/token predicate.
-func (q *Queries) FinishAdminJobItemWithFence(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
+// FinishAdminJobItemWithToken is the legacy worker/token acknowledgement
+// adapter. New execution callers must use FinishAdminJobItemWithFence.
+func (q *Queries) FinishAdminJobItemWithToken(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
 	return q.FinishJobItem(ctx, id, worker, token, outcome, errorCode, providerReference)
 }
 
 func (q *Queries) ExtendAdminJobItemLease(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil || lease <= 0 {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.ExtendAdminJobItemLease(ctx, dbgen.ExtendAdminJobItemLeaseParams{
-		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token), Column4: lease.Seconds(),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.heartbeatAdminJobItemLegacy(ctx, id, worker, token, lease)
 }
 
 // HeartbeatJobItem extends only the current worker's unexpired lease.  It is
 // deliberately token-bound so a stale heartbeat cannot resurrect a reclaimed
 // item.
 func (q *Queries) HeartbeatJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil || lease <= 0 {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.HeartbeatJobItem(ctx, dbgen.HeartbeatJobItemParams{
-		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token), Column4: lease.Seconds(),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.heartbeatAdminJobItemLegacy(ctx, id, worker, token, lease)
 }
 
 // HeartbeatAdminJobItem is the descriptive alias for the T07 adapter.
@@ -1881,37 +1858,172 @@ func (q *Queries) HeartbeatAdminJobItem(ctx context.Context, id uuid.UUID, worke
 }
 
 func (q *Queries) ReleaseAdminJobItemLease(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.ReleaseAdminJobItemLease(ctx, dbgen.ReleaseAdminJobItemLeaseParams{
-		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.finishAdminJobItemLegacy(ctx, id, worker, token, "unknown_delivery", nil, nil)
 }
 
 // RetryJobItem accepts a retry result only from the current lease owner.  It
 // releases that lease into unknown_delivery, preserving the existing retry
 // outcome vocabulary while fencing stale workers.
 func (q *Queries) RetryJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
-	if id == uuid.Nil || worker == "" || token == uuid.Nil {
-		return false, ErrInvalidLease
-	}
-	_, err := q.g.RetryJobItem(ctx, dbgen.RetryJobItemParams{
-		ID: pgUUID(id), LeaseOwner: pgTextS(worker), LeaseToken: pgUUID(token),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
+	return q.finishAdminJobItemLegacy(ctx, id, worker, token, "unknown_delivery", nil, nil)
 }
 
 // RetryAdminJobItem is the descriptive alias for the T07 adapter.
 func (q *Queries) RetryAdminJobItem(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID) (bool, error) {
 	return q.RetryJobItem(ctx, id, worker, token)
+}
+
+// ClaimAdminJobItemWithFence is the execution claim primitive. It returns a
+// new, monotonically increasing fence for every successful lease attempt.
+func (q *Queries) ClaimAdminJobItemWithFence(ctx context.Context, jobID, itemID uuid.UUID, worker string, lease time.Duration) (*AdminJobItem, bool, error) {
+	if jobID == uuid.Nil || itemID == uuid.Nil || worker == "" || lease <= 0 {
+		return nil, false, ErrInvalidLease
+	}
+	row, err := q.g.ClaimAdminJobItemWithFence(ctx, dbgen.ClaimAdminJobItemWithFenceParams{
+		ID: pgUUID(itemID), JobID: pgUUID(jobID), LeaseOwner: pgTextS(worker), Column4: lease.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	item := adminJobItemFromFencedClaimRow(row)
+	return &item, true, nil
+}
+
+// RenewAdminJobItemLeaseWithFence renews only an unexpired exact lease proof.
+// A nil result is a lost lease rather than a successful no-op.
+func (q *Queries) RenewAdminJobItemLeaseWithFence(ctx context.Context, itemID, token uuid.UUID, fence int64, lease time.Duration) (*time.Time, bool, error) {
+	if itemID == uuid.Nil || token == uuid.Nil || fence <= 0 || lease <= 0 {
+		return nil, false, ErrInvalidLease
+	}
+	row, err := q.g.RenewAdminJobItemLeaseWithFence(ctx, dbgen.RenewAdminJobItemLeaseWithFenceParams{
+		ID: pgUUID(itemID), LeaseToken: pgUUID(token), LeaseFence: fence, Column4: lease.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	expiresAt := timeFromPG(row.LeaseUntil)
+	return &expiresAt, true, nil
+}
+
+func (q *Queries) FinishAdminJobItemWithFence(ctx context.Context, itemID, token uuid.UUID, fence int64, operationID uuid.UUID, outcome string, reason, errorCode, providerReference *string, retryable, ambiguous bool) (*AdminJobItem, bool, error) {
+	if itemID == uuid.Nil || token == uuid.Nil || fence <= 0 || operationID == uuid.Nil || outcome == "" {
+		return nil, false, ErrInvalidLease
+	}
+	row, err := q.g.FinishAdminJobItemWithFence(ctx, dbgen.FinishAdminJobItemWithFenceParams{
+		ID: pgUUID(itemID), LeaseToken: pgUUID(token), LeaseFence: fence, OperationID: pgUUID(operationID),
+		Column5: outcome, Reason: pgText(reason), ErrorCode: pgText(errorCode), ProviderReference: pgText(providerReference),
+		Retryable: retryable, Ambiguous: ambiguous,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	item := adminJobItemFromFencedFinishRow(row)
+	return &item, true, nil
+}
+
+type AdminJobItemAuditParams struct {
+	JobID       uuid.UUID
+	ItemID      uuid.UUID
+	OperationID uuid.UUID
+	ActorID     uuid.UUID
+	TargetID    uuid.UUID
+	Action      string
+	Outcome     string
+	Reason      string
+	ErrorCode   string
+}
+
+func validAdminJobItemAudit(p AdminJobItemAuditParams) bool {
+	return p.JobID != uuid.Nil && p.ItemID != uuid.Nil && p.OperationID != uuid.Nil &&
+		p.ActorID != uuid.Nil && p.TargetID != uuid.Nil && p.Action != "" && p.Outcome != ""
+}
+
+// FinishAdminJobItemWithAudit is one SQL statement: either both the item
+// transition and its identity-bound audit event commit, or neither does.
+func (q *Queries) FinishAdminJobItemWithAudit(ctx context.Context, itemID, token uuid.UUID, fence int64, operationID uuid.UUID, outcome string, reason, errorCode, providerReference *string, retryable, ambiguous bool, audit AdminJobItemAuditParams) (*AdminJobItem, bool, error) {
+	if itemID == uuid.Nil || token == uuid.Nil || fence <= 0 || operationID == uuid.Nil || outcome == "" || !validAdminJobItemAudit(audit) || audit.ItemID != itemID || audit.OperationID != operationID || audit.Outcome != outcome {
+		return nil, false, ErrInvalidLease
+	}
+	row, err := q.g.FinishAdminJobItemWithAudit(ctx, dbgen.FinishAdminJobItemWithAuditParams{
+		ID: pgUUID(itemID), LeaseToken: pgUUID(token), LeaseFence: fence, OperationID: pgUUID(operationID),
+		Column5: outcome, Reason: pgText(reason), ErrorCode: pgText(errorCode), ProviderReference: pgText(providerReference),
+		Retryable: retryable, Ambiguous: ambiguous,
+		ID_2: pgUUID(uuid.New()), ActorID: pgUUID(audit.ActorID), TargetAccountID: pgUUID(audit.TargetID),
+		Action: audit.Action, Reason_2: pgTextS(audit.Reason), Outcome: pgTextS(audit.Outcome), Column17: audit.ErrorCode,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	item := adminJobItemFromAuditedFinishRow(row)
+	return &item, true, nil
+}
+
+// CommitAdminJobItemUnknownDeliveryAfterLeaseLoss terminalizes an uncertain
+// provider call even after its wall-clock lease expires. The exact token and
+// monotonic fence still prevent an older worker from overwriting a reclaim.
+func (q *Queries) CommitAdminJobItemUnknownDeliveryAfterLeaseLoss(ctx context.Context, itemID, token uuid.UUID, fence int64, operationID uuid.UUID, audit AdminJobItemAuditParams) (*AdminJobItem, bool, error) {
+	if itemID == uuid.Nil || token == uuid.Nil || fence <= 0 || operationID == uuid.Nil || !validAdminJobItemAudit(audit) || audit.ItemID != itemID || audit.OperationID != operationID || audit.Outcome != "unknown_delivery" {
+		return nil, false, ErrInvalidLease
+	}
+	row, err := q.g.CommitAdminJobItemUnknownDeliveryAfterLeaseLoss(ctx, dbgen.CommitAdminJobItemUnknownDeliveryAfterLeaseLossParams{
+		ID: pgUUID(itemID), LeaseToken: pgUUID(token), LeaseFence: fence, OperationID: pgUUID(operationID),
+		ID_2: pgUUID(uuid.New()), ActorID: pgUUID(audit.ActorID), TargetAccountID: pgUUID(audit.TargetID), Action: audit.Action,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	item := adminJobItemFromLeaseLossRow(row)
+	return &item, true, nil
+}
+
+func (q *Queries) RecordAdminJobItemAudit(ctx context.Context, audit AdminJobItemAuditParams) error {
+	if !validAdminJobItemAudit(audit) {
+		return ErrInvalidLease
+	}
+	return q.g.RecordAdminJobItemAudit(ctx, dbgen.RecordAdminJobItemAuditParams{
+		ID: pgUUID(uuid.New()), ActorID: pgUUID(audit.ActorID), TargetAccountID: pgUUID(audit.TargetID), Action: audit.Action,
+		Reason: pgTextS(audit.Reason), Outcome: pgTextS(audit.Outcome), Column7: audit.ErrorCode,
+		ID_2: pgUUID(audit.ItemID), JobID: pgUUID(audit.JobID), OperationID: pgUUID(audit.OperationID),
+	})
+}
+
+func (q *Queries) finishAdminJobItemLegacy(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, outcome string, errorCode, providerReference *string) (bool, error) {
+	if id == uuid.Nil || worker == "" || token == uuid.Nil || outcome == "" {
+		return false, ErrInvalidLease
+	}
+	item, err := q.GetAdminJobItem(ctx, id)
+	if err != nil || item == nil || item.LeaseOwner == nil || *item.LeaseOwner != worker || item.LeaseToken != token {
+		return false, err
+	}
+	_, ok, err := q.FinishAdminJobItemWithFence(ctx, id, token, item.LeaseFence, item.OperationID, outcome, nil, errorCode, providerReference, false, outcome == "unknown_delivery")
+	return ok, err
+}
+
+func (q *Queries) heartbeatAdminJobItemLegacy(ctx context.Context, id uuid.UUID, worker string, token uuid.UUID, lease time.Duration) (bool, error) {
+	if id == uuid.Nil || worker == "" || token == uuid.Nil || lease <= 0 {
+		return false, ErrInvalidLease
+	}
+	item, err := q.GetAdminJobItem(ctx, id)
+	if err != nil || item == nil || item.LeaseOwner == nil || *item.LeaseOwner != worker || item.LeaseToken != token {
+		return false, err
+	}
+	_, ok, err := q.RenewAdminJobItemLeaseWithFence(ctx, id, token, item.LeaseFence, lease)
+	return ok, err
 }
 
 // ---- reports and report notes ---------------------------------------------
@@ -2298,8 +2410,16 @@ type AuditEventParams struct {
 	Metadata        []byte
 }
 
+func auditEventFromValues(id, actorID, targetAccountID pgtype.UUID, action string, reason, outcome pgtype.Text, metadata []byte, createdAt pgtype.Timestamptz) AuditEvent {
+	return AuditEvent{ID: goUUID(id), ActorID: uuidPtrFromPG(actorID), TargetAccountID: uuidPtrFromPG(targetAccountID), Action: action, Reason: textPtrFromPG(reason), Outcome: textPtrFromPG(outcome), Metadata: cloneBytes(metadata), CreatedAt: timeFromPG(createdAt)}
+}
+
 func auditEventFromRow(r dbgen.AuditEvent) AuditEvent {
-	return AuditEvent{ID: goUUID(r.ID), ActorID: uuidPtrFromPG(r.ActorID), TargetAccountID: uuidPtrFromPG(r.TargetAccountID), Action: r.Action, Reason: textPtrFromPG(r.Reason), Outcome: textPtrFromPG(r.Outcome), Metadata: cloneBytes(r.Metadata), CreatedAt: timeFromPG(r.CreatedAt)}
+	return auditEventFromValues(r.ID, r.ActorID, r.TargetAccountID, r.Action, r.Reason, r.Outcome, r.Metadata, r.CreatedAt)
+}
+
+func auditEventFromListRow(r dbgen.ListAuditEventsRow) AuditEvent {
+	return auditEventFromValues(r.ID, r.ActorID, r.TargetAccountID, r.Action, r.Reason, r.Outcome, r.Metadata, r.CreatedAt)
 }
 
 func (q *Queries) CreateAuditEvent(ctx context.Context, p AuditEventParams) error {
@@ -2319,7 +2439,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, before *time.Time, limit 
 	}
 	out := make([]AuditEvent, 0, len(rs))
 	for _, r := range rs {
-		out = append(out, auditEventFromRow(r))
+		out = append(out, auditEventFromListRow(r))
 	}
 	return out, nil
 }
