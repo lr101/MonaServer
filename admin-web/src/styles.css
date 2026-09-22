@@ -1,0 +1,39 @@
+:root { color-scheme: light; font: 16px/1.5 system-ui, sans-serif; background: #f5f7fb; color: #172033; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; }
+button, input, select { font: inherit; }
+button { border: 0; border-radius: .6rem; background: #2457d6; color: white; cursor: pointer; padding: .7rem 1rem; }
+button:hover { background: #1844ae; }
+.app-shell { min-height: 100vh; }
+.loading { padding: 4rem; text-align: center; color: #5e6b85; }
+.card { background: white; border: 1px solid #e2e7f0; border-radius: 1rem; box-shadow: 0 .35rem 1.5rem #243b6310; padding: 1.25rem; }
+.narrow { margin: 12vh auto; max-width: 28rem; }
+.narrow form, label { display: grid; gap: .45rem; }
+.narrow form { gap: 1rem; }
+label { color: #46516a; }
+input, select { border: 1px solid #b9c2d4; border-radius: .5rem; padding: .7rem; }
+.shell { display: grid; grid-template-columns: 15rem 1fr; min-height: 100vh; }
+header { align-items: center; background: #172033; color: white; display: flex; grid-column: 1 / -1; justify-content: space-between; padding: 1rem 2rem; }
+header h1, .toolbar h2 { margin: 0; }
+nav { background: #202b42; display: flex; flex-direction: column; gap: .3rem; padding: 1rem; }
+.nav-button { background: transparent; text-align: left; }
+.nav-button.selected, .nav-button:hover { background: #334466; }
+.content { max-width: 74rem; padding: 2rem; width: 100%; }
+.toolbar { align-items: end; display: flex; justify-content: space-between; margin-bottom: 1.5rem; }
+.inline-form { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.inline-form input, .inline-form select { min-width: 12rem; }
+.eyebrow { color: #6b7893; font-size: .75rem; letter-spacing: .12em; margin: 0 0 .3rem; text-transform: uppercase; }
+header .eyebrow { color: #b7c5e3; }
+.muted { color: #68748c; }
+.error { background: #fff0f0; border: 1px solid #efb3b3; border-radius: .5rem; color: #9c2424; padding: .75rem 1rem; }
+.grid, .records { display: grid; gap: 1rem; }
+.grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.record { align-items: center; display: flex; justify-content: space-between; }
+.record h3 { margin: 0; }
+.badge { background: #e8efff; border-radius: 999px; color: #2457d6; padding: .25rem .6rem; }
+@media (max-width: 700px) {
+  .shell { display: block; }
+  nav { flex-direction: row; overflow-x: auto; }
+  .content { padding: 1rem; }
+  header { padding: 1rem; }
+}
