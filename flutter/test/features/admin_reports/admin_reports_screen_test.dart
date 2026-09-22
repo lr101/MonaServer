@@ -232,6 +232,44 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'does not confirm a bulk action without its action-specific capability',
+    (tester) async {
+      final repository = _ScreenReportsRepository();
+      final controller = AdminReportsController(repository);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminReportsScreen(
+            controller: controller,
+            canRead: true,
+            canReview: true,
+            canResolve: false,
+            canDismiss: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      controller.toggleSelection('one');
+      await controller.previewBulk(AdminReportStatus.resolved);
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('admin-reports-screen')),
+        const Offset(0, -700),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.byKey(const ValueKey('admin-audience-confirm')),
+            )
+            .onPressed,
+        isNull,
+      );
+    },
+  );
 }
 
 final class _ScreenReportsRepository implements AdminReportsRepository {
@@ -269,8 +307,20 @@ final class _ScreenReportsRepository implements AdminReportsRepository {
   }
 
   @override
-  Future<AdminAudiencePreview> preview(AdminAudiencePreviewRequest request) =>
-      throw UnimplementedError();
+  Future<AdminAudiencePreview> preview(
+    AdminAudiencePreviewRequest request,
+  ) async => AdminAudiencePreview(
+    snapshotId: 'snapshot-1',
+    accountAudienceCount: request.audience.selectedIds.length,
+    eligibleRecipientCount: request.audience.selectedIds.length,
+    excludedCount: 0,
+    deviceDeliveryCount: 0,
+    expiresAt: DateTime.utc(2027),
+    audience: request.audience,
+    action: request.action,
+    payloadHash: 'hash-1',
+    resource: AdminAudienceResource.reports,
+  );
 
   @override
   Future<AdminReport> update(AdminReportUpdate update) async {
