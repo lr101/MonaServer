@@ -13,9 +13,37 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/lrprojects/monaserver/internal/config"
+	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
+	"github.com/lrprojects/monaserver/internal/handler"
+	"github.com/lrprojects/monaserver/internal/service"
 	"github.com/lrprojects/monaserver/internal/token"
 )
+
+func TestNewV3AdminServicersUsesDatabaseBackedImplementations(t *testing.T) {
+	queries := db.New(nil)
+	auth := service.NewAdminAuth(queries, service.AdminAuthConfig{})
+	servicers := newV3AdminServicers(queries, auth)
+
+	if _, ok := servicers.users.(*handler.AdminUsersServicer); !ok {
+		t.Fatalf("users servicer = %T, want concrete admin users servicer", servicers.users)
+	}
+	if _, ok := servicers.audiences.(*handler.AdminAudienceServicer); !ok {
+		t.Fatalf("audiences servicer = %T, want concrete admin audience servicer", servicers.audiences)
+	}
+	if _, ok := servicers.jobs.(*handler.AdminJobsServicer); !ok {
+		t.Fatalf("jobs servicer = %T, want concrete admin jobs servicer", servicers.jobs)
+	}
+	if _, ok := servicers.messages.(*handler.AdminMessagesServicer); !ok {
+		t.Fatalf("messages servicer = %T, want concrete admin messages servicer", servicers.messages)
+	}
+	if _, ok := servicers.reports.(*handler.AdminReportsServicer); !ok {
+		t.Fatalf("reports servicer = %T, want concrete admin reports servicer", servicers.reports)
+	}
+	if _, ok := servicers.audit.(*handler.AdminAuditServicer); !ok {
+		t.Fatalf("audit servicer = %T, want concrete admin audit servicer", servicers.audit)
+	}
+}
 
 type v3RouteLookup struct {
 	usernames map[uuid.UUID]string

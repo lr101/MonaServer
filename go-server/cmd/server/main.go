@@ -232,10 +232,9 @@ func main() {
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
 
 	// New v3 routes are always present in the router so their feature and
-	// authentication behavior is observable. The browser-admin session endpoints
-	// and report inbox use their concrete services; later admin operation
-	// surfaces remain explicitly unavailable until their owning services are
-	// integrated.
+	// authentication behavior is observable. With the production database and
+	// browser-admin authentication service, the admin operation surfaces use
+	// the reviewed bounded runtime adapter.
 	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
 
 	addr := ":" + cfg.Port
@@ -375,6 +374,40 @@ func adminRecentMFATTL(auth *service.AdminAuth) time.Duration {
 	return auth.RecentMFATTL()
 }
 
+type v3AdminServicers struct {
+	users     genserver.AdminUsersAPIServicer
+	audiences genserver.AdminAudiencesAPIServicer
+	jobs      genserver.AdminJobsAPIServicer
+	messages  genserver.AdminMessagesAPIServicer
+	reports   genserver.AdminReportsAPIServicer
+	audit     genserver.AdminAuditAPIServicer
+}
+
+// newV3AdminServicers keeps the production assembly separate from route
+// middleware. The unavailable set is deliberately retained for the no-DB
+// compatibility seam; a supplied database and browser-admin auth service get
+// the concrete, bounded adapters together.
+func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminServicers {
+	unavailable := handler.NewUnavailableV3Servicer()
+	servicers := v3AdminServicers{
+		users: unavailable, audiences: unavailable, jobs: unavailable,
+		messages: unavailable, reports: unavailable, audit: unavailable,
+	}
+	if queries == nil || auth == nil {
+		return servicers
+	}
+	store := service.NewProductionAdminStore(queries)
+	audiences := service.NewAdminAudienceService(store)
+	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
+	servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
+	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
+	servicers.jobs = handler.NewAdminJobsServicer(jobs)
+	servicers.messages = handler.NewAdminMessagesServicer(jobs)
+	servicers.reports = handler.NewAdminReportsServicer(queries)
+	servicers.audit = handler.NewAdminAuditServicer(service.NewAdminAuditService(store))
+	return servicers
+}
+
 // registerV3Routes installs the additive v3 surfaces behind their independent
 // feature flags. Options may include the browser-admin service and the shared
 // report repository. Keeping the options variadic preserves the compatibility
@@ -397,16 +430,13 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	servicer := handler.NewUnavailableV3Servicer()
 	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer, genserver.WithPublicAuthAPIErrorHandler(handler.V3ErrorHandler))
 	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer, genserver.WithSessionAuthAPIErrorHandler(handler.V3ErrorHandler))
-	adminUsersCtrl := genserver.NewAdminUsersAPIController(servicer, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
-	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(servicer, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
-	adminJobsCtrl := genserver.NewAdminJobsAPIController(servicer, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
-	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(servicer, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
-	var adminReportsServicer genserver.AdminReportsAPIServicer = servicer
-	if reportQueries != nil {
-		adminReportsServicer = handler.NewAdminReportsServicer(reportQueries)
-	}
-	adminReportsCtrl := genserver.NewAdminReportsAPIController(adminReportsServicer, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
-	adminAuditCtrl := genserver.NewAdminAuditAPIController(servicer, genserver.WithAdminAuditAPIErrorHandler(handler.V3ErrorHandler))
+	adminServicers := newV3AdminServicers(reportQueries, adminAuth)
+	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
+	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(adminServicers.audiences, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
+	adminJobsCtrl := genserver.NewAdminJobsAPIController(adminServicers.jobs, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
+	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(adminServicers.messages, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
+	adminReportsCtrl := genserver.NewAdminReportsAPIController(adminServicers.reports, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
+	adminAuditCtrl := genserver.NewAdminAuditAPIController(adminServicers.audit, genserver.WithAdminAuditAPIErrorHandler(handler.V3ErrorHandler))
 
 	// Public email-link and recovery endpoints are intentionally public, but
 	// remain unavailable while PUBLIC_EMAIL_LOGIN is false.
@@ -450,7 +480,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 			r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 			r.Use(requireAdminBrowserSession)
 			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
-			registerRoutes(r, adminUsersCtrl, alwaysTrue)
+			registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
 			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
 			registerRoutes(r, adminJobsCtrl, alwaysTrue)
 			registerRoutes(r, adminMessagesCtrl, alwaysTrue)
@@ -497,7 +527,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(middleware.AdminCSRFGuard)
 		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(adminAuth)))
 		r.Use(middleware.AdminCapabilityGuard)
-		registerRoutes(r, adminUsersCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
 		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
 		registerRoutes(r, adminJobsCtrl, alwaysTrue)
 		registerRoutes(r, adminMessagesCtrl, alwaysTrue)

@@ -64,6 +64,8 @@ type Querier interface {
 	// once, clears legacy action URLs/codes, and disables password use while the
 	// caller holds the user row lock.
 	ContainUser(ctx context.Context, id pgtype.UUID) (int64, error)
+	CountAdminRuntimeAccounts(ctx context.Context, arg CountAdminRuntimeAccountsParams) (int64, error)
+	CountAdminRuntimeReports(ctx context.Context, arg CountAdminRuntimeReportsParams) (int64, error)
 	CountAudienceSnapshotMembers(ctx context.Context, snapshotID pgtype.UUID) (CountAudienceSnapshotMembersRow, error)
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
 	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error)
@@ -127,6 +129,7 @@ type Querier interface {
 	GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
 	// Admin membership and browser sessions ------------------------------------
 	GetAdminMembership(ctx context.Context, userID pgtype.UUID) (AdminMembership, error)
+	GetAdminRuntimeAccount(ctx context.Context, userID pgtype.UUID) (GetAdminRuntimeAccountRow, error)
 	GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (GetAdminSessionByHashRow, error)
 	GetAudienceSnapshot(ctx context.Context, id pgtype.UUID) (AudienceSnapshot, error)
 	GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error)
@@ -187,6 +190,14 @@ type Querier interface {
 	ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error)
 	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]AdminJobItem, error)
 	ListAdminJobs(ctx context.Context, arg ListAdminJobsParams) ([]AdminJob, error)
+	// Bounded production projections used by the browser-admin runtime adapter.
+	// The service layer owns authorization; these queries deliberately keep all
+	// filtering, counting, and page limits in PostgreSQL.
+	ListAdminRuntimeAccounts(ctx context.Context, arg ListAdminRuntimeAccountsParams) ([]ListAdminRuntimeAccountsRow, error)
+	ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdminRuntimeAuditEventsParams) ([]AuditEvent, error)
+	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]AdminJobItem, error)
+	ListAdminRuntimeJobs(ctx context.Context, arg ListAdminRuntimeJobsParams) ([]AdminJob, error)
+	ListAdminRuntimeReports(ctx context.Context, arg ListAdminRuntimeReportsParams) ([]ListAdminRuntimeReportsRow, error)
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
 	ListAudienceSnapshotMembers(ctx context.Context, arg ListAudienceSnapshotMembersParams) ([]AudienceSnapshotMember, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
