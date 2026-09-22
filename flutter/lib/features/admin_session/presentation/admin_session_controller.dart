@@ -16,6 +16,7 @@ final class AdminSessionController {
   final _listeners = <AdminSessionListener>{};
   AdminSessionState _state = const AdminSessionState.signedOut();
   Future<AdminBootstrap>? _preAuthBootstrap;
+  bool _retainCompletedPreAuth = false;
   Future<void>? _logoutInFlight;
   int _bootstrapGeneration = 0;
   int _operation = 0;
@@ -218,7 +219,11 @@ final class AdminSessionController {
     // revocation returned 401/503. This keeps the next login usable while the
     // UI still reports that sign-out did not complete cleanly.
     try {
-      await _ensurePreAuth();
+      // Keep the completed bootstrap future available for a login that was
+      // started while logout was waiting on the server. That login already
+      // waited for this logout, so starting a second bootstrap would rotate
+      // the pre-auth CSRF lifecycle unnecessarily.
+      await _ensurePreAuth(retainAfterCompletion: true);
     } catch (error) {
       failure ??= error;
     }
@@ -241,9 +246,15 @@ final class AdminSessionController {
     _listeners.clear();
   }
 
-  Future<AdminBootstrap> _ensurePreAuth() {
+  Future<AdminBootstrap> _ensurePreAuth({bool retainAfterCompletion = false}) {
     final pending = _preAuthBootstrap;
-    if (pending != null) return pending;
+    if (pending != null) {
+      if (_retainCompletedPreAuth) {
+        _retainCompletedPreAuth = false;
+        _preAuthBootstrap = null;
+      }
+      return pending;
+    }
 
     final generation = _bootstrapGeneration;
     final bootstrap = transport.bootstrap();
@@ -252,12 +263,17 @@ final class AdminSessionController {
       (_) {
         if (generation == _bootstrapGeneration &&
             identical(_preAuthBootstrap, bootstrap)) {
-          _preAuthBootstrap = null;
+          if (retainAfterCompletion) {
+            _retainCompletedPreAuth = true;
+          } else {
+            _preAuthBootstrap = null;
+          }
         }
       },
       onError: (Object _, StackTrace _) {
         if (generation == _bootstrapGeneration &&
             identical(_preAuthBootstrap, bootstrap)) {
+          _retainCompletedPreAuth = false;
           _preAuthBootstrap = null;
         }
       },
@@ -272,6 +288,7 @@ final class AdminSessionController {
 
   void _invalidatePreAuth() {
     ++_bootstrapGeneration;
+    _retainCompletedPreAuth = false;
     _preAuthBootstrap = null;
   }
 
