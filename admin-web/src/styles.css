@@ -1,7 +1,7 @@
 :root { color-scheme: light; font: 16px/1.5 system-ui, sans-serif; background: #f5f7fb; color: #172033; }
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { border: 0; border-radius: .6rem; background: #2457d6; color: white; cursor: pointer; padding: .7rem 1rem; }
 button:hover { background: #1844ae; }
 .app-shell { min-height: 100vh; }
@@ -11,10 +11,13 @@ button:hover { background: #1844ae; }
 .narrow form, label { display: grid; gap: .45rem; }
 .narrow form { gap: 1rem; }
 label { color: #46516a; }
-input, select { border: 1px solid #b9c2d4; border-radius: .5rem; padding: .7rem; }
+input, select, textarea { border: 1px solid #b9c2d4; border-radius: .5rem; padding: .7rem; }
+textarea { min-width: 100%; resize: vertical; }
+button:disabled { cursor: wait; opacity: .55; }
 .shell { display: grid; grid-template-columns: 15rem 1fr; min-height: 100vh; }
 header { align-items: center; background: #172033; color: white; display: flex; grid-column: 1 / -1; justify-content: space-between; padding: 1rem 2rem; }
 header h1, .toolbar h2 { margin: 0; }
+.header-actions, .detail-actions { align-items: center; display: flex; flex-wrap: wrap; gap: .6rem; }
 nav { background: #202b42; display: flex; flex-direction: column; gap: .3rem; padding: 1rem; }
 .nav-button { background: transparent; text-align: left; }
 .nav-button.selected, .nav-button:hover { background: #334466; }
@@ -28,6 +31,19 @@ header .eyebrow { color: #b7c5e3; }
 .error { background: #fff0f0; border: 1px solid #efb3b3; border-radius: .5rem; color: #9c2424; padding: .75rem 1rem; }
 .grid, .records { display: grid; gap: 1rem; }
 .grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+.stack-form { display: grid; gap: 1rem; margin-top: 1rem; }
+.stack-form label { display: grid; gap: .4rem; }
+.notice { background: #fff9e8; border: 1px solid #ead28b; border-radius: .6rem; margin-bottom: 1rem; padding: .8rem 1rem; }
+.notice p { margin: .25rem 0 .6rem; }
+.detail-actions { margin-bottom: 1rem; }
+.card dl { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.card dt { color: #68748c; font-size: .85rem; }
+.card dd { margin: 0; overflow-wrap: anywhere; }
+.note { border-top: 1px solid #e2e7f0; padding: .75rem 0; }
+.note p { margin: 0 0 .25rem; white-space: pre-wrap; }
+pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
+.record { text-align: left; width: 100%; }
 .record { align-items: center; display: flex; justify-content: space-between; }
 .record h3 { margin: 0; }
 .badge { background: #e8efff; border-radius: 999px; color: #2457d6; padding: .25rem .6rem; }

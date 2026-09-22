@@ -165,10 +165,39 @@ test('keeps the latest CSRF token for authenticated mutations and returns accept
   assert.equal(calls[3].options.headers['X-CSRF-Token'], 'login-token');
   assert.equal(calls[4].options.headers['X-CSRF-Token'], 'mfa-token');
   assert.equal(calls[5].options.headers['Idempotency-Key'], 'job-key');
+  assert.equal(calls[5].options.body, JSON.stringify({ audienceId: 'audience-id', action: { action: 'email', subject: 'Hi', body: 'Body' } }));
   assert.equal(calls[6].options.headers['Idempotency-Key'], 'report-key');
   assert.equal(calls[6].options.body, JSON.stringify({ expectedRevision: 1, status: 'resolved', assigneeUserId: null, note: 'resolved' }));
   assert.equal(calls[7].options.headers['X-CSRF-Token'], 'mfa-token');
   assert.equal(api.csrf, null);
+});
+
+test('binds session and preview request bodies exactly and keeps bounded text inputs safe', async () => {
+  const { api, calls } = recordingApi([
+    response(200, { csrfToken: 'bootstrap-token' }),
+    response(202, { challengeId: 'challenge-id', csrfToken: 'login-token', sessionState: 'mfa_required' }),
+    response(200, { csrfToken: 'mfa-token', sessionState: 'authenticated' }),
+    response(200, { status: 'ready', snapshotId: 'snapshot-id' }),
+  ]);
+
+  await api.bootstrap();
+  await api.login('operator', 'password');
+  await api.completeMfa('challenge-id', '123456');
+  await api.previewAudience({ kind: 'selected', resource: 'accounts', ids: ['user-id'] }, { action: 'login_link' });
+
+  assert.equal(calls[1].options.body, JSON.stringify({ username: 'operator', password: 'password' }));
+  assert.equal(calls[2].options.body, JSON.stringify({ challengeId: 'challenge-id', code: '123456' }));
+  assert.equal(calls[3].options.body, JSON.stringify({
+    audience: { kind: 'selected', resource: 'accounts', ids: ['user-id'] },
+    action: { action: 'login_link' },
+  }));
+
+  const longSearch = 'x'.repeat(300);
+  await api.listUsers({ search: longSearch });
+  assert.equal(new URL(calls[4].url).searchParams.get('search').length, 256);
+  assert.throws(() => api.listReports({ cursor: 'x'.repeat(513) }), (error) => error instanceof AdminHttpError && error.status === 400);
+  await api.getReport('report-id', { revision: -5 });
+  assert.equal(new URL(calls[5].url).searchParams.get('revision'), '0');
 });
 
 test('raises typed HTTP failures, clears CSRF after an unauthorized response, and blocks CSRF mutations before fetch', async () => {

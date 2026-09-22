@@ -96,7 +96,7 @@ export class AdminApi {
 
   listUsers({ cursor, limit = 25, search = '', securityStatus, verifiedEmail, createdAfter, createdBefore } = {}) {
     return this.request(`/api/v3/admin/users?${query({
-      cursor, limit, search, securityStatus, verifiedEmail, createdAfter, createdBefore,
+      cursor: boundedCursor(cursor), limit, search: boundedSearch(search), securityStatus, verifiedEmail, createdAfter, createdBefore,
     })}`);
   }
 
@@ -105,11 +105,11 @@ export class AdminApi {
   }
 
   listReports({ cursor, limit = 25, search = '', status } = {}) {
-    return this.request(`/api/v3/admin/reports?${query({ cursor, limit, search, status })}`);
+    return this.request(`/api/v3/admin/reports?${query({ cursor: boundedCursor(cursor), limit, search: boundedSearch(search), status })}`);
   }
 
   getReport(reportId, { revision } = {}) {
-    const params = query({ revision });
+    const params = query({ revision: boundedRevision(revision) });
     const path = `/api/v3/admin/reports/${encodeURIComponent(reportId)}`;
     return this.request(params.size ? `${path}?${params}` : path);
   }
@@ -132,7 +132,7 @@ export class AdminApi {
   }
 
   getAudience(audienceId, { cursor, limit = 25 } = {}) {
-    return this.request(`/api/v3/admin/audiences/${encodeURIComponent(audienceId)}?${query({ cursor, limit })}`);
+    return this.request(`/api/v3/admin/audiences/${encodeURIComponent(audienceId)}?${query({ cursor: boundedCursor(cursor), limit })}`);
   }
 
   createJob(request, idempotencyKey) {
@@ -142,7 +142,7 @@ export class AdminApi {
   }
 
   listJobs({ cursor, limit = 25, status, action } = {}) {
-    return this.request(`/api/v3/admin/jobs?${query({ cursor, limit, status, action })}`);
+    return this.request(`/api/v3/admin/jobs?${query({ cursor: boundedCursor(cursor), limit, status, action })}`);
   }
 
   getJob(jobId) {
@@ -150,7 +150,7 @@ export class AdminApi {
   }
 
   listRecipients(jobId, { cursor, limit = 25 } = {}) {
-    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}/recipients?${query({ cursor, limit })}`);
+    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}/recipients?${query({ cursor: boundedCursor(cursor), limit })}`);
   }
 
   retryJob(jobId, command, idempotencyKey) {
@@ -172,7 +172,7 @@ export class AdminApi {
   }
 
   listReportNotes(reportId, { cursor, limit = 25 } = {}) {
-    return this.request(`/api/v3/admin/reports/${encodeURIComponent(reportId)}/notes?${query({ cursor, limit })}`);
+    return this.request(`/api/v3/admin/reports/${encodeURIComponent(reportId)}/notes?${query({ cursor: boundedCursor(cursor), limit })}`);
   }
 
   addReportNote(reportId, text) {
@@ -182,7 +182,7 @@ export class AdminApi {
   }
 
   listAudit({ cursor, limit = 25, targetUserId, action } = {}) {
-    return this.request(`/api/v3/admin/audit?${query({ cursor, limit, targetUserId, action })}`);
+    return this.request(`/api/v3/admin/audit?${query({ cursor: boundedCursor(cursor), limit, targetUserId, action })}`);
   }
 }
 
@@ -200,4 +200,21 @@ function boundedLimit(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 25;
   return Math.min(100, Math.max(1, Math.floor(parsed)));
+}
+
+function boundedCursor(value) {
+  if (value === undefined || value === null || value === '') return value;
+  if (String(value).length > 512) throw new AdminHttpError(400, 'The admin cursor is too long.');
+  return value;
+}
+
+function boundedSearch(value) {
+  return value === undefined || value === null ? value : String(value).slice(0, 256);
+}
+
+function boundedRevision(value) {
+  if (value === undefined || value === null || value === '') return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.max(0, Math.floor(parsed));
 }
