@@ -56,6 +56,7 @@ void main() {
         repository.requests.single.audience.kind,
         AdminAudienceSelectionKind.all,
       );
+      expect(repository.requests.single.idempotencyKey, isNotEmpty);
     },
   );
 

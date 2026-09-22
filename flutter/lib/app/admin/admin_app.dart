@@ -6,6 +6,11 @@ import '../../features/admin_session/domain/admin_session_models.dart';
 import '../../features/admin_session/presentation/admin_session_controller.dart';
 import '../../features/admin_session/presentation/admin_login_screen.dart';
 import '../../features/admin_session/presentation/admin_mfa_screen.dart';
+import '../../features/admin_audit/domain/admin_audit_ports.dart';
+import '../../features/admin_campaigns/domain/admin_campaign_ports.dart';
+import '../../features/admin_jobs/domain/admin_job_ports.dart';
+import '../../features/admin_reports/domain/admin_report_ports.dart';
+import '../../features/admin_security/domain/admin_security_ports.dart';
 import '../../features/admin_users/domain/admin_user_ports.dart';
 import 'admin_shell.dart';
 
@@ -15,6 +20,11 @@ final class AdminApp extends StatefulWidget {
   const AdminApp({
     required this.sessionController,
     required this.usersRepository,
+    required this.reportsRepository,
+    required this.campaignRepository,
+    required this.jobsRepository,
+    required this.securityRepository,
+    required this.auditRepository,
     this.autoRestore = true,
     this.onDispose,
     super.key,
@@ -22,6 +32,11 @@ final class AdminApp extends StatefulWidget {
 
   final AdminSessionController sessionController;
   final AdminUsersRepository usersRepository;
+  final AdminReportsRepository reportsRepository;
+  final AdminCampaignRepository campaignRepository;
+  final AdminJobsRepository jobsRepository;
+  final AdminSecurityRepository securityRepository;
+  final AdminAuditRepository auditRepository;
   final bool autoRestore;
   final VoidCallback? onDispose;
 
@@ -64,16 +79,34 @@ final class _AdminAppState extends State<AdminApp> {
       home: _AdminGate(
         controller: widget.sessionController,
         usersRepository: widget.usersRepository,
+        reportsRepository: widget.reportsRepository,
+        campaignRepository: widget.campaignRepository,
+        jobsRepository: widget.jobsRepository,
+        securityRepository: widget.securityRepository,
+        auditRepository: widget.auditRepository,
       ),
     );
   }
 }
 
 final class _AdminGate extends StatelessWidget {
-  const _AdminGate({required this.controller, required this.usersRepository});
+  const _AdminGate({
+    required this.controller,
+    required this.usersRepository,
+    required this.reportsRepository,
+    required this.campaignRepository,
+    required this.jobsRepository,
+    required this.securityRepository,
+    required this.auditRepository,
+  });
 
   final AdminSessionController controller;
   final AdminUsersRepository usersRepository;
+  final AdminReportsRepository reportsRepository;
+  final AdminCampaignRepository campaignRepository;
+  final AdminJobsRepository jobsRepository;
+  final AdminSecurityRepository securityRepository;
+  final AdminAuditRepository auditRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +121,11 @@ final class _AdminGate extends StatelessWidget {
           session: state.session!,
           sessionController: controller,
           usersRepository: usersRepository,
+          reportsRepository: reportsRepository,
+          campaignRepository: campaignRepository,
+          jobsRepository: jobsRepository,
+          securityRepository: securityRepository,
+          auditRepository: auditRepository,
         );
       case AdminSessionPhase.signedOut:
       case AdminSessionPhase.expired:

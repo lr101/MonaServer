@@ -1,11 +1,52 @@
 import 'dart:convert';
 
 import 'package:buff_lisa/app/admin/admin_api_adapter.dart';
+import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 void main() {
+  test(
+    'generated adapter maps a queued audience preview without invented data',
+    () async {
+      final client = _RecordingClient([
+        _response(200, {
+          'csrfToken': 'csrf-preview',
+          'expiresAt': '2026-01-01T01:00:00Z',
+          'sessionState': 'pre_authentication',
+        }),
+        _response(202, {
+          'jobId': 'preview-job-1',
+          'snapshotId': 'snapshot-pending',
+          'status': 'pending',
+        }),
+      ]);
+      final adapter = AdminApiAdapter(
+        basePath: 'https://admin.example',
+        client: client,
+      );
+
+      await adapter.bootstrap();
+      final preview = await adapter.preview(
+        AdminAudiencePreviewRequest(
+          audience: AdminAudienceSelection.selected(const {'account-1'}),
+          action: const AdminAudienceAction(
+            kind: AdminAudienceActionKind.loginLink,
+          ),
+        ),
+      );
+
+      expect(preview.status, AdminAudiencePreviewStatus.pending);
+      expect(preview.jobId, 'preview-job-1');
+      expect(preview.eligibleRecipientCount, isNull);
+      expect(preview.payloadHash, isNull);
+      expect(preview.canConfirm(), isFalse);
+      expect(client.requests[1].url.path, '/api/v3/admin/audiences/preview');
+      expect(client.requests[1].headers['x-csrf-token'], 'csrf-preview');
+    },
+  );
+
   test(
     'generated adapter rotates CSRF and maps session data without JWTs',
     () async {

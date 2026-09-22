@@ -17,6 +17,11 @@ final class AdminJobRecord {
     required this.failedCount,
     required this.unknownDeliveryCount,
     required this.cancellationRequested,
+    this.accountAudienceCount = 0,
+    this.eligibleRecipientCount = 0,
+    this.excludedAudienceCount = 0,
+    this.deviceDeliveryCount = 0,
+    this.hasProgressDetails = true,
     this.updatedAt,
   });
 
@@ -28,6 +33,13 @@ final class AdminJobRecord {
   final int failedCount;
   final int unknownDeliveryCount;
   final bool cancellationRequested;
+
+  /// These are the server's audience snapshot counts, not delivery progress.
+  final int accountAudienceCount;
+  final int eligibleRecipientCount;
+  final int excludedAudienceCount;
+  final int deviceDeliveryCount;
+  final bool hasProgressDetails;
   final DateTime? updatedAt;
 
   String get statusExplanation => switch (status) {
@@ -35,14 +47,17 @@ final class AdminJobRecord {
     AdminJobStatus.running => 'Processing eligible recipients.',
     AdminJobStatus.completed => 'Completed.',
     AdminJobStatus.completedWithErrors =>
-      'Completed with errors: $failedCount recipient${failedCount == 1 ? '' : 's'} failed.',
+      hasProgressDetails
+          ? 'Completed with errors: $failedCount recipient${failedCount == 1 ? '' : 's'} failed.'
+          : 'Completed with errors. Detailed recipient progress is unavailable.',
     AdminJobStatus.paused =>
       'Paused until an authorized administrator resumes it.',
     AdminJobStatus.cancelled =>
       'Cancelled. Work already accepted by a provider cannot be unsent.',
   };
 
-  String? get deliveryExplanation => unknownDeliveryCount == 0
+  String? get deliveryExplanation =>
+      !hasProgressDetails || unknownDeliveryCount == 0
       ? null
       : '$unknownDeliveryCount ${unknownDeliveryCount == 1 ? 'delivery has' : 'deliveries have'} unconfirmed provider acceptance. Retrying may duplicate ${unknownDeliveryCount == 1 ? 'it' : 'them'}.';
 

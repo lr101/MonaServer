@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.dart';
 import 'package:buff_lisa/features/admin_reports/domain/admin_report_models.dart';
 import 'package:buff_lisa/features/admin_reports/domain/admin_report_ports.dart';
@@ -73,13 +75,15 @@ final class AdminReportsState {
 final class AdminReportsController {
   AdminReportsController(
     this.repository, {
+    String Function()? idempotencyKey,
     this.onUnauthorized,
     this.onCapabilityDenied,
-  });
+  }) : _idempotencyKey = idempotencyKey ?? _newIdempotencyKey;
 
   final AdminReportsRepository repository;
   final void Function()? onUnauthorized;
   final void Function()? onCapabilityDenied;
+  final String Function() _idempotencyKey;
   final _listeners = <AdminReportsListener>{};
   AdminReportsState _state = const AdminReportsState();
   int _listGeneration = 0;
@@ -128,7 +132,7 @@ final class AdminReportsController {
       ),
     );
     try {
-      final page = await repository.list(query);
+      final page = await repository.listReports(query);
       if (!_isCurrentList(generation)) return;
       _emit(
         _state.copyWith(
@@ -152,7 +156,9 @@ final class AdminReportsController {
     final generation = _listGeneration;
     _emit(_state.copyWith(loading: true, clearError: true));
     try {
-      final page = await repository.list(_state.query.copyWith(cursor: cursor));
+      final page = await repository.listReports(
+        _state.query.copyWith(cursor: cursor),
+      );
       if (!_isCurrentList(generation)) return;
       _emit(
         _state.copyWith(
@@ -365,16 +371,34 @@ final class AdminReportsController {
     _emit(_state.copyWith(clearError: true, bulkLoading: true));
     try {
       final outcome = await repository.commitBulk(
-        AdminReportBulkCommand(commit: commit, status: status),
+        AdminReportBulkCommand(
+          commit: commit,
+          status: status,
+          idempotencyKey: _idempotencyKey(),
+        ),
       );
-      final changed = outcome.changed;
+      if (outcome.isQueued) {
+        _emit(
+          _state.copyWith(
+            selectedIds: const {},
+            bulkMessage:
+                'Report update was queued as job ${outcome.jobId}. It has not completed yet.',
+            clearBulkPreview: true,
+            clearBulkStatus: true,
+            bulkLoading: false,
+          ),
+        );
+        return;
+      }
+      final changed = outcome.changed!;
+      final skipped = outcome.skipped!;
       if (!_isCurrentBulk(generation)) {
         if (!_disposed) {
           _emit(
             _state.copyWith(
               bulkMessage: _bulkOutcomeMessage(
                 changed: changed,
-                skipped: outcome.skipped,
+                skipped: skipped,
                 status: status,
                 inboxChanged: true,
               ),
@@ -389,7 +413,7 @@ final class AdminReportsController {
           selectedIds: const {},
           bulkMessage: _bulkOutcomeMessage(
             changed: changed,
-            skipped: outcome.skipped,
+            skipped: skipped,
             status: status,
           ),
           clearBulkPreview: true,
@@ -511,5 +535,15 @@ final class AdminReportsController {
     for (final listener in List<AdminReportsListener>.of(_listeners)) {
       listener(next);
     }
+  }
+
+  static String _newIdempotencyKey() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List<String>.generate(
+      32,
+      (_) => alphabet[random.nextInt(alphabet.length)],
+      growable: false,
+    ).join();
   }
 }

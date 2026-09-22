@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.dart';
 import 'package:buff_lisa/features/admin_security/domain/admin_security_models.dart';
 import 'package:buff_lisa/features/admin_security/domain/admin_security_ports.dart';
@@ -41,14 +43,16 @@ final class AdminSecurityController {
   AdminSecurityController(
     this.repository, {
     required this.hasRecentMfa,
+    String Function()? idempotencyKey,
     this.onUnauthorized,
     this.onCapabilityDenied,
-  });
+  }) : _idempotencyKey = idempotencyKey ?? _newIdempotencyKey;
 
   final AdminSecurityRepository repository;
   final bool Function() hasRecentMfa;
   final void Function()? onUnauthorized;
   final void Function()? onCapabilityDenied;
+  final String Function() _idempotencyKey;
   final _listeners = <AdminSecurityListener>{};
   AdminSecurityState _state = const AdminSecurityState();
   Future<void>? _submission;
@@ -81,6 +85,7 @@ final class AdminSecurityController {
       audience: audience,
       request: request,
       administratorInclusionAcknowledged: administratorInclusionAcknowledged,
+      idempotencyKey: _idempotencyKey(),
     );
     if (!command.isValid) {
       _emit(
@@ -161,6 +166,13 @@ final class AdminSecurityController {
     onUnauthorized?.call();
   }
 
+  void dispose() {
+    if (_expired) return;
+    _expired = true;
+    ++_generation;
+    _listeners.clear();
+  }
+
   bool _isCurrent(int generation) => !_expired && generation == _generation;
 
   void _emit(AdminSecurityState state) {
@@ -168,5 +180,15 @@ final class AdminSecurityController {
     for (final listener in List<AdminSecurityListener>.of(_listeners)) {
       listener(state);
     }
+  }
+
+  static String _newIdempotencyKey() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List<String>.generate(
+      32,
+      (_) => alphabet[random.nextInt(alphabet.length)],
+      growable: false,
+    ).join();
   }
 }

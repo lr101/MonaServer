@@ -5,7 +5,7 @@ import 'package:buff_lisa/features/admin_reports/domain/admin_report_models.dart
 /// interface without exposing them to report presentation.
 abstract interface class AdminReportsRepository
     implements AdminAudiencePreviewPort {
-  Future<AdminReportPage> list(AdminReportQuery query);
+  Future<AdminReportPage> listReports(AdminReportQuery query);
 
   Future<AdminReport?> get(String reportId);
 

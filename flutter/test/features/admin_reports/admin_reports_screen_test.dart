@@ -298,7 +298,7 @@ final class _ScreenReportsRepository implements AdminReportsRepository {
   Future<AdminReport?> get(String reportId) async => _report;
 
   @override
-  Future<AdminReportPage> list(AdminReportQuery query) async {
+  Future<AdminReportPage> listReports(AdminReportQuery query) async {
     listed = true;
     queries.add(query);
     if (listFuture != null) return listFuture!;

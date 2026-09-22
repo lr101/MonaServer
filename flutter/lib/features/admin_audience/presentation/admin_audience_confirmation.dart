@@ -52,7 +52,10 @@ final class AdminAudienceConfirmation extends StatelessWidget {
             Text(selection.summary),
             if (preview != null) ...[
               const SizedBox(height: 16),
-              _PreviewCounts(preview: preview!),
+              if (preview!.status == AdminAudiencePreviewStatus.pending)
+                const Text('Audience readiness is still pending.')
+              else
+                _PreviewCounts(preview: preview!),
               if (preview!.isExpired(now)) ...[
                 const SizedBox(height: 8),
                 const Text('This preview has expired. Request a new preview.'),
@@ -109,10 +112,14 @@ final class _PreviewCounts extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${preview.accountAudienceCount} accounts in this snapshot'),
-          Text('${preview.eligibleRecipientCount} eligible recipients'),
-          Text('${preview.excludedCount} excluded'),
-          Text('${preview.deviceDeliveryCount} device deliveries'),
+          Text(
+            '${preview.accountAudienceCount ?? 'Unknown'} accounts in this snapshot',
+          ),
+          Text(
+            '${preview.eligibleRecipientCount ?? 'Unknown'} eligible recipients',
+          ),
+          Text('${preview.excludedCount ?? 'Unknown'} excluded'),
+          Text('${preview.deviceDeliveryCount ?? 'Unknown'} device deliveries'),
           if (preview.exclusions.isNotEmpty)
             Text('${preview.exclusions.length} exclusions require review'),
         ],

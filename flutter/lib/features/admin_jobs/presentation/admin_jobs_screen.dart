@@ -121,6 +121,10 @@ final class _JobCard extends StatelessWidget {
         children: [
           Text(job.actionLabel, style: Theme.of(context).textTheme.titleMedium),
           Text(job.statusExplanation),
+          if (!job.hasProgressDetails)
+            Text(
+              'Audience snapshot: ${job.accountAudienceCount} accounts, ${job.eligibleRecipientCount} eligible. Delivery progress detail is unavailable.',
+            ),
           if (job.deliveryExplanation != null) Text(job.deliveryExplanation!),
           Text(
             refreshedAt == null

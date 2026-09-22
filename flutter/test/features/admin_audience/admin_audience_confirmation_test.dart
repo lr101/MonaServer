@@ -4,6 +4,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'pending previews disclose unavailable readiness and cannot confirm',
+    (tester) async {
+      var confirmed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AdminAudienceConfirmation(
+              selection: AdminAudienceSelection.selected(const {'user-1'}),
+              action: const AdminAudienceAction(
+                kind: AdminAudienceActionKind.loginLink,
+              ),
+              preview: const AdminAudiencePreview.pending(
+                snapshotId: 'preview-job-1',
+                jobId: 'preview-job-1',
+              ),
+              onConfirm: () => confirmed = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Audience readiness is still pending.'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.byKey(const ValueKey('admin-audience-confirm')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byKey(const ValueKey('admin-audience-confirm')));
+      expect(confirmed, isFalse);
+    },
+  );
+
   testWidgets('confirmation is disabled for an empty selected audience', (
     tester,
   ) async {

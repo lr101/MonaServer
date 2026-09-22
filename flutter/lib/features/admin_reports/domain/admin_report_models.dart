@@ -171,17 +171,30 @@ final class AdminReportUpdate {
 }
 
 final class AdminReportBulkCommand {
-  const AdminReportBulkCommand({required this.commit, required this.status});
+  const AdminReportBulkCommand({
+    required this.commit,
+    required this.status,
+    required this.idempotencyKey,
+  });
 
   final AdminAudienceCommitRequest commit;
   final AdminReportStatus status;
+  final String idempotencyKey;
 }
 
 final class AdminReportBulkOutcome {
-  const AdminReportBulkOutcome({required this.changed, required this.skipped});
+  const AdminReportBulkOutcome({required this.changed, required this.skipped})
+    : jobId = null;
 
-  final int changed;
-  final int skipped;
+  const AdminReportBulkOutcome.queued({required this.jobId})
+    : changed = null,
+      skipped = null;
+
+  final int? changed;
+  final int? skipped;
+  final String? jobId;
+
+  bool get isQueued => jobId != null;
 }
 
 extension on AdminReportStatus {

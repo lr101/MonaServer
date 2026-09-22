@@ -548,12 +548,28 @@ final class AdminAudiencePreview {
     this.jobId,
   });
 
+  /// A queued server calculation deliberately has no count, action binding,
+  /// hash, or expiry until the server makes the snapshot ready.
+  const AdminAudiencePreview.pending({required this.snapshotId, this.jobId})
+    : accountAudienceCount = null,
+      eligibleRecipientCount = null,
+      excludedCount = null,
+      deviceDeliveryCount = null,
+      expiresAt = null,
+      exclusions = const [],
+      audience = null,
+      action = null,
+      actorUserId = null,
+      payloadHash = null,
+      resource = null,
+      status = AdminAudiencePreviewStatus.pending;
+
   final String snapshotId;
-  final int accountAudienceCount;
-  final int eligibleRecipientCount;
-  final int excludedCount;
-  final int deviceDeliveryCount;
-  final DateTime expiresAt;
+  final int? accountAudienceCount;
+  final int? eligibleRecipientCount;
+  final int? excludedCount;
+  final int? deviceDeliveryCount;
+  final DateTime? expiresAt;
   final List<AdminAudienceExclusion> exclusions;
   final AdminAudienceSelection? audience;
   final AdminAudienceAction? action;
@@ -563,7 +579,8 @@ final class AdminAudiencePreview {
   final AdminAudiencePreviewStatus status;
   final String? jobId;
 
-  bool isExpired([DateTime? now]) => !expiresAt.isAfter(now ?? DateTime.now());
+  bool isExpired([DateTime? now]) =>
+      expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());
 
   bool canConfirm([
     DateTime? now,
@@ -573,7 +590,9 @@ final class AdminAudiencePreview {
   ]) {
     if (status != AdminAudiencePreviewStatus.ready ||
         snapshotId.trim().isEmpty ||
-        eligibleRecipientCount <= 0 ||
+        eligibleRecipientCount == null ||
+        eligibleRecipientCount! <= 0 ||
+        expiresAt == null ||
         isExpired(now) ||
         audience == null ||
         action == null ||

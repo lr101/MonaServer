@@ -217,7 +217,7 @@ final class _JobsRepository implements AdminJobsRepository {
   final List<AdminJobCommand> cancelled = [];
 
   @override
-  Future<AdminJobPage> list(AdminJobQuery query) =>
+  Future<AdminJobPage> listJobs(AdminJobQuery query) =>
       _pageFuture ?? Future.value(page ?? const AdminJobPage(items: []));
 
   @override

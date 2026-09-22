@@ -3,6 +3,17 @@ import 'package:buff_lisa/app/admin/admin_bootstrap.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_models.dart';
 import 'package:buff_lisa/features/admin_session/domain/admin_session_ports.dart';
 import 'package:buff_lisa/features/admin_session/presentation/admin_session_controller.dart';
+import 'package:buff_lisa/features/admin_audit/domain/admin_audit_models.dart';
+import 'package:buff_lisa/features/admin_audit/domain/admin_audit_ports.dart';
+import 'package:buff_lisa/features/admin_audience/domain/admin_audience_models.dart';
+import 'package:buff_lisa/features/admin_campaigns/domain/admin_campaign_models.dart';
+import 'package:buff_lisa/features/admin_campaigns/domain/admin_campaign_ports.dart';
+import 'package:buff_lisa/features/admin_jobs/domain/admin_job_models.dart';
+import 'package:buff_lisa/features/admin_jobs/domain/admin_job_ports.dart';
+import 'package:buff_lisa/features/admin_reports/domain/admin_report_models.dart';
+import 'package:buff_lisa/features/admin_reports/domain/admin_report_ports.dart';
+import 'package:buff_lisa/features/admin_security/domain/admin_security_models.dart';
+import 'package:buff_lisa/features/admin_security/domain/admin_security_ports.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_models.dart';
 import 'package:buff_lisa/features/admin_users/domain/admin_user_ports.dart';
 import 'package:flutter/material.dart';
@@ -14,10 +25,16 @@ void main() {
     (tester) async {
       final transport = _FakeAdminSessionTransport();
       final controller = AdminSessionController(transport);
+      final features = _FakeAdminFeatureRepositories();
       await tester.pumpWidget(
         AdminApp(
           sessionController: controller,
           usersRepository: _FakeAdminUsersRepository(),
+          reportsRepository: features,
+          campaignRepository: features,
+          jobsRepository: features,
+          securityRepository: features,
+          auditRepository: features,
           autoRestore: false,
         ),
       );
@@ -58,10 +75,16 @@ void main() {
     final controller = AdminSessionController(
       _FakeAdminSessionTransport(restored: _session()),
     );
+    final features = _FakeAdminFeatureRepositories();
     await tester.pumpWidget(
       AdminApp(
         sessionController: controller,
         usersRepository: _FakeAdminUsersRepository(),
+        reportsRepository: features,
+        campaignRepository: features,
+        jobsRepository: features,
+        securityRepository: features,
+        auditRepository: features,
       ),
     );
     await tester.pumpAndSettle();
@@ -76,35 +99,45 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
   });
 
-  testWidgets('signed-in shell exposes users, reports, and jobs destinations', (
+  testWidgets('signed-in shell routes to integrated admin feature screens', (
     tester,
   ) async {
     final controller = AdminSessionController(
       _FakeAdminSessionTransport(restored: _session()),
     );
+    final features = _FakeAdminFeatureRepositories();
     await tester.pumpWidget(
       AdminApp(
         sessionController: controller,
         usersRepository: _FakeAdminUsersRepository(),
+        reportsRepository: features,
+        campaignRepository: features,
+        jobsRepository: features,
+        securityRepository: features,
+        auditRepository: features,
       ),
     );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('admin-nav-reports')));
     await tester.pumpAndSettle();
-    expect(find.text('Reports'), findsWidgets);
-    expect(
-      find.text('Report review is ready for the next integration slice.'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('admin-reports-screen')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('admin-nav-campaigns')));
+    await tester.pumpAndSettle();
+    expect(find.text('Campaign composer'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('admin-nav-security')));
+    await tester.pumpAndSettle();
+    expect(find.text('Security actions'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('admin-nav-jobs')));
     await tester.pumpAndSettle();
-    expect(find.text('Jobs'), findsWidgets);
-    expect(
-      find.text('Job monitoring is ready for the next integration slice.'),
-      findsOneWidget,
-    );
+    expect(find.text('Job monitoring'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('admin-nav-audit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Audit history'), findsOneWidget);
   });
 
   testWidgets('admin composition mounts without consumer initialization work', (
@@ -112,11 +145,17 @@ void main() {
   ) async {
     final sessionTransport = _FakeAdminSessionTransport();
     final usersRepository = _FakeAdminUsersRepository();
+    final features = _FakeAdminFeatureRepositories();
 
     await tester.pumpWidget(
       createAdminApplication(
         sessionTransport: sessionTransport,
         usersRepository: usersRepository,
+        reportsRepository: features,
+        campaignRepository: features,
+        jobsRepository: features,
+        securityRepository: features,
+        auditRepository: features,
         autoRestore: false,
       ),
     );
@@ -132,7 +171,17 @@ AdminSessionSnapshot _session() => AdminSessionSnapshot(
   userId: 'user-1',
   username: 'operator',
   csrfToken: 'csrf-secret',
-  capabilities: const {'users.read'},
+  capabilities: const {
+    'users.read',
+    'reports.read',
+    'reports.review',
+    'reports.resolve',
+    'reports.dismiss',
+    'campaigns.write',
+    'security.write',
+    'jobs.read',
+    'audit.read',
+  },
   permissions: const {'users.read'},
   authenticatedAt: DateTime.utc(2026, 1, 1),
   lastActivityAt: DateTime.utc(2026, 1, 1),
@@ -193,4 +242,66 @@ final class _FakeAdminUsersRepository implements AdminUsersRepository {
     calls.add('users');
     return AdminUserPage(items: const []);
   }
+}
+
+final class _FakeAdminFeatureRepositories
+    implements
+        AdminReportsRepository,
+        AdminCampaignRepository,
+        AdminJobsRepository,
+        AdminSecurityRepository,
+        AdminAuditRepository {
+  @override
+  Future<AdminReportPage> listReports(AdminReportQuery query) async =>
+      AdminReportPage(items: const []);
+
+  @override
+  Future<AdminReport?> get(String reportId) async => null;
+
+  @override
+  Future<AdminReport> update(AdminReportUpdate update) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminReportNote> addNote(String reportId, String text) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminReportBulkOutcome> commitBulk(AdminReportBulkCommand command) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminAudiencePreview> preview(AdminAudiencePreviewRequest request) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminCampaignCommitResult> commit(
+    AdminCampaignCommitCommand command,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<AdminCampaignTestResult> sendTest({
+    required String recipientUserId,
+    required AdminAudienceAction action,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<AdminJobPage> listJobs(AdminJobQuery query) async =>
+      const AdminJobPage(items: []);
+
+  @override
+  Future<AdminJobCommandResult> retry(AdminJobCommand command) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminJobCommandResult> cancel(AdminJobCommand command) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminSecurityResult> submit(AdminSecurityActionRequest request) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AdminAuditPage> listAudit(AdminAuditQuery query) async =>
+      const AdminAuditPage(items: []);
 }

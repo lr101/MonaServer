@@ -68,7 +68,7 @@ final class AdminAuditController {
       ),
     );
     try {
-      final page = await repository.list(AdminAuditQuery(cursor: cursor));
+      final page = await repository.listAudit(AdminAuditQuery(cursor: cursor));
       if (!_isCurrent(generation)) return;
       _emit(
         _state.copyWith(
@@ -112,6 +112,13 @@ final class AdminAuditController {
       ),
     );
     onUnauthorized?.call();
+  }
+
+  void dispose() {
+    if (_expired) return;
+    _expired = true;
+    ++_generation;
+    _listeners.clear();
   }
 
   bool _isCurrent(int generation) => !_expired && generation == _generation;

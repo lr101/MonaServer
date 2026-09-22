@@ -61,11 +61,13 @@ final class AdminSecurityActionRequest {
     required this.audience,
     required this.request,
     required this.administratorInclusionAcknowledged,
+    required this.idempotencyKey,
   });
 
   final AdminAudienceSelection audience;
   final AdminSecurityRequest request;
   final bool administratorInclusionAcknowledged;
+  final String idempotencyKey;
 
   bool get isValid =>
       audience.isActionable &&

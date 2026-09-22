@@ -200,6 +200,7 @@ void main() {
       );
       expect(repository.previewed.single.audience.selectedIds, {'one', 'two'});
       expect(repository.bulkCommands.single.commit.snapshotId, 'snapshot-1');
+      expect(repository.bulkCommands.single.idempotencyKey, isNotEmpty);
       expect(controller.state.bulkMessage, '2 reports were dismissed.');
       expect(repository.queries, isNotEmpty);
     },
@@ -373,7 +374,7 @@ final class _ReportsRepository implements AdminReportsRepository {
   final bulkCommands = <AdminReportBulkCommand>[];
 
   @override
-  Future<AdminReportPage> list(AdminReportQuery query) async {
+  Future<AdminReportPage> listReports(AdminReportQuery query) async {
     queries.add(query);
     final value = _pages.isEmpty ? _page(const [], null) : _pages.removeAt(0);
     return value is Future<AdminReportPage> ? value : value as AdminReportPage;

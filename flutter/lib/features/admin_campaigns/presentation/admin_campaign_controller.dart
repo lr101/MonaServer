@@ -316,6 +316,14 @@ final class AdminCampaignController {
     onUnauthorized?.call();
   }
 
+  void dispose() {
+    if (_expired) return;
+    _expired = true;
+    ++_generation;
+    _pendingDraft = null;
+    _listeners.clear();
+  }
+
   bool _isCurrent(int generation) => !_expired && generation == _generation;
 
   void _handleError(Object error, {required String fallback}) {

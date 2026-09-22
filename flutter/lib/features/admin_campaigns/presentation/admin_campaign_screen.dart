@@ -162,10 +162,12 @@ final class _AdminCampaignScreenState extends State<AdminCampaignScreen> {
         if (state.preview != null) ...[
           const SizedBox(height: 16),
           Text(
-            '${state.preview!.accountAudienceCount} accounts in frozen snapshot',
+            '${state.preview!.accountAudienceCount ?? 'Unknown'} accounts in frozen snapshot',
           ),
-          Text('${state.preview!.eligibleRecipientCount} eligible recipients'),
-          Text('${state.preview!.excludedCount} exclusions'),
+          Text(
+            '${state.preview!.eligibleRecipientCount ?? 'Unknown'} eligible recipients',
+          ),
+          Text('${state.preview!.excludedCount ?? 'Unknown'} exclusions'),
         ],
         if (state.message != null) ...[
           const SizedBox(height: 16),

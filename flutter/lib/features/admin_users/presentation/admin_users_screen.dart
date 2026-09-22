@@ -11,11 +11,15 @@ final class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({
     required this.controller,
     required this.canRead,
+    this.selection,
+    this.onAudienceChanged,
     super.key,
   });
 
   final AdminUsersController controller;
   final bool canRead;
+  final AdminAudienceSelectionModel? selection;
+  final VoidCallback? onAudienceChanged;
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -23,7 +27,10 @@ final class AdminUsersScreen extends StatefulWidget {
 
 final class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final _searchController = TextEditingController();
-  final _selection = AdminAudienceSelectionModel();
+  final _localSelection = AdminAudienceSelectionModel();
+
+  AdminAudienceSelectionModel get _selection =>
+      widget.selection ?? _localSelection;
 
   @override
   void initState() {
@@ -62,6 +69,7 @@ final class _AdminUsersScreenState extends State<AdminUsersScreen> {
           onSearch: _search,
           onToggleSelected: (id) {
             _selection.toggleSelected(id);
+            widget.onAudienceChanged?.call();
             setState(() {});
           },
           onOpenDetails: widget.controller.loadDetails,
@@ -76,7 +84,10 @@ final class _AdminUsersScreenState extends State<AdminUsersScreen> {
           visibleFilter: AdminAudienceFilter(
             search: state.query.isEmpty ? null : state.query,
           ),
-          onChanged: () => setState(() {}),
+          onChanged: () {
+            widget.onAudienceChanged?.call();
+            setState(() {});
+          },
         );
         if (!wide) {
           return ListView(

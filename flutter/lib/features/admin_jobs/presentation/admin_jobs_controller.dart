@@ -90,7 +90,7 @@ final class AdminJobsController {
       ),
     );
     try {
-      final page = await repository.list(AdminJobQuery(cursor: cursor));
+      final page = await repository.listJobs(AdminJobQuery(cursor: cursor));
       if (!_isCurrent(generation)) return;
       _emit(
         _state.copyWith(
@@ -190,6 +190,13 @@ final class AdminJobsController {
       ),
     );
     onUnauthorized?.call();
+  }
+
+  void dispose() {
+    if (_expired) return;
+    _expired = true;
+    ++_generation;
+    _listeners.clear();
   }
 
   bool _isCurrent(int generation) => !_expired && generation == _generation;

@@ -132,7 +132,7 @@ final class _AuditRepository implements AdminAuditRepository {
   final List<AdminAuditQuery> queries = [];
 
   @override
-  Future<AdminAuditPage> list(AdminAuditQuery query) {
+  Future<AdminAuditPage> listAudit(AdminAuditQuery query) {
     queries.add(query);
     if (queries.length == 1 && pendingFirstPage != null) {
       return pendingFirstPage!;
