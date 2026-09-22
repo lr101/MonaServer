@@ -145,7 +145,8 @@ test('keeps the latest CSRF token for authenticated mutations and returns accept
   await api.login('operator', 'password');
   await api.completeMfa('challenge-id', '123456');
   const preview = await api.previewAudience({ kind: 'selected', resource: 'accounts', ids: ['user-id'] }, { action: 'email', subject: 'Hi', body: 'Body' });
-  const job = await api.createJob({ audienceId: 'audience-id', action: { action: 'email', subject: 'Hi', body: 'Body' } }, 'job-key');
+  const jobRequest = { snapshotId: 'snapshot-id', payloadHash: '0123456789abcdef', action: { action: 'email', subject: 'Hi', body: 'Body' } };
+  const job = await api.createJob(jobRequest, 'job-key-1');
   await api.updateReport('report/id', { expectedRevision: 1, status: 'resolved', assignee: 'clear', note: 'resolved' }, 'report-key');
   await api.logout();
 
@@ -164,8 +165,8 @@ test('keeps the latest CSRF token for authenticated mutations and returns accept
   assert.equal(calls[2].options.headers['X-CSRF-Token'], 'restored-token');
   assert.equal(calls[3].options.headers['X-CSRF-Token'], 'login-token');
   assert.equal(calls[4].options.headers['X-CSRF-Token'], 'mfa-token');
-  assert.equal(calls[5].options.headers['Idempotency-Key'], 'job-key');
-  assert.equal(calls[5].options.body, JSON.stringify({ audienceId: 'audience-id', action: { action: 'email', subject: 'Hi', body: 'Body' } }));
+  assert.equal(calls[5].options.headers['Idempotency-Key'], 'job-key-1');
+  assert.equal(calls[5].options.body, JSON.stringify(jobRequest));
   assert.equal(calls[6].options.headers['Idempotency-Key'], 'report-key');
   assert.equal(calls[6].options.body, JSON.stringify({ expectedRevision: 1, status: 'resolved', assigneeUserId: null, note: 'resolved' }));
   assert.equal(calls[7].options.headers['X-CSRF-Token'], 'mfa-token');
@@ -214,7 +215,7 @@ test('raises typed HTTP failures, clears CSRF after an unauthorized response, an
     assert.equal(error.forbidden, true);
     return true;
   });
-  await assert.rejects(api.createJob({ audienceId: 'audience-id', action: { action: 'email', subject: 'Hi', body: 'Body' } }, 'job-key'), (error) => {
+  await assert.rejects(api.createJob({ snapshotId: 'snapshot-id', payloadHash: '0123456789abcdef', action: { action: 'email', subject: 'Hi', body: 'Body' } }, 'job-key-1'), (error) => {
     assert.ok(error instanceof AdminHttpError);
     assert.equal(error.status, 401);
     assert.equal(error.unauthorized, true);
@@ -258,5 +259,16 @@ test('does not send job mutations without their required idempotency key', async
     await assert.rejects(operation(), (error) => error instanceof AdminHttpError && error.status === 428);
   }
 
+  assert.equal(calls.length, 0);
+});
+
+test('rejects idempotency keys outside the server contract bounds', async () => {
+  const { api, calls } = recordingApi();
+  api.csrf = 'active-token';
+  const request = { snapshotId: 'snapshot-id', payloadHash: '0123456789abcdef', action: { action: 'login_link' } };
+
+  for (const key of ['short', 'x'.repeat(129)]) {
+    await assert.rejects(api.createJob(request, key), (error) => error instanceof AdminHttpError && error.status === 400);
+  }
   assert.equal(calls.length, 0);
 });

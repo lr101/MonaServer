@@ -33,6 +33,9 @@ export class AdminApi {
     if (requireIdempotency && !idempotencyKey) {
       throw new AdminHttpError(428, 'This action requires an idempotency key.');
     }
+    if (requireIdempotency && (String(idempotencyKey).length < 8 || String(idempotencyKey).length > 128)) {
+      throw new AdminHttpError(400, 'The idempotency key must be between 8 and 128 characters.');
+    }
     if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     const response = await this.fetcher(`${this.base}${path}`, {
       method,
