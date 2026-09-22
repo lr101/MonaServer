@@ -23,7 +23,7 @@ export class AdminApi {
     this.csrf = null;
   }
 
-  async request(path, { method = 'GET', body, csrf = false, idempotencyKey, requireIdempotency = false } = {}) {
+  async request(path, { method = 'GET', body, csrf = false, idempotencyKey, requireIdempotency = false, preserveCsrfOnUnauthorized = false } = {}) {
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (csrf) {
@@ -40,7 +40,7 @@ export class AdminApi {
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (response.status === 401) this.csrf = null;
+    if (response.status === 401 && !preserveCsrfOnUnauthorized) this.csrf = null;
     const text = await response.text();
     let value = null;
     if (text) {
@@ -62,13 +62,14 @@ export class AdminApi {
   }
 
   restore() {
-    return this.request('/api/v3/admin/session');
+    return this.request('/api/v3/admin/session', { preserveCsrfOnUnauthorized: true });
   }
 
   login(username, password) {
     return this.request('/api/v3/admin/session/login', {
       method: 'POST',
       csrf: true,
+      preserveCsrfOnUnauthorized: true,
       body: { username, password },
     });
   }
@@ -77,6 +78,7 @@ export class AdminApi {
     return this.request('/api/v3/admin/session/mfa', {
       method: 'POST',
       csrf: true,
+      preserveCsrfOnUnauthorized: true,
       body: { challengeId, code },
     });
   }

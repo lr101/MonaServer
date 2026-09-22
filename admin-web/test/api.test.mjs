@@ -231,6 +231,21 @@ test('raises typed HTTP failures, clears CSRF after an unauthorized response, an
   assert.equal(api.csrf, null);
 });
 
+test('keeps the bootstrap CSRF token when restore reports an unauthenticated session', async () => {
+  const { api, calls } = recordingApi([
+    response(200, { csrfToken: 'pre-auth-token' }),
+    response(401, { message: 'No admin session' }),
+    response(202, { challengeId: 'challenge-id', csrfToken: 'login-token', sessionState: 'mfa_required' }),
+  ]);
+
+  await api.bootstrap();
+  await assert.rejects(api.restore(), (error) => error instanceof AdminHttpError && error.status === 401);
+  await api.login('operator', 'password');
+
+  assert.equal(calls[2].url, 'https://admin.example/api/v3/admin/session/login');
+  assert.equal(calls[2].options.headers['X-CSRF-Token'], 'pre-auth-token');
+});
+
 test('does not send job mutations without their required idempotency key', async () => {
   const { api, calls } = recordingApi();
   api.csrf = 'active-token';
