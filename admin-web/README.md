@@ -25,7 +25,6 @@ docker run --rm --publish 8082:80 monaserver-admin-web
 The image serves only the static application. Route `/api` to `go-server` at
 the gateway or reverse proxy layer.
 
-The app includes session/MFA, users, reports, audience preview, queued
-campaign/security actions, jobs, recipient progress, and audit views. The Go
-server remains deliberately fail-closed for provider-backed mutations until
-its durable execution ports are configured.
+The app includes session/MFA, users, reports and notes, and audit views. Bulk
+audience actions, provider delivery, and job execution are intentionally out
+of scope for this CRUD release.

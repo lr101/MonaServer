@@ -1,24 +1,22 @@
 # Separate web admin implementation plan
 
 Status: amended 2026-09-22 by the product decision to keep the admin interface
-out of Flutter. Repository realignment and the standalone UI feature slices
-are implemented; provider-backed Go execution remains deliberately fail-closed
-pending its durable worker/provider prerequisites.
+out of Flutter and keep the first release CRUD-only. Repository realignment,
+the standalone UI, and bounded server projections are implemented. Bulk
+delivery execution is intentionally excluded from this release.
 
 ## Current implementation state
 
 - Complete: Flutter admin composition, screens, tests, entry points, and
   admin-specific build artifacts are removed.
-- Complete: the Go admin contract, session boundary, authorization, database
-  services, and structural safety work remain in place.
-- Complete: `admin-web/` has a dependency-free static application with
+- Complete: the Go admin session boundary, authorization, database services,
+  user/report/audit projections, and report review mutations remain in place.
+- Complete: `admin-web/` has a dependency-free static CRUD application with
   bootstrap, restore, password/MFA flow, logout, CSRF handling, users,
-  reports, audience previews, campaigns/security actions, jobs, recipients,
-  audit views, cursor paging, typed error states, contract tests, and Docker
-  packaging/CI.
-- Remaining: production provider/lease/audit execution wiring in Go. The web
-  UI correctly exposes accepted/unavailable states without pretending that a
-  disabled provider-backed mutation completed.
+  reports and notes, permission-filtered audit history, cursor paging, typed
+  error states, contract tests, and Docker packaging/CI.
+- Deliberately excluded: audience snapshots, campaign sends, test delivery,
+  job workers, provider adapters, lease fencing, and bulk action execution.
 
 ## Decision
 
@@ -90,36 +88,26 @@ Capability-specific rendering, action-bound reauthentication, and explicit 403
 states are implemented. All secrets remain in current-page memory. A 401
 clears the local CSRF value and returns the user to login.
 
-### 4. Feature slices — complete
+### 4. CRUD feature slices — complete
 
 Implement each slice against the generated OpenAPI examples and server DTOs:
 
 1. bounded users search and user detail;
-2. report inbox, revision-checked updates, notes, assignment tri-state, and
-   report audience preview/confirmation;
-3. campaign/security audience selection, preview binding, stable idempotency,
-   and queued-job messaging;
-4. job list/detail/recipient progress, retry and cancellation warnings;
-5. permission-filtered audit history.
+2. report inbox, detail, revision-checked status/assignment updates, and
+   notes;
+3. permission-filtered audit history.
 
-The browser treats `202` as accepted/queued, never completed. Server action and
-payload bindings are authoritative; pending previews cannot invent counts or
-actions. Replayed job commands reuse the same idempotency key for that logical
-operation.
+The browser keeps authorization and validation server-owned, renders bounded
+server data safely, and treats report conflicts as reload-and-reapply rather
+than overwriting newer state.
 
-### 5. Go execution completion
+### 5. Server-side CRUD boundary — complete
 
-The current production composition intentionally fails action mutations closed
-until concrete provider, eligibility, fenced lease, and audit execution ports
-are wired. Complete this separately by:
-
-- wiring provider adapters and recipient re-checks;
-- wiring durable lease/fence/audit transitions;
-- enabling production mutation routes only after those ports are present;
-- running disposable PostgreSQL/PostGIS verification for snapshot, job,
-  idempotency, report-date, and recipient-device-count behavior.
-
-Read-only admin projections and report review remain usable independently.
+The Go server exposes the existing session, users, reports, report notes, and
+audit projections behind the admin middleware. Report updates remain
+revision-checked and capability-protected. Bulk audience/action execution is
+out of scope and remains unavailable; no provider or worker is needed for the
+CRUD release.
 
 ### 6. Verification and delivery
 
@@ -135,11 +123,10 @@ Read-only admin projections and report review remain usable independently.
 
 ### Task 1 — browser transport and contract tests
 
-Complete `admin-web/src/api.js` for every v3 admin operation, including
-reauthentication, report notes, audience reads, test messages, and job retry or
-cancellation. Preserve cookies, CSRF rotation, bounded query parameters,
-idempotency keys, 202 semantics, and typed HTTP failures. Add Node/browser
-contract tests for request methods, headers, body binding, and error handling.
+Complete `admin-web/src/api.js` for the session, users, reports, report notes,
+and audit operations. Preserve cookies, CSRF rotation, bounded query
+parameters, and typed HTTP failures. Add Node/browser contract tests for
+request methods, headers, body binding, and error handling.
 
 ### Task 2 — session shell and navigation
 
@@ -151,23 +138,20 @@ authenticated navigation.
 ### Task 3 — users and reports
 
 Implement bounded user search/detail and report inbox/detail workflows. Add
-revision-checked report transitions, notes, assignment tri-state, and explicit
-report audience preview/confirmation. Render server errors without exposing
-secrets and add focused browser tests.
+revision-checked report transitions, notes, and assignment tri-state. Render
+server errors without exposing secrets and add focused browser tests.
 
-### Task 4 — audiences, campaigns, jobs, and audit
+### Task 4 — audit and CRUD integration
 
-Implement selected/filter/all audience construction, preview binding and
-confirmation, campaign/security actions, stable idempotency keys, queued-job
-messaging, job detail/recipient progress, retry/cancel warnings, and filtered
-audit history. Keep action authorization and eligibility server-owned.
+Implement permission-filtered audit history, report conflict handling, and
+same-origin CRUD integration. Do not add audience composition, campaign sends,
+test delivery, job controls, provider adapters, or worker lifecycle.
 
-### Task 5 — Go execution readiness
+### Task 5 — explicit non-goal boundary
 
-Complete concrete provider, eligibility, durable lease/fence, and audit wiring
-where repository interfaces and local implementations exist. Keep unavailable
-provider mutations fail-closed, verify idempotency and stale-worker behavior,
-and add serial disposable-database coverage for changed SQL.
+Keep bulk execution routes fail-closed and document the boundary. No durable
+job worker, provider delivery, lease/fence state machine, or campaign action
+should be added to complete this CRUD release.
 
 ### Task 6 — integration and delivery verification
 
@@ -181,4 +165,5 @@ validate the same-origin gateway path, and perform a whole-branch review.
 - Do not reuse consumer auth/storage/sync/camera/Firebase dependencies.
 - Do not duplicate the Go authorization or audience eligibility rules in the
   browser.
-- Do not claim provider delivery completion from an HTTP acceptance response.
+- Do not expose or claim provider delivery, campaign execution, or job
+  completion from the CRUD application.

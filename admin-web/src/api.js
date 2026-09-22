@@ -23,20 +23,13 @@ export class AdminApi {
     this.csrf = null;
   }
 
-  async request(path, { method = 'GET', body, csrf = false, idempotencyKey, requireIdempotency = false, preserveCsrfOnUnauthorized = false } = {}) {
+  async request(path, { method = 'GET', body, csrf = false, preserveCsrfOnUnauthorized = false } = {}) {
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (csrf) {
       if (!this.csrf) throw new AdminHttpError(428, 'The admin session is not ready.');
       headers['X-CSRF-Token'] = this.csrf;
     }
-    if (requireIdempotency && !idempotencyKey) {
-      throw new AdminHttpError(428, 'This action requires an idempotency key.');
-    }
-    if (requireIdempotency && (String(idempotencyKey).length < 8 || String(idempotencyKey).length > 128)) {
-      throw new AdminHttpError(400, 'The idempotency key must be between 8 and 128 characters.');
-    }
-    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     const response = await this.fetcher(`${this.base}${path}`, {
       method,
       credentials: 'include',
@@ -119,60 +112,14 @@ export class AdminApi {
     return this.request(params.size ? `${path}?${params}` : path);
   }
 
-  updateReport(reportId, update, idempotencyKey) {
+  updateReport(reportId, update) {
     const body = { expectedRevision: update.expectedRevision, status: update.status };
     if (Object.hasOwn(update, 'assigneeUserId')) body.assigneeUserId = update.assigneeUserId;
     else if (update.assignee === 'clear') body.assigneeUserId = null;
     else if (update.assignee) body.assigneeUserId = update.assignee;
     if (Object.hasOwn(update, 'note')) body.note = update.note;
     return this.request(`/api/v3/admin/reports/${encodeURIComponent(reportId)}`, {
-      method: 'PATCH', csrf: true, body, idempotencyKey,
-    });
-  }
-
-  previewAudience(audience, action) {
-    return this.request('/api/v3/admin/audiences/preview', {
-      method: 'POST', csrf: true, body: { audience, action },
-    });
-  }
-
-  getAudience(audienceId, { cursor, limit = 25 } = {}) {
-    return this.request(`/api/v3/admin/audiences/${encodeURIComponent(audienceId)}?${query({ cursor: boundedCursor(cursor), limit })}`);
-  }
-
-  createJob(request, idempotencyKey) {
-    return this.request('/api/v3/admin/jobs', {
-      method: 'POST', csrf: true, body: request, idempotencyKey, requireIdempotency: true,
-    });
-  }
-
-  listJobs({ cursor, limit = 25, status, action } = {}) {
-    return this.request(`/api/v3/admin/jobs?${query({ cursor: boundedCursor(cursor), limit, status, action })}`);
-  }
-
-  getJob(jobId) {
-    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}`);
-  }
-
-  listRecipients(jobId, { cursor, limit = 25 } = {}) {
-    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}/recipients?${query({ cursor: boundedCursor(cursor), limit })}`);
-  }
-
-  retryJob(jobId, command, idempotencyKey) {
-    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}/retry`, {
-      method: 'POST', csrf: true, body: command, idempotencyKey, requireIdempotency: true,
-    });
-  }
-
-  cancelJob(jobId, command, idempotencyKey) {
-    return this.request(`/api/v3/admin/jobs/${encodeURIComponent(jobId)}/cancel`, {
-      method: 'POST', csrf: true, body: command, idempotencyKey, requireIdempotency: true,
-    });
-  }
-
-  sendTestMessage(request) {
-    return this.request('/api/v3/admin/messages/test', {
-      method: 'POST', csrf: true, body: request,
+      method: 'PATCH', csrf: true, body,
     });
   }
 
