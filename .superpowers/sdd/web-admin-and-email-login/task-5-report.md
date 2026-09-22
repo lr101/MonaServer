@@ -20,7 +20,7 @@
 
 ## Commit
 
-Pending commit at report creation time.
+`3c3110d2f539db3d28610cc7a24c67df338dc3f9` (`feat(admin): ready fenced execution store`).
 
 ## Remaining blocker
 
