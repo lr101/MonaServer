@@ -148,7 +148,7 @@ void main() {
   );
 
   test(
-    'does not surface a stale bulk commit error after the selection changes',
+    'keeps a bulk commit active while a new inbox request is attempted',
     () async {
       final commit = Completer<AdminReportBulkOutcome>();
       final repository = _ReportsRepository(bulkFuture: commit.future);
@@ -161,7 +161,7 @@ void main() {
       commit.completeError(const AdminReportsTransportException(503));
       await pending;
 
-      expect(controller.state.error, isNull);
+      expect(controller.state.error, 'Reports are unavailable. Try again.');
     },
   );
 
@@ -173,7 +173,7 @@ void main() {
     await controller.previewBulk(AdminReportStatus.resolved);
 
     final pending = controller.confirmBulk();
-    await controller.loadInbox(search: 'changed');
+    await controller.loadInbox(search: 'changed', bulkRefresh: true);
     commit.complete(const AdminReportBulkOutcome(changed: 1, skipped: 0));
     await pending;
 
@@ -222,6 +222,42 @@ void main() {
       expect(repository.bulkCommands, hasLength(1));
     },
   );
+
+  test(
+    'does not let a new inbox request cancel an active bulk commit',
+    () async {
+      final commit = Completer<AdminReportBulkOutcome>();
+      final repository = _ReportsRepository(bulkFuture: commit.future);
+      final controller = AdminReportsController(repository);
+      controller.toggleSelection('one');
+      await controller.previewBulk(AdminReportStatus.resolved);
+
+      final pending = controller.confirmBulk();
+      await controller.loadInbox(search: 'ignored-during-commit');
+      expect(repository.queries, isEmpty);
+
+      commit.complete(const AdminReportBulkOutcome(changed: 1, skipped: 0));
+      await pending;
+      expect(repository.queries, hasLength(1));
+    },
+  );
+
+  test('includes skipped items in a bulk outcome message', () async {
+    final repository = _ReportsRepository(
+      bulkFuture: Future.value(
+        const AdminReportBulkOutcome(changed: 1, skipped: 2),
+      ),
+    );
+    final controller = AdminReportsController(repository);
+    controller.toggleSelection('one');
+    await controller.previewBulk(AdminReportStatus.resolved);
+    await controller.confirmBulk();
+
+    expect(
+      controller.state.bulkMessage,
+      '1 report was resolved; 2 reports skipped.',
+    );
+  });
 
   test(
     'uses the current status filter for all-matching report actions',

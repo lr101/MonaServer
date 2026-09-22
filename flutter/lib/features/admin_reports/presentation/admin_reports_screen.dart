@@ -175,8 +175,6 @@ final class _AdminReportsScreenState extends State<AdminReportsScreen> {
         _DetailPanel(
           state: state,
           canReview: widget.canReview,
-          canResolve: widget.canResolve,
-          canDismiss: widget.canDismiss,
           assigneeController: _assigneeController,
           noteController: _noteController,
           onOpenRelatedTarget: widget.onOpenRelatedTarget,
@@ -226,8 +224,11 @@ final class _InboxControls extends StatelessWidget {
           TextField(
             key: const ValueKey('admin-report-search'),
             controller: searchController,
+            enabled: !state.loading && !state.bulkLoading,
             textInputAction: TextInputAction.search,
-            onSubmitted: (_) => unawaited(onSearch()),
+            onSubmitted: state.loading || state.bulkLoading
+                ? null
+                : (_) => unawaited(onSearch()),
             decoration: const InputDecoration(
               labelText: 'Search reports',
               hintText: 'text or target identity',
@@ -416,8 +417,6 @@ final class _DetailPanel extends StatelessWidget {
   const _DetailPanel({
     required this.state,
     required this.canReview,
-    required this.canResolve,
-    required this.canDismiss,
     required this.assigneeController,
     required this.noteController,
     required this.onOpenRelatedTarget,
@@ -427,8 +426,6 @@ final class _DetailPanel extends StatelessWidget {
 
   final AdminReportsState state;
   final bool canReview;
-  final bool canResolve;
-  final bool canDismiss;
   final TextEditingController assigneeController;
   final TextEditingController noteController;
   final ValueChanged<String>? onOpenRelatedTarget;
@@ -500,19 +497,19 @@ final class _DetailPanel extends StatelessWidget {
               runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: state.loadingDetail || !canReview || !canResolve
+                  onPressed: state.loadingDetail || !canReview
                       ? null
                       : () => onUpdate(AdminReportStatus.resolved),
                   child: const Text('Resolve'),
                 ),
                 OutlinedButton(
-                  onPressed: state.loadingDetail || !canReview || !canDismiss
+                  onPressed: state.loadingDetail || !canReview
                       ? null
                       : () => onUpdate(AdminReportStatus.dismissed),
                   child: const Text('Dismiss'),
                 ),
                 OutlinedButton(
-                  onPressed: state.loadingDetail || !canReview || !canResolve
+                  onPressed: state.loadingDetail || !canReview
                       ? null
                       : () => onUpdate(AdminReportStatus.open),
                   child: const Text('Reopen'),

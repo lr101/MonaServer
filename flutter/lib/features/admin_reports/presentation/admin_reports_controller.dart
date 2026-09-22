@@ -100,7 +100,10 @@ final class AdminReportsController {
     bool preserveBulkMessage = false,
     bool bulkRefresh = false,
   }) async {
-    if (_disposed) return;
+    if (_disposed ||
+        (!bulkRefresh && _state.bulkLoading && _state.bulkPreview != null)) {
+      return;
+    }
     final query = AdminReportQuery(
       search: (search ?? _state.query.search).trim(),
       status: clearStatus ? null : status ?? _state.query.status,
@@ -369,8 +372,12 @@ final class AdminReportsController {
         if (!_disposed) {
           _emit(
             _state.copyWith(
-              bulkMessage:
-                  '$changed report${changed == 1 ? '' : 's'} ${changed == 1 ? 'was' : 'were'} ${_pastTense(status)} while the inbox changed. Refresh to see the latest results.',
+              bulkMessage: _bulkOutcomeMessage(
+                changed: changed,
+                skipped: outcome.skipped,
+                status: status,
+                inboxChanged: true,
+              ),
             ),
           );
         }
@@ -380,8 +387,11 @@ final class AdminReportsController {
       _emit(
         _state.copyWith(
           selectedIds: const {},
-          bulkMessage:
-              '$changed report${changed == 1 ? '' : 's'} ${changed == 1 ? 'was' : 'were'} ${_pastTense(status)}.',
+          bulkMessage: _bulkOutcomeMessage(
+            changed: changed,
+            skipped: outcome.skipped,
+            status: status,
+          ),
           clearBulkPreview: true,
           clearBulkStatus: true,
           bulkLoading: true,
@@ -420,6 +430,23 @@ final class AdminReportsController {
     AdminReportStatus.resolved => 'resolved',
     AdminReportStatus.dismissed => 'dismissed',
   };
+
+  String _bulkOutcomeMessage({
+    required int changed,
+    required int skipped,
+    required AdminReportStatus status,
+    bool inboxChanged = false,
+  }) {
+    final changedText =
+        '$changed report${changed == 1 ? '' : 's'} ${changed == 1 ? 'was' : 'were'} ${_pastTense(status)}';
+    final skippedText = skipped == 0
+        ? ''
+        : '; $skipped report${skipped == 1 ? '' : 's'} skipped';
+    final inboxText = inboxChanged
+        ? ' while the inbox changed. Refresh to see the latest results'
+        : '';
+    return '$changedText$skippedText$inboxText.';
+  }
 
   bool _isCurrentList(int generation) =>
       !_disposed && generation == _listGeneration;

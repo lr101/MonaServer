@@ -189,6 +189,49 @@ void main() {
       expect(repository.queries.last.search, 'keyboard');
     },
   );
+
+  testWidgets(
+    'keeps individual review actions available with bulk capabilities absent',
+    (tester) async {
+      final repository = _ScreenReportsRepository();
+      final controller = AdminReportsController(repository);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdminReportsScreen(
+            controller: controller,
+            canRead: true,
+            canReview: true,
+            canResolve: false,
+            canDismiss: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await controller.loadDetail('one');
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('admin-reports-screen')),
+        const Offset(0, -1000),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Resolve'))
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Dismiss'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+    },
+  );
 }
 
 final class _ScreenReportsRepository implements AdminReportsRepository {
