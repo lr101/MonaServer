@@ -489,6 +489,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 			r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 			r.Use(requireAdminBrowserSession)
 			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
+			registerRoutes(r.With(adminInitialSetupBodyLimit), adminSessionCtrl, isInitialAdminSetupRoute)
 			registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
 			registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
 			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
@@ -510,6 +511,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
 		r.Use(middleware.AdminPreAuthGuard)
 		registerRoutes(r, adminSessionCtrl, isAdminPreAuthSessionRoute)
+		registerRoutes(r.With(adminInitialSetupBodyLimit), adminSessionCtrl, isInitialAdminSetupRoute)
 	})
 
 	// Session restoration and reauthentication/logout use the authenticated
@@ -576,16 +578,27 @@ func isAdminBootstrapRoute(pattern string) bool {
 }
 
 func isNonBootstrapAdminRoute(pattern string) bool {
-	return !isAdminBootstrapRoute(pattern)
+	return !isAdminBootstrapRoute(pattern) && !isInitialAdminSetupRoute(pattern)
 }
 
 func isAdminPreAuthSessionRoute(pattern string) bool {
 	switch pattern {
-	case "/api/v3/admin/session/login", "/api/v3/admin/session/initial-setup", "/api/v3/admin/session/mfa":
+	case "/api/v3/admin/session/login", "/api/v3/admin/session/mfa":
 		return true
 	default:
 		return false
 	}
+}
+
+func isInitialAdminSetupRoute(pattern string) bool {
+	return pattern == "/api/v3/admin/session/initial-setup"
+}
+
+func adminInitialSetupBodyLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func isAdminAuthenticatedSessionRoute(pattern string) bool {
