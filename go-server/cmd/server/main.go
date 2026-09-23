@@ -376,6 +376,7 @@ func adminRecentMFATTL(auth *service.AdminAuth) time.Duration {
 
 type v3AdminServicers struct {
 	users     genserver.AdminUsersAPIServicer
+	campaigns genserver.AdminCampaignsAPIServicer
 	audiences genserver.AdminAudiencesAPIServicer
 	jobs      genserver.AdminJobsAPIServicer
 	messages  genserver.AdminMessagesAPIServicer
@@ -390,7 +391,7 @@ type v3AdminServicers struct {
 func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminServicers {
 	unavailable := handler.NewUnavailableV3Servicer()
 	servicers := v3AdminServicers{
-		users: unavailable, audiences: unavailable, jobs: unavailable,
+		users: unavailable, campaigns: unavailable, audiences: unavailable, jobs: unavailable,
 		messages: unavailable, reports: unavailable, audit: unavailable,
 	}
 	if queries == nil || auth == nil {
@@ -400,6 +401,7 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminSe
 	audiences := service.NewAdminAudienceService(store)
 	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
 	servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
+	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
 	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
 	servicers.jobs = handler.NewAdminJobsServicer(jobs)
 	servicers.messages = handler.NewAdminMessagesServicer(jobs)
@@ -432,6 +434,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer, genserver.WithSessionAuthAPIErrorHandler(handler.V3ErrorHandler))
 	adminServicers := newV3AdminServicers(reportQueries, adminAuth)
 	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
+	adminCampaignsCtrl := genserver.NewAdminCampaignsAPIController(adminServicers.campaigns, genserver.WithAdminCampaignsAPIErrorHandler(handler.V3ErrorHandler))
 	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(adminServicers.audiences, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
 	adminJobsCtrl := genserver.NewAdminJobsAPIController(adminServicers.jobs, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
 	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(adminServicers.messages, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
@@ -481,6 +484,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 			r.Use(requireAdminBrowserSession)
 			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
 			registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
+			registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
 			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
 			registerRoutes(r, adminJobsCtrl, alwaysTrue)
 			registerRoutes(r, adminMessagesCtrl, alwaysTrue)
@@ -528,6 +532,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(adminAuth)))
 		r.Use(middleware.AdminCapabilityGuard)
 		registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
+		registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
 		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
 		registerRoutes(r, adminJobsCtrl, alwaysTrue)
 		registerRoutes(r, adminMessagesCtrl, alwaysTrue)

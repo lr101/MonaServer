@@ -80,6 +80,8 @@ type Querier interface {
 	CreateAdminSession(ctx context.Context, arg CreateAdminSessionParams) error
 	CreateAudienceSnapshot(ctx context.Context, arg CreateAudienceSnapshotParams) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
+	// Campaign operations.
+	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
 	// Delivery attempts ---------------------------------------------------------
 	CreateDeliveryAttempt(ctx context.Context, arg CreateDeliveryAttemptParams) error
 	// Durable jobs and outbox leases -------------------------------------------
@@ -99,6 +101,7 @@ type Querier interface {
 	CreateSecurityIncident(ctx context.Context, arg CreateSecurityIncidentParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error)
 	CreateUserSeason(ctx context.Context, arg CreateUserSeasonParams) error
+	DeleteCampaignIfRevision(ctx context.Context, arg DeleteCampaignIfRevisionParams) (pgtype.UUID, error)
 	DeleteEmailLoginClaim(ctx context.Context, canonicalEmail string) error
 	DeleteExpiredAccountActionTokens(ctx context.Context, arg DeleteExpiredAccountActionTokensParams) error
 	DeleteExpiredAudienceSnapshots(ctx context.Context, expiresAt pgtype.Timestamptz) error
@@ -134,6 +137,7 @@ type Querier interface {
 	GetAudienceSnapshot(ctx context.Context, id pgtype.UUID) (AudienceSnapshot, error)
 	GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error)
 	GetBestUserSeason(ctx context.Context, userID pgtype.UUID) (GetBestUserSeasonRow, error)
+	GetCampaign(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	GetCommunicationPreferences(ctx context.Context, userID pgtype.UUID) (CommunicationPreference, error)
 	GetDeliveryAttempt(ctx context.Context, id pgtype.UUID) (DeliveryAttempt, error)
 	GetDurableJob(ctx context.Context, id pgtype.UUID) (DurableJob, error)
@@ -201,6 +205,7 @@ type Querier interface {
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
 	ListAudienceSnapshotMembers(ctx context.Context, arg ListAudienceSnapshotMembersParams) ([]AudienceSnapshotMember, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
+	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
@@ -285,6 +290,7 @@ type Querier interface {
 	TouchRefreshToken(ctx context.Context, token pgtype.UUID) error
 	UpdateAdminJobProgress(ctx context.Context, arg UpdateAdminJobProgressParams) error
 	UpdateAudienceSnapshotCounts(ctx context.Context, arg UpdateAudienceSnapshotCountsParams) error
+	UpdateCampaignIfRevision(ctx context.Context, arg UpdateCampaignIfRevisionParams) (Campaign, error)
 	UpdateDeliveryAttemptOutcome(ctx context.Context, arg UpdateDeliveryAttemptOutcomeParams) error
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) error
 	UpdateReportIfRevision(ctx context.Context, arg UpdateReportIfRevisionParams) (Report, error)

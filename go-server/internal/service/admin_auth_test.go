@@ -21,6 +21,12 @@ func TestAdminCapabilitiesReflectStableMembershipPermissions(t *testing.T) {
 	}
 }
 
+func TestCampaignWriteActionMapsToCampaignCapability(t *testing.T) {
+	if got := AdminActionCapability("campaigns.write"); got != "campaigns.write" {
+		t.Fatalf("campaign write action capability = %q, want campaigns.write", got)
+	}
+}
+
 func TestAdminTOTPAcceptsCurrentCodeAndRejectsMalformedCode(t *testing.T) {
 	secret := []byte("12345678901234567890")
 	now := time.Unix(1_700_000_000, 0).UTC()

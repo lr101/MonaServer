@@ -36,6 +36,8 @@ tags:
   name: adminSession
 - description: Admin account search and security state
   name: adminUsers
+- description: Content-only administrative campaign records
+  name: adminCampaigns
 - description: Explicit admin audience previews and snapshots
   name: adminAudiences
 - description: Admin durable action jobs and delivery outcomes
@@ -1920,6 +1922,203 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns:
+    get:
+      operationId: listAdminCampaigns
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignPageDto"
+          description: Bounded campaign page
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List content-only campaigns
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    post:
+      operationId: createAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignCreateRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign created without scheduling or delivery
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Create a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}:
+    get:
+      operationId: getAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign details
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Get a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    patch:
+      operationId: updateAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignUpdateRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Revision-checked campaign update
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Update a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    delete:
+      operationId: deleteAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "204":
+          description: Draft campaign deleted
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Delete a draft campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}/archive:
+    post:
+      operationId: archiveAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign archived without delivery
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Archive a campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/audiences/preview:
     post:
       description: Resolve an explicit account or report audience into an immutable actor/action/payload-bound snapshot.
@@ -2522,6 +2721,14 @@ components:
         maximum: 100
         minimum: 1
         type: integer
+    adminCampaignId:
+      description: Stable campaign identifier.
+      in: path
+      name: campaignId
+      required: true
+      schema:
+        format: uuid
+        type: string
     csrfHeader:
       description: Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
       in: header
@@ -3026,6 +3233,143 @@ components:
         - registeredDeviceCount
         type: object
       description: Administrative account details with aggregate device/preferences state.
+    adminCampaignChannel:
+      enum:
+      - email
+      - push
+      type: string
+      x-enum-class-prefix: true
+    adminCampaignStatus:
+      enum:
+      - draft
+      - active
+      - archived
+      type: string
+    adminCampaignDto:
+      description: Content-only campaign record. It has no audience, schedule, provider, or delivery state.
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        createdAt:
+          format: date-time
+          type: string
+        createdByUserId:
+          format: uuid
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+        status:
+          $ref: "#/components/schemas/adminCampaignStatus"
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - body
+      - channel
+      - createdAt
+      - createdByUserId
+      - id
+      - name
+      - revision
+      - status
+      - updatedAt
+      type: object
+    adminCampaignPageDto:
+      description: Cursor page with a default limit of 25 and a maximum of 100.
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminCampaignDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminCampaignContentDto:
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+      required:
+      - body
+      - channel
+      - name
+      type: object
+    adminCampaignCreateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - status
+        type: object
+      description: Create a draft or active content record only; archival uses the archive endpoint.
+    adminCampaignUpdateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          expectedRevision:
+            format: int64
+            minimum: 1
+            type: integer
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - expectedRevision
+        - status
+        type: object
+      description: Revision-checked content update. Archived campaigns cannot be changed; archive uses the archive endpoint.
+    adminCampaignRevisionRequestDto:
+      description: Revision-checked archive or draft deletion request.
+      properties:
+        expectedRevision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - expectedRevision
+      type: object
     adminUserFilterDto:
       description: Validated server-side account filter. Filter evaluation never happens in the client.
       example:

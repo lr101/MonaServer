@@ -172,6 +172,20 @@ type AuditEvent struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type Campaign struct {
+	ID              pgtype.UUID        `json:"id"`
+	Name            string             `json:"name"`
+	Channel         string             `json:"channel"`
+	Subject         pgtype.Text        `json:"subject"`
+	Title           pgtype.Text        `json:"title"`
+	Body            string             `json:"body"`
+	Status          string             `json:"status"`
+	Revision        int64              `json:"revision"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	CreatedByUserID pgtype.UUID        `json:"created_by_user_id"`
+}
+
 type CommunicationPreference struct {
 	UserID               pgtype.UUID        `json:"user_id"`
 	SecurityEmailEnabled bool               `json:"security_email_enabled"`

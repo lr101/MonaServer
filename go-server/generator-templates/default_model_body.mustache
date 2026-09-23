@@ -5,7 +5,7 @@ type {{{classname}}} {{^format}}{{dataType}}{{/format}}{{{format}}}
 const (
 	{{#allowableValues}}
 	{{#enumVars}}
-	{{#enumClassPrefix}}{{{classname.toUpperCase}}}_{{/enumClassPrefix}}{{name}} {{{classname}}} = {{{value}}}
+	{{#enumClassPrefix}}{{{classname.toUpperCase}}}_{{/enumClassPrefix}}{{#vendorExtensions.x-enum-class-prefix}}{{{classname.toUpperCase}}}_{{/vendorExtensions.x-enum-class-prefix}}{{name}} {{{classname}}} = {{{value}}}
 	{{/enumVars}}
 	{{/allowableValues}}
 )

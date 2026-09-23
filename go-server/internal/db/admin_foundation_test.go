@@ -33,13 +33,59 @@ func t02Database(t *testing.T) (*Queries, func()) {
 			admin_mfa_replay_counters, security_incidents, audit_events,
 			rate_limit_buckets, reports, report_notes, audience_snapshots,
 			audience_snapshot_members, admin_jobs, admin_job_items, durable_jobs,
-			outbox_events, device_registrations, communication_preferences
+			outbox_events, device_registrations, communication_preferences, campaigns
 		CASCADE`); err != nil {
 		pool.Close()
 		t.Fatalf("truncate: %v", err)
 	}
 	q := New(pool)
 	return q, pool.Close
+}
+
+func TestCampaignFacadeUsesRevisionAndDraftDeletePredicates(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	creator := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO users (id, username, password, email_confirmed, creation_date, update_date)
+		VALUES ($1, 'campaign-facade-user', 'hash', FALSE, NOW(), NOW())`, creator); err != nil {
+		t.Fatalf("insert campaign creator: %v", err)
+	}
+	subject := "September"
+	created, err := q.CreateCampaign(ctx, CampaignParams{
+		ID: uuid.New(), Name: "Newsletter", Channel: "email", Subject: &subject,
+		Body: "Hello", Status: "draft", CreatedByUserID: creator,
+	})
+	if err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	if created.Revision != 1 || created.CreatedByUserID != creator {
+		t.Fatalf("created campaign = %#v, want revision one and creator", created)
+	}
+
+	page, err := q.ListCampaigns(ctx, CampaignQuery{Limit: 1})
+	if err != nil || len(page) != 1 || page[0].ID != created.ID {
+		t.Fatalf("list campaigns = %#v, %v", page, err)
+	}
+	updated, ok, err := q.UpdateCampaignIfRevision(ctx, created.ID, created.Revision, CampaignUpdate{
+		Name: "Newsletter revised", Channel: "email", Subject: &subject, Body: "Updated", Status: "active",
+	})
+	if err != nil || !ok || updated.Revision != 2 || updated.Status != "active" {
+		t.Fatalf("update campaign = %#v, ok=%t, err=%v", updated, ok, err)
+	}
+	if _, ok, err := q.UpdateCampaignIfRevision(ctx, created.ID, created.Revision, CampaignUpdate{Name: "stale", Channel: "email", Subject: &subject, Body: "Updated", Status: "active"}); err != nil || ok {
+		t.Fatalf("stale update ok=%t, err=%v, want false nil", ok, err)
+	}
+	if deleted, err := q.DeleteCampaignIfRevision(ctx, created.ID, updated.Revision); err != nil || deleted {
+		t.Fatalf("delete active campaign = %t, %v; want false nil", deleted, err)
+	}
+	if _, ok, err := q.UpdateCampaignIfRevision(ctx, created.ID, updated.Revision, CampaignUpdate{Name: updated.Name, Channel: updated.Channel, Subject: updated.Subject, Title: updated.Title, Body: updated.Body, Status: "draft"}); err != nil || !ok {
+		t.Fatalf("return campaign to draft ok=%t, err=%v", ok, err)
+	}
+	if deleted, err := q.DeleteCampaignIfRevision(ctx, created.ID, 3); err != nil || !deleted {
+		t.Fatalf("delete draft campaign = %t, %v; want true nil", deleted, err)
+	}
 }
 
 func TestT02BackfillsCanonicalEmailClaimsWithoutChoosingDuplicateOwner(t *testing.T) {

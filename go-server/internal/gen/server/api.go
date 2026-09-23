@@ -266,6 +266,16 @@ type AdminAuditAPIRouter interface {
 	ListAdminAudit(http.ResponseWriter, *http.Request)
 }
 
+// AdminCampaignsAPIRouter defines the HTTP binding for admin campaign operations.
+type AdminCampaignsAPIRouter interface {
+	ListAdminCampaigns(http.ResponseWriter, *http.Request)
+	CreateAdminCampaign(http.ResponseWriter, *http.Request)
+	GetAdminCampaign(http.ResponseWriter, *http.Request)
+	UpdateAdminCampaign(http.ResponseWriter, *http.Request)
+	ArchiveAdminCampaign(http.ResponseWriter, *http.Request)
+	DeleteAdminCampaign(http.ResponseWriter, *http.Request)
+}
+
 // AdminJobsAPIRouter defines the HTTP binding for admin job operations.
 type AdminJobsAPIRouter interface {
 	ListAdminJobs(http.ResponseWriter, *http.Request)
@@ -327,6 +337,16 @@ type AdminAudiencesAPIServicer interface {
 // AdminAuditAPIServicer defines the v3 admin audit service contract.
 type AdminAuditAPIServicer interface {
 	ListAdminAudit(context.Context, string, int32, string, AdminActionKind) (ImplResponse, error)
+}
+
+// AdminCampaignsAPIServicer defines the v3 admin campaign service contract.
+type AdminCampaignsAPIServicer interface {
+	ListAdminCampaigns(context.Context, string, int32) (ImplResponse, error)
+	CreateAdminCampaign(context.Context, string, AdminCampaignCreateRequestDto) (ImplResponse, error)
+	GetAdminCampaign(context.Context, string) (ImplResponse, error)
+	UpdateAdminCampaign(context.Context, string, string, AdminCampaignUpdateRequestDto) (ImplResponse, error)
+	ArchiveAdminCampaign(context.Context, string, string, AdminCampaignRevisionRequestDto) (ImplResponse, error)
+	DeleteAdminCampaign(context.Context, string, string, AdminCampaignRevisionRequestDto) (ImplResponse, error)
 }
 
 // AdminJobsAPIServicer defines the v3 admin job service contract.

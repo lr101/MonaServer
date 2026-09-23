@@ -3,6 +3,7 @@ api/openapi.yaml
 api_admin.go
 api_admin_audiences.go
 api_admin_audit.go
+api_admin_campaigns.go
 api_admin_jobs.go
 api_admin_messages.go
 api_admin_reports.go
@@ -32,6 +33,14 @@ model_admin_audience_preview_request_dto.go
 model_admin_audience_preview_response_dto.go
 model_admin_audit_event_dto.go
 model_admin_audit_page_dto.go
+model_admin_campaign_channel.go
+model_admin_campaign_content_dto.go
+model_admin_campaign_create_request_dto.go
+model_admin_campaign_dto.go
+model_admin_campaign_page_dto.go
+model_admin_campaign_revision_request_dto.go
+model_admin_campaign_status.go
+model_admin_campaign_update_request_dto.go
 model_admin_job_accepted_dto.go
 model_admin_job_command_request_dto.go
 model_admin_job_create_request_dto.go

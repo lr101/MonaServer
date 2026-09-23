@@ -36,6 +36,8 @@ tags:
   name: adminSession
 - description: Admin account search and security state
   name: adminUsers
+- description: Content-only administrative campaign records
+  name: adminCampaigns
 - description: Explicit admin audience previews and snapshots
   name: adminAudiences
 - description: Admin durable action jobs and delivery outcomes
@@ -2430,6 +2432,421 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns:
+    get:
+      operationId: listAdminCampaigns
+      parameters:
+      - description: Opaque cursor returned by the preceding page.
+        explode: true
+        in: query
+        name: cursor
+        required: false
+        schema:
+          maxLength: 512
+          type: string
+        style: form
+      - description: Maximum number of records in the page; defaults to 25 and is
+          capped at 100.
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 25
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignPageDto"
+          description: Bounded campaign page
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: List content-only campaigns
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    post:
+      operationId: createAdminCampaign
+      parameters:
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignCreateRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign created without scheduling or delivery
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Create a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}:
+    delete:
+      operationId: deleteAdminCampaign
+      parameters:
+      - description: Stable campaign identifier.
+        explode: false
+        in: path
+        name: campaignId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "204":
+          description: Draft campaign deleted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Delete a draft campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    get:
+      operationId: getAdminCampaign
+      parameters:
+      - description: Stable campaign identifier.
+        explode: false
+        in: path
+        name: campaignId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign details
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Get a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    patch:
+      operationId: updateAdminCampaign
+      parameters:
+      - description: Stable campaign identifier.
+        explode: false
+        in: path
+        name: campaignId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignUpdateRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Revision-checked campaign update
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Update a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}/archive:
+    post:
+      operationId: archiveAdminCampaign
+      parameters:
+      - description: Stable campaign identifier.
+        explode: false
+        in: path
+        name: campaignId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign archived without delivery
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Archive a campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/audiences/preview:
     post:
       description: Resolve an explicit account or report audience into an immutable
@@ -3602,6 +4019,16 @@ components:
         minimum: 1
         type: integer
       style: form
+    adminCampaignId:
+      description: Stable campaign identifier.
+      explode: false
+      in: path
+      name: campaignId
+      required: true
+      schema:
+        format: uuid
+        type: string
+      style: simple
     csrfHeader:
       description: Double-submit CSRF value issued by the admin session bootstrap
         and rotated after MFA or reauthentication.
@@ -4144,6 +4571,216 @@ components:
         authGeneration: 0
         email: email
         username: username
+    adminCampaignChannel:
+      enum:
+      - email
+      - push
+      type: string
+      x-enum-class-prefix: true
+    adminCampaignStatus:
+      enum:
+      - draft
+      - active
+      - archived
+      type: string
+    adminCampaignDto:
+      description: "Content-only campaign record. It has no audience, schedule, provider,\
+        \ or delivery state."
+      example:
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        subject: subject
+        channel: email
+        name: name
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        body: body
+        title: title
+        revision: 1
+        status: draft
+        updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        createdAt:
+          format: date-time
+          type: string
+        createdByUserId:
+          format: uuid
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+        status:
+          $ref: "#/components/schemas/adminCampaignStatus"
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - body
+      - channel
+      - createdAt
+      - createdByUserId
+      - id
+      - name
+      - revision
+      - status
+      - updatedAt
+      type: object
+    adminCampaignPageDto:
+      description: Cursor page with a default limit of 25 and a maximum of 100.
+      example:
+        nextCursor: nextCursor
+        items:
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subject: subject
+          channel: email
+          name: name
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          body: body
+          title: title
+          revision: 1
+          status: draft
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subject: subject
+          channel: email
+          name: name
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          body: body
+          title: title
+          revision: 1
+          status: draft
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subject: subject
+          channel: email
+          name: name
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          body: body
+          title: title
+          revision: 1
+          status: draft
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subject: subject
+          channel: email
+          name: name
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          body: body
+          title: title
+          revision: 1
+          status: draft
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          createdByUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          subject: subject
+          channel: email
+          name: name
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          body: body
+          title: title
+          revision: 1
+          status: draft
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminCampaignDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminCampaignContentDto:
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+      required:
+      - body
+      - channel
+      - name
+      type: object
+    adminCampaignCreateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - status
+        type: object
+      description: Create a draft or active content record only; archival uses the
+        archive endpoint.
+    adminCampaignUpdateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          expectedRevision:
+            format: int64
+            minimum: 1
+            type: integer
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - expectedRevision
+        - status
+        type: object
+      description: Revision-checked content update. Archived campaigns cannot be changed;
+        archive uses the archive endpoint.
+    adminCampaignRevisionRequestDto:
+      description: Revision-checked archive or draft deletion request.
+      properties:
+        expectedRevision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - expectedRevision
+      type: object
     adminUserFilterDto:
       description: Validated server-side account filter. Filter evaluation never happens
         in the client.

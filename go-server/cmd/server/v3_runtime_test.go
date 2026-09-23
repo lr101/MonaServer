@@ -28,6 +28,9 @@ func TestNewV3AdminServicersUsesDatabaseBackedImplementations(t *testing.T) {
 	if _, ok := servicers.users.(*handler.AdminUsersServicer); !ok {
 		t.Fatalf("users servicer = %T, want concrete admin users servicer", servicers.users)
 	}
+	if _, ok := servicers.campaigns.(*handler.AdminCampaignsServicer); !ok {
+		t.Fatalf("campaigns servicer = %T, want concrete admin campaigns servicer", servicers.campaigns)
+	}
 	if _, ok := servicers.audiences.(*handler.AdminAudienceServicer); !ok {
 		t.Fatalf("audiences servicer = %T, want concrete admin audience servicer", servicers.audiences)
 	}
@@ -102,6 +105,37 @@ func TestV3AdminRoutesRequireAdminBrowserSession(t *testing.T) {
 			}
 			if tt.cookie {
 				req.AddCookie(&http.Cookie{Name: "admin_session", Value: "opaque-session"})
+			}
+			recorder := httptest.NewRecorder()
+			r.ServeHTTP(recorder, req)
+			assertV3RuntimeError(t, recorder, tt.wantStatus, tt.wantCode)
+		})
+	}
+}
+
+func TestV3CampaignRoutesRequireAdminBrowserSession(t *testing.T) {
+	r, consumerToken, adminToken := newV3RuntimeRouter(t, &config.Config{WebAdminAPI: true})
+
+	tests := []struct {
+		name       string
+		authorize  string
+		cookie     bool
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "missing authentication", wantStatus: http.StatusUnauthorized, wantCode: "unauthorized"},
+		{name: "ordinary consumer bearer", authorize: consumerToken, wantStatus: http.StatusForbidden, wantCode: "forbidden"},
+		{name: "legacy admin bearer cannot access campaign", authorize: adminToken, wantStatus: http.StatusForbidden, wantCode: "forbidden"},
+		{name: "browser session reaches campaign scaffold", cookie: true, wantStatus: http.StatusServiceUnavailable, wantCode: "feature_unavailable"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v3/admin/campaigns", nil)
+			if tt.authorize != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.authorize)
+			}
+			if tt.cookie {
+				req.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: "opaque-session"})
 			}
 			recorder := httptest.NewRecorder()
 			r.ServeHTTP(recorder, req)

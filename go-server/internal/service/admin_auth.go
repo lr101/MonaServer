@@ -914,7 +914,7 @@ func actionCapability(action string) string {
 		return "campaign.push"
 	case "audience.preview":
 		return "audience.preview"
-	case "jobs.create", "jobs.control", "messages.test", "reports.review":
+	case "jobs.create", "jobs.control", "messages.test", "reports.review", "campaigns.write":
 		// These route-family actions are intentionally capability-shaped. The
 		// generated request type is a string alias at runtime, so a step-up can
 		// bind to an operation that has no action-union payload (for example a

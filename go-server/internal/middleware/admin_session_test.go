@@ -232,6 +232,10 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 		{http.MethodPost, "/api/v3/admin/messages/test", "messages.test"},
 		{http.MethodPatch, "/api/v3/admin/reports/123", "reports.review"},
 		{http.MethodPost, "/api/v3/admin/reports/123/notes", "reports.review"},
+		{http.MethodPost, "/api/v3/admin/campaigns", "campaigns.write"},
+		{http.MethodPatch, "/api/v3/admin/campaigns/123", "campaigns.write"},
+		{http.MethodPost, "/api/v3/admin/campaigns/123/archive", "campaigns.write"},
+		{http.MethodDelete, "/api/v3/admin/campaigns/123", "campaigns.write"},
 		{http.MethodPost, "/api/v2/admin/mail", "email"},
 		{http.MethodPost, "/api/v2/admin/notification", "push"},
 	}
@@ -266,6 +270,12 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 	}
 	if got := RequiredAdminCapability(http.MethodPatch, "/api/v3/admin/reports/123"); got != "reports.review" {
 		t.Fatalf("individual report capability = %q, want reports.review", got)
+	}
+	if got := RequiredAdminCapability(http.MethodGet, "/api/v3/admin/campaigns"); got != "campaigns.read" {
+		t.Fatalf("campaign list capability = %q, want campaigns.read", got)
+	}
+	if got := RequiredAdminCapability(http.MethodPost, "/api/v3/admin/campaigns"); got != "campaigns.write" {
+		t.Fatalf("campaign mutation capability = %q, want campaigns.write", got)
 	}
 
 	now := time.Now().UTC()

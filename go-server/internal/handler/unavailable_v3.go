@@ -126,6 +126,30 @@ func (s *UnavailableV3Servicer) GetAdminUser(context.Context, string) (genserver
 	return s.unavailable()
 }
 
+func (s *UnavailableV3Servicer) ListAdminCampaigns(context.Context, string, int32) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) CreateAdminCampaign(context.Context, string, genserver.AdminCampaignCreateRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) GetAdminCampaign(context.Context, string) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) UpdateAdminCampaign(context.Context, string, string, genserver.AdminCampaignUpdateRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) ArchiveAdminCampaign(context.Context, string, string, genserver.AdminCampaignRevisionRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) DeleteAdminCampaign(context.Context, string, string, genserver.AdminCampaignRevisionRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func (s *UnavailableV3Servicer) PreviewAdminAudience(context.Context, string, genserver.AdminAudiencePreviewRequestDto) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }
@@ -205,6 +229,7 @@ func (s *UnavailableV3Servicer) RevokeOwnSession(context.Context, genserver.Sess
 var (
 	_ genserver.AdminAudiencesAPIServicer = (*UnavailableV3Servicer)(nil)
 	_ genserver.AdminAuditAPIServicer     = (*UnavailableV3Servicer)(nil)
+	_ genserver.AdminCampaignsAPIServicer = (*UnavailableV3Servicer)(nil)
 	_ genserver.AdminJobsAPIServicer      = (*UnavailableV3Servicer)(nil)
 	_ genserver.AdminMessagesAPIServicer  = (*UnavailableV3Servicer)(nil)
 	_ genserver.AdminReportsAPIServicer   = (*UnavailableV3Servicer)(nil)

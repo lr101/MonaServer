@@ -246,6 +246,8 @@ func AdminMutationAction(method, path string) string {
 		return "push"
 	case path == "/api/v3/admin/messages/test":
 		return "messages.test"
+	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):
+		return "campaigns.write"
 	case path == "/api/v3/admin/audiences/preview":
 		return "audience.preview"
 	case path == "/api/v3/admin/jobs":
@@ -338,6 +340,11 @@ func RequiredAdminCapability(method, path string) string {
 		return "campaign.push"
 	case path == "/api/v3/admin/users" || strings.HasPrefix(path, "/api/v3/admin/users/"):
 		return "users.read"
+	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):
+		if method == http.MethodGet {
+			return "campaigns.read"
+		}
+		return "campaigns.write"
 	case path == "/api/v3/admin/audiences/preview":
 		return "audience.preview"
 	case strings.HasPrefix(path, "/api/v3/admin/audiences/"):
