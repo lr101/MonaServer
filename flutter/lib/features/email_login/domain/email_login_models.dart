@@ -140,6 +140,17 @@ final class EmailLinkLaunchParser {
 
   static const _callbackPath = '/email-login/callback';
 
+  /// Identifies the one hash route owned by consumer email sign-in. It does
+  /// not validate or redeem the query material; capture performs both parsing
+  /// and browser-history scrubbing before the router is created.
+  static bool isCallbackLocation(String? location) {
+    if (location == null || location.isEmpty) return false;
+    final hash = location.indexOf('#');
+    if (hash < 0) return false;
+    final fragment = location.substring(hash + 1);
+    return fragment == _callbackPath || fragment.startsWith('$_callbackPath?');
+  }
+
   static EmailLinkLaunchData parse(String? location) {
     if (location == null || location.isEmpty) {
       return const EmailLinkLaunchData.malformed();

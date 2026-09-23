@@ -1,5 +1,6 @@
 import 'dart:js_interop';
 
+import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_ports.dart';
 
 /// Captures the browser location once and removes a valid callback fragment
@@ -17,12 +18,11 @@ class WebEmailLinkLaunchPort implements EmailLinkLaunchPort {
   Future<bool> scrub() async {
     final previous = _scrubbed;
     if (previous != null) return previous;
+    if (!EmailLinkLaunchParser.isCallbackLocation(_location)) {
+      return _scrubbed = true;
+    }
     final uri = Uri.tryParse(_location);
     if (uri == null) return _scrubbed = false;
-    if (!_isEmailLoginCallback(uri.fragment)) {
-      _scrubbed = true;
-      return true;
-    }
     try {
       _replaceBrowserLocation(
         null,
@@ -37,10 +37,6 @@ class WebEmailLinkLaunchPort implements EmailLinkLaunchPort {
     return _scrubbed!;
   }
 }
-
-bool _isEmailLoginCallback(String fragment) =>
-    fragment == '/email-login/callback' ||
-    fragment.startsWith('/email-login/callback?');
 
 EmailLinkLaunchPort createEmailLinkLaunchPort() => WebEmailLinkLaunchPort();
 

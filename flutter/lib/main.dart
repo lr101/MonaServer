@@ -8,6 +8,9 @@ Future<void> main() async {
     await bootstrapApplication(
       loadConfiguration: loadAppEnvironment,
       initialize: initializeApplication,
+      captureLaunchData: captureProductionEmailLinkLaunch,
+      initializeWithLaunchData: (configuration, launchData) =>
+          initializeApplication(configuration, launchData: launchData),
       // The release/local build can supply this value with --dart-define.
       // ignore: avoid_redundant_argument_values
       apiHostOverride: const String.fromEnvironment('API_HOST'),

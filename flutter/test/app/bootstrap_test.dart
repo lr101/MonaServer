@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:buff_lisa/app/app_configuration.dart';
 import 'package:buff_lisa/app/bootstrap.dart';
+import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -120,4 +121,27 @@ void main() {
       expect(find.text('restored app'), findsOneWidget);
     },
   );
+
+  testWidgets('passes captured email launch data to the composition root', (
+    tester,
+  ) async {
+    final launch = EmailLinkLaunchData.captured(
+      EmailLinkToken.tryParse('opaque-token')!,
+    );
+    EmailLinkLaunchData? received;
+    final app = await bootstrapApplication(
+      loadConfiguration: () async => {'API_HOST': 'https://api.example'},
+      captureLaunchData: () async => launch,
+      initializeWithLaunchData: (config, launchData) async {
+        received = launchData;
+        return const MaterialApp(home: Text('launch ready'));
+      },
+      initialize: (_) async => const MaterialApp(home: Text('wrong path')),
+    );
+
+    await tester.pumpWidget(app);
+
+    expect(received, launch);
+    expect(find.text('launch ready'), findsOneWidget);
+  });
 }

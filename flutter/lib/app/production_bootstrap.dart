@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:buff_lisa/app/app.dart';
 import 'package:buff_lisa/app/app_configuration.dart';
+import 'package:buff_lisa/app/email_link_launch.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
+import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
+import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/firebase_options.dart';
 import 'package:buff_lisa/util/core/cache_migrator.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -29,8 +32,14 @@ Future<Map<String, String>> loadAppEnvironment() async {
   return Map<String, String>.of(dotenv.env);
 }
 
+Future<EmailLinkLaunchData?> captureProductionEmailLinkLaunch() =>
+    captureInitialEmailLink();
+
 /// Owns platform initialization and the legacy provider composition root.
-Future<Widget> initializeApplication(AppConfiguration configuration) async {
+Future<Widget> initializeApplication(
+  AppConfiguration configuration, {
+  EmailLinkLaunchData? launchData,
+}) async {
   // Legacy consumers still read dotenv until their feature migration.
   dotenv.env['API_HOST'] = configuration.apiHost;
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -109,6 +118,7 @@ Future<Widget> initializeApplication(AppConfiguration configuration) async {
         defaultGroupPinImageProvider.overrideWithValue(defaultGroupImage),
         defaultErrorImageProvider.overrideWithValue(defaultErrorImage),
         driftRepoProvider.overrideWithValue(database),
+        emailLinkLaunchDataProvider.overrideWithValue(launchData),
       ],
       child: const MyApp(),
     );

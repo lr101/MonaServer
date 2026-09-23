@@ -6,6 +6,9 @@ import 'package:buff_lisa/features/auth/presentation/auth.dart';
 import 'package:buff_lisa/features/auth/presentation/logout_screen.dart';
 import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
 import 'package:buff_lisa/features/camera/presentation/select_location.dart';
+import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
+import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
+import 'package:buff_lisa/features/email_login/presentation/email_login_screens.dart';
 import 'package:buff_lisa/features/group_create/presentation/group_create.dart';
 import 'package:buff_lisa/features/group_edit/presentation/group_edit.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
@@ -34,6 +37,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 final authStateProvider = StateProvider<bool>((ref) => false);
 
+String initialEmailLoginLocation(EmailLinkLaunchData? launch) =>
+    launch == null ? '/login' : '/email-login/callback';
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(
@@ -42,7 +48,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
   final router = GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: '/login',
+    initialLocation: initialEmailLoginLocation(
+      ref.watch(emailLinkLaunchDataProvider),
+    ),
     refreshListenable: refresh,
     redirect: (context, state) => sessionRedirect(
       status: ref.read(globalDataServiceProvider).sessionStatus,
@@ -67,6 +75,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const Auth(),
+      ),
+
+      GoRoute(
+        path: '/email-login',
+        name: 'emailLogin',
+        builder: (context, state) => EmailLinkRequestScreen(
+          requestPort: ref.read(emailLinkRequestPortProvider),
+          onBack: () => context.goNamed('login'),
+        ),
+      ),
+      GoRoute(
+        path: '/email-login/callback',
+        name: 'emailLoginCallback',
+        builder: (context, state) => EmailLoginCallbackScreen(
+          launch: ref.read(emailLinkLaunchDataProvider),
+          exchangePort: ref.read(emailLinkExchangePortProvider),
+          admissionPort: ref.read(emailLoginAdmissionPortProvider),
+          onRequestNewLink: () => context.goNamed('emailLogin'),
+          onSignedIn: () => context.goNamed('home'),
+          onBack: () => context.goNamed('login'),
+        ),
       ),
 
       GoRoute(
