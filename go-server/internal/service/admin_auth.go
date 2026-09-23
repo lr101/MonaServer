@@ -51,14 +51,15 @@ const (
 const AdminSessionCookieName = adminSessionCookieName
 
 var (
-	ErrAdminUnauthorized     = apperrors.New(http.StatusUnauthorized, "admin authentication is required")
-	ErrAdminForbidden        = apperrors.New(http.StatusForbidden, "admin capability is required")
-	ErrAdminRateLimited      = apperrors.New(http.StatusTooManyRequests, "too many admin authentication attempts")
-	ErrAdminUnavailable      = apperrors.New(http.StatusServiceUnavailable, "admin authentication is unavailable")
-	ErrAdminInvalidCSRF      = apperrors.New(http.StatusForbidden, "invalid csrf token")
-	ErrAdminInvalidChallenge = apperrors.New(http.StatusUnauthorized, "invalid admin challenge")
-	ErrAdminInvalidAction    = apperrors.New(http.StatusBadRequest, "invalid admin action")
-	ErrAdminEnrollmentKey    = errors.New("admin enrollment encryption key is unavailable")
+	ErrAdminUnauthorized        = apperrors.New(http.StatusUnauthorized, "admin authentication is required")
+	ErrAdminForbidden           = apperrors.New(http.StatusForbidden, "admin capability is required")
+	ErrAdminRateLimited         = apperrors.New(http.StatusTooManyRequests, "too many admin authentication attempts")
+	ErrAdminUnavailable         = apperrors.New(http.StatusServiceUnavailable, "admin authentication is unavailable")
+	ErrAdminInvalidCSRF         = apperrors.New(http.StatusForbidden, "invalid csrf token")
+	ErrAdminInvalidChallenge    = apperrors.New(http.StatusUnauthorized, "invalid admin challenge")
+	ErrAdminInvalidAction       = apperrors.New(http.StatusBadRequest, "invalid admin action")
+	ErrAdminInvalidSetupRequest = apperrors.New(http.StatusBadRequest, "invalid initial admin setup request")
+	ErrAdminEnrollmentKey       = errors.New("admin enrollment encryption key is unavailable")
 )
 
 // AdminAuthConfig contains deploy-time bounds and key material. EncryptionKey
@@ -549,9 +550,12 @@ func (a *AdminAuth) InitialAdminSetup(ctx context.Context, csrf, username, plain
 	if !a.validatePreAuthCSRF(cookie, csrf) {
 		return nil, ErrAdminInvalidCSRF
 	}
+	if len(username) > 256 || len(plainPassword) < 8 || len(plainPassword) > 256 || len(setupToken) < 32 || len(setupToken) > 256 {
+		return nil, ErrAdminInvalidSetupRequest
+	}
 	username = strings.TrimSpace(username)
-	if username == "" || plainPassword == "" || len(setupToken) > 256 {
-		return nil, ErrAdminUnauthorized
+	if username == "" {
+		return nil, ErrAdminInvalidSetupRequest
 	}
 	candidate, err := a.q.GetUserByUsername(ctx, username)
 	if err != nil {
