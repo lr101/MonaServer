@@ -536,6 +536,81 @@ type AdminLoginResult struct {
 	ExpiresAt    time.Time
 }
 
+// AdminBootstrapCredentials are supplied by deployment configuration and
+// consumed only while enrolling the first administrator at startup.
+type AdminBootstrapCredentials struct {
+	Username   string
+	Password   string
+	TOTPSecret string
+}
+
+// BootstrapInitialAdmin creates a fresh account and admin membership exactly
+// once. The durable claim is shared with browser setup, so restarts cannot
+// reset credentials or revive bootstrap after the first admin is removed.
+func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials AdminBootstrapCredentials) (bool, error) {
+	if credentials.Username == "" && credentials.Password == "" && credentials.TOTPSecret == "" {
+		return false, nil
+	}
+	if a == nil || a.q == nil {
+		return false, ErrAdminUnavailable
+	}
+	if credentials.Username == "" || credentials.Password == "" || credentials.TOTPSecret == "" {
+		return false, errors.New("admin bootstrap requires username, password, and TOTP secret together")
+	}
+	var created bool
+	err := a.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		created = false
+		claimed, err := tx.ClaimInitialAdminSetup(ctx)
+		if err != nil || !claimed {
+			return err
+		}
+		if credentials.Username != strings.TrimSpace(credentials.Username) || len(credentials.Username) > 256 ||
+			len(credentials.Password) < 8 || len(credentials.Password) > 256 {
+			return errors.New("invalid admin bootstrap username or password length")
+		}
+		secret, err := normalizedTOTPSecret(credentials.TOTPSecret)
+		if err != nil || len(secret) < 20 || len(secret) > 64 {
+			return errors.New("invalid admin bootstrap TOTP secret")
+		}
+		if len(a.cfg.HMACKey) == 0 {
+			return errors.New("admin bootstrap HMAC key is required")
+		}
+		ciphertext, err := a.encryptTOTP(secret)
+		if err != nil {
+			return fmt.Errorf("admin bootstrap encryption key: %w", err)
+		}
+		existing, err := tx.GetUserByUsername(ctx, credentials.Username)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			return errors.New("admin bootstrap username already exists")
+		}
+		hash, err := password.Hash(credentials.Password)
+		if err != nil {
+			return err
+		}
+		userID, err := tx.CreateUser(ctx, credentials.Username, hash, nil, nil)
+		if err != nil {
+			return err
+		}
+		keyID := a.cfg.EncryptionKeyID
+		enrolledAt := a.currentTime()
+		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+			ID: uuid.New(), UserID: userID, Permissions: firstRunAdminPermissions(), Active: true,
+			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt,
+		}); err != nil {
+			return err
+		}
+		if err := createAdminAudit(ctx, tx, userID, "admin_env_bootstrap", nil, strPtr("enrolled"), nil); err != nil {
+			return err
+		}
+		created = true
+		return nil
+	})
+	return created && err == nil, err
+}
+
 // InitialAdminSetup enrolls one existing password account. The deployment
 // token and account password are both required; a durable database claim
 // prevents any later browser enrollment, even if the account is deleted.

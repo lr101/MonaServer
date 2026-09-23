@@ -118,6 +118,11 @@ func main() {
 		AdminOrigin:        cfg.AdminOrigin,
 	}
 	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
+	createdAdmin, err := bootstrapConfiguredAdmin(ctx, adminAuth, cfg)
+	must(err, "admin bootstrap")
+	if createdAdmin {
+		log.Info("initial administrator created")
+	}
 	reportServicer := handler.NewReportServicer(mailSvc, q, reportConfig)
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
@@ -245,6 +250,14 @@ func main() {
 		log.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func bootstrapConfiguredAdmin(ctx context.Context, admin *service.AdminAuth, cfg *config.Config) (bool, error) {
+	return admin.BootstrapInitialAdmin(ctx, service.AdminBootstrapCredentials{
+		Username:   cfg.AdminBootstrapUsername,
+		Password:   cfg.AdminBootstrapPassword,
+		TOTPSecret: cfg.AdminBootstrapTOTPSecret,
+	})
 }
 
 func runHealthcheck() error {

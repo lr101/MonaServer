@@ -60,6 +60,7 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `ADMIN_TOTP_ENCRYPTION_KEY`, `ADMIN_TOTP_ENCRYPTION_KEY_ID` | — / `admin-totp-v1` | Key material and key ID for encrypted admin TOTP enrollment secrets |
 | `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Required key material and key ID for admin login-failure and report submission quotas |
 | `ADMIN_FIRST_RUN_TOKEN` | — | One-time deployment secret (at least 32 characters) for enrolling the first administrator from the admin web login page; remove after setup |
+| `ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_BOOTSTRAP_TOTP_SECRET` | — | Optional first-launch admin account. Set all three together; startup creates the account and MFA membership only if no admin has ever been enrolled |
 | `ADMIN_ORIGIN` | — | Exact browser origin allowed for admin CORS and state-changing requests |
 | `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
 | `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
@@ -77,6 +78,43 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
 | `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
 | `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
+
+For a container-managed first administrator, create an ignored, Go-only
+`.env.admin` file with the stable admin encryption and HMAC keys plus all
+three bootstrap values. Do **not** put them in `.env.dev`: the development
+Compose stack passes that file to PostgreSQL and RustFS too.
+
+```dotenv
+ADMIN_TOTP_ENCRYPTION_KEY=<stable-random-key>
+ADMIN_SESSION_HMAC_KEY=<different-stable-random-key>
+ADMIN_BOOTSTRAP_USERNAME=operator
+ADMIN_BOOTSTRAP_PASSWORD=<unique-password-of-8-to-256-UTF-8-bytes>
+ADMIN_BOOTSTRAP_TOTP_SECRET=<base32-authenticator-seed>
+```
+
+Add `.env.admin` only to the Go service's `env_file` list in your Compose
+deployment; leave the database and RustFS service lists unchanged:
+
+```yaml
+services:
+  stick-it-server: # use go-server in docker-compose.dev.yml
+    env_file:
+      - .env        # use .env.dev in docker-compose.dev.yml
+      - .env.admin
+```
+
+Generate the seed with `openssl rand 20 | base32 | tr -d '=\n'`, add it to an
+authenticator app, then start the Go container. If the admin encryption and
+HMAC keys are not already configured, generate two separate values with
+`openssl rand -hex 32` and keep them stable. If they are already in a shared
+env file, move the same values to the Go-only file; do not rotate them. The
+account is created only if no administrator has ever been enrolled; an
+existing username causes startup to fail rather than promoting that account.
+Remove the three bootstrap values from `.env.admin` after successful creation
+and recreate the Go container. The account, password hash, and encrypted MFA
+seed remain in the database; do not rotate `ADMIN_TOTP_ENCRYPTION_KEY`
+casually. The browser-based
+`ADMIN_FIRST_RUN_TOKEN` flow remains an alternative, not an additional admin.
 
 ### Docker Compose configuration
 
