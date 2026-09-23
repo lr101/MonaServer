@@ -106,6 +106,7 @@ func main() {
 		EncryptionKeyID:    cfg.AdminTOTPEncryptionKeyID,
 		HMACKey:            decodeAdminKey(cfg.AdminSessionHMACKey),
 		HMACKeyID:          cfg.AdminSessionHMACKeyID,
+		FirstRunToken:      cfg.AdminFirstRunToken,
 		SessionIdleTTL:     cfg.AdminSessionIdleTTL,
 		SessionAbsoluteTTL: cfg.AdminSessionAbsoluteTTL,
 		ChallengeTTL:       cfg.AdminChallengeTTL,
@@ -580,7 +581,7 @@ func isNonBootstrapAdminRoute(pattern string) bool {
 
 func isAdminPreAuthSessionRoute(pattern string) bool {
 	switch pattern {
-	case "/api/v3/admin/session/login", "/api/v3/admin/session/mfa":
+	case "/api/v3/admin/session/login", "/api/v3/admin/session/initial-setup", "/api/v3/admin/session/mfa":
 		return true
 	default:
 		return false

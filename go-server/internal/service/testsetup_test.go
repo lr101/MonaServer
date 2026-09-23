@@ -24,7 +24,7 @@ func setupPool(t *testing.T) (*pgxpool.Pool, *db.Queries) {
 		t.Fatalf("pool: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(context.Background(), `TRUNCATE TABLE refresh_token, users, groups, pins, likes, members, seasons CASCADE`); err != nil {
+	if _, err := pool.Exec(context.Background(), `TRUNCATE TABLE admin_initial_setup_claims, refresh_token, users, groups, pins, likes, members, seasons CASCADE`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	return pool, db.New(pool)

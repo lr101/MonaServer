@@ -528,6 +528,25 @@ func (q *Queries) ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginC
 	return i, err
 }
 
+const claimInitialAdminSetup = `-- name: ClaimInitialAdminSetup :one
+
+INSERT INTO admin_initial_setup_claims (singleton)
+SELECT TRUE WHERE NOT EXISTS (SELECT 1 FROM admin_memberships)
+ON CONFLICT DO NOTHING
+RETURNING singleton
+`
+
+// Admin membership and browser sessions ------------------------------------
+// The singleton claim serializes competing first-run requests. A prior CLI
+// enrollment marks the deployment claimed too, so web setup cannot grant a
+// second administrator after an existing one was provisioned.
+func (q *Queries) ClaimInitialAdminSetup(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, claimInitialAdminSetup)
+	var singleton bool
+	err := row.Scan(&singleton)
+	return singleton, err
+}
+
 const claimJobItem = `-- name: ClaimJobItem :one
 WITH locked AS (
     SELECT i.id
@@ -1850,14 +1869,12 @@ func (q *Queries) GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFARep
 }
 
 const getAdminMembership = `-- name: GetAdminMembership :one
-
 SELECT id, user_id, permissions, active, totp_secret_ciphertext, totp_key_id,
        totp_enrolled_at, created_at, updated_at, revoked_at
 FROM admin_memberships
 WHERE user_id = $1
 `
 
-// Admin membership and browser sessions ------------------------------------
 func (q *Queries) GetAdminMembership(ctx context.Context, userID pgtype.UUID) (AdminMembership, error) {
 	row := q.db.QueryRow(ctx, getAdminMembership, userID)
 	var i AdminMembership
@@ -3016,6 +3033,17 @@ func (q *Queries) LockUserSecurityState(ctx context.Context, id pgtype.UUID) (Lo
 		&i.CompromisedAt,
 	)
 	return i, err
+}
+
+const markInitialAdminSetupClaimed = `-- name: MarkInitialAdminSetupClaimed :exec
+INSERT INTO admin_initial_setup_claims (singleton)
+VALUES (TRUE)
+ON CONFLICT DO NOTHING
+`
+
+func (q *Queries) MarkInitialAdminSetupClaimed(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, markInitialAdminSetupClaimed)
+	return err
 }
 
 const purgeDeletedAccountData = `-- name: PurgeDeletedAccountData :exec

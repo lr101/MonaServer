@@ -243,6 +243,20 @@ WHERE payload_expires_at < $1 OR accepted_at < $2;
 
 -- Admin membership and browser sessions ------------------------------------
 
+-- The singleton claim serializes competing first-run requests. A prior CLI
+-- enrollment marks the deployment claimed too, so web setup cannot grant a
+-- second administrator after an existing one was provisioned.
+-- name: ClaimInitialAdminSetup :one
+INSERT INTO admin_initial_setup_claims (singleton)
+SELECT TRUE WHERE NOT EXISTS (SELECT 1 FROM admin_memberships)
+ON CONFLICT DO NOTHING
+RETURNING singleton;
+
+-- name: MarkInitialAdminSetupClaimed :exec
+INSERT INTO admin_initial_setup_claims (singleton)
+VALUES (TRUE)
+ON CONFLICT DO NOTHING;
+
 -- name: GetAdminMembership :one
 SELECT id, user_id, permissions, active, totp_secret_ciphertext, totp_key_id,
        totp_enrolled_at, created_at, updated_at, revoked_at

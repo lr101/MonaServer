@@ -72,6 +72,8 @@ part 'model/admin_campaign_page_dto.dart';
 part 'model/admin_campaign_revision_request_dto.dart';
 part 'model/admin_campaign_status.dart';
 part 'model/admin_campaign_update_request_dto.dart';
+part 'model/admin_initial_setup_request_dto.dart';
+part 'model/admin_initial_setup_response_dto.dart';
 part 'model/admin_job_accepted_dto.dart';
 part 'model/admin_job_command_request_dto.dart';
 part 'model/admin_job_create_request_dto.dart';

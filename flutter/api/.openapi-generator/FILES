@@ -29,6 +29,8 @@ doc/AdminCampaignRevisionRequestDto.md
 doc/AdminCampaignStatus.md
 doc/AdminCampaignUpdateRequestDto.md
 doc/AdminCampaignsApi.md
+doc/AdminInitialSetupRequestDto.md
+doc/AdminInitialSetupResponseDto.md
 doc/AdminJobAcceptedDto.md
 doc/AdminJobCommandRequestDto.md
 doc/AdminJobCreateRequestDto.md
@@ -187,6 +189,8 @@ lib/model/admin_campaign_page_dto.dart
 lib/model/admin_campaign_revision_request_dto.dart
 lib/model/admin_campaign_status.dart
 lib/model/admin_campaign_update_request_dto.dart
+lib/model/admin_initial_setup_request_dto.dart
+lib/model/admin_initial_setup_response_dto.dart
 lib/model/admin_job_accepted_dto.dart
 lib/model/admin_job_command_request_dto.dart
 lib/model/admin_job_create_request_dto.dart

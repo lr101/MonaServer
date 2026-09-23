@@ -102,6 +102,10 @@ func (s *UnavailableV3Servicer) AdminSessionLogin(context.Context, string, gense
 	return s.unavailable()
 }
 
+func (s *UnavailableV3Servicer) InitialAdminSetup(context.Context, string, genserver.AdminInitialSetupRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func (s *UnavailableV3Servicer) CompleteAdminSessionMfa(context.Context, string, genserver.AdminMfaRequestDto) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }
