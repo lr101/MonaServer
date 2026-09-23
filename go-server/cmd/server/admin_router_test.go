@@ -342,9 +342,9 @@ func TestInitialAdminSetupRouteRequiresPreAuthCSRF(t *testing.T) {
 	origin := "https://admin.example"
 	auth := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
-		HMACKey: []byte("initial-route-quota-key"),
+		HMACKey:       []byte("initial-route-quota-key"),
 		FirstRunToken: "a-unique-deployment-secret-with-at-least-32-chars",
-		AdminOrigin: origin,
+		AdminOrigin:   origin,
 	})
 	r := chi.NewRouter()
 	r.Use(globalCORS(origin))
@@ -360,12 +360,27 @@ func TestInitialAdminSetupRouteRequiresPreAuthCSRF(t *testing.T) {
 	if bootstrap.Code != http.StatusOK || len(bootstrap.Result().Cookies()) != 1 {
 		t.Fatalf("bootstrap status/cookies = %d %#v", bootstrap.Code, bootstrap.Result().Cookies())
 	}
-	var boot struct{ CSRFToken string `json:"csrfToken"` }
+	var boot struct {
+		CSRFToken string `json:"csrfToken"`
+	}
 	if err := json.Unmarshal(bootstrap.Body.Bytes(), &boot); err != nil || boot.CSRFToken == "" {
 		t.Fatalf("bootstrap body = %s", bootstrap.Body.String())
 	}
 	path := "/api/v3/admin/session/initial-setup"
 	body := `{"username":"first-admin","password":"password123","setupToken":"a-unique-deployment-secret-with-at-least-32-chars"}`
+	for _, oversizedBody := range []string{
+		`{"username":"` + strings.Repeat("a", 4096) + `","password":"password123","setupToken":"a-unique-deployment-secret-with-at-least-32-chars"}`,
+		`{"username":"first-admin","password":"` + strings.Repeat("p", 257) + `","setupToken":"a-unique-deployment-secret-with-at-least-32-chars"}`,
+	} {
+		req := request(path, oversizedBody)
+		req.AddCookie(bootstrap.Result().Cookies()[0])
+		req.Header.Set("X-CSRF-Token", boot.CSRFToken)
+		denied := httptest.NewRecorder()
+		r.ServeHTTP(denied, req)
+		if denied.Code != http.StatusBadRequest {
+			t.Fatalf("oversized setup request status = %d, body = %s", denied.Code, denied.Body.String())
+		}
+	}
 	withoutCSRF := request(path, body)
 	withoutCSRF.AddCookie(bootstrap.Result().Cookies()[0])
 	denied := httptest.NewRecorder()
