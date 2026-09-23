@@ -1663,23 +1663,43 @@ type AdminJobItemParams struct {
 	ProviderReference *string
 }
 
-func adminJobItemFromRow(r dbgen.AdminJobItem) AdminJobItem {
+func adminJobItemFromFields(
+	id, jobID, targetID, deviceID pgtype.UUID,
+	outcome string,
+	errorCode, providerReference pgtype.Text,
+	attemptCount int32,
+	leaseOwner pgtype.Text,
+	leaseToken pgtype.UUID,
+	leaseUntil, completedAt, createdAt, updatedAt pgtype.Timestamptz,
+) AdminJobItem {
 	return AdminJobItem{
-		ID:                goUUID(r.ID),
-		JobID:             goUUID(r.JobID),
-		TargetID:          goUUID(r.TargetID),
-		DeviceID:          uuidPtrFromPG(r.DeviceID),
-		Outcome:           r.Outcome,
-		ErrorCode:         textPtrFromPG(r.ErrorCode),
-		ProviderReference: textPtrFromPG(r.ProviderReference),
-		AttemptCount:      r.AttemptCount,
-		LeaseOwner:        textPtrFromPG(r.LeaseOwner),
-		LeaseToken:        goUUID(r.LeaseToken),
-		LeaseUntil:        timePtrFromPG(r.LeaseUntil),
-		CompletedAt:       timePtrFromPG(r.CompletedAt),
-		CreatedAt:         timeFromPG(r.CreatedAt),
-		UpdatedAt:         timeFromPG(r.UpdatedAt),
+		ID:                goUUID(id),
+		JobID:             goUUID(jobID),
+		TargetID:          goUUID(targetID),
+		DeviceID:          uuidPtrFromPG(deviceID),
+		Outcome:           outcome,
+		ErrorCode:         textPtrFromPG(errorCode),
+		ProviderReference: textPtrFromPG(providerReference),
+		AttemptCount:      attemptCount,
+		LeaseOwner:        textPtrFromPG(leaseOwner),
+		LeaseToken:        goUUID(leaseToken),
+		LeaseUntil:        timePtrFromPG(leaseUntil),
+		CompletedAt:       timePtrFromPG(completedAt),
+		CreatedAt:         timeFromPG(createdAt),
+		UpdatedAt:         timeFromPG(updatedAt),
 	}
+}
+
+func adminJobItemFromGetRow(row dbgen.GetAdminJobItemRow) AdminJobItem {
+	return adminJobItemFromFields(row.ID, row.JobID, row.TargetID, row.DeviceID, row.Outcome, row.ErrorCode, row.ProviderReference, row.AttemptCount, row.LeaseOwner, row.LeaseToken, row.LeaseUntil, row.CompletedAt, row.CreatedAt, row.UpdatedAt)
+}
+
+func adminJobItemFromListRow(row dbgen.ListAdminJobItemsRow) AdminJobItem {
+	return adminJobItemFromFields(row.ID, row.JobID, row.TargetID, row.DeviceID, row.Outcome, row.ErrorCode, row.ProviderReference, row.AttemptCount, row.LeaseOwner, row.LeaseToken, row.LeaseUntil, row.CompletedAt, row.CreatedAt, row.UpdatedAt)
+}
+
+func adminJobItemFromRuntimeRow(row dbgen.ListAdminRuntimeJobItemsRow) AdminJobItem {
+	return adminJobItemFromFields(row.ID, row.JobID, row.TargetID, row.DeviceID, row.Outcome, row.ErrorCode, row.ProviderReference, row.AttemptCount, row.LeaseOwner, row.LeaseToken, row.LeaseUntil, row.CompletedAt, row.CreatedAt, row.UpdatedAt)
 }
 
 func adminJobItemFromClaimRow(r dbgen.ClaimAdminJobItemsRow) AdminJobItem {
@@ -1745,7 +1765,7 @@ func (q *Queries) GetAdminJobItem(ctx context.Context, id uuid.UUID) (*AdminJobI
 	if err != nil {
 		return nil, err
 	}
-	v := adminJobItemFromRow(r)
+	v := adminJobItemFromGetRow(r)
 	return &v, nil
 }
 
@@ -1759,7 +1779,7 @@ func (q *Queries) ListAdminJobItems(ctx context.Context, jobID uuid.UUID, before
 	}
 	out := make([]AdminJobItem, 0, len(rs))
 	for _, r := range rs {
-		out = append(out, adminJobItemFromRow(r))
+		out = append(out, adminJobItemFromListRow(r))
 	}
 	return out, nil
 }

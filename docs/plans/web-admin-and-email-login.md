@@ -1,9 +1,9 @@
 # Separate web admin implementation plan
 
-Status: amended 2026-09-22 by the product decision to keep the admin interface
-out of Flutter and keep the first release CRUD-only. Repository realignment,
-the standalone UI, and bounded server projections are implemented. Bulk
-delivery execution is intentionally excluded from this release.
+Status: amended 2026-09-23 to add simple campaign CRUD while keeping campaign
+delivery out of scope. Repository realignment, the standalone UI, and bounded
+server projections are implemented. Audience expansion, provider delivery,
+workers, retries, and bulk execution remain intentionally excluded.
 
 ## Current implementation state
 
@@ -13,8 +13,11 @@ delivery execution is intentionally excluded from this release.
   user/report/audit projections, and report review mutations remain in place.
 - Complete: `admin-web/` has a dependency-free static CRUD application with
   bootstrap, restore, password/MFA flow, logout, CSRF handling, users,
-  reports and notes, permission-filtered audit history, cursor paging, typed
+  reports and notes, campaigns, permission-filtered audit history, cursor paging, typed
   error states, contract tests, and Docker packaging/CI.
+- Complete: campaign persistence, API, authorization, and admin-web CRUD
+  screens are implemented as a bounded resource with draft/active/archived
+  lifecycle states, revision checks, CSRF, and capability enforcement.
 - Deliberately excluded: audience snapshots, campaign sends, test delivery,
   job workers, provider adapters, lease fencing, and bulk action execution.
 
@@ -40,6 +43,9 @@ introduced later only if the UI complexity justifies it.
   removed.
 - `admin-web/` owns browser state, API mapping, forms, navigation, and admin
   presentation. It must not import Flutter or consumer app code.
+- Campaigns are content records only in this release. CRUD owns name, channel,
+  subject/title, body, lifecycle status, and revision; it does not enqueue or
+  deliver messages. A later delivery feature may consume active campaigns.
 - The browser uses the opaque admin cookie and in-memory CSRF token. It never
   stores consumer JWTs, refresh credentials, passwords, MFA codes, or action
   tokens.
@@ -95,7 +101,8 @@ Implement each slice against the generated OpenAPI examples and server DTOs:
 1. bounded users search and user detail;
 2. report inbox, detail, revision-checked status/assignment updates, and
    notes;
-3. permission-filtered audit history.
+3. campaign list/detail/create/update/archive/delete with revision checks;
+4. permission-filtered audit history.
 
 The browser keeps authorization and validation server-owned, renders bounded
 server data safely, and treats report conflicts as reload-and-reapply rather
@@ -104,10 +111,10 @@ than overwriting newer state.
 ### 5. Server-side CRUD boundary — complete
 
 The Go server exposes the existing session, users, reports, report notes, and
-audit projections behind the admin middleware. Report updates remain
-revision-checked and capability-protected. Bulk audience/action execution is
-out of scope and remains unavailable; no provider or worker is needed for the
-CRUD release.
+audit projections behind the admin middleware. Campaign records are stored and
+mutated behind the same session, CSRF, capability, and revision checks. Bulk
+audience/action execution is out of scope and remains unavailable; no provider
+or worker is needed for campaign CRUD.
 
 ### 6. Verification and delivery
 
@@ -147,17 +154,33 @@ Implement permission-filtered audit history, report conflict handling, and
 same-origin CRUD integration. Do not add audience composition, campaign sends,
 test delivery, job controls, provider adapters, or worker lifecycle.
 
-### Task 5 — explicit non-goal boundary
+### Task 5 — campaign server CRUD — complete
+
+Add a `campaigns` table and bounded repository/service/handler methods for
+list, detail, create, update, archive, and delete. Use a small resource shape:
+name, channel (`email` or `push`), subject/title, body, status (`draft`,
+`active`, or `archived`), revision, timestamps, and creator. Require
+`campaigns.read` for reads and `campaigns.write` for mutations. Enforce
+field limits, revision checks, and archival semantics without introducing
+audience expansion, provider calls, or durable jobs.
+
+### Task 6 — campaign admin-web CRUD — complete
+
+Add matching admin-web list/detail/editor flows and API contract tests. The
+browser must never claim that saving a campaign sends it.
+
+### Task 7 — explicit non-goal boundary — complete
 
 Keep bulk execution routes fail-closed and document the boundary. No durable
 job worker, provider delivery, lease/fence state machine, or campaign action
 should be added to complete this CRUD release.
 
-### Task 6 — integration and delivery verification
+### Task 8 — integration and delivery verification — complete
 
 Regenerate checked-in outputs, run Go and Flutter consumer checks, run the
 admin-web checks and Docker smoke workflow locally when Docker is available,
-validate the same-origin gateway path, and perform a whole-branch review.
+validate the same-origin gateway path when the local gateway is available,
+and perform a whole-branch review.
 
 ## Explicit non-goals
 

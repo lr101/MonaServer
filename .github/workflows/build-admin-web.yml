@@ -1,0 +1,90 @@
+name: Build admin web Docker image
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    paths:
+      - "admin-web/**"
+      - "api/**"
+      - ".github/workflows/build-admin-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-web-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-smoke-test:
+    name: Build and smoke-test admin web image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Check admin web source
+        working-directory: admin-web
+        run: |
+          node --check src/api.js
+          node --check src/state.js
+          node --check src/permissions.js
+          node --check src/main.js
+          node --test test/*.test.mjs
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: admin-web
+          tags: type=raw,value=ci
+
+      - name: Build admin web Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: admin-web
+          file: admin-web/Dockerfile
+          push: false
+          load: true
+          tags: admin-web:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=admin-web
+          cache-to: type=gha,mode=max,scope=admin-web
+
+      - name: Smoke-test admin web container
+        run: |
+          set -euo pipefail
+          container_name=admin-web-ci
+          docker run --detach --name "$container_name" --publish 18081:80 admin-web:ci
+          cleanup() {
+            docker rm --force "$container_name" >/dev/null
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error http://127.0.0.1:18081/healthz >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error http://127.0.0.1:18081/ \
+            | grep -q 'MonaServer Admin'
+          curl --fail --silent --show-error http://127.0.0.1:18081/src/main.js \
+            | grep -q "./api.js"
+          curl --fail --silent --show-error http://127.0.0.1:18081/dashboard \
+            | grep -q 'MonaServer Admin'
+          curl --fail --silent --show-error --head http://127.0.0.1:18081/ \
+            | grep -qi '^X-Content-Type-Options: nosniff'
+
+          status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:18081/api/health)
+          [ "$status_code" = 404 ]

@@ -69,6 +69,12 @@ Class | Method | HTTP request | Description
 *AdminAudiencesApi* | [**getAdminAudience**](doc//AdminAudiencesApi.md#getadminaudience) | **GET** /api/v3/admin/audiences/{audienceId} | Read an administrative audience snapshot
 *AdminAudiencesApi* | [**previewAdminAudience**](doc//AdminAudiencesApi.md#previewadminaudience) | **POST** /api/v3/admin/audiences/preview | Preview an explicit administrative audience
 *AdminAuditApi* | [**listAdminAudit**](doc//AdminAuditApi.md#listadminaudit) | **GET** /api/v3/admin/audit | List administrative audit events
+*AdminCampaignsApi* | [**archiveAdminCampaign**](doc//AdminCampaignsApi.md#archiveadmincampaign) | **POST** /api/v3/admin/campaigns/{campaignId}/archive | Archive a campaign
+*AdminCampaignsApi* | [**createAdminCampaign**](doc//AdminCampaignsApi.md#createadmincampaign) | **POST** /api/v3/admin/campaigns | Create a content-only campaign
+*AdminCampaignsApi* | [**deleteAdminCampaign**](doc//AdminCampaignsApi.md#deleteadmincampaign) | **DELETE** /api/v3/admin/campaigns/{campaignId} | Delete a draft campaign
+*AdminCampaignsApi* | [**getAdminCampaign**](doc//AdminCampaignsApi.md#getadmincampaign) | **GET** /api/v3/admin/campaigns/{campaignId} | Get a content-only campaign
+*AdminCampaignsApi* | [**listAdminCampaigns**](doc//AdminCampaignsApi.md#listadmincampaigns) | **GET** /api/v3/admin/campaigns | List content-only campaigns
+*AdminCampaignsApi* | [**updateAdminCampaign**](doc//AdminCampaignsApi.md#updateadmincampaign) | **PATCH** /api/v3/admin/campaigns/{campaignId} | Update a content-only campaign
 *AdminJobsApi* | [**cancelAdminJob**](doc//AdminJobsApi.md#canceladminjob) | **POST** /api/v3/admin/jobs/{jobId}/cancel | Cancel pending job work
 *AdminJobsApi* | [**createAdminJob**](doc//AdminJobsApi.md#createadminjob) | **POST** /api/v3/admin/jobs | Commit an administrative action job
 *AdminJobsApi* | [**getAdminJob**](doc//AdminJobsApi.md#getadminjob) | **GET** /api/v3/admin/jobs/{jobId} | Read an administrative job
@@ -157,6 +163,14 @@ Class | Method | HTTP request | Description
  - [AdminAudiencePreviewResponseDto](doc//AdminAudiencePreviewResponseDto.md)
  - [AdminAuditEventDto](doc//AdminAuditEventDto.md)
  - [AdminAuditPageDto](doc//AdminAuditPageDto.md)
+ - [AdminCampaignChannel](doc//AdminCampaignChannel.md)
+ - [AdminCampaignContentDto](doc//AdminCampaignContentDto.md)
+ - [AdminCampaignCreateRequestDto](doc//AdminCampaignCreateRequestDto.md)
+ - [AdminCampaignDto](doc//AdminCampaignDto.md)
+ - [AdminCampaignPageDto](doc//AdminCampaignPageDto.md)
+ - [AdminCampaignRevisionRequestDto](doc//AdminCampaignRevisionRequestDto.md)
+ - [AdminCampaignStatus](doc//AdminCampaignStatus.md)
+ - [AdminCampaignUpdateRequestDto](doc//AdminCampaignUpdateRequestDto.md)
  - [AdminJobAcceptedDto](doc//AdminJobAcceptedDto.md)
  - [AdminJobCommandRequestDto](doc//AdminJobCommandRequestDto.md)
  - [AdminJobCreateRequestDto](doc//AdminJobCreateRequestDto.md)

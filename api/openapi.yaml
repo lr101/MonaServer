@@ -3100,6 +3100,7 @@ components:
       - jobs.control
       - messages.test
       - reports.review
+      - campaigns.write
       type: string
     audienceKind:
       enum:
@@ -3259,6 +3260,7 @@ components:
           type: string
         createdByUserId:
           format: uuid
+          nullable: true
           type: string
         id:
           format: uuid
@@ -3288,7 +3290,6 @@ components:
       - body
       - channel
       - createdAt
-      - createdByUserId
       - id
       - name
       - revision

@@ -26,15 +26,15 @@ func TestCampaignServiceEnforcesCapabilitiesBoundsAndLifecycle(t *testing.T) {
 	}
 
 	created, err := campaigns.Create(ctx, writer, CampaignCreateInput{
-		Name: "Newsletter", Channel: CampaignChannelEmail, Subject: stringPtr("September"), Body: "Hello", Status: CampaignStatusDraft,
+		Name: "  Newsletter  ", Channel: CampaignChannelEmail, Subject: stringPtr("  September  "), Body: "  Hello  ", Status: CampaignStatusDraft,
 	})
 	if err != nil {
 		t.Fatalf("create campaign: %v", err)
 	}
-	if created.ID == uuid.Nil || created.CreatedByUserID != writer.ID || created.Revision != 1 || created.Status != CampaignStatusDraft {
+	if created.ID == uuid.Nil || created.CreatedByUserID == nil || *created.CreatedByUserID != writer.ID || created.Revision != 1 || created.Status != CampaignStatusDraft {
 		t.Fatalf("created campaign = %#v, want draft revision one owned by writer", created)
 	}
-	if created.Title != nil || created.Subject == nil || *created.Subject != "September" {
+	if created.Name != "Newsletter" || created.Body != "Hello" || created.Title != nil || created.Subject == nil || *created.Subject != "September" {
 		t.Fatalf("created email content = %#v, want subject only", created)
 	}
 
@@ -43,6 +43,9 @@ func TestCampaignServiceEnforcesCapabilitiesBoundsAndLifecycle(t *testing.T) {
 	}
 	if _, err := campaigns.Create(ctx, writer, CampaignCreateInput{Name: strings.Repeat("n", MaxCampaignNameBytes+1), Channel: CampaignChannelEmail, Subject: stringPtr("Subject"), Body: "Hello", Status: CampaignStatusDraft}); !errors.Is(err, ErrInvalidCampaign) {
 		t.Fatalf("oversized name error = %v, want invalid campaign", err)
+	}
+	if _, err := campaigns.Create(ctx, writer, CampaignCreateInput{Name: strings.Repeat("é", MaxCampaignNameBytes), Channel: CampaignChannelEmail, Subject: stringPtr("Subject"), Body: "Hello", Status: CampaignStatusDraft}); err != nil {
+		t.Fatalf("valid unicode name error = %v, want character-count bounded name accepted", err)
 	}
 
 	if _, err := campaigns.Get(ctx, AdminActor{ID: uuid.New()}, created.ID); !errors.Is(err, ErrAudienceForbidden) {

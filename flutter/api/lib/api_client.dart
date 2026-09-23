@@ -210,6 +210,22 @@ class ApiClient {
           return AdminAuditEventDto.fromJson(value);
         case 'AdminAuditPageDto':
           return AdminAuditPageDto.fromJson(value);
+        case 'AdminCampaignChannel':
+          return AdminCampaignChannelTypeTransformer().decode(value);
+        case 'AdminCampaignContentDto':
+          return AdminCampaignContentDto.fromJson(value);
+        case 'AdminCampaignCreateRequestDto':
+          return AdminCampaignCreateRequestDto.fromJson(value);
+        case 'AdminCampaignDto':
+          return AdminCampaignDto.fromJson(value);
+        case 'AdminCampaignPageDto':
+          return AdminCampaignPageDto.fromJson(value);
+        case 'AdminCampaignRevisionRequestDto':
+          return AdminCampaignRevisionRequestDto.fromJson(value);
+        case 'AdminCampaignStatus':
+          return AdminCampaignStatusTypeTransformer().decode(value);
+        case 'AdminCampaignUpdateRequestDto':
+          return AdminCampaignUpdateRequestDto.fromJson(value);
         case 'AdminJobAcceptedDto':
           return AdminJobAcceptedDto.fromJson(value);
         case 'AdminJobCommandRequestDto':

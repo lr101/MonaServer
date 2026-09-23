@@ -133,6 +133,38 @@ export class AdminApi {
     });
   }
 
+  listCampaigns({ cursor, limit = 25 } = {}) {
+    return this.request(`/api/v3/admin/campaigns?${query({ cursor: boundedCursor(cursor), limit })}`);
+  }
+
+  getCampaign(campaignId) {
+    return this.request(`/api/v3/admin/campaigns/${encodeURIComponent(campaignId)}`);
+  }
+
+  createCampaign(campaign) {
+    return this.request('/api/v3/admin/campaigns', {
+      method: 'POST', csrf: true, body: campaign,
+    });
+  }
+
+  updateCampaign(campaignId, campaign) {
+    return this.request(`/api/v3/admin/campaigns/${encodeURIComponent(campaignId)}`, {
+      method: 'PATCH', csrf: true, body: campaign,
+    });
+  }
+
+  archiveCampaign(campaignId, expectedRevision) {
+    return this.request(`/api/v3/admin/campaigns/${encodeURIComponent(campaignId)}/archive`, {
+      method: 'POST', csrf: true, body: { expectedRevision },
+    });
+  }
+
+  deleteCampaign(campaignId, expectedRevision) {
+    return this.request(`/api/v3/admin/campaigns/${encodeURIComponent(campaignId)}`, {
+      method: 'DELETE', csrf: true, body: { expectedRevision },
+    });
+  }
+
   listAudit({ cursor, limit = 25, targetUserId, action } = {}) {
     return this.request(`/api/v3/admin/audit?${query({ cursor: boundedCursor(cursor), limit, targetUserId, action })}`);
   }

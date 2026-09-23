@@ -669,6 +669,14 @@ type AudienceSnapshotStore interface {
 	ListAudienceSnapshotMembers(context.Context, uuid.UUID, int, int64) ([]AudienceMember, error)
 }
 
+// KeysetAudienceStore is an optional production read path for audience
+// materialization. The legacy ordinal method remains part of the contract for
+// small/local stores, while database adapters can use the last stable resource
+// ID as the page boundary and avoid OFFSET drift when rows change.
+type KeysetAudienceStore interface {
+	ListAudienceMembersAfterID(context.Context, uuid.UUID, Audience, AdminAction, *uuid.UUID, int64, int) ([]AudienceMember, error)
+}
+
 type AsyncAudienceMaterializer interface {
 	QueueAudienceMaterialization(context.Context, AudienceSnapshot) (uuid.UUID, error)
 }
@@ -765,10 +773,18 @@ func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, actor
 	capacity := int(count)
 	members := make([]AudienceMember, 0, capacity)
 	var ordinal int64 = -1
+	keysetStore, useKeyset := s.store.(KeysetAudienceStore)
+	var afterID *uuid.UUID
 	for len(members) < capacity {
 		remaining := capacity - len(members)
 		pageLimit := minInt(remaining, maxPageLimit)
-		page, pageErr := s.store.ListAudienceMembers(ctx, actorID, audience, action, ordinal, pageLimit)
+		var page []AudienceMember
+		var pageErr error
+		if useKeyset {
+			page, pageErr = keysetStore.ListAudienceMembersAfterID(ctx, actorID, audience, action, afterID, ordinal, pageLimit)
+		} else {
+			page, pageErr = s.store.ListAudienceMembers(ctx, actorID, audience, action, ordinal, pageLimit)
+		}
 		if pageErr != nil {
 			return nil, 0, pageErr
 		}
@@ -782,6 +798,10 @@ func (s *AdminAudienceService) resolveBoundedAudience(ctx context.Context, actor
 		}
 		members = append(members, page...)
 		ordinal += int64(len(page))
+		if useKeyset && len(page) > 0 {
+			lastID := page[len(page)-1].ResourceID
+			afterID = &lastID
+		}
 		if len(page) < pageLimit {
 			break
 		}

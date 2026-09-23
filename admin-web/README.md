@@ -25,6 +25,8 @@ docker run --rm --publish 8082:80 monaserver-admin-web
 The image serves only the static application. Route `/api` to `go-server` at
 the gateway or reverse proxy layer.
 
-The app includes session/MFA, users, reports and notes, and audit views. Bulk
-audience actions, provider delivery, and job execution are intentionally out
-of scope for this CRUD release.
+The app includes session/MFA, users, reports and notes, campaign content
+records, and audit views. Campaign saves only create or update content records;
+they never schedule or deliver messages. Bulk audience actions, provider
+delivery, and job execution are intentionally out of scope for this CRUD
+release.

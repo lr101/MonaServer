@@ -132,7 +132,7 @@ func toAdminCampaign(campaign service.Campaign) genserver.AdminCampaignDto {
 	return genserver.AdminCampaignDto{
 		Id: campaign.ID.String(), Name: campaign.Name, Channel: genserver.AdminCampaignChannel(campaign.Channel), Subject: cloneStringValue(campaign.Subject),
 		Title: cloneStringValue(campaign.Title), Body: campaign.Body, Status: genserver.AdminCampaignStatus(campaign.Status), Revision: campaign.Revision,
-		CreatedAt: campaign.CreatedAt, UpdatedAt: campaign.UpdatedAt, CreatedByUserId: campaign.CreatedByUserID.String(),
+		CreatedAt: campaign.CreatedAt, UpdatedAt: campaign.UpdatedAt, CreatedByUserId: uuidStringPtr(campaign.CreatedByUserID),
 	}
 }
 

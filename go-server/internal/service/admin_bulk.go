@@ -367,14 +367,15 @@ type AdminActionPorts struct {
 }
 
 type AdminBulkService struct {
-	store         AdminJobStore
-	aud           *AdminAudienceService
-	ports         AdminActionPorts
-	clock         func() time.Time
-	worker        string
-	maxItems      int
-	actorReloader AdminActorReloader
-	leaseTTL      time.Duration
+	store          AdminJobStore
+	aud            *AdminAudienceService
+	ports          AdminActionPorts
+	executionReady bool
+	clock          func() time.Time
+	worker         string
+	maxItems       int
+	actorReloader  AdminActorReloader
+	leaseTTL       time.Duration
 }
 
 // NewAdminBulkService accepts the actor reloader as an optional fourth
@@ -390,7 +391,7 @@ func NewAdminBulkService(store AdminJobStore, audience *AdminAudienceService, po
 	if len(reloaders) > 0 {
 		reloader = reloaders[0]
 	}
-	return &AdminBulkService{store: store, aud: audience, ports: configured, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString(), actorReloader: reloader, leaseTTL: 5 * time.Minute}
+	return &AdminBulkService{store: store, aud: audience, ports: configured, executionReady: true, clock: time.Now, maxItems: defaultMaterializeLimit, worker: uuid.NewString(), actorReloader: reloader, leaseTTL: 5 * time.Minute}
 }
 
 func NewAdminBulkActionService(store AdminJobStore, audience *AdminAudienceService, ports *AdminActionPorts, reloaders ...AdminActorReloader) *AdminBulkService {
@@ -419,6 +420,23 @@ func (s *AdminBulkService) SetActorReloader(reloader AdminActorReloader) {
 	if s != nil {
 		s.actorReloader = reloader
 	}
+}
+
+// SetExecutionReady controls whether this service may accept a new durable
+// action or mutate an existing job. Production composition leaves this false
+// until action providers, recipient eligibility, and fenced/audited job
+// transitions are all wired. Read-only job operations remain available.
+func (s *AdminBulkService) SetExecutionReady(ready bool) {
+	if s != nil {
+		s.executionReady = ready
+	}
+}
+
+func (s *AdminBulkService) requireExecutionReady() error {
+	if s == nil || !s.executionReady {
+		return ErrActionUnavailable
+	}
+	return nil
 }
 
 // requireExecutionSafety rejects adapters that cannot prove fresh authority,
@@ -501,6 +519,9 @@ func (s *AdminBulkService) now() time.Time {
 func (s *AdminBulkService) Create(ctx context.Context, actor AdminActor, request AdminJobCreateRequest) (*AdminJob, error) {
 	if s == nil || s.store == nil || s.aud == nil {
 		return nil, ErrAdminRepositoryAbsent
+	}
+	if err := s.requireExecutionReady(); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(request.IdempotencyKey) == "" || len([]byte(request.IdempotencyKey)) > maxCommandKey || !validUTF8(request.IdempotencyKey) {
 		return nil, ErrInvalidJobRequest
@@ -1347,6 +1368,9 @@ func (s *AdminBulkService) SendTestMessage(ctx context.Context, actor AdminActor
 	if s == nil {
 		return nil, ErrAdminRepositoryAbsent
 	}
+	if err := s.requireExecutionReady(); err != nil {
+		return nil, err
+	}
 	if !actor.Valid() {
 		return nil, ErrAudienceUnauthorized
 	}
@@ -1486,6 +1510,9 @@ func (s *AdminBulkService) Cancel(ctx context.Context, actor AdminActor, command
 func (s *AdminBulkService) applyCommand(ctx context.Context, actor AdminActor, command AdminJobCommand, kind string) (*AdminJob, error) {
 	if s == nil || s.store == nil {
 		return nil, ErrAdminRepositoryAbsent
+	}
+	if err := s.requireExecutionReady(); err != nil {
+		return nil, err
 	}
 	if !actor.Valid() {
 		return nil, ErrAudienceUnauthorized

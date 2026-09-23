@@ -127,6 +127,14 @@ func cloneStringValue(value *string) *string {
 	return &copy
 }
 
+func uuidStringPtr(value *uuid.UUID) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.String()
+	return &formatted
+}
+
 func cloneBoolValue(value *bool) *bool {
 	if value == nil {
 		return nil

@@ -60,8 +60,18 @@ func TestCampaignFacadeUsesRevisionAndDraftDeletePredicates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create campaign: %v", err)
 	}
-	if created.Revision != 1 || created.CreatedByUserID != creator {
+	if created.Revision != 1 || created.CreatedByUserID == nil || *created.CreatedByUserID != creator {
 		t.Fatalf("created campaign = %#v, want revision one and creator", created)
+	}
+	if err := q.HardDeleteUser(ctx, creator); err != nil {
+		t.Fatalf("hard delete campaign creator: %v", err)
+	}
+	var creatorAfterDelete *uuid.UUID
+	if err := q.Pool().QueryRow(ctx, `SELECT created_by_user_id FROM campaigns WHERE id = $1`, created.ID).Scan(&creatorAfterDelete); err != nil {
+		t.Fatalf("read campaign creator after delete: %v", err)
+	}
+	if creatorAfterDelete != nil {
+		t.Fatalf("campaign creator after account deletion = %v, want nil", creatorAfterDelete)
 	}
 
 	page, err := q.ListCampaigns(ctx, CampaignQuery{Limit: 1})

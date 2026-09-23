@@ -1747,9 +1747,26 @@ FROM admin_job_items
 WHERE id = $1
 `
 
-func (q *Queries) GetAdminJobItem(ctx context.Context, id pgtype.UUID) (AdminJobItem, error) {
+type GetAdminJobItemRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	TargetID          pgtype.UUID        `json:"target_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	Outcome           string             `json:"outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	AttemptCount      int32              `json:"attempt_count"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetAdminJobItem(ctx context.Context, id pgtype.UUID) (GetAdminJobItemRow, error) {
 	row := q.db.QueryRow(ctx, getAdminJobItem, id)
-	var i AdminJobItem
+	var i GetAdminJobItemRow
 	err := row.Scan(
 		&i.ID,
 		&i.JobID,
@@ -2326,15 +2343,32 @@ type ListAdminJobItemsParams struct {
 	Limit   int32              `json:"limit"`
 }
 
-func (q *Queries) ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]AdminJobItem, error) {
+type ListAdminJobItemsRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	TargetID          pgtype.UUID        `json:"target_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	Outcome           string             `json:"outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	AttemptCount      int32              `json:"attempt_count"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]ListAdminJobItemsRow, error) {
 	rows, err := q.db.Query(ctx, listAdminJobItems, arg.JobID, arg.Column2, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AdminJobItem
+	var items []ListAdminJobItemsRow
 	for rows.Next() {
-		var i AdminJobItem
+		var i ListAdminJobItemsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.JobID,

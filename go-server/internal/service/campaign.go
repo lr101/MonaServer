@@ -50,7 +50,7 @@ type Campaign struct {
 	Revision        int64
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	CreatedByUserID uuid.UUID
+	CreatedByUserID *uuid.UUID
 }
 
 type CampaignCreateInput struct {
@@ -171,13 +171,15 @@ func (s *CampaignService) Create(ctx context.Context, actor AdminActor, input Ca
 	if err := s.require(actor, "campaigns.write"); err != nil {
 		return nil, err
 	}
-	if err := validateCampaignContent(input.Name, input.Channel, input.Subject, input.Title, input.Body); err != nil || !isMutableCampaignStatus(input.Status) {
+	name, body := strings.TrimSpace(input.Name), strings.TrimSpace(input.Body)
+	subject, title := normalizeCampaignOptionalText(input.Subject), normalizeCampaignOptionalText(input.Title)
+	if err := validateCampaignContent(name, input.Channel, subject, title, body); err != nil || !isMutableCampaignStatus(input.Status) {
 		return nil, ErrInvalidCampaign
 	}
 	now := s.now().UTC()
 	return s.store.CreateCampaign(ctx, Campaign{
-		ID: uuid.New(), Name: strings.TrimSpace(input.Name), Channel: input.Channel, Subject: cloneCampaignString(input.Subject), Title: cloneCampaignString(input.Title),
-		Body: strings.TrimSpace(input.Body), Status: input.Status, Revision: 1, CreatedAt: now, UpdatedAt: now, CreatedByUserID: actor.ID,
+		ID: uuid.New(), Name: name, Channel: input.Channel, Subject: subject, Title: title,
+		Body: body, Status: input.Status, Revision: 1, CreatedAt: now, UpdatedAt: now, CreatedByUserID: uuidPointer(actor.ID),
 	})
 }
 
@@ -185,7 +187,9 @@ func (s *CampaignService) Update(ctx context.Context, actor AdminActor, input Ca
 	if err := s.require(actor, "campaigns.write"); err != nil {
 		return nil, err
 	}
-	if input.CampaignID == uuid.Nil || input.ExpectedRevision < 1 || !isMutableCampaignStatus(input.Status) || validateCampaignContent(input.Name, input.Channel, input.Subject, input.Title, input.Body) != nil {
+	name, body := strings.TrimSpace(input.Name), strings.TrimSpace(input.Body)
+	subject, title := normalizeCampaignOptionalText(input.Subject), normalizeCampaignOptionalText(input.Title)
+	if input.CampaignID == uuid.Nil || input.ExpectedRevision < 1 || !isMutableCampaignStatus(input.Status) || validateCampaignContent(name, input.Channel, subject, title, body) != nil {
 		return nil, ErrInvalidCampaign
 	}
 	current, err := s.store.GetCampaign(ctx, input.CampaignID)
@@ -199,8 +203,8 @@ func (s *CampaignService) Update(ctx context.Context, actor AdminActor, input Ca
 		return nil, apperrors.ErrConflict
 	}
 	updated, ok, err := s.store.UpdateCampaignIfRevision(ctx, Campaign{
-		ID: current.ID, Name: strings.TrimSpace(input.Name), Channel: input.Channel, Subject: cloneCampaignString(input.Subject), Title: cloneCampaignString(input.Title),
-		Body: strings.TrimSpace(input.Body), Status: input.Status, Revision: input.ExpectedRevision + 1, CreatedAt: current.CreatedAt, UpdatedAt: s.now().UTC(), CreatedByUserID: current.CreatedByUserID,
+		ID: current.ID, Name: name, Channel: input.Channel, Subject: subject, Title: title,
+		Body: body, Status: input.Status, Revision: input.ExpectedRevision + 1, CreatedAt: current.CreatedAt, UpdatedAt: s.now().UTC(), CreatedByUserID: current.CreatedByUserID,
 	}, input.ExpectedRevision)
 	if err != nil {
 		return nil, err
@@ -312,11 +316,23 @@ func validateCampaignContent(name string, channel CampaignChannel, subject, titl
 
 func campaignText(value string, limit int) bool {
 	value = strings.TrimSpace(value)
-	return value != "" && len([]byte(value)) <= limit && utf8.ValidString(value) && !strings.ContainsRune(value, 0)
+	return value != "" && utf8.ValidString(value) && utf8.RuneCountInString(value) <= limit && !strings.ContainsRune(value, 0)
 }
 
 func campaignOptionalText(value *string, limit int) bool {
 	return value != nil && campaignText(*value, limit)
+}
+
+func normalizeCampaignOptionalText(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	normalized := strings.TrimSpace(*value)
+	return &normalized
+}
+
+func uuidPointer(value uuid.UUID) *uuid.UUID {
+	return &value
 }
 
 func isMutableCampaignStatus(status CampaignStatus) bool {

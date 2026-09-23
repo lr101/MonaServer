@@ -400,6 +400,11 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminSe
 	store := service.NewProductionAdminStore(queries)
 	audiences := service.NewAdminAudienceService(store)
 	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
+	// The database-backed read/snapshot/job projections are live, but no
+	// concrete provider, eligibility, fenced lease, and audit execution bundle
+	// is deployed yet. Keep all action mutations fail-closed before they can
+	// persist a pending job; list/detail reads remain available.
+	jobs.SetExecutionReady(false)
 	servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
 	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
 	servicers.audiences = handler.NewAdminAudienceServicer(audiences)

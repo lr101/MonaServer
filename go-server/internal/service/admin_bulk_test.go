@@ -33,6 +33,19 @@ func TestBulkCommitRejectsChangedPayloadAndEmptySelection(t *testing.T) {
 	}
 }
 
+func TestBulkProductionGateRejectsNewActionBeforePersistence(t *testing.T) {
+	store := NewMemoryAdminStore()
+	bulk := NewAdminBulkService(store, NewAdminAudienceService(store), nil)
+	bulk.SetExecutionReady(false)
+
+	if _, err := bulk.Create(context.Background(), AdminActor{}, AdminJobCreateRequest{}); !errors.Is(err, ErrActionUnavailable) {
+		t.Fatalf("disabled execution create error = %v, want action unavailable", err)
+	}
+	if len(store.Jobs) != 0 {
+		t.Fatalf("disabled execution persisted %d jobs", len(store.Jobs))
+	}
+}
+
 func TestBulkJobExecutionRechecksActorAndDoesNotRepeatCompletedItems(t *testing.T) {
 	store := NewMemoryAdminStore()
 	actorID := uuid.New()

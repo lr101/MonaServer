@@ -24,7 +24,7 @@ type Campaign struct {
 	Revision        int64
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
-	CreatedByUserID uuid.UUID
+	CreatedByUserID *uuid.UUID
 }
 
 type CampaignParams struct {
@@ -56,7 +56,7 @@ type CampaignQuery struct {
 func campaignFromRow(row dbgen.Campaign) Campaign {
 	return Campaign{
 		ID: goUUID(row.ID), Name: row.Name, Channel: row.Channel, Subject: goText(row.Subject), Title: goText(row.Title), Body: row.Body,
-		Status: row.Status, Revision: row.Revision, CreatedAt: timeFromPG(row.CreatedAt), UpdatedAt: timeFromPG(row.UpdatedAt), CreatedByUserID: goUUID(row.CreatedByUserID),
+		Status: row.Status, Revision: row.Revision, CreatedAt: timeFromPG(row.CreatedAt), UpdatedAt: timeFromPG(row.UpdatedAt), CreatedByUserID: uuidPtrFromPG(row.CreatedByUserID),
 	}
 }
 

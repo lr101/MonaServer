@@ -78,6 +78,7 @@ type AdminJobItem struct {
 	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	DeviceCount       int32              `json:"device_count"`
 }
 
 type AdminLoginChallenge struct {

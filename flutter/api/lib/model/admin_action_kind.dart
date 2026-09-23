@@ -34,6 +34,7 @@ class AdminActionKind {
   static const jobsPeriodControl = AdminActionKind._(r'jobs.control');
   static const messagesPeriodTest = AdminActionKind._(r'messages.test');
   static const reportsPeriodReview = AdminActionKind._(r'reports.review');
+  static const campaignsPeriodWrite = AdminActionKind._(r'campaigns.write');
 
   /// List of all possible values in this [enum][AdminActionKind].
   static const values = <AdminActionKind>[
@@ -48,6 +49,7 @@ class AdminActionKind {
     jobsPeriodControl,
     messagesPeriodTest,
     reportsPeriodReview,
+    campaignsPeriodWrite,
   ];
 
   static AdminActionKind? fromJson(dynamic value) => AdminActionKindTypeTransformer().decode(value);
@@ -97,6 +99,7 @@ class AdminActionKindTypeTransformer {
         case r'jobs.control': return AdminActionKind.jobsPeriodControl;
         case r'messages.test': return AdminActionKind.messagesPeriodTest;
         case r'reports.review': return AdminActionKind.reportsPeriodReview;
+        case r'campaigns.write': return AdminActionKind.campaignsPeriodWrite;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

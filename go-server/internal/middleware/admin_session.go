@@ -415,7 +415,7 @@ func AdminCORS(allowedOrigin string) func(http.Handler) http.Handler {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Add("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, Idempotency-Key")
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			}
 			if r.Method == http.MethodOptions {
 				if origin == "" || origin != allowedOrigin {

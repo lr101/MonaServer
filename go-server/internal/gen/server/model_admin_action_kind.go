@@ -29,6 +29,7 @@ const (
 	JOBS_CONTROL     AdminActionKind = "jobs.control"
 	MESSAGES_TEST    AdminActionKind = "messages.test"
 	REPORTS_REVIEW   AdminActionKind = "reports.review"
+	CAMPAIGNS_WRITE  AdminActionKind = "campaigns.write"
 )
 
 // AllowedAdminActionKindEnumValues is all the allowed values of AdminActionKind enum
@@ -44,6 +45,7 @@ var AllowedAdminActionKindEnumValues = []AdminActionKind{
 	"jobs.control",
 	"messages.test",
 	"reports.review",
+	"campaigns.write",
 }
 
 // validAdminActionKindEnumValue provides a map of AdminActionKinds for fast verification of use input
@@ -59,6 +61,7 @@ var validAdminActionKindEnumValues = map[AdminActionKind]struct{}{
 	"jobs.control":     {},
 	"messages.test":    {},
 	"reports.review":   {},
+	"campaigns.write":  {},
 }
 
 // IsValid return true if the value is valid for the enum, false otherwise

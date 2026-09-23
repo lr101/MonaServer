@@ -58,6 +58,12 @@ String parameterToString(dynamic value) {
   if (value is AdminActionKind) {
     return AdminActionKindTypeTransformer().encode(value).toString();
   }
+  if (value is AdminCampaignChannel) {
+    return AdminCampaignChannelTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminCampaignStatus) {
+    return AdminCampaignStatusTypeTransformer().encode(value).toString();
+  }
   if (value is AdminJobStatus) {
     return AdminJobStatusTypeTransformer().encode(value).toString();
   }

@@ -25,7 +25,7 @@ func TestAdminCampaignsServicerEnforcesCapabilitiesCSRFAndLifecycle(t *testing.T
 		t.Fatalf("create response = %#v, %v", created, err)
 	}
 	campaign, ok := created.Body.(genserver.AdminCampaignDto)
-	if !ok || campaign.CreatedByUserId != actorID.String() || campaign.Revision != 1 {
+	if !ok || campaign.CreatedByUserId == nil || *campaign.CreatedByUserId != actorID.String() || campaign.Revision != 1 {
 		t.Fatalf("create body = %#v", created.Body)
 	}
 

@@ -50,12 +50,19 @@ func (s *ProductionCampaignStore) CreateCampaign(ctx context.Context, campaign C
 	}
 	row, err := s.queries.CreateCampaign(ctx, db.CampaignParams{
 		ID: campaign.ID, Name: campaign.Name, Channel: string(campaign.Channel), Subject: campaign.Subject, Title: campaign.Title,
-		Body: campaign.Body, Status: string(campaign.Status), CreatedByUserID: campaign.CreatedByUserID,
+		Body: campaign.Body, Status: string(campaign.Status), CreatedByUserID: dereferenceUUID(campaign.CreatedByUserID),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return campaignFromDB(*row), nil
+}
+
+func dereferenceUUID(value *uuid.UUID) uuid.UUID {
+	if value == nil {
+		return uuid.Nil
+	}
+	return *value
 }
 
 func (s *ProductionCampaignStore) UpdateCampaignIfRevision(ctx context.Context, campaign Campaign, expectedRevision int64) (*Campaign, bool, error) {

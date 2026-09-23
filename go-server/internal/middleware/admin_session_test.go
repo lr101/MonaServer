@@ -117,6 +117,23 @@ func TestAdminCORSAllowsCredentialsOnlyForConfiguredOrigin(t *testing.T) {
 	}
 }
 
+func TestAdminCORSAllowsCredentialedCampaignDeletePreflight(t *testing.T) {
+	preflight := httptest.NewRequest(http.MethodOptions, "/api/v3/admin/campaigns/campaign-id", nil)
+	preflight.Header.Set("Origin", "https://admin.example")
+	preflight.Header.Set("Access-Control-Request-Method", http.MethodDelete)
+	preflight.Header.Set("Access-Control-Request-Headers", "Content-Type, X-CSRF-Token")
+	recorder := httptest.NewRecorder()
+	AdminCORS("https://admin.example")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("preflight reached the protected handler")
+	})).ServeHTTP(recorder, preflight)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", recorder.Code)
+	}
+	if !strings.Contains(recorder.Header().Get("Access-Control-Allow-Methods"), http.MethodDelete) {
+		t.Fatalf("allow methods = %q, want DELETE", recorder.Header().Get("Access-Control-Allow-Methods"))
+	}
+}
+
 func TestTrustedRealIPRejectsSpoofedForwardedHeaders(t *testing.T) {
 	var got string
 	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {

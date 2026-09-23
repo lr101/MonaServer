@@ -284,7 +284,7 @@ func (q *Queries) ListAdminRuntimeJobItems(ctx context.Context, jobID uuid.UUID,
 	}
 	items := make([]AdminJobItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, adminJobItemFromRow(row))
+		items = append(items, adminJobItemFromRuntimeRow(row))
 	}
 	return items, nil
 }

@@ -105,6 +105,8 @@ WHERE (sqlc.narg('after_id')::uuid IS NULL OR report.id > sqlc.narg('after_id'):
   AND (COALESCE(array_length(sqlc.arg('statuses')::text[], 1), 0) = 0 OR report.status = ANY(sqlc.arg('statuses')::text[]))
   AND (COALESCE(array_length(sqlc.arg('target_types')::text[], 1), 0) = 0 OR coalesce(report.target_kind, '') = ANY(sqlc.arg('target_types')::text[]))
   AND (sqlc.narg('assignee_user_id')::uuid IS NULL OR report.assignee_user_id = sqlc.narg('assignee_user_id')::uuid)
+  AND (sqlc.narg('created_after')::timestamptz IS NULL OR report.created_at >= sqlc.narg('created_after')::timestamptz)
+  AND (sqlc.narg('created_before')::timestamptz IS NULL OR report.created_at < sqlc.narg('created_before')::timestamptz)
 ORDER BY report.id ASC
 LIMIT sqlc.arg('page_limit')::integer
 OFFSET sqlc.arg('page_offset')::integer;
@@ -115,7 +117,9 @@ FROM reports report
 WHERE (COALESCE(array_length(sqlc.arg('selected_ids')::uuid[], 1), 0) = 0 OR report.id = ANY(sqlc.arg('selected_ids')::uuid[]))
   AND (COALESCE(array_length(sqlc.arg('statuses')::text[], 1), 0) = 0 OR report.status = ANY(sqlc.arg('statuses')::text[]))
   AND (COALESCE(array_length(sqlc.arg('target_types')::text[], 1), 0) = 0 OR coalesce(report.target_kind, '') = ANY(sqlc.arg('target_types')::text[]))
-  AND (sqlc.narg('assignee_user_id')::uuid IS NULL OR report.assignee_user_id = sqlc.narg('assignee_user_id')::uuid);
+  AND (sqlc.narg('assignee_user_id')::uuid IS NULL OR report.assignee_user_id = sqlc.narg('assignee_user_id')::uuid)
+  AND (sqlc.narg('created_after')::timestamptz IS NULL OR report.created_at >= sqlc.narg('created_after')::timestamptz)
+  AND (sqlc.narg('created_before')::timestamptz IS NULL OR report.created_at < sqlc.narg('created_before')::timestamptz);
 
 -- name: ListAdminRuntimeAuditEvents :many
 SELECT id, actor_id, target_account_id, action, reason, outcome, metadata, created_at
@@ -139,7 +143,7 @@ ORDER BY id ASC
 LIMIT sqlc.arg('page_limit')::integer;
 
 -- name: ListAdminRuntimeJobItems :many
-SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+SELECT id, job_id, target_id, device_id, device_count, outcome, error_code, provider_reference,
        attempt_count, lease_owner, lease_token, lease_until, completed_at,
        created_at, updated_at
 FROM admin_job_items

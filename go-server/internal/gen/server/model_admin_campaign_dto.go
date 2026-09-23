@@ -23,7 +23,7 @@ type AdminCampaignDto struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 
-	CreatedByUserId string `json:"createdByUserId"`
+	CreatedByUserId *string `json:"createdByUserId,omitempty"`
 
 	Id string `json:"id"`
 
@@ -43,15 +43,14 @@ type AdminCampaignDto struct {
 // AssertAdminCampaignDtoRequired checks if the required fields are not zero-ed
 func AssertAdminCampaignDtoRequired(obj AdminCampaignDto) error {
 	elements := map[string]interface{}{
-		"body":            obj.Body,
-		"channel":         obj.Channel,
-		"createdAt":       obj.CreatedAt,
-		"createdByUserId": obj.CreatedByUserId,
-		"id":              obj.Id,
-		"name":            obj.Name,
-		"revision":        obj.Revision,
-		"status":          obj.Status,
-		"updatedAt":       obj.UpdatedAt,
+		"body":      obj.Body,
+		"channel":   obj.Channel,
+		"createdAt": obj.CreatedAt,
+		"id":        obj.Id,
+		"name":      obj.Name,
+		"revision":  obj.Revision,
+		"status":    obj.Status,
+		"updatedAt": obj.UpdatedAt,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

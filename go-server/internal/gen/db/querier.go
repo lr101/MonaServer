@@ -80,7 +80,8 @@ type Querier interface {
 	CreateAdminSession(ctx context.Context, arg CreateAdminSessionParams) error
 	CreateAudienceSnapshot(ctx context.Context, arg CreateAudienceSnapshotParams) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
-	// Campaign operations.
+	// Content-only campaign persistence. Campaigns have no audience, provider,
+	// queue, recipient, or delivery state in this release.
 	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
 	// Delivery attempts ---------------------------------------------------------
 	CreateDeliveryAttempt(ctx context.Context, arg CreateDeliveryAttemptParams) error
@@ -101,7 +102,7 @@ type Querier interface {
 	CreateSecurityIncident(ctx context.Context, arg CreateSecurityIncidentParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error)
 	CreateUserSeason(ctx context.Context, arg CreateUserSeasonParams) error
-	DeleteCampaignIfRevision(ctx context.Context, arg DeleteCampaignIfRevisionParams) (pgtype.UUID, error)
+	DeleteCampaignIfRevision(ctx context.Context, arg DeleteCampaignIfRevisionParams) (int64, error)
 	DeleteEmailLoginClaim(ctx context.Context, canonicalEmail string) error
 	DeleteExpiredAccountActionTokens(ctx context.Context, arg DeleteExpiredAccountActionTokensParams) error
 	DeleteExpiredAudienceSnapshots(ctx context.Context, expiresAt pgtype.Timestamptz) error
@@ -124,7 +125,7 @@ type Querier interface {
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
-	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (AdminJobItem, error)
+	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (GetAdminJobItemRow, error)
 	GetAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
 	GetAdminMFAReplayCounter(ctx context.Context, sessionID pgtype.UUID) (AdminMfaReplayCounter, error)
 	// The replay scope is membership/user enrollment scoped and therefore shared
@@ -192,14 +193,14 @@ type Querier interface {
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
 	ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error)
-	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]AdminJobItem, error)
+	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]ListAdminJobItemsRow, error)
 	ListAdminJobs(ctx context.Context, arg ListAdminJobsParams) ([]AdminJob, error)
 	// Bounded production projections used by the browser-admin runtime adapter.
 	// The service layer owns authorization; these queries deliberately keep all
 	// filtering, counting, and page limits in PostgreSQL.
 	ListAdminRuntimeAccounts(ctx context.Context, arg ListAdminRuntimeAccountsParams) ([]ListAdminRuntimeAccountsRow, error)
 	ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdminRuntimeAuditEventsParams) ([]AuditEvent, error)
-	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]AdminJobItem, error)
+	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]ListAdminRuntimeJobItemsRow, error)
 	ListAdminRuntimeJobs(ctx context.Context, arg ListAdminRuntimeJobsParams) ([]AdminJob, error)
 	ListAdminRuntimeReports(ctx context.Context, arg ListAdminRuntimeReportsParams) ([]ListAdminRuntimeReportsRow, error)
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)

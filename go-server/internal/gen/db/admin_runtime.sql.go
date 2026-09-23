@@ -68,13 +68,17 @@ WHERE (COALESCE(array_length($1::uuid[], 1), 0) = 0 OR report.id = ANY($1::uuid[
   AND (COALESCE(array_length($2::text[], 1), 0) = 0 OR report.status = ANY($2::text[]))
   AND (COALESCE(array_length($3::text[], 1), 0) = 0 OR coalesce(report.target_kind, '') = ANY($3::text[]))
   AND ($4::uuid IS NULL OR report.assignee_user_id = $4::uuid)
+  AND ($5::timestamptz IS NULL OR report.created_at >= $5::timestamptz)
+  AND ($6::timestamptz IS NULL OR report.created_at < $6::timestamptz)
 `
 
 type CountAdminRuntimeReportsParams struct {
-	SelectedIds    []pgtype.UUID `json:"selected_ids"`
-	Statuses       []string      `json:"statuses"`
-	TargetTypes    []string      `json:"target_types"`
-	AssigneeUserID pgtype.UUID   `json:"assignee_user_id"`
+	SelectedIds    []pgtype.UUID      `json:"selected_ids"`
+	Statuses       []string           `json:"statuses"`
+	TargetTypes    []string           `json:"target_types"`
+	AssigneeUserID pgtype.UUID        `json:"assignee_user_id"`
+	CreatedAfter   pgtype.Timestamptz `json:"created_after"`
+	CreatedBefore  pgtype.Timestamptz `json:"created_before"`
 }
 
 func (q *Queries) CountAdminRuntimeReports(ctx context.Context, arg CountAdminRuntimeReportsParams) (int64, error) {
@@ -83,6 +87,8 @@ func (q *Queries) CountAdminRuntimeReports(ctx context.Context, arg CountAdminRu
 		arg.Statuses,
 		arg.TargetTypes,
 		arg.AssigneeUserID,
+		arg.CreatedAfter,
+		arg.CreatedBefore,
 	)
 	var column_1 int64
 	err := row.Scan(&column_1)
@@ -347,7 +353,7 @@ func (q *Queries) ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdmin
 }
 
 const listAdminRuntimeJobItems = `-- name: ListAdminRuntimeJobItems :many
-SELECT id, job_id, target_id, device_id, outcome, error_code, provider_reference,
+SELECT id, job_id, target_id, device_id, device_count, outcome, error_code, provider_reference,
        attempt_count, lease_owner, lease_token, lease_until, completed_at,
        created_at, updated_at
 FROM admin_job_items
@@ -363,20 +369,39 @@ type ListAdminRuntimeJobItemsParams struct {
 	PageLimit int32       `json:"page_limit"`
 }
 
-func (q *Queries) ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]AdminJobItem, error) {
+type ListAdminRuntimeJobItemsRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	JobID             pgtype.UUID        `json:"job_id"`
+	TargetID          pgtype.UUID        `json:"target_id"`
+	DeviceID          pgtype.UUID        `json:"device_id"`
+	DeviceCount       int32              `json:"device_count"`
+	Outcome           string             `json:"outcome"`
+	ErrorCode         pgtype.Text        `json:"error_code"`
+	ProviderReference pgtype.Text        `json:"provider_reference"`
+	AttemptCount      int32              `json:"attempt_count"`
+	LeaseOwner        pgtype.Text        `json:"lease_owner"`
+	LeaseToken        pgtype.UUID        `json:"lease_token"`
+	LeaseUntil        pgtype.Timestamptz `json:"lease_until"`
+	CompletedAt       pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]ListAdminRuntimeJobItemsRow, error) {
 	rows, err := q.db.Query(ctx, listAdminRuntimeJobItems, arg.JobID, arg.AfterID, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AdminJobItem
+	var items []ListAdminRuntimeJobItemsRow
 	for rows.Next() {
-		var i AdminJobItem
+		var i ListAdminRuntimeJobItemsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.JobID,
 			&i.TargetID,
 			&i.DeviceID,
+			&i.DeviceCount,
 			&i.Outcome,
 			&i.ErrorCode,
 			&i.ProviderReference,
@@ -471,19 +496,23 @@ WHERE ($1::uuid IS NULL OR report.id > $1::uuid)
   AND (COALESCE(array_length($3::text[], 1), 0) = 0 OR report.status = ANY($3::text[]))
   AND (COALESCE(array_length($4::text[], 1), 0) = 0 OR coalesce(report.target_kind, '') = ANY($4::text[]))
   AND ($5::uuid IS NULL OR report.assignee_user_id = $5::uuid)
+  AND ($6::timestamptz IS NULL OR report.created_at >= $6::timestamptz)
+  AND ($7::timestamptz IS NULL OR report.created_at < $7::timestamptz)
 ORDER BY report.id ASC
-LIMIT $7::integer
-OFFSET $6::integer
+LIMIT $9::integer
+OFFSET $8::integer
 `
 
 type ListAdminRuntimeReportsParams struct {
-	AfterID        pgtype.UUID   `json:"after_id"`
-	SelectedIds    []pgtype.UUID `json:"selected_ids"`
-	Statuses       []string      `json:"statuses"`
-	TargetTypes    []string      `json:"target_types"`
-	AssigneeUserID pgtype.UUID   `json:"assignee_user_id"`
-	PageOffset     int32         `json:"page_offset"`
-	PageLimit      int32         `json:"page_limit"`
+	AfterID        pgtype.UUID        `json:"after_id"`
+	SelectedIds    []pgtype.UUID      `json:"selected_ids"`
+	Statuses       []string           `json:"statuses"`
+	TargetTypes    []string           `json:"target_types"`
+	AssigneeUserID pgtype.UUID        `json:"assignee_user_id"`
+	CreatedAfter   pgtype.Timestamptz `json:"created_after"`
+	CreatedBefore  pgtype.Timestamptz `json:"created_before"`
+	PageOffset     int32              `json:"page_offset"`
+	PageLimit      int32              `json:"page_limit"`
 }
 
 type ListAdminRuntimeReportsRow struct {
@@ -500,6 +529,8 @@ func (q *Queries) ListAdminRuntimeReports(ctx context.Context, arg ListAdminRunt
 		arg.Statuses,
 		arg.TargetTypes,
 		arg.AssigneeUserID,
+		arg.CreatedAfter,
+		arg.CreatedBefore,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

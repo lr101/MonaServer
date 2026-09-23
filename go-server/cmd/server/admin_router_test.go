@@ -51,9 +51,11 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		HMACKey:       []byte("router-admin-quota-key"),
 		AdminOrigin:   "https://admin.example",
 	})
-	currentNow := time.Now().UTC().Truncate(time.Second)
+	// Keep two successive TOTP windows behind wall time so middleware also
+	// considers each action-bound step-up recent during this route test.
+	currentNow := time.Now().UTC().Add(-90 * time.Second).Truncate(time.Second)
 	admin.SetClock(func() time.Time { return currentNow })
-	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "reports.read", "campaign.email"})
+	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "reports.read", "campaigns.read", "campaigns.write", "campaign.email"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
@@ -162,8 +164,73 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	usersReq.AddCookie(authCookie)
 	users := httptest.NewRecorder()
 	r.ServeHTTP(users, usersReq)
-	if users.Code != http.StatusServiceUnavailable {
+	if users.Code != http.StatusOK {
 		t.Fatalf("authenticated users status = %d, body = %s", users.Code, users.Body.String())
+	}
+	var userPage genserver.AdminUserPageDto
+	if err := json.Unmarshal(users.Body.Bytes(), &userPage); err != nil || len(userPage.Items) != 1 || userPage.Items[0].Username != "router-operator" {
+		t.Fatalf("authenticated users response = %s err=%v", users.Body.String(), err)
+	}
+
+	campaignListReq := newRequest(http.MethodGet, "/api/v3/admin/campaigns", "")
+	campaignListReq.AddCookie(authCookie)
+	campaignList := httptest.NewRecorder()
+	r.ServeHTTP(campaignList, campaignListReq)
+	if campaignList.Code != http.StatusOK {
+		t.Fatalf("campaign list status = %d, body = %s", campaignList.Code, campaignList.Body.String())
+	}
+	campaignBody := `{"name":"Router campaign","channel":"email","subject":"Hello","body":"Message","status":"draft"}`
+	campaignBeforeMFAReq := newRequest(http.MethodPost, "/api/v3/admin/campaigns", campaignBody)
+	campaignBeforeMFAReq.AddCookie(authCookie)
+	campaignBeforeMFAReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	campaignBeforeMFA := httptest.NewRecorder()
+	r.ServeHTTP(campaignBeforeMFA, campaignBeforeMFAReq)
+	assertV3RuntimeError(t, campaignBeforeMFA, http.StatusForbidden, "recent_mfa_required")
+
+	campaignCodeAt := currentNow.Truncate(30 * time.Second).Add(30 * time.Second)
+	campaignCode, _ := service.GenerateTOTP(secret, campaignCodeAt)
+	campaignStepReq := newRequest(http.MethodPost, "/api/v3/admin/session/reauthenticate", `{"action":"campaigns.write","code":"`+campaignCode+`"}`)
+	campaignStepReq.AddCookie(authCookie)
+	campaignStepReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	campaignStep := httptest.NewRecorder()
+	r.ServeHTTP(campaignStep, campaignStepReq)
+	if campaignStep.Code != http.StatusOK {
+		t.Fatalf("campaign step-up status = %d, body = %s", campaignStep.Code, campaignStep.Body.String())
+	}
+	if err := json.Unmarshal(campaignStep.Body.Bytes(), &session); err != nil || session.CSRFToken == "" {
+		t.Fatalf("campaign step-up response = %s err=%v", campaignStep.Body.String(), err)
+	}
+	campaignCookies := campaignStep.Result().Cookies()
+	if len(campaignCookies) != 1 {
+		t.Fatalf("campaign step-up cookies = %#v", campaignCookies)
+	}
+	authCookie = campaignCookies[0]
+	campaignCreateReq := newRequest(http.MethodPost, "/api/v3/admin/campaigns", campaignBody)
+	campaignCreateReq.AddCookie(authCookie)
+	campaignCreateReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	campaignCreate := httptest.NewRecorder()
+	r.ServeHTTP(campaignCreate, campaignCreateReq)
+	if campaignCreate.Code != http.StatusCreated {
+		t.Fatalf("campaign create status = %d, body = %s", campaignCreate.Code, campaignCreate.Body.String())
+	}
+	var createdCampaign genserver.AdminCampaignDto
+	if err := json.Unmarshal(campaignCreate.Body.Bytes(), &createdCampaign); err != nil || createdCampaign.Revision != 1 || createdCampaign.Name != "Router campaign" {
+		t.Fatalf("campaign create response = %s err=%v", campaignCreate.Body.String(), err)
+	}
+	campaignDeletePreflightReq := newRequest(http.MethodOptions, "/api/v3/admin/campaigns/"+createdCampaign.Id, "")
+	campaignDeletePreflightReq.Header.Set("Access-Control-Request-Method", http.MethodDelete)
+	campaignDeletePreflight := httptest.NewRecorder()
+	r.ServeHTTP(campaignDeletePreflight, campaignDeletePreflightReq)
+	if campaignDeletePreflight.Code != http.StatusNoContent || !strings.Contains(campaignDeletePreflight.Header().Get("Access-Control-Allow-Methods"), http.MethodDelete) {
+		t.Fatalf("campaign DELETE preflight = %d %#v", campaignDeletePreflight.Code, campaignDeletePreflight.Header())
+	}
+	campaignDeleteReq := newRequest(http.MethodDelete, "/api/v3/admin/campaigns/"+createdCampaign.Id, `{"expectedRevision":1}`)
+	campaignDeleteReq.AddCookie(authCookie)
+	campaignDeleteReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	campaignDelete := httptest.NewRecorder()
+	r.ServeHTTP(campaignDelete, campaignDeleteReq)
+	if campaignDelete.Code != http.StatusNoContent {
+		t.Fatalf("campaign delete status = %d, body = %s", campaignDelete.Code, campaignDelete.Body.String())
 	}
 
 	if _, err := service.NewReportService(q).Submit(ctx, service.ReportSubmission{
@@ -212,6 +279,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	// Initial MFA authenticates the browser but carries no mutation action.
 	// A capability-bound step-up is required before the migrated v2 mutation
 	// surface can be used.
+	currentNow = currentNow.Add(30 * time.Second)
 	stepUpCodeAt := currentNow.Truncate(30 * time.Second).Add(30 * time.Second)
 	stepUpCode, _ := service.GenerateTOTP(secret, stepUpCodeAt)
 	stepUpReq := newRequest(http.MethodPost, "/api/v3/admin/session/reauthenticate", `{"action":"email","code":"`+stepUpCode+`"}`)
