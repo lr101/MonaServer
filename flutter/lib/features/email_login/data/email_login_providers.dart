@@ -39,12 +39,11 @@ final emailLoginAdmissionPortProvider = Provider<EmailLoginAdmissionPort>((
   ref,
 ) {
   final global = ref.read(globalDataServiceProvider.notifier);
-  final sessionApi = ref.read(sessionAuthApiProvider);
   return GlobalDataEmailLoginAdmissionAdapter(
     global: global,
     currentData: () => ref.read(globalDataServiceProvider),
-    revoker: (refreshToken) => sessionApi.revokeOwnSession(
-      SessionRevokeRequestDto(refreshToken: refreshToken),
-    ),
+    revoker: (refreshToken) => ref
+        .read(sessionAuthApiProvider)
+        .revokeOwnSession(SessionRevokeRequestDto(refreshToken: refreshToken)),
   );
 });

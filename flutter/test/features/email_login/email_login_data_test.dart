@@ -1,8 +1,11 @@
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_api_adapter.dart';
+import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_session_adapter.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
@@ -169,6 +172,27 @@ void main() {
 
     expect(submitted, 'refresh-token');
   });
+
+  test('admission provider resolves the session API when revoking', () async {
+    final first = _FakeSessionAuthApi();
+    final second = _FakeSessionAuthApi();
+    var current = first;
+    final container = ProviderContainer(
+      overrides: [
+        globalDataServiceProvider.overrideWith(_ProviderGlobalDataService.new),
+        sessionAuthApiProvider.overrideWith((ref) => current),
+      ],
+    );
+    addTearDown(container.dispose);
+    final port = container.read(emailLoginAdmissionPortProvider);
+
+    current = second;
+    container.invalidate(sessionAuthApiProvider);
+    await port.revokeRefreshCredential('refresh-token');
+
+    expect(first.revokedRefreshTokens, isEmpty);
+    expect(second.revokedRefreshTokens, ['refresh-token']);
+  });
 }
 
 EmailLinkExchangeResponseDto _exchangeResponse() =>
@@ -256,5 +280,24 @@ class _FakeGlobalDataService extends GlobalDataService {
     updatedUsername = username;
     this.expectedGeneration = expectedGeneration;
     return true;
+  }
+}
+
+class _ProviderGlobalDataService extends GlobalDataService {
+  @override
+  GlobalDataDto build() => _signedOutData();
+
+  @override
+  bool get cleanupRequired => false;
+}
+
+class _FakeSessionAuthApi extends SessionAuthApi {
+  _FakeSessionAuthApi() : super(ApiClient(basePath: 'https://api.example'));
+
+  final revokedRefreshTokens = <String>[];
+
+  @override
+  Future<void> revokeOwnSession(SessionRevokeRequestDto request) async {
+    revokedRefreshTokens.add(request.refreshToken);
   }
 }
