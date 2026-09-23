@@ -53,3 +53,5 @@ buildDocker.bat
 /secrets/
 /go-server/bin/
 .worktrees/
+# Local agent task briefs, reports, and review artifacts.
+/.superpowers/sdd/
