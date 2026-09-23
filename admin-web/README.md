@@ -25,6 +25,15 @@ docker run --rm --publish 8082:80 monaserver-admin-web
 The image serves only the static application. Route `/api` to `go-server` at
 the gateway or reverse proxy layer.
 
+Pushes to `develop` and `main` publish the smoke-tested image to GitHub
+Container Registry as `ghcr.io/lr101/stick-it-admin-web:<commit-sha>`. The
+corresponding `:develop` and `:main` tags track the current branch head, so a
+deployment can use `image: ghcr.io/lr101/stick-it-admin-web:develop` (or
+`:main`) without building locally. Private packages require a registry login
+with `read:packages` permission. Serve the app over HTTPS and route `/api/` to
+the Go server on the same public origin; set the Go server's `ADMIN_ORIGIN` to
+that exact origin.
+
 The app includes session/MFA, users, reports and notes, campaign content
 records, and audit views. Campaign saves only create or update content records;
 they never schedule or deliver messages. Bulk audience actions, provider
