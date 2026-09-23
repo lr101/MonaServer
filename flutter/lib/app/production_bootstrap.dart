@@ -8,7 +8,6 @@ import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
-import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/firebase_options.dart';
 import 'package:buff_lisa/util/core/cache_migrator.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';

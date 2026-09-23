@@ -31,6 +31,7 @@
 ## Concerns
 
 - Browser E2E was not run because this task did not start the local API stack; the web-specific path is covered by widget, routing, launch, analyzer, and full-suite checks. A production-like browser pass still needs the disposable local stack described in `flutter/AGENTS.md`.
+- Callback detection examines the raw fragment, so malformed callback query material still reaches the scrub attempt. A wholly unparseable URL cannot be passed to browser history replacement; browser `location.href` is expected to be a valid URL, and the capture remains malformed without exposing a token if parsing fails.
 
 ## Commit
 
