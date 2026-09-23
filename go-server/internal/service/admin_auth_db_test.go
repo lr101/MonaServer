@@ -85,6 +85,48 @@ func TestAdminBootstrapMFAReplayAndDemotion(t *testing.T) {
 	}
 }
 
+func TestInitialAdminSetupRequiresProofAndStaysClaimed(t *testing.T) {
+	pool, q := setupPool(t)
+	ctx := context.Background()
+	consumer := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	firstID := createTestUser(t, consumer, "first-operator")
+	createTestUser(t, consumer, "second-operator")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("initial-setup-quota-key"),
+		FirstRunToken: "a-unique-deployment-secret-with-at-least-32-chars",
+	})
+	recorder := httptest.NewRecorder()
+	bootstrapCtx := middleware.WithAdminClientIP(middleware.WithAdminResponseWriter(ctx, recorder), "192.0.2.10")
+	boot, err := admin.BootstrapAdminSession(bootstrapCtx)
+	if err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+	setupCtx := middleware.WithAdminSessionCookie(bootstrapCtx, recorder.Result().Cookies()[0].Value)
+	for _, attempt := range []struct{ username, password, token string }{
+		{"first-operator", "wrong-password", "a-unique-deployment-secret-with-at-least-32-chars"},
+		{"first-operator", "password123", "wrong-deployment-secret-with-at-least-32-chars"},
+	} {
+		if _, err := admin.InitialAdminSetup(setupCtx, boot.CSRFToken, attempt.username, attempt.password, attempt.token); err == nil {
+			t.Fatalf("accepted invalid initial setup proof for %q", attempt.username)
+		}
+	}
+	result, err := admin.InitialAdminSetup(setupCtx, boot.CSRFToken, "first-operator", "password123", "a-unique-deployment-secret-with-at-least-32-chars")
+	if err != nil || result.Secret == "" || result.UserID != firstID {
+		t.Fatalf("initial setup result = %#v, err = %v", result, err)
+	}
+	membership, err := q.GetAdminMembership(ctx, firstID)
+	if err != nil || membership == nil || !membership.Active || len(membership.TotpSecretCiphertext) == 0 || !containsString(membership.Permissions, "campaigns.write") {
+		t.Fatalf("initial membership = %#v, err = %v", membership, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM admin_memberships`); err != nil {
+		t.Fatalf("delete membership: %v", err)
+	}
+	if _, err := admin.InitialAdminSetup(setupCtx, boot.CSRFToken, "second-operator", "password123", "a-unique-deployment-secret-with-at-least-32-chars"); err == nil {
+		t.Fatal("initial setup reopened after membership deletion")
+	}
+}
+
 func TestReloadAdminActorUsesFreshMembershipAndGeneration(t *testing.T) {
 	_, q := setupPool(t)
 	ctx := context.Background()

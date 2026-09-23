@@ -304,6 +304,7 @@ type AdminReportsAPIRouter interface {
 type AdminSessionAPIRouter interface {
 	BootstrapAdminSession(http.ResponseWriter, *http.Request)
 	AdminSessionLogin(http.ResponseWriter, *http.Request)
+	InitialAdminSetup(http.ResponseWriter, *http.Request)
 	CompleteAdminSessionMfa(http.ResponseWriter, *http.Request)
 	ReauthenticateAdminSession(http.ResponseWriter, *http.Request)
 	LogoutAdminSession(http.ResponseWriter, *http.Request)
@@ -377,6 +378,7 @@ type AdminReportsAPIServicer interface {
 type AdminSessionAPIServicer interface {
 	BootstrapAdminSession(context.Context) (ImplResponse, error)
 	AdminSessionLogin(context.Context, string, AdminSessionLoginRequestDto) (ImplResponse, error)
+	InitialAdminSetup(context.Context, string, AdminInitialSetupRequestDto) (ImplResponse, error)
 	CompleteAdminSessionMfa(context.Context, string, AdminMfaRequestDto) (ImplResponse, error)
 	ReauthenticateAdminSession(context.Context, string, AdminReauthenticateRequestDto) (ImplResponse, error)
 	LogoutAdminSession(context.Context, string) (ImplResponse, error)

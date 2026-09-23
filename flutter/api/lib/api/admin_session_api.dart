@@ -75,7 +75,7 @@ class AdminSessionApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminSessionLoginResponseDto',) as AdminSessionLoginResponseDto;
-    
+
     }
     return null;
   }
@@ -123,7 +123,7 @@ class AdminSessionApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminSessionBootstrapDto',) as AdminSessionBootstrapDto;
-    
+
     }
     return null;
   }
@@ -187,7 +187,7 @@ class AdminSessionApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminSessionDto',) as AdminSessionDto;
-    
+
     }
     return null;
   }
@@ -235,7 +235,71 @@ class AdminSessionApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminSessionDto',) as AdminSessionDto;
-    
+
+    }
+    return null;
+  }
+
+  /// Set up the first administrator
+  ///
+  /// Claim one-time first administrator enrollment for an existing password account using a deployment secret and pre-authentication CSRF token. Returns the TOTP secret only once.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  ///
+  /// * [AdminInitialSetupRequestDto] adminInitialSetupRequestDto (required):
+  Future<Response> initialAdminSetupWithHttpInfo(String xCSRFToken, AdminInitialSetupRequestDto adminInitialSetupRequestDto,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/admin/session/initial-setup';
+
+    // ignore: prefer_final_locals
+    Object? postBody = adminInitialSetupRequestDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    headerParams[r'X-CSRF-Token'] = parameterToString(xCSRFToken);
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Set up the first administrator
+  ///
+  /// Claim one-time first administrator enrollment for an existing password account using a deployment secret and pre-authentication CSRF token. Returns the TOTP secret only once.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  ///
+  /// * [AdminInitialSetupRequestDto] adminInitialSetupRequestDto (required):
+  Future<AdminInitialSetupResponseDto?> initialAdminSetup(String xCSRFToken, AdminInitialSetupRequestDto adminInitialSetupRequestDto,) async {
+    final response = await initialAdminSetupWithHttpInfo(xCSRFToken, adminInitialSetupRequestDto,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminInitialSetupResponseDto',) as AdminInitialSetupResponseDto;
+
     }
     return null;
   }
@@ -351,7 +415,7 @@ class AdminSessionApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminSessionDto',) as AdminSessionDto;
-    
+
     }
     return null;
   }

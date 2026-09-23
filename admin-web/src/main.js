@@ -24,14 +24,38 @@ async function start() {
 function render(value) {
   if (value.session === 'unknown') { root.innerHTML = '<div class="loading">Loading admin session…</div>'; return; }
   if (value.session === 'error') { root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Admin unavailable</h1><p>${escape(value.error)}</p><button data-action="retry">Retry</button></section>`; root.querySelector('[data-action="retry"]').addEventListener('click', start); return; }
-  if (value.session === 'login' || value.session === 'mfa') { renderLogin(value); return; }
+  if (value.session === 'login' || value.session === 'mfa' || value.session === 'setup' || value.session === 'setup-complete') { renderLogin(value); return; }
   renderShell(value);
 }
 
 function renderLogin(value) {
   const mfa = value.session === 'mfa';
-  root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Admin workspace</h1><p>${mfa ? 'Enter the authenticator code to continue.' : 'Sign in with your administrator account.'}</p><form id="login-form">${mfa ? '<label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>' : '<label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label>'}<button type="submit" ${value.busy ? 'disabled' : ''}>${value.busy ? 'Working…' : (mfa ? 'Verify MFA' : 'Continue')}</button></form>${value.error ? `<p class="error" role="alert">${escape(value.error)}</p>` : ''}</section>`;
+  if (value.session === 'setup-complete') {
+    root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Save your authenticator key</h1><p>Add this key to your authenticator app now. It is shown only once. You will need a code from that app to sign in.</p><p class="setup-secret"><code>${escape(value.totpSecret)}</code></p><button data-action="setup-done">I saved the key — sign in</button></section>`;
+    root.querySelector('[data-action="setup-done"]').addEventListener('click', () => state.update({ session: 'login', totpSecret: null, error: null }));
+    return;
+  }
+  if (value.session === 'setup') {
+    root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Set up first administrator</h1><p>Use an existing password-enabled account and the one-time setup secret configured on the Go server.</p><form id="setup-form"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><label>Deployment setup secret<input name="setupToken" type="password" autocomplete="off" minlength="32" required></label><button type="submit" ${value.busy ? 'disabled' : ''}>${value.busy ? 'Working…' : 'Create administrator'}</button></form><button class="secondary" data-action="back-to-login">Back to sign in</button>${value.error ? `<p class="error" role="alert">${escape(value.error)}</p>` : ''}</section>`;
+    root.querySelector('#setup-form').addEventListener('submit', submitSetup);
+    root.querySelector('[data-action="back-to-login"]').addEventListener('click', () => state.update({ session: 'login', error: null }));
+    return;
+  }
+  root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Admin workspace</h1><p>${mfa ? 'Enter the authenticator code to continue.' : 'Sign in with your administrator account.'}</p><form id="login-form">${mfa ? '<label>Authenticator code<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>' : '<label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label>'}<button type="submit" ${value.busy ? 'disabled' : ''}>${value.busy ? 'Working…' : (mfa ? 'Verify MFA' : 'Continue')}</button></form>${!mfa ? '<button class="secondary" data-action="show-setup">Set up first administrator</button>' : ''}${value.error ? `<p class="error" role="alert">${escape(value.error)}</p>` : ''}</section>`;
   root.querySelector('#login-form').addEventListener('submit', mfa ? submitMfa : submitLogin);
+  root.querySelector('[data-action="show-setup"]')?.addEventListener('click', () => state.update({ session: 'setup', error: null }));
+}
+
+async function submitSetup(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  state.update({ busy: true, error: null });
+  try {
+    const result = await api.setupInitialAdmin(form.get('username'), form.get('password'), form.get('setupToken'));
+    state.update({ session: 'setup-complete', totpSecret: result.totpSecret, busy: false });
+  } catch (error) {
+    state.update({ busy: false, error: message(error) });
+  }
 }
 
 async function submitLogin(event) { event.preventDefault(); const form = new FormData(event.currentTarget); state.update({ busy: true, error: null }); try { const result = await api.login(form.get('username'), form.get('password')); challengeId = result.challengeId; state.update({ session: 'mfa', busy: false }); } catch (error) { handle(error); } }

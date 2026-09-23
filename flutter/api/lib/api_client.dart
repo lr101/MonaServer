@@ -226,6 +226,10 @@ class ApiClient {
           return AdminCampaignStatusTypeTransformer().decode(value);
         case 'AdminCampaignUpdateRequestDto':
           return AdminCampaignUpdateRequestDto.fromJson(value);
+        case 'AdminInitialSetupRequestDto':
+          return AdminInitialSetupRequestDto.fromJson(value);
+        case 'AdminInitialSetupResponseDto':
+          return AdminInitialSetupResponseDto.fromJson(value);
         case 'AdminJobAcceptedDto':
           return AdminJobAcceptedDto.fromJson(value);
         case 'AdminJobCommandRequestDto':

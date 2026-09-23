@@ -50,6 +50,19 @@ func (s *AdminSessionServicer) AdminSessionLogin(ctx context.Context, csrf strin
 	}), nil
 }
 
+func (s *AdminSessionServicer) InitialAdminSetup(ctx context.Context, csrf string, request genserver.AdminInitialSetupRequestDto) (genserver.ImplResponse, error) {
+	result, err := s.auth.InitialAdminSetup(ctx, csrf, request.Username, request.Password, request.SetupToken)
+	if err != nil {
+		return adminAuthErrorResponse(ctx, err), nil
+	}
+	if writer, ok := middleware.AdminResponseWriter(ctx); ok && writer != nil {
+		writer.Header().Set("Cache-Control", "no-store")
+	}
+	return genserver.Response(http.StatusCreated, genserver.AdminInitialSetupResponseDto{
+		UserId: result.UserID.String(), TotpSecret: result.Secret,
+	}), nil
+}
+
 func (s *AdminSessionServicer) CompleteAdminSessionMfa(ctx context.Context, csrf string, request genserver.AdminMfaRequestDto) (genserver.ImplResponse, error) {
 	result, err := s.auth.CompleteAdminSessionMFA(ctx, csrf, request.ChallengeId, request.Code)
 	if err != nil {

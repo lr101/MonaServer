@@ -315,6 +315,74 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	}
 }
 
+func TestInitialAdminSetupRouteRequiresPreAuthCSRF(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
+	if err := db.RunMigrations(dsn); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := db.NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if _, err := pool.Exec(context.Background(), `TRUNCATE TABLE admin_initial_setup_claims, users CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(pool)
+	hash, err := password.Hash("password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.CreateUser(context.Background(), "first-admin", hash, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	origin := "https://admin.example"
+	auth := service.NewAdminAuth(q, service.AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey: []byte("initial-route-quota-key"),
+		FirstRunToken: "a-unique-deployment-secret-with-at-least-32-chars",
+		AdminOrigin: origin,
+	})
+	r := chi.NewRouter()
+	r.Use(globalCORS(origin))
+	registerV3Routes(r, &config.Config{WebAdminAPI: true, AdminOrigin: origin}, token.NewHelper("consumer-secret", time.Minute), v3RouteLookup{}, "admin", auth, q)
+	request := func(path, body string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.RemoteAddr = "192.0.2.40:1234"
+		req.Header.Set("Origin", origin)
+		return req
+	}
+	bootstrap := httptest.NewRecorder()
+	r.ServeHTTP(bootstrap, request("/api/v3/admin/session/bootstrap", ""))
+	if bootstrap.Code != http.StatusOK || len(bootstrap.Result().Cookies()) != 1 {
+		t.Fatalf("bootstrap status/cookies = %d %#v", bootstrap.Code, bootstrap.Result().Cookies())
+	}
+	var boot struct{ CSRFToken string `json:"csrfToken"` }
+	if err := json.Unmarshal(bootstrap.Body.Bytes(), &boot); err != nil || boot.CSRFToken == "" {
+		t.Fatalf("bootstrap body = %s", bootstrap.Body.String())
+	}
+	path := "/api/v3/admin/session/initial-setup"
+	body := `{"username":"first-admin","password":"password123","setupToken":"a-unique-deployment-secret-with-at-least-32-chars"}`
+	withoutCSRF := request(path, body)
+	withoutCSRF.AddCookie(bootstrap.Result().Cookies()[0])
+	denied := httptest.NewRecorder()
+	r.ServeHTTP(denied, withoutCSRF)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("missing CSRF status = %d, body = %s", denied.Code, denied.Body.String())
+	}
+	valid := request(path, body)
+	valid.AddCookie(bootstrap.Result().Cookies()[0])
+	valid.Header.Set("X-CSRF-Token", boot.CSRFToken)
+	created := httptest.NewRecorder()
+	r.ServeHTTP(created, valid)
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"totpSecret"`) || created.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("initial setup status/body/headers = %d %s %#v", created.Code, created.Body.String(), created.Header())
+	}
+}
+
 func TestWebAdminAPIDisablesMigratedV2AdminSurface(t *testing.T) {
 	r := chi.NewRouter()
 	cfg := &config.Config{WebAdminAPI: false, AdminOrigin: "https://admin.example"}

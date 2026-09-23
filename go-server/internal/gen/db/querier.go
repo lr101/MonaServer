@@ -38,6 +38,11 @@ type Querier interface {
 	// not own that kind.
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
+	// Admin membership and browser sessions ------------------------------------
+	// The singleton claim serializes competing first-run requests. A prior CLI
+	// enrollment marks the deployment claimed too, so web setup cannot grant a
+	// second administrator after an existing one was provisioned.
+	ClaimInitialAdminSetup(ctx context.Context) (bool, error)
 	// Claim one requested item for the T07 action boundary.  The candidate row
 	// lock and lease transition are one statement.  A targeted claim waits for an
 	// in-flight row transition, then rechecks eligibility, so a concurrent worker
@@ -131,7 +136,6 @@ type Querier interface {
 	// The replay scope is membership/user enrollment scoped and therefore shared
 	// by all authenticated browser sessions for the operator.
 	GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
-	// Admin membership and browser sessions ------------------------------------
 	GetAdminMembership(ctx context.Context, userID pgtype.UUID) (AdminMembership, error)
 	GetAdminRuntimeAccount(ctx context.Context, userID pgtype.UUID) (GetAdminRuntimeAccountRow, error)
 	GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (GetAdminSessionByHashRow, error)
@@ -244,6 +248,7 @@ type Querier interface {
 	LockReportTarget(ctx context.Context, dollar_1 string) error
 	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
+	MarkInitialAdminSetupClaimed(ctx context.Context) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
 	// Retention and account cleanup --------------------------------------------
 	// Keep incident and audit rows (their IDs and operational summaries are not

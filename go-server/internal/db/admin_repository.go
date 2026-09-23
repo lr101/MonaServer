@@ -1122,6 +1122,18 @@ func (q *Queries) GetAdminMembership(ctx context.Context, userID uuid.UUID) (*Ad
 	return &v, nil
 }
 
+func (q *Queries) ClaimInitialAdminSetup(ctx context.Context) (bool, error) {
+	claimed, err := q.g.ClaimInitialAdminSetup(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return claimed, err
+}
+
+func (q *Queries) MarkInitialAdminSetupClaimed(ctx context.Context) error {
+	return q.g.MarkInitialAdminSetupClaimed(ctx)
+}
+
 func (q *Queries) UpsertAdminMembership(ctx context.Context, p AdminMembershipParams) error {
 	if p.ID == uuid.Nil || p.UserID == uuid.Nil {
 		return ErrInvalidMembership

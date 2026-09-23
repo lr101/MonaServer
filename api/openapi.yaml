@@ -1722,6 +1722,42 @@ paths:
       - adminSession
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/session/initial-setup:
+    post:
+      description: Claim one-time first administrator enrollment for an existing password account using a deployment secret and pre-authentication CSRF token. Returns the TOTP secret only once.
+      operationId: initialAdminSetup
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminInitialSetupRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminInitialSetupResponseDto"
+          description: First administrator enrolled; TOTP secret must be saved by the operator
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Set up the first administrator
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/session/mfa:
     post:
       description: Complete the one-use MFA challenge and rotate the CSRF token on authentication.
@@ -2981,6 +3017,39 @@ components:
       - csrfToken
       - expiresAt
       - sessionState
+      type: object
+    adminInitialSetupRequestDto:
+      description: Existing account proof and one-time deployment setup secret.
+      properties:
+        username:
+          maxLength: 256
+          minLength: 1
+          type: string
+        password:
+          maxLength: 256
+          minLength: 8
+          type: string
+        setupToken:
+          maxLength: 256
+          minLength: 32
+          type: string
+      required:
+      - username
+      - password
+      - setupToken
+      type: object
+    adminInitialSetupResponseDto:
+      description: One-time TOTP secret returned only after successful initial enrollment.
+      properties:
+        userId:
+          format: uuid
+          type: string
+        totpSecret:
+          minLength: 16
+          type: string
+      required:
+      - userId
+      - totpSecret
       type: object
     adminMfaRequestDto:
       description: One-use TOTP challenge response.

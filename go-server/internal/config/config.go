@@ -30,6 +30,7 @@ type Config struct {
 	AdminTOTPEncryptionKeyID string        `mapstructure:"ADMIN_TOTP_ENCRYPTION_KEY_ID"`
 	AdminSessionHMACKey      string        `mapstructure:"ADMIN_SESSION_HMAC_KEY"`
 	AdminSessionHMACKeyID    string        `mapstructure:"ADMIN_SESSION_HMAC_KEY_ID"`
+	AdminFirstRunToken       string        `mapstructure:"ADMIN_FIRST_RUN_TOKEN"`
 	AdminOrigin              string        `mapstructure:"ADMIN_ORIGIN"`
 	TrustedProxyCIDRs        string        `mapstructure:"TRUSTED_PROXY_CIDRS"`
 	AdminSessionIdleTTL      time.Duration `mapstructure:"ADMIN_SESSION_IDLE_TTL"`
@@ -77,7 +78,7 @@ func Load() (*Config, error) {
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
 		"PUBLIC_EMAIL_LOGIN", "WEB_ADMIN_API",
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
-		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID",
+		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID", "ADMIN_FIRST_RUN_TOKEN",
 		"ADMIN_ORIGIN", "TRUSTED_PROXY_CIDRS",
 		"ADMIN_SESSION_IDLE_TTL", "ADMIN_SESSION_ABSOLUTE_TTL", "ADMIN_CHALLENGE_TTL",
 		"ADMIN_RECENT_MFA_TTL", "ADMIN_PREAUTH_TTL", "ADMIN_LOGIN_FAILURE_LIMIT",

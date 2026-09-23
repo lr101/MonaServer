@@ -13,6 +13,7 @@ Method | HTTP request | Description
 [**bootstrapAdminSession**](AdminSessionApi.md#bootstrapadminsession) | **POST** /api/v3/admin/session/bootstrap | Bootstrap an admin browser session
 [**completeAdminSessionMfa**](AdminSessionApi.md#completeadminsessionmfa) | **POST** /api/v3/admin/session/mfa | Complete admin MFA
 [**getAdminSession**](AdminSessionApi.md#getadminsession) | **GET** /api/v3/admin/session | Restore the current admin session
+[**initialAdminSetup**](AdminSessionApi.md#initialadminsetup) | **POST** /api/v3/admin/session/initial-setup | Set up the first administrator
 [**logoutAdminSession**](AdminSessionApi.md#logoutadminsession) | **POST** /api/v3/admin/session/logout | Log out of the admin session
 [**reauthenticateAdminSession**](AdminSessionApi.md#reauthenticateadminsession) | **POST** /api/v3/admin/session/reauthenticate | Reauthenticate an admin session for a sensitive action
 
@@ -34,7 +35,7 @@ import 'package:openapi/api.dart';
 
 final api_instance = AdminSessionApi();
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-final adminSessionLoginRequestDto = AdminSessionLoginRequestDto(); // AdminSessionLoginRequestDto | 
+final adminSessionLoginRequestDto = AdminSessionLoginRequestDto(); // AdminSessionLoginRequestDto |
 
 try {
     final result = api_instance.adminSessionLogin(xCSRFToken, adminSessionLoginRequestDto);
@@ -48,8 +49,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. | 
- **adminSessionLoginRequestDto** | [**AdminSessionLoginRequestDto**](AdminSessionLoginRequestDto.md)|  | 
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminSessionLoginRequestDto** | [**AdminSessionLoginRequestDto**](AdminSessionLoginRequestDto.md)|  |
 
 ### Return type
 
@@ -122,7 +123,7 @@ import 'package:openapi/api.dart';
 
 final api_instance = AdminSessionApi();
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-final adminMfaRequestDto = AdminMfaRequestDto(); // AdminMfaRequestDto | 
+final adminMfaRequestDto = AdminMfaRequestDto(); // AdminMfaRequestDto |
 
 try {
     final result = api_instance.completeAdminSessionMfa(xCSRFToken, adminMfaRequestDto);
@@ -136,8 +137,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. | 
- **adminMfaRequestDto** | [**AdminMfaRequestDto**](AdminMfaRequestDto.md)|  | 
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminMfaRequestDto** | [**AdminMfaRequestDto**](AdminMfaRequestDto.md)|  |
 
 ### Return type
 
@@ -197,6 +198,55 @@ This endpoint does not need any parameter.
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
+# **initialAdminSetup**
+> AdminInitialSetupResponseDto initialAdminSetup(xCSRFToken, adminInitialSetupRequestDto)
+
+Set up the first administrator
+
+Claim one-time first administrator enrollment for an existing password account using a deployment secret and pre-authentication CSRF token. Returns the TOTP secret only once.
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure API key authorization: adminSession
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKeyPrefix = 'Bearer';
+
+final api_instance = AdminSessionApi();
+final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+final adminInitialSetupRequestDto = AdminInitialSetupRequestDto(); // AdminInitialSetupRequestDto |
+
+try {
+    final result = api_instance.initialAdminSetup(xCSRFToken, adminInitialSetupRequestDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling AdminSessionApi->initialAdminSetup: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminInitialSetupRequestDto** | [**AdminInitialSetupRequestDto**](AdminInitialSetupRequestDto.md)|  |
+
+### Return type
+
+[**AdminInitialSetupResponseDto**](AdminInitialSetupResponseDto.md)
+
+### Authorization
+
+[adminSession](../README.md#adminSession)
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
 # **logoutAdminSession**
 > logoutAdminSession(xCSRFToken)
 
@@ -226,7 +276,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. | 
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
 
 ### Return type
 
@@ -260,7 +310,7 @@ import 'package:openapi/api.dart';
 
 final api_instance = AdminSessionApi();
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-final adminReauthenticateRequestDto = AdminReauthenticateRequestDto(); // AdminReauthenticateRequestDto | 
+final adminReauthenticateRequestDto = AdminReauthenticateRequestDto(); // AdminReauthenticateRequestDto |
 
 try {
     final result = api_instance.reauthenticateAdminSession(xCSRFToken, adminReauthenticateRequestDto);
@@ -274,8 +324,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. | 
- **adminReauthenticateRequestDto** | [**AdminReauthenticateRequestDto**](AdminReauthenticateRequestDto.md)|  | 
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminReauthenticateRequestDto** | [**AdminReauthenticateRequestDto**](AdminReauthenticateRequestDto.md)|  |
 
 ### Return type
 
@@ -291,4 +341,3 @@ Name | Type | Description  | Notes
  - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-

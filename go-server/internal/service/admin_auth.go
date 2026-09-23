@@ -69,6 +69,7 @@ type AdminAuthConfig struct {
 	EncryptionKeyID    string
 	HMACKey            []byte
 	HMACKeyID          string
+	FirstRunToken      string
 	SessionIdleTTL     time.Duration
 	SessionAbsoluteTTL time.Duration
 	ChallengeTTL       time.Duration
@@ -532,6 +533,98 @@ type AdminLoginResult struct {
 	CSRFToken    string
 	SessionState string
 	ExpiresAt    time.Time
+}
+
+// InitialAdminSetup enrolls one existing password account. The deployment
+// token and account password are both required; a durable database claim
+// prevents any later browser enrollment, even if the account is deleted.
+func (a *AdminAuth) InitialAdminSetup(ctx context.Context, csrf, username, plainPassword, setupToken string) (*AdminEnrollmentResult, error) {
+	if a == nil || a.q == nil || len(strings.TrimSpace(a.cfg.FirstRunToken)) < 32 || len(a.cfg.EncryptionKey) == 0 || len(a.cfg.HMACKey) == 0 {
+		return nil, ErrAdminUnavailable
+	}
+	cookie := adminCookie(ctx)
+	if !a.validPreAuthEnvelope(cookie) {
+		return nil, ErrAdminUnauthorized
+	}
+	if !a.validatePreAuthCSRF(cookie, csrf) {
+		return nil, ErrAdminInvalidCSRF
+	}
+	username = strings.TrimSpace(username)
+	if username == "" || plainPassword == "" || len(setupToken) > 256 {
+		return nil, ErrAdminUnauthorized
+	}
+	candidate, err := a.q.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, ErrAdminUnavailable
+	}
+	clientIP := adminClientIP(ctx)
+	if err := a.checkFailedChallengeQuota(ctx, candidateID(candidate), clientIP); err != nil {
+		return nil, err
+	}
+	expected := sha256.Sum256([]byte(a.cfg.FirstRunToken))
+	actual := sha256.Sum256([]byte(setupToken))
+	if !hmac.Equal(expected[:], actual[:]) || candidate == nil {
+		if err := a.admitFailedChallenge(ctx, candidateID(candidate), clientIP); err != nil {
+			return nil, err
+		}
+		return nil, ErrAdminUnauthorized
+	}
+	var result *AdminEnrollmentResult
+	err = a.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		state, err := tx.LockUserSecurity(ctx, candidate.ID)
+		if err != nil {
+			return err
+		}
+		user, err := tx.GetUserByID(ctx, candidate.ID)
+		if err != nil {
+			return err
+		}
+		if state == nil || user == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired || !password.Verify(user.Password, plainPassword) {
+			return ErrAdminUnauthorized
+		}
+		claimed, err := tx.ClaimInitialAdminSetup(ctx)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return ErrAdminUnauthorized
+		}
+		secretText, secret, err := a.GenerateEnrollmentSecret()
+		if err != nil {
+			return err
+		}
+		ciphertext, err := a.encryptTOTP(secret)
+		if err != nil {
+			return err
+		}
+		keyID := a.cfg.EncryptionKeyID
+		enrolledAt := a.currentTime()
+		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+			ID: uuid.New(), UserID: candidate.ID, Permissions: firstRunAdminPermissions(), Active: true,
+			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt,
+		}); err != nil {
+			return err
+		}
+		if err := createAdminAudit(ctx, tx, candidate.ID, "admin_initial_setup", nil, strPtr("enrolled"), nil); err != nil {
+			return err
+		}
+		result = &AdminEnrollmentResult{UserID: candidate.ID, Secret: secretText}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, ErrAdminUnauthorized) {
+			if quotaErr := a.admitFailedChallenge(ctx, candidate.ID, clientIP); quotaErr != nil {
+				return nil, quotaErr
+			}
+			return nil, ErrAdminUnauthorized
+		}
+		return nil, ErrAdminUnavailable
+	}
+	return result, nil
+}
+
+func firstRunAdminPermissions() []string {
+	return []string{"audit.read", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read"}
 }
 
 // BootstrapAdminSession creates a cryptographically bound pre-auth cookie.
@@ -1314,6 +1407,9 @@ func (a *AdminAuth) EnrollAdminOperator(ctx context.Context, username string, pe
 		}
 		if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
 			return ErrAdminForbidden
+		}
+		if err := tx.MarkInitialAdminSetupClaimed(ctx); err != nil {
+			return err
 		}
 		membership, err := tx.GetAdminMembership(ctx, user.ID)
 		if err != nil {

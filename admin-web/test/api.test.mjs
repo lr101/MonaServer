@@ -38,6 +38,21 @@ test('keeps cookies, CSRF in memory, and the pre-auth token across restore 401',
   assert.equal(api.csrf, 'mfa-token');
 });
 
+test('uses the pre-auth CSRF token for one-time admin setup without persisting the TOTP secret', async () => {
+  const { api, calls } = recordingApi([
+    response(200, { csrfToken: 'pre-auth-token' }),
+    response(201, { userId: 'first-user', totpSecret: 'BASE32SECRET' }),
+  ]);
+  await api.bootstrap();
+  const enrollment = await api.setupInitialAdmin('operator', 'password', 'setup-secret');
+  assert.equal(enrollment.totpSecret, 'BASE32SECRET');
+  assert.equal(calls[1].url, 'https://admin.example/api/v3/admin/session/initial-setup');
+  assert.equal(calls[1].options.credentials, 'include');
+  assert.equal(calls[1].options.headers['X-CSRF-Token'], 'pre-auth-token');
+  assert.equal(calls[1].options.body, JSON.stringify({ username: 'operator', password: 'password', setupToken: 'setup-secret' }));
+  assert.equal(api.csrf, 'pre-auth-token');
+});
+
 test('maps bounded CRUD reads and never sends oversized query values', async () => {
   const { api, calls } = recordingApi();
   await api.listUsers({ cursor: 'users-next', limit: 101, search: 'x'.repeat(300), securityStatus: 'normal', verifiedEmail: true });

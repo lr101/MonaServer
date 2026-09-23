@@ -39,3 +39,15 @@ records, and audit views. Campaign saves only create or update content records;
 they never schedule or deliver messages. Bulk audience actions, provider
 delivery, and job execution are intentionally out of scope for this CRUD
 release.
+
+For first-time setup, create a normal password-enabled account using the
+consumer app, then configure the Go container with `ADMIN_FIRST_RUN_TOKEN`
+(generate a unique value with `openssl rand -hex 32`). At the admin login page,
+choose **Set up first administrator** and enter that account's username and
+password plus the deployment secret. Save the displayed TOTP key in an
+authenticator app before leaving the page; it is shown only once. Thereafter,
+sign in with the same username, password, and authenticator code. Remove
+`ADMIN_FIRST_RUN_TOKEN` from the Go container environment and recreate the
+container once setup succeeds. The database permanently closes first-time
+setup after enrollment, including if the first administrator is later deleted.
+There is no default admin account.
