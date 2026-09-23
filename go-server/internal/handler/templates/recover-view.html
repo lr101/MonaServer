@@ -23,7 +23,7 @@
             <label for="matchPassword" class="form-label">Confirm Password</label>
             <input type="password" id="matchPassword" class="form-control" placeholder="Confirm new password">
         </div>
-        <button type="button" onclick="savePass('{{.UserID}}','{{.Token}}')" class="btn btn-primary">Submit</button>
+        <button type="button" onclick="savePass('{{.Token}}')" class="btn btn-primary">Submit</button>
     </form>
     <div id="successMessage" class="mt-3 text-success" style="display:none;">Password has been successfully reset.</div>
     <div id="errorMessage" class="mt-3 text-danger" style="display:none;">Failed to reset password. Please try again.</div>
@@ -31,7 +31,7 @@
 </div>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-function savePass(userId, token) {
+function savePass(token) {
     document.getElementById("successMessage").style.display = "none";
     document.getElementById("errorMessage").style.display = "none";
     document.getElementById("passwordNotMatchMessage").style.display = "none";
@@ -39,9 +39,8 @@ function savePass(userId, token) {
     const confirmPassword = document.getElementById("matchPassword").value;
     if (password === confirmPassword && password.length >= 2 && /^[a-zA-Z]/.test(password)) {
         $.ajax({
-            url: `/api/v2/users/${userId}`, type: 'PUT', contentType: 'application/json',
-            beforeSend: function(xhr) { xhr.setRequestHeader('Authorization', `Bearer ${token}`); },
-            data: JSON.stringify({ password: password }),
+            url: '/api/v3/public/auth/recovery/complete', type: 'POST', contentType: 'application/json',
+            data: JSON.stringify({ token: token, password: password }),
             success: function() { document.getElementById("successMessage").style.display = "block"; document.getElementById("form").remove(); },
             error: function() { document.getElementById("errorMessage").style.display = "block"; }
         });

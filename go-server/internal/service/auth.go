@@ -2,14 +2,17 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/config"
 	"github.com/lrprojects/monaserver/internal/db"
+	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/password"
 	"github.com/lrprojects/monaserver/internal/token"
 )
@@ -21,10 +24,11 @@ type TokenPair struct {
 }
 
 type Auth struct {
-	q    *db.Queries
-	tok  *token.Helper
-	cfg  *config.Config
-	mail *Email
+	q        *db.Queries
+	tok      *token.Helper
+	cfg      *config.Config
+	mail     *Email
+	security *AccountSecurity
 }
 
 func NewAuth(q *db.Queries, tok *token.Helper, cfg *config.Config, mail ...*Email) *Auth {
@@ -32,7 +36,25 @@ func NewAuth(q *db.Queries, tok *token.Helper, cfg *config.Config, mail ...*Emai
 	if len(mail) > 0 {
 		email = mail[0]
 	}
-	return &Auth{q: q, tok: tok, cfg: cfg, mail: email}
+	return &Auth{q: q, tok: tok, cfg: cfg, mail: email, security: NewAccountSecurity(q)}
+}
+
+// Security exposes the shared account-security coordinator for composition
+// code and services that need to share the same recovery enqueue port.
+func (s *Auth) Security() *AccountSecurity {
+	if s.security == nil {
+		s.security = NewAccountSecurity(s.q)
+	}
+	return s.security
+}
+
+// SetSecurity replaces the coordinator used by all credential flows. It is a
+// composition hook for the durable recovery adapter and test doubles.
+func (s *Auth) SetSecurity(security *AccountSecurity) {
+	if security == nil {
+		security = NewAccountSecurity(s.q)
+	}
+	s.security = security
 }
 
 func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *string) (*TokenPair, error) {
@@ -63,7 +85,7 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 				return err
 			}
 		}
-		pair, err = s.issueTokensWithQueries(ctx, q, uid)
+		pair, err = s.Security().IssueTokens(ctx, q, s.tok, uid)
 		return err
 	}); err != nil {
 		return nil, err
@@ -72,60 +94,144 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 }
 
 func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair, error) {
-	u, err := s.q.GetUserByUsername(ctx, username)
+	var pair *TokenPair
+	var authErr error
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		candidate, err := q.GetUserByUsername(ctx, username)
+		if err != nil {
+			return err
+		}
+		if candidate == nil {
+			authErr = apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
+			return nil
+		}
+		state, err := q.LockUserSecurity(ctx, candidate.ID)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted {
+			authErr = apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
+			return nil
+		}
+		// Read the full row after acquiring the lock. The first username read
+		// may have used a snapshot from before a concurrent password or
+		// containment mutation.
+		u, err := q.GetUserByID(ctx, candidate.ID)
+		if err != nil {
+			return err
+		}
+		if u == nil {
+			authErr = apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
+			return nil
+		}
+		maxAttempts := 10
+		if s.cfg != nil && s.cfg.MaxLoginAttempts > 0 {
+			maxAttempts = s.cfg.MaxLoginAttempts
+		}
+		if u.FailedLoginAttempts >= maxAttempts {
+			authErr = apperrors.New(http.StatusForbidden, "account locked")
+			return nil
+		}
+		if u.PasswordDisabled || u.PasswordResetRequired || u.SecurityState != db.SecurityStateNormal {
+			authErr = apperrors.New(http.StatusForbidden, "account locked")
+			return nil
+		}
+		if !password.Verify(u.Password, plainPW) {
+			if err := q.IncrementFailedLogin(ctx, u.ID); err != nil {
+				return err
+			}
+			authErr = apperrors.New(http.StatusBadRequest, "wrong password")
+			return nil
+		}
+		if password.NeedsUpgrade(u.Password) {
+			hash, err := password.Hash(plainPW)
+			if err != nil {
+				return err
+			}
+			if err := q.UpdateUserPassword(ctx, u.ID, hash); err != nil {
+				return err
+			}
+		} else if err := q.ResetFailedLogin(ctx, u.ID); err != nil {
+			return err
+		}
+		pair, err = s.Security().IssueTokens(ctx, q, s.tok, u.ID)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	if u == nil {
-		return nil, apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
+	if authErr != nil {
+		return nil, authErr
 	}
-	if u.FailedLoginAttempts >= s.cfg.MaxLoginAttempts {
-		return nil, apperrors.New(403, "account locked")
-	}
-	if !password.Verify(u.Password, plainPW) {
-		_ = s.q.IncrementFailedLogin(ctx, u.ID)
-		return nil, apperrors.New(400, "wrong password")
-	}
-	if password.NeedsUpgrade(u.Password) {
-		hash, err := password.Hash(plainPW)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.q.UpdateUserPassword(ctx, u.ID, hash); err != nil {
-			return nil, err
-		}
-	} else if err := s.q.ResetFailedLogin(ctx, u.ID); err != nil {
-		return nil, err
-	}
-	return s.issueTokens(ctx, u.ID)
+	return pair, nil
 }
 
 func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPair, error) {
-	stored, err := s.q.FindRefreshToken(ctx, refresh)
-	if err != nil {
+	if userID == uuid.Nil || refresh == uuid.Nil {
 		return nil, apperrors.ErrBadRequest
 	}
-	if stored.UserID != userID {
-		return nil, apperrors.ErrBadRequest
-	}
-	expiry := s.cfg.RefreshTokenExpiry
-	if expiry <= 0 {
-		expiry = 365 * 24 * time.Hour
-	}
-	if stored.LastActiveDate.Add(expiry).Before(time.Now()) {
-		if err := s.q.DeleteRefreshToken(ctx, refresh); err != nil {
-			return nil, err
+	var pair *TokenPair
+	var refreshErr error
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		state, err := q.LockUserSecurity(ctx, userID)
+		if err != nil {
+			return err
 		}
-		return nil, apperrors.New(http.StatusBadRequest, "refresh token expired")
-	}
-	if err := s.q.TouchRefreshToken(ctx, refresh); err != nil {
-		return nil, err
-	}
-	access, err := s.tok.GenerateAccessToken(stored.UserID)
+		if state == nil || state.IsDeleted || state.PasswordDisabled || state.PasswordResetRequired || state.SecurityState != db.SecurityStateNormal {
+			refreshErr = apperrors.ErrBadRequest
+			return nil
+		}
+		stored, err := q.FindRefreshToken(ctx, refresh)
+		if err != nil {
+			if mapped, handled := classifyRefreshLookupError(err); handled {
+				refreshErr = mapped
+				return nil
+			}
+			return err
+		}
+		if stored == nil || stored.UserID != userID {
+			refreshErr = apperrors.ErrBadRequest
+			return nil
+		}
+		expiry := 365 * 24 * time.Hour
+		if s.cfg != nil && s.cfg.RefreshTokenExpiry > 0 {
+			expiry = s.cfg.RefreshTokenExpiry
+		}
+		now := time.Now()
+		if stored.LastActiveDate.Add(expiry).Before(now) {
+			if err := q.DeleteRefreshToken(ctx, refresh); err != nil {
+				return err
+			}
+			refreshErr = apperrors.New(http.StatusBadRequest, "refresh token expired")
+			return nil
+		}
+		if err := q.TouchRefreshToken(ctx, refresh); err != nil {
+			return err
+		}
+		access, err := s.tok.GenerateAccessTokenWithGeneration(userID, state.AuthGeneration)
+		if err != nil {
+			return err
+		}
+		pair = &TokenPair{AccessToken: access, RefreshToken: refresh, UserID: userID}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return &TokenPair{AccessToken: access, RefreshToken: refresh, UserID: stored.UserID}, nil
+	if refreshErr != nil {
+		return nil, refreshErr
+	}
+	return pair, nil
+}
+
+// classifyRefreshLookupError preserves the v2 compatibility response only for
+// an absent credential. Infrastructure and transaction errors must propagate so
+// callers do not misreport an unavailable database as malformed input.
+func classifyRefreshLookupError(err error) (error, bool) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperrors.ErrBadRequest, true
+	}
+	return err, false
 }
 
 func (s *Auth) issueTokens(ctx context.Context, uid uuid.UUID) (*TokenPair, error) {
@@ -133,18 +239,41 @@ func (s *Auth) issueTokens(ctx context.Context, uid uuid.UUID) (*TokenPair, erro
 }
 
 func (s *Auth) issueTokensWithQueries(ctx context.Context, q *db.Queries, uid uuid.UUID) (*TokenPair, error) {
-	access, err := s.tok.GenerateAccessToken(uid)
+	pair, err := s.Security().IssueTokens(ctx, q, s.tok, uid)
 	if err != nil {
-		return nil, fmt.Errorf("sign: %w", err)
+		return nil, fmt.Errorf("issue tokens: %w", err)
 	}
-	refresh, err := q.CreateRefreshToken(ctx, uid)
-	if err != nil {
-		return nil, err
-	}
-	return &TokenPair{AccessToken: access, RefreshToken: refresh, UserID: uid}, nil
+	return pair, nil
 }
 
 // GetUsername implements middleware.UserLookup.
 func (s *Auth) GetUsername(ctx context.Context, id uuid.UUID) (string, error) {
 	return s.q.GetUsernameByID(ctx, id)
+}
+
+// GetSecurityState implements middleware.SecurityLookup. The conversion keeps
+// the middleware independent of the database facade's internal types.
+func (s *Auth) GetSecurityState(ctx context.Context, id uuid.UUID) (*middleware.PrincipalSecurityState, error) {
+	state, err := s.Security().GetSecurityState(ctx, id)
+	if err != nil || state == nil {
+		return nil, err
+	}
+	return &middleware.PrincipalSecurityState{
+		AuthGeneration: state.AuthGeneration, SecurityState: state.SecurityState,
+		PasswordDisabled: state.PasswordDisabled, PasswordResetRequired: state.PasswordResetRequired,
+		IsDeleted: state.IsDeleted,
+	}, nil
+}
+
+// IsAdmin resolves role membership by stable user ID. A configured username is
+// never an authorization grant; ordinary legacy users remain USER principals.
+func (s *Auth) IsAdmin(ctx context.Context, id uuid.UUID) (bool, error) {
+	membership, err := s.q.GetAdminMembership(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if membership != nil {
+		return membership.Active && membership.RevokedAt == nil, nil
+	}
+	return false, nil
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -57,41 +56,6 @@ func (s *AdminServicer) SendNotification(ctx context.Context, dto genserver.Noti
 		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusCreated, nil), nil
-}
-
-// ReportServicer implements genserver.ReportAPIServicer.
-type ReportServicer struct {
-	email *service.Email
-	q     *db.Queries
-}
-
-func NewReportServicer(email *service.Email, q *db.Queries) *ReportServicer {
-	return &ReportServicer{email: email, q: q}
-}
-
-func (s *ReportServicer) CreateReport(ctx context.Context, dto genserver.ReportDto) (genserver.ImplResponse, error) {
-	if s.email == nil {
-		return genserver.Response(http.StatusServiceUnavailable, nil), nil
-	}
-	username := dto.UserId
-	if s.q != nil {
-		userID, err := uuid.Parse(dto.UserId)
-		if err != nil {
-			return genserver.Response(http.StatusBadRequest, nil), nil
-		}
-		user, err := s.q.GetUserByID(ctx, userID)
-		if err != nil {
-			return serviceErrResp(ctx, err), nil
-		}
-		if user == nil {
-			return genserver.Response(http.StatusNotFound, nil), nil
-		}
-		username = user.Username
-	}
-	if err := s.email.SendReport(ctx, username, dto.Report, dto.Message); err != nil {
-		return serviceErrResp(ctx, err), nil
-	}
-	return genserver.Response(http.StatusOK, nil), nil
 }
 
 // PublicServicer implements genserver.PublicAPIServicer.

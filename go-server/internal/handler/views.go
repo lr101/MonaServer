@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
+	"github.com/lrprojects/monaserver/internal/service"
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
@@ -21,13 +22,21 @@ var faviconBytes []byte
 var templates = template.Must(template.ParseFS(tmplFS, "templates/*.html"))
 
 type Views struct {
-	q   *db.Queries
-	tok *token.Helper
+	q           *db.Queries
+	tok         *token.Helper
+	security    *service.AccountSecurity
 	redirectURL string
 }
 
-func NewViews(q *db.Queries, tok *token.Helper, redirectURL string) *Views {
-	return &Views{q: q, tok: tok, redirectURL: redirectURL}
+func NewViews(q *db.Queries, tok *token.Helper, redirectURL string, security ...*service.AccountSecurity) *Views {
+	var coordinator *service.AccountSecurity
+	if len(security) > 0 {
+		coordinator = security[0]
+	}
+	if coordinator == nil {
+		coordinator = service.NewAccountSecurity(q)
+	}
+	return &Views{q: q, tok: tok, security: coordinator, redirectURL: redirectURL}
 }
 
 func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
@@ -41,8 +50,14 @@ func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	tok, _ := v.tok.GenerateAccessToken(u.ID)
-	renderTemplate(w, "recover-view.html", map[string]any{"UserID": u.ID, "Token": tok})
+	// The legacy URL is upgraded only once, under the account lock, into a
+	// current-generation recovery action bound to the account's owned email.
+	action, err := v.security.IssueLegacyActionToken(r.Context(), url, db.ActionTokenPurposeRecovery, 10*time.Minute)
+	if err != nil || action == nil {
+		renderTemplate(w, "404.html", nil)
+		return
+	}
+	renderTemplate(w, "recover-view.html", map[string]any{"UserID": u.ID, "Token": action.Token})
 }
 
 func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
@@ -56,19 +71,22 @@ func (v *Views) DeleteAccountView(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	tok, _ := v.tok.GenerateAccessToken(u.ID)
-	renderTemplate(w, "delete-view.html", map[string]any{"UserID": u.ID, "Username": u.Username, "Token": tok})
+	action, err := v.security.IssueLegacyActionToken(r.Context(), url, db.ActionTokenPurposeDeleteAccount, 10*time.Minute)
+	if err != nil || action == nil {
+		renderTemplate(w, "404.html", nil)
+		return
+	}
+	renderTemplate(w, "delete-view.html", map[string]any{"UserID": u.ID, "Username": u.Username, "Token": action.Token})
 }
 
 func (v *Views) EmailConfirmation(w http.ResponseWriter, r *http.Request) {
 	url := chi.URLParam(r, "url")
-	u, err := v.q.GetUserByEmailConfirmationUrl(r.Context(), url)
-	if err != nil || u == nil {
+	username, err := v.security.ConfirmLegacyEmail(r.Context(), url)
+	if err != nil || username == "" {
 		renderTemplate(w, "404.html", nil)
 		return
 	}
-	_ = v.q.ConfirmUserEmail(r.Context(), u.ID)
-	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": u.Username})
+	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": username})
 }
 
 func (v *Views) RequestDeleteCode(w http.ResponseWriter, r *http.Request) {

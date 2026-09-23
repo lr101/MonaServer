@@ -28,6 +28,26 @@ tags:
   name: ranking
 - description: Bounded authenticated resource reads
   name: Batch
+- description: Consumer email-link authentication and restricted recovery
+  name: publicAuth
+- description: Consumer bearer session operations
+  name: sessionAuth
+- description: Browser admin session and MFA lifecycle
+  name: adminSession
+- description: Admin account search and security state
+  name: adminUsers
+- description: Content-only administrative campaign records
+  name: adminCampaigns
+- description: Explicit admin audience previews and snapshots
+  name: adminAudiences
+- description: Admin durable action jobs and delivery outcomes
+  name: adminJobs
+- description: Admin message validation and test delivery
+  name: adminMessages
+- description: Admin report review and history
+  name: adminReports
+- description: Permission-filtered administrative audit history
+  name: adminAudit
 paths:
   /api/v3/batch:
     post:
@@ -690,6 +710,8 @@ paths:
   /api/v2/report:
     post:
       operationId: createReport
+      parameters:
+      - $ref: "#/components/parameters/reportIdempotencyKey"
       requestBody:
         content:
           application/json:
@@ -697,10 +719,14 @@ paths:
               $ref: "#/components/schemas/reportDto"
         required: true
       responses:
-        "201":
+        "200":
           description: Report submitted successfully
         "400":
           description: User not found
+        "409":
+          $ref: "#/components/responses/conflict"
+        "429":
+          $ref: "#/components/responses/rateLimited"
         "503":
           description: Mail service at the moment not reachable
       security:
@@ -1532,8 +1558,2796 @@ paths:
       summary: Sync all pins and groups based on last seen date
       tags:
       - pins
+  /api/v3/public/auth/email-link/request:
+    post:
+      description: Always returns the same accepted response for eligible and ineligible addresses.
+      operationId: requestEmailLink
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/emailLinkRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/emailLinkRequestAcceptedDto"
+          description: Request accepted without disclosing account eligibility
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security: []
+      summary: Request a one-time email sign-in link
+      tags:
+      - publicAuth
+      x-availability: disabled
+      x-feature-flag: public_email_login
+  /api/v3/public/auth/email-link/exchange:
+    post:
+      description: Exchange an opaque link only through POST; opening or scanning a link does not consume it.
+      operationId: exchangeEmailLink
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/emailLinkExchangeRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/emailLinkExchangeResponseDto"
+          description: Existing account token pair and canonical username
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security: []
+      summary: Exchange a one-time email sign-in link
+      tags:
+      - publicAuth
+      x-availability: disabled
+      x-feature-flag: public_email_login
+  /api/v3/public/auth/recovery/complete:
+    post:
+      description: Complete restricted password recovery with a purpose-limited action token.
+      operationId: completeRecovery
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/recoveryCompleteRequestDto"
+        required: true
+      responses:
+        "204":
+          description: Recovery accepted; a fresh login is required
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security: []
+      summary: Complete restricted account recovery
+      tags:
+      - publicAuth
+      x-availability: disabled
+      x-feature-flag: public_email_login
+  /api/v3/auth/session/revoke:
+    post:
+      description: Revoke only the submitted refresh credential when it belongs to the bearer-authenticated caller.
+      operationId: revokeOwnSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/sessionRevokeRequestDto"
+        required: true
+      responses:
+        "204":
+          description: Credential revoked or already absent; operation is idempotent
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - token: []
+      summary: Revoke the caller's submitted refresh credential
+      tags:
+      - sessionAuth
+      x-availability: disabled
+      x-feature-flag: public_email_login
+  /api/v3/admin/session/bootstrap:
+    post:
+      description: Create or refresh a pre-authentication browser session and issue a CSRF token bound to its challenge.
+      operationId: bootstrapAdminSession
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminSessionBootstrapDto"
+          description: Pre-authentication session and CSRF token
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security: []
+      summary: Bootstrap an admin browser session
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/session/login:
+    post:
+      description: Start the password challenge; this endpoint never issues a consumer JWT or refresh token.
+      operationId: adminSessionLogin
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminSessionLoginRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminSessionLoginResponseDto"
+          description: Password accepted and an MFA challenge is pending
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Begin an admin password and MFA login
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/session/mfa:
+    post:
+      description: Complete the one-use MFA challenge and rotate the CSRF token on authentication.
+      operationId: completeAdminSessionMfa
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminMfaRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminSessionDto"
+          description: Authenticated admin session with capabilities
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Complete admin MFA
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/session/reauthenticate:
+    post:
+      description: Refresh recent MFA freshness for a specific action and rotate the CSRF token.
+      operationId: reauthenticateAdminSession
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminReauthenticateRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminSessionDto"
+          description: Session with renewed recent MFA freshness
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Reauthenticate an admin session for a sensitive action
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/session/logout:
+    post:
+      description: Revoke the opaque admin session and clear its browser cookie.
+      operationId: logoutAdminSession
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      responses:
+        "204":
+          description: Admin session revoked; operation is idempotent
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Log out of the admin session
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/session:
+    get:
+      description: Restore the current admin session and capabilities after a page reload.
+      operationId: getAdminSession
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminSessionDto"
+          description: Current authenticated session
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Restore the current admin session
+      tags:
+      - adminSession
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/users:
+    get:
+      description: Return bounded account records without tokens, password hashes, or other credential material.
+      operationId: listAdminUsers
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      - description: Case-insensitive username, email, or stable ID search.
+        in: query
+        name: search
+        schema:
+          maxLength: 256
+          type: string
+      - description: Restrict results to one security state.
+        in: query
+        name: securityStatus
+        schema:
+          $ref: "#/components/schemas/adminSecurityState"
+      - description: Restrict results by verified-email presence.
+        in: query
+        name: verifiedEmail
+        schema:
+          type: boolean
+      - description: Include accounts created at or after this instant.
+        in: query
+        name: createdAfter
+        schema:
+          format: date-time
+          type: string
+      - description: Include accounts created before this instant.
+        in: query
+        name: createdBefore
+        schema:
+          format: date-time
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminUserPageDto"
+          description: Bounded user page
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Search administrative user records
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}:
+    get:
+      operationId: getAdminUser
+      parameters:
+      - description: Stable account identifier.
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminUserDetailsDto"
+          description: Administrative user details
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Get one administrative user record
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns:
+    get:
+      operationId: listAdminCampaigns
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignPageDto"
+          description: Bounded campaign page
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List content-only campaigns
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    post:
+      operationId: createAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignCreateRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign created without scheduling or delivery
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Create a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}:
+    get:
+      operationId: getAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign details
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Get a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    patch:
+      operationId: updateAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignUpdateRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Revision-checked campaign update
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Update a content-only campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    delete:
+      operationId: deleteAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "204":
+          description: Draft campaign deleted
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Delete a draft campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/campaigns/{campaignId}/archive:
+    post:
+      operationId: archiveAdminCampaign
+      parameters:
+      - $ref: "#/components/parameters/adminCampaignId"
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminCampaignRevisionRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminCampaignDto"
+          description: Campaign archived without delivery
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Archive a campaign
+      tags:
+      - adminCampaigns
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/audiences/preview:
+    post:
+      description: Resolve an explicit account or report audience into an immutable actor/action/payload-bound snapshot.
+      operationId: previewAdminAudience
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminAudiencePreviewRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
+          description: Snapshot preview is ready
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminAudiencePreviewResponseDto"
+          description: Snapshot materialization is queued
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Preview an explicit administrative audience
+      tags:
+      - adminAudiences
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/audiences/{audienceId}:
+    get:
+      operationId: getAdminAudience
+      parameters:
+      - description: Immutable audience snapshot identifier.
+        in: path
+        name: audienceId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminAudiencePageDto"
+          description: Snapshot members and exclusions
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Read an administrative audience snapshot
+      tags:
+      - adminAudiences
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/jobs:
+    get:
+      operationId: listAdminJobs
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      - description: Restrict jobs to a lifecycle state.
+        in: query
+        name: status
+        schema:
+          $ref: "#/components/schemas/adminJobStatus"
+      - description: Restrict jobs to one action.
+        in: query
+        name: action
+        schema:
+          $ref: "#/components/schemas/adminActionKind"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobPageDto"
+          description: Bounded job page
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List administrative action jobs
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    post:
+      description: Commit exactly one unexpired preview snapshot and action. The Idempotency-Key header is required.
+      operationId: createAdminJob
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      - $ref: "#/components/parameters/idempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminJobCreateRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobAcceptedDto"
+          description: Job accepted for durable processing
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Commit an administrative action job
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/jobs/{jobId}:
+    get:
+      operationId: getAdminJob
+      parameters:
+      - description: Durable job identifier.
+        in: path
+        name: jobId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobDto"
+          description: Job status and counts
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Read an administrative job
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/jobs/{jobId}/recipients:
+    get:
+      operationId: listAdminJobRecipients
+      parameters:
+      - description: Durable job identifier.
+        in: path
+        name: jobId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobRecipientPageDto"
+          description: Recipient outcomes without token material
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List job recipient outcomes
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/jobs/{jobId}/retry:
+    post:
+      operationId: retryAdminJob
+      parameters:
+      - description: Durable job identifier.
+        in: path
+        name: jobId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      - $ref: "#/components/parameters/idempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminJobCommandRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobAcceptedDto"
+          description: Eligible failed work queued for retry
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Retry eligible failed job work
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/jobs/{jobId}/cancel:
+    post:
+      operationId: cancelAdminJob
+      parameters:
+      - description: Durable job identifier.
+        in: path
+        name: jobId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      - $ref: "#/components/parameters/idempotencyKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminJobCommandRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminJobAcceptedDto"
+          description: Pending job work cancelled
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Cancel pending job work
+      tags:
+      - adminJobs
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/messages/test:
+    post:
+      description: Validate a message and deliver only to the explicit test recipient; action tokens are never returned.
+      operationId: sendAdminTestMessage
+      parameters:
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminTestMessageRequestDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminTestMessageAcceptedDto"
+          description: Test delivery accepted
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Send an administrative test message
+      tags:
+      - adminMessages
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/reports:
+    get:
+      operationId: listAdminReports
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      - description: Restrict reports to one review state.
+        in: query
+        name: status
+        schema:
+          $ref: "#/components/schemas/adminReportStatus"
+      - description: Search bounded report text or target identity.
+        in: query
+        name: search
+        schema:
+          maxLength: 256
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportPageDto"
+          description: Bounded report inbox page
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List reports for administrative review
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/reports/{reportId}:
+    get:
+      operationId: getAdminReport
+      parameters:
+      - description: Report identifier.
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Optional revision requested by the client.
+        in: query
+        name: revision
+        schema:
+          format: int64
+          minimum: 0
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportDto"
+          description: Report details and bounded history
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Read one report and its notes
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    patch:
+      operationId: updateAdminReport
+      parameters:
+      - description: Report identifier.
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminReportUpdateRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportDto"
+          description: Updated report
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Apply a revision-checked report transition
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/reports/{reportId}/notes:
+    get:
+      operationId: listAdminReportNotes
+      parameters:
+      - description: Report identifier.
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportNotePageDto"
+          description: Complete cursor-paginated report note history
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List all administrative report notes
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+    post:
+      operationId: addAdminReportNote
+      parameters:
+      - description: Report identifier.
+        in: path
+        name: reportId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminReportNoteRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminReportNoteDto"
+          description: Note appended to the report
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Add an administrative report note
+      tags:
+      - adminReports
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/audit:
+    get:
+      operationId: listAdminAudit
+      parameters:
+      - $ref: "#/components/parameters/adminCursor"
+      - $ref: "#/components/parameters/adminLimit"
+      - description: Restrict events to one target account.
+        in: query
+        name: targetUserId
+        schema:
+          format: uuid
+          type: string
+      - description: Restrict events to one action.
+        in: query
+        name: action
+        schema:
+          $ref: "#/components/schemas/adminActionKind"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminAuditPageDto"
+          description: Permission-filtered audit page without secrets
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: List administrative audit events
+      tags:
+      - adminAudit
+      x-availability: disabled
+      x-feature-flag: web_admin_api
 components:
+  parameters:
+    adminCursor:
+      description: Opaque cursor returned by the preceding page.
+      in: query
+      name: cursor
+      required: false
+      schema:
+        maxLength: 512
+        type: string
+    adminLimit:
+      description: Maximum number of records in the page; defaults to 25 and is capped at 100.
+      in: query
+      name: limit
+      required: false
+      schema:
+        default: 25
+        maximum: 100
+        minimum: 1
+        type: integer
+    adminCampaignId:
+      description: Stable campaign identifier.
+      in: path
+      name: campaignId
+      required: true
+      schema:
+        format: uuid
+        type: string
+    csrfHeader:
+      description: Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+      in: header
+      name: X-CSRF-Token
+      required: true
+      schema:
+        maxLength: 256
+        minLength: 16
+        type: string
+    idempotencyKey:
+      description: Client-generated business key; reusing it with a different payload returns 409.
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema:
+        maxLength: 128
+        minLength: 8
+        type: string
+    reportIdempotencyKey:
+      description: Optional client-generated key; replaying it with a different report returns 409.
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        maxLength: 255
+        type: string
+  responses:
+    badRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: Request is malformed or a token/action is invalid.
+    unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: Authentication is missing, expired, revoked, or invalid.
+    forbidden:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: The authenticated principal lacks the required capability.
+    notFound:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: The resource is absent or not visible to the caller.
+    conflict:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: Revision, payload, audience, or idempotency key conflicts with current state.
+    rateLimited:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: Shared rate limit exceeded; response is membership independent.
+      headers:
+        Retry-After:
+          description: Number of seconds before retrying.
+          schema:
+            minimum: 0
+            type: integer
+    unavailable:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: Feature is disabled or a required local provider is unavailable.
   schemas:
+    apiErrorDto:
+      description: Stable, non-secret error envelope shared by v3 endpoints.
+      example:
+        code: invalid_request
+        message: The request could not be accepted.
+        retryAfterSeconds: 30
+      properties:
+        code:
+          maxLength: 64
+          type: string
+        message:
+          maxLength: 256
+          type: string
+        retryAfterSeconds:
+          minimum: 0
+          nullable: true
+          type: integer
+      required:
+      - code
+      - message
+      type: object
+    emailLinkRequestDto:
+      description: Email-only login request. Surrounding whitespace is trimmed by the service.
+      example:
+        email: person@example.com
+      properties:
+        email:
+          format: email
+          maxLength: 320
+          type: string
+      required:
+      - email
+      type: object
+    emailLinkRequestAcceptedDto:
+      description: Generic response intentionally independent of account eligibility.
+      example:
+        accepted: true
+      properties:
+        accepted:
+          enum:
+          - true
+          type: boolean
+      required:
+      - accepted
+      type: object
+    emailLinkExchangeRequestDto:
+      description: Opaque one-time token captured from the browser fragment and submitted by POST.
+      example:
+        token: opaque-token-kept-out-of-logs
+      properties:
+        token:
+          maxLength: 512
+          minLength: 16
+          type: string
+      required:
+      - token
+      type: object
+    emailLinkExchangeResponseDto:
+      description: Existing consumer token pair plus the authoritative canonical username.
+      example:
+        tokens:
+          accessToken: access-token
+          refreshToken: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        username: alice
+      properties:
+        tokens:
+          $ref: "#/components/schemas/tokenResponseDto"
+        username:
+          maxLength: 256
+          type: string
+      required:
+      - tokens
+      - username
+      type: object
+    recoveryCompleteRequestDto:
+      description: Purpose-limited restricted recovery submission; it does not accept or create a normal JWT.
+      example:
+        password: a-new-password
+        token: opaque-recovery-token
+      properties:
+        password:
+          maxLength: 256
+          minLength: 8
+          type: string
+        token:
+          maxLength: 512
+          minLength: 16
+          type: string
+      required:
+      - password
+      - token
+      type: object
+    sessionRevokeRequestDto:
+      description: Refresh credential to revoke; the bearer identity must own it.
+      example:
+        refreshToken: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+      properties:
+        refreshToken:
+          format: uuid
+          type: string
+      required:
+      - refreshToken
+      type: object
+    adminSessionState:
+      enum:
+      - pre_authentication
+      - mfa_required
+      - authenticated
+      type: string
+    adminSessionBootstrapDto:
+      description: Pre-authentication state created before password login; the CSRF value is bound to its challenge cookie.
+      example:
+        csrfToken: csrf-bootstrap-value
+        expiresAt: 2026-09-14T12:30:00Z
+        sessionState: pre_authentication
+      properties:
+        csrfToken:
+          maxLength: 256
+          minLength: 16
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        sessionState:
+          $ref: "#/components/schemas/adminSessionState"
+      required:
+      - csrfToken
+      - expiresAt
+      - sessionState
+      type: object
+    adminSessionLoginRequestDto:
+      description: Admin credentials for the password challenge. Consumer credentials never grant this session.
+      example:
+        password: password-kept-out-of-logs
+        username: operator
+      properties:
+        password:
+          maxLength: 256
+          minLength: 8
+          type: string
+        username:
+          maxLength: 256
+          minLength: 1
+          type: string
+      required:
+      - password
+      - username
+      type: object
+    adminSessionLoginResponseDto:
+      description: One-use password challenge awaiting TOTP completion.
+      example:
+        challengeId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        csrfToken: csrf-login-value
+        expiresAt: 2026-09-14T12:05:00Z
+        sessionState: mfa_required
+      properties:
+        challengeId:
+          format: uuid
+          type: string
+        csrfToken:
+          maxLength: 256
+          minLength: 16
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        sessionState:
+          enum:
+          - mfa_required
+          type: string
+      required:
+      - challengeId
+      - csrfToken
+      - expiresAt
+      - sessionState
+      type: object
+    adminMfaRequestDto:
+      description: One-use TOTP challenge response.
+      example:
+        challengeId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        code: '123456'
+      properties:
+        challengeId:
+          format: uuid
+          type: string
+        code:
+          maxLength: 32
+          minLength: 6
+          type: string
+      required:
+      - challengeId
+      - code
+      type: object
+    adminReauthenticateRequestDto:
+      description: Recent MFA proof bound to one sensitive action.
+      example:
+        action: mark_compromised
+        code: '123456'
+      properties:
+        action:
+          $ref: "#/components/schemas/adminActionKind"
+        code:
+          maxLength: 32
+          minLength: 6
+          type: string
+      required:
+      - action
+      - code
+      type: object
+    adminSessionDto:
+      description: Opaque browser admin session state restored by GET; no consumer JWT or refresh credential is included.
+      example:
+        authenticatedAt: 2026-09-14T04:00:00Z
+        capabilities:
+        - users.read
+        - security.revoke
+        csrfToken: csrf-authenticated-value
+        idleExpiresAt: 2026-09-14T04:30:00Z
+        lastActivityAt: 2026-09-14T04:10:00Z
+        permissions:
+        - users.read
+        recentMfaAt: 2026-09-14T04:10:00Z
+        sessionId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        sessionState: authenticated
+        userId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        username: operator
+      properties:
+        authenticatedAt:
+          format: date-time
+          type: string
+        capabilities:
+          items:
+            maxLength: 128
+            type: string
+          maxItems: 100
+          type: array
+        csrfToken:
+          maxLength: 256
+          minLength: 16
+          type: string
+        idleExpiresAt:
+          format: date-time
+          type: string
+        lastActivityAt:
+          format: date-time
+          type: string
+        permissions:
+          items:
+            maxLength: 128
+            type: string
+          maxItems: 100
+          type: array
+        recentMfaAt:
+          format: date-time
+          nullable: true
+          type: string
+        sessionId:
+          format: uuid
+          type: string
+        sessionState:
+          enum:
+          - authenticated
+          type: string
+        userId:
+          format: uuid
+          type: string
+        username:
+          maxLength: 256
+          type: string
+      required:
+      - authenticatedAt
+      - capabilities
+      - csrfToken
+      - idleExpiresAt
+      - lastActivityAt
+      - permissions
+      - sessionId
+      - sessionState
+      - userId
+      - username
+      type: object
+    adminActionKind:
+      enum:
+      - email
+      - login_link
+      - push
+      - revoke_sessions
+      - mark_compromised
+      - recovery_resend
+      - report_resolve
+      - report_dismiss
+      - jobs.control
+      - messages.test
+      - reports.review
+      - campaigns.write
+      type: string
+    audienceKind:
+      enum:
+      - selected
+      - filter
+      - all
+      type: string
+    audienceResourceKind:
+      enum:
+      - accounts
+      - reports
+      type: string
+    adminSecurityState:
+      enum:
+      - normal
+      - password_disabled
+      - compromised
+      - secured_manual_recovery_required
+      - deleted
+      type: string
+    adminJobStatus:
+      enum:
+      - pending
+      - running
+      - completed
+      - completed_with_errors
+      - paused
+      - cancelled
+      type: string
+    adminReportStatus:
+      enum:
+      - open
+      - resolved
+      - dismissed
+      type: string
+    adminUserDto:
+      description: Bounded administrative account summary. Credential material is intentionally absent.
+      example:
+        authGeneration: 2
+        compromisedAt: null
+        createdAt: 2026-01-10T12:00:00Z
+        email: person@example.com
+        emailVerified: true
+        eligibilityReasons: []
+        id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        isAdmin: false
+        passwordDisabled: false
+        passwordResetRequired: false
+        securityState: normal
+        username: alice
+      properties:
+        authGeneration:
+          format: int64
+          minimum: 0
+          type: integer
+        compromisedAt:
+          format: date-time
+          nullable: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        email:
+          format: email
+          maxLength: 320
+          nullable: true
+          type: string
+        emailVerified:
+          type: boolean
+        eligibilityReasons:
+          items:
+            maxLength: 256
+            type: string
+          maxItems: 32
+          type: array
+        id:
+          format: uuid
+          type: string
+        isAdmin:
+          type: boolean
+        passwordDisabled:
+          type: boolean
+        passwordResetRequired:
+          type: boolean
+        securityState:
+          $ref: "#/components/schemas/adminSecurityState"
+        username:
+          maxLength: 256
+          type: string
+      required:
+      - authGeneration
+      - createdAt
+      - emailVerified
+      - eligibilityReasons
+      - id
+      - isAdmin
+      - passwordDisabled
+      - passwordResetRequired
+      - securityState
+      - username
+      type: object
+    adminUserPageDto:
+      description: Cursor page with a default limit of 25 and a maximum of 100.
+      example:
+        items: []
+        nextCursor: next-cursor
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminUserDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminUserDetailsDto:
+      allOf:
+      - $ref: "#/components/schemas/adminUserDto"
+      - properties:
+          communicationOptOut:
+            type: boolean
+          registeredDeviceCount:
+            minimum: 0
+            type: integer
+        required:
+        - communicationOptOut
+        - registeredDeviceCount
+        type: object
+      description: Administrative account details with aggregate device/preferences state.
+    adminCampaignChannel:
+      enum:
+      - email
+      - push
+      type: string
+      x-enum-class-prefix: true
+    adminCampaignStatus:
+      enum:
+      - draft
+      - active
+      - archived
+      type: string
+    adminCampaignDto:
+      description: Content-only campaign record. It has no audience, schedule, provider, or delivery state.
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        createdAt:
+          format: date-time
+          type: string
+        createdByUserId:
+          format: uuid
+          nullable: true
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+        status:
+          $ref: "#/components/schemas/adminCampaignStatus"
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - body
+      - channel
+      - createdAt
+      - id
+      - name
+      - revision
+      - status
+      - updatedAt
+      type: object
+    adminCampaignPageDto:
+      description: Cursor page with a default limit of 25 and a maximum of 100.
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminCampaignDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminCampaignContentDto:
+      properties:
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        channel:
+          $ref: "#/components/schemas/adminCampaignChannel"
+        name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        subject:
+          maxLength: 200
+          nullable: true
+          type: string
+        title:
+          maxLength: 200
+          nullable: true
+          type: string
+      required:
+      - body
+      - channel
+      - name
+      type: object
+    adminCampaignCreateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - status
+        type: object
+      description: Create a draft or active content record only; archival uses the archive endpoint.
+    adminCampaignUpdateRequestDto:
+      allOf:
+      - $ref: "#/components/schemas/adminCampaignContentDto"
+      - properties:
+          expectedRevision:
+            format: int64
+            minimum: 1
+            type: integer
+          status:
+            $ref: "#/components/schemas/adminCampaignStatus"
+        required:
+        - expectedRevision
+        - status
+        type: object
+      description: Revision-checked content update. Archived campaigns cannot be changed; archive uses the archive endpoint.
+    adminCampaignRevisionRequestDto:
+      description: Revision-checked archive or draft deletion request.
+      properties:
+        expectedRevision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - expectedRevision
+      type: object
+    adminUserFilterDto:
+      description: Validated server-side account filter. Filter evaluation never happens in the client.
+      example:
+        includeAdmins: false
+        resource: accounts
+        securityStatuses:
+        - normal
+        verifiedEmail: true
+      properties:
+        createdAfter:
+          format: date-time
+          nullable: true
+          type: string
+        createdBefore:
+          format: date-time
+          nullable: true
+          type: string
+        email:
+          format: email
+          maxLength: 320
+          nullable: true
+          type: string
+        id:
+          format: uuid
+          nullable: true
+          type: string
+        includeAdmins:
+          default: false
+          type: boolean
+        resource:
+          enum:
+          - accounts
+          type: string
+        securityStatuses:
+          items:
+            $ref: "#/components/schemas/adminSecurityState"
+          maxItems: 8
+          minItems: 1
+          nullable: true
+          type: array
+        username:
+          maxLength: 256
+          nullable: true
+          type: string
+        verifiedEmail:
+          nullable: true
+          type: boolean
+      required:
+      - resource
+      type: object
+    adminReportFilterDto:
+      description: Validated server-side report filter. Filter evaluation never happens in the client.
+      example:
+        assigneeUserId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        createdAfter: 2026-01-01T00:00:00Z
+        resource: reports
+        statuses:
+        - open
+        types:
+        - abuse
+      properties:
+        assigneeUserId:
+          format: uuid
+          nullable: true
+          type: string
+        createdAfter:
+          format: date-time
+          nullable: true
+          type: string
+        createdBefore:
+          format: date-time
+          nullable: true
+          type: string
+        resource:
+          enum:
+          - reports
+          type: string
+        statuses:
+          items:
+            $ref: "#/components/schemas/adminReportStatus"
+          maxItems: 3
+          minItems: 1
+          nullable: true
+          type: array
+        types:
+          items:
+            maxLength: 64
+            minLength: 1
+            type: string
+          maxItems: 32
+          minItems: 1
+          nullable: true
+          type: array
+      required:
+      - resource
+      type: object
+    adminAudienceFilter:
+      description: Resource-tagged filter union. Account and report criteria cannot be applied across resource types.
+      x-canonical-audience-filter-union: true
+      discriminator:
+        mapping:
+          accounts: "#/components/schemas/adminUserFilterDto"
+          reports: "#/components/schemas/adminReportFilterDto"
+        propertyName: resource
+      oneOf:
+      - $ref: "#/components/schemas/adminUserFilterDto"
+      - $ref: "#/components/schemas/adminReportFilterDto"
+    selectedAudience:
+      description: Explicit bounded IDs; report actions interpret IDs as report IDs.
+      properties:
+        ids:
+          items:
+            format: uuid
+            type: string
+          maxItems: 10000
+          minItems: 1
+          type: array
+        kind:
+          enum:
+          - selected
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+      required:
+      - ids
+      - kind
+      - resource
+      type: object
+    filterAudience:
+      description: Explicit validated filter evaluated once into an immutable snapshot.
+      properties:
+        filter:
+          $ref: "#/components/schemas/adminAudienceFilter"
+          x-canonical-pointer: true
+        kind:
+          enum:
+          - filter
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+      required:
+      - filter
+      - kind
+      - resource
+      type: object
+    allAudience:
+      description: All eligible records of the declared resource type, after server-side safety checks.
+      properties:
+        kind:
+          enum:
+          - all
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+      required:
+      - kind
+      - resource
+      type: object
+    adminAudience:
+      description: Discriminated explicit selection/filter/all union. Empty audiences are invalid.
+      x-canonical-audience-union: true
+      x-canonical-branches:
+        discriminator: kind
+        required:
+          all: []
+          filter:
+          - filter
+          selected:
+          - ids
+      properties:
+        kind:
+          $ref: "#/components/schemas/audienceKind"
+      required:
+      - kind
+      type: object
+      discriminator:
+        mapping:
+          all: "#/components/schemas/allAudience"
+          filter: "#/components/schemas/filterAudience"
+          selected: "#/components/schemas/selectedAudience"
+        propertyName: kind
+      oneOf:
+      - $ref: "#/components/schemas/selectedAudience"
+      - $ref: "#/components/schemas/filterAudience"
+      - $ref: "#/components/schemas/allAudience"
+    emailActionDto:
+      description: Server-sanitized email action payload.
+      properties:
+        action:
+          enum:
+          - email
+          type: string
+        body:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        messageHtml:
+          description: Optional server-sanitized preview input; scripts and admin DOM access are rejected.
+          maxLength: 20000
+          nullable: true
+          type: string
+        subject:
+          maxLength: 200
+          minLength: 1
+          type: string
+      required:
+      - body
+      - subject
+      - action
+      type: object
+    loginLinkActionDto:
+      properties:
+        action:
+          enum:
+          - login_link
+          type: string
+        reason:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - action
+      type: object
+    pushActionDto:
+      properties:
+        action:
+          enum:
+          - push
+          type: string
+        body:
+          maxLength: 2000
+          minLength: 1
+          type: string
+        title:
+          maxLength: 200
+          minLength: 1
+          type: string
+      required:
+      - body
+      - title
+      - action
+      type: object
+    revokeSessionsActionDto:
+      properties:
+        action:
+          enum:
+          - revoke_sessions
+          type: string
+        reason:
+          maxLength: 512
+          minLength: 1
+          type: string
+      required:
+      - reason
+      - action
+      type: object
+    markCompromisedActionDto:
+      properties:
+        action:
+          enum:
+          - mark_compromised
+          type: string
+        reason:
+          maxLength: 512
+          minLength: 1
+          type: string
+      required:
+      - reason
+      - action
+      type: object
+    recoveryResendActionDto:
+      properties:
+        action:
+          enum:
+          - recovery_resend
+          type: string
+        reason:
+          maxLength: 512
+          minLength: 1
+          type: string
+      required:
+      - reason
+      - action
+      type: object
+    reportResolveActionDto:
+      properties:
+        action:
+          enum:
+          - report_resolve
+          type: string
+        note:
+          maxLength: 2000
+          nullable: true
+          type: string
+      required:
+      - action
+      type: object
+    reportDismissActionDto:
+      properties:
+        action:
+          enum:
+          - report_dismiss
+          type: string
+        note:
+          maxLength: 2000
+          nullable: true
+          type: string
+      required:
+      - action
+      type: object
+    adminAction:
+      description: Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+      x-canonical-action-union: true
+      x-canonical-branches:
+        discriminator: action
+        required:
+          email:
+          - body
+          - subject
+          login_link: []
+          mark_compromised:
+          - reason
+          push:
+          - body
+          - title
+          recovery_resend:
+          - reason
+          report_dismiss: []
+          report_resolve: []
+          revoke_sessions:
+          - reason
+      properties:
+        action:
+          $ref: "#/components/schemas/adminActionKind"
+      required:
+      - action
+      type: object
+      discriminator:
+        mapping:
+          email: "#/components/schemas/emailActionDto"
+          login_link: "#/components/schemas/loginLinkActionDto"
+          mark_compromised: "#/components/schemas/markCompromisedActionDto"
+          push: "#/components/schemas/pushActionDto"
+          recovery_resend: "#/components/schemas/recoveryResendActionDto"
+          report_dismiss: "#/components/schemas/reportDismissActionDto"
+          report_resolve: "#/components/schemas/reportResolveActionDto"
+          revoke_sessions: "#/components/schemas/revokeSessionsActionDto"
+        propertyName: action
+      oneOf:
+      - $ref: "#/components/schemas/emailActionDto"
+      - $ref: "#/components/schemas/loginLinkActionDto"
+      - $ref: "#/components/schemas/pushActionDto"
+      - $ref: "#/components/schemas/revokeSessionsActionDto"
+      - $ref: "#/components/schemas/markCompromisedActionDto"
+      - $ref: "#/components/schemas/recoveryResendActionDto"
+      - $ref: "#/components/schemas/reportResolveActionDto"
+      - $ref: "#/components/schemas/reportDismissActionDto"
+    adminAudiencePreviewRequestDto:
+      example:
+        action:
+          action: login_link
+        audience:
+          ids:
+          - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          kind: selected
+          resource: accounts
+      properties:
+        action:
+          $ref: "#/components/schemas/adminAction"
+        audience:
+          $ref: "#/components/schemas/adminAudience"
+      required:
+      - action
+      - audience
+      type: object
+    adminAudienceCountsDto:
+      description: Counts are calculated by the server and distinguish accounts, eligible recipients, and device deliveries.
+      example:
+        accountAudienceCount: 1
+        deviceDeliveryCount: 0
+        excludedCount: 0
+        eligibleRecipientCount: 1
+      properties:
+        accountAudienceCount:
+          format: int64
+          minimum: 0
+          type: integer
+        deviceDeliveryCount:
+          format: int64
+          minimum: 0
+          type: integer
+        excludedCount:
+          format: int64
+          minimum: 0
+          type: integer
+        eligibleRecipientCount:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+      - accountAudienceCount
+      - deviceDeliveryCount
+      - excludedCount
+      - eligibleRecipientCount
+      type: object
+    adminAudienceExclusionDto:
+      properties:
+        id:
+          format: uuid
+          type: string
+        reason:
+          maxLength: 256
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+      required:
+      - id
+      - reason
+      - resource
+      type: object
+    adminAudienceMemberDto:
+      properties:
+        eligible:
+          type: boolean
+        id:
+          format: uuid
+          type: string
+        reason:
+          maxLength: 256
+          nullable: true
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+      required:
+      - eligible
+      - id
+      - resource
+      type: object
+    adminAudiencePreviewDto:
+      description: Ready immutable snapshot preview bound to actor, action, payload hash and expiry.
+      example:
+        action:
+          action: login_link
+        counts:
+          accountAudienceCount: 1
+          deviceDeliveryCount: 0
+          excludedCount: 0
+          eligibleRecipientCount: 1
+        expiresAt: 2026-09-14T04:15:00Z
+        exclusions: []
+        payloadHash: sha256-payload-hash
+        snapshotId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: ready
+      properties:
+        action:
+          $ref: "#/components/schemas/adminAction"
+        actorUserId:
+          format: uuid
+          type: string
+        counts:
+          $ref: "#/components/schemas/adminAudienceCountsDto"
+        expiresAt:
+          format: date-time
+          type: string
+        exclusions:
+          items:
+            $ref: "#/components/schemas/adminAudienceExclusionDto"
+          maxItems: 100
+          type: array
+        payloadHash:
+          maxLength: 128
+          minLength: 16
+          type: string
+        resource:
+          $ref: "#/components/schemas/audienceResourceKind"
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          - ready
+          - expired
+          - failed
+          type: string
+      required:
+      - action
+      - actorUserId
+      - counts
+      - expiresAt
+      - exclusions
+      - payloadHash
+      - resource
+      - snapshotId
+      - status
+      type: object
+    adminAudiencePreviewAcceptedDto:
+      description: Large snapshot materialization accepted as a disabled-feature job.
+      properties:
+        jobId:
+          format: uuid
+          type: string
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          type: string
+      required:
+      - jobId
+      - snapshotId
+      - status
+      type: object
+    adminAudiencePreviewResponseDto:
+      description: Preview result shared by the ready 200 and queued 202 responses. Both statuses include snapshotId and status; a ready result includes the preview fields and a pending result includes jobId. The server must not return a pending result with HTTP 200 or a ready result with HTTP 202.
+      example:
+        jobId: 146b6c7f-0b8a-43b9-b35d-6489e6daee92
+        snapshotId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: pending
+      properties:
+        action:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/adminAction"
+        actorUserId:
+          format: uuid
+          nullable: true
+          type: string
+        counts:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/adminAudienceCountsDto"
+        expiresAt:
+          format: date-time
+          nullable: true
+          type: string
+        exclusions:
+          items:
+            $ref: "#/components/schemas/adminAudienceExclusionDto"
+          maxItems: 100
+          nullable: true
+          type: array
+        jobId:
+          format: uuid
+          nullable: true
+          type: string
+        payloadHash:
+          maxLength: 128
+          minLength: 16
+          nullable: true
+          type: string
+        resource:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/audienceResourceKind"
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          - ready
+          - expired
+          - failed
+          type: string
+      required:
+      - snapshotId
+      - status
+      type: object
+    adminAudiencePageDto:
+      description: Snapshot metadata and a bounded cursor page of members; no implicit filter rerun is allowed.
+      properties:
+        counts:
+          $ref: "#/components/schemas/adminAudienceCountsDto"
+        exclusions:
+          items:
+            $ref: "#/components/schemas/adminAudienceExclusionDto"
+          maxItems: 100
+          type: array
+        expiresAt:
+          format: date-time
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/adminAudienceMemberDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          enum:
+          - pending
+          - ready
+          - expired
+          - failed
+          type: string
+      required:
+      - counts
+      - exclusions
+      - expiresAt
+      - items
+      - snapshotId
+      - status
+      type: object
+    adminJobCreateRequestDto:
+      description: Confirm one unexpired snapshot and exact action payload; Idempotency-Key is a required header.
+      properties:
+        action:
+          $ref: "#/components/schemas/adminAction"
+        payloadHash:
+          maxLength: 128
+          minLength: 16
+          type: string
+        snapshotId:
+          format: uuid
+          type: string
+      required:
+      - action
+      - payloadHash
+      - snapshotId
+      type: object
+    adminJobCommandRequestDto:
+      description: Optional bounded reason for a retry or cancellation command.
+      properties:
+        reason:
+          maxLength: 512
+          nullable: true
+          type: string
+      type: object
+    adminJobAcceptedDto:
+      example:
+        jobId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        status: pending
+      properties:
+        jobId:
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/adminJobStatus"
+      required:
+      - jobId
+      - status
+      type: object
+    adminJobDto:
+      description: Job status includes safe counts and provider outcomes, never action tokens or password values.
+      properties:
+        action:
+          $ref: "#/components/schemas/adminAction"
+        actorUserId:
+          format: uuid
+          type: string
+        cancellationRequested:
+          type: boolean
+        counts:
+          $ref: "#/components/schemas/adminAudienceCountsDto"
+        createdAt:
+          format: date-time
+          type: string
+        jobId:
+          format: uuid
+          type: string
+        snapshotId:
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/adminJobStatus"
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - action
+      - actorUserId
+      - cancellationRequested
+      - counts
+      - createdAt
+      - jobId
+      - snapshotId
+      - status
+      - updatedAt
+      type: object
+    adminJobPageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminJobDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminJobRecipientDto:
+      description: One bounded recipient outcome; delivery tokens and provider secrets are omitted.
+      properties:
+        accountId:
+          format: uuid
+          type: string
+        attemptCount:
+          minimum: 0
+          type: integer
+        deviceCount:
+          minimum: 0
+          type: integer
+        lastAttemptAt:
+          format: date-time
+          nullable: true
+          type: string
+        outcome:
+          enum:
+          - skipped
+          - secured
+          - queued
+          - provider_accepted
+          - failed
+          - unknown_delivery
+          type: string
+        reason:
+          maxLength: 256
+          nullable: true
+          type: string
+      required:
+      - accountId
+      - attemptCount
+      - deviceCount
+      - outcome
+      type: object
+    adminJobRecipientPageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminJobRecipientDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminTestMessageRequestDto:
+      description: Explicit account test recipient using the same action validation as a job.
+      properties:
+        action:
+          $ref: "#/components/schemas/adminAction"
+        recipientUserId:
+          format: uuid
+          type: string
+      required:
+      - action
+      - recipientUserId
+      type: object
+    adminTestMessageAcceptedDto:
+      properties:
+        accepted:
+          enum:
+          - true
+          type: boolean
+        jobId:
+          format: uuid
+          nullable: true
+          type: string
+      required:
+      - accepted
+      type: object
+    adminReportTargetDto:
+      description: Target remains reviewable after account deletion.
+      properties:
+        deleted:
+          type: boolean
+        userId:
+          format: uuid
+          nullable: true
+          type: string
+        username:
+          maxLength: 256
+          nullable: true
+          type: string
+      required:
+      - deleted
+      type: object
+    adminReportNoteDto:
+      properties:
+        actorUserId:
+          format: uuid
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        text:
+          maxLength: 2000
+          minLength: 1
+          type: string
+      required:
+      - actorUserId
+      - createdAt
+      - id
+      - text
+      type: object
+    adminReportNotePageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminReportNoteDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminReportDto:
+      description: Report detail with authenticated actor history and a separate structured target.
+      properties:
+        assigneeUserId:
+          format: uuid
+          nullable: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          format: uuid
+          type: string
+        legacyMessage:
+          maxLength: 10000
+          nullable: true
+          type: string
+        notes:
+          items:
+            $ref: "#/components/schemas/adminReportNoteDto"
+          maxItems: 100
+          type: array
+        reporterUserId:
+          format: uuid
+          type: string
+        reporterUsername:
+          maxLength: 256
+          nullable: true
+          type: string
+        revision:
+          format: int64
+          minimum: 0
+          type: integer
+        status:
+          $ref: "#/components/schemas/adminReportStatus"
+        target:
+          $ref: "#/components/schemas/adminReportTargetDto"
+        text:
+          maxLength: 10000
+          minLength: 1
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - createdAt
+      - id
+      - notes
+      - reporterUserId
+      - revision
+      - status
+      - target
+      - text
+      - updatedAt
+      type: object
+    adminReportPageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminReportDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
+    adminReportNoteRequestDto:
+      properties:
+        text:
+          maxLength: 2000
+          minLength: 1
+          type: string
+      required:
+      - text
+      type: object
+    adminReportUpdateRequestDto:
+      description: Revision-checked transition; a stale expectedRevision returns 409. Omit assigneeUserId to preserve the current assignee, send null to clear it, or send a UUID to assign that user.
+      properties:
+        assigneeUserId:
+          format: uuid
+          nullable: true
+          type: string
+        expectedRevision:
+          format: int64
+          minimum: 0
+          type: integer
+        note:
+          maxLength: 2000
+          nullable: true
+          type: string
+        status:
+          $ref: "#/components/schemas/adminReportStatus"
+      required:
+      - expectedRevision
+      - status
+      type: object
+    adminAuditEventDto:
+      description: Append-only audit event with safe bounded metadata and no secrets.
+      properties:
+        action:
+          $ref: "#/components/schemas/adminActionKind"
+        actorUserId:
+          format: uuid
+          nullable: true
+          type: string
+        details:
+          additionalProperties:
+            maxLength: 256
+            type: string
+          maxProperties: 16
+          type: object
+        id:
+          format: uuid
+          type: string
+        occurredAt:
+          format: date-time
+          type: string
+        outcome:
+          maxLength: 64
+          type: string
+        reason:
+          maxLength: 512
+          nullable: true
+          type: string
+        targetUserId:
+          format: uuid
+          nullable: true
+          type: string
+      required:
+      - action
+      - details
+      - id
+      - occurredAt
+      - outcome
+      type: object
+    adminAuditPageDto:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/adminAuditEventDto"
+          maxItems: 100
+          type: array
+        nextCursor:
+          maxLength: 512
+          nullable: true
+          type: string
+      required:
+      - items
+      type: object
     batchReadItem:
       properties:
         kind:
@@ -1896,6 +4710,14 @@ components:
           type: string
         message:
           maximum: 5000
+          type: string
+        targetId:
+          format: uuid
+          nullable: true
+          type: string
+        targetKind:
+          maxLength: 32
+          nullable: true
           type: string
       required:
       - message
@@ -2715,6 +5537,11 @@ components:
       - pinsAdded
       type: object
   securitySchemes:
+    adminSession:
+      description: Opaque Secure HttpOnly host-only admin cookie. CSRF and Origin checks are required for mutations.
+      in: cookie
+      name: admin_session
+      type: apiKey
     token:
       bearerFormat: JWT
       scheme: bearer

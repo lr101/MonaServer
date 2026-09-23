@@ -71,4 +71,33 @@ void main() {
       );
     },
   );
+
+  test('email-login routes remain public while signed out', () {
+    for (final status in [SessionStatus.signedOut, SessionStatus.expired]) {
+      for (final location in ['/email-login', '/email-login/callback']) {
+        expect(
+          sessionRedirect(
+            status: status,
+            cleanupRequired: false,
+            location: location,
+          ),
+          isNull,
+        );
+      }
+    }
+  });
+
+  test(
+    'cleanup redirects email callbacks through the existing logout flow',
+    () {
+      expect(
+        sessionRedirect(
+          status: SessionStatus.signedOut,
+          cleanupRequired: true,
+          location: '/email-login/callback',
+        ),
+        '/logout',
+      );
+    },
+  );
 }

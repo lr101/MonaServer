@@ -11,33 +11,138 @@ import (
 )
 
 type Querier interface {
+	AddAdminJobItem(ctx context.Context, arg AddAdminJobItemParams) error
+	AddAudienceSnapshotMember(ctx context.Context, arg AddAudienceSnapshotMemberParams) error
 	// Members --
 	AddMember(ctx context.Context, arg AddMemberParams) error
 	AddUserXp(ctx context.Context, arg AddUserXpParams) error
+	AdvanceAdminMFAReplayCounter(ctx context.Context, arg AdvanceAdminMFAReplayCounterParams) (AdminMfaReplayCounter, error)
+	AdvanceAdminMFAReplayScope(ctx context.Context, arg AdvanceAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
+	AdvanceUserAuthGeneration(ctx context.Context, id pgtype.UUID) (int64, error)
+	// Append members under the snapshot row lock so separate materializer batches
+	// cannot reuse ordinals.  The caller order is retained via WITH ORDINALITY;
+	// duplicate IDs in one batch are ignored without changing existing members.
+	AppendAudienceSnapshotMembers(ctx context.Context, arg AppendAudienceSnapshotMembersParams) error
+	// Additive storage queries for web administration and email-link auth.
+	// Callers use the db.Queries facade below these generated methods so service
+	// code does not duplicate SQL or accidentally escape a caller transaction.
+	// Canonical email claims -----------------------------------------------------
+	BackfillEmailLoginClaims(ctx context.Context) error
+	ClaimAdminJobItems(ctx context.Context, arg ClaimAdminJobItemsParams) ([]ClaimAdminJobItemsRow, error)
+	// Expired running leases are made claimable in the same statement that claims
+	// work.  A fresh lease token makes an old worker's acknowledgement harmless.
+	ClaimDurableJobs(ctx context.Context, arg ClaimDurableJobsParams) ([]ClaimDurableJobsRow, error)
+	// Claiming with a kind allowlist keeps queue-family isolation in the same
+	// SELECT ... FOR UPDATE SKIP LOCKED statement as the lease transition.  A
+	// worker therefore never claims a row it will later release because it does
+	// not own that kind.
+	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
+	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
+	// Claim one requested item for the T07 action boundary.  The candidate row
+	// lock and lease transition are one statement.  A targeted claim waits for an
+	// in-flight row transition, then rechecks eligibility, so a concurrent worker
+	// either observes no claimable row or receives a fresh owner/token pair.  The
+	// token returned here is the acknowledgement fence for this lease attempt.
+	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
+	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
+	// Clear the short-lived delivery secret only once the attempt is terminal or
+	// its encrypted payload has expired.  The status/expiry predicate is part of
+	// the same UPDATE, so a retryable outcome cannot clear its payload by racing
+	// a cleanup call.
+	ClearDeliveryAttemptPayload(ctx context.Context, arg ClearDeliveryAttemptPayloadParams) (pgtype.UUID, error)
+	ClearExpiredDeliveryPayloads(ctx context.Context, arg ClearExpiredDeliveryPayloadsParams) error
+	ClearUserRecoveryRestriction(ctx context.Context, id pgtype.UUID) error
 	ConfirmUserEmail(ctx context.Context, id pgtype.UUID) error
+	// The update is the single-use boundary.  Concurrent redemptions can both
+	// read a token, but only one can satisfy consumed_at/revoked_at being NULL.
+	// Purpose and expiry are checked here as well as in the service.
+	ConsumeAccountActionToken(ctx context.Context, arg ConsumeAccountActionTokenParams) (AccountActionToken, error)
+	ConsumeAdminLoginChallenge(ctx context.Context, arg ConsumeAdminLoginChallengeParams) (AdminLoginChallenge, error)
+	// Soft deletion is a containment boundary.  It advances the generation only
+	// once, clears legacy action URLs/codes, and disables password use while the
+	// caller holds the user row lock.
+	ContainUser(ctx context.Context, id pgtype.UUID) (int64, error)
+	CountAdminRuntimeAccounts(ctx context.Context, arg CountAdminRuntimeAccountsParams) (int64, error)
+	CountAdminRuntimeReports(ctx context.Context, arg CountAdminRuntimeReportsParams) (int64, error)
+	CountAudienceSnapshotMembers(ctx context.Context, snapshotID pgtype.UUID) (CountAudienceSnapshotMembersRow, error)
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
 	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error)
 	CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error)
 	CountPinLikesByType(ctx context.Context, pinID pgtype.UUID) (CountPinLikesByTypeRow, error)
+	// Action tokens -------------------------------------------------------------
+	CreateAccountActionToken(ctx context.Context, arg CreateAccountActionTokenParams) error
+	// Admin jobs and recipient items --------------------------------------------
+	CreateAdminJob(ctx context.Context, arg CreateAdminJobParams) (AdminJob, error)
+	// Login challenges are one-use and account-generation bound.
+	CreateAdminLoginChallenge(ctx context.Context, arg CreateAdminLoginChallengeParams) error
+	CreateAdminSession(ctx context.Context, arg CreateAdminSessionParams) error
+	CreateAudienceSnapshot(ctx context.Context, arg CreateAudienceSnapshotParams) error
+	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
+	// Content-only campaign persistence. Campaigns have no audience, provider,
+	// queue, recipient, or delivery state in this release.
+	CreateCampaign(ctx context.Context, arg CreateCampaignParams) (Campaign, error)
+	// Delivery attempts ---------------------------------------------------------
+	CreateDeliveryAttempt(ctx context.Context, arg CreateDeliveryAttemptParams) error
+	// Durable jobs and outbox leases -------------------------------------------
+	CreateDurableJob(ctx context.Context, arg CreateDurableJobParams) error
 	// Group + member queries.
 	CreateGroup(ctx context.Context, arg CreateGroupParams) error
 	CreateGroupSeason(ctx context.Context, arg CreateGroupSeasonParams) error
+	CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) error
 	// Pin queries.
 	CreatePin(ctx context.Context, arg CreatePinParams) error
 	// Refresh tokens --
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error
+	CreateReport(ctx context.Context, arg CreateReportParams) (Report, error)
+	CreateReportNote(ctx context.Context, arg CreateReportNoteParams) (ReportNote, error)
 	CreateSeason(ctx context.Context, arg CreateSeasonParams) (pgtype.UUID, error)
+	// Security incidents and append-only audit ---------------------------------
+	CreateSecurityIncident(ctx context.Context, arg CreateSecurityIncidentParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (pgtype.UUID, error)
 	CreateUserSeason(ctx context.Context, arg CreateUserSeasonParams) error
+	DeleteCampaignIfRevision(ctx context.Context, arg DeleteCampaignIfRevisionParams) (int64, error)
+	DeleteEmailLoginClaim(ctx context.Context, canonicalEmail string) error
+	DeleteExpiredAccountActionTokens(ctx context.Context, arg DeleteExpiredAccountActionTokensParams) error
+	DeleteExpiredAudienceSnapshots(ctx context.Context, expiresAt pgtype.Timestamptz) error
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
 	DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error
+	DisableDeviceRegistration(ctx context.Context, arg DisableDeviceRegistrationParams) error
+	ExtendAdminJobItemLease(ctx context.Context, arg ExtendAdminJobItemLeaseParams) (ExtendAdminJobItemLeaseRow, error)
+	ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJobLeaseParams) (ExtendDurableJobLeaseRow, error)
+	ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEventLeaseParams) (ExtendOutboxEventLeaseRow, error)
 	FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForPointParams) (pgtype.UUID, error)
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (FindRefreshTokenRow, error)
 	FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]FindUsersWithNewPinsSinceLastActiveRow, error)
+	FinishAdminJobItem(ctx context.Context, arg FinishAdminJobItemParams) (pgtype.UUID, error)
+	FinishDurableJob(ctx context.Context, arg FinishDurableJobParams) (pgtype.UUID, error)
+	// Finish, heartbeat, and retry acknowledgement all carry the worker and the
+	// exact token returned by ClaimJobItem.  A reclaimed row has a different
+	// token, so an old worker's rows-affected result is zero even if it races the
+	// current owner.
+	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
+	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
+	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
+	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
+	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (GetAdminJobItemRow, error)
+	GetAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
+	GetAdminMFAReplayCounter(ctx context.Context, sessionID pgtype.UUID) (AdminMfaReplayCounter, error)
+	// The replay scope is membership/user enrollment scoped and therefore shared
+	// by all authenticated browser sessions for the operator.
+	GetAdminMFAReplayScope(ctx context.Context, arg GetAdminMFAReplayScopeParams) (AdminMfaReplayScope, error)
+	// Admin membership and browser sessions ------------------------------------
+	GetAdminMembership(ctx context.Context, userID pgtype.UUID) (AdminMembership, error)
+	GetAdminRuntimeAccount(ctx context.Context, userID pgtype.UUID) (GetAdminRuntimeAccountRow, error)
+	GetAdminSessionByHash(ctx context.Context, sessionHash []byte) (GetAdminSessionByHashRow, error)
+	GetAudienceSnapshot(ctx context.Context, id pgtype.UUID) (AudienceSnapshot, error)
 	GetBestGroupSeason(ctx context.Context, groupID pgtype.UUID) (GetBestGroupSeasonRow, error)
 	GetBestUserSeason(ctx context.Context, userID pgtype.UUID) (GetBestUserSeasonRow, error)
+	GetCampaign(ctx context.Context, id pgtype.UUID) (Campaign, error)
+	GetCommunicationPreferences(ctx context.Context, userID pgtype.UUID) (CommunicationPreference, error)
+	GetDeliveryAttempt(ctx context.Context, id pgtype.UUID) (DeliveryAttempt, error)
+	GetDurableJob(ctx context.Context, id pgtype.UUID) (DurableJob, error)
+	GetEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
 	GetGeoJson(ctx context.Context, arg GetGeoJsonParams) ([]interface{}, error)
 	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
@@ -47,10 +152,15 @@ type Querier interface {
 	GetMapInfo(ctx context.Context, arg GetMapInfoParams) (GetMapInfoRow, error)
 	// Season queries.
 	GetMaxSeasonNumber(ctx context.Context) (int32, error)
+	GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
+	GetReport(ctx context.Context, id pgtype.UUID) (Report, error)
+	GetReportByRequestID(ctx context.Context, requestID pgtype.Text) (Report, error)
+	GetReportTargetSnapshot(ctx context.Context, id pgtype.UUID) (GetReportTargetSnapshotRow, error)
 	GetSelectedUserAchievementID(ctx context.Context, id pgtype.UUID) (int32, error)
 	GetUserAchievement(ctx context.Context, arg GetUserAchievementParams) (GetUserAchievementRow, error)
 	GetUserByDeletionUrl(ctx context.Context, deletionUrl pgtype.Text) (GetUserByDeletionUrlRow, error)
+	GetUserByEmail(ctx context.Context, btrim string) (GetUserByEmailRow, error)
 	GetUserByEmailConfirmationUrl(ctx context.Context, emailConfirmationUrl pgtype.Text) (GetUserByEmailConfirmationUrlRow, error)
 	// User and refresh-token queries.
 	GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDRow, error)
@@ -59,12 +169,20 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, username pgtype.Text) (GetUserByUsernameRow, error)
 	// Ranking and map queries (PostGIS).
 	GetUserRanking(ctx context.Context, arg GetUserRankingParams) ([]GetUserRankingRow, error)
+	// User security state --------------------------------------------------------
+	GetUserSecurityState(ctx context.Context, id pgtype.UUID) (GetUserSecurityStateRow, error)
 	GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GroupExistsByName(ctx context.Context, name pgtype.Text) (bool, error)
 	HardDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	HardDeletePin(ctx context.Context, id pgtype.UUID) error
 	HardDeleteUser(ctx context.Context, id pgtype.UUID) error
+	HeartbeatJobItem(ctx context.Context, arg HeartbeatJobItemParams) (HeartbeatJobItemRow, error)
+	IncrementAdminChallengeFailure(ctx context.Context, id pgtype.UUID) (int32, error)
 	IncrementFailedLogin(ctx context.Context, id pgtype.UUID) error
+	// InsertReport reports whether this transaction won a request-key race. A
+	// losing insert returns no row, allowing the caller to replay the committed
+	// row without consuming quota or writing another audit event.
+	InsertReport(ctx context.Context, arg InsertReportParams) (Report, error)
 	InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) error
 	// Guard queries: fast authorization checks used by middleware.
 	IsGroupAdmin(ctx context.Context, arg IsGroupAdminParams) (bool, error)
@@ -75,44 +193,119 @@ type Querier interface {
 	IsPinGroupAdmin(ctx context.Context, arg IsPinGroupAdminParams) (bool, error)
 	IsPinPublicOrMember(ctx context.Context, arg IsPinPublicOrMemberParams) (bool, error)
 	ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error)
+	ListAdminJobItems(ctx context.Context, arg ListAdminJobItemsParams) ([]ListAdminJobItemsRow, error)
+	ListAdminJobs(ctx context.Context, arg ListAdminJobsParams) ([]AdminJob, error)
+	// Bounded production projections used by the browser-admin runtime adapter.
+	// The service layer owns authorization; these queries deliberately keep all
+	// filtering, counting, and page limits in PostgreSQL.
+	ListAdminRuntimeAccounts(ctx context.Context, arg ListAdminRuntimeAccountsParams) ([]ListAdminRuntimeAccountsRow, error)
+	ListAdminRuntimeAuditEvents(ctx context.Context, arg ListAdminRuntimeAuditEventsParams) ([]AuditEvent, error)
+	ListAdminRuntimeJobItems(ctx context.Context, arg ListAdminRuntimeJobItemsParams) ([]ListAdminRuntimeJobItemsRow, error)
+	ListAdminRuntimeJobs(ctx context.Context, arg ListAdminRuntimeJobsParams) ([]AdminJob, error)
+	ListAdminRuntimeReports(ctx context.Context, arg ListAdminRuntimeReportsParams) ([]ListAdminRuntimeReportsRow, error)
 	ListAllUserEmails(ctx context.Context) ([]pgtype.Text, error)
+	ListAudienceSnapshotMembers(ctx context.Context, arg ListAudienceSnapshotMembersParams) ([]AudienceSnapshotMember, error)
+	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
+	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
+	ListDeviceRegistrations(ctx context.Context, userID pgtype.UUID) ([]DeviceRegistration, error)
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
+	ListReportNotes(ctx context.Context, arg ListReportNotesParams) ([]ReportNote, error)
+	ListReportNotesPage(ctx context.Context, arg ListReportNotesPageParams) ([]ReportNote, error)
+	ListReports(ctx context.Context, arg ListReportsParams) ([]Report, error)
+	ListReportsPage(ctx context.Context, arg ListReportsPageParams) ([]Report, error)
+	ListSecurityIncidentsForAccount(ctx context.Context, arg ListSecurityIncidentsForAccountParams) ([]SecurityIncident, error)
 	ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error)
 	ListUserAchievements(ctx context.Context, userID pgtype.UUID) ([]ListUserAchievementsRow, error)
 	ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]ListUserLikedPinsRow, error)
 	ListUserPinIDs(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
+	ListVerifiedUsersForEmailClaim(ctx context.Context, email pgtype.Text) ([]pgtype.UUID, error)
+	LockAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
+	LockAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
+	// Audience snapshots --------------------------------------------------------
+	// Acquire this lock in a statement before reading the current ordinal.  A
+	// separate statement is required under PostgreSQL READ COMMITTED: a waiting
+	// SELECT FOR UPDATE does not refresh the aggregate's statement snapshot.
+	LockAudienceSnapshot(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	LockEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
+	// Shared HMAC-keyed quotas --------------------------------------------------
+	// Advisory locking is scoped to the logical scope/window, so current and
+	// previous HMAC key rows cannot bypass one another during key rotation.
+	LockRateLimitWindow(ctx context.Context, arg LockRateLimitWindowParams) error
+	// Reports -------------------------------------------------------------------
+	// Report submissions and account deletion use the same transaction-scoped
+	// advisory lock. This keeps the target row and report insert in one ordered
+	// critical section even when a hard delete removes the user row.
+	LockReportTarget(ctx context.Context, dollar_1 string) error
+	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
+	// Retention and account cleanup --------------------------------------------
+	// Keep incident and audit rows (their IDs and operational summaries are not
+	// account-owned secrets), while removing credentials, delivery payloads,
+	// sessions, devices and preferences for a physically deleted account.
+	PurgeDeletedAccountData(ctx context.Context, id pgtype.UUID) error
+	PurgeExpiredAdminChallenges(ctx context.Context, arg PurgeExpiredAdminChallengesParams) error
+	PurgeRateLimitBuckets(ctx context.Context, windowEnd pgtype.Timestamptz) error
+	ReleaseAdminJobItemLease(ctx context.Context, arg ReleaseAdminJobItemLeaseParams) (pgtype.UUID, error)
+	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
+	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
+	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
+	// Retry acceptance returns the item to the retryable outcome only for the
+	// current lease owner.  The token check fences a stale worker from changing
+	// the outcome after another worker has reclaimed the item.
+	RetryJobItem(ctx context.Context, arg RetryJobItemParams) (pgtype.UUID, error)
+	RevokeAccountActionTokens(ctx context.Context, arg RevokeAccountActionTokensParams) error
+	RevokeAccountActionTokensExcept(ctx context.Context, arg RevokeAccountActionTokensExceptParams) error
+	RevokeAdminLoginChallengesForUser(ctx context.Context, userID pgtype.UUID) error
+	RevokeAdminMembership(ctx context.Context, userID pgtype.UUID) error
+	RevokeAdminSession(ctx context.Context, id pgtype.UUID) error
+	RevokeAdminSessionsForUser(ctx context.Context, userID pgtype.UUID) error
+	RevokeExpiredAdminSessions(ctx context.Context, idleExpiresAt pgtype.Timestamptz) error
+	RotateAdminSessionCSRF(ctx context.Context, arg RotateAdminSessionCSRFParams) error
 	SearchBoundaries(ctx context.Context, arg SearchBoundariesParams) ([]SearchBoundariesRow, error)
 	SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error)
 	SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error)
 	SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error)
 	SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error)
+	SetEmailLoginClaim(ctx context.Context, arg SetEmailLoginClaimParams) error
 	SetGroupInviteUrl(ctx context.Context, arg SetGroupInviteUrlParams) error
 	SetUserDeletionUrl(ctx context.Context, arg SetUserDeletionUrlParams) error
 	SetUserProfilePictureExists(ctx context.Context, arg SetUserProfilePictureExistsParams) error
 	SetUserRecoveryCode(ctx context.Context, arg SetUserRecoveryCodeParams) error
 	SetUserResetPasswordUrl(ctx context.Context, arg SetUserResetPasswordUrlParams) error
+	SetUserSecurityState(ctx context.Context, arg SetUserSecurityStateParams) error
 	SetUserSelectedBatch(ctx context.Context, arg SetUserSelectedBatchParams) error
 	SoftDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	SoftDeletePin(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteUser(ctx context.Context, id pgtype.UUID) error
+	SumRateLimitBuckets(ctx context.Context, arg SumRateLimitBucketsParams) (int64, error)
+	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchRefreshToken(ctx context.Context, token pgtype.UUID) error
+	UpdateAdminJobProgress(ctx context.Context, arg UpdateAdminJobProgressParams) error
+	UpdateAudienceSnapshotCounts(ctx context.Context, arg UpdateAudienceSnapshotCountsParams) error
+	UpdateCampaignIfRevision(ctx context.Context, arg UpdateCampaignIfRevisionParams) (Campaign, error)
+	UpdateDeliveryAttemptOutcome(ctx context.Context, arg UpdateDeliveryAttemptOutcomeParams) error
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) error
+	UpdateReportIfRevision(ctx context.Context, arg UpdateReportIfRevisionParams) (Report, error)
 	UpdateUserDescription(ctx context.Context, arg UpdateUserDescriptionParams) error
 	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) error
 	UpdateUserFirebaseToken(ctx context.Context, arg UpdateUserFirebaseTokenParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserUsername(ctx context.Context, arg UpdateUserUsernameParams) error
+	UpsertAdminMembership(ctx context.Context, arg UpsertAdminMembershipParams) error
+	UpsertCommunicationPreferences(ctx context.Context, arg UpsertCommunicationPreferencesParams) (CommunicationPreference, error)
+	// Devices and communication preferences -----------------------------------
+	UpsertDeviceRegistration(ctx context.Context, arg UpsertDeviceRegistrationParams) (DeviceRegistration, error)
 	UpsertLike(ctx context.Context, arg UpsertLikeParams) error
+	UpsertRateLimitBucket(ctx context.Context, arg UpsertRateLimitBucketParams) (RateLimitBucket, error)
 	UpsertUserAchievement(ctx context.Context, arg UpsertUserAchievementParams) (UpsertUserAchievementRow, error)
 }
 

@@ -87,7 +87,8 @@ func (c *ReportAPIController) CreateReport(w http.ResponseWriter, r *http.Reques
 		c.errorHandler(w, r, err, nil)
 		return
 	}
-	result, err := c.service.CreateReport(r.Context(), reportDtoParam)
+	idempotencyKeyParam := r.Header.Get("Idempotency-Key")
+	result, err := c.service.CreateReport(r.Context(), reportDtoParam, idempotencyKeyParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

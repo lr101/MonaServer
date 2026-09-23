@@ -305,7 +305,7 @@ Android target and record its installed build/One UI patch. Also test the resolv
 Android lower bound and supported browser lower/current versions.
 
 Use pinned build configuration: `mise.toml`, GitHub Actions, Codemagic, and the
-standalone web Dockerfile use Flutter 3.47.3. Web production release remains
+standalone web Dockerfile use Flutter 3.47.4. Web production release remains
 independent of Android testing/promotion; staging is optional.
 Existing German privacy and retention requirements remain in force.
 

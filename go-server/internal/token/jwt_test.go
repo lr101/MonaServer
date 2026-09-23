@@ -39,3 +39,31 @@ func TestParseWrongSecret(t *testing.T) {
 		t.Fatal("expected signature mismatch error")
 	}
 }
+
+func TestGenerationClaimRoundTripAndLegacyCompatibility(t *testing.T) {
+	h := NewHelper("test-secret", time.Minute)
+	uid := uuid.New()
+	raw, err := h.GenerateAccessTokenWithGeneration(uid, 7)
+	if err != nil {
+		t.Fatalf("generate generation token: %v", err)
+	}
+	claims, err := h.ParseAccessTokenClaims(raw)
+	if err != nil {
+		t.Fatalf("parse generation token: %v", err)
+	}
+	if claims.UserID != uid || claims.AuthGeneration != 7 || !claims.GenerationPresent {
+		t.Fatalf("claims = %#v, want user=%s generation=7 present", claims, uid)
+	}
+
+	legacy, err := h.GenerateAccessToken(uid)
+	if err != nil {
+		t.Fatalf("generate legacy-shaped token: %v", err)
+	}
+	legacyClaims, err := h.ParseAccessTokenClaims(legacy)
+	if err != nil {
+		t.Fatalf("parse legacy-shaped token: %v", err)
+	}
+	if legacyClaims.UserID != uid || legacyClaims.AuthGeneration != 0 || legacyClaims.GenerationPresent {
+		t.Fatalf("legacy claims = %#v, want zero generation absent", legacyClaims)
+	}
+}

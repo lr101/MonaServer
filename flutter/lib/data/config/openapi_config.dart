@@ -242,6 +242,21 @@ class OpenApiClientResources {
   }
 }
 
+/// Public auth uses a distinct unauthenticated client so requesting a link
+/// cannot refresh or otherwise alter an existing consumer session.
+final publicAuthApiProvider = Provider<PublicAuthApi>((ref) {
+  final client = ApiClient(
+    basePath: ref.watch(globalDataServiceProvider.select((data) => data.host)),
+  );
+  ref.onDispose(client.client.close);
+  return PublicAuthApi(client);
+});
+
+/// Session-auth calls use the established authenticated OpenAPI stack.
+final sessionAuthApiProvider = Provider<SessionAuthApi>(
+  (ref) => SessionAuthApi(ref.watch(openApiConfigProvider)),
+);
+
 http.Client createRetryingAuthClient({
   required http.Client inner,
   required AccessTokenManager tokenManager,

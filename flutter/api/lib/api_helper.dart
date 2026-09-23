@@ -55,6 +55,33 @@ String parameterToString(dynamic value) {
   if (value is DateTime) {
     return value.toUtc().toIso8601String();
   }
+  if (value is AdminActionKind) {
+    return AdminActionKindTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminCampaignChannel) {
+    return AdminCampaignChannelTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminCampaignStatus) {
+    return AdminCampaignStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminJobStatus) {
+    return AdminJobStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminReportStatus) {
+    return AdminReportStatusTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminSecurityState) {
+    return AdminSecurityStateTypeTransformer().encode(value).toString();
+  }
+  if (value is AdminSessionState) {
+    return AdminSessionStateTypeTransformer().encode(value).toString();
+  }
+  if (value is AudienceKind) {
+    return AudienceKindTypeTransformer().encode(value).toString();
+  }
+  if (value is AudienceResourceKind) {
+    return AudienceResourceKindTypeTransformer().encode(value).toString();
+  }
   return value.toString();
 }
 

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,6 +21,438 @@ import (
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AdminActionKind.
+const (
+	AdminActionKindCampaignsWrite  AdminActionKind = "campaigns.write"
+	AdminActionKindEmail           AdminActionKind = "email"
+	AdminActionKindJobsControl     AdminActionKind = "jobs.control"
+	AdminActionKindLoginLink       AdminActionKind = "login_link"
+	AdminActionKindMarkCompromised AdminActionKind = "mark_compromised"
+	AdminActionKindMessagesTest    AdminActionKind = "messages.test"
+	AdminActionKindPush            AdminActionKind = "push"
+	AdminActionKindRecoveryResend  AdminActionKind = "recovery_resend"
+	AdminActionKindReportDismiss   AdminActionKind = "report_dismiss"
+	AdminActionKindReportResolve   AdminActionKind = "report_resolve"
+	AdminActionKindReportsReview   AdminActionKind = "reports.review"
+	AdminActionKindRevokeSessions  AdminActionKind = "revoke_sessions"
+)
+
+// Valid indicates whether the value is a known member of the AdminActionKind enum.
+func (e AdminActionKind) Valid() bool {
+	switch e {
+	case AdminActionKindCampaignsWrite:
+		return true
+	case AdminActionKindEmail:
+		return true
+	case AdminActionKindJobsControl:
+		return true
+	case AdminActionKindLoginLink:
+		return true
+	case AdminActionKindMarkCompromised:
+		return true
+	case AdminActionKindMessagesTest:
+		return true
+	case AdminActionKindPush:
+		return true
+	case AdminActionKindRecoveryResend:
+		return true
+	case AdminActionKindReportDismiss:
+		return true
+	case AdminActionKindReportResolve:
+		return true
+	case AdminActionKindReportsReview:
+		return true
+	case AdminActionKindRevokeSessions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAudiencePageDtoStatus.
+const (
+	AdminAudiencePageDtoStatusExpired AdminAudiencePageDtoStatus = "expired"
+	AdminAudiencePageDtoStatusFailed  AdminAudiencePageDtoStatus = "failed"
+	AdminAudiencePageDtoStatusPending AdminAudiencePageDtoStatus = "pending"
+	AdminAudiencePageDtoStatusReady   AdminAudiencePageDtoStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the AdminAudiencePageDtoStatus enum.
+func (e AdminAudiencePageDtoStatus) Valid() bool {
+	switch e {
+	case AdminAudiencePageDtoStatusExpired:
+		return true
+	case AdminAudiencePageDtoStatusFailed:
+		return true
+	case AdminAudiencePageDtoStatusPending:
+		return true
+	case AdminAudiencePageDtoStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAudiencePreviewAcceptedDtoStatus.
+const (
+	AdminAudiencePreviewAcceptedDtoStatusPending AdminAudiencePreviewAcceptedDtoStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AdminAudiencePreviewAcceptedDtoStatus enum.
+func (e AdminAudiencePreviewAcceptedDtoStatus) Valid() bool {
+	switch e {
+	case AdminAudiencePreviewAcceptedDtoStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAudiencePreviewDtoStatus.
+const (
+	AdminAudiencePreviewDtoStatusExpired AdminAudiencePreviewDtoStatus = "expired"
+	AdminAudiencePreviewDtoStatusFailed  AdminAudiencePreviewDtoStatus = "failed"
+	AdminAudiencePreviewDtoStatusPending AdminAudiencePreviewDtoStatus = "pending"
+	AdminAudiencePreviewDtoStatusReady   AdminAudiencePreviewDtoStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the AdminAudiencePreviewDtoStatus enum.
+func (e AdminAudiencePreviewDtoStatus) Valid() bool {
+	switch e {
+	case AdminAudiencePreviewDtoStatusExpired:
+		return true
+	case AdminAudiencePreviewDtoStatusFailed:
+		return true
+	case AdminAudiencePreviewDtoStatusPending:
+		return true
+	case AdminAudiencePreviewDtoStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminAudiencePreviewResponseDtoStatus.
+const (
+	AdminAudiencePreviewResponseDtoStatusExpired AdminAudiencePreviewResponseDtoStatus = "expired"
+	AdminAudiencePreviewResponseDtoStatusFailed  AdminAudiencePreviewResponseDtoStatus = "failed"
+	AdminAudiencePreviewResponseDtoStatusPending AdminAudiencePreviewResponseDtoStatus = "pending"
+	AdminAudiencePreviewResponseDtoStatusReady   AdminAudiencePreviewResponseDtoStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the AdminAudiencePreviewResponseDtoStatus enum.
+func (e AdminAudiencePreviewResponseDtoStatus) Valid() bool {
+	switch e {
+	case AdminAudiencePreviewResponseDtoStatusExpired:
+		return true
+	case AdminAudiencePreviewResponseDtoStatusFailed:
+		return true
+	case AdminAudiencePreviewResponseDtoStatusPending:
+		return true
+	case AdminAudiencePreviewResponseDtoStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminCampaignChannel.
+const (
+	AdminCampaignChannelEmail AdminCampaignChannel = "email"
+	AdminCampaignChannelPush  AdminCampaignChannel = "push"
+)
+
+// Valid indicates whether the value is a known member of the AdminCampaignChannel enum.
+func (e AdminCampaignChannel) Valid() bool {
+	switch e {
+	case AdminCampaignChannelEmail:
+		return true
+	case AdminCampaignChannelPush:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminCampaignStatus.
+const (
+	Active   AdminCampaignStatus = "active"
+	Archived AdminCampaignStatus = "archived"
+	Draft    AdminCampaignStatus = "draft"
+)
+
+// Valid indicates whether the value is a known member of the AdminCampaignStatus enum.
+func (e AdminCampaignStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Archived:
+		return true
+	case Draft:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminJobRecipientDtoOutcome.
+const (
+	AdminJobRecipientDtoOutcomeFailed           AdminJobRecipientDtoOutcome = "failed"
+	AdminJobRecipientDtoOutcomeProviderAccepted AdminJobRecipientDtoOutcome = "provider_accepted"
+	AdminJobRecipientDtoOutcomeQueued           AdminJobRecipientDtoOutcome = "queued"
+	AdminJobRecipientDtoOutcomeSecured          AdminJobRecipientDtoOutcome = "secured"
+	AdminJobRecipientDtoOutcomeSkipped          AdminJobRecipientDtoOutcome = "skipped"
+	AdminJobRecipientDtoOutcomeUnknownDelivery  AdminJobRecipientDtoOutcome = "unknown_delivery"
+)
+
+// Valid indicates whether the value is a known member of the AdminJobRecipientDtoOutcome enum.
+func (e AdminJobRecipientDtoOutcome) Valid() bool {
+	switch e {
+	case AdminJobRecipientDtoOutcomeFailed:
+		return true
+	case AdminJobRecipientDtoOutcomeProviderAccepted:
+		return true
+	case AdminJobRecipientDtoOutcomeQueued:
+		return true
+	case AdminJobRecipientDtoOutcomeSecured:
+		return true
+	case AdminJobRecipientDtoOutcomeSkipped:
+		return true
+	case AdminJobRecipientDtoOutcomeUnknownDelivery:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminJobStatus.
+const (
+	AdminJobStatusCancelled           AdminJobStatus = "cancelled"
+	AdminJobStatusCompleted           AdminJobStatus = "completed"
+	AdminJobStatusCompletedWithErrors AdminJobStatus = "completed_with_errors"
+	AdminJobStatusPaused              AdminJobStatus = "paused"
+	AdminJobStatusPending             AdminJobStatus = "pending"
+	AdminJobStatusRunning             AdminJobStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the AdminJobStatus enum.
+func (e AdminJobStatus) Valid() bool {
+	switch e {
+	case AdminJobStatusCancelled:
+		return true
+	case AdminJobStatusCompleted:
+		return true
+	case AdminJobStatusCompletedWithErrors:
+		return true
+	case AdminJobStatusPaused:
+		return true
+	case AdminJobStatusPending:
+		return true
+	case AdminJobStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminReportFilterDtoResource.
+const (
+	AdminReportFilterDtoResourceReports AdminReportFilterDtoResource = "reports"
+)
+
+// Valid indicates whether the value is a known member of the AdminReportFilterDtoResource enum.
+func (e AdminReportFilterDtoResource) Valid() bool {
+	switch e {
+	case AdminReportFilterDtoResourceReports:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminReportStatus.
+const (
+	Dismissed AdminReportStatus = "dismissed"
+	Open      AdminReportStatus = "open"
+	Resolved  AdminReportStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the AdminReportStatus enum.
+func (e AdminReportStatus) Valid() bool {
+	switch e {
+	case Dismissed:
+		return true
+	case Open:
+		return true
+	case Resolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminSecurityState.
+const (
+	Compromised                   AdminSecurityState = "compromised"
+	Deleted                       AdminSecurityState = "deleted"
+	Normal                        AdminSecurityState = "normal"
+	PasswordDisabled              AdminSecurityState = "password_disabled"
+	SecuredManualRecoveryRequired AdminSecurityState = "secured_manual_recovery_required"
+)
+
+// Valid indicates whether the value is a known member of the AdminSecurityState enum.
+func (e AdminSecurityState) Valid() bool {
+	switch e {
+	case Compromised:
+		return true
+	case Deleted:
+		return true
+	case Normal:
+		return true
+	case PasswordDisabled:
+		return true
+	case SecuredManualRecoveryRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminSessionDtoSessionState.
+const (
+	AdminSessionDtoSessionStateAuthenticated AdminSessionDtoSessionState = "authenticated"
+)
+
+// Valid indicates whether the value is a known member of the AdminSessionDtoSessionState enum.
+func (e AdminSessionDtoSessionState) Valid() bool {
+	switch e {
+	case AdminSessionDtoSessionStateAuthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminSessionLoginResponseDtoSessionState.
+const (
+	AdminSessionLoginResponseDtoSessionStateMfaRequired AdminSessionLoginResponseDtoSessionState = "mfa_required"
+)
+
+// Valid indicates whether the value is a known member of the AdminSessionLoginResponseDtoSessionState enum.
+func (e AdminSessionLoginResponseDtoSessionState) Valid() bool {
+	switch e {
+	case AdminSessionLoginResponseDtoSessionStateMfaRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminSessionState.
+const (
+	AdminSessionStateAuthenticated     AdminSessionState = "authenticated"
+	AdminSessionStateMfaRequired       AdminSessionState = "mfa_required"
+	AdminSessionStatePreAuthentication AdminSessionState = "pre_authentication"
+)
+
+// Valid indicates whether the value is a known member of the AdminSessionState enum.
+func (e AdminSessionState) Valid() bool {
+	switch e {
+	case AdminSessionStateAuthenticated:
+		return true
+	case AdminSessionStateMfaRequired:
+		return true
+	case AdminSessionStatePreAuthentication:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminTestMessageAcceptedDtoAccepted.
+const (
+	AdminTestMessageAcceptedDtoAcceptedTrue AdminTestMessageAcceptedDtoAccepted = true
+)
+
+// Valid indicates whether the value is a known member of the AdminTestMessageAcceptedDtoAccepted enum.
+func (e AdminTestMessageAcceptedDtoAccepted) Valid() bool {
+	switch e {
+	case AdminTestMessageAcceptedDtoAcceptedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminUserFilterDtoResource.
+const (
+	AdminUserFilterDtoResourceAccounts AdminUserFilterDtoResource = "accounts"
+)
+
+// Valid indicates whether the value is a known member of the AdminUserFilterDtoResource enum.
+func (e AdminUserFilterDtoResource) Valid() bool {
+	switch e {
+	case AdminUserFilterDtoResourceAccounts:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllAudienceKind.
+const (
+	AllAudienceKindAll AllAudienceKind = "all"
+)
+
+// Valid indicates whether the value is a known member of the AllAudienceKind enum.
+func (e AllAudienceKind) Valid() bool {
+	switch e {
+	case AllAudienceKindAll:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AudienceKind.
+const (
+	AudienceKindAll      AudienceKind = "all"
+	AudienceKindFilter   AudienceKind = "filter"
+	AudienceKindSelected AudienceKind = "selected"
+)
+
+// Valid indicates whether the value is a known member of the AudienceKind enum.
+func (e AudienceKind) Valid() bool {
+	switch e {
+	case AudienceKindAll:
+		return true
+	case AudienceKindFilter:
+		return true
+	case AudienceKindSelected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AudienceResourceKind.
+const (
+	AudienceResourceKindAccounts AudienceResourceKind = "accounts"
+	AudienceResourceKindReports  AudienceResourceKind = "reports"
+)
+
+// Valid indicates whether the value is a known member of the AudienceResourceKind enum.
+func (e AudienceResourceKind) Valid() bool {
+	switch e {
+	case AudienceResourceKindAccounts:
+		return true
+	case AudienceResourceKindReports:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for BatchReadItemKind.
 const (
@@ -93,6 +526,439 @@ func (e BatchReadResultKind) Valid() bool {
 	}
 }
 
+// Defines values for EmailActionDtoAction.
+const (
+	EmailActionDtoActionEmail EmailActionDtoAction = "email"
+)
+
+// Valid indicates whether the value is a known member of the EmailActionDtoAction enum.
+func (e EmailActionDtoAction) Valid() bool {
+	switch e {
+	case EmailActionDtoActionEmail:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EmailLinkRequestAcceptedDtoAccepted.
+const (
+	EmailLinkRequestAcceptedDtoAcceptedTrue EmailLinkRequestAcceptedDtoAccepted = true
+)
+
+// Valid indicates whether the value is a known member of the EmailLinkRequestAcceptedDtoAccepted enum.
+func (e EmailLinkRequestAcceptedDtoAccepted) Valid() bool {
+	switch e {
+	case EmailLinkRequestAcceptedDtoAcceptedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FilterAudienceKind.
+const (
+	FilterAudienceKindFilter FilterAudienceKind = "filter"
+)
+
+// Valid indicates whether the value is a known member of the FilterAudienceKind enum.
+func (e FilterAudienceKind) Valid() bool {
+	switch e {
+	case FilterAudienceKindFilter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LoginLinkActionDtoAction.
+const (
+	LoginLinkActionDtoActionLoginLink LoginLinkActionDtoAction = "login_link"
+)
+
+// Valid indicates whether the value is a known member of the LoginLinkActionDtoAction enum.
+func (e LoginLinkActionDtoAction) Valid() bool {
+	switch e {
+	case LoginLinkActionDtoActionLoginLink:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MarkCompromisedActionDtoAction.
+const (
+	MarkCompromisedActionDtoActionMarkCompromised MarkCompromisedActionDtoAction = "mark_compromised"
+)
+
+// Valid indicates whether the value is a known member of the MarkCompromisedActionDtoAction enum.
+func (e MarkCompromisedActionDtoAction) Valid() bool {
+	switch e {
+	case MarkCompromisedActionDtoActionMarkCompromised:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PushActionDtoAction.
+const (
+	PushActionDtoActionPush PushActionDtoAction = "push"
+)
+
+// Valid indicates whether the value is a known member of the PushActionDtoAction enum.
+func (e PushActionDtoAction) Valid() bool {
+	switch e {
+	case PushActionDtoActionPush:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecoveryResendActionDtoAction.
+const (
+	RecoveryResendActionDtoActionRecoveryResend RecoveryResendActionDtoAction = "recovery_resend"
+)
+
+// Valid indicates whether the value is a known member of the RecoveryResendActionDtoAction enum.
+func (e RecoveryResendActionDtoAction) Valid() bool {
+	switch e {
+	case RecoveryResendActionDtoActionRecoveryResend:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportDismissActionDtoAction.
+const (
+	ReportDismissActionDtoActionReportDismiss ReportDismissActionDtoAction = "report_dismiss"
+)
+
+// Valid indicates whether the value is a known member of the ReportDismissActionDtoAction enum.
+func (e ReportDismissActionDtoAction) Valid() bool {
+	switch e {
+	case ReportDismissActionDtoActionReportDismiss:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportResolveActionDtoAction.
+const (
+	ReportResolveActionDtoActionReportResolve ReportResolveActionDtoAction = "report_resolve"
+)
+
+// Valid indicates whether the value is a known member of the ReportResolveActionDtoAction enum.
+func (e ReportResolveActionDtoAction) Valid() bool {
+	switch e {
+	case ReportResolveActionDtoActionReportResolve:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevokeSessionsActionDtoAction.
+const (
+	RevokeSessionsActionDtoActionRevokeSessions RevokeSessionsActionDtoAction = "revoke_sessions"
+)
+
+// Valid indicates whether the value is a known member of the RevokeSessionsActionDtoAction enum.
+func (e RevokeSessionsActionDtoAction) Valid() bool {
+	switch e {
+	case RevokeSessionsActionDtoActionRevokeSessions:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SelectedAudienceKind.
+const (
+	SelectedAudienceKindSelected SelectedAudienceKind = "selected"
+)
+
+// Valid indicates whether the value is a known member of the SelectedAudienceKind enum.
+func (e SelectedAudienceKind) Valid() bool {
+	switch e {
+	case SelectedAudienceKindSelected:
+		return true
+	default:
+		return false
+	}
+}
+
+// AdminAction Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+type AdminAction struct {
+	Action AdminActionKind `json:"action"`
+	union  json.RawMessage
+}
+
+// AdminActionKind defines model for adminActionKind.
+type AdminActionKind string
+
+// AdminAudience Discriminated explicit selection/filter/all union. Empty audiences are invalid.
+type AdminAudience struct {
+	Kind  AudienceKind `json:"kind"`
+	union json.RawMessage
+}
+
+// AdminAudienceCountsDto Counts are calculated by the server and distinguish accounts, eligible recipients, and device deliveries.
+//
+// Example: {"accountAudienceCount":1,"deviceDeliveryCount":0,"eligibleRecipientCount":1,"excludedCount":0}
+type AdminAudienceCountsDto struct {
+	AccountAudienceCount   int64 `json:"accountAudienceCount"`
+	DeviceDeliveryCount    int64 `json:"deviceDeliveryCount"`
+	EligibleRecipientCount int64 `json:"eligibleRecipientCount"`
+	ExcludedCount          int64 `json:"excludedCount"`
+}
+
+// AdminAudienceExclusionDto defines model for adminAudienceExclusionDto.
+type AdminAudienceExclusionDto struct {
+	Id       openapi_types.UUID   `json:"id"`
+	Reason   string               `json:"reason"`
+	Resource AudienceResourceKind `json:"resource"`
+}
+
+// AdminAudienceFilter Resource-tagged filter union. Account and report criteria cannot be applied across resource types.
+type AdminAudienceFilter struct {
+	union json.RawMessage
+}
+
+// AdminAudienceMemberDto defines model for adminAudienceMemberDto.
+type AdminAudienceMemberDto struct {
+	Eligible bool                 `json:"eligible"`
+	Id       openapi_types.UUID   `json:"id"`
+	Reason   *string              `json:"reason,omitempty"`
+	Resource AudienceResourceKind `json:"resource"`
+}
+
+// AdminAudiencePageDto Snapshot metadata and a bounded cursor page of members; no implicit filter rerun is allowed.
+type AdminAudiencePageDto struct {
+	// Counts Counts are calculated by the server and distinguish accounts, eligible recipients, and device deliveries.
+	//
+	// Example: {"accountAudienceCount":1,"deviceDeliveryCount":0,"eligibleRecipientCount":1,"excludedCount":0}
+	Counts     AdminAudienceCountsDto      `json:"counts"`
+	Exclusions []AdminAudienceExclusionDto `json:"exclusions"`
+	ExpiresAt  time.Time                   `json:"expiresAt"`
+	Items      []AdminAudienceMemberDto    `json:"items"`
+	NextCursor *string                     `json:"nextCursor,omitempty"`
+	SnapshotId openapi_types.UUID          `json:"snapshotId"`
+	Status     AdminAudiencePageDtoStatus  `json:"status"`
+}
+
+// AdminAudiencePageDtoStatus defines model for AdminAudiencePageDto.Status.
+type AdminAudiencePageDtoStatus string
+
+// AdminAudiencePreviewAcceptedDto Large snapshot materialization accepted as a disabled-feature job.
+type AdminAudiencePreviewAcceptedDto struct {
+	JobId      openapi_types.UUID                    `json:"jobId"`
+	SnapshotId openapi_types.UUID                    `json:"snapshotId"`
+	Status     AdminAudiencePreviewAcceptedDtoStatus `json:"status"`
+}
+
+// AdminAudiencePreviewAcceptedDtoStatus defines model for AdminAudiencePreviewAcceptedDto.Status.
+type AdminAudiencePreviewAcceptedDtoStatus string
+
+// AdminAudiencePreviewDto Ready immutable snapshot preview bound to actor, action, payload hash and expiry.
+//
+// Example: {"action":{"action":"login_link"},"counts":{"accountAudienceCount":1,"deviceDeliveryCount":0,"eligibleRecipientCount":1,"excludedCount":0},"exclusions":[],"expiresAt":"2026-09-14T04:15:00Z","payloadHash":"sha256-payload-hash","snapshotId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","status":"ready"}
+type AdminAudiencePreviewDto struct {
+	// Action Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+	Action      AdminAction        `json:"action"`
+	ActorUserId openapi_types.UUID `json:"actorUserId"`
+
+	// Counts Counts are calculated by the server and distinguish accounts, eligible recipients, and device deliveries.
+	//
+	// Example: {"accountAudienceCount":1,"deviceDeliveryCount":0,"eligibleRecipientCount":1,"excludedCount":0}
+	Counts      AdminAudienceCountsDto        `json:"counts"`
+	Exclusions  []AdminAudienceExclusionDto   `json:"exclusions"`
+	ExpiresAt   time.Time                     `json:"expiresAt"`
+	PayloadHash string                        `json:"payloadHash"`
+	Resource    AudienceResourceKind          `json:"resource"`
+	SnapshotId  openapi_types.UUID            `json:"snapshotId"`
+	Status      AdminAudiencePreviewDtoStatus `json:"status"`
+}
+
+// AdminAudiencePreviewDtoStatus defines model for AdminAudiencePreviewDto.Status.
+type AdminAudiencePreviewDtoStatus string
+
+// AdminAudiencePreviewRequestDto Example: {"action":{"action":"login_link"},"audience":{"ids":["046b6c7f-0b8a-43b9-b35d-6489e6daee91"],"kind":"selected","resource":"accounts"}}
+type AdminAudiencePreviewRequestDto struct {
+	// Action Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+	Action AdminAction `json:"action"`
+
+	// Audience Discriminated explicit selection/filter/all union. Empty audiences are invalid.
+	Audience AdminAudience `json:"audience"`
+}
+
+// AdminAudiencePreviewResponseDto Preview result shared by the ready 200 and queued 202 responses. Both statuses include snapshotId and status; a ready result includes the preview fields and a pending result includes jobId. The server must not return a pending result with HTTP 200 or a ready result with HTTP 202.
+//
+// Example: {"jobId":"146b6c7f-0b8a-43b9-b35d-6489e6daee92","snapshotId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","status":"pending"}
+type AdminAudiencePreviewResponseDto struct {
+	Action      *AdminAction                          `json:"action,omitempty"`
+	ActorUserId *openapi_types.UUID                   `json:"actorUserId,omitempty"`
+	Counts      *AdminAudienceCountsDto               `json:"counts,omitempty"`
+	Exclusions  *[]AdminAudienceExclusionDto          `json:"exclusions,omitempty"`
+	ExpiresAt   *time.Time                            `json:"expiresAt,omitempty"`
+	JobId       *openapi_types.UUID                   `json:"jobId,omitempty"`
+	PayloadHash *string                               `json:"payloadHash,omitempty"`
+	Resource    *AudienceResourceKind                 `json:"resource,omitempty"`
+	SnapshotId  openapi_types.UUID                    `json:"snapshotId"`
+	Status      AdminAudiencePreviewResponseDtoStatus `json:"status"`
+}
+
+// AdminAudiencePreviewResponseDtoStatus defines model for AdminAudiencePreviewResponseDto.Status.
+type AdminAudiencePreviewResponseDtoStatus string
+
+// AdminAuditEventDto Append-only audit event with safe bounded metadata and no secrets.
+type AdminAuditEventDto struct {
+	Action       AdminActionKind     `json:"action"`
+	ActorUserId  *openapi_types.UUID `json:"actorUserId,omitempty"`
+	Details      map[string]string   `json:"details"`
+	Id           openapi_types.UUID  `json:"id"`
+	OccurredAt   time.Time           `json:"occurredAt"`
+	Outcome      string              `json:"outcome"`
+	Reason       *string             `json:"reason,omitempty"`
+	TargetUserId *openapi_types.UUID `json:"targetUserId,omitempty"`
+}
+
+// AdminAuditPageDto defines model for adminAuditPageDto.
+type AdminAuditPageDto struct {
+	Items      []AdminAuditEventDto `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
+// AdminCampaignChannel defines model for adminCampaignChannel.
+type AdminCampaignChannel string
+
+// AdminCampaignContentDto defines model for adminCampaignContentDto.
+type AdminCampaignContentDto struct {
+	Body    string               `json:"body"`
+	Channel AdminCampaignChannel `json:"channel"`
+	Name    string               `json:"name"`
+	Subject *string              `json:"subject,omitempty"`
+	Title   *string              `json:"title,omitempty"`
+}
+
+// AdminCampaignCreateRequestDto Create a draft or active content record only; archival uses the archive endpoint.
+type AdminCampaignCreateRequestDto struct {
+	Body    string               `json:"body"`
+	Channel AdminCampaignChannel `json:"channel"`
+	Name    string               `json:"name"`
+	Status  AdminCampaignStatus  `json:"status"`
+	Subject *string              `json:"subject,omitempty"`
+	Title   *string              `json:"title,omitempty"`
+}
+
+// AdminCampaignDto Content-only campaign record. It has no audience, schedule, provider, or delivery state.
+type AdminCampaignDto struct {
+	Body            string               `json:"body"`
+	Channel         AdminCampaignChannel `json:"channel"`
+	CreatedAt       time.Time            `json:"createdAt"`
+	CreatedByUserId *openapi_types.UUID  `json:"createdByUserId,omitempty"`
+	Id              openapi_types.UUID   `json:"id"`
+	Name            string               `json:"name"`
+	Revision        int64                `json:"revision"`
+	Status          AdminCampaignStatus  `json:"status"`
+	Subject         *string              `json:"subject,omitempty"`
+	Title           *string              `json:"title,omitempty"`
+	UpdatedAt       time.Time            `json:"updatedAt"`
+}
+
+// AdminCampaignPageDto Cursor page with a default limit of 25 and a maximum of 100.
+type AdminCampaignPageDto struct {
+	Items      []AdminCampaignDto `json:"items"`
+	NextCursor *string            `json:"nextCursor,omitempty"`
+}
+
+// AdminCampaignRevisionRequestDto Revision-checked archive or draft deletion request.
+type AdminCampaignRevisionRequestDto struct {
+	ExpectedRevision int64 `json:"expectedRevision"`
+}
+
+// AdminCampaignStatus defines model for adminCampaignStatus.
+type AdminCampaignStatus string
+
+// AdminCampaignUpdateRequestDto Revision-checked content update. Archived campaigns cannot be changed; archive uses the archive endpoint.
+type AdminCampaignUpdateRequestDto struct {
+	Body             string               `json:"body"`
+	Channel          AdminCampaignChannel `json:"channel"`
+	ExpectedRevision int64                `json:"expectedRevision"`
+	Name             string               `json:"name"`
+	Status           AdminCampaignStatus  `json:"status"`
+	Subject          *string              `json:"subject,omitempty"`
+	Title            *string              `json:"title,omitempty"`
+}
+
+// AdminJobAcceptedDto Example: {"jobId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","status":"pending"}
+type AdminJobAcceptedDto struct {
+	JobId  openapi_types.UUID `json:"jobId"`
+	Status AdminJobStatus     `json:"status"`
+}
+
+// AdminJobCommandRequestDto Optional bounded reason for a retry or cancellation command.
+type AdminJobCommandRequestDto struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// AdminJobCreateRequestDto Confirm one unexpired snapshot and exact action payload; Idempotency-Key is a required header.
+type AdminJobCreateRequestDto struct {
+	// Action Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+	Action      AdminAction        `json:"action"`
+	PayloadHash string             `json:"payloadHash"`
+	SnapshotId  openapi_types.UUID `json:"snapshotId"`
+}
+
+// AdminJobDto Job status includes safe counts and provider outcomes, never action tokens or password values.
+type AdminJobDto struct {
+	// Action Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+	Action                AdminAction        `json:"action"`
+	ActorUserId           openapi_types.UUID `json:"actorUserId"`
+	CancellationRequested bool               `json:"cancellationRequested"`
+
+	// Counts Counts are calculated by the server and distinguish accounts, eligible recipients, and device deliveries.
+	//
+	// Example: {"accountAudienceCount":1,"deviceDeliveryCount":0,"eligibleRecipientCount":1,"excludedCount":0}
+	Counts     AdminAudienceCountsDto `json:"counts"`
+	CreatedAt  time.Time              `json:"createdAt"`
+	JobId      openapi_types.UUID     `json:"jobId"`
+	SnapshotId openapi_types.UUID     `json:"snapshotId"`
+	Status     AdminJobStatus         `json:"status"`
+	UpdatedAt  time.Time              `json:"updatedAt"`
+}
+
+// AdminJobPageDto defines model for adminJobPageDto.
+type AdminJobPageDto struct {
+	Items      []AdminJobDto `json:"items"`
+	NextCursor *string       `json:"nextCursor,omitempty"`
+}
+
+// AdminJobRecipientDto One bounded recipient outcome; delivery tokens and provider secrets are omitted.
+type AdminJobRecipientDto struct {
+	AccountId     openapi_types.UUID          `json:"accountId"`
+	AttemptCount  int                         `json:"attemptCount"`
+	DeviceCount   int                         `json:"deviceCount"`
+	LastAttemptAt *time.Time                  `json:"lastAttemptAt,omitempty"`
+	Outcome       AdminJobRecipientDtoOutcome `json:"outcome"`
+	Reason        *string                     `json:"reason,omitempty"`
+}
+
+// AdminJobRecipientDtoOutcome defines model for AdminJobRecipientDto.Outcome.
+type AdminJobRecipientDtoOutcome string
+
+// AdminJobRecipientPageDto defines model for adminJobRecipientPageDto.
+type AdminJobRecipientPageDto struct {
+	Items      []AdminJobRecipientDto `json:"items"`
+	NextCursor *string                `json:"nextCursor,omitempty"`
+}
+
+// AdminJobStatus defines model for adminJobStatus.
+type AdminJobStatus string
+
 // AdminMailDto defines model for adminMailDto.
 type AdminMailDto struct {
 	// Mails List of emails when null all users will get this mail
@@ -105,6 +971,256 @@ type AdminMailDto struct {
 	MessageHtml *string `json:"messageHtml,omitempty"`
 	Subject     string  `json:"subject"`
 }
+
+// AdminMfaRequestDto One-use TOTP challenge response.
+//
+// Example: {"challengeId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","code":"123456"}
+type AdminMfaRequestDto struct {
+	ChallengeId openapi_types.UUID `json:"challengeId"`
+	Code        string             `json:"code"`
+}
+
+// AdminReauthenticateRequestDto Recent MFA proof bound to one sensitive action.
+//
+// Example: {"action":"mark_compromised","code":"123456"}
+type AdminReauthenticateRequestDto struct {
+	Action AdminActionKind `json:"action"`
+	Code   string          `json:"code"`
+}
+
+// AdminReportDto Report detail with authenticated actor history and a separate structured target.
+type AdminReportDto struct {
+	AssigneeUserId   *openapi_types.UUID  `json:"assigneeUserId,omitempty"`
+	CreatedAt        time.Time            `json:"createdAt"`
+	Id               openapi_types.UUID   `json:"id"`
+	LegacyMessage    *string              `json:"legacyMessage,omitempty"`
+	Notes            []AdminReportNoteDto `json:"notes"`
+	ReporterUserId   openapi_types.UUID   `json:"reporterUserId"`
+	ReporterUsername *string              `json:"reporterUsername,omitempty"`
+	Revision         int64                `json:"revision"`
+	Status           AdminReportStatus    `json:"status"`
+
+	// Target Target remains reviewable after account deletion.
+	Target    AdminReportTargetDto `json:"target"`
+	Text      string               `json:"text"`
+	UpdatedAt time.Time            `json:"updatedAt"`
+}
+
+// AdminReportFilterDto Validated server-side report filter. Filter evaluation never happens in the client.
+//
+// Example: {"assigneeUserId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","createdAfter":"2026-01-01T00:00:00Z","resource":"reports","statuses":["open"],"types":["abuse"]}
+type AdminReportFilterDto struct {
+	AssigneeUserId *openapi_types.UUID          `json:"assigneeUserId,omitempty"`
+	CreatedAfter   *time.Time                   `json:"createdAfter,omitempty"`
+	CreatedBefore  *time.Time                   `json:"createdBefore,omitempty"`
+	Resource       AdminReportFilterDtoResource `json:"resource"`
+	Statuses       *[]AdminReportStatus         `json:"statuses,omitempty"`
+	Types          *[]string                    `json:"types,omitempty"`
+}
+
+// AdminReportFilterDtoResource defines model for AdminReportFilterDto.Resource.
+type AdminReportFilterDtoResource string
+
+// AdminReportNoteDto defines model for adminReportNoteDto.
+type AdminReportNoteDto struct {
+	ActorUserId openapi_types.UUID `json:"actorUserId"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	Id          openapi_types.UUID `json:"id"`
+	Text        string             `json:"text"`
+}
+
+// AdminReportNotePageDto defines model for adminReportNotePageDto.
+type AdminReportNotePageDto struct {
+	Items      []AdminReportNoteDto `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
+// AdminReportNoteRequestDto defines model for adminReportNoteRequestDto.
+type AdminReportNoteRequestDto struct {
+	Text string `json:"text"`
+}
+
+// AdminReportPageDto defines model for adminReportPageDto.
+type AdminReportPageDto struct {
+	Items      []AdminReportDto `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+}
+
+// AdminReportStatus defines model for adminReportStatus.
+type AdminReportStatus string
+
+// AdminReportTargetDto Target remains reviewable after account deletion.
+type AdminReportTargetDto struct {
+	Deleted  bool                `json:"deleted"`
+	UserId   *openapi_types.UUID `json:"userId,omitempty"`
+	Username *string             `json:"username,omitempty"`
+}
+
+// AdminReportUpdateRequestDto Revision-checked transition; a stale expectedRevision returns 409. Omit assigneeUserId to preserve the current assignee, send null to clear it, or send a UUID to assign that user.
+type AdminReportUpdateRequestDto struct {
+	AssigneeUserId   *openapi_types.UUID `json:"assigneeUserId,omitempty"`
+	ExpectedRevision int64               `json:"expectedRevision"`
+	Note             *string             `json:"note,omitempty"`
+	Status           AdminReportStatus   `json:"status"`
+}
+
+// AdminSecurityState defines model for adminSecurityState.
+type AdminSecurityState string
+
+// AdminSessionBootstrapDto Pre-authentication state created before password login; the CSRF value is bound to its challenge cookie.
+//
+// Example: {"csrfToken":"csrf-bootstrap-value","expiresAt":"2026-09-14T12:30:00Z","sessionState":"pre_authentication"}
+type AdminSessionBootstrapDto struct {
+	CsrfToken    string            `json:"csrfToken"`
+	ExpiresAt    time.Time         `json:"expiresAt"`
+	SessionState AdminSessionState `json:"sessionState"`
+}
+
+// AdminSessionDto Opaque browser admin session state restored by GET; no consumer JWT or refresh credential is included.
+//
+// Example: {"authenticatedAt":"2026-09-14T04:00:00Z","capabilities":["users.read","security.revoke"],"csrfToken":"csrf-authenticated-value","idleExpiresAt":"2026-09-14T04:30:00Z","lastActivityAt":"2026-09-14T04:10:00Z","permissions":["users.read"],"recentMfaAt":"2026-09-14T04:10:00Z","sessionId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","sessionState":"authenticated","userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"operator"}
+type AdminSessionDto struct {
+	AuthenticatedAt time.Time                   `json:"authenticatedAt"`
+	Capabilities    []string                    `json:"capabilities"`
+	CsrfToken       string                      `json:"csrfToken"`
+	IdleExpiresAt   time.Time                   `json:"idleExpiresAt"`
+	LastActivityAt  time.Time                   `json:"lastActivityAt"`
+	Permissions     []string                    `json:"permissions"`
+	RecentMfaAt     *time.Time                  `json:"recentMfaAt,omitempty"`
+	SessionId       openapi_types.UUID          `json:"sessionId"`
+	SessionState    AdminSessionDtoSessionState `json:"sessionState"`
+	UserId          openapi_types.UUID          `json:"userId"`
+	Username        string                      `json:"username"`
+}
+
+// AdminSessionDtoSessionState defines model for AdminSessionDto.SessionState.
+type AdminSessionDtoSessionState string
+
+// AdminSessionLoginRequestDto Admin credentials for the password challenge. Consumer credentials never grant this session.
+//
+// Example: {"password":"password-kept-out-of-logs","username":"operator"}
+type AdminSessionLoginRequestDto struct {
+	Password string `json:"password"`
+	Username string `json:"username"`
+}
+
+// AdminSessionLoginResponseDto One-use password challenge awaiting TOTP completion.
+//
+// Example: {"challengeId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","csrfToken":"csrf-login-value","expiresAt":"2026-09-14T12:05:00Z","sessionState":"mfa_required"}
+type AdminSessionLoginResponseDto struct {
+	ChallengeId  openapi_types.UUID                       `json:"challengeId"`
+	CsrfToken    string                                   `json:"csrfToken"`
+	ExpiresAt    time.Time                                `json:"expiresAt"`
+	SessionState AdminSessionLoginResponseDtoSessionState `json:"sessionState"`
+}
+
+// AdminSessionLoginResponseDtoSessionState defines model for AdminSessionLoginResponseDto.SessionState.
+type AdminSessionLoginResponseDtoSessionState string
+
+// AdminSessionState defines model for adminSessionState.
+type AdminSessionState string
+
+// AdminTestMessageAcceptedDto defines model for adminTestMessageAcceptedDto.
+type AdminTestMessageAcceptedDto struct {
+	Accepted AdminTestMessageAcceptedDtoAccepted `json:"accepted"`
+	JobId    *openapi_types.UUID                 `json:"jobId,omitempty"`
+}
+
+// AdminTestMessageAcceptedDtoAccepted defines model for AdminTestMessageAcceptedDto.Accepted.
+type AdminTestMessageAcceptedDtoAccepted bool
+
+// AdminTestMessageRequestDto Explicit account test recipient using the same action validation as a job.
+type AdminTestMessageRequestDto struct {
+	// Action Discriminated action and payload union. The action kind is bound into preview and job payload hashes.
+	Action          AdminAction        `json:"action"`
+	RecipientUserId openapi_types.UUID `json:"recipientUserId"`
+}
+
+// AdminUserDetailsDto Administrative account details with aggregate device/preferences state.
+type AdminUserDetailsDto struct {
+	AuthGeneration        int64                `json:"authGeneration"`
+	CommunicationOptOut   bool                 `json:"communicationOptOut"`
+	CompromisedAt         *time.Time           `json:"compromisedAt,omitempty"`
+	CreatedAt             time.Time            `json:"createdAt"`
+	EligibilityReasons    []string             `json:"eligibilityReasons"`
+	Email                 *openapi_types.Email `json:"email,omitempty"`
+	EmailVerified         bool                 `json:"emailVerified"`
+	Id                    openapi_types.UUID   `json:"id"`
+	IsAdmin               bool                 `json:"isAdmin"`
+	PasswordDisabled      bool                 `json:"passwordDisabled"`
+	PasswordResetRequired bool                 `json:"passwordResetRequired"`
+	RegisteredDeviceCount int                  `json:"registeredDeviceCount"`
+	SecurityState         AdminSecurityState   `json:"securityState"`
+	Username              string               `json:"username"`
+}
+
+// AdminUserDto Bounded administrative account summary. Credential material is intentionally absent.
+//
+// Example: {"authGeneration":2,"compromisedAt":null,"createdAt":"2026-01-10T12:00:00Z","eligibilityReasons":[],"email":"person@example.com","emailVerified":true,"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","isAdmin":false,"passwordDisabled":false,"passwordResetRequired":false,"securityState":"normal","username":"alice"}
+type AdminUserDto struct {
+	AuthGeneration        int64                `json:"authGeneration"`
+	CompromisedAt         *time.Time           `json:"compromisedAt,omitempty"`
+	CreatedAt             time.Time            `json:"createdAt"`
+	EligibilityReasons    []string             `json:"eligibilityReasons"`
+	Email                 *openapi_types.Email `json:"email,omitempty"`
+	EmailVerified         bool                 `json:"emailVerified"`
+	Id                    openapi_types.UUID   `json:"id"`
+	IsAdmin               bool                 `json:"isAdmin"`
+	PasswordDisabled      bool                 `json:"passwordDisabled"`
+	PasswordResetRequired bool                 `json:"passwordResetRequired"`
+	SecurityState         AdminSecurityState   `json:"securityState"`
+	Username              string               `json:"username"`
+}
+
+// AdminUserFilterDto Validated server-side account filter. Filter evaluation never happens in the client.
+//
+// Example: {"includeAdmins":false,"resource":"accounts","securityStatuses":["normal"],"verifiedEmail":true}
+type AdminUserFilterDto struct {
+	CreatedAfter     *time.Time                 `json:"createdAfter,omitempty"`
+	CreatedBefore    *time.Time                 `json:"createdBefore,omitempty"`
+	Email            *openapi_types.Email       `json:"email,omitempty"`
+	Id               *openapi_types.UUID        `json:"id,omitempty"`
+	IncludeAdmins    *bool                      `json:"includeAdmins,omitempty"`
+	Resource         AdminUserFilterDtoResource `json:"resource"`
+	SecurityStatuses *[]AdminSecurityState      `json:"securityStatuses,omitempty"`
+	Username         *string                    `json:"username,omitempty"`
+	VerifiedEmail    *bool                      `json:"verifiedEmail,omitempty"`
+}
+
+// AdminUserFilterDtoResource defines model for AdminUserFilterDto.Resource.
+type AdminUserFilterDtoResource string
+
+// AdminUserPageDto Cursor page with a default limit of 25 and a maximum of 100.
+//
+// Example: {"items":[],"nextCursor":"next-cursor"}
+type AdminUserPageDto struct {
+	Items      []AdminUserDto `json:"items"`
+	NextCursor *string        `json:"nextCursor,omitempty"`
+}
+
+// AllAudience All eligible records of the declared resource type, after server-side safety checks.
+type AllAudience struct {
+	Kind     AllAudienceKind      `json:"kind"`
+	Resource AudienceResourceKind `json:"resource"`
+}
+
+// AllAudienceKind defines model for AllAudience.Kind.
+type AllAudienceKind string
+
+// ApiErrorDto Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type ApiErrorDto struct {
+	Code              string `json:"code"`
+	Message           string `json:"message"`
+	RetryAfterSeconds *int   `json:"retryAfterSeconds,omitempty"`
+}
+
+// AudienceKind defines model for audienceKind.
+type AudienceKind string
+
+// AudienceResourceKind defines model for audienceResourceKind.
+type AudienceResourceKind string
 
 // BatchReadItem defines model for batchReadItem.
 type BatchReadItem struct {
@@ -171,6 +1287,63 @@ type Date = time.Time
 // Email defines model for email.
 type Email = openapi_types.Email
 
+// EmailActionDto Server-sanitized email action payload.
+type EmailActionDto struct {
+	Action EmailActionDtoAction `json:"action"`
+	Body   string               `json:"body"`
+
+	// MessageHtml Optional server-sanitized preview input; scripts and admin DOM access are rejected.
+	MessageHtml *string `json:"messageHtml,omitempty"`
+	Subject     string  `json:"subject"`
+}
+
+// EmailActionDtoAction defines model for EmailActionDto.Action.
+type EmailActionDtoAction string
+
+// EmailLinkExchangeRequestDto Opaque one-time token captured from the browser fragment and submitted by POST.
+//
+// Example: {"token":"opaque-token-kept-out-of-logs"}
+type EmailLinkExchangeRequestDto struct {
+	Token string `json:"token"`
+}
+
+// EmailLinkExchangeResponseDto Existing consumer token pair plus the authoritative canonical username.
+//
+// Example: {"tokens":{"accessToken":"access-token","refreshToken":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91"},"username":"alice"}
+type EmailLinkExchangeResponseDto struct {
+	// Tokens Example: {"accessToken":"accessToken","refreshToken":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91"}
+	Tokens   TokenResponseDto `json:"tokens"`
+	Username string           `json:"username"`
+}
+
+// EmailLinkRequestAcceptedDto Generic response intentionally independent of account eligibility.
+//
+// Example: {"accepted":true}
+type EmailLinkRequestAcceptedDto struct {
+	Accepted EmailLinkRequestAcceptedDtoAccepted `json:"accepted"`
+}
+
+// EmailLinkRequestAcceptedDtoAccepted defines model for EmailLinkRequestAcceptedDto.Accepted.
+type EmailLinkRequestAcceptedDtoAccepted bool
+
+// EmailLinkRequestDto Email-only login request. Surrounding whitespace is trimmed by the service.
+//
+// Example: {"email":"person@example.com"}
+type EmailLinkRequestDto struct {
+	Email openapi_types.Email `json:"email"`
+}
+
+// FilterAudience Explicit validated filter evaluated once into an immutable snapshot.
+type FilterAudience struct {
+	// Filter Resource-tagged filter union. Account and report criteria cannot be applied across resource types.
+	Filter   AdminAudienceFilter  `json:"filter"`
+	Kind     FilterAudienceKind   `json:"kind"`
+	Resource AudienceResourceKind `json:"resource"`
+}
+
+// FilterAudienceKind defines model for FilterAudience.Kind.
+type FilterAudienceKind string
+
 // GroupDto Example: {"bestSeason":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","points":5,"rank":2,"season":{"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}},"description":"description","group_admin":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","invite_url":"invite_url","lastUpdated":"2017-01-10T14:55:32+01:00","link":"link","name":"name","pinImage":"https://storage.example.com/stick-it/1/1.png","profileImage":"https://storage.example.com/stick-it/1/1.png","profileImageSmall":"https://storage.example.com/stick-it/1/1.png","visibility":0}
 type GroupDto struct {
 	BestSeason  *SeasonItemDto      `json:"bestSeason,omitempty"`
@@ -233,6 +1406,15 @@ type InfoDto struct {
 // Latitude defines model for latitude.
 type Latitude = float32
 
+// LoginLinkActionDto defines model for loginLinkActionDto.
+type LoginLinkActionDto struct {
+	Action LoginLinkActionDtoAction `json:"action"`
+	Reason *string                  `json:"reason,omitempty"`
+}
+
+// LoginLinkActionDtoAction defines model for LoginLinkActionDto.Action.
+type LoginLinkActionDtoAction string
+
 // LongString defines model for longString.
 type LongString = string
 
@@ -262,6 +1444,15 @@ type MapInfoDto struct {
 	// Name2 Second-level administrative name.
 	Name2 *string `json:"name2"`
 }
+
+// MarkCompromisedActionDto defines model for markCompromisedActionDto.
+type MarkCompromisedActionDto struct {
+	Action MarkCompromisedActionDtoAction `json:"action"`
+	Reason string                         `json:"reason"`
+}
+
+// MarkCompromisedActionDtoAction defines model for MarkCompromisedActionDto.Action.
+type MarkCompromisedActionDtoAction string
 
 // MemberResponseDto Example: {"profile_image_small":"https://storage.example.com/stick-it/1/1.png","ranking":0,"selectedBatch":6,"userId":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","username":"username"}
 type MemberResponseDto struct {
@@ -338,6 +1529,16 @@ type PinsSyncDto struct {
 	Items   []PinWithOptionalImageDto `json:"items"`
 }
 
+// PushActionDto defines model for pushActionDto.
+type PushActionDto struct {
+	Action PushActionDtoAction `json:"action"`
+	Body   string              `json:"body"`
+	Title  string              `json:"title"`
+}
+
+// PushActionDtoAction defines model for PushActionDto.Action.
+type PushActionDtoAction string
+
 // RankingSearchDto defines model for rankingSearchDto.
 type RankingSearchDto = []RankingSearchDtoInner
 
@@ -359,18 +1560,64 @@ type RankingSearchDtoInner struct {
 	Name string `json:"name"`
 }
 
+// RecoveryCompleteRequestDto Purpose-limited restricted recovery submission; it does not accept or create a normal JWT.
+//
+// Example: {"password":"a-new-password","token":"opaque-recovery-token"}
+type RecoveryCompleteRequestDto struct {
+	Password string `json:"password"`
+	Token    string `json:"token"`
+}
+
+// RecoveryResendActionDto defines model for recoveryResendActionDto.
+type RecoveryResendActionDto struct {
+	Action RecoveryResendActionDtoAction `json:"action"`
+	Reason string                        `json:"reason"`
+}
+
+// RecoveryResendActionDtoAction defines model for RecoveryResendActionDto.Action.
+type RecoveryResendActionDtoAction string
+
 // RefreshTokenRequestDto defines model for refreshTokenRequestDto.
 type RefreshTokenRequestDto struct {
 	RefreshToken *openapi_types.UUID `json:"refreshToken,omitempty"`
 	UserId       *openapi_types.UUID `json:"userId,omitempty"`
 }
 
+// ReportDismissActionDto defines model for reportDismissActionDto.
+type ReportDismissActionDto struct {
+	Action ReportDismissActionDtoAction `json:"action"`
+	Note   *string                      `json:"note,omitempty"`
+}
+
+// ReportDismissActionDtoAction defines model for ReportDismissActionDto.Action.
+type ReportDismissActionDtoAction string
+
 // ReportDto defines model for reportDto.
 type ReportDto struct {
-	Message string             `json:"message"`
-	Report  string             `json:"report"`
-	UserId  openapi_types.UUID `json:"userId"`
+	Message    string              `json:"message"`
+	Report     string              `json:"report"`
+	TargetId   *openapi_types.UUID `json:"targetId,omitempty"`
+	TargetKind *string             `json:"targetKind,omitempty"`
+	UserId     openapi_types.UUID  `json:"userId"`
 }
+
+// ReportResolveActionDto defines model for reportResolveActionDto.
+type ReportResolveActionDto struct {
+	Action ReportResolveActionDtoAction `json:"action"`
+	Note   *string                      `json:"note,omitempty"`
+}
+
+// ReportResolveActionDtoAction defines model for ReportResolveActionDto.Action.
+type ReportResolveActionDtoAction string
+
+// RevokeSessionsActionDto defines model for revokeSessionsActionDto.
+type RevokeSessionsActionDto struct {
+	Action RevokeSessionsActionDtoAction `json:"action"`
+	Reason string                        `json:"reason"`
+}
+
+// RevokeSessionsActionDtoAction defines model for RevokeSessionsActionDto.Action.
+type RevokeSessionsActionDtoAction string
 
 // SeasonDto Example: {"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}
 type SeasonDto struct {
@@ -392,6 +1639,23 @@ type SeasonItemDto struct {
 
 	// Season Example: {"id":"046b6c7f-0b8a-43b9-b35d-6489e6daee91","month":6,"seasonNumber":5,"year":1}
 	Season SeasonDto `json:"season"`
+}
+
+// SelectedAudience Explicit bounded IDs; report actions interpret IDs as report IDs.
+type SelectedAudience struct {
+	Ids      []openapi_types.UUID `json:"ids"`
+	Kind     SelectedAudienceKind `json:"kind"`
+	Resource AudienceResourceKind `json:"resource"`
+}
+
+// SelectedAudienceKind defines model for SelectedAudience.Kind.
+type SelectedAudienceKind string
+
+// SessionRevokeRequestDto Refresh credential to revoke; the bearer identity must own it.
+//
+// Example: {"refreshToken":"046b6c7f-0b8a-43b9-b35d-6489e6daee91"}
+type SessionRevokeRequestDto struct {
+	RefreshToken openapi_types.UUID `json:"refreshToken"`
 }
 
 // ShortString defines model for shortString.
@@ -542,6 +1806,59 @@ type VeryLongStringNullable = string
 
 // Visibility The visibility of the group. 0 for public, 1 for private
 type Visibility = int
+
+// AdminCampaignId defines model for adminCampaignId.
+type AdminCampaignId = openapi_types.UUID
+
+// AdminCursor defines model for adminCursor.
+type AdminCursor = string
+
+// AdminLimit defines model for adminLimit.
+type AdminLimit = int
+
+// CsrfHeader defines model for csrfHeader.
+type CsrfHeader = string
+
+// IdempotencyKey defines model for idempotencyKey.
+type IdempotencyKey = string
+
+// ReportIdempotencyKey defines model for reportIdempotencyKey.
+type ReportIdempotencyKey = string
+
+// BadRequest Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type BadRequest = ApiErrorDto
+
+// Conflict Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type Conflict = ApiErrorDto
+
+// Forbidden Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type Forbidden = ApiErrorDto
+
+// NotFound Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type NotFound = ApiErrorDto
+
+// RateLimited Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type RateLimited = ApiErrorDto
+
+// Unauthorized Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type Unauthorized = ApiErrorDto
+
+// Unavailable Stable, non-secret error envelope shared by v3 endpoints.
+//
+// Example: {"code":"invalid_request","message":"The request could not be accepted.","retryAfterSeconds":30}
+type Unavailable = ApiErrorDto
 
 // GetGroupsByIdsParams defines parameters for GetGroupsByIds.
 type GetGroupsByIdsParams struct {
@@ -738,6 +2055,12 @@ type UserRankingParams struct {
 	Size *int `form:"size,omitempty" json:"size,omitempty"`
 }
 
+// CreateReportParams defines parameters for CreateReport.
+type CreateReportParams struct {
+	// IdempotencyKey Optional client-generated key; replaying it with a different report returns 409.
+	IdempotencyKey *ReportIdempotencyKey `json:"Idempotency-Key,omitempty"`
+}
+
 // GetUserProfileImageParams defines parameters for GetUserProfileImage.
 type GetUserProfileImageParams struct {
 	// Redirect When true, this endpoint redirects directly to the target image otherwise the image URL is returned
@@ -748,6 +2071,216 @@ type GetUserProfileImageParams struct {
 type GetUserProfileImageSmallParams struct {
 	// Redirect When true, this endpoint redirects directly to the target image otherwise the image URL is returned
 	Redirect *bool `form:"redirect,omitempty" json:"redirect,omitempty"`
+}
+
+// PreviewAdminAudienceParams defines parameters for PreviewAdminAudience.
+type PreviewAdminAudienceParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// GetAdminAudienceParams defines parameters for GetAdminAudience.
+type GetAdminAudienceParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListAdminAuditParams defines parameters for ListAdminAudit.
+type ListAdminAuditParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// TargetUserId Restrict events to one target account.
+	TargetUserId *openapi_types.UUID `form:"targetUserId,omitempty" json:"targetUserId,omitempty"`
+
+	// Action Restrict events to one action.
+	Action *AdminActionKind `form:"action,omitempty" json:"action,omitempty"`
+}
+
+// ListAdminCampaignsParams defines parameters for ListAdminCampaigns.
+type ListAdminCampaignsParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateAdminCampaignParams defines parameters for CreateAdminCampaign.
+type CreateAdminCampaignParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// DeleteAdminCampaignParams defines parameters for DeleteAdminCampaign.
+type DeleteAdminCampaignParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// UpdateAdminCampaignParams defines parameters for UpdateAdminCampaign.
+type UpdateAdminCampaignParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ArchiveAdminCampaignParams defines parameters for ArchiveAdminCampaign.
+type ArchiveAdminCampaignParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ListAdminJobsParams defines parameters for ListAdminJobs.
+type ListAdminJobsParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Restrict jobs to a lifecycle state.
+	Status *AdminJobStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Action Restrict jobs to one action.
+	Action *AdminActionKind `form:"action,omitempty" json:"action,omitempty"`
+}
+
+// CreateAdminJobParams defines parameters for CreateAdminJob.
+type CreateAdminJobParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+
+	// IdempotencyKey Client-generated business key; reusing it with a different payload returns 409.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// CancelAdminJobParams defines parameters for CancelAdminJob.
+type CancelAdminJobParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+
+	// IdempotencyKey Client-generated business key; reusing it with a different payload returns 409.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListAdminJobRecipientsParams defines parameters for ListAdminJobRecipients.
+type ListAdminJobRecipientsParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// RetryAdminJobParams defines parameters for RetryAdminJob.
+type RetryAdminJobParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+
+	// IdempotencyKey Client-generated business key; reusing it with a different payload returns 409.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// SendAdminTestMessageParams defines parameters for SendAdminTestMessage.
+type SendAdminTestMessageParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ListAdminReportsParams defines parameters for ListAdminReports.
+type ListAdminReportsParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Restrict reports to one review state.
+	Status *AdminReportStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Search Search bounded report text or target identity.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// GetAdminReportParams defines parameters for GetAdminReport.
+type GetAdminReportParams struct {
+	// Revision Optional revision requested by the client.
+	Revision *int64 `form:"revision,omitempty" json:"revision,omitempty"`
+}
+
+// UpdateAdminReportParams defines parameters for UpdateAdminReport.
+type UpdateAdminReportParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ListAdminReportNotesParams defines parameters for ListAdminReportNotes.
+type ListAdminReportNotesParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AddAdminReportNoteParams defines parameters for AddAdminReportNote.
+type AddAdminReportNoteParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// AdminSessionLoginParams defines parameters for AdminSessionLogin.
+type AdminSessionLoginParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// LogoutAdminSessionParams defines parameters for LogoutAdminSession.
+type LogoutAdminSessionParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// CompleteAdminSessionMfaParams defines parameters for CompleteAdminSessionMfa.
+type CompleteAdminSessionMfaParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ReauthenticateAdminSessionParams defines parameters for ReauthenticateAdminSession.
+type ReauthenticateAdminSessionParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
+// ListAdminUsersParams defines parameters for ListAdminUsers.
+type ListAdminUsersParams struct {
+	// Cursor Opaque cursor returned by the preceding page.
+	Cursor *AdminCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Maximum number of records in the page; defaults to 25 and is capped at 100.
+	Limit *AdminLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Case-insensitive username, email, or stable ID search.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// SecurityStatus Restrict results to one security state.
+	SecurityStatus *AdminSecurityState `form:"securityStatus,omitempty" json:"securityStatus,omitempty"`
+
+	// VerifiedEmail Restrict results by verified-email presence.
+	VerifiedEmail *bool `form:"verifiedEmail,omitempty" json:"verifiedEmail,omitempty"`
+
+	// CreatedAfter Include accounts created at or after this instant.
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// CreatedBefore Include accounts created before this instant.
+	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
 }
 
 // SyncParams defines parameters for Sync.
@@ -792,8 +2325,705 @@ type DeleteUserJSONRequestBody = Code
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UserUpdateDto
 
+// PreviewAdminAudienceJSONRequestBody defines body for PreviewAdminAudience for application/json ContentType.
+type PreviewAdminAudienceJSONRequestBody = AdminAudiencePreviewRequestDto
+
+// CreateAdminCampaignJSONRequestBody defines body for CreateAdminCampaign for application/json ContentType.
+type CreateAdminCampaignJSONRequestBody = AdminCampaignCreateRequestDto
+
+// DeleteAdminCampaignJSONRequestBody defines body for DeleteAdminCampaign for application/json ContentType.
+type DeleteAdminCampaignJSONRequestBody = AdminCampaignRevisionRequestDto
+
+// UpdateAdminCampaignJSONRequestBody defines body for UpdateAdminCampaign for application/json ContentType.
+type UpdateAdminCampaignJSONRequestBody = AdminCampaignUpdateRequestDto
+
+// ArchiveAdminCampaignJSONRequestBody defines body for ArchiveAdminCampaign for application/json ContentType.
+type ArchiveAdminCampaignJSONRequestBody = AdminCampaignRevisionRequestDto
+
+// CreateAdminJobJSONRequestBody defines body for CreateAdminJob for application/json ContentType.
+type CreateAdminJobJSONRequestBody = AdminJobCreateRequestDto
+
+// CancelAdminJobJSONRequestBody defines body for CancelAdminJob for application/json ContentType.
+type CancelAdminJobJSONRequestBody = AdminJobCommandRequestDto
+
+// RetryAdminJobJSONRequestBody defines body for RetryAdminJob for application/json ContentType.
+type RetryAdminJobJSONRequestBody = AdminJobCommandRequestDto
+
+// SendAdminTestMessageJSONRequestBody defines body for SendAdminTestMessage for application/json ContentType.
+type SendAdminTestMessageJSONRequestBody = AdminTestMessageRequestDto
+
+// UpdateAdminReportJSONRequestBody defines body for UpdateAdminReport for application/json ContentType.
+type UpdateAdminReportJSONRequestBody = AdminReportUpdateRequestDto
+
+// AddAdminReportNoteJSONRequestBody defines body for AddAdminReportNote for application/json ContentType.
+type AddAdminReportNoteJSONRequestBody = AdminReportNoteRequestDto
+
+// AdminSessionLoginJSONRequestBody defines body for AdminSessionLogin for application/json ContentType.
+type AdminSessionLoginJSONRequestBody = AdminSessionLoginRequestDto
+
+// CompleteAdminSessionMfaJSONRequestBody defines body for CompleteAdminSessionMfa for application/json ContentType.
+type CompleteAdminSessionMfaJSONRequestBody = AdminMfaRequestDto
+
+// ReauthenticateAdminSessionJSONRequestBody defines body for ReauthenticateAdminSession for application/json ContentType.
+type ReauthenticateAdminSessionJSONRequestBody = AdminReauthenticateRequestDto
+
+// RevokeOwnSessionJSONRequestBody defines body for RevokeOwnSession for application/json ContentType.
+type RevokeOwnSessionJSONRequestBody = SessionRevokeRequestDto
+
 // BatchReadJSONRequestBody defines body for BatchRead for application/json ContentType.
 type BatchReadJSONRequestBody = BatchReadRequest
+
+// ExchangeEmailLinkJSONRequestBody defines body for ExchangeEmailLink for application/json ContentType.
+type ExchangeEmailLinkJSONRequestBody = EmailLinkExchangeRequestDto
+
+// RequestEmailLinkJSONRequestBody defines body for RequestEmailLink for application/json ContentType.
+type RequestEmailLinkJSONRequestBody = EmailLinkRequestDto
+
+// CompleteRecoveryJSONRequestBody defines body for CompleteRecovery for application/json ContentType.
+type CompleteRecoveryJSONRequestBody = RecoveryCompleteRequestDto
+
+// AsEmailActionDto returns the union data inside the AdminAction as a EmailActionDto
+func (t AdminAction) AsEmailActionDto() (EmailActionDto, error) {
+	var body EmailActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmailActionDto overwrites any union data inside the AdminAction as the provided EmailActionDto
+func (t *AdminAction) FromEmailActionDto(v EmailActionDto) error {
+	t.Action = "email"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"email"}`))
+	t.union = b
+	return err
+}
+
+// MergeEmailActionDto performs a merge with any union data inside the AdminAction, using the provided EmailActionDto
+func (t *AdminAction) MergeEmailActionDto(v EmailActionDto) error {
+	t.Action = "email"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"email"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLoginLinkActionDto returns the union data inside the AdminAction as a LoginLinkActionDto
+func (t AdminAction) AsLoginLinkActionDto() (LoginLinkActionDto, error) {
+	var body LoginLinkActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLoginLinkActionDto overwrites any union data inside the AdminAction as the provided LoginLinkActionDto
+func (t *AdminAction) FromLoginLinkActionDto(v LoginLinkActionDto) error {
+	t.Action = "login_link"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"login_link"}`))
+	t.union = b
+	return err
+}
+
+// MergeLoginLinkActionDto performs a merge with any union data inside the AdminAction, using the provided LoginLinkActionDto
+func (t *AdminAction) MergeLoginLinkActionDto(v LoginLinkActionDto) error {
+	t.Action = "login_link"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"login_link"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPushActionDto returns the union data inside the AdminAction as a PushActionDto
+func (t AdminAction) AsPushActionDto() (PushActionDto, error) {
+	var body PushActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPushActionDto overwrites any union data inside the AdminAction as the provided PushActionDto
+func (t *AdminAction) FromPushActionDto(v PushActionDto) error {
+	t.Action = "push"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"push"}`))
+	t.union = b
+	return err
+}
+
+// MergePushActionDto performs a merge with any union data inside the AdminAction, using the provided PushActionDto
+func (t *AdminAction) MergePushActionDto(v PushActionDto) error {
+	t.Action = "push"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"push"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRevokeSessionsActionDto returns the union data inside the AdminAction as a RevokeSessionsActionDto
+func (t AdminAction) AsRevokeSessionsActionDto() (RevokeSessionsActionDto, error) {
+	var body RevokeSessionsActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRevokeSessionsActionDto overwrites any union data inside the AdminAction as the provided RevokeSessionsActionDto
+func (t *AdminAction) FromRevokeSessionsActionDto(v RevokeSessionsActionDto) error {
+	t.Action = "revoke_sessions"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"revoke_sessions"}`))
+	t.union = b
+	return err
+}
+
+// MergeRevokeSessionsActionDto performs a merge with any union data inside the AdminAction, using the provided RevokeSessionsActionDto
+func (t *AdminAction) MergeRevokeSessionsActionDto(v RevokeSessionsActionDto) error {
+	t.Action = "revoke_sessions"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"revoke_sessions"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMarkCompromisedActionDto returns the union data inside the AdminAction as a MarkCompromisedActionDto
+func (t AdminAction) AsMarkCompromisedActionDto() (MarkCompromisedActionDto, error) {
+	var body MarkCompromisedActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkCompromisedActionDto overwrites any union data inside the AdminAction as the provided MarkCompromisedActionDto
+func (t *AdminAction) FromMarkCompromisedActionDto(v MarkCompromisedActionDto) error {
+	t.Action = "mark_compromised"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"mark_compromised"}`))
+	t.union = b
+	return err
+}
+
+// MergeMarkCompromisedActionDto performs a merge with any union data inside the AdminAction, using the provided MarkCompromisedActionDto
+func (t *AdminAction) MergeMarkCompromisedActionDto(v MarkCompromisedActionDto) error {
+	t.Action = "mark_compromised"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"mark_compromised"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsRecoveryResendActionDto returns the union data inside the AdminAction as a RecoveryResendActionDto
+func (t AdminAction) AsRecoveryResendActionDto() (RecoveryResendActionDto, error) {
+	var body RecoveryResendActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromRecoveryResendActionDto overwrites any union data inside the AdminAction as the provided RecoveryResendActionDto
+func (t *AdminAction) FromRecoveryResendActionDto(v RecoveryResendActionDto) error {
+	t.Action = "recovery_resend"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"recovery_resend"}`))
+	t.union = b
+	return err
+}
+
+// MergeRecoveryResendActionDto performs a merge with any union data inside the AdminAction, using the provided RecoveryResendActionDto
+func (t *AdminAction) MergeRecoveryResendActionDto(v RecoveryResendActionDto) error {
+	t.Action = "recovery_resend"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"recovery_resend"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReportResolveActionDto returns the union data inside the AdminAction as a ReportResolveActionDto
+func (t AdminAction) AsReportResolveActionDto() (ReportResolveActionDto, error) {
+	var body ReportResolveActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReportResolveActionDto overwrites any union data inside the AdminAction as the provided ReportResolveActionDto
+func (t *AdminAction) FromReportResolveActionDto(v ReportResolveActionDto) error {
+	t.Action = "report_resolve"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"report_resolve"}`))
+	t.union = b
+	return err
+}
+
+// MergeReportResolveActionDto performs a merge with any union data inside the AdminAction, using the provided ReportResolveActionDto
+func (t *AdminAction) MergeReportResolveActionDto(v ReportResolveActionDto) error {
+	t.Action = "report_resolve"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"report_resolve"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReportDismissActionDto returns the union data inside the AdminAction as a ReportDismissActionDto
+func (t AdminAction) AsReportDismissActionDto() (ReportDismissActionDto, error) {
+	var body ReportDismissActionDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReportDismissActionDto overwrites any union data inside the AdminAction as the provided ReportDismissActionDto
+func (t *AdminAction) FromReportDismissActionDto(v ReportDismissActionDto) error {
+	t.Action = "report_dismiss"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"report_dismiss"}`))
+	t.union = b
+	return err
+}
+
+// MergeReportDismissActionDto performs a merge with any union data inside the AdminAction, using the provided ReportDismissActionDto
+func (t *AdminAction) MergeReportDismissActionDto(v ReportDismissActionDto) error {
+	t.Action = "report_dismiss"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"action":"report_dismiss"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AdminAction) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"action"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AdminAction) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "email":
+		return t.AsEmailActionDto()
+	case "login_link":
+		return t.AsLoginLinkActionDto()
+	case "mark_compromised":
+		return t.AsMarkCompromisedActionDto()
+	case "push":
+		return t.AsPushActionDto()
+	case "recovery_resend":
+		return t.AsRecoveryResendActionDto()
+	case "report_dismiss":
+		return t.AsReportDismissActionDto()
+	case "report_resolve":
+		return t.AsReportResolveActionDto()
+	case "revoke_sessions":
+		return t.AsRevokeSessionsActionDto()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t AdminAction) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["action"], err = json.Marshal(t.Action)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'action': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AdminAction) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["action"]; found {
+		err = json.Unmarshal(raw, &t.Action)
+		if err != nil {
+			return fmt.Errorf("error reading 'action': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsSelectedAudience returns the union data inside the AdminAudience as a SelectedAudience
+func (t AdminAudience) AsSelectedAudience() (SelectedAudience, error) {
+	var body SelectedAudience
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSelectedAudience overwrites any union data inside the AdminAudience as the provided SelectedAudience
+func (t *AdminAudience) FromSelectedAudience(v SelectedAudience) error {
+	t.Kind = "selected"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"selected"}`))
+	t.union = b
+	return err
+}
+
+// MergeSelectedAudience performs a merge with any union data inside the AdminAudience, using the provided SelectedAudience
+func (t *AdminAudience) MergeSelectedAudience(v SelectedAudience) error {
+	t.Kind = "selected"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"selected"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFilterAudience returns the union data inside the AdminAudience as a FilterAudience
+func (t AdminAudience) AsFilterAudience() (FilterAudience, error) {
+	var body FilterAudience
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFilterAudience overwrites any union data inside the AdminAudience as the provided FilterAudience
+func (t *AdminAudience) FromFilterAudience(v FilterAudience) error {
+	t.Kind = "filter"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"filter"}`))
+	t.union = b
+	return err
+}
+
+// MergeFilterAudience performs a merge with any union data inside the AdminAudience, using the provided FilterAudience
+func (t *AdminAudience) MergeFilterAudience(v FilterAudience) error {
+	t.Kind = "filter"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"filter"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAllAudience returns the union data inside the AdminAudience as a AllAudience
+func (t AdminAudience) AsAllAudience() (AllAudience, error) {
+	var body AllAudience
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAllAudience overwrites any union data inside the AdminAudience as the provided AllAudience
+func (t *AdminAudience) FromAllAudience(v AllAudience) error {
+	t.Kind = "all"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"all"}`))
+	t.union = b
+	return err
+}
+
+// MergeAllAudience performs a merge with any union data inside the AdminAudience, using the provided AllAudience
+func (t *AdminAudience) MergeAllAudience(v AllAudience) error {
+	t.Kind = "all"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"all"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AdminAudience) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AdminAudience) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "all":
+		return t.AsAllAudience()
+	case "filter":
+		return t.AsFilterAudience()
+	case "selected":
+		return t.AsSelectedAudience()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t AdminAudience) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["kind"], err = json.Marshal(t.Kind)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'kind': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AdminAudience) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["kind"]; found {
+		err = json.Unmarshal(raw, &t.Kind)
+		if err != nil {
+			return fmt.Errorf("error reading 'kind': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAdminUserFilterDto returns the union data inside the AdminAudienceFilter as a AdminUserFilterDto
+func (t AdminAudienceFilter) AsAdminUserFilterDto() (AdminUserFilterDto, error) {
+	var body AdminUserFilterDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAdminUserFilterDto overwrites any union data inside the AdminAudienceFilter as the provided AdminUserFilterDto
+func (t *AdminAudienceFilter) FromAdminUserFilterDto(v AdminUserFilterDto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"resource":"accounts"}`))
+	t.union = b
+	return err
+}
+
+// MergeAdminUserFilterDto performs a merge with any union data inside the AdminAudienceFilter, using the provided AdminUserFilterDto
+func (t *AdminAudienceFilter) MergeAdminUserFilterDto(v AdminUserFilterDto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"resource":"accounts"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAdminReportFilterDto returns the union data inside the AdminAudienceFilter as a AdminReportFilterDto
+func (t AdminAudienceFilter) AsAdminReportFilterDto() (AdminReportFilterDto, error) {
+	var body AdminReportFilterDto
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAdminReportFilterDto overwrites any union data inside the AdminAudienceFilter as the provided AdminReportFilterDto
+func (t *AdminAudienceFilter) FromAdminReportFilterDto(v AdminReportFilterDto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"resource":"reports"}`))
+	t.union = b
+	return err
+}
+
+// MergeAdminReportFilterDto performs a merge with any union data inside the AdminAudienceFilter, using the provided AdminReportFilterDto
+func (t *AdminAudienceFilter) MergeAdminReportFilterDto(v AdminReportFilterDto) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"resource":"reports"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AdminAudienceFilter) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"resource"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t AdminAudienceFilter) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "accounts":
+		return t.AsAdminUserFilterDto()
+	case "reports":
+		return t.AsAdminReportFilterDto()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t AdminAudienceFilter) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AdminAudienceFilter) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -904,7 +3134,7 @@ type ServerInterface interface {
 	UserRanking(w http.ResponseWriter, r *http.Request, params UserRankingParams)
 	// CreateReport Report content
 	// (POST /api/v2/report)
-	CreateReport(w http.ResponseWriter, r *http.Request)
+	CreateReport(w http.ResponseWriter, r *http.Request, params CreateReportParams)
 	// GetStatus Gets the status of the server and user specific information
 	// (GET /api/v2/status)
 	GetStatus(w http.ResponseWriter, r *http.Request)
@@ -935,9 +3165,108 @@ type ServerInterface interface {
 	// GetUserXp Get user's xp
 	// (GET /api/v2/users/{userId}/xp)
 	GetUserXp(w http.ResponseWriter, r *http.Request, userId Id)
+	// PreviewAdminAudience Preview an explicit administrative audience
+	// (POST /api/v3/admin/audiences/preview)
+	PreviewAdminAudience(w http.ResponseWriter, r *http.Request, params PreviewAdminAudienceParams)
+	// GetAdminAudience Read an administrative audience snapshot
+	// (GET /api/v3/admin/audiences/{audienceId})
+	GetAdminAudience(w http.ResponseWriter, r *http.Request, audienceId openapi_types.UUID, params GetAdminAudienceParams)
+	// ListAdminAudit List administrative audit events
+	// (GET /api/v3/admin/audit)
+	ListAdminAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuditParams)
+	// ListAdminCampaigns List content-only campaigns
+	// (GET /api/v3/admin/campaigns)
+	ListAdminCampaigns(w http.ResponseWriter, r *http.Request, params ListAdminCampaignsParams)
+	// CreateAdminCampaign Create a content-only campaign
+	// (POST /api/v3/admin/campaigns)
+	CreateAdminCampaign(w http.ResponseWriter, r *http.Request, params CreateAdminCampaignParams)
+	// DeleteAdminCampaign Delete a draft campaign
+	// (DELETE /api/v3/admin/campaigns/{campaignId})
+	DeleteAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params DeleteAdminCampaignParams)
+	// GetAdminCampaign Get a content-only campaign
+	// (GET /api/v3/admin/campaigns/{campaignId})
+	GetAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId)
+	// UpdateAdminCampaign Update a content-only campaign
+	// (PATCH /api/v3/admin/campaigns/{campaignId})
+	UpdateAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params UpdateAdminCampaignParams)
+	// ArchiveAdminCampaign Archive a campaign
+	// (POST /api/v3/admin/campaigns/{campaignId}/archive)
+	ArchiveAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params ArchiveAdminCampaignParams)
+	// ListAdminJobs List administrative action jobs
+	// (GET /api/v3/admin/jobs)
+	ListAdminJobs(w http.ResponseWriter, r *http.Request, params ListAdminJobsParams)
+	// CreateAdminJob Commit an administrative action job
+	// (POST /api/v3/admin/jobs)
+	CreateAdminJob(w http.ResponseWriter, r *http.Request, params CreateAdminJobParams)
+	// GetAdminJob Read an administrative job
+	// (GET /api/v3/admin/jobs/{jobId})
+	GetAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID)
+	// CancelAdminJob Cancel pending job work
+	// (POST /api/v3/admin/jobs/{jobId}/cancel)
+	CancelAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params CancelAdminJobParams)
+	// ListAdminJobRecipients List job recipient outcomes
+	// (GET /api/v3/admin/jobs/{jobId}/recipients)
+	ListAdminJobRecipients(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params ListAdminJobRecipientsParams)
+	// RetryAdminJob Retry eligible failed job work
+	// (POST /api/v3/admin/jobs/{jobId}/retry)
+	RetryAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params RetryAdminJobParams)
+	// SendAdminTestMessage Send an administrative test message
+	// (POST /api/v3/admin/messages/test)
+	SendAdminTestMessage(w http.ResponseWriter, r *http.Request, params SendAdminTestMessageParams)
+	// ListAdminReports List reports for administrative review
+	// (GET /api/v3/admin/reports)
+	ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams)
+	// GetAdminReport Read one report and its notes
+	// (GET /api/v3/admin/reports/{reportId})
+	GetAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params GetAdminReportParams)
+	// UpdateAdminReport Apply a revision-checked report transition
+	// (PATCH /api/v3/admin/reports/{reportId})
+	UpdateAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params UpdateAdminReportParams)
+	// ListAdminReportNotes List all administrative report notes
+	// (GET /api/v3/admin/reports/{reportId}/notes)
+	ListAdminReportNotes(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params ListAdminReportNotesParams)
+	// AddAdminReportNote Add an administrative report note
+	// (POST /api/v3/admin/reports/{reportId}/notes)
+	AddAdminReportNote(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params AddAdminReportNoteParams)
+	// GetAdminSession Restore the current admin session
+	// (GET /api/v3/admin/session)
+	GetAdminSession(w http.ResponseWriter, r *http.Request)
+	// BootstrapAdminSession Bootstrap an admin browser session
+	// (POST /api/v3/admin/session/bootstrap)
+	BootstrapAdminSession(w http.ResponseWriter, r *http.Request)
+	// AdminSessionLogin Begin an admin password and MFA login
+	// (POST /api/v3/admin/session/login)
+	AdminSessionLogin(w http.ResponseWriter, r *http.Request, params AdminSessionLoginParams)
+	// LogoutAdminSession Log out of the admin session
+	// (POST /api/v3/admin/session/logout)
+	LogoutAdminSession(w http.ResponseWriter, r *http.Request, params LogoutAdminSessionParams)
+	// CompleteAdminSessionMfa Complete admin MFA
+	// (POST /api/v3/admin/session/mfa)
+	CompleteAdminSessionMfa(w http.ResponseWriter, r *http.Request, params CompleteAdminSessionMfaParams)
+	// ReauthenticateAdminSession Reauthenticate an admin session for a sensitive action
+	// (POST /api/v3/admin/session/reauthenticate)
+	ReauthenticateAdminSession(w http.ResponseWriter, r *http.Request, params ReauthenticateAdminSessionParams)
+	// ListAdminUsers Search administrative user records
+	// (GET /api/v3/admin/users)
+	ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams)
+	// GetAdminUser Get one administrative user record
+	// (GET /api/v3/admin/users/{userId})
+	GetAdminUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID)
+	// RevokeOwnSession Revoke the caller's submitted refresh credential
+	// (POST /api/v3/auth/session/revoke)
+	RevokeOwnSession(w http.ResponseWriter, r *http.Request)
 	// BatchRead Read several authenticated resources in one request
 	// (POST /api/v3/batch)
 	BatchRead(w http.ResponseWriter, r *http.Request)
+	// ExchangeEmailLink Exchange a one-time email sign-in link
+	// (POST /api/v3/public/auth/email-link/exchange)
+	ExchangeEmailLink(w http.ResponseWriter, r *http.Request)
+	// RequestEmailLink Request a one-time email sign-in link
+	// (POST /api/v3/public/auth/email-link/request)
+	RequestEmailLink(w http.ResponseWriter, r *http.Request)
+	// CompleteRecovery Complete restricted account recovery
+	// (POST /api/v3/public/auth/recovery/complete)
+	CompleteRecovery(w http.ResponseWriter, r *http.Request)
 	// Sync Sync all pins and groups based on last seen date
 	// (GET /api/v3/sync)
 	Sync(w http.ResponseWriter, r *http.Request, params SyncParams)
@@ -1155,7 +3484,7 @@ func (_ Unimplemented) UserRanking(w http.ResponseWriter, r *http.Request, param
 
 // CreateReport Report content
 // (POST /api/v2/report)
-func (_ Unimplemented) CreateReport(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) CreateReport(w http.ResponseWriter, r *http.Request, params CreateReportParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1219,9 +3548,207 @@ func (_ Unimplemented) GetUserXp(w http.ResponseWriter, r *http.Request, userId 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// PreviewAdminAudience Preview an explicit administrative audience
+// (POST /api/v3/admin/audiences/preview)
+func (_ Unimplemented) PreviewAdminAudience(w http.ResponseWriter, r *http.Request, params PreviewAdminAudienceParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminAudience Read an administrative audience snapshot
+// (GET /api/v3/admin/audiences/{audienceId})
+func (_ Unimplemented) GetAdminAudience(w http.ResponseWriter, r *http.Request, audienceId openapi_types.UUID, params GetAdminAudienceParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminAudit List administrative audit events
+// (GET /api/v3/admin/audit)
+func (_ Unimplemented) ListAdminAudit(w http.ResponseWriter, r *http.Request, params ListAdminAuditParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminCampaigns List content-only campaigns
+// (GET /api/v3/admin/campaigns)
+func (_ Unimplemented) ListAdminCampaigns(w http.ResponseWriter, r *http.Request, params ListAdminCampaignsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateAdminCampaign Create a content-only campaign
+// (POST /api/v3/admin/campaigns)
+func (_ Unimplemented) CreateAdminCampaign(w http.ResponseWriter, r *http.Request, params CreateAdminCampaignParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteAdminCampaign Delete a draft campaign
+// (DELETE /api/v3/admin/campaigns/{campaignId})
+func (_ Unimplemented) DeleteAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params DeleteAdminCampaignParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminCampaign Get a content-only campaign
+// (GET /api/v3/admin/campaigns/{campaignId})
+func (_ Unimplemented) GetAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateAdminCampaign Update a content-only campaign
+// (PATCH /api/v3/admin/campaigns/{campaignId})
+func (_ Unimplemented) UpdateAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params UpdateAdminCampaignParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ArchiveAdminCampaign Archive a campaign
+// (POST /api/v3/admin/campaigns/{campaignId}/archive)
+func (_ Unimplemented) ArchiveAdminCampaign(w http.ResponseWriter, r *http.Request, campaignId AdminCampaignId, params ArchiveAdminCampaignParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminJobs List administrative action jobs
+// (GET /api/v3/admin/jobs)
+func (_ Unimplemented) ListAdminJobs(w http.ResponseWriter, r *http.Request, params ListAdminJobsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateAdminJob Commit an administrative action job
+// (POST /api/v3/admin/jobs)
+func (_ Unimplemented) CreateAdminJob(w http.ResponseWriter, r *http.Request, params CreateAdminJobParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminJob Read an administrative job
+// (GET /api/v3/admin/jobs/{jobId})
+func (_ Unimplemented) GetAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CancelAdminJob Cancel pending job work
+// (POST /api/v3/admin/jobs/{jobId}/cancel)
+func (_ Unimplemented) CancelAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params CancelAdminJobParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminJobRecipients List job recipient outcomes
+// (GET /api/v3/admin/jobs/{jobId}/recipients)
+func (_ Unimplemented) ListAdminJobRecipients(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params ListAdminJobRecipientsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RetryAdminJob Retry eligible failed job work
+// (POST /api/v3/admin/jobs/{jobId}/retry)
+func (_ Unimplemented) RetryAdminJob(w http.ResponseWriter, r *http.Request, jobId openapi_types.UUID, params RetryAdminJobParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SendAdminTestMessage Send an administrative test message
+// (POST /api/v3/admin/messages/test)
+func (_ Unimplemented) SendAdminTestMessage(w http.ResponseWriter, r *http.Request, params SendAdminTestMessageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminReports List reports for administrative review
+// (GET /api/v3/admin/reports)
+func (_ Unimplemented) ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminReport Read one report and its notes
+// (GET /api/v3/admin/reports/{reportId})
+func (_ Unimplemented) GetAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params GetAdminReportParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateAdminReport Apply a revision-checked report transition
+// (PATCH /api/v3/admin/reports/{reportId})
+func (_ Unimplemented) UpdateAdminReport(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params UpdateAdminReportParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminReportNotes List all administrative report notes
+// (GET /api/v3/admin/reports/{reportId}/notes)
+func (_ Unimplemented) ListAdminReportNotes(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params ListAdminReportNotesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AddAdminReportNote Add an administrative report note
+// (POST /api/v3/admin/reports/{reportId}/notes)
+func (_ Unimplemented) AddAdminReportNote(w http.ResponseWriter, r *http.Request, reportId openapi_types.UUID, params AddAdminReportNoteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminSession Restore the current admin session
+// (GET /api/v3/admin/session)
+func (_ Unimplemented) GetAdminSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// BootstrapAdminSession Bootstrap an admin browser session
+// (POST /api/v3/admin/session/bootstrap)
+func (_ Unimplemented) BootstrapAdminSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AdminSessionLogin Begin an admin password and MFA login
+// (POST /api/v3/admin/session/login)
+func (_ Unimplemented) AdminSessionLogin(w http.ResponseWriter, r *http.Request, params AdminSessionLoginParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// LogoutAdminSession Log out of the admin session
+// (POST /api/v3/admin/session/logout)
+func (_ Unimplemented) LogoutAdminSession(w http.ResponseWriter, r *http.Request, params LogoutAdminSessionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CompleteAdminSessionMfa Complete admin MFA
+// (POST /api/v3/admin/session/mfa)
+func (_ Unimplemented) CompleteAdminSessionMfa(w http.ResponseWriter, r *http.Request, params CompleteAdminSessionMfaParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ReauthenticateAdminSession Reauthenticate an admin session for a sensitive action
+// (POST /api/v3/admin/session/reauthenticate)
+func (_ Unimplemented) ReauthenticateAdminSession(w http.ResponseWriter, r *http.Request, params ReauthenticateAdminSessionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListAdminUsers Search administrative user records
+// (GET /api/v3/admin/users)
+func (_ Unimplemented) ListAdminUsers(w http.ResponseWriter, r *http.Request, params ListAdminUsersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetAdminUser Get one administrative user record
+// (GET /api/v3/admin/users/{userId})
+func (_ Unimplemented) GetAdminUser(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RevokeOwnSession Revoke the caller's submitted refresh credential
+// (POST /api/v3/auth/session/revoke)
+func (_ Unimplemented) RevokeOwnSession(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // BatchRead Read several authenticated resources in one request
 // (POST /api/v3/batch)
 func (_ Unimplemented) BatchRead(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ExchangeEmailLink Exchange a one-time email sign-in link
+// (POST /api/v3/public/auth/email-link/exchange)
+func (_ Unimplemented) ExchangeEmailLink(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RequestEmailLink Request a one-time email sign-in link
+// (POST /api/v3/public/auth/email-link/request)
+func (_ Unimplemented) RequestEmailLink(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CompleteRecovery Complete restricted account recovery
+// (POST /api/v3/public/auth/recovery/complete)
+func (_ Unimplemented) CompleteRecovery(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2680,8 +5207,35 @@ func (siw *ServerInterfaceWrapper) UserRanking(w http.ResponseWriter, r *http.Re
 // CreateReport operation middleware
 func (siw *ServerInterfaceWrapper) CreateReport(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateReportParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey ReportIdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = &IdempotencyKey
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateReport(w, r)
+		siw.Handler.CreateReport(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2980,11 +5534,1560 @@ func (siw *ServerInterfaceWrapper) GetUserXp(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// PreviewAdminAudience operation middleware
+func (siw *ServerInterfaceWrapper) PreviewAdminAudience(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewAdminAudienceParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewAdminAudience(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminAudience operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAudience(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "audienceId" -------------
+	var audienceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "audienceId", chi.URLParam(r, "audienceId"), &audienceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "audienceId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminAudienceParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminAudience(w, r, audienceId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAudit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "targetUserId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "targetUserId", r.URL.Query(), &params.TargetUserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "targetUserId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "targetUserId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAudit(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminCampaigns operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminCampaigns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminCampaignsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminCampaigns(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAdminCampaignParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAdminCampaign(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId AdminCampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteAdminCampaignParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminCampaign(w, r, campaignId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId AdminCampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminCampaign(w, r, campaignId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId AdminCampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAdminCampaignParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminCampaign(w, r, campaignId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ArchiveAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) ArchiveAdminCampaign(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId AdminCampaignId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", chi.URLParam(r, "campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "campaignId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ArchiveAdminCampaignParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ArchiveAdminCampaign(w, r, campaignId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminJobs operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminJobs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminJobsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminJobs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAdminJobParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAdminJob(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", chi.URLParam(r, "jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminJob(w, r, jobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) CancelAdminJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", chi.URLParam(r, "jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelAdminJobParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelAdminJob(w, r, jobId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminJobRecipients operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminJobRecipients(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", chi.URLParam(r, "jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminJobRecipientsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminJobRecipients(w, r, jobId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RetryAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) RetryAdminJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", chi.URLParam(r, "jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "jobId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RetryAdminJobParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RetryAdminJob(w, r, jobId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendAdminTestMessage operation middleware
+func (siw *ServerInterfaceWrapper) SendAdminTestMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SendAdminTestMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendAdminTestMessage(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminReports operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminReports(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminReportsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminReports(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminReport operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", chi.URLParam(r, "reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reportId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminReportParams
+
+	// ------------- Optional query parameter "revision" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "revision", r.URL.Query(), &params.Revision, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "revision"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "revision", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminReport(w, r, reportId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminReport operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", chi.URLParam(r, "reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reportId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAdminReportParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminReport(w, r, reportId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminReportNotes operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminReportNotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", chi.URLParam(r, "reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reportId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminReportNotesParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminReportNotes(w, r, reportId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddAdminReportNote operation middleware
+func (siw *ServerInterfaceWrapper) AddAdminReportNote(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reportId" -------------
+	var reportId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reportId", chi.URLParam(r, "reportId"), &reportId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reportId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddAdminReportNoteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddAdminReportNote(w, r, reportId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminSession operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSession(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BootstrapAdminSession operation middleware
+func (siw *ServerInterfaceWrapper) BootstrapAdminSession(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BootstrapAdminSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdminSessionLogin operation middleware
+func (siw *ServerInterfaceWrapper) AdminSessionLogin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminSessionLoginParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdminSessionLogin(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LogoutAdminSession operation middleware
+func (siw *ServerInterfaceWrapper) LogoutAdminSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LogoutAdminSessionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LogoutAdminSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteAdminSessionMfa operation middleware
+func (siw *ServerInterfaceWrapper) CompleteAdminSessionMfa(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CompleteAdminSessionMfaParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteAdminSessionMfa(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReauthenticateAdminSession operation middleware
+func (siw *ServerInterfaceWrapper) ReauthenticateAdminSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReauthenticateAdminSessionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReauthenticateAdminSession(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminUsersParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", r.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "search"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "securityStatus" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "securityStatus", r.URL.Query(), &params.SecurityStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "securityStatus"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "securityStatus", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "verifiedEmail" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "verifiedEmail", r.URL.Query(), &params.VerifiedEmail, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "verifiedEmail"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "verifiedEmail", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "createdAfter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "createdAfter", r.URL.Query(), &params.CreatedAfter, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "createdAfter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "createdAfter", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "createdBefore" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "createdBefore", r.URL.Query(), &params.CreatedBefore, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "createdBefore"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "createdBefore", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUser(w, r, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeOwnSession operation middleware
+func (siw *ServerInterfaceWrapper) RevokeOwnSession(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeOwnSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // BatchRead operation middleware
 func (siw *ServerInterfaceWrapper) BatchRead(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.BatchRead(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExchangeEmailLink operation middleware
+func (siw *ServerInterfaceWrapper) ExchangeEmailLink(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExchangeEmailLink(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestEmailLink operation middleware
+func (siw *ServerInterfaceWrapper) RequestEmailLink(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestEmailLink(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteRecovery operation middleware
+func (siw *ServerInterfaceWrapper) CompleteRecovery(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteRecovery(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3284,6 +7387,105 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v3/sync", wrapper.Sync)
 	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/public/auth/email-link/request", wrapper.RequestEmailLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/public/auth/email-link/exchange", wrapper.ExchangeEmailLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/public/auth/recovery/complete", wrapper.CompleteRecovery)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/auth/session/revoke", wrapper.RevokeOwnSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/session/bootstrap", wrapper.BootstrapAdminSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/session/login", wrapper.AdminSessionLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/session/mfa", wrapper.CompleteAdminSessionMfa)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/session/reauthenticate", wrapper.ReauthenticateAdminSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/session/logout", wrapper.LogoutAdminSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/session", wrapper.GetAdminSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/users", wrapper.ListAdminUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/users/{userId}", wrapper.GetAdminUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/campaigns", wrapper.ListAdminCampaigns)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/campaigns", wrapper.CreateAdminCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/api/v3/admin/campaigns/{campaignId}", wrapper.DeleteAdminCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/campaigns/{campaignId}", wrapper.GetAdminCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v3/admin/campaigns/{campaignId}", wrapper.UpdateAdminCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/campaigns/{campaignId}/archive", wrapper.ArchiveAdminCampaign)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/audiences/preview", wrapper.PreviewAdminAudience)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/audiences/{audienceId}", wrapper.GetAdminAudience)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/jobs", wrapper.ListAdminJobs)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/jobs", wrapper.CreateAdminJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/jobs/{jobId}", wrapper.GetAdminJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/jobs/{jobId}/recipients", wrapper.ListAdminJobRecipients)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/jobs/{jobId}/retry", wrapper.RetryAdminJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/jobs/{jobId}/cancel", wrapper.CancelAdminJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/messages/test", wrapper.SendAdminTestMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/reports", wrapper.ListAdminReports)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/reports/{reportId}", wrapper.GetAdminReport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v3/admin/reports/{reportId}", wrapper.UpdateAdminReport)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/reports/{reportId}/notes", wrapper.ListAdminReportNotes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/reports/{reportId}/notes", wrapper.AddAdminReportNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v3/admin/audit", wrapper.ListAdminAudit)
+	})
 
 	return r
 }
@@ -3293,121 +7495,270 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

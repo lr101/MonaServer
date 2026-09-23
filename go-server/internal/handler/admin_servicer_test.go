@@ -30,7 +30,7 @@ func TestCreateReportReturnsUnavailableWithoutMail(t *testing.T) {
 	resp, err := servicer.CreateReport(context.Background(), genserver.ReportDto{
 		UserId: "00000000-0000-0000-0000-000000000001",
 		Report: "spam", Message: "details",
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestCreateReportRejectsUnknownUser(t *testing.T) {
 	servicer := NewReportServicer(mail, authHandler.q)
 	resp, err := servicer.CreateReport(context.Background(), genserver.ReportDto{
 		UserId: uuid.NewString(), Report: "spam", Message: "details",
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestCreateReportSendsMailToConfiguredInbox(t *testing.T) {
 	resp, err := servicer.CreateReport(context.Background(), genserver.ReportDto{
 		UserId: "00000000-0000-0000-0000-000000000001",
 		Report: "spam", Message: "details",
-	})
+	}, "")
 	if err != nil {
 		t.Fatalf("create report: %v", err)
 	}

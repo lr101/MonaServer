@@ -2,23 +2,21 @@ import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/auth/data/login_service.dart';
 import 'package:buff_lisa/features/web/presentation/show_web.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_login/flutter_login.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class Auth extends ConsumerStatefulWidget  {
-
+class Auth extends ConsumerStatefulWidget {
   const Auth({super.key});
 
   @override
   ConsumerState<Auth> createState() => _AuthState();
-
 }
 
 class _AuthState extends ConsumerState<Auth> {
-
   @override
   Widget build(BuildContext context) {
     final global = ref.watch(globalDataServiceProvider);
@@ -29,37 +27,64 @@ class _AuthState extends ConsumerState<Auth> {
           : null,
       logo: const AssetImage('assets/icon/logo-rounded-corners.png'),
       termsOfService: [
-        TermOfService(id: "0", text: "Terms of Service", mandatory: true, linkUrl: "${global.host}/public/agb"),
-        TermOfService(id: "1", text: "Privacy Policy", mandatory: true, linkUrl: "${global.host}/public/privacy-policy"),
+        TermOfService(
+          id: "0",
+          text: "Terms of Service",
+          mandatory: true,
+          linkUrl: "${global.host}/public/agb",
+        ),
+        TermOfService(
+          id: "1",
+          text: "Privacy Policy",
+          mandatory: true,
+          linkUrl: "${global.host}/public/privacy-policy",
+        ),
       ],
       onLogin: loginService.authUser,
       onSignup: loginService.signupUser,
       userType: LoginUserType.name,
       passwordValidator: LoginService.passwordValidator,
       userValidator: LoginService.userValidator,
-      onSubmitAnimationCompleted: () => loginService.handleLoginComplete(context),
+      onSubmitAnimationCompleted: () =>
+          loginService.handleLoginComplete(context),
       validateUserImmediately: true,
       onRecoverPassword: loginService.recoverPassword,
       messages: LoginMessages(
-          recoverPasswordDescription: "Type your username here and than check your emails",
-          recoverPasswordSuccess: "Check your emails for a recovery link",
+        recoverPasswordDescription:
+            "Type your username here and than check your emails",
+        recoverPasswordSuccess: "Check your emails for a recovery link",
       ),
-      additionalSignupFields: const [UserFormField(keyName: "email", userType: LoginUserType.email)],
+      additionalSignupFields: const [
+        UserFormField(keyName: "email", userType: LoginUserType.email),
+      ],
       theme: LoginTheme(
         primaryColor: Theme.of(context).colorScheme.primary,
-        titleStyle: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimary,
-        ),
+        titleStyle: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
       ),
-      children: [ Positioned.fill(
-          child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: privacyPolicyLinkAndTermsOfService(context),
+      children: [
+        if (kIsWeb)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 56,
+            child: Center(
+              child: TextButton(
+                key: const Key('password-login-email-link'),
+                onPressed: () => context.pushNamed('emailLogin'),
+                child: const Text('Sign in with an email link'),
               ),
+            ),
           ),
-      ),],
+        Positioned.fill(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: privacyPolicyLinkAndTermsOfService(context),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -68,45 +93,54 @@ class _AuthState extends ConsumerState<Auth> {
   /// Click opens the corresponding page of the [ShowWebWidget]
   Widget privacyPolicyLinkAndTermsOfService(BuildContext context) {
     return Text.rich(
-        TextSpan(
-            text: 'By continuing, you agree to our ', style: const TextStyle(
-            fontSize: 16,
-        ),
+      TextSpan(
+        text: 'By continuing, you agree to our ',
+        style: const TextStyle(fontSize: 16),
+        children: <TextSpan>[
+          TextSpan(
+            text: 'Terms of Service',
+            style: TextStyle(
+              fontSize: 16,
+              decoration: TextDecoration.underline,
+              decorationColor: Theme.of(context).colorScheme.onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => context.pushNamed(
+                'web',
+                queryParameters: {
+                  'url':
+                      "${ref.watch(globalDataServiceProvider).host}/public/agb",
+                  'title': "Terms of Service",
+                },
+              ),
+          ),
+          TextSpan(
+            text: ' and ',
+            style: const TextStyle(fontSize: 18),
             children: <TextSpan>[
               TextSpan(
-                  text: 'Terms of Service', style: TextStyle(
-                fontSize: 16,
-                decoration: TextDecoration.underline,
-                decorationColor: Theme.of(context).colorScheme.onSurface,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = ()
-                      => context.pushNamed('web', queryParameters: {'url': "${ref.watch(globalDataServiceProvider).host}/public/agb", 'title': "Terms of Service"})
-              ),
-              TextSpan(
-                  text: ' and ', style: const TextStyle(
-                  fontSize: 18,
-              ),
-                  children: <TextSpan>[
-                    TextSpan(
-                        text: 'Privacy Policy', style: TextStyle(
-                        fontSize: 16,
-                        decoration: TextDecoration.underline,
-                      decorationColor: Theme.of(context).colorScheme.onSurface,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () 
-                            => context.pushNamed('web', 
-                              queryParameters: {'url': "${ref.watch(globalDataServiceProvider).host}/public/privacy-policy", 'title': "Privacy Policy"}
-                            )
-                        
-                    ),
-                  ],
+                text: 'Privacy Policy',
+                style: TextStyle(
+                  fontSize: 16,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Theme.of(context).colorScheme.onSurface,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () => context.pushNamed(
+                    'web',
+                    queryParameters: {
+                      'url':
+                          "${ref.watch(globalDataServiceProvider).host}/public/privacy-policy",
+                      'title': "Privacy Policy",
+                    },
+                  ),
               ),
             ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }

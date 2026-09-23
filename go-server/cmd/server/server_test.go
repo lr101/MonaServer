@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +32,20 @@ import (
 )
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+func TestNewReportServiceConfigRequiresHMACSecret(t *testing.T) {
+	if _, err := newReportServiceConfig(&config.Config{}); err == nil {
+		t.Fatal("report config accepted an empty HMAC secret")
+	}
+
+	reportConfig, err := newReportServiceConfig(&config.Config{AdminSessionHMACKey: "report-secret"})
+	if err != nil {
+		t.Fatalf("valid report config: %v", err)
+	}
+	if string(reportConfig.HMACKey) != "report-secret" {
+		t.Fatalf("report HMAC key = %q, want report-secret", reportConfig.HMACKey)
+	}
+}
 
 func testDSN(t *testing.T) string {
 	t.Helper()
@@ -110,6 +126,11 @@ func serveTestSMTPConnection(conn net.Conn) {
 }
 
 func buildTestServer(t *testing.T) *httptest.Server {
+	server, _ := buildTestServerWithQuery(t)
+	return server
+}
+
+func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	dsn := testDSN(t)
 
@@ -135,6 +156,9 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
 		AdminUsername:      "admin",
+		AdminOrigin:        "https://admin.example",
+		WebAdminAPI:        true,
+		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
 		MailPort:           mailPort,
 		MailUsername:       "mail@test.example",
@@ -161,7 +185,15 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	reportServicer := handler.NewReportServicer(mailSvc, q)
+	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("server-test-admin-quota-key"),
+		AdminOrigin:   cfg.AdminOrigin,
+	})
+	reportServicer := handler.NewReportServicer(mailSvc, q, service.ReportServiceConfig{
+		HMACKey:   []byte("server-test-report-quota-key"),
+		HMACKeyID: "server-test-report-v1",
+	})
 	publicServicer := handler.NewPublicServicer()
 	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
@@ -179,6 +211,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
 	r := chi.NewRouter()
+	r.Use(middleware.TrustedRealIP(cfg.TrustedProxyCIDRs))
 	r.Use(chimw.Recoverer)
 
 	// Mirror the route wiring in main.go.
@@ -201,17 +234,14 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
-		registerRoutes(r, reportCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CaptureReportRequest), reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		registerRoutes(r, adminCtrl, alwaysTrue)
-	})
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
 
-	return httptest.NewServer(r)
+	return httptest.NewServer(r), q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -311,6 +341,10 @@ func TestFailedWeeklyNotificationClearsInvalidToken(t *testing.T) {
 }
 
 func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Response {
+	return c.doWithHeaders(t, method, path, body, nil)
+}
+
+func (c *apiClient) doWithHeaders(t *testing.T, method, path string, body any, headers map[string]string) *http.Response {
 	t.Helper()
 	var r io.Reader
 	if body != nil {
@@ -320,6 +354,9 @@ func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Respon
 	req, _ := http.NewRequest(method, c.base+path, r)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	if c.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+c.bearer)
@@ -1254,23 +1291,198 @@ func TestEndpointRanking(t *testing.T) {
 }
 
 func TestEndpointReport(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, q := buildTestServerWithQuery(t)
 	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
 
 	anon := &apiClient{base: srv.URL}
 	ar := anon.signup(t, "reporter", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
 	t.Run("POST /api/v2/report", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/report", map[string]any{
-			"userId":  uuid.New().String(),
+		const reportQuotaKey = "server-test-report-quota-key"
+		const reportQuotaKeyID = "server-test-report-v1"
+		const forwardedIP = "198.51.100.7"
+		body := map[string]any{
+			"userId":  ar.UserID,
 			"report":  "spam",
 			"message": "test report",
-		})
+		}
+		headers := map[string]string{
+			"Idempotency-Key": "routed-report-key",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		}
+		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		resp.Body.Close()
-		// 200 if mail is not configured, still expect non-5xx.
-		if resp.StatusCode >= 500 {
-			t.Fatalf("unexpected server error: %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("report status = %d, want 200", resp.StatusCode)
+		}
+		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
+		replay.Body.Close()
+		if replay.StatusCode != http.StatusOK {
+			t.Fatalf("report replay status = %d, want 200", replay.StatusCode)
+		}
+		var count int
+		if err := q.Pool().QueryRow(context.Background(), `SELECT count(*) FROM reports WHERE reporter_user_id = $1`, ar.UserID).Scan(&count); err != nil {
+			t.Fatalf("count routed reports: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("routed reports = %d, want exactly one idempotent row", count)
+		}
+		accountHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-account", ar.UserID)
+		ipHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-ip", forwardedIP)
+		var accountHits, ipHits int64
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-account' AND identifier_hmac = $1 AND key_id = $2`, accountHMAC, reportQuotaKeyID).Scan(&accountHits); err != nil {
+			t.Fatalf("read routed account quota bucket: %v", err)
+		}
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-ip' AND identifier_hmac = $1 AND key_id = $2`, ipHMAC, reportQuotaKeyID).Scan(&ipHits); err != nil {
+			t.Fatalf("read routed IP quota bucket: %v", err)
+		}
+		if accountHits != 1 || ipHits != 1 {
+			t.Fatalf("routed quota hits account=%d ip=%d, want one keyed hit each", accountHits, ipHits)
 		}
 	})
+
+	t.Run("POST /api/v2/report quota response", func(t *testing.T) {
+		ar := anon.signup(t, "report-quota", "pw123")
+		c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+		const forwardedIP = "203.0.113.42"
+		for i := 0; i < 10; i++ {
+			resp := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+				"userId": ar.UserID, "report": "spam", "message": fmt.Sprintf("quota report %d", i),
+			}, map[string]string{
+				"Idempotency-Key": fmt.Sprintf("quota-report-%d", i),
+				"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+			})
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("quota fill request %d status = %d, want 200", i, resp.StatusCode)
+			}
+		}
+
+		limited := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+			"userId": ar.UserID, "report": "spam", "message": "quota exhausted",
+		}, map[string]string{
+			"Idempotency-Key": "quota-report-limited",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		})
+		defer limited.Body.Close()
+		if limited.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("quota exhausted status = %d, want 429", limited.StatusCode)
+		}
+		var body genserver.ApiErrorDto
+		if err := json.NewDecoder(limited.Body).Decode(&body); err != nil {
+			t.Fatalf("decode quota error: %v", err)
+		}
+		if body.Code != "rate_limited" || body.RetryAfterSeconds == nil || *body.RetryAfterSeconds <= 0 {
+			t.Fatalf("quota error body = %#v, want rate_limited with retry seconds", body)
+		}
+		retryAfter, err := strconv.Atoi(limited.Header.Get("Retry-After"))
+		if err != nil || retryAfter <= 0 {
+			t.Fatalf("Retry-After = %q, want positive integer", limited.Header.Get("Retry-After"))
+		}
+		if retryAfter != int(*body.RetryAfterSeconds) {
+			t.Fatalf("Retry-After = %d, body retry seconds = %d", retryAfter, *body.RetryAfterSeconds)
+		}
+	})
+}
+
+func TestEndpointReportTargetFieldsRoute(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
+
+	anon := &apiClient{base: srv.URL}
+	ar := anon.signup(t, "report-target-route", "pw123")
+	reporterID := uuid.MustParse(ar.UserID)
+	client := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+	targetID := reporterID
+	explicitKind := "user"
+
+	tests := []struct {
+		name           string
+		targetFields   map[string]any
+		bodyUserID     string
+		wantStatus     int
+		wantStored     bool
+		wantTargetID   *uuid.UUID
+		wantTargetKind *string
+	}{
+		{name: "omitted", wantStatus: http.StatusOK, wantStored: true},
+		{name: "explicit null", targetFields: map[string]any{"targetId": nil, "targetKind": nil}, wantStatus: http.StatusOK, wantStored: true},
+		{name: "target id uses user default", targetFields: map[string]any{"targetId": ar.UserID}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID},
+		{name: "target id and kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID, wantTargetKind: &explicitKind},
+		{name: "malformed target id", targetFields: map[string]any{"targetId": "not-a-uuid"}, wantStatus: http.StatusBadRequest},
+		{name: "kind without target id", targetFields: map[string]any{"targetKind": explicitKind}, wantStatus: http.StatusBadRequest},
+		{name: "control character target kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": "pin\t"}, wantStatus: http.StatusBadRequest},
+		{name: "forged body reporter", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, bodyUserID: uuid.NewString(), wantStatus: http.StatusForbidden},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requestID := "route-target-" + strings.ReplaceAll(test.name, " ", "-")
+			body := map[string]any{
+				"userId":  ar.UserID,
+				"report":  "route target report",
+				"message": "route target details",
+			}
+			if test.bodyUserID != "" {
+				body["userId"] = test.bodyUserID
+			}
+			for key, value := range test.targetFields {
+				body[key] = value
+			}
+
+			resp := client.doWithHeaders(t, http.MethodPost, "/api/v2/report", body, map[string]string{"Idempotency-Key": requestID})
+			resp.Body.Close()
+			if resp.StatusCode != test.wantStatus {
+				t.Fatalf("report status = %d, want %d", resp.StatusCode, test.wantStatus)
+			}
+
+			stored, err := q.GetReportByRequestID(context.Background(), requestID)
+			if err != nil {
+				t.Fatalf("get routed report: %v", err)
+			}
+			if !test.wantStored {
+				if stored != nil {
+					t.Fatalf("stored report = %#v, want no row", stored)
+				}
+				return
+			}
+			if stored == nil {
+				t.Fatal("stored report is nil")
+			}
+			if stored.ReporterUserID == nil || *stored.ReporterUserID != reporterID {
+				t.Fatalf("stored reporter = %#v, want authenticated user %s", stored.ReporterUserID, reporterID)
+			}
+			if test.wantTargetID == nil {
+				if stored.TargetID != nil {
+					t.Fatalf("stored target id = %v, want nil", stored.TargetID)
+				}
+			} else if stored.TargetID == nil || *stored.TargetID != *test.wantTargetID {
+				t.Fatalf("stored target id = %v, want %s", stored.TargetID, *test.wantTargetID)
+			}
+			if test.wantTargetKind == nil {
+				if stored.TargetKind != nil {
+					t.Fatalf("stored target kind = %v, want nil", stored.TargetKind)
+				}
+			} else if stored.TargetKind == nil || *stored.TargetKind != *test.wantTargetKind {
+				t.Fatalf("stored target kind = %v, want %q", stored.TargetKind, *test.wantTargetKind)
+			}
+		})
+	}
+}
+
+func reportQuotaIdentifierHMAC(key []byte, scope, value string) []byte {
+	h := hmac.New(sha256.New, key)
+	_, _ = h.Write([]byte(scope + "\x00" + value))
+	return h.Sum(nil)
 }

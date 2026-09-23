@@ -1,0 +1,442 @@
+import (
+{{#vendorExtensions.x-canonical-audience-filter-union}}
+	"bytes"
+{{/vendorExtensions.x-canonical-audience-filter-union}}
+	"encoding/json"
+	"fmt"
+{{#vendorExtensions.x-canonical-audience-filter-union}}
+	"time"
+{{/vendorExtensions.x-canonical-audience-filter-union}}
+)
+
+{{#vendorExtensions.x-canonical-audience-filter-union}}
+// AdminAudienceFilter is a resource-tagged filter union. Account and report
+// criteria are kept in one wire object so the outer audience remains stable;
+// the resource discriminator prevents applying account criteria to reports.
+type AdminAudienceFilter struct {
+	Resource         AudienceResourceKind  `json:"resource"`
+	CreatedAfter     *time.Time            `json:"createdAfter,omitempty"`
+	CreatedBefore    *time.Time            `json:"createdBefore,omitempty"`
+	Email            *string               `json:"email,omitempty"`
+	Id               *string               `json:"id,omitempty"`
+	IncludeAdmins    *bool                 `json:"includeAdmins,omitempty"`
+	SecurityStatuses *[]AdminSecurityState `json:"securityStatuses,omitempty"`
+	Username         *string               `json:"username,omitempty"`
+	VerifiedEmail    *bool                 `json:"verifiedEmail,omitempty"`
+	AssigneeUserId   *string               `json:"assigneeUserId,omitempty"`
+	Statuses         *[]AdminReportStatus  `json:"statuses,omitempty"`
+	Types            *[]string             `json:"types,omitempty"`
+}
+
+// AssertAdminAudienceFilterRequired checks the resource discriminator.
+func AssertAdminAudienceFilterRequired(obj AdminAudienceFilter) error {
+	if IsZeroValue(obj.Resource) {
+		return &RequiredError{Field: "resource"}
+	}
+	if obj.Resource != AudienceResourceKind("accounts") && obj.Resource != AudienceResourceKind("reports") {
+		return fmt.Errorf("invalid audience filter resource %q", obj.Resource)
+	}
+	return nil
+}
+
+// AssertAdminAudienceFilterConstraints checks resource-specific fields.
+func AssertAdminAudienceFilterConstraints(obj AdminAudienceFilter) error {
+	if err := AssertAdminAudienceFilterRequired(obj); err != nil {
+		return err
+	}
+	if obj.Resource == AudienceResourceKind("accounts") && (obj.AssigneeUserId != nil || obj.Statuses != nil || obj.Types != nil) {
+		return fmt.Errorf("report filter fields are not valid for account audiences")
+	}
+	if obj.Resource == AudienceResourceKind("reports") && (obj.Email != nil || obj.Id != nil || obj.SecurityStatuses != nil || obj.Username != nil || obj.VerifiedEmail != nil || obj.IncludeAdmins != nil) {
+		return fmt.Errorf("account filter fields are not valid for report audiences")
+	}
+	return nil
+}
+
+func (obj *AdminAudienceFilter) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	var resource AudienceResourceKind
+	rawResource, found := fields["resource"]
+	if !found || json.Unmarshal(rawResource, &resource) != nil || resource == "" {
+		return &RequiredError{Field: "resource"}
+	}
+	allowedFields := map[string]struct{}{
+		"resource":      {},
+		"createdAfter":  {},
+		"createdBefore": {},
+	}
+	if resource == AudienceResourceKind("accounts") {
+		for _, field := range []string{"email", "id", "includeAdmins", "securityStatuses", "username", "verifiedEmail"} {
+			allowedFields[field] = struct{}{}
+		}
+	} else if resource == AudienceResourceKind("reports") {
+		for _, field := range []string{"assigneeUserId", "statuses", "types"} {
+			allowedFields[field] = struct{}{}
+		}
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audience filters", field, resource)
+		}
+	}
+	if rawIncludeAdmins, found := fields["includeAdmins"]; found && bytes.Equal(bytes.TrimSpace(rawIncludeAdmins), []byte("null")) {
+		return fmt.Errorf("includeAdmins cannot be null")
+	}
+	type plainAdminAudienceFilter AdminAudienceFilter
+	var decoded plainAdminAudienceFilter
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	decoded.Resource = resource
+	if err := AssertAdminAudienceFilterConstraints(AdminAudienceFilter(decoded)); err != nil {
+		return err
+	}
+	*obj = AdminAudienceFilter(decoded)
+	return nil
+}
+{{/vendorExtensions.x-canonical-audience-filter-union}}
+
+{{#vendorExtensions.x-canonical-audience-union}}
+// AdminAudience is a generator view of the discriminated audience union. The
+// OpenAPI branches carry the canonical required fields; this view keeps the
+// flattened server fields optional while validating the active branch during
+// JSON decoding.
+type AdminAudience struct {
+	Kind     AudienceKind         `json:"kind"`
+	Ids      []string             `json:"ids,omitempty"`
+	Resource AudienceResourceKind `json:"resource"`
+	Filter   *AdminAudienceFilter `json:"filter,omitempty"`
+}
+
+// AssertAdminAudienceRequired checks common and branch-specific required fields.
+func AssertAdminAudienceRequired(obj AdminAudience) error {
+	if IsZeroValue(obj.Kind) {
+		return &RequiredError{Field: "kind"}
+	}
+	if IsZeroValue(obj.Resource) {
+		return &RequiredError{Field: "resource"}
+	}
+	switch obj.Kind {
+	case AudienceKind("selected"):
+		if len(obj.Ids) == 0 {
+			return &RequiredError{Field: "ids"}
+		}
+		if obj.Filter != nil {
+			return fmt.Errorf("filter is not valid for selected audiences")
+		}
+	case AudienceKind("filter"):
+		if obj.Filter == nil {
+			return &RequiredError{Field: "filter"}
+		}
+		if len(obj.Ids) != 0 {
+			return fmt.Errorf("ids are not valid for filter audiences")
+		}
+		if obj.Filter.Resource != obj.Resource {
+			return fmt.Errorf("audience and filter resources do not match")
+		}
+		if err := AssertAdminAudienceFilterConstraints(*obj.Filter); err != nil {
+			return err
+		}
+	case AudienceKind("all"):
+		if obj.Filter != nil {
+			return fmt.Errorf("filter is not valid for all audiences")
+		}
+		if len(obj.Ids) != 0 {
+			return fmt.Errorf("ids are not valid for all audiences")
+		}
+	default:
+		return fmt.Errorf("invalid audience kind %q", obj.Kind)
+	}
+	return nil
+}
+
+// AssertAdminAudienceConstraints checks branch values that are independent of JSON presence.
+func AssertAdminAudienceConstraints(obj AdminAudience) error {
+	if err := AssertAdminAudienceRequired(obj); err != nil {
+		return err
+	}
+	if obj.Kind == AudienceKind("filter") {
+		return AssertAdminAudienceFilterConstraints(*obj.Filter)
+	}
+	return nil
+}
+
+func (obj *AdminAudience) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	var kind AudienceKind
+	rawKind, found := fields["kind"]
+	if !found || json.Unmarshal(rawKind, &kind) != nil || kind == "" {
+		return &RequiredError{Field: "kind"}
+	}
+	var resource AudienceResourceKind
+	rawResource, found := fields["resource"]
+	if !found || json.Unmarshal(rawResource, &resource) != nil || resource == "" {
+		return &RequiredError{Field: "resource"}
+	}
+	if resource != AudienceResourceKind("accounts") && resource != AudienceResourceKind("reports") {
+		return fmt.Errorf("invalid audience resource %q", resource)
+	}
+	allowedFields := map[string]struct{}{"kind": {}, "resource": {}}
+	switch kind {
+	case AudienceKind("selected"):
+		allowedFields["ids"] = struct{}{}
+	case AudienceKind("filter"):
+		allowedFields["filter"] = struct{}{}
+	case AudienceKind("all"):
+	default:
+		return fmt.Errorf("invalid audience kind %q", kind)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s audiences", field, kind)
+		}
+	}
+	switch kind {
+	case AudienceKind("selected"):
+		rawIds, found := fields["ids"]
+		var ids []string
+		if !found || json.Unmarshal(rawIds, &ids) != nil || len(ids) == 0 {
+			return &RequiredError{Field: "ids"}
+		}
+		if _, found := fields["filter"]; found {
+			return fmt.Errorf("filter is not valid for selected audiences")
+		}
+	case AudienceKind("filter"):
+		rawFilter, found := fields["filter"]
+		if !found || string(rawFilter) == "null" {
+			return &RequiredError{Field: "filter"}
+		}
+		var filter AdminAudienceFilter
+		if err := json.Unmarshal(rawFilter, &filter); err != nil {
+			return err
+		}
+		if filter.Resource != resource {
+			return fmt.Errorf("audience and filter resources do not match")
+		}
+	case AudienceKind("all"):
+	default:
+		return fmt.Errorf("invalid audience kind %q", kind)
+	}
+	type plainAdminAudience AdminAudience
+	var decoded plainAdminAudience
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*obj = AdminAudience(decoded)
+	return AssertAdminAudienceRequired(*obj)
+}
+{{/vendorExtensions.x-canonical-audience-union}}
+
+{{#vendorExtensions.x-canonical-action-union}}
+// AdminAction is a generator view of the discriminated action union. The
+// OpenAPI branches carry the canonical required fields; this view keeps the
+// flattened server fields optional while validating the active branch during
+// JSON decoding.
+type AdminAction struct {
+	Action      AdminActionKind `json:"action"`
+	Body        string          `json:"body,omitempty"`
+	MessageHtml *string         `json:"messageHtml,omitempty"`
+	Subject     string          `json:"subject,omitempty"`
+	Reason      string          `json:"reason,omitempty"`
+	Title       string          `json:"title,omitempty"`
+	Note        *string         `json:"note,omitempty"`
+}
+
+// AssertAdminActionRequired checks common and branch-specific required fields.
+func AssertAdminActionRequired(obj AdminAction) error {
+	if IsZeroValue(obj.Action) {
+		return &RequiredError{Field: "action"}
+	}
+	switch obj.Action {
+	case AdminActionKind("email"):
+		if obj.Body == "" {
+			return &RequiredError{Field: "body"}
+		}
+		if obj.Subject == "" {
+			return &RequiredError{Field: "subject"}
+		}
+	case AdminActionKind("push"):
+		if obj.Body == "" {
+			return &RequiredError{Field: "body"}
+		}
+		if obj.Title == "" {
+			return &RequiredError{Field: "title"}
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if obj.Reason == "" {
+			return &RequiredError{Field: "reason"}
+		}
+	case AdminActionKind("login_link"), AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+	default:
+		return fmt.Errorf("invalid action %q", obj.Action)
+	}
+	return assertAdminActionBranchFields(obj)
+}
+
+// AssertAdminActionConstraints checks branch values that are independent of JSON presence.
+func AssertAdminActionConstraints(obj AdminAction) error {
+	return assertAdminActionBranchFields(obj)
+}
+
+func assertAdminActionBranchFields(obj AdminAction) error {
+	reject := func(field string) error {
+		return fmt.Errorf("field %q is not valid for %s actions", field, obj.Action)
+	}
+	switch obj.Action {
+	case AdminActionKind("email"):
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("login_link"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("push"):
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+		if obj.Note != nil {
+			return reject("note")
+		}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		if obj.Body != "" {
+			return reject("body")
+		}
+		if obj.MessageHtml != nil {
+			return reject("messageHtml")
+		}
+		if obj.Subject != "" {
+			return reject("subject")
+		}
+		if obj.Reason != "" {
+			return reject("reason")
+		}
+		if obj.Title != "" {
+			return reject("title")
+		}
+	default:
+		return fmt.Errorf("invalid action %q", obj.Action)
+	}
+	return nil
+}
+
+func (obj *AdminAction) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	var action AdminActionKind
+	rawAction, found := fields["action"]
+	if !found || json.Unmarshal(rawAction, &action) != nil || action == "" {
+		return &RequiredError{Field: "action"}
+	}
+	allowedFields := map[string]struct{}{"action": {}}
+	switch action {
+	case AdminActionKind("email"):
+		for _, field := range []string{"body", "messageHtml", "subject"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("login_link"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("push"):
+		for _, field := range []string{"body", "title"} {
+			allowedFields[field] = struct{}{}
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		allowedFields["reason"] = struct{}{}
+	case AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+		allowedFields["note"] = struct{}{}
+	default:
+		return fmt.Errorf("invalid action %q", action)
+	}
+	for field := range fields {
+		if _, allowed := allowedFields[field]; !allowed {
+			return fmt.Errorf("field %q is not valid for %s actions", field, action)
+		}
+	}
+	requiredString := func(field string) error {
+		raw, found := fields[field]
+		var value string
+		if !found || json.Unmarshal(raw, &value) != nil || value == "" {
+			return &RequiredError{Field: field}
+		}
+		return nil
+	}
+	switch action {
+	case AdminActionKind("email"):
+		if err := requiredString("body"); err != nil {
+			return err
+		}
+		if err := requiredString("subject"); err != nil {
+			return err
+		}
+	case AdminActionKind("push"):
+		if err := requiredString("body"); err != nil {
+			return err
+		}
+		if err := requiredString("title"); err != nil {
+			return err
+		}
+	case AdminActionKind("revoke_sessions"), AdminActionKind("mark_compromised"), AdminActionKind("recovery_resend"):
+		if err := requiredString("reason"); err != nil {
+			return err
+		}
+	case AdminActionKind("login_link"), AdminActionKind("report_resolve"), AdminActionKind("report_dismiss"):
+	default:
+		return fmt.Errorf("invalid action %q", action)
+	}
+	type plainAdminAction AdminAction
+	var decoded plainAdminAction
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*obj = AdminAction(decoded)
+	return nil
+}
+{{/vendorExtensions.x-canonical-action-union}}
