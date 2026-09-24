@@ -82,8 +82,10 @@ jobs:
           echo 'Checking loopback admin UI'
           curl --fail --silent --show-error http://127.0.0.1:8082/ | grep -q 'MonaServer Admin'
           echo 'Checking public admin API denial'
-          blocked_headers="$(docker compose exec -T app wget -S -O /dev/null \
-            http://127.0.0.1:8081/api/v3/admin/users 2>&1 || true)"
+          app_container="$(docker compose ps -q app)"
+          blocked_headers="$(docker run --rm --network "container:$app_container" \
+            curlimages/curl:8.10.1 --silent --show-error --dump-header - \
+            --output /dev/null http://127.0.0.1:8081/api/v3/admin/users)"
           printf '%s\n' "$blocked_headers"
           grep -q 'HTTP/1.1 404' <<< "$blocked_headers"
           grep -qi 'X-Admin-Blocked: true' <<< "$blocked_headers"
