@@ -30,7 +30,9 @@ object downloads at `/monaserver/` on the same public origin.
    database password because it appears in `DATABASE_URL`. Set that variable
    to the address of your PostGIS service; the image uses it as supplied. When
    unset, it builds a URL for the bundled `db` service. Both services and the
-   app read values from the ignored `.env` file.
+   app read values from the ignored `.env` file. Compose derives the email
+   login callback as `https://${WEB_HOST}/#/email-login/callback`, so email
+   links use the same public hostname as the consumer web app.
 3. Run `docker compose pull app db rustfs` followed by
    `docker compose up -d --wait`. CI publishes the combined app image to
    `ghcr.io/lr101/monaserver-app:develop`; set `APP_IMAGE` to an exact commit
