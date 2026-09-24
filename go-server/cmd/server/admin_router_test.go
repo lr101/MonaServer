@@ -126,7 +126,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		t.Fatalf("bootstrap response = %s", bootstrap.Body.String())
 	}
 	bootCookies := bootstrap.Result().Cookies()
-	if len(bootCookies) != 1 || !bootCookies[0].Secure || !bootCookies[0].HttpOnly || bootCookies[0].SameSite != http.SameSiteStrictMode {
+	if len(bootCookies) != 1 || !bootCookies[0].Secure || !bootCookies[0].HttpOnly || bootCookies[0].SameSite != http.SameSiteNoneMode {
 		t.Fatalf("bootstrap cookie flags = %#v", bootCookies)
 	}
 	preAuthCookie := bootCookies[0]

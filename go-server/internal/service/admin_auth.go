@@ -297,7 +297,7 @@ func NewAdminSessionCookie(value string, now time.Time, ttl time.Duration) *http
 	return &http.Cookie{
 		Name: adminSessionCookieName, Value: value, Path: adminSessionCookiePath,
 		Expires: now.Add(ttl), MaxAge: maxAge, Secure: true, HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteNoneMode,
 	}
 }
 

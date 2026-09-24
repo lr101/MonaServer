@@ -118,8 +118,9 @@ Endpoint authentication and role requirements are:
 | `/api/v3/admin/*` | Browser-admin session cookie + CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
 | `/api/v3/sync` | JWT + `USER` role |
 
-Admin endpoints reflect any request origin and allow credentialed CORS. Keep the
-admin listener restricted to a trusted network or private ingress.
+Admin endpoints reflect any request origin and allow credentialed CORS. Their
+Secure session cookie uses `SameSite=None` so browsers send it cross-site. Keep
+the admin listener restricted to a trusted network or private ingress.
 
 Fine-grained guards cover group administrators, group members, and pin creators.
 

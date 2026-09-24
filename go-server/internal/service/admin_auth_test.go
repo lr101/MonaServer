@@ -58,7 +58,7 @@ func TestAdminCookieHasHostOnlySecureHttpOnlyStrictFlags(t *testing.T) {
 	if cookie.Name != adminSessionCookieName {
 		t.Fatalf("cookie name = %q", cookie.Name)
 	}
-	if !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode {
+	if !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteNoneMode {
 		t.Fatalf("cookie flags = secure:%v httponly:%v samesite:%v", cookie.Secure, cookie.HttpOnly, cookie.SameSite)
 	}
 	if cookie.Domain != "" {
