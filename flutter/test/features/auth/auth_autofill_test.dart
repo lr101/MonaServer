@@ -38,6 +38,20 @@ void main() {
     expect(username.autofillHints, [AutofillHints.username]);
     expect(password.autofillHints, [AutofillHints.password]);
     expect(find.byType(AutofillGroup), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('auth-identifier')),
+        matching: find.byType(AutofillGroup),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('auth-password')),
+        matching: find.byType(AutofillGroup),
+      ),
+      findsOneWidget,
+    );
 
     final group = tester.widget<AutofillGroup>(find.byType(AutofillGroup));
     expect(group.onDisposeAction, AutofillContextAction.cancel);
