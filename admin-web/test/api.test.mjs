@@ -32,6 +32,32 @@ test('keeps cookies, CSRF in memory, and the pre-auth token across restore 401',
   assert.equal(api.csrf, 'mfa-token');
 });
 
+test('bounds bootstrap and session restoration when the server never responds', async () => {
+  for (const method of ['bootstrap', 'restore']) {
+    let signal;
+    const api = new AdminApi({
+      base: 'https://admin.example/',
+      sessionRequestTimeoutMs: 10,
+      fetcher: async (_url, options) => {
+        signal = options.signal;
+        return new Promise(() => {});
+      },
+    });
+
+    let deadlineId;
+    const outcome = await Promise.race([
+      api[method]().then(() => ({ resolved: true }), (error) => ({ error })),
+      new Promise((resolve) => { deadlineId = setTimeout(() => resolve({ hung: true }), 100); }),
+    ]);
+    clearTimeout(deadlineId);
+    assert.equal(outcome.hung, undefined, `${method} should settle before the test deadline`);
+    assert.ok(outcome.error instanceof AdminHttpError);
+    assert.equal(outcome.error.status, 408);
+    assert.match(outcome.error.message, /try again/i);
+    assert.equal(signal.aborted, true);
+  }
+});
+
 test('uses the pre-auth CSRF token for one-time admin setup without persisting the TOTP secret', async () => {
   const { api, calls } = recordingApi([
     response(200, { csrfToken: 'pre-auth-token' }),
