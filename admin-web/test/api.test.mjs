@@ -58,6 +58,70 @@ test('bounds bootstrap and session restoration when the server never responds', 
   }
 });
 
+test('ignores a bootstrap response that arrives after its timeout', async () => {
+  let resolveFetch;
+  let bodyRead = false;
+  const api = new AdminApi({
+    base: 'https://admin.example/',
+    sessionRequestTimeoutMs: 10,
+    fetcher: () => new Promise((resolve) => { resolveFetch = resolve; }),
+  });
+
+  await assert.rejects(api.bootstrap(), (error) => error instanceof AdminHttpError && error.status === 408);
+  resolveFetch({
+    ok: true,
+    status: 200,
+    text: async () => {
+      bodyRead = true;
+      return JSON.stringify({ csrfToken: 'late-token' });
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(bodyRead, false);
+  assert.equal(api.csrf, null);
+});
+
+test('ignores a bootstrap body that arrives after its timeout', async () => {
+  let resolveBody;
+  const api = new AdminApi({
+    base: 'https://admin.example/',
+    sessionRequestTimeoutMs: 10,
+    fetcher: async () => ({
+      ok: true,
+      status: 200,
+      text: () => new Promise((resolve) => { resolveBody = resolve; }),
+    }),
+  });
+
+  await assert.rejects(api.bootstrap(), (error) => error instanceof AdminHttpError && error.status === 408);
+  resolveBody(JSON.stringify({ csrfToken: 'late-token' }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(api.csrf, null);
+});
+
+test('shares an in-flight bootstrap so concurrent callers use one cookie and CSRF token', async () => {
+  let calls = 0;
+  const releases = [];
+  const api = new AdminApi({
+    base: 'https://admin.example/',
+    sessionRequestTimeoutMs: 500,
+    fetcher: () => {
+      calls += 1;
+      return new Promise((resolve) => releases.push(resolve));
+    },
+  });
+
+  const first = api.bootstrap();
+  const second = api.bootstrap();
+  const sharesRequest = first === second;
+  for (const release of releases) release(response(200, { csrfToken: 'pre-auth-token' }));
+  await Promise.allSettled([first, second]);
+
+  assert.equal(sharesRequest, true);
+  assert.equal(calls, 1);
+  assert.equal(api.csrf, 'pre-auth-token');
+});
+
 test('uses the pre-auth CSRF token for one-time admin setup without persisting the TOTP secret', async () => {
   const { api, calls } = recordingApi([
     response(200, { csrfToken: 'pre-auth-token' }),

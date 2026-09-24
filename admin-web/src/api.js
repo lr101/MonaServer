@@ -27,6 +27,7 @@ export class AdminApi {
     this.fetcher = fetcher;
     this.sessionRequestTimeoutMs = sessionRequestTimeoutMs;
     this.csrf = null;
+    this.bootstrapRequest = null;
   }
 
   async request(path, {
@@ -93,7 +94,13 @@ export class AdminApi {
   }
 
   bootstrap() {
-    return this.request('/api/v3/admin/session/bootstrap', { method: 'POST', timeoutMs: this.sessionRequestTimeoutMs });
+    if (!this.bootstrapRequest) {
+      this.bootstrapRequest = this.request('/api/v3/admin/session/bootstrap', {
+        method: 'POST',
+        timeoutMs: this.sessionRequestTimeoutMs,
+      }).finally(() => { this.bootstrapRequest = null; });
+    }
+    return this.bootstrapRequest;
   }
 
   restore() {

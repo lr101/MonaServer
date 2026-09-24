@@ -7,25 +7,31 @@ const api = new AdminApi();
 const state = new AdminState({ page: 'overview', items: [], filters: {} });
 let challengeId = null;
 let loginCampaignRunning = false;
+let startupInProgress = false;
 
 state.subscribe(render);
 render(state.value);
 start();
 
 async function start() {
+  if (startupInProgress) return;
+  startupInProgress = true;
+  state.update({ busy: true });
   try {
     await api.bootstrap();
     const session = await api.restore();
-    state.update({ session: session?.sessionState === 'authenticated' ? 'authenticated' : 'login', sessionData: session });
+    state.update({ session: session?.sessionState === 'authenticated' ? 'authenticated' : 'login', sessionData: session, busy: false });
     if (session?.sessionState === 'authenticated') await loadOverview();
   } catch (error) {
-    state.update({ session: error instanceof AdminHttpError && error.status === 401 ? 'login' : 'error', error: message(error) });
+    state.update({ session: error instanceof AdminHttpError && error.status === 401 ? 'login' : 'error', sessionData: null, busy: false, error: message(error) });
+  } finally {
+    startupInProgress = false;
   }
 }
 
 function render(value) {
   if (value.session === 'unknown') { root.innerHTML = '<div class="loading">Loading admin session…</div>'; return; }
-  if (value.session === 'error') { root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Admin unavailable</h1><p>${escape(value.error)}</p><button data-action="retry">Retry</button></section>`; root.querySelector('[data-action="retry"]').addEventListener('click', start); return; }
+  if (value.session === 'error') { root.innerHTML = `<section class="card narrow"><p class="eyebrow">MonaServer</p><h1>Admin unavailable</h1><p>${escape(value.error)}</p><button data-action="retry" ${value.busy ? 'disabled' : ''}>${value.busy ? 'Retrying…' : 'Retry'}</button></section>`; root.querySelector('[data-action="retry"]').addEventListener('click', start); return; }
   if (value.session === 'login' || value.session === 'mfa' || value.session === 'setup' || value.session === 'setup-complete') { renderLogin(value); return; }
   renderShell(value);
 }
@@ -105,7 +111,32 @@ function userDetail(value) {
 function reportRow(report) { return `<button class="record card" data-report-id="${escape(report.id ?? '')}"><div><h3>Report ${escape(report.id ?? '')}</h3><p class="muted">${escape(report.text ?? report.legacyMessage ?? '')}</p></div><span class="badge">${escape(report.status ?? 'open')}</span></button>`; }
 function reportDetail(value) { const report = value.detail; const target = report.target ?? {}; const notes = value.notes ?? report.notes ?? []; return `<div class="detail-actions"><button data-action="back">Back to reports</button></div><article class="card"><h3>Report ${escape(report.id ?? '')}</h3><dl>${field('Status', report.status)}${field('Revision', report.revision)}${field('Reporter', report.reporterUserId)}${field('Target', target.userId ?? (target.deleted ? 'deleted account' : null))}${field('Created', formatDate(report.createdAt))}</dl><p>${escape(report.text ?? report.legacyMessage ?? 'No description supplied.')}</p><form id="report-update" class="stack-form"><label>Optional note<textarea name="note" rows="3" placeholder="Add context if useful"></textarea></label><div class="detail-actions"><button name="status" value="resolved" ${value.busy || report.status === 'resolved' ? 'disabled' : ''}>Resolve report</button><button name="status" value="dismissed" class="outline" ${value.busy || report.status === 'dismissed' ? 'disabled' : ''}>Dismiss report</button>${report.status !== 'open' ? `<button name="status" value="open" class="outline" ${value.busy ? 'disabled' : ''}>Reopen report</button>` : ''}</div></form></article><section class="card"><h3>Notes</h3>${notes.length ? `<div class="records">${notes.map((note) => `<article class="note"><p>${escape(note.text ?? '')}</p><small>${escape(note.actorUserId ?? '')} · ${formatDate(note.createdAt)}</small></article>`).join('')}</div>` : '<p class="muted">No notes.</p>'}<form id="note-form" class="stack-form"><label>Add note<textarea name="text" rows="2" required></textarea></label><button>Add note</button></form></section>`; }
 function campaignRow(campaign) { return `<button class="record card" data-campaign-id="${escape(campaign.id ?? '')}"><div><h3>${escape(campaign.name ?? 'Campaign')}</h3><p class="muted">${escape(campaign.channel ?? '')} · ${escape(campaign.id ?? '')}</p></div><span class="badge">${escape(campaign.status ?? 'draft')}</span></button>`; }
-function loginLinkCampaign(value) { const recipients = value.loginRecipients; const progress = value.loginProgress; const failed = value.loginFailedIds?.length ?? 0; return `<div class="detail-actions"><button data-action="back" ${value.busy ? 'disabled' : ''}>Back to campaigns</button></div><article class="card"><h3>Login email campaign</h3><p>This sends a one-time sign-in link that expires after 24 hours to every non-deleted account with a verified email, normal security state, and active sign-in eligibility. Administrator accounts are included. Email ownership is rechecked when each link is issued, so accounts that no longer qualify can fail and be retried.</p>${recipients === null || recipients === undefined ? `<p class="muted">${value.busy ? 'Finding eligible accounts…' : 'Eligible account list is not loaded.'}</p>${!value.busy ? '<button data-action="load-login-recipients">Load eligible accounts</button>' : ''}` : `${failed ? `<p><strong>${failed}</strong> link${failed === 1 ? '' : 's'} still need to be queued.</p>` : `<p><strong>${value.loginTotal ?? recipients.length}</strong> eligible account${(value.loginTotal ?? recipients.length) === 1 ? '' : 's'} found.</p>`}${progress ? `<p class="muted" role="status">Processed ${progress.done} of ${progress.total} accounts…</p>` : ''}${value.loginFinished ? '<p class="notice">All eligible login links have been queued.</p>' : recipients.length ? `<form id="login-campaign" class="stack-form"><button ${value.busy ? 'disabled' : ''}>${failed ? `Retry ${failed} failed links` : 'Queue 24-hour links for everyone'}</button></form>` : value.loginTotal === 0 ? '<p class="muted">No eligible accounts were found.</p>' : ''}</article>`; }
+function loginLinkCampaign(value) {
+  const recipients = value.loginRecipients;
+  const progress = value.loginProgress;
+  const failed = value.loginFailedIds?.length ?? 0;
+  let recipientMarkup;
+
+  if (recipients === null || recipients === undefined) {
+    recipientMarkup = `<p class="muted">${value.busy ? 'Finding eligible accounts…' : 'Eligible account list is not loaded.'}</p>`;
+    if (!value.busy) recipientMarkup += '<button data-action="load-login-recipients">Load eligible accounts</button>';
+  } else {
+    const summary = failed
+      ? `<p><strong>${failed}</strong> link${failed === 1 ? '' : 's'} still need to be queued.</p>`
+      : `<p><strong>${value.loginTotal ?? recipients.length}</strong> eligible account${(value.loginTotal ?? recipients.length) === 1 ? '' : 's'} found.</p>`;
+    const progressMarkup = progress
+      ? `<p class="muted" role="status">Processed ${progress.done} of ${progress.total} accounts…</p>`
+      : '';
+    let actionMarkup = '';
+    if (value.loginFinished) actionMarkup = '<p class="notice">All eligible login links have been queued.</p>';
+    else if (recipients.length) {
+      actionMarkup = `<form id="login-campaign" class="stack-form"><button ${value.busy ? 'disabled' : ''}>${failed ? `Retry ${failed} failed links` : 'Queue 24-hour links for everyone'}</button></form>`;
+    } else if (value.loginTotal === 0) actionMarkup = '<p class="muted">No eligible accounts were found.</p>';
+    recipientMarkup = `${summary}${progressMarkup}${actionMarkup}`;
+  }
+
+  return `<div class="detail-actions"><button data-action="back" ${value.busy ? 'disabled' : ''}>Back to campaigns</button></div><article class="card"><h3>Login email campaign</h3><p>This sends a one-time sign-in link that expires after 24 hours to every non-deleted account with a verified email, normal security state, and active sign-in eligibility. Administrator accounts are included. Email ownership is rechecked when each link is issued, so accounts that no longer qualify can fail and be retried.</p>${recipientMarkup}</article>`;
+}
 function campaignEditor(value, campaign) { const creating = value.editor === 'create'; const archived = !creating && campaign.status === 'archived'; const canLogin = creating && canSendLoginCampaign(value); return `<div class="detail-actions"><button data-action="back">Back to campaigns</button>${!creating && !archived ? '<button data-action="archive-campaign">Archive campaign</button>' : ''}${!creating && campaign.status === 'draft' ? '<button data-action="delete-campaign">Delete draft</button>' : ''}</div><article class="card"><h3>${creating ? 'New campaign' : escape(campaign.name ?? 'Campaign')}</h3>${creating ? '' : `<dl>${field('Campaign ID', campaign.id)}${field('Revision', campaign.revision)}${field('Created', formatDate(campaign.createdAt))}${field('Updated', formatDate(campaign.updatedAt))}${field('Created by', campaign.createdByUserId)}</dl>`}<p class="muted">Email and push campaign records store content only. Selecting Login starts an immediate send and does not create a content record.</p>${archived ? '<p class="notice">This campaign is archived and cannot be changed.</p>' : ''}<form id="campaign-editor" class="stack-form">${creating ? '' : `<input type="hidden" name="expectedRevision" value="${escape(campaign.revision ?? '')}">`}<label>Name<input name="name" value="${escape(campaign.name ?? '')}" maxlength="200" required ${archived ? 'disabled' : ''}></label><label>Channel<select name="channel" ${archived ? 'disabled' : ''}><option value="email" ${campaign.channel === 'email' ? 'selected' : ''}>Email</option><option value="push" ${campaign.channel === 'push' ? 'selected' : ''}>Push</option>${canLogin ? '<option value="login">Login · send 24-hour links to everyone</option>' : ''}</select></label><label>Email subject<input name="subject" value="${escape(campaign.subject ?? '')}" maxlength="200" ${archived ? 'disabled' : ''}></label><label>Push title<input name="title" value="${escape(campaign.title ?? '')}" maxlength="200" ${archived ? 'disabled' : ''}></label><label>Body<textarea name="body" rows="8" maxlength="10000" required ${archived ? 'disabled' : ''}>${escape(campaign.body ?? '')}</textarea></label><label>Status<select name="status" ${archived ? 'disabled' : ''}><option value="draft" ${campaign.status === 'draft' ? 'selected' : ''}>Draft</option><option value="active" ${campaign.status === 'active' ? 'selected' : ''}>Active</option></select></label>${archived ? '' : `<button ${value.busy ? 'disabled' : ''}>Save campaign content</button>`}</form></article>`; }
 function emptyCampaign() { return { channel: 'email', status: 'draft' }; }
 function auditRow(event) { return `<article class="record card"><div><h3>${escape(event.action ?? 'Audit event')}</h3><p class="muted">${escape(event.targetUserId ?? '')} · ${formatDate(event.occurredAt)}</p></div><span class="badge">${escape(event.outcome ?? 'recorded')}</span><details><summary>Details</summary><pre>${escape(JSON.stringify(event.details ?? event.reason ?? '', null, 2))}</pre></details></article>`; }
