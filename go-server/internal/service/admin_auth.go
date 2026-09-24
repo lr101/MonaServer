@@ -79,7 +79,6 @@ type AdminAuthConfig struct {
 	LoginFailureLimit  int64
 	LoginIPLimit       int64
 	LoginGlobalLimit   int64
-	AdminOrigin        string
 }
 
 func (c AdminAuthConfig) withDefaults() AdminAuthConfig {

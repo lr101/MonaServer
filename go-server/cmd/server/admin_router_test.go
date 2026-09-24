@@ -63,7 +63,6 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	admin := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:       []byte("router-admin-quota-key"),
-		AdminOrigin:   "https://admin.example",
 	})
 	// Keep two successive TOTP windows behind wall time so middleware also
 	// considers each action-bound step-up recent during this route test.
@@ -78,16 +77,16 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		t.Fatalf("decode enrollment: %v", err)
 	}
 
-	cfg := &config.Config{WebAdminAPI: true, AdminOrigin: "https://admin.example"}
+	cfg := &config.Config{WebAdminAPI: true}
 	tok := token.NewHelper("consumer-router-secret", time.Minute)
 	enqueuer := &routerLoginLinkEnqueuer{}
 	emailLogin := service.NewEmailLogin(q, service.NewAccountSecurity(q), tok, service.EmailLoginConfig{}, enqueuer)
 	r := chi.NewRouter()
-	r.Use(globalCORS(cfg.AdminOrigin))
-	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin, cfg.AdminOrigin)
+	r.Use(globalCORS())
+	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin)
 	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin, q, emailLogin)
 
-	origin := cfg.AdminOrigin
+	origin := "https://admin.example"
 	newRequest := func(method, path, body string) *http.Request {
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
 		req.RemoteAddr = "192.0.2.40:1234"
@@ -106,13 +105,13 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	if strings.Contains(preflight.Header().Get("Access-Control-Allow-Origin"), "*") {
 		t.Fatalf("admin preflight emitted wildcard origin: %#v", preflight.Header())
 	}
-	deniedPreflightReq := newRequest(http.MethodOptions, "/api/v3/admin/session/bootstrap", "")
-	deniedPreflightReq.Header.Set("Origin", "https://evil.example")
-	deniedPreflightReq.Header.Set("Access-Control-Request-Method", http.MethodPost)
-	deniedPreflight := httptest.NewRecorder()
-	r.ServeHTTP(deniedPreflight, deniedPreflightReq)
-	if deniedPreflight.Code != http.StatusForbidden || deniedPreflight.Header().Get("Access-Control-Allow-Origin") != "" {
-		t.Fatalf("denied admin preflight = %d %#v", deniedPreflight.Code, deniedPreflight.Header())
+	otherOriginPreflightReq := newRequest(http.MethodOptions, "/api/v3/admin/session/bootstrap", "")
+	otherOriginPreflightReq.Header.Set("Origin", "https://evil.example")
+	otherOriginPreflightReq.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	otherOriginPreflight := httptest.NewRecorder()
+	r.ServeHTTP(otherOriginPreflight, otherOriginPreflightReq)
+	if otherOriginPreflight.Code != http.StatusNoContent || otherOriginPreflight.Header().Get("Access-Control-Allow-Origin") != "https://evil.example" || otherOriginPreflight.Header().Get("Access-Control-Allow-Credentials") != "true" {
+		t.Fatalf("other-origin admin preflight = %d %#v", otherOriginPreflight.Code, otherOriginPreflight.Header())
 	}
 
 	bootstrap := httptest.NewRecorder()
@@ -347,11 +346,10 @@ func TestInitialAdminSetupRouteRequiresPreAuthCSRF(t *testing.T) {
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:       []byte("initial-route-quota-key"),
 		FirstRunToken: "a-unique-deployment-secret-with-at-least-32-chars",
-		AdminOrigin:   origin,
 	})
 	r := chi.NewRouter()
-	r.Use(globalCORS(origin))
-	registerV3Routes(r, &config.Config{WebAdminAPI: true, AdminOrigin: origin}, token.NewHelper("consumer-secret", time.Minute), v3RouteLookup{}, "admin", auth, q)
+	r.Use(globalCORS())
+	registerV3Routes(r, &config.Config{WebAdminAPI: true}, token.NewHelper("consumer-secret", time.Minute), v3RouteLookup{}, "admin", auth, q)
 	request := func(path, body string) *http.Request {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 		req.RemoteAddr = "192.0.2.40:1234"
@@ -403,8 +401,8 @@ func TestInitialAdminSetupRouteRequiresPreAuthCSRF(t *testing.T) {
 
 func TestWebAdminAPIDisablesMigratedV2AdminSurface(t *testing.T) {
 	r := chi.NewRouter()
-	cfg := &config.Config{WebAdminAPI: false, AdminOrigin: "https://admin.example"}
-	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(nil, nil, nil)), nil, cfg.AdminOrigin, cfg.WebAdminAPI)
+	cfg := &config.Config{WebAdminAPI: false}
+	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(nil, nil, nil)), nil, cfg.WebAdminAPI)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v2/admin/mail", strings.NewReader(`{}`))
 	recorder := httptest.NewRecorder()

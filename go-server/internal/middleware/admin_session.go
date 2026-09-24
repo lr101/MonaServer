@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -380,55 +379,28 @@ func RequiredAdminCapability(method, path string) string {
 	}
 }
 
-// AdminOriginGuard enforces same-site origin/referrer checks for every state
-// changing admin request. Read requests are safe without an Origin header.
-func AdminOriginGuard(allowedOrigin string) func(http.Handler) http.Handler {
-	allowedOrigin = normalizeOrigin(allowedOrigin)
+// AdminCORS allows credentialed requests from any origin by reflecting the
+// request Origin. The admin API remains protected by its browser session,
+// CSRF token, capability, and recent-MFA guards.
+func AdminCORS() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
-				next.ServeHTTP(w, r)
-				return
-			}
-			origin := normalizeOrigin(r.Header.Get("Origin"))
-			if origin == "" {
-				origin = refererOrigin(r.Header.Get("Referer"))
-			}
-			if origin == "" || allowedOrigin == "" || origin != allowedOrigin {
-				writeAdminError(w, http.StatusForbidden, "forbidden", "same-site origin required")
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// AdminCORS allows credentialed requests only from the configured admin
-// origin. It intentionally does not emit wildcard credentialed CORS headers.
-func AdminCORS(allowedOrigin string) func(http.Handler) http.Handler {
-	allowedOrigin = normalizeOrigin(allowedOrigin)
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// The process-wide consumer CORS middleware runs outside this guard.
-			// Remove its wildcard headers before deciding whether this request is
-			// allowed to carry browser-admin credentials.
+			// The process-wide consumer CORS middleware runs outside this handler.
+			// Remove its non-credentialed headers before enabling credentialed
+			// admin requests from the supplied origin.
 			w.Header().Del("Access-Control-Allow-Origin")
 			w.Header().Del("Access-Control-Allow-Credentials")
 			w.Header().Del("Access-Control-Allow-Headers")
 			w.Header().Del("Access-Control-Allow-Methods")
-			origin := normalizeOrigin(r.Header.Get("Origin"))
-			if origin != "" && origin == allowedOrigin {
-				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			origin := strings.TrimSpace(r.Header.Get("Origin"))
+			if origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 				w.Header().Add("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, Idempotency-Key")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			}
 			if r.Method == http.MethodOptions {
-				if origin == "" || origin != allowedOrigin {
-					writeAdminError(w, http.StatusForbidden, "forbidden", "admin origin is not allowed")
-					return
-				}
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -520,26 +492,6 @@ func forwardedClientIP(r *http.Request, trusted []*net.IPNet) string {
 		}
 	}
 	return ""
-}
-
-func normalizeOrigin(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-		return ""
-	}
-	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
-}
-
-func refererOrigin(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return ""
-	}
-	return normalizeOrigin(u.Scheme + "://" + u.Host)
 }
 
 func writeAdminError(w http.ResponseWriter, status int, code, message string) {

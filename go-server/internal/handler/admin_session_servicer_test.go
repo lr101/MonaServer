@@ -49,7 +49,6 @@ func setupAdminHandler(t *testing.T) adminHandlerFixture {
 	auth := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey:      []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:            []byte("handler-quota-key"),
-		AdminOrigin:        "https://admin.example.com",
 		SessionIdleTTL:     time.Hour,
 		SessionAbsoluteTTL: 8 * time.Hour,
 	})

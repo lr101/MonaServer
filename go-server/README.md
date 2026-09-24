@@ -64,7 +64,6 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Required key material and key ID for admin login-failure and report submission quotas |
 | `ADMIN_FIRST_RUN_TOKEN` | — | One-time deployment secret (at least 32 characters) for enrolling the first administrator from the admin web login page; remove after setup |
 | `ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_BOOTSTRAP_TOTP_SECRET` | — | Optional first-launch admin account. Set all three together; startup creates the account and MFA membership only if no admin has ever been enrolled |
-| `ADMIN_ORIGIN` | — | Exact browser origin allowed for admin CORS and state-changing requests |
 | `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
 | `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
 | `ADMIN_CHALLENGE_TTL` | `5m` | Password challenge lifetime |
@@ -115,9 +114,12 @@ Endpoint authentication and role requirements are:
 |---|---|
 | `/api/v2/public/*` | none (signup, login, refresh) |
 | `/api/v2/*` | JWT + `USER` role |
-| `/api/v2/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
-| `/api/v3/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v2/admin/*` | Browser-admin session cookie + CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v3/admin/*` | Browser-admin session cookie + CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
 | `/api/v3/sync` | JWT + `USER` role |
+
+Admin endpoints reflect any request origin and allow credentialed CORS. Keep the
+admin listener restricted to a trusted network or private ingress.
 
 Fine-grained guards cover group administrators, group members, and pin creators.
 

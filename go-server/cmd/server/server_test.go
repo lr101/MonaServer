@@ -156,7 +156,6 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
 		AdminUsername:      "admin",
-		AdminOrigin:        "https://admin.example",
 		WebAdminAPI:        true,
 		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
@@ -188,7 +187,6 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:       []byte("server-test-admin-quota-key"),
-		AdminOrigin:   cfg.AdminOrigin,
 	})
 	reportServicer := handler.NewReportServicer(mailSvc, q, service.ReportServiceConfig{
 		HMACKey:   []byte("server-test-report-quota-key"),
@@ -238,7 +236,7 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
-	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
 	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
 
 	return httptest.NewServer(r), q
