@@ -1,8 +1,9 @@
 # Compose deployment
 
 The root `compose.yaml` builds the Go API, Flutter web app, and admin web app
-into one image. They listen inside that container on ports 8080, 8081, and
-8082 respectively. PostGIS and RustFS remain separate stateful containers.
+into one image. The Go API listens internally on port 8080, the public UI on
+8081, the loopback admin UI on 8082, and the private Traefik admin UI on 8083.
+PostGIS and RustFS remain separate stateful containers.
 Traefik routes port 8081 publicly at `app.lr-projects.de` and port 8083 only
 through its private entrypoint at `admin.thinkpad.lr-project.de`. The Go
 listener is never published. A second admin web listener binds to host
@@ -26,8 +27,10 @@ object downloads at `/monaserver/` on the same public origin.
 2. Copy `.env.example` to `.env`, replace every example credential, and set
    `WEB_HOST` to the public HTTPS hostname. Keep `.env` private and back it up
    with the database and RustFS volumes. Use URL-safe characters in the
-   database password because the app entrypoint builds a PostgreSQL URL from
-   it. The database and app read the same ignored `.env` file.
+   database password because it appears in `DATABASE_URL`. Set that variable
+   to the address of your PostGIS service; the image uses it as supplied. When
+   unset, it builds a URL for the bundled `db` service. Both services and the
+   app read values from the ignored `.env` file.
 3. Run `docker compose pull app db rustfs` followed by
    `docker compose up -d --wait`. CI publishes the combined app image to
    `ghcr.io/lr101/monaserver-app:develop`; set `APP_IMAGE` to an exact commit
@@ -40,7 +43,10 @@ object downloads at `/monaserver/` on the same public origin.
    remains available for troubleshooting, but admin state-changing requests
    from a different origin will be rejected.
 
-The server creates the `monaserver` bucket and applies migrations at startup.
+Set `DATABASE_URL` in `.env` to use a PostGIS service outside this Compose
+project; the image honors an explicit URL and only builds a URL for the bundled
+`db` service when it is unset. The server creates the `monaserver` bucket and
+applies migrations at startup.
 Presigned image URLs use `https://WEB_HOST/monaserver/...`; the proxy preserves
 the signed Host and path. The public object route permits GET and HEAD only.
 The API needs the RustFS credentials from `.env`; the RustFS container receives

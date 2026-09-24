@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
-: "${POSTGRES_USER:?POSTGRES_USER is required}"
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
-export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/monaserver?sslmode=disable"
+if [ -z "${DATABASE_URL:-}" ]; then
+    : "${POSTGRES_USER:?POSTGRES_USER is required when DATABASE_URL is unset}"
+    : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required when DATABASE_URL is unset}"
+    export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/monaserver?sslmode=disable"
+fi
 /app/monaserver &
 api_pid=$!
 nginx -g 'daemon off;' &
