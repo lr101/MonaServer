@@ -252,7 +252,12 @@ class _AuthState extends ConsumerState<Auth> {
     ],
   );
 
-  Widget _loginForm(ThemeData theme, SessionStatus status) => Form(
+  Widget _loginForm(ThemeData theme, SessionStatus status) => AutofillGroup(
+    onDisposeAction: AutofillContextAction.cancel,
+    child: _loginContent(theme, status),
+  );
+
+  Widget _loginContent(ThemeData theme, SessionStatus status) => Form(
     key: _loginFormKey,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,6 +273,7 @@ class _AuthState extends ConsumerState<Auth> {
           key: const Key('auth-identifier'),
           controller: _identifier,
           enabled: !_busy,
+          autofillHints: const [AutofillHints.username],
           keyboardType: _showPassword
               ? TextInputType.text
               : TextInputType.emailAddress,
@@ -295,6 +301,7 @@ class _AuthState extends ConsumerState<Auth> {
                   controller: _password,
                   enabled: !_busy,
                   obscureText: true,
+                  autofillHints: const [AutofillHints.password],
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _loginWithPassword(),
                   decoration: const InputDecoration(labelText: 'Password'),
