@@ -22,6 +22,7 @@ services:
       RUSTFS_USE_SSL: "false"
       RUSTFS_BUCKET: monaserver
       ADMIN_ORIGIN: https://${ADMIN_HOST:?Set ADMIN_HOST in .env}
+      EMAIL_LOGIN_CALLBACK_URL: https://${WEB_HOST:?Set WEB_HOST}/#/email-login/callback
     depends_on:
       db:
         condition: service_healthy
