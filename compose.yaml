@@ -4,8 +4,6 @@ services:
     image: ${APP_IMAGE:-ghcr.io/lr101/monaserver-app:develop}
     build:
       context: .
-      args:
-        WEB_ORIGIN: https://${WEB_HOST:?Set WEB_HOST in .env}
     restart: unless-stopped
     init: true
     security_opt:
@@ -23,7 +21,7 @@ services:
       RUSTFS_EXTERNAL_ENDPOINT: https://${WEB_HOST:?Set WEB_HOST}
       RUSTFS_USE_SSL: "false"
       RUSTFS_BUCKET: monaserver
-      ADMIN_ORIGIN: ${ADMIN_ORIGIN:?Set ADMIN_ORIGIN to the admin UI origin}
+      ADMIN_ORIGIN: https://${ADMIN_HOST:?Set ADMIN_HOST in .env}
     depends_on:
       db:
         condition: service_healthy

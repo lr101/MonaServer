@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const { AdminApi, AdminHttpError } = await import('../src/api.js');
-const { reauthenticationActionFor } = await import('../src/permissions.js');
 
 function response(status = 200, body) {
   return { ok: status >= 200 && status < 300, status, text: async () => body === undefined ? '' : JSON.stringify(body) };
@@ -13,11 +12,6 @@ function recordingApi(responses = []) {
   const api = new AdminApi({ base: 'https://admin.example/', fetcher: async (url, options) => { calls.push({ url, options }); return responses.shift() ?? response(); } });
   return { api, calls };
 }
-
-test('maps CRUD pages to capability-bound reauthentication actions', () => {
-  assert.equal(reauthenticationActionFor('reports'), 'reports.review');
-  assert.equal(reauthenticationActionFor('campaigns'), 'campaigns.write');
-});
 
 test('keeps cookies, CSRF in memory, and the pre-auth token across restore 401', async () => {
   const { api, calls } = recordingApi([
@@ -67,6 +61,25 @@ test('maps bounded CRUD reads and never sends oversized query values', async () 
   assert.ok(calls.every(({ options }) => options.credentials === 'include'));
   assert.ok(calls.every(({ options }) => options.method === 'GET'));
   assert.throws(() => api.listUsers({ cursor: 'x'.repeat(513) }), (error) => error instanceof AdminHttpError && error.status === 400);
+});
+
+test('verifies a user email using the authenticated CSRF token', async () => {
+  const { api, calls } = recordingApi([response(200, { id: 'user-id', emailVerified: true })]);
+  api.csrf = 'active-token';
+  const user = await api.verifyUserEmail('user/id');
+  assert.equal(user.emailVerified, true);
+  assert.equal(calls[0].url, 'https://admin.example/api/v3/admin/users/user%2Fid/verify-email');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers['X-CSRF-Token'], 'active-token');
+});
+
+test('queues a login link for one selected account', async () => {
+  const { api, calls } = recordingApi([response(202)]);
+  api.csrf = 'active-token';
+  await api.sendUserLoginLink('user/id');
+  assert.equal(calls[0].url, 'https://admin.example/api/v3/admin/users/user%2Fid/login-link');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers['X-CSRF-Token'], 'active-token');
 });
 
 test('binds report updates with tri-state assignment and report notes', async () => {

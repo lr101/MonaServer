@@ -1958,6 +1958,78 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}/verify-email:
+    post:
+      operationId: verifyAdminUserEmail
+      parameters:
+      - description: Stable account identifier.
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminUserDetailsDto"
+          description: Verified administrative user record
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Verify one user email as an administrator
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}/login-link:
+    post:
+      operationId: sendAdminUserLoginLink
+      parameters:
+      - description: Stable account identifier.
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - $ref: "#/components/parameters/csrfHeader"
+      responses:
+        "202":
+          description: Login link delivery queued for the user's verified email
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - adminSession: []
+      summary: Queue a one-time login link to one user's verified email
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/campaigns:
     get:
       operationId: listAdminCampaigns

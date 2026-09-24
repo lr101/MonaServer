@@ -14,7 +14,8 @@ import (
 // performs filtering at its persistence boundary and this adapter only maps
 // the generated query values into that typed request.
 type AdminUsersServicer struct {
-	users *service.AdminUserService
+	users      *service.AdminUserService
+	emailLogin *service.EmailLogin
 }
 
 type AdminUserServicer = AdminUsersServicer
@@ -48,8 +49,12 @@ func CaptureAdminUsersQuery(next http.Handler) http.Handler {
 	})
 }
 
-func NewAdminUsersServicer(users *service.AdminUserService) *AdminUsersServicer {
-	return &AdminUsersServicer{users: users}
+func NewAdminUsersServicer(users *service.AdminUserService, login ...*service.EmailLogin) *AdminUsersServicer {
+	servicer := &AdminUsersServicer{users: users}
+	if len(login) > 0 {
+		servicer.emailLogin = login[0]
+	}
+	return servicer
 }
 
 func NewAdminUserServicer(users *service.AdminUserService) *AdminUsersServicer {
@@ -107,6 +112,50 @@ func (s *AdminUsersServicer) GetAdminUser(ctx context.Context, userID string) (g
 		return adminResponse(ctx, err)
 	}
 	return genserver.Response(http.StatusOK, toAdminUserDetails(*user)), nil
+}
+
+func (s *AdminUsersServicer) VerifyAdminUserEmail(ctx context.Context, userID, _ string) (genserver.ImplResponse, error) {
+	if s == nil || s.users == nil {
+		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)
+	}
+	actor, err := adminActor(ctx)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	id, err := parseAdminUUID(userID)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	user, err := s.users.VerifyEmail(ctx, actor, id)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	return genserver.Response(http.StatusOK, toAdminUserDetails(*user)), nil
+}
+
+func (s *AdminUsersServicer) SendAdminUserLoginLink(ctx context.Context, userID, _ string) (genserver.ImplResponse, error) {
+	if s == nil || s.emailLogin == nil {
+		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)
+	}
+	actor, err := adminActor(ctx)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	if !actor.Can("campaign.login_link") {
+		return adminResponse(ctx, service.ErrAudienceForbidden)
+	}
+	id, err := parseAdminUUID(userID)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	result, err := s.emailLogin.IssueLoginLink(ctx, service.LoginLinkIssueRequest{AccountID: id, ActorID: &actor.ID})
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	if result == nil || !result.Issued {
+		return adminResponse(ctx, service.ErrUserEmailUnavailable)
+	}
+	return genserver.Response(http.StatusAccepted, nil), nil
 }
 
 var _ genserver.AdminUsersAPIServicer = (*AdminUsersServicer)(nil)

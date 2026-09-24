@@ -66,6 +66,48 @@ func (s *ProductionAdminStore) GetUser(ctx context.Context, id uuid.UUID) (*Admi
 	return &user, nil
 }
 
+func (s *ProductionAdminStore) VerifyUserEmail(ctx context.Context, actorID, id uuid.UUID) (*AdminUser, error) {
+	if s == nil || s.queries == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	var verified *AdminUser
+	err := s.queries.InTxRetry(ctx, func(tx *db.Queries) error {
+		row, err := tx.GetAdminRuntimeAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			return ErrUserNotFound
+		}
+		if row.Email == nil {
+			return ErrUserEmailUnavailable
+		}
+		if !row.EmailConfirmed {
+			ok, err := tx.ConfirmUserEmailWithClaim(ctx, id)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return ErrUserEmailUnavailable
+			}
+			if err := tx.CreateAuditEvent(ctx, db.AuditEventParams{ID: uuid.New(), ActorID: &actorID, TargetAccountID: &id, Action: "admin_email_verified"}); err != nil {
+				return err
+			}
+		}
+		row, err = tx.GetAdminRuntimeAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			return ErrUserNotFound
+		}
+		user := adminUserFromRuntime(*row)
+		verified = &user
+		return nil
+	})
+	return verified, err
+}
+
 func adminUserFromRuntime(row db.AdminRuntimeAccount) AdminUser {
 	user := AdminUser{
 		ID:                    row.ID,

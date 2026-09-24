@@ -52,3 +52,18 @@ func TestAdminUserServicePaginationIsStable(t *testing.T) {
 		t.Fatalf("second page = %#v, %v", second, err)
 	}
 }
+
+func TestAdminUserVerifyEmailRequiresCapability(t *testing.T) {
+	store := NewMemoryAdminStore()
+	id := uuid.New()
+	email := "alice@example.com"
+	store.Users = append(store.Users, AdminUser{ID: id, Username: "alice", Email: &email})
+	users := NewAdminUserService(store)
+	if _, err := users.VerifyEmail(context.Background(), AdminActor{ID: uuid.New(), Capabilities: []string{"users.read"}}, id); !errors.Is(err, ErrAudienceForbidden) {
+		t.Fatalf("verification without capability = %v", err)
+	}
+	verified, err := users.VerifyEmail(context.Background(), AdminActor{ID: uuid.New(), Capabilities: []string{"users.verify"}}, id)
+	if err != nil || verified == nil || !verified.EmailVerified {
+		t.Fatalf("verified user = %#v, %v", verified, err)
+	}
+}

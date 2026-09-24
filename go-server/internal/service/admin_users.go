@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	ErrInvalidUserQuery = apperrors.New(http.StatusBadRequest, "invalid user query")
-	ErrUserNotFound     = apperrors.New(http.StatusNotFound, "user was not found")
+	ErrInvalidUserQuery     = apperrors.New(http.StatusBadRequest, "invalid user query")
+	ErrUserNotFound         = apperrors.New(http.StatusNotFound, "user was not found")
+	ErrUserEmailUnavailable = apperrors.New(http.StatusConflict, "user email cannot be verified")
 )
 
 const maxAdminUserSearchBytes = 256
@@ -67,6 +68,10 @@ type AdminUserStore interface {
 	GetUser(context.Context, uuid.UUID) (*AdminUser, error)
 }
 
+type adminUserEmailVerifier interface {
+	VerifyUserEmail(context.Context, uuid.UUID, uuid.UUID) (*AdminUser, error)
+}
+
 type AdminUserService struct {
 	store AdminUserStore
 }
@@ -77,6 +82,34 @@ func NewAdminUserService(store AdminUserStore) *AdminUserService {
 
 func NewAdminUsersService(store AdminUserStore) *AdminUserService {
 	return NewAdminUserService(store)
+}
+
+func (s *AdminUserService) VerifyEmail(ctx context.Context, actor AdminActor, id uuid.UUID) (*AdminUser, error) {
+	if s == nil || s.store == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	if !actor.Valid() {
+		return nil, ErrAudienceUnauthorized
+	}
+	if !actor.Can("users.verify") {
+		return nil, ErrAudienceForbidden
+	}
+	if id == uuid.Nil {
+		return nil, ErrInvalidUserQuery
+	}
+	verifier, ok := s.store.(adminUserEmailVerifier)
+	if !ok {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	user, err := verifier.VerifyUserEmail(ctx, actor.ID, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+	clean := sanitizeUser(*user)
+	return &clean, nil
 }
 
 func normalizeUserQuery(request AdminUserQuery) (AdminUserQuery, error) {
@@ -275,6 +308,22 @@ func (m *MemoryAdminStore) GetUser(_ context.Context, id uuid.UUID) (*AdminUser,
 	for _, user := range m.Users {
 		if user.ID == id {
 			clean := sanitizeUser(user)
+			return &clean, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *MemoryAdminStore) VerifyUserEmail(_ context.Context, _, id uuid.UUID) (*AdminUser, error) {
+	if m == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.Users {
+		if m.Users[i].ID == id && m.Users[i].Email != nil {
+			m.Users[i].EmailVerified = true
+			clean := sanitizeUser(m.Users[i])
 			return &clean, nil
 		}
 	}

@@ -30,7 +30,7 @@ jobs:
         run: |
           node --check src/api.js
           node --check src/state.js
-          node --check src/permissions.js
+          node --check src/view-model.js
           node --check src/main.js
           node --test test/*.test.mjs
 

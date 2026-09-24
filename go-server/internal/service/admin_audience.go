@@ -106,7 +106,7 @@ type Audience struct {
 // Normalize trims user-entered filter values and turns a filter that contains
 // no effective criterion into the explicit all-audience variant. Keeping this
 // normalization in the service makes the authorization consequence visible:
-// an empty filter receives the same action-bound MFA requirement as all.
+// an empty filter receives the same MFA requirement as all.
 func (a Audience) Normalize() Audience {
 	return normalizeAudience(a)
 }
@@ -588,7 +588,7 @@ func actorCanPerform(actor AdminActor, action string, now time.Time, recentMFATT
 		return ErrAudienceForbidden
 	}
 	if requiresRecentMFA(action) {
-		if !RecentMFAValid(actor.RecentMFAAt, now, recentMFATTL) || actor.RecentMFAAction != action {
+		if !RecentMFAValid(actor.RecentMFAAt, now, recentMFATTL) || !mfaActionMatches(actor.RecentMFAAction, action) {
 			return ErrRecentMFARequired
 		}
 	}
@@ -596,7 +596,11 @@ func actorCanPerform(actor AdminActor, action string, now time.Time, recentMFATT
 }
 
 func allAudienceMFAValid(actor AdminActor, action string, now time.Time, recentMFATTL time.Duration) bool {
-	return RecentMFAValid(actor.RecentMFAAt, now, recentMFATTL) && actor.RecentMFAAction == action
+	return RecentMFAValid(actor.RecentMFAAt, now, recentMFATTL) && mfaActionMatches(actor.RecentMFAAction, action)
+}
+
+func mfaActionMatches(stored, action string) bool {
+	return stored != "" && action != "" && (stored == action || stored == "session")
 }
 
 func audienceIsUnconstrained(audience Audience) bool {

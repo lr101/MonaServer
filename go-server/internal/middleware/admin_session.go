@@ -192,10 +192,9 @@ func AdminCSRFGuard(next http.Handler) http.Handler {
 	})
 }
 
-// AdminRecentMFAGuard requires a fresh MFA proof for all authenticated admin
-// mutations. The route-level boundary intentionally errs on the side of
-// requiring step-up for every write; handlers still enforce their capability
-// and action-specific checks when the operation is implemented.
+// AdminRecentMFAGuard requires the login MFA proof for admin mutations.
+// The authenticated session and its MFA proof share an absolute lifetime;
+// handlers still enforce capability and action-specific checks.
 func AdminRecentMFAGuard(ttl time.Duration) func(http.Handler) http.Handler {
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
@@ -246,6 +245,10 @@ func AdminMutationAction(method, path string) string {
 		return "push"
 	case path == "/api/v3/admin/messages/test":
 		return "messages.test"
+	case strings.HasSuffix(path, "/verify-email") && strings.HasPrefix(path, "/api/v3/admin/users/"):
+		return "users.verify"
+	case strings.HasSuffix(path, "/login-link") && strings.HasPrefix(path, "/api/v3/admin/users/"):
+		return "login_link"
 	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):
 		return "campaigns.write"
 	case path == "/api/v3/admin/audiences/preview":
@@ -301,7 +304,7 @@ func AdminMutationActionForRequest(r *http.Request) string {
 func RecentMFAActionMatches(stored, required string) bool {
 	stored = strings.TrimSpace(stored)
 	required = strings.TrimSpace(required)
-	return stored != "" && required != "" && stored == required
+	return stored != "" && required != "" && (stored == required || stored == "session")
 }
 
 // AdminCapabilityGuard applies the stable capability matrix to the known
@@ -338,6 +341,10 @@ func RequiredAdminCapability(method, path string) string {
 		return "campaign.email"
 	case path == "/api/v2/admin/notification":
 		return "campaign.push"
+	case method == http.MethodPost && strings.HasSuffix(path, "/verify-email") && strings.HasPrefix(path, "/api/v3/admin/users/"):
+		return "users.verify"
+	case method == http.MethodPost && strings.HasSuffix(path, "/login-link") && strings.HasPrefix(path, "/api/v3/admin/users/"):
+		return "campaign.login_link"
 	case path == "/api/v3/admin/users" || strings.HasPrefix(path, "/api/v3/admin/users/"):
 		return "users.read"
 	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):

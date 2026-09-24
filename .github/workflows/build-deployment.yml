@@ -41,7 +41,6 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          build-args: WEB_ORIGIN=https://app.lr-projects.de
           load: true
           push: false
           tags: monaserver-app:ci
@@ -56,9 +55,8 @@ jobs:
           db_password="$(openssl rand -hex 24)"
           cat > .env <<ENV
           APP_IMAGE=monaserver-app:ci
-          WEB_HOST=app.lr-projects.de
+          WEB_HOST=stick-it.lr-projects.de
           ADMIN_HOST=admin.thinkpad.lr-project.de
-          ADMIN_ORIGIN=http://localhost:8082
           TRAEFIK_NETWORK=traefik
           POSTGRES_USER=monaserver
           POSTGRES_PASSWORD=$db_password
@@ -112,7 +110,6 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          build-args: WEB_ORIGIN=https://app.lr-projects.de
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}

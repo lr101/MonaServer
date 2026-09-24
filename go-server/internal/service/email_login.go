@@ -544,7 +544,13 @@ func (s *EmailLogin) IssueLoginLink(ctx context.Context, request LoginLinkIssueR
 			return ErrInvalidEmailLink
 		}
 		result, err = s.issueLoginLinkLocked(ctx, tx, state, user, canonical)
-		return err
+		if err != nil || result == nil || request.ActorID == nil {
+			return err
+		}
+		return tx.CreateAuditEvent(ctx, db.AuditEventParams{
+			ID: uuid.New(), ActorID: request.ActorID, TargetAccountID: &request.AccountID,
+			Action: "admin_login_link_queued",
+		})
 	})
 	if err != nil {
 		return nil, err

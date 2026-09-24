@@ -24,8 +24,7 @@ COPY flutter/pubspec.* ./
 COPY flutter/api ./api
 RUN flutter pub get
 COPY flutter/ ./
-ARG WEB_ORIGIN
-RUN test -n "$WEB_ORIGIN" && flutter build web --wasm --release --no-pub --dart-define=API_HOST="$WEB_ORIGIN" && \
+RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST_FROM_PAGE=true && \
     test -s build/web/main.dart.js && test -s build/web/main.dart.mjs && test -s build/web/main.dart.wasm
 
 FROM nginx:1.28-alpine

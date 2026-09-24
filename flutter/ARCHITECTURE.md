@@ -58,6 +58,9 @@ renders a generic startup failure screen without exposing exception details.
 `app/app_configuration.dart` accepts HTTP(S) origins, including local ports, and
 rejects missing/invalid hosts, user info, paths, queries and fragments. The
 `API_HOST` build override takes precedence over the bundled configuration.
+The combined deployment enables `API_HOST_FROM_PAGE` so its browser client
+uses the current page origin; standalone Flutter web builds retain the
+configured API host.
 
 `app/production_bootstrap.dart` loads configuration, opens Drift, runs legacy
 cache cleanup, selects secure storage, initializes native map tiles/Firebase,

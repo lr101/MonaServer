@@ -11,7 +11,9 @@
 package genserver
 
 type UserRequestDto struct {
-	Name string `json:"name"`
+
+	// Username. The @ character is reserved for email addresses.
+	Name string `json:"name" validate:"regexp=^[^@]*$"`
 
 	Email string `json:"email"`
 

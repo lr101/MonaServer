@@ -735,7 +735,7 @@ func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminAct
 	if !creator {
 		current.RecentMFAAt = cloneTime(actor.RecentMFAAt)
 		current.RecentMFAAction = strings.TrimSpace(actor.RecentMFAAction)
-		if !RecentMFAValid(current.RecentMFAAt, s.now(), s.recentMFATTL()) || current.RecentMFAAction != job.Action.Kind {
+		if !RecentMFAValid(current.RecentMFAAt, s.now(), s.recentMFATTL()) || !mfaActionMatches(current.RecentMFAAction, job.Action.Kind) {
 			_ = s.store.PauseJob(ctx, job.ID, "takeover_mfa_required")
 			return AdminActor{}, ErrRecentMFARequired
 		}
@@ -752,7 +752,7 @@ func (s *AdminBulkService) reloadActorForJob(ctx context.Context, actor AdminAct
 	// the job to a non-MFA action. A takeover may satisfy the check with its own
 	// fresh proof below, but it cannot erase the creator proof from the job.
 	if jobRequiresRecentMFA(job, snapshot) {
-		if job.RecentMFAAt == nil || job.RecentMFAAction != job.Action.Kind {
+		if job.RecentMFAAt == nil || !mfaActionMatches(job.RecentMFAAction, job.Action.Kind) {
 			_ = s.store.PauseJob(ctx, job.ID, "job_mfa_proof_missing")
 			return AdminActor{}, ErrRecentMFARequired
 		}
@@ -828,15 +828,15 @@ func (s *AdminBulkService) authorizeJobCommandActor(ctx context.Context, actor A
 		return err
 	}
 	if creator {
-		if required && (!RecentMFAValid(job.RecentMFAAt, s.now(), s.recentMFATTL()) || job.RecentMFAAction != job.Action.Kind) {
+		if required && (!RecentMFAValid(job.RecentMFAAt, s.now(), s.recentMFATTL()) || !mfaActionMatches(job.RecentMFAAction, job.Action.Kind)) {
 			return ErrRecentMFARequired
 		}
 		return nil
 	}
-	if !RecentMFAValid(actor.RecentMFAAt, s.now(), s.recentMFATTL()) || actor.RecentMFAAction != jobCommandMFAAction {
+	if !RecentMFAValid(actor.RecentMFAAt, s.now(), s.recentMFATTL()) || !mfaActionMatches(actor.RecentMFAAction, jobCommandMFAAction) {
 		return ErrRecentMFARequired
 	}
-	if required && (job.RecentMFAAt == nil || job.RecentMFAAction != job.Action.Kind) {
+	if required && (job.RecentMFAAt == nil || !mfaActionMatches(job.RecentMFAAction, job.Action.Kind)) {
 		return ErrRecentMFARequired
 	}
 	return nil

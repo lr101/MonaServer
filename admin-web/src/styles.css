@@ -4,6 +4,9 @@ body { margin: 0; min-height: 100vh; }
 button, input, select, textarea { font: inherit; }
 button { border: 0; border-radius: .6rem; background: #2457d6; color: white; cursor: pointer; padding: .7rem 1rem; }
 button:hover { background: #1844ae; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #8bb1ff; outline-offset: 2px; }
+.outline { background: white; border: 1px solid #b9c2d4; color: #2457d6; }
+.outline:hover { background: #edf3ff; }
 .secondary { background: transparent; color: #2457d6; margin-top: .75rem; padding-left: 0; }
 .secondary:hover { background: transparent; color: #1844ae; text-decoration: underline; }
 .setup-secret { background: #edf3ff; border-radius: .5rem; overflow-wrap: anywhere; padding: 1rem; user-select: all; }
@@ -35,6 +38,13 @@ header .eyebrow { color: #b7c5e3; }
 .grid, .records { display: grid; gap: 1rem; }
 .grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+.stats { margin-bottom: .75rem; }
+.stat strong { display: block; font-size: 2.2rem; line-height: 1.1; margin: .2rem 0 .45rem; }
+.stat small { color: #68748c; }
+.stat p { margin: 0; }
+fieldset { border: 1px solid #e2e7f0; border-radius: .6rem; display: grid; gap: .4rem; margin: 0; padding: .8rem; }
+.recipient { align-items: center; display: flex; gap: .7rem; padding: .5rem; }
+.recipient input { width: 1.1rem; height: 1.1rem; }
 .stack-form { display: grid; gap: 1rem; margin-top: 1rem; }
 .stack-form label { display: grid; gap: .4rem; }
 .notice { background: #fff9e8; border: 1px solid #ead28b; border-radius: .6rem; margin-bottom: 1rem; padding: .8rem 1rem; }
@@ -49,6 +59,7 @@ pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
 .record { text-align: left; width: 100%; }
 .record { align-items: center; display: flex; justify-content: space-between; }
 .record h3 { margin: 0; }
+.record p { margin: .2rem 0 0; overflow-wrap: anywhere; }
 .badge { background: #e8efff; border-radius: 999px; color: #2457d6; padding: .25rem .6rem; }
 @media (max-width: 700px) {
   .shell { display: block; }

@@ -2509,6 +2509,152 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}/verify-email:
+    post:
+      operationId: verifyAdminUserEmail
+      parameters:
+      - description: Stable account identifier.
+        explode: false
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminUserDetailsDto"
+          description: Verified administrative user record
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Verify one user email as an administrator
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}/login-link:
+    post:
+      operationId: sendAdminUserLoginLink
+      parameters:
+      - description: Stable account identifier.
+        explode: false
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      responses:
+        "202":
+          description: Login link delivery queued for the user's verified email
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Queue a one-time login link to one user's verified email
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/campaigns:
     get:
       operationId: listAdminCampaigns
@@ -6744,7 +6890,9 @@ components:
     userRequestDto:
       properties:
         name:
+          description: Username. The @ character is reserved for email addresses.
           maxLength: 256
+          pattern: "^[^@]*$"
           type: string
         email:
           format: email

@@ -122,6 +122,39 @@ func TestEmailLoginRequestUsesCanonicalOwnedEmailAndReturnsGenericAcceptance(t *
 	}
 }
 
+func TestAdminIssuedLoginLinkQueuesToVerifiedEmailAndAudits(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "recipient@example.com"
+	pair, err := auth.Signup(ctx, "admin_link_recipient", "password123", &email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatal(err)
+	}
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{HMACKeyID: "test-v1", HMACKey: uniqueQuotaKey()}, enqueuer)
+	actorID := pair.UserID
+	issued, err := login.IssueLoginLink(ctx, LoginLinkIssueRequest{AccountID: pair.UserID, ActorID: &actorID})
+	if err != nil || issued == nil || !issued.Issued || len(enqueuer.requests) != 1 || enqueuer.requests[0].To != email {
+		t.Fatalf("admin link issue failed: issued=%t deliveries=%d err=%v", issued != nil && issued.Issued, len(enqueuer.requests), err)
+	}
+	events, err := q.ListAuditEvents(ctx, nil, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, event := range events {
+		if event.Action == "admin_login_link_queued" && event.ActorID != nil && *event.ActorID == actorID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("admin login link audit event missing")
+	}
+}
+
 func newTestEmailLogin(q *db.Queries, auth *Auth, enqueuer LoginLinkDeliveryEnqueuer) *EmailLogin {
 	return NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), EmailLoginConfig{
 		HMACKeyID: "test-v1",

@@ -111,6 +111,18 @@ export class AdminApi {
     return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}`);
   }
 
+  verifyUserEmail(userId) {
+    return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}/verify-email`, {
+      method: 'POST', csrf: true,
+    });
+  }
+
+  sendUserLoginLink(userId) {
+    return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}/login-link`, {
+      method: 'POST', csrf: true,
+    });
+  }
+
   listReports({ cursor, limit = 25, search = '', status } = {}) {
     return this.request(`/api/v3/admin/reports?${query({ cursor: boundedCursor(cursor), limit, search: boundedSearch(search), status })}`);
   }
