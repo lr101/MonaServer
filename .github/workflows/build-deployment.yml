@@ -1,0 +1,142 @@
+name: Build and publish combined deployment
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'compose.yaml'
+      - '.env.example'
+      - 'deploy/**'
+      - 'admin-web/**'
+      - 'go-server/**'
+      - 'flutter/**'
+      - 'api/**'
+      - '.github/workflows/build-deployment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/monaserver-app
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build combined image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          build-args: WEB_ORIGIN=https://app.lr-projects.de
+          load: true
+          push: false
+          tags: monaserver-app:ci
+          cache-from: type=gha,scope=monaserver-app
+          cache-to: type=gha,mode=max,scope=monaserver-app
+
+      - name: Start Compose stack and check routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network create traefik
+          cat > .env <<ENV
+          APP_IMAGE=monaserver-app:ci
+          WEB_HOST=app.lr-projects.de
+          ADMIN_HOST=admin.thinkpad.lr-project.de
+          ADMIN_ORIGIN=http://localhost:8082
+          TRAEFIK_NETWORK=traefik
+          POSTGRES_USER=monaserver
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          JWT_SECRET=$(openssl rand -hex 32)
+          TOKEN_ADMIN_USERNAME=admin
+          RUSTFS_ACCESS_KEY=$(openssl rand -hex 16)
+          RUSTFS_SECRET_KEY=$(openssl rand -hex 32)
+          ADMIN_TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
+          ADMIN_SESSION_HMAC_KEY=$(openssl rand -hex 32)
+          ENV
+          chmod 600 .env
+          cleanup() {
+            docker compose down -v --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose config --quiet
+          docker compose up --no-build -d --wait
+          echo 'Checking API-backed health route'
+          docker compose exec -T app wget -O /dev/null http://127.0.0.1:8081/healthz
+          echo 'Checking Flutter Wasm asset'
+          docker compose exec -T app wget -O /dev/null http://127.0.0.1:8081/main.dart.wasm
+          echo 'Checking loopback admin UI'
+          curl --fail --silent --show-error http://127.0.0.1:8082/ | grep -q 'MonaServer Admin'
+          echo 'Checking public admin API denial'
+          app_container="$(docker compose ps -q app)"
+          blocked_headers="$(docker run --rm --network "container:$app_container" \
+            curlimages/curl:8.10.1 --silent --show-error --dump-header - \
+            --output /dev/null http://127.0.0.1:8081/api/v3/admin/users)"
+          printf '%s\n' "$blocked_headers"
+          grep -q 'HTTP/1.1 404' <<< "$blocked_headers"
+          grep -qi 'X-Admin-Blocked: true' <<< "$blocked_headers"
+
+  publish:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: build-and-smoke-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish exact commit image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          build-args: WEB_ORIGIN=https://app.lr-projects.de
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha,scope=monaserver-app
+          cache-to: type=gha,mode=max,scope=monaserver-app
+
+  promote:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: publish
+    runs-on: ubuntu-latest
+    concurrency:
+      group: promote-monaserver-app-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote current branch image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: bash .github/scripts/promote_image_channel.sh "$IMAGE_NAME" "$SOURCE_BRANCH" "$SOURCE_BRANCH"

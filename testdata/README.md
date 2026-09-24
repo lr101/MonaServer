@@ -5,87 +5,19 @@ for testing the Flutter app against the Go API. The fixture is created through
 the API, so group images, pin images, authentication, visibility, and RustFS
 presigned URLs are exercised together.
 
-For the complete agent runbook, including setup when Docker or Podman is not
-available, read [`docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md).
-This file is the fixture reference and keeps the Compose commands handy.
-
-## Start the test stack
-
-From the repository root, start the isolated PostGIS database, RustFS object
-store, and Go server:
-
-```bash
-test -f .env.test || cp .env.test.example .env.test
-# Replace the placeholder values in .env.test with local-only values.
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-```
-
-The `--wait` flag waits for the PostGIS, RustFS, and Go API health checks. The
-short loop also confirms that the API is reachable from the host before the
-fixture seeder runs.
-
-The services use these host ports:
-
-| Service | Address |
-|---|---|
-| Go API | `http://127.0.0.1:8081` |
-| PostGIS | `127.0.0.1:5434` |
-| RustFS S3 API | `http://127.0.0.1:9100` |
-| RustFS console | `http://127.0.0.1:9101` |
-
-The Go server runs database migrations on startup and creates the `monaserver`
-bucket in RustFS. Seed the fixture with a local-only password. It must be
-2–29 characters and use characters accepted by Flutter's login validator;
-`openssl rand -hex 12` produces a valid 24-character value. The password is
-written only to the ignored `testdata/.env.test` file and is never printed:
+For the complete native service setup, read
+[`docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md). After the API
+is running on `http://127.0.0.1:8081`, seed the fixture with:
 
 ```bash
 export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
-mise run testdata-seed
+TEST_API_URL=http://127.0.0.1:8081 mise run testdata-seed
 set -a
 source testdata/.env.test
 set +a
 ```
 
-The seed command is idempotent when the same password is reused. To start from
-an empty database and object store, remove the disposable volumes explicitly:
-
-```bash
-docker compose --env-file .env.test -f docker-compose.test.yml down -v
-```
-
-The API can also be run from the host for faster Go iteration while retaining
-the containerized database and RustFS:
-
-```bash
-docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait db rustfs
-cd go-server
-set -a
-source ../.env.test
-set +a
-DATABASE_URL="postgres://${TEST_DB_USER}:${TEST_DB_PASSWORD}@127.0.0.1:5434/${TEST_DB_NAME}?sslmode=disable" \
-JWT_SECRET="$TEST_JWT_SECRET" \
-TOKEN_ADMIN_USERNAME='__test_admin_disabled__' \
-RUSTFS_ENDPOINT='127.0.0.1:9100' \
-RUSTFS_EXTERNAL_ENDPOINT='127.0.0.1:9100' \
-RUSTFS_ACCESS_KEY="$TEST_RUSTFS_ACCESS_KEY" \
-RUSTFS_SECRET_KEY="$TEST_RUSTFS_SECRET_KEY" \
-RUSTFS_BUCKET='monaserver' \
-PORT=8081 \
-mise exec -- go run ./cmd/server
-```
-
-In that mode, run the seeder with `TEST_API_URL=http://127.0.0.1:8081`.
+The password is written only to the ignored `testdata/.env.test` file.
 
 ## Fixture scenarios
 

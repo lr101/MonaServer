@@ -90,23 +90,8 @@ repository root:
 ```bash
 test -f .env.test || cp .env.test.example .env.test
 # Replace the placeholder values in .env.test with local-only values.
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
-mise run testdata-seed
-set -a
-source testdata/.env.test
-set +a
-E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
+# Follow docs/AGENT_LOCAL_STACK.md to start the native test services.
+TEST_API_URL=http://127.0.0.1:8081 mise run testdata-seed
 ```
 
 The check builds `flutter/build/web`, starts a static file server on port 4173,
