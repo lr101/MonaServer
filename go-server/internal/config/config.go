@@ -39,7 +39,6 @@ type Config struct {
 	AdminBootstrapUsername   string        `mapstructure:"ADMIN_BOOTSTRAP_USERNAME"`
 	AdminBootstrapPassword   string        `mapstructure:"ADMIN_BOOTSTRAP_PASSWORD"`
 	AdminBootstrapTOTPSecret string        `mapstructure:"ADMIN_BOOTSTRAP_TOTP_SECRET"`
-	AdminOrigin              string        `mapstructure:"ADMIN_ORIGIN"`
 	TrustedProxyCIDRs        string        `mapstructure:"TRUSTED_PROXY_CIDRS"`
 	AdminSessionIdleTTL      time.Duration `mapstructure:"ADMIN_SESSION_IDLE_TTL"`
 	AdminSessionAbsoluteTTL  time.Duration `mapstructure:"ADMIN_SESSION_ABSOLUTE_TTL"`
@@ -89,7 +88,7 @@ func Load() (*Config, error) {
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
 		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID", "ADMIN_FIRST_RUN_TOKEN",
 		"ADMIN_BOOTSTRAP_USERNAME", "ADMIN_BOOTSTRAP_PASSWORD", "ADMIN_BOOTSTRAP_TOTP_SECRET",
-		"ADMIN_ORIGIN", "TRUSTED_PROXY_CIDRS",
+		"TRUSTED_PROXY_CIDRS",
 		"ADMIN_SESSION_IDLE_TTL", "ADMIN_SESSION_ABSOLUTE_TTL", "ADMIN_CHALLENGE_TTL",
 		"ADMIN_RECENT_MFA_TTL", "ADMIN_PREAUTH_TTL", "ADMIN_LOGIN_FAILURE_LIMIT",
 		"ADMIN_LOGIN_IP_LIMIT", "ADMIN_LOGIN_GLOBAL_LIMIT",

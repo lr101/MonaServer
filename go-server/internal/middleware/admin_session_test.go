@@ -12,46 +12,6 @@ import (
 	"github.com/lrprojects/monaserver/internal/apperrors"
 )
 
-func TestAdminOriginGuardRejectsCrossSiteMutations(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	r := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", nil)
-	r.Header.Set("Origin", "https://evil.example")
-	recorder := httptest.NewRecorder()
-	AdminOriginGuard("https://admin.example")(next).ServeHTTP(recorder, r)
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
-	}
-}
-
-func TestAdminOriginGuardAllowsConfiguredOriginAndSafeRead(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	read := httptest.NewRequest(http.MethodGet, "/api/v3/admin/session", nil)
-	read.Header.Set("Origin", "https://evil.example")
-	readRecorder := httptest.NewRecorder()
-	AdminOriginGuard("https://admin.example")(next).ServeHTTP(readRecorder, read)
-	if readRecorder.Code != http.StatusNoContent {
-		t.Fatalf("read status = %d, want %d", readRecorder.Code, http.StatusNoContent)
-	}
-	write := httptest.NewRequest(http.MethodPost, "/api/v3/admin/jobs", nil)
-	write.Header.Set("Origin", "https://admin.example")
-	writeRecorder := httptest.NewRecorder()
-	AdminOriginGuard("https://admin.example")(next).ServeHTTP(writeRecorder, write)
-	if writeRecorder.Code != http.StatusNoContent {
-		t.Fatalf("write status = %d, want %d", writeRecorder.Code, http.StatusNoContent)
-	}
-}
-
-func TestAdminOriginGuardFailsClosedWithoutConfiguredOrigin(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	r := httptest.NewRequest(http.MethodPost, "/api/v3/admin/session/logout", nil)
-	r.Header.Set("Origin", "https://admin.example")
-	recorder := httptest.NewRecorder()
-	AdminOriginGuard("")(next).ServeHTTP(recorder, r)
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
-	}
-}
-
 func TestAdminCapabilityGuardReturnsForbiddenForMissingCapability(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r := httptest.NewRequest(http.MethodGet, "/api/v3/admin/users", nil)
@@ -99,31 +59,26 @@ func TestAdminSessionGuardPreservesUnavailableStatus(t *testing.T) {
 	}
 }
 
-func TestAdminCORSAllowsCredentialsOnlyForConfiguredOrigin(t *testing.T) {
+func TestAdminCORSAllowsCredentialsFromAnyOrigin(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	allowed := httptest.NewRequest(http.MethodGet, "/api/v3/admin/session", nil)
-	allowed.Header.Set("Origin", "https://admin.example")
-	allowedRecorder := httptest.NewRecorder()
-	AdminCORS("https://admin.example")(next).ServeHTTP(allowedRecorder, allowed)
-	if allowedRecorder.Header().Get("Access-Control-Allow-Origin") != "https://admin.example" || allowedRecorder.Header().Get("Access-Control-Allow-Credentials") != "true" {
-		t.Fatalf("allowed CORS headers = %#v", allowedRecorder.Header())
-	}
-	denied := httptest.NewRequest(http.MethodGet, "/api/v3/admin/session", nil)
-	denied.Header.Set("Origin", "https://evil.example")
-	deniedRecorder := httptest.NewRecorder()
-	AdminCORS("https://admin.example")(next).ServeHTTP(deniedRecorder, denied)
-	if deniedRecorder.Header().Get("Access-Control-Allow-Origin") != "" || deniedRecorder.Header().Get("Access-Control-Allow-Credentials") != "" {
-		t.Fatalf("denied CORS headers = %#v", deniedRecorder.Header())
+	for _, origin := range []string{"https://admin.example", "https://evil.example"} {
+		r := httptest.NewRequest(http.MethodGet, "/api/v3/admin/session", nil)
+		r.Header.Set("Origin", origin)
+		recorder := httptest.NewRecorder()
+		AdminCORS()(next).ServeHTTP(recorder, r)
+		if recorder.Header().Get("Access-Control-Allow-Origin") != origin || recorder.Header().Get("Access-Control-Allow-Credentials") != "true" {
+			t.Fatalf("CORS headers for %q = %#v", origin, recorder.Header())
+		}
 	}
 }
 
 func TestAdminCORSAllowsCredentialedCampaignDeletePreflight(t *testing.T) {
 	preflight := httptest.NewRequest(http.MethodOptions, "/api/v3/admin/campaigns/campaign-id", nil)
-	preflight.Header.Set("Origin", "https://admin.example")
 	preflight.Header.Set("Access-Control-Request-Method", http.MethodDelete)
 	preflight.Header.Set("Access-Control-Request-Headers", "Content-Type, X-CSRF-Token")
 	recorder := httptest.NewRecorder()
-	AdminCORS("https://admin.example")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	preflight.Header.Set("Origin", "https://evil.example")
+	AdminCORS()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("preflight reached the protected handler")
 	})).ServeHTTP(recorder, preflight)
 	if recorder.Code != http.StatusNoContent {

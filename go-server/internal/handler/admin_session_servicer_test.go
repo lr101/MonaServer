@@ -49,7 +49,6 @@ func setupAdminHandler(t *testing.T) adminHandlerFixture {
 	auth := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey:      []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:            []byte("handler-quota-key"),
-		AdminOrigin:        "https://admin.example.com",
 		SessionIdleTTL:     time.Hour,
 		SessionAbsoluteTTL: 8 * time.Hour,
 	})
@@ -117,7 +116,7 @@ func TestAdminSessionHandlerFlowEnforcesCSRFAndRotatesSession(t *testing.T) {
 		t.Fatalf("decode bootstrap: %v", err)
 	}
 	preAuthCookie := responseCookie(t, bootstrap)
-	if preAuthCookie.Name != service.AdminSessionCookieName || !preAuthCookie.HttpOnly || !preAuthCookie.Secure || preAuthCookie.SameSite != http.SameSiteStrictMode {
+	if preAuthCookie.Name != service.AdminSessionCookieName || !preAuthCookie.HttpOnly || !preAuthCookie.Secure || preAuthCookie.SameSite != http.SameSiteNoneMode {
 		t.Fatalf("bootstrap cookie flags = %#v", preAuthCookie)
 	}
 
@@ -152,7 +151,7 @@ func TestAdminSessionHandlerFlowEnforcesCSRFAndRotatesSession(t *testing.T) {
 	if sessionBody.SessionState != "authenticated" || sessionBody.CsrfToken == bootstrapBody.CsrfToken || sessionBody.SessionId == "" {
 		t.Fatalf("mfa body = %#v", sessionBody)
 	}
-	if authCookie.Value == preAuthCookie.Value || !authCookie.HttpOnly || !authCookie.Secure || authCookie.SameSite != http.SameSiteStrictMode {
+	if authCookie.Value == preAuthCookie.Value || !authCookie.HttpOnly || !authCookie.Secure || authCookie.SameSite != http.SameSiteNoneMode {
 		t.Fatalf("authenticated cookie = %#v", authCookie)
 	}
 
@@ -192,7 +191,7 @@ func TestAdminSessionHandlerFlowEnforcesCSRFAndRotatesSession(t *testing.T) {
 		t.Fatalf("logout status = %d, want 204", logout.Code)
 	}
 	cleared := responseCookie(t, logout)
-	if cleared.Value != "" || cleared.MaxAge >= 0 || !cleared.HttpOnly || !cleared.Secure || cleared.SameSite != http.SameSiteStrictMode {
+	if cleared.Value != "" || cleared.MaxAge >= 0 || !cleared.HttpOnly || !cleared.Secure || cleared.SameSite != http.SameSiteNoneMode {
 		t.Fatalf("logout cookie = %#v", cleared)
 	}
 }

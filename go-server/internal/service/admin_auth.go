@@ -79,7 +79,6 @@ type AdminAuthConfig struct {
 	LoginFailureLimit  int64
 	LoginIPLimit       int64
 	LoginGlobalLimit   int64
-	AdminOrigin        string
 }
 
 func (c AdminAuthConfig) withDefaults() AdminAuthConfig {
@@ -298,7 +297,7 @@ func NewAdminSessionCookie(value string, now time.Time, ttl time.Duration) *http
 	return &http.Cookie{
 		Name: adminSessionCookieName, Value: value, Path: adminSessionCookiePath,
 		Expires: now.Add(ttl), MaxAge: maxAge, Secure: true, HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteNoneMode,
 	}
 }
 

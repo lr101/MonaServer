@@ -10,9 +10,11 @@ listener is never published. A second admin web listener binds to host
 loopback at `127.0.0.1:8082` for local access. Both admin listeners proxy
 only `/api/v3/admin/` to the internal Go listener. The private listener
 preserves Traefik's sanitized client IP chain for admin quotas and audit logs;
-the loopback listener discards caller-supplied forwarding headers. The public web listener
-proxies consumer `/api/` requests, rejects admin API paths, and serves signed
-object downloads at `/monaserver/` on the same public origin.
+the loopback listener discards caller-supplied forwarding headers. Admin API
+CORS allows credentialed requests from any origin, so keep the private admin
+listener restricted to the trusted network. The public web listener proxies
+consumer `/api/` requests, rejects admin API paths, and serves signed object
+downloads at `/monaserver/` on the same public origin.
 
 1. Create a Docker network shared with your existing Traefik instance:
    `docker network create traefik` (skip if it already exists). Set
@@ -40,10 +42,8 @@ object downloads at `/monaserver/` on the same public origin.
    `docker compose up --build -d --wait`. The first local build downloads the
    pinned Flutter SDK and compiles the Wasm and JavaScript web variants.
 4. Open `https://app.lr-projects.de` publicly and
-   `https://admin.thinkpad.lr-project.de` on the private network. Set
-   `ADMIN_ORIGIN` to the exact private HTTPS origin. The local loopback port
-   remains available for troubleshooting, but admin state-changing requests
-   from a different origin will be rejected.
+   `https://admin.thinkpad.lr-project.de` on the private network. The local
+   loopback port remains available for troubleshooting.
 
 Set `DATABASE_URL` in `.env` to use a PostGIS service outside this Compose
 project; the image honors an explicit URL and only builds a URL for the bundled

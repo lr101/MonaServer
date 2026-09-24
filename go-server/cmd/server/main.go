@@ -128,7 +128,6 @@ func main() {
 		LoginFailureLimit:  cfg.AdminLoginFailureLimit,
 		LoginIPLimit:       cfg.AdminLoginIPLimit,
 		LoginGlobalLimit:   cfg.AdminLoginGlobalLimit,
-		AdminOrigin:        cfg.AdminOrigin,
 	}
 	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
 	createdAdmin, err := bootstrapConfiguredAdmin(ctx, adminAuth, cfg)
@@ -192,10 +191,10 @@ func main() {
 	r.Use(chimw.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))
 	// Consumer CORS remains permissive, while admin paths are dispatched to
-	// the credentialed origin-bound policy before the global handler can emit
-	// wildcard headers. The admin dispatch is the passthrough boundary; the
-	// consumer handler retains its existing standalone preflight behavior.
-	r.Use(globalCORS(cfg.AdminOrigin))
+	// the credentialed policy that reflects the requested origin. The admin
+	// dispatch is the passthrough boundary; the consumer handler retains its
+	// existing standalone preflight behavior.
+	r.Use(globalCORS())
 
 	// OpenAPI spec + Swagger UI.
 	r.Get("/public/api-docs", serveOpenAPISpec)
@@ -248,7 +247,7 @@ func main() {
 	})
 
 	// Admin-only routes.
-	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.AdminOrigin, cfg.WebAdminAPI)
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
 
 	// New v3 routes are always present in the router so their feature and
 	// authentication behavior is observable. With the production database and
@@ -344,18 +343,16 @@ func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool)
 }
 
 // globalCORS keeps the process-wide consumer policy from answering admin
-// preflights with Access-Control-Allow-Origin: *. Admin cookies are only
-// usable from the configured browser origin, so both admin preflights and
-// actual requests pass through the same credentialed policy used by each
-// admin route group.
-func globalCORS(adminOrigin string) func(http.Handler) http.Handler {
+// preflights with non-credentialed wildcard headers. Admin requests use a
+// credentialed CORS policy that reflects the requesting origin.
+func globalCORS() func(http.Handler) http.Handler {
 	consumer := cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,
 	})
-	admin := middleware.AdminCORS(adminOrigin)
+	admin := middleware.AdminCORS()
 	return func(next http.Handler) http.Handler {
 		consumerHandler := consumer(next)
 		adminHandler := admin(next)
@@ -376,10 +373,10 @@ func isAdminRequestPath(path string) bool {
 
 // registerAdminV2Routes retires the legacy username/JWT admin boundary. The
 // v2 payloads remain wire-compatible, but an opaque browser session and the
-// same origin/CSRF/capability policy as v3 are now required.
+// same CSRF/capability policy as v3 are now required.
 // The optional flag preserves compatibility with older in-package test
 // fixtures; the production call always supplies cfg.WebAdminAPI.
-func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, origin string, enabled ...bool) {
+func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, enabled ...bool) {
 	adminEnabled := true
 	if len(enabled) > 0 {
 		adminEnabled = enabled[0]
@@ -387,9 +384,8 @@ func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.Ad
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(adminEnabled))
 		r.Use(middleware.CaptureAdminRequest)
-		r.Use(middleware.AdminCORS(origin))
+		r.Use(middleware.AdminCORS())
 		r.Use(middleware.AdminSessionGuard(auth))
-		r.Use(middleware.AdminOriginGuard(origin))
 		r.Use(middleware.AdminCSRFGuard)
 		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(auth)))
 		r.Use(middleware.AdminCapabilityGuard)
@@ -522,8 +518,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 		if adminAuth != nil {
 			r.Use(middleware.CaptureAdminRequest)
-			r.Use(middleware.AdminCORS(cfg.AdminOrigin))
-			r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+			r.Use(middleware.AdminCORS())
 		}
 		registerRoutes(r, adminSessionCtrl, isAdminBootstrapRoute)
 	})
@@ -553,8 +548,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 		r.Use(middleware.CaptureAdminRequest)
-		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
-		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
+		r.Use(middleware.AdminCORS())
 		r.Use(middleware.AdminPreAuthGuard)
 		registerRoutes(r, adminSessionCtrl, isAdminPreAuthSessionRoute)
 		registerRoutes(r.With(adminInitialSetupBodyLimit), adminSessionCtrl, isInitialAdminSetupRoute)
@@ -566,9 +560,8 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 		r.Use(middleware.CaptureAdminRequest)
-		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+		r.Use(middleware.AdminCORS())
 		r.Use(middleware.AdminSessionGuard(adminAuth))
-		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
 		r.Use(middleware.AdminCSRFGuard)
 		registerRoutes(r, adminSessionCtrl, isAdminAuthenticatedSessionRoute)
 	})
@@ -579,9 +572,8 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 		r.Use(middleware.CaptureAdminRequest)
-		r.Use(middleware.AdminCORS(cfg.AdminOrigin))
+		r.Use(middleware.AdminCORS())
 		r.Use(middleware.AdminSessionGuard(adminAuth))
-		r.Use(middleware.AdminOriginGuard(cfg.AdminOrigin))
 		r.Use(middleware.AdminCSRFGuard)
 		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(adminAuth)))
 		r.Use(middleware.AdminCapabilityGuard)
