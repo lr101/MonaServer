@@ -215,42 +215,41 @@ class _AuthState extends ConsumerState<Auth> {
     );
   }
 
-  Widget _brand(
-    ThemeData theme, {
-    required String title,
-    required String subtitle,
-  }) => Column(
-    key: ValueKey(title),
-    children: [
-      Container(
-        width: 60,
-        height: 60,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          shape: BoxShape.circle,
-        ),
-        child: ClipOval(
-          child: Image.asset('assets/icon/logo-rounded-corners.png'),
-        ),
-      ),
-      const SizedBox(height: 20),
-      Text(
-        title,
-        style: theme.textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 6),
-      Text(
-        subtitle,
-        style: theme.textTheme.bodyMedium,
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 28),
-    ],
-  );
+  Widget _brand(ThemeData theme, {required String title, String? subtitle}) =>
+      Column(
+        key: ValueKey(title),
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: Image.asset('assets/icon/logo-rounded-corners.png'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 28),
+        ],
+      );
 
   Widget _loginForm(ThemeData theme, SessionStatus status) => AutofillGroup(
     onDisposeAction: AutofillContextAction.cancel,
@@ -267,7 +266,7 @@ class _AuthState extends ConsumerState<Auth> {
           title: 'Sign in',
           subtitle: status == SessionStatus.expired
               ? 'Your session expired. Sign in again to continue.'
-              : 'to continue to Buff Lisa',
+              : null,
         ),
         TextField(
           key: const Key('auth-identifier'),
@@ -411,7 +410,7 @@ class _AuthState extends ConsumerState<Auth> {
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            const Text('New to Buff Lisa?'),
+            const Text('Need an account?'),
             TextButton(
               key: const Key('auth-open-signup'),
               onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
