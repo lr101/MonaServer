@@ -405,6 +405,11 @@ func (s *AccountSecurity) IssueActionToken(ctx context.Context, q *db.Queries, u
 		if err != nil {
 			return err
 		}
+		// Normal accounts may enter recovery only through the verified,
+		// single-use legacy reset URL upgrade below.
+		if purpose == db.ActionTokenPurposeRecovery && (state == nil || !state.PasswordResetRequired) {
+			return ErrInvalidAction
+		}
 		issued, err = s.issueActionTokenLocked(ctx, tx, state, purpose, emailBinding, ttl)
 		return err
 	}
@@ -556,8 +561,7 @@ func (s *AccountSecurity) issueActionTokenLocked(ctx context.Context, q *db.Quer
 		return nil, ErrInvalidAction
 	}
 	if purpose == db.ActionTokenPurposeRecovery {
-		if !state.PasswordResetRequired || (state.SecurityState != db.SecurityStateNormal &&
-			state.SecurityState != db.SecurityStatePasswordDisabled && state.SecurityState != db.SecurityStateCompromised) {
+		if !canUseRecoveryAction(state) {
 			return nil, ErrInvalidAction
 		}
 	} else if state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
@@ -728,8 +732,7 @@ func consumeBoundRecoveryToken(ctx context.Context, q *db.Queries, tokenHash []b
 	if err != nil || state == nil || state.IsDeleted {
 		return nil, false, err
 	}
-	if !state.PasswordResetRequired || (state.SecurityState != db.SecurityStateNormal &&
-		state.SecurityState != db.SecurityStatePasswordDisabled && state.SecurityState != db.SecurityStateCompromised) {
+	if !canUseRecoveryAction(state) {
 		return nil, false, nil
 	}
 	trusted, err := canonicalVerifiedEmail(ctx, q, state)
@@ -737,6 +740,17 @@ func consumeBoundRecoveryToken(ctx context.Context, q *db.Queries, tokenHash []b
 		return nil, false, err
 	}
 	return q.ConsumeAccountActionToken(ctx, tokenHash, db.ActionTokenPurposeRecovery, now)
+}
+
+func canUseRecoveryAction(state *db.UserSecurityState) bool {
+	if state == nil || state.IsDeleted {
+		return false
+	}
+	if state.SecurityState == db.SecurityStateNormal {
+		return !state.PasswordDisabled || state.PasswordResetRequired
+	}
+	return state.PasswordResetRequired &&
+		(state.SecurityState == db.SecurityStatePasswordDisabled || state.SecurityState == db.SecurityStateCompromised)
 }
 
 func validActionPurpose(purpose string) bool {
