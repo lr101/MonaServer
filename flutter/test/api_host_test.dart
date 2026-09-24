@@ -16,6 +16,16 @@ void main() {
     );
   });
 
+  test('uses the current page origin for a web deployment', () {
+    expect(
+      resolveApiHost(
+        configuredHost: 'https://build-time.example',
+        pageOrigin: 'https://stick-it.lr-projects.de/',
+      ),
+      'https://stick-it.lr-projects.de',
+    );
+  });
+
   test('removes trailing slashes from the configured host', () {
     expect(
       resolveApiHost(configuredHost: 'https://api.example.test///'),

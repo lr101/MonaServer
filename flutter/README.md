@@ -58,11 +58,11 @@ Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
 
-The web container serves only static files. Its API origin is compiled into
-the Flutter build; pass `--build-arg API_HOST=https://api.example.test` when
-building the image for a backend other than the default production origin.
-That backend and the object-storage origin must allow the web app's origin
-through CORS.
+The standalone Flutter web container serves only static files. Its API origin
+comes from `API_HOST` in the bundled runtime configuration, so that backend
+and the object-storage origin must allow the web app's origin through CORS. The
+combined deployment instead enables `API_HOST_FROM_PAGE` and serves API
+requests through the same origin as the web UI.
 
 ### Faster local iteration
 
