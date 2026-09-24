@@ -1,4 +1,5 @@
 const defaultBase = globalThis.window?.ADMIN_API_BASE ?? '';
+const adminSessionRequestTimeoutMs = 15_000;
 
 export class AdminHttpError extends Error {
   constructor(status, message = '') {
@@ -17,48 +18,93 @@ export class AdminHttpError extends Error {
 }
 
 export class AdminApi {
-  constructor({ base = defaultBase, fetcher = window.fetch.bind(window) } = {}) {
+  constructor({
+    base = defaultBase,
+    fetcher = window.fetch.bind(window),
+    sessionRequestTimeoutMs = adminSessionRequestTimeoutMs,
+  } = {}) {
     this.base = base.replace(/\/$/, '');
     this.fetcher = fetcher;
+    this.sessionRequestTimeoutMs = sessionRequestTimeoutMs;
     this.csrf = null;
+    this.bootstrapRequest = null;
   }
 
-  async request(path, { method = 'GET', body, csrf = false, preserveCsrfOnUnauthorized = false } = {}) {
+  async request(path, {
+    method = 'GET',
+    body,
+    csrf = false,
+    preserveCsrfOnUnauthorized = false,
+    timeoutMs = 0,
+  } = {}) {
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (csrf) {
       if (!this.csrf) throw new AdminHttpError(428, 'The admin session is not ready.');
       headers['X-CSRF-Token'] = this.csrf;
     }
-    const response = await this.fetcher(`${this.base}${path}`, {
-      method,
-      credentials: 'include',
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (response.status === 401 && !preserveCsrfOnUnauthorized) this.csrf = null;
-    const text = await response.text();
-    let value = null;
-    if (text) {
-      try {
-        value = JSON.parse(text);
-      } catch {
-        value = null;
+
+    const controller = timeoutMs > 0 ? new AbortController() : null;
+    let timeoutId;
+    let timedOut = false;
+    const timeoutError = new AdminHttpError(408, 'The admin server did not respond. Please try again.');
+    const readResponse = async () => {
+      const response = await this.fetcher(`${this.base}${path}`, {
+        method,
+        credentials: 'include',
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      if (timedOut) throw timeoutError;
+      if (response.status === 401 && !preserveCsrfOnUnauthorized) this.csrf = null;
+      const text = await response.text();
+      if (timedOut) throw timeoutError;
+      let value = null;
+      if (text) {
+        try {
+          value = JSON.parse(text);
+        } catch {
+          value = null;
+        }
       }
+      if (!response.ok) {
+        throw new AdminHttpError(response.status, value?.message ?? value?.error);
+      }
+      if (value?.csrfToken) this.csrf = value.csrfToken;
+      return value;
+    };
+
+    try {
+      if (!controller) return await readResponse();
+      const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+          reject(timeoutError);
+        }, timeoutMs);
+      });
+      return await Promise.race([readResponse(), timeout]);
+    } catch (error) {
+      if (timedOut) throw timeoutError;
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    if (!response.ok) {
-      throw new AdminHttpError(response.status, value?.message ?? value?.error);
-    }
-    if (value?.csrfToken) this.csrf = value.csrfToken;
-    return value;
   }
 
   bootstrap() {
-    return this.request('/api/v3/admin/session/bootstrap', { method: 'POST' });
+    if (!this.bootstrapRequest) {
+      this.bootstrapRequest = this.request('/api/v3/admin/session/bootstrap', {
+        method: 'POST',
+        timeoutMs: this.sessionRequestTimeoutMs,
+      }).finally(() => { this.bootstrapRequest = null; });
+    }
+    return this.bootstrapRequest;
   }
 
   restore() {
-    return this.request('/api/v3/admin/session', { preserveCsrfOnUnauthorized: true });
+    return this.request('/api/v3/admin/session', { preserveCsrfOnUnauthorized: true, timeoutMs: this.sessionRequestTimeoutMs });
   }
 
   login(username, password) {
