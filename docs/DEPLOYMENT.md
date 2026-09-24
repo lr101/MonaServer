@@ -4,8 +4,8 @@ The root `compose.yaml` builds the Go API, Flutter web app, and admin web app
 into one image. The Go API listens internally on port 8080, the public UI on
 8081, the loopback admin UI on 8082, and the private Traefik admin UI on 8083.
 PostGIS and RustFS remain separate stateful containers.
-Traefik routes port 8081 publicly at `app.lr-projects.de` and port 8083 only
-through its private entrypoint at `admin.thinkpad.lr-project.de`. The Go
+Traefik routes port 8081 publicly using the hostname configured by `WEB_HOST`
+and port 8083 only through its private entrypoint using `ADMIN_HOST`. The Go
 listener is never published. A second admin web listener binds to host
 loopback at `127.0.0.1:8082` for local access. Both admin listeners proxy
 only `/api/v3/admin/` to the internal Go listener. The private listener
@@ -37,17 +37,17 @@ object downloads at `/monaserver/` on the same public origin.
    tag when a fixed release is needed. To build locally, run
    `docker compose up --build -d --wait`. The first local build downloads the
    pinned Flutter SDK and compiles the Wasm and JavaScript web variants.
-4. Open `https://app.lr-projects.de` publicly and
-   `https://admin.thinkpad.lr-project.de` on the private network. Set
-   `ADMIN_ORIGIN` to the exact private HTTPS origin. The local loopback port
-   remains available for troubleshooting, but admin state-changing requests
-   from a different origin will be rejected.
+4. Open `https://${WEB_HOST}` publicly and `https://${ADMIN_HOST}` on the
+   private network. Compose sets the Go server's `ADMIN_ORIGIN` to
+   `https://${ADMIN_HOST}` automatically. The local loopback port remains
+   available for troubleshooting, but admin state-changing requests from a
+   different origin will be rejected.
 
 Set `DATABASE_URL` in `.env` to use a PostGIS service outside this Compose
 project; the image honors an explicit URL and only builds a URL for the bundled
 `db` service when it is unset. The server creates the `monaserver` bucket and
 applies migrations at startup.
-Presigned image URLs use `https://WEB_HOST/monaserver/...`; the proxy preserves
+Presigned image URLs use `https://${WEB_HOST}/monaserver/...`; the proxy preserves
 the signed Host and path. The public object route permits GET and HEAD only.
 The API needs the RustFS credentials from `.env`; the RustFS container receives
 only its own keys. Admin bootstrap secrets can be placed in `.env` temporarily
