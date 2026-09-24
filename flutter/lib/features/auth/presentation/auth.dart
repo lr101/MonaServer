@@ -29,7 +29,7 @@ class _AuthState extends ConsumerState<Auth> {
   final _emailConfirmation = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _showPassword = false;
-  bool _useIdentifierAsUsername = false;
+  bool _showSignupPassword = false;
   bool _acceptedTerms = false;
   bool _acceptedPrivacy = false;
   bool _busy = false;
@@ -77,7 +77,7 @@ class _AuthState extends ConsumerState<Auth> {
     });
     final result = await RequestEmailLink(
       ref.read(emailLinkRequestPortProvider),
-    )(_identifier.text, asUsername: _useIdentifierAsUsername);
+    )(_identifier.text);
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -88,6 +88,7 @@ class _AuthState extends ConsumerState<Auth> {
           'Enter a valid email address or username.',
         EmailLinkRequestStatus.unavailable =>
           'We could not send a sign-in link. Please try again.',
+        EmailLinkRequestStatus.featureUnavailable => 'Email sign-in is not enabled on this server yet. Try username and password instead.',
       };
     });
   }
@@ -166,17 +167,53 @@ class _AuthState extends ConsumerState<Auth> {
     final theme = Theme.of(context);
     final signup = _mode == _AuthMode.signup;
     return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                child: signup
-                    ? _signupForm(theme)
-                    : _loginForm(theme, global.sessionStatus),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.colorScheme.surface,
+                theme.colorScheme.surfaceContainerLow,
+              ],
+            ),
+          ),
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Card(
+                  elevation: 3,
+                  color: theme.colorScheme.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      reverseDuration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, .025),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: signup
+                          ? _signupForm(theme)
+                          : _loginForm(theme, global.sessionStatus),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -192,10 +229,17 @@ class _AuthState extends ConsumerState<Auth> {
   }) => Column(
     key: ValueKey(title),
     children: [
-      Image.asset(
-        'assets/icon/logo-rounded-corners.png',
-        width: 82,
-        height: 82,
+      Container(
+        width: 86,
+        height: 86,
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          shape: BoxShape.circle,
+        ),
+        child: ClipOval(
+          child: Image.asset('assets/icon/logo-rounded-corners.png'),
+        ),
       ),
       const SizedBox(height: 18),
       Text(
@@ -229,7 +273,9 @@ class _AuthState extends ConsumerState<Auth> {
           key: const Key('auth-identifier'),
           controller: _identifier,
           enabled: !_busy,
-          keyboardType: TextInputType.emailAddress,
+          keyboardType: _showPassword
+              ? TextInputType.text
+              : TextInputType.emailAddress,
           textInputAction: _showPassword
               ? TextInputAction.next
               : TextInputAction.done,
@@ -243,76 +289,125 @@ class _AuthState extends ConsumerState<Auth> {
             prefixIcon: const Icon(Icons.person_outline),
           ),
         ),
-        if (_showPassword) ...[
-          const SizedBox(height: 12),
-          TextField(
-            key: const Key('auth-password'),
-            controller: _password,
-            enabled: !_busy,
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _loginWithPassword(),
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: 'Password',
-              prefixIcon: Icon(Icons.lock_outline),
-            ),
-          ),
-        ],
-        if (!_showPassword) ...[
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            key: const Key('auth-login-email'),
-            onPressed: _busy || _linkSent ? null : _requestEmailLink,
-            icon: const Icon(Icons.mail_outline),
-            label: Text(
-              _linkSent ? 'Sign-in link sent' : 'Continue with email',
-            ),
-          ),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _useIdentifierAsUsername,
-            onChanged: _busy
+        const SizedBox(height: 20),
+        Center(
+          child: SegmentedButton<bool>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                value: false,
+                icon: Icon(Icons.mail_outline),
+                label: Text('Email link'),
+              ),
+              ButtonSegment(
+                value: true,
+                icon: Icon(Icons.lock_outline),
+                label: Text('Password'),
+              ),
+            ],
+            selected: {_showPassword},
+            onSelectionChanged: _busy
                 ? null
-                : (value) =>
-                      setState(() => _useIdentifierAsUsername = value ?? false),
-            title: const Text('Use as username'),
-            subtitle: const Text(
-              'Choose this if your username looks like an email address.',
-            ),
+                : (selection) => setState(() {
+                    _showPassword = selection.first;
+                    _error = null;
+                    _linkSent = false;
+                  }),
           ),
-        ] else ...[
-          const SizedBox(height: 16),
-          FilledButton(
-            key: const Key('auth-login-password'),
-            onPressed: _busy ? null : _loginWithPassword,
-            child: _busy
-                ? const _BusyLabel()
-                : const Text('Sign in with password'),
+        ),
+        const SizedBox(height: 20),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: Column(
+            key: ValueKey(_showPassword),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_showPassword) ...[
+                TextField(
+                  key: const Key('auth-password'),
+                  controller: _password,
+                  enabled: !_busy,
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _loginWithPassword(),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+              ],
+              if (!_showPassword) ...[
+                FilledButton.icon(
+                  key: const Key('auth-login-email'),
+                  onPressed: _busy || _linkSent ? null : _requestEmailLink,
+                  icon: const Icon(Icons.mail_outline),
+                  label: Text(
+                    _linkSent ? 'Sign-in link sent' : 'Continue with email',
+                  ),
+                ),
+              ] else ...[
+                FilledButton(
+                  key: const Key('auth-login-password'),
+                  onPressed: _busy ? null : _loginWithPassword,
+                  child: _busy
+                      ? const _BusyLabel()
+                      : const Text('Sign in with password'),
+                ),
+              ],
+            ],
           ),
-        ],
-        if (_linkSent)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Text(
-              'If an account is eligible, a sign-in link is on its way. Check your inbox.',
-            ),
-          ),
-        if (_error != null) _errorText(theme),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _linkSent
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.mark_email_read_outlined,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'If an account is eligible, a sign-in link is on its way. Check your inbox.',
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _error == null ? const SizedBox.shrink() : _errorText(theme),
+        ),
         if (_showPassword)
           TextButton(
             onPressed: _busy ? null : _recoverPassword,
             child: const Text('Forgot password?'),
           ),
-        TextButton(
-          onPressed: _busy
-              ? null
-              : () => setState(() => _showPassword = !_showPassword),
-          child: Text(
-            _showPassword ? 'Use email link instead' : 'Sign in with password',
-          ),
-        ),
-        const Divider(height: 28),
+        const SizedBox(height: 12),
         OutlinedButton(
           key: const Key('auth-open-signup'),
           onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
@@ -346,7 +441,7 @@ class _AuthState extends ConsumerState<Auth> {
           ),
           validator: (value) => LoginService.userValidator(value) == null
               ? null
-              : 'Use 2–29 letters, numbers, or these symbols: !@#\$%^&*',
+              : 'Use 2–29 letters, numbers, or !#\$%^&* (no @).',
         ),
         const SizedBox(height: 12),
         TextFormField(
@@ -387,7 +482,7 @@ class _AuthState extends ConsumerState<Auth> {
           key: const Key('signup-password'),
           controller: _password,
           enabled: !_busy,
-          obscureText: !_showPassword,
+          obscureText: !_showSignupPassword,
           autofillHints: const [AutofillHints.newPassword],
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
@@ -395,9 +490,10 @@ class _AuthState extends ConsumerState<Auth> {
             prefixIcon: const Icon(Icons.lock_outline),
             helperText: 'At least 8 characters. You can change it later.',
             suffixIcon: IconButton(
-              onPressed: () => setState(() => _showPassword = !_showPassword),
+              onPressed: () =>
+                  setState(() => _showSignupPassword = !_showSignupPassword),
               icon: Icon(
-                _showPassword ? Icons.visibility_off : Icons.visibility,
+                _showSignupPassword ? Icons.visibility_off : Icons.visibility,
               ),
             ),
           ),
@@ -439,7 +535,12 @@ class _AuthState extends ConsumerState<Auth> {
             ],
           ),
         ),
-        if (_error != null) _errorText(theme),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _error == null ? const SizedBox.shrink() : _errorText(theme),
+        ),
         const SizedBox(height: 12),
         FilledButton(
           key: const Key('signup-submit'),
@@ -456,11 +557,26 @@ class _AuthState extends ConsumerState<Auth> {
 
   Widget _errorText(ThemeData theme) => Padding(
     padding: const EdgeInsets.only(top: 12),
-    child: Text(
-      _error!,
+    child: Container(
       key: const Key('auth-error'),
-      style: TextStyle(color: theme.colorScheme.error),
-      textAlign: TextAlign.center,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: theme.colorScheme.onErrorContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _error!,
+              style: TextStyle(color: theme.colorScheme.onErrorContainer),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 

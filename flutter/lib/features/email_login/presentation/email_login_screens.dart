@@ -24,7 +24,6 @@ class EmailLinkRequestScreen extends StatefulWidget {
 class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
   late final EmailLinkRequestController _controller;
   late final TextEditingController _identifier;
-  bool _asUsername = false;
 
   @override
   void initState() {
@@ -49,7 +48,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
 
   void _submit() {
     if (!_controller.state.isBusy) {
-      unawaited(_controller.request(_identifier.text, asUsername: _asUsername));
+      unawaited(_controller.request(_identifier.text));
     }
   }
 
@@ -83,6 +82,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
         'Enter a valid email address or username.',
       EmailLinkRequestViewStatus.unavailable =>
         'The sign-in email could not be sent. Please try again.',
+      EmailLinkRequestViewStatus.featureUnavailable => 'Email sign-in is not enabled on this server. Use password sign-in instead.',
       _ => null,
     };
     return Column(
@@ -110,17 +110,6 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
             border: OutlineInputBorder(),
             labelText: 'Email address or username',
           ),
-        ),
-        SwitchListTile(
-          key: const Key('email-login-username-mode'),
-          title: const Text('Use as username'),
-          subtitle: const Text(
-            'Select this if your username looks like an email address or uses other characters.',
-          ),
-          value: _asUsername,
-          onChanged: state.isBusy
-              ? null
-              : (value) => setState(() => _asUsername = value),
         ),
         if (error != null) ...[
           const SizedBox(height: 12),

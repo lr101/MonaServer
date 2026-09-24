@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -311,6 +312,9 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 	}
 
 	if in.Username != nil {
+		if strings.Contains(*in.Username, "@") {
+			return nil, apperrors.New(400, "username cannot contain @")
+		}
 		if u.LastUsernameUpdate != nil && time.Since(*u.LastUsernameUpdate) < UsernameChangeTimeout {
 			return nil, apperrors.New(400, "username can only be changed once every 14 days")
 		}
