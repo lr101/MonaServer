@@ -31,6 +31,49 @@ test.afterEach(async ({ page }) => {
   expect(uiErrors.get(page), 'browser UI errors').toEqual([]);
 });
 
+test('email-link sign-in remains the default and can switch to password', async ({ page }) => {
+  let emailLinkRequests = 0;
+  await page.route('**/api/v3/public/auth/email-link/request', async (route) => {
+    emailLinkRequests++;
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: '{"accepted":true}',
+    });
+  });
+
+  await page.goto('/');
+  await enableAccessibility(page);
+  const identifier = page.locator('input[aria-label="Email or username"]');
+  await expect(identifier).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+  await enterFlutterText(page, 'Email or username', 'person@example.com');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(
+    page.getByText(
+      'If an account is eligible, a sign-in link is on its way. Check your inbox.',
+    ),
+  ).toBeVisible();
+  expect(emailLinkRequests).toBe(1);
+
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
+  await expect(page.locator('input[aria-label="Username"]')).toBeVisible();
+  await expect(page.locator('input[aria-label="Password"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Use email link instead', exact: true }).click();
+  await expect(identifier).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+});
+
+test('secondary auth actions retain 48-pixel hit areas', async ({ page }) => {
+  await page.goto('/');
+  await enableAccessibility(page);
+
+  for (const name of ['Sign in with password', 'Create account']) {
+    const bounds = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(bounds?.height, `${name} hit area`).toBeGreaterThanOrEqual(48);
+  }
+});
+
 test('logout clears the session and allows a clean login again', async ({ page }) => {
   test.setTimeout(90_000);
   const data = readE2eData();

@@ -389,8 +389,8 @@ class _AuthState extends ConsumerState<Auth> {
                   }),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: const Size(0, 48),
+              visualDensity: VisualDensity.standard,
             ),
             child: Text(
               _showPassword
@@ -410,8 +410,8 @@ class _AuthState extends ConsumerState<Auth> {
               onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(0, 48),
+                visualDensity: VisualDensity.standard,
               ),
               child: const Text('Create account'),
             ),
