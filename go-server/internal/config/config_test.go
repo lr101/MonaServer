@@ -92,3 +92,17 @@ func TestLoadReadsAdminAuthDurationsAndQuotaLimits(t *testing.T) {
 		t.Fatalf("admin auth limits were not loaded: %+v", cfg)
 	}
 }
+
+func TestLoadReadsInitialAdminBootstrapCredentials(t *testing.T) {
+	t.Setenv("ADMIN_BOOTSTRAP_USERNAME", "env-operator")
+	t.Setenv("ADMIN_BOOTSTRAP_PASSWORD", "initial-password-123")
+	t.Setenv("ADMIN_BOOTSTRAP_TOTP_SECRET", "example-seed")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AdminBootstrapUsername != "env-operator" || cfg.AdminBootstrapPassword != "initial-password-123" ||
+		cfg.AdminBootstrapTOTPSecret != "example-seed" {
+		t.Fatal("initial admin bootstrap credentials were not loaded")
+	}
+}

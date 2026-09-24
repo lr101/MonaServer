@@ -40,14 +40,23 @@ they never schedule or deliver messages. Bulk audience actions, provider
 delivery, and job execution are intentionally out of scope for this CRUD
 release.
 
-For first-time setup, create a normal password-enabled account using the
-consumer app, then configure the Go container with `ADMIN_FIRST_RUN_TOKEN`
-(generate a unique value with `openssl rand -hex 32`). At the admin login page,
-choose **Set up first administrator** and enter that account's username and
-password plus the deployment secret. Save the displayed TOTP key in an
-authenticator app before leaving the page; it is shown only once. Thereafter,
-sign in with the same username, password, and authenticator code. Remove
-`ADMIN_FIRST_RUN_TOKEN` from the Go container environment and recreate the
-container once setup succeeds. The database permanently closes first-time
-setup after enrollment, including if the first administrator is later deleted.
-There is no default admin account.
+To create the first administrator, use a Go-only `.env.admin` file (not a
+Compose env file shared with database or storage containers). Set
+`ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD` (8–256 UTF-8 bytes), and
+`ADMIN_BOOTSTRAP_TOTP_SECRET` together. Generate a base32 authenticator seed
+with `openssl rand 20 | base32 | tr -d '=\n'` and add that seed manually to an
+authenticator app. The Go container also needs stable
+`ADMIN_TOTP_ENCRYPTION_KEY` and `ADMIN_SESSION_HMAC_KEY` values. On first
+startup, it creates the account and MFA membership; subsequent restarts do
+not change the password or seed. Sign in with the configured username and
+password, then enter the authenticator code. After setup, remove the three
+bootstrap credentials from `.env.admin` and recreate the Go container. Do not
+remove or rotate the encryption key: existing MFA secrets depend on it.
+
+Alternatively, create a normal password-enabled account using the consumer
+app, configure the Go container with `ADMIN_FIRST_RUN_TOKEN` (generate one with
+`openssl rand -hex 32`), and choose **Set up first administrator** on the admin
+login page. Save the displayed authenticator key, then remove the setup token.
+Only one of these first-time paths can succeed: the database permanently
+closes setup after the first enrollment, even if that administrator is later
+deleted. There is no default admin account.

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base32"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -125,6 +126,98 @@ func TestInitialAdminSetupRequiresProofAndStaysClaimed(t *testing.T) {
 	if _, err := admin.InitialAdminSetup(setupCtx, boot.CSRFToken, "second-operator", "password123", "a-unique-deployment-secret-with-at-least-32-chars"); err == nil {
 		t.Fatal("initial setup reopened after membership deletion")
 	}
+}
+
+func TestBootstrapInitialAdminFromConfigCreatesLoginWithoutResetOnRestart(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("bootstrap-quota-key-32-bytes-long!!"),
+		FirstRunToken: "a-unique-deployment-secret-with-at-least-32-chars",
+	})
+	seed := bootstrapTestSeed()
+	created, err := admin.BootstrapInitialAdmin(ctx, AdminBootstrapCredentials{
+		Username: "env-operator", Password: "initial-password-123", TOTPSecret: seed,
+	})
+	if err != nil || !created {
+		t.Fatalf("bootstrap created = %v, err = %v", created, err)
+	}
+	user, err := q.GetUserByUsername(ctx, "env-operator")
+	if err != nil || user == nil || !password.Verify(user.Password, "initial-password-123") {
+		t.Fatalf("bootstrapped account = %#v, err = %v", user, err)
+	}
+	membership, err := q.GetAdminMembership(ctx, user.ID)
+	if err != nil || membership == nil || !membership.Active || !containsString(membership.Permissions, "campaigns.write") {
+		t.Fatalf("bootstrapped membership = %#v, err = %v", membership, err)
+	}
+	recorder := httptest.NewRecorder()
+	bootstrapCtx := middleware.WithAdminClientIP(middleware.WithAdminResponseWriter(ctx, recorder), "192.0.2.10")
+	boot, err := admin.BootstrapAdminSession(bootstrapCtx)
+	if err != nil {
+		t.Fatalf("browser bootstrap: %v", err)
+	}
+	loginCtx := middleware.WithAdminSessionCookie(bootstrapCtx, recorder.Result().Cookies()[0].Value)
+	login, err := admin.AdminSessionLogin(loginCtx, boot.CSRFToken, "env-operator", "initial-password-123")
+	if err != nil {
+		t.Fatalf("bootstrapped admin login: %v", err)
+	}
+	secretBytes, _ := normalizedTOTPSecret(seed)
+	code, _ := GenerateTOTP(secretBytes, admin.currentTime())
+	session, err := admin.CompleteAdminSessionMFA(loginCtx, login.CSRFToken, login.ChallengeID, code)
+	if err != nil || session.Principal == nil || session.Principal.UserID != user.ID.String() {
+		t.Fatalf("bootstrapped admin MFA session = %#v, err = %v", session, err)
+	}
+	consumer := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	otherID := createTestUser(t, consumer, "later-operator")
+	if _, err := admin.InitialAdminSetup(loginCtx, boot.CSRFToken, "later-operator", "password123", "a-unique-deployment-secret-with-at-least-32-chars"); err == nil {
+		t.Fatal("browser setup enrolled a second administrator")
+	}
+	if otherMembership, err := q.GetAdminMembership(ctx, otherID); err != nil || otherMembership != nil {
+		t.Fatalf("second admin membership = %#v, err = %v", otherMembership, err)
+	}
+
+	created, err = admin.BootstrapInitialAdmin(ctx, AdminBootstrapCredentials{
+		Username: "replacement-operator", Password: "different-password-123", TOTPSecret: seed,
+	})
+	if err != nil || created {
+		t.Fatalf("restart created = %v, err = %v", created, err)
+	}
+	if replacement, err := q.GetUserByUsername(ctx, "replacement-operator"); err != nil || replacement != nil {
+		t.Fatalf("replacement account = %#v, err = %v", replacement, err)
+	}
+	user, err = q.GetUserByUsername(ctx, "env-operator")
+	if err != nil || !password.Verify(user.Password, "initial-password-123") || password.Verify(user.Password, "different-password-123") {
+		t.Fatal("restart changed the original administrator password")
+	}
+}
+
+func TestBootstrapInitialAdminFromConfigRejectsUsernameTakeover(t *testing.T) {
+	_, q := setupPool(t)
+	ctx := context.Background()
+	consumer := NewAuth(q, token.NewHelper("consumer-secret", time.Minute), &config.Config{MaxLoginAttempts: 10})
+	userID := createTestUser(t, consumer, "existing-user")
+	admin := NewAdminAuth(q, AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("bootstrap-quota-key-32-bytes-long!!"),
+	})
+	_, err := admin.BootstrapInitialAdmin(ctx, AdminBootstrapCredentials{
+		Username: "existing-user", Password: "attacker-password-123", TOTPSecret: bootstrapTestSeed(),
+	})
+	if err == nil {
+		t.Fatal("existing consumer username was enrolled as administrator")
+	}
+	if membership, err := q.GetAdminMembership(ctx, userID); err != nil || membership != nil {
+		t.Fatalf("existing account membership = %#v, err = %v", membership, err)
+	}
+	user, err := q.GetUserByUsername(ctx, "existing-user")
+	if err != nil || !password.Verify(user.Password, "password123") {
+		t.Fatal("existing account password changed")
+	}
+}
+
+func bootstrapTestSeed() string {
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte("12345678901234567890"))
 }
 
 func TestReloadAdminActorUsesFreshMembershipAndGeneration(t *testing.T) {
