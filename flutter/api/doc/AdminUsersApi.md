@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**getAdminUser**](AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
 [**listAdminUsers**](AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
 [**sendAdminUserLoginLink**](AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+[**sendAdminUserPasswordResetLink**](AdminUsersApi.md#sendadminuserpasswordresetlink) | **POST** /api/v3/admin/users/{userId}/password-reset | Send one user's password recovery email as an administrator
 [**verifyAdminUserEmail**](AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 
 
@@ -140,6 +141,54 @@ try {
     api_instance.sendAdminUserLoginLink(userId, xCSRFToken);
 } catch (e) {
     print('Exception when calling AdminUsersApi->sendAdminUserLoginLink: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **userId** | **String**| Stable account identifier. |
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+
+### Return type
+
+void (empty response body)
+
+### Authorization
+
+[adminSession](../README.md#adminSession)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **sendAdminUserPasswordResetLink**
+> sendAdminUserPasswordResetLink(userId, xCSRFToken)
+
+Send one user's password recovery email as an administrator
+
+Send a password recovery email to one user's verified email. The user's current password remains active until they complete recovery. Requires recent MFA bound to security.recovery_resend.
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure API key authorization: adminSession
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKeyPrefix = 'Bearer';
+
+final api_instance = AdminUsersApi();
+final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier.
+final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+
+try {
+    api_instance.sendAdminUserPasswordResetLink(userId, xCSRFToken);
+} catch (e) {
+    print('Exception when calling AdminUsersApi->sendAdminUserPasswordResetLink: $e\n');
 }
 ```
 

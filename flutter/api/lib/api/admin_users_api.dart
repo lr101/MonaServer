@@ -242,6 +242,65 @@ class AdminUsersApi {
     }
   }
 
+  /// Send one user's password recovery email as an administrator
+  ///
+  /// Send a password recovery email to one user's verified email. The user's current password remains active until they complete recovery. Requires recent MFA bound to security.recovery_resend.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<Response> sendAdminUserPasswordResetLinkWithHttpInfo(String userId, String xCSRFToken,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/admin/users/{userId}/password-reset'
+      .replaceAll('{userId}', userId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    headerParams[r'X-CSRF-Token'] = parameterToString(xCSRFToken);
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Send one user's password recovery email as an administrator
+  ///
+  /// Send a password recovery email to one user's verified email. The user's current password remains active until they complete recovery. Requires recent MFA bound to security.recovery_resend.
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<void> sendAdminUserPasswordResetLink(String userId, String xCSRFToken,) async {
+    final response = await sendAdminUserPasswordResetLinkWithHttpInfo(userId, xCSRFToken,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Verify one user email as an administrator
   ///
   /// Note: This method returns the HTTP [Response].
