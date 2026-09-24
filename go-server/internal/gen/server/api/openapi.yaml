@@ -6890,7 +6890,9 @@ components:
     userRequestDto:
       properties:
         name:
+          description: Username. The @ character is reserved for email addresses.
           maxLength: 256
+          pattern: "^[^@]*$"
           type: string
         email:
           format: email
