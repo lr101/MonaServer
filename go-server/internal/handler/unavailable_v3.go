@@ -15,6 +15,14 @@ import (
 // therefore returns a non-successful unavailable response.
 type UnavailableV3Servicer struct{}
 
+func (s *UnavailableV3Servicer) VerifyAdminUserEmail(context.Context, string, string) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
+func (s *UnavailableV3Servicer) SendAdminUserLoginLink(context.Context, string, string) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func NewUnavailableV3Servicer() *UnavailableV3Servicer { return &UnavailableV3Servicer{} }
 
 // WriteV3Error emits the stable v3 error envelope used by route gates and

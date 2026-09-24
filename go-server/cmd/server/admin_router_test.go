@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/lrprojects/monaserver/internal/config"
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
@@ -20,6 +21,16 @@ import (
 	"github.com/lrprojects/monaserver/internal/service"
 	"github.com/lrprojects/monaserver/internal/token"
 )
+
+type routerLoginLinkEnqueuer struct {
+	requests []service.LoginLinkDeliveryRequest
+}
+
+func (e *routerLoginLinkEnqueuer) EnqueueLoginLink(_ context.Context, _ *db.Queries, request service.LoginLinkDeliveryRequest) (*uuid.UUID, error) {
+	e.requests = append(e.requests, request)
+	id := uuid.New()
+	return &id, nil
+}
 
 func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -46,6 +57,9 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	if _, err := q.CreateUser(ctx, "router-operator", hash, nil, nil); err != nil {
 		t.Fatalf("create operator: %v", err)
 	}
+	if _, err := q.Pool().Exec(ctx, `UPDATE users SET email = $1 WHERE username = $2`, "router@example.com", "router-operator"); err != nil {
+		t.Fatalf("set operator email: %v", err)
+	}
 	admin := service.NewAdminAuth(q, service.AdminAuthConfig{
 		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
 		HMACKey:       []byte("router-admin-quota-key"),
@@ -55,7 +69,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	// considers each action-bound step-up recent during this route test.
 	currentNow := time.Now().UTC().Add(-90 * time.Second).Truncate(time.Second)
 	admin.SetClock(func() time.Time { return currentNow })
-	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "reports.read", "campaigns.read", "campaigns.write", "campaign.email"})
+	enrollment, err := admin.EnrollAdminOperator(ctx, "router-operator", []string{"users.read", "users.verify", "reports.read", "campaigns.read", "campaigns.write", "campaign.email", "campaign.login_link"})
 	if err != nil {
 		t.Fatalf("enroll: %v", err)
 	}
@@ -66,10 +80,12 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 
 	cfg := &config.Config{WebAdminAPI: true, AdminOrigin: "https://admin.example"}
 	tok := token.NewHelper("consumer-router-secret", time.Minute)
+	enqueuer := &routerLoginLinkEnqueuer{}
+	emailLogin := service.NewEmailLogin(q, service.NewAccountSecurity(q), tok, service.EmailLoginConfig{}, enqueuer)
 	r := chi.NewRouter()
 	r.Use(globalCORS(cfg.AdminOrigin))
 	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin, cfg.AdminOrigin)
-	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin, q)
+	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin, q, emailLogin)
 
 	origin := cfg.AdminOrigin
 	newRequest := func(method, path, body string) *http.Request {
@@ -171,6 +187,33 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	if err := json.Unmarshal(users.Body.Bytes(), &userPage); err != nil || len(userPage.Items) != 1 || userPage.Items[0].Username != "router-operator" {
 		t.Fatalf("authenticated users response = %s err=%v", users.Body.String(), err)
 	}
+	verifyPath := "/api/v3/admin/users/" + enrollment.UserID.String() + "/verify-email"
+	verifyUnauthenticated := httptest.NewRecorder()
+	r.ServeHTTP(verifyUnauthenticated, newRequest(http.MethodPost, verifyPath, ""))
+	assertV3RuntimeError(t, verifyUnauthenticated, http.StatusUnauthorized, "unauthorized")
+	verifyReq := newRequest(http.MethodPost, verifyPath, "")
+	verifyReq.AddCookie(authCookie)
+	verifyReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	verified := httptest.NewRecorder()
+	r.ServeHTTP(verified, verifyReq)
+	if verified.Code != http.StatusOK || !strings.Contains(verified.Body.String(), `"emailVerified":true`) {
+		t.Fatalf("verify email status = %d, body = %s", verified.Code, verified.Body.String())
+	}
+	linkPath := "/api/v3/admin/users/" + enrollment.UserID.String() + "/login-link"
+	linkUnauthenticated := httptest.NewRecorder()
+	r.ServeHTTP(linkUnauthenticated, newRequest(http.MethodPost, linkPath, ""))
+	assertV3RuntimeError(t, linkUnauthenticated, http.StatusUnauthorized, "unauthorized")
+	linkReq := newRequest(http.MethodPost, linkPath, "")
+	linkReq.AddCookie(authCookie)
+	linkReq.Header.Set("X-CSRF-Token", session.CSRFToken)
+	linkQueued := httptest.NewRecorder()
+	r.ServeHTTP(linkQueued, linkReq)
+	if linkQueued.Code != http.StatusAccepted {
+		t.Fatalf("login link status = %d, body = %s", linkQueued.Code, linkQueued.Body.String())
+	}
+	if len(enqueuer.requests) != 1 || enqueuer.requests[0].AccountID != enrollment.UserID || enqueuer.requests[0].To != "router@example.com" {
+		t.Fatalf("login link delivery requests = %d; expected one to the verified account", len(enqueuer.requests))
+	}
 
 	campaignListReq := newRequest(http.MethodGet, "/api/v3/admin/campaigns", "")
 	campaignListReq.AddCookie(authCookie)
@@ -180,31 +223,6 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 		t.Fatalf("campaign list status = %d, body = %s", campaignList.Code, campaignList.Body.String())
 	}
 	campaignBody := `{"name":"Router campaign","channel":"email","subject":"Hello","body":"Message","status":"draft"}`
-	campaignBeforeMFAReq := newRequest(http.MethodPost, "/api/v3/admin/campaigns", campaignBody)
-	campaignBeforeMFAReq.AddCookie(authCookie)
-	campaignBeforeMFAReq.Header.Set("X-CSRF-Token", session.CSRFToken)
-	campaignBeforeMFA := httptest.NewRecorder()
-	r.ServeHTTP(campaignBeforeMFA, campaignBeforeMFAReq)
-	assertV3RuntimeError(t, campaignBeforeMFA, http.StatusForbidden, "recent_mfa_required")
-
-	campaignCodeAt := currentNow.Truncate(30 * time.Second).Add(30 * time.Second)
-	campaignCode, _ := service.GenerateTOTP(secret, campaignCodeAt)
-	campaignStepReq := newRequest(http.MethodPost, "/api/v3/admin/session/reauthenticate", `{"action":"campaigns.write","code":"`+campaignCode+`"}`)
-	campaignStepReq.AddCookie(authCookie)
-	campaignStepReq.Header.Set("X-CSRF-Token", session.CSRFToken)
-	campaignStep := httptest.NewRecorder()
-	r.ServeHTTP(campaignStep, campaignStepReq)
-	if campaignStep.Code != http.StatusOK {
-		t.Fatalf("campaign step-up status = %d, body = %s", campaignStep.Code, campaignStep.Body.String())
-	}
-	if err := json.Unmarshal(campaignStep.Body.Bytes(), &session); err != nil || session.CSRFToken == "" {
-		t.Fatalf("campaign step-up response = %s err=%v", campaignStep.Body.String(), err)
-	}
-	campaignCookies := campaignStep.Result().Cookies()
-	if len(campaignCookies) != 1 {
-		t.Fatalf("campaign step-up cookies = %#v", campaignCookies)
-	}
-	authCookie = campaignCookies[0]
 	campaignCreateReq := newRequest(http.MethodPost, "/api/v3/admin/campaigns", campaignBody)
 	campaignCreateReq.AddCookie(authCookie)
 	campaignCreateReq.Header.Set("X-CSRF-Token", session.CSRFToken)
@@ -269,39 +287,24 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	forbidden := httptest.NewRecorder()
 	r.ServeHTTP(forbidden, forbiddenReq)
 	assertV3RuntimeError(t, forbidden, http.StatusForbidden, "forbidden")
+	verifyWithoutCapability := newRequest(http.MethodPost, verifyPath, "")
+	verifyWithoutCapability.AddCookie(authCookie)
+	verifyWithoutCapability.Header.Set("X-CSRF-Token", session.CSRFToken)
+	verifyForbidden := httptest.NewRecorder()
+	r.ServeHTTP(verifyForbidden, verifyWithoutCapability)
+	assertV3RuntimeError(t, verifyForbidden, http.StatusForbidden, "forbidden")
+	linkWithoutCapability := newRequest(http.MethodPost, linkPath, "")
+	linkWithoutCapability.AddCookie(authCookie)
+	linkWithoutCapability.Header.Set("X-CSRF-Token", session.CSRFToken)
+	linkForbidden := httptest.NewRecorder()
+	r.ServeHTTP(linkForbidden, linkWithoutCapability)
+	assertV3RuntimeError(t, linkForbidden, http.StatusForbidden, "forbidden")
 
 	csrfReq := newRequest(http.MethodPost, "/api/v2/admin/mail", `{"mails":["person@example.com"],"subject":"subject","message":"message"}`)
 	csrfReq.AddCookie(authCookie)
 	csrfMissing := httptest.NewRecorder()
 	r.ServeHTTP(csrfMissing, csrfReq)
 	assertV3RuntimeError(t, csrfMissing, http.StatusForbidden, "invalid_csrf")
-
-	// Initial MFA authenticates the browser but carries no mutation action.
-	// A capability-bound step-up is required before the migrated v2 mutation
-	// surface can be used.
-	currentNow = currentNow.Add(30 * time.Second)
-	stepUpCodeAt := currentNow.Truncate(30 * time.Second).Add(30 * time.Second)
-	stepUpCode, _ := service.GenerateTOTP(secret, stepUpCodeAt)
-	stepUpReq := newRequest(http.MethodPost, "/api/v3/admin/session/reauthenticate", `{"action":"email","code":"`+stepUpCode+`"}`)
-	stepUpReq.AddCookie(authCookie)
-	stepUpReq.Header.Set("X-CSRF-Token", session.CSRFToken)
-	stepUp := httptest.NewRecorder()
-	r.ServeHTTP(stepUp, stepUpReq)
-	if stepUp.Code != http.StatusOK {
-		t.Fatalf("step-up status = %d, body = %s", stepUp.Code, stepUp.Body.String())
-	}
-	var steppedUpSession struct {
-		CSRFToken string `json:"csrfToken"`
-	}
-	if err := json.Unmarshal(stepUp.Body.Bytes(), &steppedUpSession); err != nil || steppedUpSession.CSRFToken == "" {
-		t.Fatalf("step-up response = %s", stepUp.Body.String())
-	}
-	stepUpCookies := stepUp.Result().Cookies()
-	if len(stepUpCookies) != 1 || !strings.HasPrefix(stepUpCookies[0].Value, "s.") {
-		t.Fatalf("step-up cookie = %#v", stepUpCookies)
-	}
-	authCookie = stepUpCookies[0]
-	session.CSRFToken = steppedUpSession.CSRFToken
 
 	// The old v2 payload is still parsed and reaches its service result after
 	// the browser gate; only the legacy JWT/username authentication is retired.

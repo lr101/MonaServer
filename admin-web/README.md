@@ -35,10 +35,18 @@ the Go server on the same public origin; set the Go server's `ADMIN_ORIGIN` to
 that exact origin.
 
 The app includes session/MFA, users, reports and notes, campaign content
-records, and audit views. Campaign saves only create or update content records;
-they never schedule or deliver messages. Bulk audience actions, provider
-delivery, and job execution are intentionally out of scope for this CRUD
-release.
+records, and audit views. MFA is checked at sign-in for the authenticated
+session; the web app does not ask for a second code during that session.
+Administrators with `users.verify` can mark a user's email as verified from
+the account detail page. Verification requires that the email claim be
+available and writes an audit event.
+The **Send login links** campaign flow searches accounts with verified email
+and queues one-time links for selected users. Each send uses the existing
+public email-login delivery worker and writes an audit event. Enable
+`PUBLIC_EMAIL_LOGIN` and configure its delivery key and email provider on the
+Go server before using this flow. Content campaign saves only create or
+update records; they do not schedule or deliver those messages. The admin
+bulk delivery worker remains disabled.
 
 To create the first administrator, use a Go-only `.env.admin` file (not a
 Compose env file shared with database or storage containers). Set

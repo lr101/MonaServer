@@ -132,14 +132,13 @@ func NewAdminAuth(q *db.Queries, cfg AdminAuthConfig) *AdminAuth {
 	return &AdminAuth{q: q, cfg: cfg, now: time.Now, random: func(b []byte) error { _, err := rand.Read(b); return err }}
 }
 
-// RecentMFATTL returns the configured freshness window used by the request
-// middleware. Keeping the route guard on the same service configuration avoids
-// silently drifting from the value used when sessions are issued.
+// RecentMFATTL matches the authenticated session's absolute lifetime. The
+// login MFA proof remains valid while that session is valid.
 func (a *AdminAuth) RecentMFATTL() time.Duration {
 	if a == nil {
 		return 0
 	}
-	return a.cfg.RecentMFATTL
+	return a.cfg.SessionAbsoluteTTL
 }
 
 // ReloadAdminActor refreshes the account security state and admin membership
@@ -703,7 +702,7 @@ func (a *AdminAuth) InitialAdminSetup(ctx context.Context, csrf, username, plain
 }
 
 func firstRunAdminPermissions() []string {
-	return []string{"audit.read", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read"}
+	return []string{"audit.read", "campaign.login_link", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read", "users.verify"}
 }
 
 // BootstrapAdminSession creates a cryptographically bound pre-auth cookie.
@@ -1195,11 +1194,11 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 		csrfToken := base64.RawURLEncoding.EncodeToString(csrfBytes)
 		sessionCookie := "s." + sessionSecretEncoded + "." + csrfToken
 		now := a.currentTime()
-		// Initial MFA authenticates the session but is intentionally actionless;
-		// mutation middleware requires an explicit later step-up action.
+		// Login MFA authorizes mutations throughout this authenticated session.
+		loginMFAAction := "session"
 		session := db.AdminSessionParams{ID: uuid.New(), SessionHash: hashOpaque(sessionSecretEncoded), UserID: *consumed.UserID,
 			CSRFHash: middleware.CSRFHash(csrfToken), State: adminSessionStateAuthenticated, AuthGeneration: state.AuthGeneration,
-			IdleExpiresAt: now.Add(a.cfg.SessionIdleTTL), AbsoluteExpiresAt: now.Add(a.cfg.SessionAbsoluteTTL), RecentMFAAt: &now}
+			IdleExpiresAt: now.Add(a.cfg.SessionIdleTTL), AbsoluteExpiresAt: now.Add(a.cfg.SessionAbsoluteTTL), RecentMFAAt: &now, RecentMFAAction: &loginMFAAction}
 		if err := tx.CreateAdminSession(ctx, session); err != nil {
 			return err
 		}
@@ -1219,7 +1218,7 @@ func (a *AdminAuth) CompleteAdminSessionMFA(ctx context.Context, csrf, challenge
 			SessionID: session.ID.String(), UserID: consumed.UserID.String(), Username: username, AuthGeneration: state.AuthGeneration,
 			State: adminSessionStateAuthenticated, CSRFHash: middleware.CSRFHash(csrfToken), CSRFToken: csrfToken,
 			Permissions: append([]string(nil), membership.Permissions...), Capabilities: CapabilitiesForPermissions(membership.Permissions),
-			RecentMFAAt: &now, AuthenticatedAt: now, LastActivityAt: now,
+			RecentMFAAt: &now, RecentMFAAction: loginMFAAction, AuthenticatedAt: now, LastActivityAt: now,
 			IdleExpiresAt: session.IdleExpiresAt,
 		}}
 		_ = username

@@ -8,6 +8,14 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestLoginMFASatisfiesAdminActionDuringSession(t *testing.T) {
+	now := time.Now().UTC()
+	actor := AdminActor{ID: uuid.New(), State: "authenticated", Capabilities: []string{"security.compromise"}, RecentMFAAt: &now, RecentMFAAction: "session"}
+	if err := actorCanPerform(actor, ActionMarkCompromised, now, time.Hour); err != nil {
+		t.Fatalf("login MFA action denied: %v", err)
+	}
+}
+
 func TestAudienceValidationRejectsEmptySelectionAndMismatchedFilter(t *testing.T) {
 	if err := (Audience{Kind: AudienceSelected, Resource: AudienceAccounts}).Validate(); err == nil {
 		t.Fatal("empty selected audience was accepted")

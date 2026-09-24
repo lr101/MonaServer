@@ -182,6 +182,12 @@ func TestTrustedRealIPRejectsSpoofedForwardedHeaders(t *testing.T) {
 	}
 }
 
+func TestLoginMFASatisfiesMutationsDuringSession(t *testing.T) {
+	if !RecentMFAActionMatches("session", "mark_compromised") || !RecentMFAActionMatches("session", "campaigns.write") {
+		t.Fatal("login MFA should authorize subsequent mutations")
+	}
+}
+
 func TestAdminCSRFAndRecentMFAGuardsProtectMutations(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	now := time.Now().UTC()

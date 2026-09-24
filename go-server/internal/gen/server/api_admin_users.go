@@ -63,6 +63,18 @@ func (c *AdminUsersAPIController) Routes() Routes {
 			"/api/v3/admin/users/{userId}",
 			c.GetAdminUser,
 		},
+		"VerifyAdminUserEmail": Route{
+			"VerifyAdminUserEmail",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/verify-email",
+			c.VerifyAdminUserEmail,
+		},
+		"SendAdminUserLoginLink": Route{
+			"SendAdminUserLoginLink",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/login-link",
+			c.SendAdminUserLoginLink,
+		},
 	}
 }
 
@@ -80,6 +92,18 @@ func (c *AdminUsersAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Get"),
 			"/api/v3/admin/users/{userId}",
 			c.GetAdminUser,
+		},
+		Route{
+			"VerifyAdminUserEmail",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/verify-email",
+			c.VerifyAdminUserEmail,
+		},
+		Route{
+			"SendAdminUserLoginLink",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/login-link",
+			c.SendAdminUserLoginLink,
 		},
 	}
 }
@@ -184,6 +208,42 @@ func (c *AdminUsersAPIController) GetAdminUser(w http.ResponseWriter, r *http.Re
 		return
 	}
 	result, err := c.service.GetAdminUser(r.Context(), userIdParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// VerifyAdminUserEmail - Verify one user email as an administrator
+func (c *AdminUsersAPIController) VerifyAdminUserEmail(w http.ResponseWriter, r *http.Request) {
+	userIdParam := chi.URLParam(r, "userId")
+	if userIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
+		return
+	}
+	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
+	result, err := c.service.VerifyAdminUserEmail(r.Context(), userIdParam, xCSRFTokenParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// SendAdminUserLoginLink - Queue a one-time login link to one user's verified email
+func (c *AdminUsersAPIController) SendAdminUserLoginLink(w http.ResponseWriter, r *http.Request) {
+	userIdParam := chi.URLParam(r, "userId")
+	if userIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
+		return
+	}
+	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
+	result, err := c.service.SendAdminUserLoginLink(r.Context(), userIdParam, xCSRFTokenParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

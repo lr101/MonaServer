@@ -78,6 +78,9 @@ func TestAdminBootstrapMFAReplayAndDemotion(t *testing.T) {
 	if principal.UserID != userID.String() || !containsString(principal.Capabilities, "security.revoke") {
 		t.Fatalf("principal = %#v", principal)
 	}
+	if principal.RecentMFAAction != "session" || !middleware.RecentMFAActionMatches(principal.RecentMFAAction, "revoke_sessions") {
+		t.Fatalf("login MFA proof did not survive session restore: %#v", principal)
+	}
 	if err := q.RevokeAdminMembership(ctx, userID); err != nil {
 		t.Fatalf("revoke membership: %v", err)
 	}
@@ -721,8 +724,8 @@ func TestAdminStepUpReplayIsRejectedAtServiceBoundaryConcurrently(t *testing.T) 
 	if stored == nil {
 		t.Fatal("initial MFA session was not persisted")
 	}
-	if stored.RecentMFAAction != nil && strings.TrimSpace(*stored.RecentMFAAction) != "" {
-		t.Fatalf("initial MFA persisted action = %q, want empty", *stored.RecentMFAAction)
+	if stored.RecentMFAAction == nil || strings.TrimSpace(*stored.RecentMFAAction) != "session" {
+		t.Fatalf("initial MFA persisted action = %v, want session", stored.RecentMFAAction)
 	}
 
 	now = now.Add(31 * time.Second)

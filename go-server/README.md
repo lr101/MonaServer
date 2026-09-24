@@ -67,7 +67,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `ADMIN_ORIGIN` | — | Exact browser origin allowed for admin CORS and state-changing requests |
 | `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
 | `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
-| `ADMIN_CHALLENGE_TTL` / `ADMIN_RECENT_MFA_TTL` | `5m` / `5m` | Password challenge and action-bound recent-MFA windows |
+| `ADMIN_CHALLENGE_TTL` | `5m` | Password challenge lifetime |
+| `ADMIN_RECENT_MFA_TTL` | `5m` | Legacy setting retained for configuration compatibility; login MFA now lasts for the authenticated session |
 | `ADMIN_PREAUTH_TTL` | `10m` | Pre-authentication browser envelope lifetime |
 | `ADMIN_LOGIN_FAILURE_LIMIT` / `ADMIN_LOGIN_IP_LIMIT` / `ADMIN_LOGIN_GLOBAL_LIMIT` | `5` / `100` / `1000` | Shared account, IP, and global admin proof-failure quotas |
 | `APP_URL` / `APP_REDIRECT_URL` | — | Public URL; used in email links |
@@ -188,8 +189,8 @@ Endpoint authentication and role requirements are:
 |---|---|
 | `/api/v2/public/*` | none (signup, login, refresh) |
 | `/api/v2/*` | JWT + `USER` role |
-| `/api/v2/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and action-bound recent MFA; unavailable when `WEB_ADMIN_API=false` |
-| `/api/v3/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and action-bound recent MFA; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v2/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v3/admin/*` | Browser-admin session cookie + same-site origin, CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
 | `/api/v3/sync` | JWT + `USER` role |
 
 Fine-grained guards cover group administrators, group members, and pin creators.

@@ -415,7 +415,7 @@ type v3AdminServicers struct {
 // middleware. The unavailable set is deliberately retained for the no-DB
 // compatibility seam; a supplied database and browser-admin auth service get
 // the concrete, bounded adapters together.
-func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminServicers {
+func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, emailLogin ...*service.EmailLogin) v3AdminServicers {
 	unavailable := handler.NewUnavailableV3Servicer()
 	servicers := v3AdminServicers{
 		users: unavailable, campaigns: unavailable, audiences: unavailable, jobs: unavailable,
@@ -426,13 +426,18 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth) v3AdminSe
 	}
 	store := service.NewProductionAdminStore(queries)
 	audiences := service.NewAdminAudienceService(store)
+	audiences.SetRecentMFATTL(auth.RecentMFATTL())
 	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
 	// The database-backed read/snapshot/job projections are live, but no
 	// concrete provider, eligibility, fenced lease, and audit execution bundle
 	// is deployed yet. Keep all action mutations fail-closed before they can
 	// persist a pending job; list/detail reads remain available.
 	jobs.SetExecutionReady(false)
-	servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
+	if len(emailLogin) > 0 {
+		servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store), emailLogin[0])
+	} else {
+		servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
+	}
 	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
 	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
 	servicers.jobs = handler.NewAdminJobsServicer(jobs)
@@ -470,7 +475,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	servicer := handler.NewUnavailableV3Servicer()
 	publicAuthCtrl := genserver.NewPublicAuthAPIController(handler.NewPublicAuthServicer(emailLogin, nil), genserver.WithPublicAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
 	sessionAuthCtrl := genserver.NewSessionAuthAPIController(handler.NewSessionAuthServicer(emailSecurity), genserver.WithSessionAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
-	adminServicers := newV3AdminServicers(reportQueries, adminAuth)
+	adminServicers := newV3AdminServicers(reportQueries, adminAuth, emailLogin)
 	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
 	adminCampaignsCtrl := genserver.NewAdminCampaignsAPIController(adminServicers.campaigns, genserver.WithAdminCampaignsAPIErrorHandler(handler.V3ErrorHandler))
 	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(adminServicers.audiences, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
