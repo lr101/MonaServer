@@ -27,13 +27,20 @@ session; the web app does not ask for a second code during that session.
 Administrators with `users.verify` can mark a user's email as verified from
 the account detail page. Verification requires that the email claim be
 available and writes an audit event.
-The **Send login links** campaign flow searches accounts with verified email
-and queues one-time links for selected users. Each send uses the existing
-public email-login delivery worker and writes an audit event. Enable
-`PUBLIC_EMAIL_LOGIN` and configure its delivery key and email provider on the
-Go server before using this flow. Content campaign saves only create or
-update records; they do not schedule or deliver those messages. The admin
-bulk delivery worker remains disabled.
+The user detail actions also let operators with `security.recovery_resend`
+send a password recovery link to a verified, owned email address. The admin
+endpoint requires CSRF and recent MFA and records an audit event; the current
+password remains active until the user completes recovery. Eligible users can
+also receive a one-time 24-hour login link from this page.
+The campaign channel selector offers Email, Push, and Login. Email and Push
+campaigns save content records only. Selecting Login opens an immediate bulk
+send flow: it finds non-deleted accounts with verified email and active
+sign-in eligibility, including administrator accounts, shows the recipient
+count, and queues a one-time sign-in link valid for 24 hours to each account.
+The message is system-generated. Partial failures can be retried from the same
+screen. Enable `PUBLIC_EMAIL_LOGIN` and configure its delivery key and email
+provider on the Go server before using login links. The admin bulk delivery
+worker remains disabled.
 
 To create the first administrator in the combined deployment, use the
 ignored root `.env` file. Set

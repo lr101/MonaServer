@@ -14,8 +14,9 @@ import (
 // performs filtering at its persistence boundary and this adapter only maps
 // the generated query values into that typed request.
 type AdminUsersServicer struct {
-	users      *service.AdminUserService
-	emailLogin *service.EmailLogin
+	users            *service.AdminUserService
+	emailLogin       *service.EmailLogin
+	passwordRecovery *service.AdminPasswordRecovery
 }
 
 type AdminUserServicer = AdminUsersServicer
@@ -54,6 +55,12 @@ func NewAdminUsersServicer(users *service.AdminUserService, login ...*service.Em
 	if len(login) > 0 {
 		servicer.emailLogin = login[0]
 	}
+	return servicer
+}
+
+func NewAdminUsersServicerWithPasswordRecovery(users *service.AdminUserService, login *service.EmailLogin, recovery *service.AdminPasswordRecovery) *AdminUsersServicer {
+	servicer := NewAdminUsersServicer(users, login)
+	servicer.passwordRecovery = recovery
 	return servicer
 }
 
@@ -154,6 +161,27 @@ func (s *AdminUsersServicer) SendAdminUserLoginLink(ctx context.Context, userID,
 	}
 	if result == nil || !result.Issued {
 		return adminResponse(ctx, service.ErrUserEmailUnavailable)
+	}
+	return genserver.Response(http.StatusAccepted, nil), nil
+}
+
+func (s *AdminUsersServicer) SendAdminUserPasswordResetLink(ctx context.Context, userID, _ string) (genserver.ImplResponse, error) {
+	if s == nil || s.passwordRecovery == nil {
+		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)
+	}
+	actor, err := adminActor(ctx)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	if !actor.Can("security.recovery_resend") {
+		return adminResponse(ctx, service.ErrAudienceForbidden)
+	}
+	id, err := parseAdminUUID(userID)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	if err := s.passwordRecovery.SendPasswordResetLink(ctx, actor, id); err != nil {
+		return adminResponse(ctx, err)
 	}
 	return genserver.Response(http.StatusAccepted, nil), nil
 }

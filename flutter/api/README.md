@@ -97,6 +97,7 @@ Class | Method | HTTP request | Description
 *AdminUsersApi* | [**getAdminUser**](doc//AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
 *AdminUsersApi* | [**listAdminUsers**](doc//AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
 *AdminUsersApi* | [**sendAdminUserLoginLink**](doc//AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+*AdminUsersApi* | [**sendAdminUserPasswordResetLink**](doc//AdminUsersApi.md#sendadminuserpasswordresetlink) | **POST** /api/v3/admin/users/{userId}/password-reset | Send one user's password recovery email as an administrator
 *AdminUsersApi* | [**verifyAdminUserEmail**](doc//AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 *AuthApi* | [**createUser**](doc//AuthApi.md#createuser) | **POST** /api/v2/public/signup | User registration
 *AuthApi* | [**generateDeleteCode**](doc//AuthApi.md#generatedeletecode) | **GET** /api/v2/public/delete-code/{username} | Generate delete code

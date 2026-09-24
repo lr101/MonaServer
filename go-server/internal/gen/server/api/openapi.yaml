@@ -2655,6 +2655,80 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+  /api/v3/admin/users/{userId}/password-reset:
+    post:
+      description: Send a password recovery email to one user's verified email. The
+        user's current password remains active until they complete recovery. Requires
+        recent MFA bound to security.recovery_resend.
+      operationId: sendAdminUserPasswordResetLink
+      parameters:
+      - description: Stable account identifier.
+        explode: false
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      responses:
+        "202":
+          description: Password recovery email sent
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Send one user's password recovery email as an administrator
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/campaigns:
     get:
       operationId: listAdminCampaigns

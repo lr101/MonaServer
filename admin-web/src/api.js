@@ -123,6 +123,12 @@ export class AdminApi {
     });
   }
 
+  sendUserPasswordResetLink(userId) {
+    return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}/password-reset`, {
+      method: 'POST', csrf: true,
+    });
+  }
+
   listReports({ cursor, limit = 25, search = '', status } = {}) {
     return this.request(`/api/v3/admin/reports?${query({ cursor: boundedCursor(cursor), limit, search: boundedSearch(search), status })}`);
   }

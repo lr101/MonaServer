@@ -391,6 +391,7 @@ type AdminUsersAPIServicer interface {
 	GetAdminUser(context.Context, string) (ImplResponse, error)
 	VerifyAdminUserEmail(context.Context, string, string) (ImplResponse, error)
 	SendAdminUserLoginLink(context.Context, string, string) (ImplResponse, error)
+	SendAdminUserPasswordResetLink(context.Context, string, string) (ImplResponse, error)
 }
 
 // PublicAuthAPIServicer defines the v3 public email authentication contract.

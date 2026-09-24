@@ -253,7 +253,7 @@ func main() {
 	// authentication behavior is observable. With the production database and
 	// browser-admin authentication service, the admin operation surfaces use
 	// the reviewed bounded runtime adapter.
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q, emailLogin, authSvc.Security())
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q, emailLogin, authSvc.Security(), mailSvc)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -411,7 +411,7 @@ type v3AdminServicers struct {
 // middleware. The unavailable set is deliberately retained for the no-DB
 // compatibility seam; a supplied database and browser-admin auth service get
 // the concrete, bounded adapters together.
-func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, emailLogin ...*service.EmailLogin) v3AdminServicers {
+func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, options ...interface{}) v3AdminServicers {
 	unavailable := handler.NewUnavailableV3Servicer()
 	servicers := v3AdminServicers{
 		users: unavailable, campaigns: unavailable, audiences: unavailable, jobs: unavailable,
@@ -419,6 +419,16 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, emailLogi
 	}
 	if queries == nil || auth == nil {
 		return servicers
+	}
+	var emailLogin *service.EmailLogin
+	var mail *service.Email
+	for _, option := range options {
+		switch value := option.(type) {
+		case *service.EmailLogin:
+			emailLogin = value
+		case *service.Email:
+			mail = value
+		}
 	}
 	store := service.NewProductionAdminStore(queries)
 	audiences := service.NewAdminAudienceService(store)
@@ -429,11 +439,8 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, emailLogi
 	// is deployed yet. Keep all action mutations fail-closed before they can
 	// persist a pending job; list/detail reads remain available.
 	jobs.SetExecutionReady(false)
-	if len(emailLogin) > 0 {
-		servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store), emailLogin[0])
-	} else {
-		servicers.users = handler.NewAdminUsersServicer(service.NewAdminUserService(store))
-	}
+	passwordRecovery := service.NewAdminPasswordRecovery(queries, mail)
+	servicers.users = handler.NewAdminUsersServicerWithPasswordRecovery(service.NewAdminUserService(store), emailLogin, passwordRecovery)
 	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
 	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
 	servicers.jobs = handler.NewAdminJobsServicer(jobs)
@@ -455,6 +462,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	var reportQueries *db.Queries
 	var emailLogin *service.EmailLogin
 	var emailSecurity *service.AccountSecurity
+	var mail *service.Email
 	for _, option := range options {
 		switch value := option.(type) {
 		case *service.AdminAuth:
@@ -465,13 +473,15 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 			emailLogin = value
 		case *service.AccountSecurity:
 			emailSecurity = value
+		case *service.Email:
+			mail = value
 		}
 	}
 
 	servicer := handler.NewUnavailableV3Servicer()
 	publicAuthCtrl := genserver.NewPublicAuthAPIController(handler.NewPublicAuthServicer(emailLogin, nil), genserver.WithPublicAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
 	sessionAuthCtrl := genserver.NewSessionAuthAPIController(handler.NewSessionAuthServicer(emailSecurity), genserver.WithSessionAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
-	adminServicers := newV3AdminServicers(reportQueries, adminAuth, emailLogin)
+	adminServicers := newV3AdminServicers(reportQueries, adminAuth, emailLogin, mail)
 	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
 	adminCampaignsCtrl := genserver.NewAdminCampaignsAPIController(adminServicers.campaigns, genserver.WithAdminCampaignsAPIErrorHandler(handler.V3ErrorHandler))
 	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(adminServicers.audiences, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
