@@ -4,18 +4,11 @@ This is the canonical runbook for starting Stick-It locally for an agent. It
 covers the Go API, PostGIS, RustFS, the Flutter web build, the Playwright
 browser, and the reusable fixture data.
 
-Use the disposable Compose profile when Docker or Podman is available. The
-current agent environment has native PostgreSQL/PostGIS but no container
-runtime, so the native profile below is the path to use there. Both profiles
-use loopback-only listeners and the same API and fixture commands.
-
-| Service | Compose profile | Native profile |
-|---|---|---|
-| Go API | `http://127.0.0.1:8081` | `http://127.0.0.1:8081` |
-| PostGIS | `127.0.0.1:5434` | `127.0.0.1:5432` |
-| RustFS S3 API | `http://127.0.0.1:9100` | `http://127.0.0.1:9100` |
-| RustFS console | `http://127.0.0.1:9101` | `http://127.0.0.1:9101` |
-| Flutter web | `http://127.0.0.1:4173` | `http://127.0.0.1:4173` |
+This runbook uses native local services for disposable tests. The production
+Compose deployment is documented separately in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+The local listeners are Go API `127.0.0.1:8081`, PostGIS `127.0.0.1:5432`,
+RustFS `127.0.0.1:9100` (console `9101`), and Flutter web
+`127.0.0.1:4173`.
 
 The database and RustFS are test dependencies, not mise tools. Firebase,
 SMTP, and other production integrations are optional; leave them unset unless
@@ -50,7 +43,7 @@ installed cluster version.
 
 ## Create local credentials
 
-The Compose and native profiles both read the ignored root `.env.test` file.
+The native test services read the ignored root `.env.test` file.
 Create it once and replace every placeholder with a local-only value. Keep the
 database password URL-safe because it is embedded in `DATABASE_URL`.
 
@@ -70,58 +63,10 @@ runs the fixture seeder. It must be 2–29 characters and use characters accepte
 by Flutter's login validator; `openssl rand -hex 12` produces a valid
 24-character value.
 
-## Profile A: disposable Compose stack
+## Start native services
 
-Choose this profile when `docker compose version` or an equivalent Podman
-Compose command works:
-
-```bash
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-```
-
-`--wait` waits for the PostGIS, RustFS, and Go health checks. The final loop
-also proves that the API is reachable from the host, which is the address the
-Flutter web app and Playwright use. Substitute `podman compose` for
-`docker compose` when Podman is the available runtime.
-
-For fast Go iteration while keeping only the database and object store in
-containers:
-
-```bash
-docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait db rustfs
-cd go-server
-set -a
-source ../.env.test
-set +a
-DATABASE_URL="postgres://${TEST_DB_USER}:${TEST_DB_PASSWORD}@127.0.0.1:5434/${TEST_DB_NAME}?sslmode=disable" \
-JWT_SECRET="$TEST_JWT_SECRET" \
-TOKEN_ADMIN_USERNAME='__test_admin_disabled__' \
-RUSTFS_ENDPOINT='127.0.0.1:9100' \
-RUSTFS_EXTERNAL_ENDPOINT='127.0.0.1:9100' \
-RUSTFS_ACCESS_KEY="$TEST_RUSTFS_ACCESS_KEY" \
-RUSTFS_SECRET_KEY="$TEST_RUSTFS_SECRET_KEY" \
-RUSTFS_BUCKET='monaserver' \
-PORT=8081 \
-mise exec -- go run ./cmd/server
-```
-
-Run the Go process in a persistent terminal. It applies migrations and creates
-the configured RustFS bucket before serving requests.
-
-## Profile B: native services without Docker
-
-This is the profile for the current agent container. Keep PostgreSQL running,
-start RustFS in a second persistent terminal, and run the Go API in a third.
+Keep PostgreSQL running, start RustFS in a second persistent terminal, and
+run the Go API in a third.
 
 ### Start disposable PostGIS
 
@@ -346,15 +291,7 @@ object storage, or API behavior.
 
 ## Stop and reset
 
-Stop foreground Go, RustFS, and static-server terminals with `Ctrl+C`. For the
-Compose profile, remove only the named disposable volumes when a clean run is
-needed:
-
-```bash
-docker compose --env-file .env.test -f docker-compose.test.yml down -v
-```
-
-For the native profile, stop the RustFS systemd service if that mode was used.
+Stop foreground Go, RustFS, and static-server terminals with `Ctrl+C`. For the native profile, stop the RustFS systemd service if that mode was used.
 Only drop the exact disposable database named by `TEST_DB_NAME`, after
 confirming it is not shared:
 
