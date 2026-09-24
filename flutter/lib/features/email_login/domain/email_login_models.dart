@@ -51,13 +51,50 @@ final class EmailAddress {
   String toString() => value;
 }
 
+/// Public sign-in identifier. A valid email is canonicalized; a username
+/// preserves its case because the existing password flow uses exact names.
+enum EmailLoginIdentifierKind { email, username }
+
+final class EmailLoginIdentifier {
+  const EmailLoginIdentifier._(this.value, this.kind);
+
+  static EmailLoginIdentifier? tryParse(
+    String? input, {
+    bool asUsername = false,
+  }) {
+    final trimmed = input?.trim();
+    if (trimmed == null) return null;
+    if (asUsername) {
+      return trimmed.isNotEmpty && trimmed.runes.length <= 256
+          ? EmailLoginIdentifier._(trimmed, EmailLoginIdentifierKind.username)
+          : null;
+    }
+    final email = EmailAddress.tryParse(trimmed);
+    if (email != null) {
+      return EmailLoginIdentifier._(
+        email.value,
+        EmailLoginIdentifierKind.email,
+      );
+    }
+    if (!RegExp(r'^[a-zA-Z0-9_!@#\$%^&*]{2,29}$').hasMatch(trimmed)) {
+      return null;
+    }
+    return EmailLoginIdentifier._(trimmed, EmailLoginIdentifierKind.username);
+  }
+
+  final String value;
+  final EmailLoginIdentifierKind kind;
+}
+
+// invalidEmail is retained for callers of the original email-only request
+// flow; it now also covers an invalid username.
 enum EmailLinkRequestStatus { accepted, invalidEmail, unavailable }
 
 final class EmailLinkRequestResult {
-  const EmailLinkRequestResult._({required this.status, this.email});
+  const EmailLinkRequestResult._({required this.status, this.identifier});
 
-  const EmailLinkRequestResult.accepted(EmailAddress email)
-    : this._(status: EmailLinkRequestStatus.accepted, email: email);
+  const EmailLinkRequestResult.accepted(EmailLoginIdentifier identifier)
+    : this._(status: EmailLinkRequestStatus.accepted, identifier: identifier);
 
   const EmailLinkRequestResult.invalidEmail()
     : this._(status: EmailLinkRequestStatus.invalidEmail);
@@ -66,7 +103,7 @@ final class EmailLinkRequestResult {
     : this._(status: EmailLinkRequestStatus.unavailable);
 
   final EmailLinkRequestStatus status;
-  final EmailAddress? email;
+  final EmailLoginIdentifier? identifier;
 
   bool get isAccepted => status == EmailLinkRequestStatus.accepted;
 

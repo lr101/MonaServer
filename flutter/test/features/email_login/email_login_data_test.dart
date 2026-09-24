@@ -1,11 +1,8 @@
-import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_api_adapter.dart';
-import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_session_adapter.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
@@ -17,7 +14,7 @@ void main() {
       final adapter = PublicAuthEmailLoginAdapter(api);
 
       await adapter.requestLoginLink(
-        EmailAddress.tryParse(' Person@Example.com ')!,
+        EmailLoginIdentifier.tryParse(' Person@Example.com ')!,
       );
 
       expect(api.requestedEmail, 'person@example.com');
@@ -31,8 +28,9 @@ void main() {
         ..requestResult = EmailLinkRequestAcceptedDto(accepted: false);
 
       await expectLater(
-        PublicAuthEmailLoginAdapter(api)
-            .requestLoginLink(EmailAddress.tryParse('person@example.com')!),
+        PublicAuthEmailLoginAdapter(api).requestLoginLink(
+          EmailLoginIdentifier.tryParse('person@example.com')!,
+        ),
         throwsA(isA<StateError>()),
       );
     },
@@ -162,36 +160,21 @@ void main() {
     final adapter = GlobalDataEmailLoginAdmissionAdapter(
       global: _FakeGlobalDataService(currentGeneration: 0),
       currentData: _signedOutData,
-      revoker: (refreshToken) {
-        submitted = refreshToken;
+      revoker: (credentials) {
+        submitted = credentials.refreshToken;
         return Future<void>.error(ApiException(503, 'revocation failed'));
       },
     );
 
-    await adapter.revokeRefreshCredential('refresh-token');
+    await adapter.revokeRefreshCredential(
+      const EmailLoginCredentials(
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        userId: 'user-id',
+      ),
+    );
 
     expect(submitted, 'refresh-token');
-  });
-
-  test('admission provider resolves the session API when revoking', () async {
-    final first = _FakeSessionAuthApi();
-    final second = _FakeSessionAuthApi();
-    var current = first;
-    final container = ProviderContainer(
-      overrides: [
-        globalDataServiceProvider.overrideWith(_ProviderGlobalDataService.new),
-        sessionAuthApiProvider.overrideWith((ref) => current),
-      ],
-    );
-    addTearDown(container.dispose);
-    final port = container.read(emailLoginAdmissionPortProvider);
-
-    current = second;
-    container.invalidate(sessionAuthApiProvider);
-    await port.revokeRefreshCredential('refresh-token');
-
-    expect(first.revokedRefreshTokens, isEmpty);
-    expect(second.revokedRefreshTokens, ['refresh-token']);
   });
 }
 
@@ -280,24 +263,5 @@ class _FakeGlobalDataService extends GlobalDataService {
     updatedUsername = username;
     this.expectedGeneration = expectedGeneration;
     return true;
-  }
-}
-
-class _ProviderGlobalDataService extends GlobalDataService {
-  @override
-  GlobalDataDto build() => _signedOutData();
-
-  @override
-  bool get cleanupRequired => false;
-}
-
-class _FakeSessionAuthApi extends SessionAuthApi {
-  _FakeSessionAuthApi() : super(ApiClient(basePath: 'https://api.example'));
-
-  final revokedRefreshTokens = <String>[];
-
-  @override
-  Future<void> revokeOwnSession(SessionRevokeRequestDto request) async {
-    revokedRefreshTokens.add(request.refreshToken);
   }
 }

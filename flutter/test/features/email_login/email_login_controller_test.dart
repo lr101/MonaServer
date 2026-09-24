@@ -496,7 +496,7 @@ class _FakeRequestPort implements EmailLinkRequestPort {
   Completer<void>? pending;
 
   @override
-  Future<void> requestLoginLink(EmailAddress email) async {
+  Future<void> requestLoginLink(EmailLoginIdentifier email) async {
     calls++;
     if (pending != null) await pending!.future;
   }
@@ -548,8 +548,10 @@ class _FakeAdmissionPort implements EmailLoginAdmissionPort {
   }
 
   @override
-  Future<void> revokeRefreshCredential(String refreshToken) async {
-    revokedRefreshTokens.add(refreshToken);
+  Future<void> revokeRefreshCredential(
+    EmailLoginCredentials credentials,
+  ) async {
+    revokedRefreshTokens.add(credentials.refreshToken);
     if (revokeStarted != null && !revokeStarted!.isCompleted) {
       revokeStarted!.complete();
     }

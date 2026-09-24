@@ -10,9 +10,12 @@
 
 package genserver
 
-// EmailLinkRequestDto - Email-only login request. Surrounding whitespace is trimmed by the service.
+// EmailLinkRequestDto - Login-link request by email address or username. The legacy email property name remains for wire compatibility. Set identifierType to username when the value is a username, including one shaped like an email address. Omitted identifierType means email for older clients. Surrounding whitespace is trimmed by the service.
 type EmailLinkRequestDto struct {
 	Email string `json:"email"`
+
+	// Explicit identifier kind. Defaults to email when omitted.
+	IdentifierType string `json:"identifierType,omitempty"`
 }
 
 // AssertEmailLinkRequestDtoRequired checks if the required fields are not zero-ed

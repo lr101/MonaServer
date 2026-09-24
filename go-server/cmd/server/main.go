@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -63,6 +64,18 @@ func main() {
 	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
 	mailSvc := newMailService(cfg)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
+	emailLogin, emailWorker, err := newEmailLoginRuntime(cfg, q, authSvc.Security(), tok, mailSvc)
+	must(err, "email login runtime")
+	if emailWorker != nil {
+		emailWorker.Start(ctx)
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := emailWorker.Shutdown(shutdownCtx); err != nil {
+				log.Error("email delivery worker shutdown", "err", err)
+			}
+		}()
+	}
 	guardSvc := service.NewGuard(q)
 
 	var objSvc *service.Object
@@ -241,7 +254,7 @@ func main() {
 	// authentication behavior is observable. With the production database and
 	// browser-admin authentication service, the admin operation surfaces use
 	// the reviewed bounded runtime adapter.
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
+	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q, emailLogin, authSvc.Security())
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -439,18 +452,24 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	}
 	var adminAuth *service.AdminAuth
 	var reportQueries *db.Queries
+	var emailLogin *service.EmailLogin
+	var emailSecurity *service.AccountSecurity
 	for _, option := range options {
 		switch value := option.(type) {
 		case *service.AdminAuth:
 			adminAuth = value
 		case *db.Queries:
 			reportQueries = value
+		case *service.EmailLogin:
+			emailLogin = value
+		case *service.AccountSecurity:
+			emailSecurity = value
 		}
 	}
 
 	servicer := handler.NewUnavailableV3Servicer()
-	publicAuthCtrl := genserver.NewPublicAuthAPIController(servicer, genserver.WithPublicAuthAPIErrorHandler(handler.V3ErrorHandler))
-	sessionAuthCtrl := genserver.NewSessionAuthAPIController(servicer, genserver.WithSessionAuthAPIErrorHandler(handler.V3ErrorHandler))
+	publicAuthCtrl := genserver.NewPublicAuthAPIController(handler.NewPublicAuthServicer(emailLogin, nil), genserver.WithPublicAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
+	sessionAuthCtrl := genserver.NewSessionAuthAPIController(handler.NewSessionAuthServicer(emailSecurity), genserver.WithSessionAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
 	adminServicers := newV3AdminServicers(reportQueries, adminAuth)
 	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
 	adminCampaignsCtrl := genserver.NewAdminCampaignsAPIController(adminServicers.campaigns, genserver.WithAdminCampaignsAPIErrorHandler(handler.V3ErrorHandler))
@@ -464,6 +483,15 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	// remain unavailable while PUBLIC_EMAIL_LOGIN is false.
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				clientIP := request.RemoteAddr
+				if host, _, err := net.SplitHostPort(clientIP); err == nil {
+					clientIP = host
+				}
+				next.ServeHTTP(w, request.WithContext(service.WithEmailLoginClientIP(request.Context(), clientIP)))
+			})
+		})
 		registerRoutes(r, publicAuthCtrl, alwaysTrue)
 	})
 

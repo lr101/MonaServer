@@ -20,7 +20,7 @@ void main() {
       final result = await useCase('person@example.com');
 
       expect(result.status, EmailLinkRequestStatus.accepted);
-      expect(result.email!.value, 'person@example.com');
+      expect(result.identifier!.value, 'person@example.com');
       expect(port.requested, ['person@example.com']);
     },
   );
@@ -208,7 +208,7 @@ class _FakeRequestPort implements EmailLinkRequestPort {
   Object? failure;
 
   @override
-  Future<void> requestLoginLink(EmailAddress email) async {
+  Future<void> requestLoginLink(EmailLoginIdentifier email) async {
     if (failure != null) throw failure!;
     requested.add(email.value);
   }
@@ -249,7 +249,9 @@ class _FakeAdmissionPort implements EmailLoginAdmissionPort {
   }
 
   @override
-  Future<void> revokeRefreshCredential(String refreshToken) async {}
+  Future<void> revokeRefreshCredential(
+    EmailLoginCredentials credentials,
+  ) async {}
 }
 
 class _FakeRecoveryPort implements EmailRecoveryPort {

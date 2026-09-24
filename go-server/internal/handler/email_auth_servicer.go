@@ -34,7 +34,8 @@ func (s *PublicAuthServicer) RequestEmailLink(ctx context.Context, request gense
 		return publicAuthErrorResponse(service.ErrEmailDeliveryUnavailable)
 	}
 	_, err := s.login.RequestEmailLink(ctx, service.EmailLoginRequest{
-		Email: request.Email, ClientIP: service.EmailLoginClientIPFromContext(ctx),
+		Email: request.Email, IdentifierType: request.IdentifierType,
+		ClientIP: service.EmailLoginClientIPFromContext(ctx),
 	})
 	if err != nil {
 		return publicAuthErrorResponse(err)

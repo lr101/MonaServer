@@ -42,8 +42,19 @@ final emailLoginAdmissionPortProvider = Provider<EmailLoginAdmissionPort>((
   return GlobalDataEmailLoginAdmissionAdapter(
     global: global,
     currentData: () => ref.read(globalDataServiceProvider),
-    revoker: (refreshToken) => ref
-        .read(sessionAuthApiProvider)
-        .revokeOwnSession(SessionRevokeRequestDto(refreshToken: refreshToken)),
+    revoker: (credentials) async {
+      final auth = HttpBearerAuth()..accessToken = credentials.accessToken;
+      final client = ApiClient(
+        basePath: ref.read(globalDataServiceProvider).host,
+        authentication: auth,
+      );
+      try {
+        await SessionAuthApi(client).revokeOwnSession(
+          SessionRevokeRequestDto(refreshToken: credentials.refreshToken),
+        );
+      } finally {
+        client.client.close();
+      }
+    },
   );
 });
