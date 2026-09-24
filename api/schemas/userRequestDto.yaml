@@ -5,7 +5,10 @@ required:
 type: object
 properties:
   name:
-    $ref: '../parameters/shortString.yaml'
+    type: string
+    maxLength: 256
+    pattern: '^[^@]*$'
+    description: Username. The @ character is reserved for email addresses.
   email:
     $ref: '../parameters/email.yaml'
   password:

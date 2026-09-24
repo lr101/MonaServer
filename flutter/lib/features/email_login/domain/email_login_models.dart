@@ -65,7 +65,9 @@ final class EmailLoginIdentifier {
     final trimmed = input?.trim();
     if (trimmed == null) return null;
     if (asUsername) {
-      return trimmed.isNotEmpty && trimmed.runes.length <= 256
+      return !trimmed.contains('@') &&
+              trimmed.isNotEmpty &&
+              trimmed.runes.length <= 256
           ? EmailLoginIdentifier._(trimmed, EmailLoginIdentifierKind.username)
           : null;
     }
@@ -76,7 +78,7 @@ final class EmailLoginIdentifier {
         EmailLoginIdentifierKind.email,
       );
     }
-    if (!RegExp(r'^[a-zA-Z0-9_!@#\$%^&*]{2,29}$').hasMatch(trimmed)) {
+    if (!RegExp(r'^[a-zA-Z0-9_!#\$%^&*]{2,29}$').hasMatch(trimmed)) {
       return null;
     }
     return EmailLoginIdentifier._(trimmed, EmailLoginIdentifierKind.username);
@@ -88,7 +90,17 @@ final class EmailLoginIdentifier {
 
 // invalidEmail is retained for callers of the original email-only request
 // flow; it now also covers an invalid username.
-enum EmailLinkRequestStatus { accepted, invalidEmail, unavailable }
+enum EmailLinkRequestStatus {
+  accepted,
+  invalidEmail,
+  unavailable,
+  featureUnavailable,
+}
+
+/// The API's public email-link route is disabled on this server.
+final class EmailLoginFeatureUnavailableException implements Exception {
+  const EmailLoginFeatureUnavailableException();
+}
 
 final class EmailLinkRequestResult {
   const EmailLinkRequestResult._({required this.status, this.identifier});
@@ -101,6 +113,9 @@ final class EmailLinkRequestResult {
 
   const EmailLinkRequestResult.unavailable()
     : this._(status: EmailLinkRequestStatus.unavailable);
+
+  const EmailLinkRequestResult.featureUnavailable()
+    : this._(status: EmailLinkRequestStatus.featureUnavailable);
 
   final EmailLinkRequestStatus status;
   final EmailLoginIdentifier? identifier;

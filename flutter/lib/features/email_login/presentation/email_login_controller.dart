@@ -10,6 +10,7 @@ enum EmailLinkRequestViewStatus {
   sent,
   invalidEmail,
   unavailable,
+  featureUnavailable,
 }
 
 final class EmailLinkRequestViewState {
@@ -29,6 +30,9 @@ final class EmailLinkRequestViewState {
 
   const EmailLinkRequestViewState.unavailable()
     : this._(status: EmailLinkRequestViewStatus.unavailable);
+
+  const EmailLinkRequestViewState.featureUnavailable()
+    : this._(status: EmailLinkRequestViewStatus.featureUnavailable);
 
   final EmailLinkRequestViewStatus status;
   final EmailLoginIdentifier? identifier;
@@ -101,6 +105,8 @@ final class EmailLinkRequestController {
         const EmailLinkRequestViewState.invalidEmail(),
       EmailLinkRequestStatus.unavailable =>
         const EmailLinkRequestViewState.unavailable(),
+      EmailLinkRequestStatus.featureUnavailable =>
+        const EmailLinkRequestViewState.featureUnavailable(),
     };
     _emit(next);
     return next;

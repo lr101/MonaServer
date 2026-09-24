@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,9 @@ func (s *Auth) SetSecurity(security *AccountSecurity) {
 }
 
 func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *string) (*TokenPair, error) {
+	if strings.Contains(username, "@") {
+		return nil, apperrors.New(http.StatusBadRequest, "username cannot contain @")
+	}
 	existing, err := s.q.GetUserByUsername(ctx, username)
 	if err != nil {
 		return nil, err

@@ -18,6 +18,8 @@ final class RequestEmailLink {
     try {
       await _port.requestLoginLink(identifier);
       return EmailLinkRequestResult.accepted(identifier);
+    } on EmailLoginFeatureUnavailableException {
+      return const EmailLinkRequestResult.featureUnavailable();
     } catch (_) {
       return const EmailLinkRequestResult.unavailable();
     }
