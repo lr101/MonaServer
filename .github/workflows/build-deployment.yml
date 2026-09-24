@@ -53,6 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           docker network create traefik
+          db_password="$(openssl rand -hex 24)"
           cat > .env <<ENV
           APP_IMAGE=monaserver-app:ci
           WEB_HOST=app.lr-projects.de
@@ -60,7 +61,8 @@ jobs:
           ADMIN_ORIGIN=http://localhost:8082
           TRAEFIK_NETWORK=traefik
           POSTGRES_USER=monaserver
-          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          POSTGRES_PASSWORD=$db_password
+          DATABASE_URL=postgres://monaserver:$db_password@db:5432/monaserver?sslmode=disable
           JWT_SECRET=$(openssl rand -hex 32)
           TOKEN_ADMIN_USERNAME=admin
           RUSTFS_ACCESS_KEY=$(openssl rand -hex 16)
