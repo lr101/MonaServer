@@ -64,6 +64,28 @@ test('email-link sign-in remains the default and can switch to password', async 
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
 });
 
+test('password sign-in publishes browser autofill metadata', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(
+    () => document.querySelector('#splash-screen') === null,
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  // Use the normal Flutter text input bridge. Enabling accessibility switches
+  // to proxy inputs whose autocomplete attributes are intentionally disabled.
+  await page.mouse.click(130, 532);
+  await page.waitForTimeout(400);
+  await page.mouse.click(200, 365);
+
+  const username = page.locator('flt-text-editing-host input[name="username"]');
+  const password = page.locator(
+    'flt-text-editing-host input[name="current-password"]',
+  );
+  await expect(username).toHaveAttribute('autocomplete', 'username');
+  await expect(password).toHaveAttribute('autocomplete', 'current-password');
+});
+
 test('secondary auth actions retain 48-pixel hit areas', async ({ page }) => {
   await page.goto('/');
   await enableAccessibility(page);
