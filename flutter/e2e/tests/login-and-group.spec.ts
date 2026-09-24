@@ -44,6 +44,9 @@ test('email-link sign-in remains the default and can switch to password', async 
 
   await page.goto('/');
   await enableAccessibility(page);
+  await expect(page.locator('body')).not.toContainText(/Buff\s+Lisa/i);
+  await expect(page.locator('body')).not.toContainText('to continue to');
+  await expect(page.getByText('Need an account?', { exact: true })).toBeVisible();
   const identifier = page.locator('input[aria-label="Email or username"]');
   await expect(identifier).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
