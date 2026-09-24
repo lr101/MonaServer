@@ -34,48 +34,10 @@ server, and verifies the login/group flow with Playwright. GitHub Actions keeps
 the web build and artifact checks lightweight; it does not start this test
 stack or run the browser E2E suite.
 
-For the complete service lifecycle, first read
-[`../docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md). It has both the
-Compose profile and the Dockerless native profile used in agent containers;
-the commands below are the short Compose-oriented version.
-
-### Start the disposable API stack
-
-For functionality checks that need realistic server data, start the isolated
-PostGIS, RustFS, and Go server stack from the repository root:
-
-```bash
-test -f .env.test || cp .env.test.example .env.test
-# Replace the placeholder values in .env.test with local-only values.
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
-mise run testdata-seed
-set -a
-source testdata/.env.test
-set +a
-```
-
-This exposes the test API on `http://127.0.0.1:8081`, PostGIS on port `5434`,
-and RustFS on ports `9100` (S3) and `9101` (console). The reusable scenarios
-are documented in [`testdata/README.md`](../testdata/README.md) and declared
-in [`testdata/scenarios.json`](../testdata/scenarios.json). They include a
-joined public group, a public group whose pins are visible to a non-member, a
-private group hidden from that user, and an empty group. The seeder writes
-credentials and resolved IDs only to ignored files under `testdata/`.
-
-If the Go server is being iterated on directly, start only `db` and `rustfs`
-from `docker-compose.test.yml` and run `go run ./cmd/server` with the host
-environment shown in the test-data guide.
+For the complete service lifecycle, follow the native disposable stack in
+[`../docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md). It starts
+PostGIS, RustFS, and the Go API on loopback, then seeds the scenarios in
+[`testdata/README.md`](../testdata/README.md).
 
 From the repository root, run the browser check against the seeded test API at
 `http://127.0.0.1:8081`:

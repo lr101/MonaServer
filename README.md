@@ -4,6 +4,14 @@ Stick-It is a Flutter app backed by MonaServer, the Go API for [Stick-It Map](ht
 
 The service uses PostgreSQL with PostGIS and an optional S3-compatible object store, SMTP server, and Firebase Cloud Messaging configuration.
 
+## Deployment
+
+Use the single [`compose.yaml`](compose.yaml) and follow
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). The image contains the API,
+Flutter web app, and admin web app. Traefik routes the consumer web listener
+publicly at `app.lr-projects.de` and the admin listener through a private
+entrypoint at `admin.thinkpad.lr-project.de`.
+
 ## Development
 
 Install the pinned Go tools and run the server checks from the repository root:
@@ -14,49 +22,10 @@ mise run test
 mise run build
 ```
 
-The Go module and its detailed setup instructions are in [`go-server/`](go-server/README.md). The OpenAPI contract is in [`api/openapi.yaml`](api/openapi.yaml).
-
-For a complete local stack, create an ignored `.env.dev` as described in the Go server guide, then run:
-
-```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-
-Agents should use [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md) for
-the disposable full-stack workflow. It includes a Dockerless native profile
-for environments such as this one, where PostgreSQL/PostGIS is available but a
-container runtime is not.
-
-The API listens on `http://localhost:8080`. Its bundled OpenAPI document is available at `/public/api-docs`, with Swagger UI at `/swagger-ui`.
-
-For a disposable app test environment with seeded users, groups, pins, likes,
-and RustFS objects, use the dedicated test stack:
-
-```bash
-test -f .env.test || cp .env.test.example .env.test
-# Replace the placeholder values in .env.test with local-only values.
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
-mise run testdata-seed
-set -a
-source testdata/.env.test
-set +a
-```
-
-The fixture scenarios and ports are documented in
-[`testdata/README.md`](testdata/README.md). Reset the disposable environment
-with `docker compose --env-file .env.test -f docker-compose.test.yml down -v` when a clean dataset
-is required.
+The Go module and its detailed setup instructions are in [`go-server/`](go-server/README.md).
+The OpenAPI contract is in [`api/openapi.yaml`](api/openapi.yaml).
+For disposable database, object storage, API, and browser testing, use the
+native services in [`docs/AGENT_LOCAL_STACK.md`](docs/AGENT_LOCAL_STACK.md).
 
 To work on the Flutter app, install the pinned toolchain and Flutter packages
 from the repository root:
@@ -125,7 +94,7 @@ and the `app_config` environment group before enabling the workflow.
 - `docs/AGENT_LOCAL_STACK.md`: agent runbook for Compose and Dockerless local services
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
-- `docker-compose.dev.yml`: local PostGIS, object storage, and server stack
+- `compose.yaml`: Traefik-ready deployment with a combined app image
 - `codemagic.yaml`: mobile release workflow
 - `mise.toml`: pinned development tools and tasks
 

@@ -82,85 +82,11 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
 | `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
 
-For a container-managed first administrator, create an ignored, Go-only
-`.env.admin` file with the stable admin encryption and HMAC keys plus all
-three bootstrap values. Do **not** put them in `.env.dev`: the development
-Compose stack passes that file to PostgreSQL and RustFS too.
-
-```dotenv
-ADMIN_TOTP_ENCRYPTION_KEY=<stable-random-key>
-ADMIN_SESSION_HMAC_KEY=<different-stable-random-key>
-ADMIN_BOOTSTRAP_USERNAME=operator
-ADMIN_BOOTSTRAP_PASSWORD=<unique-password-of-8-to-256-UTF-8-bytes>
-ADMIN_BOOTSTRAP_TOTP_SECRET=<base32-authenticator-seed>
-```
-
-Add `.env.admin` only to the Go service's `env_file` list in your Compose
-deployment; leave the database and RustFS service lists unchanged:
-
-```yaml
-services:
-  stick-it-server: # use go-server in docker-compose.dev.yml
-    env_file:
-      - .env        # use .env.dev in docker-compose.dev.yml
-      - .env.admin
-```
-
-Generate the seed with `openssl rand 20 | base32 | tr -d '=\n'`, add it to an
-authenticator app, then start the Go container. If the admin encryption and
-HMAC keys are not already configured, generate two separate values with
-`openssl rand -hex 32` and keep them stable. If they are already in a shared
-env file, move the same values to the Go-only file; do not rotate them. The
-account is created only if no administrator has ever been enrolled; an
-existing username causes startup to fail rather than promoting that account.
-Remove the three bootstrap values from `.env.admin` after successful creation
-and recreate the Go container. The account, password hash, and encrypted MFA
-seed remain in the database; do not rotate `ADMIN_TOTP_ENCRYPTION_KEY`
-casually. The browser-based
-`ADMIN_FIRST_RUN_TOKEN` flow remains an alternative, not an additional admin.
-
-### Docker Compose configuration
-
-Create an ignored `.env.dev` file for `docker-compose.dev.yml`. A current
-configuration looks like this:
-
-```dotenv
-POSTGRES_USER=monaserver
-POSTGRES_PASSWORD=<database-password>
-POSTGRES_DB=monaserver
-DATABASE_URL=postgres://monaserver:URL_ENCODED_PASSWORD@db:5432/monaserver?sslmode=disable
-
-JWT_SECRET=<strong-random-secret>
-TOKEN_ACCESS_EXPIRY=15m
-TOKEN_REFRESH_EXPIRY=8760h
-TOKEN_ADMIN_USERNAME=admin
-APP_MAX_LOGIN_ATTEMPTS=10
-
-APP_URL=https://api.example.com
-APP_REDIRECT_URL=https://example.com
-
-RUSTFS_ENDPOINT=rustfs:9000
-RUSTFS_EXTERNAL_ENDPOINT=storage.example.com:9000
-RUSTFS_ACCESS_KEY=<application-access-key>
-RUSTFS_SECRET_KEY=<application-secret-key>
-RUSTFS_BUCKET=<bucket-name>
-RUSTFS_USE_SSL=false
-RUSTFS_URL_EXPIRY=60m
-
-MAIL_HOST=
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM=
-FIREBASE_CONFIG_PATH=
-
-ACHIEVEMENT_MONA_GROUP_ID=d9631336-5c32-4f64-83a7-7a4fcdae4dd6
-ACHIEVEMENT_CREATED_BEFORE=2023-12-10T02:43:44.402768+00:00
-```
-
-`RUSTFS_ENDPOINT` is the address used by the server. The external endpoint is
-written into presigned URLs returned to clients. Both use `host:port` without
-a URL scheme. Set `RUSTFS_USE_SSL=true` only when both endpoints use TLS.
+For Compose deployment, see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
+The root `.env` supplies runtime settings to the app container. Set the admin
+keys there and keep them stable. The `ADMIN_FIRST_RUN_TOKEN` or the three
+`ADMIN_BOOTSTRAP_*` values may be set temporarily for first enrollment, then
+removed after the admin account is created.
 
 ## API
 
