@@ -6,12 +6,18 @@ final class RequestEmailLink {
 
   final EmailLinkRequestPort _port;
 
-  Future<EmailLinkRequestResult> call(String? rawEmail) async {
-    final email = EmailAddress.tryParse(rawEmail);
-    if (email == null) return const EmailLinkRequestResult.invalidEmail();
+  Future<EmailLinkRequestResult> call(
+    String? rawIdentifier, {
+    bool asUsername = false,
+  }) async {
+    final identifier = EmailLoginIdentifier.tryParse(
+      rawIdentifier,
+      asUsername: asUsername,
+    );
+    if (identifier == null) return const EmailLinkRequestResult.invalidEmail();
     try {
-      await _port.requestLoginLink(email);
-      return EmailLinkRequestResult.accepted(email);
+      await _port.requestLoginLink(identifier);
+      return EmailLinkRequestResult.accepted(identifier);
     } catch (_) {
       return const EmailLinkRequestResult.unavailable();
     }
@@ -92,9 +98,9 @@ final class RevokeEmailLoginCredential {
 
   final EmailLoginAdmissionPort _port;
 
-  Future<void> call(String refreshToken) async {
+  Future<void> call(EmailLoginCredentials credentials) async {
     try {
-      await _port.revokeRefreshCredential(refreshToken);
+      await _port.revokeRefreshCredential(credentials);
     } catch (_) {
       // Revocation is intentionally best effort. The consumed link cannot be
       // replayed, and no transport detail belongs in UI state or diagnostics.

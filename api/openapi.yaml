@@ -2863,13 +2863,18 @@ components:
       - message
       type: object
     emailLinkRequestDto:
-      description: Email-only login request. Surrounding whitespace is trimmed by the service.
+      description: Login-link request by email address or username. The legacy email property name remains for wire compatibility. Set identifierType to username when the value is a username, including one shaped like an email address. Omitted identifierType means email for older clients. Surrounding whitespace is trimmed by the service.
       example:
         email: person@example.com
       properties:
         email:
-          format: email
           maxLength: 320
+          type: string
+        identifierType:
+          description: Explicit identifier kind. Defaults to email when omitted.
+          enum:
+          - email
+          - username
           type: string
       required:
       - email

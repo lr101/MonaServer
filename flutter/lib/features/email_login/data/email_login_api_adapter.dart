@@ -11,9 +11,14 @@ class PublicAuthEmailLoginAdapter
   final PublicAuthApi _api;
 
   @override
-  Future<void> requestLoginLink(EmailAddress email) async {
+  Future<void> requestLoginLink(EmailLoginIdentifier identifier) async {
     final response = await _api.requestEmailLink(
-      EmailLinkRequestDto(email: email.value),
+      EmailLinkRequestDto(
+        email: identifier.value,
+        identifierType: identifier.kind == EmailLoginIdentifierKind.username
+            ? EmailLinkRequestDtoIdentifierTypeEnum.username
+            : EmailLinkRequestDtoIdentifierTypeEnum.email,
+      ),
     );
     if (response?.accepted != true) {
       throw StateError('email-link request was not accepted');

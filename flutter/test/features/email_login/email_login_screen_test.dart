@@ -44,7 +44,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('If the address is eligible, a sign-in link is on its way.'),
+        find.text('If an account is eligible, a sign-in link is on its way.'),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('email-login-resend')));
@@ -97,7 +97,7 @@ class _FakeRequestPort implements EmailLinkRequestPort {
   int calls = 0;
 
   @override
-  Future<void> requestLoginLink(EmailAddress email) async => calls++;
+  Future<void> requestLoginLink(EmailLoginIdentifier email) async => calls++;
 }
 
 class _FakeExchangePort implements EmailLinkExchangePort {
@@ -138,5 +138,7 @@ class _FakeAdmissionPort implements EmailLoginAdmissionPort {
   }) async => const EmailLoginAdmissionResult.accepted();
 
   @override
-  Future<void> revokeRefreshCredential(String refreshToken) async {}
+  Future<void> revokeRefreshCredential(
+    EmailLoginCredentials credentials,
+  ) async {}
 }

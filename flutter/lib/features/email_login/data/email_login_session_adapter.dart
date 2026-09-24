@@ -15,7 +15,7 @@ class GlobalDataEmailLoginAdmissionAdapter implements EmailLoginAdmissionPort {
 
   final GlobalDataService global;
   final GlobalDataDto Function() currentData;
-  final Future<void> Function(String refreshToken)? revoker;
+  final Future<void> Function(EmailLoginCredentials credentials)? revoker;
 
   @override
   EmailLoginSessionSnapshot get session {
@@ -61,9 +61,11 @@ class GlobalDataEmailLoginAdmissionAdapter implements EmailLoginAdmissionPort {
   }
 
   @override
-  Future<void> revokeRefreshCredential(String refreshToken) async {
+  Future<void> revokeRefreshCredential(
+    EmailLoginCredentials credentials,
+  ) async {
     try {
-      await revoker?.call(refreshToken);
+      await revoker?.call(credentials);
     } catch (_) {
       // The consumed email-link credential cannot be replayed. Revocation is
       // useful cleanup, but failures must not expose transport details.

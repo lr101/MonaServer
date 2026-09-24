@@ -23,14 +23,15 @@ class EmailLinkRequestScreen extends StatefulWidget {
 
 class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
   late final EmailLinkRequestController _controller;
-  late final TextEditingController _email;
+  late final TextEditingController _identifier;
+  bool _asUsername = false;
 
   @override
   void initState() {
     super.initState();
     _controller = EmailLinkRequestController(widget.requestPort)
       ..addListener(_onStateChanged);
-    _email = TextEditingController();
+    _identifier = TextEditingController();
   }
 
   @override
@@ -38,7 +39,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
     _controller
       ..removeListener(_onStateChanged)
       ..dispose();
-    _email.dispose();
+    _identifier.dispose();
     super.dispose();
   }
 
@@ -47,7 +48,9 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
   }
 
   void _submit() {
-    if (!_controller.state.isBusy) unawaited(_controller.request(_email.text));
+    if (!_controller.state.isBusy) {
+      unawaited(_controller.request(_identifier.text, asUsername: _asUsername));
+    }
   }
 
   @override
@@ -56,7 +59,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: widget.onBack),
-        title: const Text('Email sign in'),
+        title: const Text('Sign in with an email link'),
       ),
       body: SafeArea(
         child: Center(
@@ -76,7 +79,8 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
 
   Widget _entryBody(EmailLinkRequestViewState state) {
     final error = switch (state.status) {
-      EmailLinkRequestViewStatus.invalidEmail => 'Enter a valid email address.',
+      EmailLinkRequestViewStatus.invalidEmail =>
+        'Enter a valid email address or username.',
       EmailLinkRequestViewStatus.unavailable =>
         'The sign-in email could not be sent. Please try again.',
       _ => null,
@@ -91,21 +95,32 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Enter your email address and we will send you a one-time sign-in link.',
+          'Enter your email address or username. If your account is eligible, we will send a one-time sign-in link to its verified email address.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         TextField(
           key: const Key('email-login-email'),
-          controller: _email,
+          controller: _identifier,
           enabled: !state.isBusy,
-          keyboardType: TextInputType.emailAddress,
+          keyboardType: TextInputType.text,
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _submit(),
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
-            labelText: 'Email address',
+            labelText: 'Email address or username',
           ),
+        ),
+        SwitchListTile(
+          key: const Key('email-login-username-mode'),
+          title: const Text('Use as username'),
+          subtitle: const Text(
+            'Select this if your username looks like an email address or uses other characters.',
+          ),
+          value: _asUsername,
+          onChanged: state.isBusy
+              ? null
+              : (value) => setState(() => _asUsername = value),
         ),
         if (error != null) ...[
           const SizedBox(height: 12),
@@ -136,7 +151,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
       ),
       const SizedBox(height: 12),
       const Text(
-        'If the address is eligible, a sign-in link is on its way.',
+        'If an account is eligible, a sign-in link is on its way.',
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: 24),
@@ -150,7 +165,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
         onPressed: state.isBusy
             ? null
             : () {
-                _email.clear();
+                _identifier.clear();
                 unawaited(_controller.cancel());
               },
         child: const Text('Use another email address'),

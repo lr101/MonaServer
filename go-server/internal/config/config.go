@@ -16,13 +16,18 @@ type Config struct {
 	DatabaseURL string `mapstructure:"DATABASE_URL"`
 
 	// JWT
-	JWTSecret          string        `mapstructure:"JWT_SECRET"`
-	AccessTokenExpiry  time.Duration `mapstructure:"TOKEN_ACCESS_EXPIRY"`
-	RefreshTokenExpiry time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
-	AdminUsername      string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
-	MaxLoginAttempts   int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
-	PublicEmailLogin   bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
-	WebAdminAPI        bool          `mapstructure:"WEB_ADMIN_API"`
+	JWTSecret             string        `mapstructure:"JWT_SECRET"`
+	AccessTokenExpiry     time.Duration `mapstructure:"TOKEN_ACCESS_EXPIRY"`
+	RefreshTokenExpiry    time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
+	AdminUsername         string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
+	MaxLoginAttempts      int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
+	PublicEmailLogin      bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
+	EmailLoginHMACKey     string        `mapstructure:"EMAIL_LOGIN_HMAC_KEY"`
+	EmailLoginHMACKeyID   string        `mapstructure:"EMAIL_LOGIN_HMAC_KEY_ID"`
+	EmailDeliveryKey      string        `mapstructure:"EMAIL_DELIVERY_KEY"`
+	EmailDeliveryKeyID    string        `mapstructure:"EMAIL_DELIVERY_KEY_ID"`
+	EmailLoginCallbackURL string        `mapstructure:"EMAIL_LOGIN_CALLBACK_URL"`
+	WebAdminAPI           bool          `mapstructure:"WEB_ADMIN_API"`
 
 	// Browser-admin authentication. Keys are supplied as hex, base64, or raw
 	// bytes by deployment configuration and are never generated at startup.
@@ -76,7 +81,8 @@ func Load() (*Config, error) {
 		"PORT", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
 		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
-		"PUBLIC_EMAIL_LOGIN", "WEB_ADMIN_API",
+		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",
+		"EMAIL_DELIVERY_KEY", "EMAIL_DELIVERY_KEY_ID", "EMAIL_LOGIN_CALLBACK_URL", "WEB_ADMIN_API",
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
 		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID", "ADMIN_FIRST_RUN_TOKEN",
 		"ADMIN_ORIGIN", "TRUSTED_PROXY_CIDRS",

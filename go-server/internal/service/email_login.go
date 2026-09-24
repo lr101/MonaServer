@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -95,12 +96,14 @@ type EmailLoginConfig struct {
 	DeliveryKeyRing    *DeliveryKeyRing
 }
 
-// EmailLoginRequest is the service boundary for a public request. ClientIP
+// EmailLoginRequest is the service boundary for a public request. Email is
+// the legacy wire field and may contain an email address or username. ClientIP
 // is supplied by trusted route middleware; an empty value is intentionally
 // bucketed as one opaque unknown source rather than trusting a header here.
 type EmailLoginRequest struct {
-	Email    string
-	ClientIP string
+	Email          string
+	IdentifierType string
+	ClientIP       string
 }
 
 // LoginLinkDeliveryRequest is passed to the durable delivery adapter. Token
@@ -269,14 +272,41 @@ func (s *EmailLogin) clock() func() time.Time {
 // RequestEmailLink applies quotas to every syntactically valid request, then
 // silently suppresses all ineligible accounts. It commits quotas and returns
 // a generic accepted result for absent, unverified, duplicate, deleted, and
-// restricted addresses.
+// restricted identifiers.
 func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginRequest) (*EmailLinkRequestResult, error) {
 	if s == nil || s.q == nil || s.security == nil {
 		return nil, ErrEmailDeliveryUnavailable
 	}
-	canonical := db.CanonicalEmail(request.Email)
-	if canonical == "" {
+	identifier := strings.TrimSpace(request.Email)
+	if identifier == "" || !utf8.ValidString(identifier) {
 		return nil, apperrors.ErrBadRequest
+	}
+	canonical := db.CanonicalEmail(identifier)
+	eligibleEmail := request.IdentifierType != "username"
+	if request.IdentifierType != "" && request.IdentifierType != "email" && request.IdentifierType != "username" {
+		return nil, apperrors.ErrBadRequest
+	}
+	if eligibleEmail && canonical == "" {
+		return nil, apperrors.ErrBadRequest
+	}
+	if !eligibleEmail {
+		if utf8.RuneCountInString(identifier) > 256 {
+			return nil, apperrors.ErrBadRequest
+		}
+		// An unknown username still receives the same generic response and
+		// consumes HMAC-protected address/IP quotas. Known names share their
+		// verified email's address quota with requests by email.
+		canonical = "username:" + strings.ToLower(identifier)
+		user, err := s.q.GetUserByUsername(ctx, identifier)
+		if err != nil {
+			return nil, err
+		}
+		if user != nil && user.EmailConfirmed && user.Email != nil {
+			if owned := db.CanonicalEmail(*user.Email); owned != "" {
+				canonical = owned
+				eligibleEmail = true
+			}
+		}
 	}
 	// Quota identifiers are HMAC-derived before they reach shared storage. A
 	// missing deployment secret or key ID must fail closed; a public fallback
@@ -297,6 +327,9 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		return nil, &EmailRateLimitError{RetryAt: retryAt, Now: now}
 	}
 	if !addressAllowed {
+		return result, nil
+	}
+	if !eligibleEmail {
 		return result, nil
 	}
 	err = s.q.InTxRetry(ctx, func(tx *db.Queries) error {

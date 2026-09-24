@@ -13,7 +13,7 @@ enum EmailLinkRequestViewStatus {
 }
 
 final class EmailLinkRequestViewState {
-  const EmailLinkRequestViewState._({required this.status, this.email});
+  const EmailLinkRequestViewState._({required this.status, this.identifier});
 
   const EmailLinkRequestViewState.idle()
     : this._(status: EmailLinkRequestViewStatus.idle);
@@ -21,8 +21,8 @@ final class EmailLinkRequestViewState {
   const EmailLinkRequestViewState.submitting()
     : this._(status: EmailLinkRequestViewStatus.submitting);
 
-  const EmailLinkRequestViewState.sent(EmailAddress email)
-    : this._(status: EmailLinkRequestViewStatus.sent, email: email);
+  const EmailLinkRequestViewState.sent(EmailLoginIdentifier identifier)
+    : this._(status: EmailLinkRequestViewStatus.sent, identifier: identifier);
 
   const EmailLinkRequestViewState.invalidEmail()
     : this._(status: EmailLinkRequestViewStatus.invalidEmail);
@@ -31,7 +31,7 @@ final class EmailLinkRequestViewState {
     : this._(status: EmailLinkRequestViewStatus.unavailable);
 
   final EmailLinkRequestViewStatus status;
-  final EmailAddress? email;
+  final EmailLoginIdentifier? identifier;
 
   bool get isBusy => status == EmailLinkRequestViewStatus.submitting;
 
@@ -67,7 +67,10 @@ final class EmailLinkRequestController {
     _listeners.remove(listener);
   }
 
-  Future<EmailLinkRequestViewState> request(String? rawEmail) {
+  Future<EmailLinkRequestViewState> request(
+    String? rawIdentifier, {
+    bool asUsername = false,
+  }) {
     if (_disposed) return Future.value(_state);
     final inFlight = _inFlight;
     if (inFlight != null) return inFlight;
@@ -75,7 +78,7 @@ final class EmailLinkRequestController {
     final operation = ++_operation;
     _emit(const EmailLinkRequestViewState.submitting());
     late Future<EmailLinkRequestViewState> tracked;
-    tracked = _runRequest(rawEmail, operation);
+    tracked = _runRequest(rawIdentifier, operation, asUsername);
     tracked = tracked.whenComplete(() {
       if (identical(_inFlight, tracked)) _inFlight = null;
     });
@@ -84,14 +87,15 @@ final class EmailLinkRequestController {
   }
 
   Future<EmailLinkRequestViewState> _runRequest(
-    String? rawEmail,
+    String? rawIdentifier,
     int operation,
+    bool asUsername,
   ) async {
-    final result = await _request(rawEmail);
+    final result = await _request(rawIdentifier, asUsername: asUsername);
     if (!_isCurrent(operation)) return _state;
     final next = switch (result.status) {
       EmailLinkRequestStatus.accepted => EmailLinkRequestViewState.sent(
-        result.email!,
+        result.identifier!,
       ),
       EmailLinkRequestStatus.invalidEmail =>
         const EmailLinkRequestViewState.invalidEmail(),
@@ -230,7 +234,7 @@ typedef EmailLoginStateListener = void Function(EmailLoginViewState state);
 
 /// Owns callback confirmation and admission sequencing for the consumer
 /// session. It keeps all token-bearing values private and emits only safe view
-/// state. The eventual admission adapter is responsible for the atomic
+/// state. The admission adapter is responsible for the atomic
 /// `GlobalDataService.updateData(tokens, canonicalUsername,
 /// expectedGeneration:)` transition; sync remains owned by AppSyncLifecycle.
 final class EmailLoginController {
@@ -273,13 +277,13 @@ final class EmailLoginController {
   /// browser location. This method deliberately does not exchange the token.
   void setLaunchData(EmailLinkLaunchData launch) {
     if (_disposed) return;
-    final previousRefreshToken = _pendingExchange?.credentials.refreshToken;
+    final previousCredentials = _pendingExchange?.credentials;
     _operation++;
     _exchangeInFlight = null;
     _admissionInFlight = null;
     _clearPending();
-    if (previousRefreshToken != null) {
-      unawaited(_revoke(previousRefreshToken));
+    if (previousCredentials != null) {
+      unawaited(_revoke(previousCredentials));
     }
 
     if (launch.hasUsableToken) {
@@ -368,7 +372,7 @@ final class EmailLoginController {
     final operation = ++_operation;
     _clearPending();
     if (exchange != null) {
-      await _revoke(exchange.credentials.refreshToken);
+      await _revoke(exchange.credentials);
     }
     if (!_isCurrent(operation)) return _state;
     _emit(const EmailLoginViewState.accountSwitchDeclined());
@@ -383,10 +387,10 @@ final class EmailLoginController {
     _operation++;
     _exchangeInFlight = null;
     _admissionInFlight = null;
-    final refreshToken = _pendingExchange?.credentials.refreshToken;
+    final credentials = _pendingExchange?.credentials;
     _clearPending();
     _emit(const EmailLoginViewState.idle());
-    if (refreshToken != null) await _revoke(refreshToken);
+    if (credentials != null) await _revoke(credentials);
   }
 
   void dispose() {
@@ -395,10 +399,10 @@ final class EmailLoginController {
     _operation++;
     _exchangeInFlight = null;
     _admissionInFlight = null;
-    final refreshToken = _pendingExchange?.credentials.refreshToken;
+    final credentials = _pendingExchange?.credentials;
     _clearPending();
     _listeners.clear();
-    if (refreshToken != null) unawaited(_revoke(refreshToken));
+    if (credentials != null) unawaited(_revoke(credentials));
   }
 
   Future<EmailLoginViewState> _exchangeAndContinue(
@@ -485,21 +489,21 @@ final class EmailLoginController {
     int operation,
   ) async {
     if (!_isCurrent(operation)) {
-      await _revoke(exchange.credentials.refreshToken);
+      await _revoke(exchange.credentials);
       return _state;
     }
     final current = _safeSession();
     if (current == null ||
         !_generationMatches(expectedGeneration) ||
         current.userId != session.userId) {
-      await _revoke(exchange.credentials.refreshToken);
+      await _revoke(exchange.credentials);
       if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.staleGeneration());
       return _state;
     }
     if (current.cleanupRequired) {
-      await _revoke(exchange.credentials.refreshToken);
+      await _revoke(exchange.credentials);
       if (!_isCurrent(operation)) return _state;
       _clearPending();
       _emit(const EmailLoginViewState.cleanupRequired());
@@ -518,7 +522,7 @@ final class EmailLoginController {
       // A successful adapter call owns the credential now. A failed or stale
       // call still needs best-effort revocation because the link is consumed.
       if (!result.isAccepted) {
-        await _revoke(exchange.credentials.refreshToken);
+        await _revoke(exchange.credentials);
       }
       return _state;
     }
@@ -532,7 +536,7 @@ final class EmailLoginController {
       );
       return _state;
     }
-    await _revoke(exchange.credentials.refreshToken);
+    await _revoke(exchange.credentials);
     if (!_isCurrent(operation)) return _state;
     final next = switch (result.status) {
       EmailLoginAdmissionStatus.staleGeneration =>
@@ -551,12 +555,12 @@ final class EmailLoginController {
   Future<void> _revokeResult(EmailLinkExchangeResult result) async {
     final exchange = result.exchange;
     if (result.isSuccess && exchange != null) {
-      await _revoke(exchange.credentials.refreshToken);
+      await _revoke(exchange.credentials);
     }
   }
 
-  Future<void> _revoke(String refreshToken) =>
-      _revokeUseCase.call(refreshToken);
+  Future<void> _revoke(EmailLoginCredentials credentials) =>
+      _revokeUseCase.call(credentials);
 
   bool _generationMatches(int expectedGeneration) {
     try {

@@ -1,9 +1,9 @@
 import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 
 /// Sends a public email-link request. The port intentionally has no account
-/// lookup result: the server's accepted response is generic for all addresses.
+/// lookup result: the server's accepted response is generic for all identifiers.
 abstract interface class EmailLinkRequestPort {
-  Future<void> requestLoginLink(EmailAddress email);
+  Future<void> requestLoginLink(EmailLoginIdentifier identifier);
 }
 
 /// Exchanges an opaque token only after the user explicitly presses the
@@ -25,8 +25,8 @@ abstract interface class EmailLinkLaunchPort {
 
 /// Admits an exchanged session into the existing consumer session.
 ///
-/// The eventual production adapter must delegate to
-/// `GlobalDataService.updateData` with the authoritative canonical username
+/// The production adapter delegates to `GlobalDataService.updateData` with
+/// the authoritative canonical username
 /// and `expectedGeneration`. That preserves same-account drafts, waits for
 /// different-account cleanup and keeps failed credential writes recoverable.
 /// It must not write credentials directly. Synchronization remains owned by
@@ -42,8 +42,8 @@ abstract interface class EmailLoginAdmissionPort {
   });
 
   /// Best-effort revocation for an exchanged refresh credential that cannot be
-  /// admitted, for example after a declined account switch or stale response.
-  Future<void> revokeRefreshCredential(String refreshToken);
+  /// admitted, using its paired access token to authenticate the request.
+  Future<void> revokeRefreshCredential(EmailLoginCredentials credentials);
 }
 
 /// Completes restricted recovery without creating a normal access token.
