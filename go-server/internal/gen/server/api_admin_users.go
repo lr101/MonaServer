@@ -75,6 +75,12 @@ func (c *AdminUsersAPIController) Routes() Routes {
 			"/api/v3/admin/users/{userId}/login-link",
 			c.SendAdminUserLoginLink,
 		},
+		"SendAdminUserPasswordResetLink": Route{
+			"SendAdminUserPasswordResetLink",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/password-reset",
+			c.SendAdminUserPasswordResetLink,
+		},
 	}
 }
 
@@ -104,6 +110,12 @@ func (c *AdminUsersAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Post"),
 			"/api/v3/admin/users/{userId}/login-link",
 			c.SendAdminUserLoginLink,
+		},
+		Route{
+			"SendAdminUserPasswordResetLink",
+			strings.ToUpper("Post"),
+			"/api/v3/admin/users/{userId}/password-reset",
+			c.SendAdminUserPasswordResetLink,
 		},
 	}
 }
@@ -244,6 +256,24 @@ func (c *AdminUsersAPIController) SendAdminUserLoginLink(w http.ResponseWriter, 
 	}
 	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
 	result, err := c.service.SendAdminUserLoginLink(r.Context(), userIdParam, xCSRFTokenParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// SendAdminUserPasswordResetLink - Send one user's password recovery email as an administrator
+func (c *AdminUsersAPIController) SendAdminUserPasswordResetLink(w http.ResponseWriter, r *http.Request) {
+	userIdParam := chi.URLParam(r, "userId")
+	if userIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
+		return
+	}
+	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
+	result, err := c.service.SendAdminUserPasswordResetLink(r.Context(), userIdParam, xCSRFTokenParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

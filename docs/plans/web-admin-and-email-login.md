@@ -1,9 +1,12 @@
 # Separate web admin implementation plan
 
-Status: amended 2026-09-23 to add simple campaign CRUD while keeping campaign
-delivery out of scope. Repository realignment, the standalone UI, and bounded
-server projections are implemented. Audience expansion, provider delivery,
-workers, retries, and bulk execution remain intentionally excluded.
+Status: amended 2026-09-24 to add a login-link campaign action and individual
+account actions while keeping general campaign delivery out of scope.
+Repository realignment, the standalone UI, and bounded server projections are
+implemented. The login campaign uses the existing per-user admin route;
+individual password recovery is capability-checked, MFA-bound, and audited.
+Audience snapshots, general campaign delivery, workers, and bulk job execution
+remain excluded.
 
 ## Current implementation state
 
@@ -18,8 +21,12 @@ workers, retries, and bulk execution remain intentionally excluded.
 - Complete: campaign persistence, API, authorization, and admin-web CRUD
   screens are implemented as a bounded resource with draft/active/archived
   lifecycle states, revision checks, CSRF, and capability enforcement.
-- Deliberately excluded: audience snapshots, campaign sends, test delivery,
-  job workers, provider adapters, lease fencing, and bulk action execution.
+- Complete: selected-user detail supports email verification, audited
+  password recovery email, and an eligible 24-hour login link.
+- Deliberately excluded: general campaign sends, test delivery, job workers,
+  provider adapters, lease fencing, and bulk action execution. The Login
+  channel is an immediate login-link action and does not create a campaign
+  content record.
 
 ## Decision
 
@@ -43,9 +50,10 @@ introduced later only if the UI complexity justifies it.
   removed.
 - `admin-web/` owns browser state, API mapping, forms, navigation, and admin
   presentation. It must not import Flutter or consumer app code.
-- Campaigns are content records only in this release. CRUD owns name, channel,
-  subject/title, body, lifecycle status, and revision; it does not enqueue or
-  deliver messages. A later delivery feature may consume active campaigns.
+- Email and Push campaigns are content records only in this release. CRUD owns
+  name, channel, subject/title, body, lifecycle status, and revision; it does
+  not enqueue or deliver messages. The Login channel starts a separate
+  immediate action that queues 24-hour links to eligible accounts.
 - The browser uses the opaque admin cookie and in-memory CSRF token. It never
   stores consumer JWTs, refresh credentials, passwords, MFA codes, or action
   tokens.

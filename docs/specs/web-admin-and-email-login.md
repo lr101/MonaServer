@@ -39,7 +39,7 @@ Use a fixed consumer-web callback such as `https://consumer.example/#/email-logi
 
 Redemption locks the account and token, checks purpose, expiry, email binding, eligibility and revocation, consumes exactly once, and creates the refresh credential transactionally. An ambiguous network outcome may require a fresh email; never replay a consumed token to disclose its prior credentials. Same-account reauthentication preserves drafts; switching accounts requires explicit confirmation and existing cleanup. No credential write, sync, or navigation can escape a stale Flutter account generation.
 
-Public request tokens are capped/rate-limited; requesting a new link does not invalidate an already mailed valid link and allow nuisance lockout. Successful redemption invalidates other outstanding login links for that account. Recovery, compromise, email changes, and deletion invalidate relevant action tokens. Admin campaign retry reuses the same still-valid delivery attempt token rather than minting uncontrolled parallel credentials.
+Public request tokens are capped/rate-limited; requesting a new link does not invalidate an already mailed valid link and allow nuisance lockout. Successful redemption invalidates other outstanding login links for that account. Recovery, compromise, email changes, and deletion invalidate relevant action tokens. The immediate admin login campaign uses the same per-account issuance checks and retries only accounts whose request failed; each retry may issue a new link, while any previously issued token remains single-use and bound to its verified email and account state.
 
 ### Compromise and recovery
 

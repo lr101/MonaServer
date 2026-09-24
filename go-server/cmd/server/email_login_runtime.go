@@ -33,9 +33,12 @@ func newEmailLoginRuntime(cfg *config.Config, q *db.Queries, security *service.A
 		(callback.Fragment != "/email-login/callback" && callback.Fragment != "/email-login/callback?token=") {
 		return nil, nil, errors.New("email login callback URL must be an HTTPS Flutter web callback")
 	}
+	// Campaign login links live for 24 hours, so encrypted delivery payloads
+	// need the same maximum. Public login payloads still expire with their
+	// shorter 15-minute action token.
 	ring, err := service.NewDeliveryKeyRing(map[string][]byte{
 		cfg.EmailDeliveryKeyID: decodeAdminKey(cfg.EmailDeliveryKey),
-	}, cfg.EmailDeliveryKeyID, 15*time.Minute)
+	}, cfg.EmailDeliveryKeyID, 24*time.Hour)
 	if err != nil {
 		return nil, nil, err
 	}

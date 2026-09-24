@@ -2334,6 +2334,12 @@ type SendAdminUserLoginLinkParams struct {
 	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
 }
 
+// SendAdminUserPasswordResetLinkParams defines parameters for SendAdminUserPasswordResetLink.
+type SendAdminUserPasswordResetLinkParams struct {
+	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+	XCSRFToken CsrfHeader `json:"X-CSRF-Token"`
+}
+
 // VerifyAdminUserEmailParams defines parameters for VerifyAdminUserEmail.
 type VerifyAdminUserEmailParams struct {
 	// XCSRFToken Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
@@ -3318,6 +3324,9 @@ type ServerInterface interface {
 	// SendAdminUserLoginLink Queue a one-time login link to one user's verified email
 	// (POST /api/v3/admin/users/{userId}/login-link)
 	SendAdminUserLoginLink(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params SendAdminUserLoginLinkParams)
+	// SendAdminUserPasswordResetLink Send one user's password recovery email as an administrator
+	// (POST /api/v3/admin/users/{userId}/password-reset)
+	SendAdminUserPasswordResetLink(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params SendAdminUserPasswordResetLinkParams)
 	// VerifyAdminUserEmail Verify one user email as an administrator
 	// (POST /api/v3/admin/users/{userId}/verify-email)
 	VerifyAdminUserEmail(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params VerifyAdminUserEmailParams)
@@ -3800,6 +3809,12 @@ func (_ Unimplemented) GetAdminUser(w http.ResponseWriter, r *http.Request, user
 // SendAdminUserLoginLink Queue a one-time login link to one user's verified email
 // (POST /api/v3/admin/users/{userId}/login-link)
 func (_ Unimplemented) SendAdminUserLoginLink(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params SendAdminUserLoginLinkParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SendAdminUserPasswordResetLink Send one user's password recovery email as an administrator
+// (POST /api/v3/admin/users/{userId}/password-reset)
+func (_ Unimplemented) SendAdminUserPasswordResetLink(w http.ResponseWriter, r *http.Request, userId openapi_types.UUID, params SendAdminUserPasswordResetLinkParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -7213,6 +7228,60 @@ func (siw *ServerInterfaceWrapper) SendAdminUserLoginLink(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
+// SendAdminUserPasswordResetLink operation middleware
+func (siw *ServerInterfaceWrapper) SendAdminUserPasswordResetLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", chi.URLParam(r, "userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SendAdminUserPasswordResetLinkParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-CSRF-Token")]; found {
+		var XCSRFToken CsrfHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-CSRF-Token", valueList[0], &XCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XCSRFToken = XCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendAdminUserPasswordResetLink(w, r, userId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // VerifyAdminUserEmail operation middleware
 func (siw *ServerInterfaceWrapper) VerifyAdminUserEmail(w http.ResponseWriter, r *http.Request) {
 
@@ -7673,6 +7742,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v3/admin/users/{userId}/login-link", wrapper.SendAdminUserLoginLink)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v3/admin/users/{userId}/password-reset", wrapper.SendAdminUserPasswordResetLink)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v3/admin/campaigns", wrapper.ListAdminCampaigns)
 	})
 	r.Group(func(r chi.Router) {
@@ -7999,25 +8071,27 @@ var swaggerSpec = []string{
 	"n2v+UrcOFX1vqSR/ZmvcW+SUeTZRDH6hxrABT3bKpMLNvm2234nuEPZvi7EyasU+vnaNcE3I1Kjze4P0",
 	"HHqsDtPWXQig3FW33ypUEvrO/FWtN3LFGAgrteyxysINV9sKAy+VEm/1Ug0XG65pvyZJjrjdpv0eRZru",
 	"PGWBXvcL4/TZ9MIInGQpYeWfN/ukFjTNiH4XeG4UuKOEsqvmUMo8RAlqjOoOr3X7+4f9w1vqkw7rNzdY",
-	"LtL7U8QQeSGE+uVkq3M52WsuNg9umdslp3/oM0C4MFAmxUHZK134XO6CyACEpbnDNZPZb9AqJzR3h/ve",
-	"iGznAuk3hwAtrPeBWrdKrQa1c6o0pIiwrLiB1e2XGyfPTM095Zq2DnRaQ0zgr67xmU0WVBmfXaNu857j",
-	"n3WJWKot3brYqHQOghOCBRGjsm9VpFXjIqRn0xO+/Vxyudm8gsyu38y2gTT7p8UuWIMLPBgTqDWI8ERC",
-	"aHSrCWY3pHd7NG8o0unZzczZ/odsxRYPze1haL38ynieZpOERp+Amj4Zg6KP7BMXDxSWN8/1Zx2ptCU0",
-	"m7jx82PbrerVm9/VJA5WtRoJInkmIpIrXmgez4e4iIlorDB7xq5xQmMEU7k+jaVlT8oeTvlO9McyHCOp",
-	"3SRwUvHWdEsA2E3gmYGlQDQ47nLBWIM/hikCEsFDYJ98ieaYzVo440vbQvNvayjWPR2rFDybzdG7txfv",
-	"geyZLUAjI8zg39i0zksuW18PRAPVYt1UcB2y745tYCtx47sJ785mEACl1TfjpfO6c9dAY11NMRXWQZlx",
-	"RiOc5NrXdZnuXXtTFnhXXPzNXULSGRvZB4CH9AbDt8FcG2jH0V0j6Zwkn/HSlX03Lo0SL0jhV+N2Bd6X",
-	"ed4UfY6UFX/GsSBSEhm6RAAEO6OXu/NhqoLQkQjEtip2Ok8MT2WUcOlTkNlogybfKK3ky71XpKLfW1qJ",
-	"sh9Z23oP1xJhDSMkLixjbhxjNcUozUTKJRklZjdLiXiavUrO7ShbohEHZDHdre/aDuIci58hbCzEVgPi",
-	"Zche+2q949dj2OfCO3XfXmqPa/tYK5csajQDXOiPXbqZJYs8KxqLXQEylFImfYNajBVx+pqK5SrBUl0Q",
-	"0j/bfmysi9vUu+idafJlyKKISDnNklyO9b7e6v2CME6zPSxGM8GzVKIJlvpJyZDeDCQJYW7HciygTOqr",
-	"Lcwkrt15ZCIZHA/mSqXyeH9fKhpdjajaS8QoFfx3Eim5FxOwWhctj/f3Ex7hZM6lOn46fjoGHZadqHYP",
-	"1tio5iA5Jjyzrs6AVwin9FVxjubHgIW8NkT5leDXHlfzPv1/hE0r+plN7NPzHWVeP9jTHr2ck4GnYezV",
-	"740pDT6nPrC2Xnif/kVqp1JkbJ+ur+kV8Tom8GdrP3jY4CThn00MA2hpvSFA29RnaqN0xOyKspkPu/kl",
-	"MIKz/Ybfe0gQHHvjmEdewA/DedMXV9WK66XxByt4rsdrSyh8kqnWCYzCK/fKydmmB6Sv8ggs2HoV1z2P",
-	"wW3alUmp7P1FHq4Y9gh2IkRaczOLKy4flfE+NKDxqV+jqqJQzuuGFYZrf8ii6k0AT1xCQbPqvBq8rZNh",
-	"2KErllEduCgN37R6V4XBKwXi5zZc+mlc/ZEhHWPToC5J4rXJm+hOSfn59irj5Qnhmsa0QcBm1TCcS4lQ",
-	"HsgRf32cYJnyUPHu8MCmePfN5c3/PwA=",
+	"LtL7U8QQeSGE+uVkq3M52WsuNg9umdslp3/oM0C4MFAmxUHZK134XO6CyNx9fiSIJC3qVxNiVVz/NV8A",
+	"jDO3v7Z1maxZ9pPzbvAGWmDKJLyJNNNhSg83J0sUORWHm0tbW4H+pP8GzT0H3BHtufaf9JpYW2CjudwY",
+	"SM71Bvx5uMe7hpOU5TrWDxxiW/GKHr00URWWFWe0uhV1J0wC6HlpHnrNsvg3aJXTlXvofW+0tPNb62+O",
+	"m7bczx4IdqsEa1A7J9k7JM9MzT0NvDYhdppMTXYAXQg4myyoMo79Rifv6ew+6zrSVLvD6IrE0nkRTwgW",
+	"RIzKDpiRtp+JkDJeT/j2c8kvb/NadLt+M9sGanGcFrtgrbKgVUqgICnCEwn5E1rttLshvdujeUMlX8+4",
+	"bs72P2Qrtnhobg9DG+9WxvM0myQ0+gTU9Ml4HfjIPnFBg2F581x/1uGMW0KziRs/P7bd2me8+V3h8mDp",
+	"O31155mISK6dpXnQL+IiJqKxDPUZu8YJjRFM5fo01p8+KbtB5jvRH8twjKT2pcJJxaXbLQFgN9GpBpYC",
+	"0eC4y1WlDf4YpghIBNqCffIlmmM2a+GML20Lzb+tN4nu6Vil4Nlsjt69vXgPZM9slSoZYQb/xqZ1Xpfd",
+	"OoQhGigp7aaC65B9XmwDW4kb3014d4bFACitDlwvnWuuuwYaF4wUU2GjGBhnNMJJbqJZl+netct1gXeF",
+	"dsA+u+iMjayWwEN6g+HbYK4NtOPorpF0TpLPeCmR8PyeJV6QwvnO7QooofLkSvocKSv+jGNBpCQydIkA",
+	"CHZGL3fn6FgFoSNbkG1V7HRePYLKKOHSpyCz0QZNvlFayZd7r0jFvdD3nXaqh/+ZsNZTEgde+uBagVGa",
+	"iZRLMkrMbpaydTW7np3bUbZEIw7IYrpb37UdxDkWP0PYuJFYNamXRn/tq/WOX49hxyzv1H2nCntc28da",
+	"uWRRo63wQn/s0s0sWeSZ2lnsqhSiFBS2hdU9xoo4fU3FvJ1gqS4I6V+SIzYuCNvUu+idaXJ4yqKISDnN",
+	"klyO9b7e6v2CWG+zPSxGM8GzVKIJlvpJyZDeDCQJYW7HciygTOqrLcwkrt15ZCIZHA/mSqXyeH9fKhpd",
+	"jajaS8QoFfx3Eim5FxNwbSlaHu/vJzzCyZxLdfx0/HQMOiw7Ue0erLFRzUFyTHhm4yEArxBO6aviHM2P",
+	"ATea2hDlV0Ixgmafffr/CJtW9DOb2KfnO8q8frCnPXo5TyRPw9ir3xuymBAh59QHdmF+7NO/yP9WCp/v",
+	"0/U1vSJexwT+bO0HDxucJPyzCXQCLa03BGib+kxtlI6YXVE282E3vwRGcA4i4fceEgTH3jjmkRdw1nIh",
+	"N8VVteKfbZxGC57r8doSCp9kqnUCo/DKXfdytukB6as8Agu2oQf18ASIrXC1lCp7f5HHNIfDBpwIkdYn",
+	"hcUVv7DKeB8a0PjUL2RXUSjnxQUL7xZ/yKI0VgBPXNZRs2qcxZSwiLhiOoYduoo61YFPbGvZuHpXqsWr",
+	"F+QnQF36uZ79kSFna9OgLpPqtUmu6k5J+Uk5K+PlWSObxrSZAsyqYTiXN6U8kCP++jjviFhQwIXRlCaK",
+	"iLri31T4Dw9sKvzfXN78/wMA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
