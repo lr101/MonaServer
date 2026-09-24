@@ -66,7 +66,7 @@ class AdminUsersApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminUserDetailsDto',) as AdminUserDetailsDto;
-    
+
     }
     return null;
   }
@@ -182,7 +182,125 @@ class AdminUsersApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminUserPageDto',) as AdminUserPageDto;
-    
+
+    }
+    return null;
+  }
+
+  /// Queue a one-time login link to one user's verified email
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<Response> sendAdminUserLoginLinkWithHttpInfo(String userId, String xCSRFToken,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/admin/users/{userId}/login-link'
+      .replaceAll('{userId}', userId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    headerParams[r'X-CSRF-Token'] = parameterToString(xCSRFToken);
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Queue a one-time login link to one user's verified email
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<void> sendAdminUserLoginLink(String userId, String xCSRFToken,) async {
+    final response = await sendAdminUserLoginLinkWithHttpInfo(userId, xCSRFToken,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
+  /// Verify one user email as an administrator
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<Response> verifyAdminUserEmailWithHttpInfo(String userId, String xCSRFToken,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/admin/users/{userId}/verify-email'
+      .replaceAll('{userId}', userId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    headerParams[r'X-CSRF-Token'] = parameterToString(xCSRFToken);
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Verify one user email as an administrator
+  ///
+  /// Parameters:
+  ///
+  /// * [String] userId (required):
+  ///   Stable account identifier.
+  ///
+  /// * [String] xCSRFToken (required):
+  ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+  Future<AdminUserDetailsDto?> verifyAdminUserEmail(String userId, String xCSRFToken,) async {
+    final response = await verifyAdminUserEmailWithHttpInfo(userId, xCSRFToken,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'AdminUserDetailsDto',) as AdminUserDetailsDto;
+
     }
     return null;
   }

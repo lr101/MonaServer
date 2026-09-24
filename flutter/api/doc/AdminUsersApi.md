@@ -11,6 +11,8 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**getAdminUser**](AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
 [**listAdminUsers**](AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
+[**sendAdminUserLoginLink**](AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+[**verifyAdminUserEmail**](AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 
 
 # **getAdminUser**
@@ -41,7 +43,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **String**| Stable account identifier. | 
+ **userId** | **String**| Stable account identifier. |
 
 ### Return type
 
@@ -94,13 +96,13 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **cursor** | **String**| Opaque cursor returned by the preceding page. | [optional] 
+ **cursor** | **String**| Opaque cursor returned by the preceding page. | [optional]
  **limit** | **int**| Maximum number of records in the page; defaults to 25 and is capped at 100. | [optional] [default to 25]
- **search** | **String**| Case-insensitive username, email, or stable ID search. | [optional] 
- **securityStatus** | [**AdminSecurityState**](.md)| Restrict results to one security state. | [optional] 
- **verifiedEmail** | **bool**| Restrict results by verified-email presence. | [optional] 
- **createdAfter** | **DateTime**| Include accounts created at or after this instant. | [optional] 
- **createdBefore** | **DateTime**| Include accounts created before this instant. | [optional] 
+ **search** | **String**| Case-insensitive username, email, or stable ID search. | [optional]
+ **securityStatus** | [**AdminSecurityState**](.md)| Restrict results to one security state. | [optional]
+ **verifiedEmail** | **bool**| Restrict results by verified-email presence. | [optional]
+ **createdAfter** | **DateTime**| Include accounts created at or after this instant. | [optional]
+ **createdBefore** | **DateTime**| Include accounts created before this instant. | [optional]
 
 ### Return type
 
@@ -117,3 +119,95 @@ Name | Type | Description  | Notes
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
+# **sendAdminUserLoginLink**
+> sendAdminUserLoginLink(userId, xCSRFToken)
+
+Queue a one-time login link to one user's verified email
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure API key authorization: adminSession
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKeyPrefix = 'Bearer';
+
+final api_instance = AdminUsersApi();
+final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier.
+final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+
+try {
+    api_instance.sendAdminUserLoginLink(userId, xCSRFToken);
+} catch (e) {
+    print('Exception when calling AdminUsersApi->sendAdminUserLoginLink: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **userId** | **String**| Stable account identifier. |
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+
+### Return type
+
+void (empty response body)
+
+### Authorization
+
+[adminSession](../README.md#adminSession)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **verifyAdminUserEmail**
+> AdminUserDetailsDto verifyAdminUserEmail(userId, xCSRFToken)
+
+Verify one user email as an administrator
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure API key authorization: adminSession
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKeyPrefix = 'Bearer';
+
+final api_instance = AdminUsersApi();
+final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier.
+final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+
+try {
+    final result = api_instance.verifyAdminUserEmail(userId, xCSRFToken);
+    print(result);
+} catch (e) {
+    print('Exception when calling AdminUsersApi->verifyAdminUserEmail: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **userId** | **String**| Stable account identifier. |
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+
+### Return type
+
+[**AdminUserDetailsDto**](AdminUserDetailsDto.md)
+
+### Authorization
+
+[adminSession](../README.md#adminSession)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
