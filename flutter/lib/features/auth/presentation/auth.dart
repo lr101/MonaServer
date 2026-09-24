@@ -169,49 +169,42 @@ class _AuthState extends ConsumerState<Auth> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.colorScheme.surface,
-                theme.colorScheme.surfaceContainerLow,
-              ],
-            ),
-          ),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(18),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Card(
-                  elevation: 3,
-                  color: theme.colorScheme.surfaceContainerLowest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 320),
-                      reverseDuration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, .025),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
-                        ),
-                      ),
-                      child: signup
-                          ? _signupForm(theme)
-                          : _loginForm(theme, global.sessionStatus),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerLowest,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.45,
                     ),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    reverseDuration: const Duration(milliseconds: 180),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, .02),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: signup
+                        ? _signupForm(theme)
+                        : _loginForm(theme, global.sessionStatus),
                   ),
                 ),
               ),
@@ -230,9 +223,9 @@ class _AuthState extends ConsumerState<Auth> {
     key: ValueKey(title),
     children: [
       Container(
-        width: 86,
-        height: 86,
-        padding: const EdgeInsets.all(5),
+        width: 60,
+        height: 60,
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: theme.colorScheme.primaryContainer,
           shape: BoxShape.circle,
@@ -241,13 +234,15 @@ class _AuthState extends ConsumerState<Auth> {
           child: Image.asset('assets/icon/logo-rounded-corners.png'),
         ),
       ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 20),
       Text(
         title,
-        style: theme.textTheme.headlineSmall,
+        style: theme.textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 6),
       Text(
         subtitle,
         style: theme.textTheme.bodyMedium,
@@ -264,10 +259,10 @@ class _AuthState extends ConsumerState<Auth> {
       children: [
         _brand(
           theme,
-          title: 'Welcome back',
+          title: 'Sign in',
           subtitle: status == SessionStatus.expired
               ? 'Your session expired. Sign in again to continue.'
-              : 'Sign in to continue to Buff Lisa.',
+              : 'to continue to Buff Lisa',
         ),
         TextField(
           key: const Key('auth-identifier'),
@@ -281,41 +276,11 @@ class _AuthState extends ConsumerState<Auth> {
               : TextInputAction.done,
           onSubmitted: (_) => _showPassword ? null : _requestEmailLink(),
           decoration: InputDecoration(
-            border: const OutlineInputBorder(),
             labelText: _showPassword ? 'Username' : 'Email or username',
-            helperText: _showPassword
-                ? 'Password sign-in uses your username.'
-                : null,
-            prefixIcon: const Icon(Icons.person_outline),
+            helperText: _showPassword ? 'Use your account username.' : null,
           ),
         ),
-        const SizedBox(height: 20),
-        Center(
-          child: SegmentedButton<bool>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: false,
-                icon: Icon(Icons.mail_outline),
-                label: Text('Email link'),
-              ),
-              ButtonSegment(
-                value: true,
-                icon: Icon(Icons.lock_outline),
-                label: Text('Password'),
-              ),
-            ],
-            selected: {_showPassword},
-            onSelectionChanged: _busy
-                ? null
-                : (selection) => setState(() {
-                    _showPassword = selection.first;
-                    _error = null;
-                    _linkSent = false;
-                  }),
-          ),
-        ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         AnimatedSize(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
@@ -332,31 +297,32 @@ class _AuthState extends ConsumerState<Auth> {
                   obscureText: true,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _loginWithPassword(),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Password'),
                 ),
               ],
-              if (!_showPassword) ...[
-                FilledButton.icon(
-                  key: const Key('auth-login-email'),
-                  onPressed: _busy || _linkSent ? null : _requestEmailLink,
-                  icon: const Icon(Icons.mail_outline),
-                  label: Text(
-                    _linkSent ? 'Sign-in link sent' : 'Continue with email',
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 48,
+                child: FilledButton(
+                  key: Key(
+                    _showPassword ? 'auth-login-password' : 'auth-login-email',
                   ),
-                ),
-              ] else ...[
-                FilledButton(
-                  key: const Key('auth-login-password'),
-                  onPressed: _busy ? null : _loginWithPassword,
+                  onPressed: _busy || (!_showPassword && _linkSent)
+                      ? null
+                      : _showPassword
+                      ? _loginWithPassword
+                      : _requestEmailLink,
                   child: _busy
                       ? const _BusyLabel()
-                      : const Text('Sign in with password'),
+                      : Text(
+                          _showPassword
+                              ? 'Sign in'
+                              : _linkSent
+                              ? 'Sign-in link sent'
+                              : 'Continue',
+                        ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -403,17 +369,55 @@ class _AuthState extends ConsumerState<Auth> {
           child: _error == null ? const SizedBox.shrink() : _errorText(theme),
         ),
         if (_showPassword)
-          TextButton(
-            onPressed: _busy ? null : _recoverPassword,
-            child: const Text('Forgot password?'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _busy ? null : _recoverPassword,
+              child: const Text('Forgot password?'),
+            ),
           ),
-        const SizedBox(height: 12),
-        OutlinedButton(
-          key: const Key('auth-open-signup'),
-          onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
-          child: const Text('Create an account'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: const Key('auth-toggle-signin-method'),
+            onPressed: _busy
+                ? null
+                : () => setState(() {
+                    _showPassword = !_showPassword;
+                    _error = null;
+                    _linkSent = false;
+                  }),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              _showPassword
+                  ? 'Use email link instead'
+                  : 'Sign in with password',
+            ),
+          ),
         ),
         const SizedBox(height: 20),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text('New to Buff Lisa?'),
+            TextButton(
+              key: const Key('auth-open-signup'),
+              onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Create account'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         _legalLinks(),
       ],
     ),

@@ -57,7 +57,7 @@ async function logout(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Logout', exact: true }).click();
   await page.waitForURL(/#\/login/, { timeout: 30_000 });
-  await expect(page.locator('input[aria-label="Name"]')).toBeVisible();
+  await expect(page.locator('input[aria-label="Email or username"]')).toBeVisible();
 }
 
 test('rejected refresh returns to login, survives reload, and permits reauthentication', async ({ page }) => {
@@ -236,11 +236,11 @@ async function enableAccessibility(page: Page): Promise<void> {
 }
 
 async function submitLogin(page: Page, data: E2eData): Promise<void> {
-  await enterFlutterText(page, 'Name', data.username);
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
+  await enterFlutterText(page, 'Username', data.username);
   await enterFlutterText(page, 'Password', data.password);
   await page
-    .locator('flt-semantics[role="button"]')
-    .filter({ hasText: /^LOGIN$/ })
+    .getByRole('button', { name: 'Sign in', exact: true })
     .click();
 
   await page.waitForURL(/#\/home/, { timeout: 30_000 });
