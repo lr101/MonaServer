@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -447,16 +448,22 @@ class PinService {
     Uint8List image, {
     bool showPrompt = false,
   }) async {
+    final session = captureSession(ref);
     try {
-      if (showPrompt)
+      if (showPrompt) {
         CustomErrorSnackBar.loadingMessage(message: "Uploading image");
+      }
       // await ref.read(userGroupServiceProvider.notifier).setIsActive(pin.groupId, true);
       await _addPinToRemote(pin, image);
-      if (showPrompt)
+      if (session.userId != null && isCurrentSession(ref, session)) {
+        ref.invalidate(userXpProvider(session.userId!));
+      }
+      if (showPrompt) {
         CustomErrorSnackBar.message(
           message: "Succesfully uploaded",
           type: CustomErrorSnackBarType.success,
         );
+      }
     } on ApiException catch (e) {
       if (showPrompt && kIsWeb) {
         CustomErrorSnackBar.message(

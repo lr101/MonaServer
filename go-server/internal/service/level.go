@@ -6,7 +6,10 @@ type XPProgress struct {
 	NextLevel    int32
 }
 
-var levelThresholds = [...]int32{0, 25, 100, 1000, 5000, 10000}
+var levelThresholds = [...]int32{
+	0, 25, 75, 150, 275, 450, 700, 1050, 1550, 2250,
+	3250, 4750, 7000, 10000, 14000,
+}
 
 func ProgressForXP(total int64) XPProgress {
 	levelIndex := 0

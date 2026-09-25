@@ -2,6 +2,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart'; // Adjust path
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
+import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/group_filter.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
@@ -81,7 +82,11 @@ class TopStatusBar extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
+
+            UserXpCompactPanel(userId: userId),
+
+            const SizedBox(width: 8),
 
             const GroupFilterWidget(),
           ],

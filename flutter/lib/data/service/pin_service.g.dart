@@ -50,7 +50,7 @@ final class PinUserServiceProvider
   }
 }
 
-String _$pinUserServiceHash() => r'b594d9812be847038f8c997bbe100f67e525dda7';
+String _$pinUserServiceHash() => r'11be78c29b60235bccedd8fd98383a2136006cf2';
 
 final class PinUserServiceFamily extends $Family
     with
@@ -152,7 +152,7 @@ final class PinByIdProvider
   }
 }
 
-String _$pinByIdHash() => r'b0696d4be4b207ba641594822b20e7500b1417dc';
+String _$pinByIdHash() => r'233854e7a29b51a025546be49edbbf761d26d846';
 
 final class PinByIdFamily extends $Family
     with $FunctionalFamilyOverride<Stream<PinEntity?>, String> {
@@ -216,7 +216,7 @@ final class PinGroupServiceUnfilteredProvider
 }
 
 String _$pinGroupServiceUnfilteredHash() =>
-    r'ba920c4dd64165eadd4c46d6e58983a4da9ec20d';
+    r'527e9d3539a6fe4ac0076298093466a5f039b072';
 
 final class PinGroupServiceUnfilteredFamily extends $Family
     with
