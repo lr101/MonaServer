@@ -21,8 +21,8 @@ and proxies `/api/v3/admin/` internally. See
 [`docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for deployment and private access. The standalone `admin-web/Dockerfile` remains available for
 independent image builds.
 
-The app includes session/MFA, users, reports and notes, campaign content
-records, and audit views. MFA is checked at sign-in for the authenticated
+The app includes session/MFA, users, reports and notes, email and push campaign
+templates, and audit views. MFA is checked at sign-in for the authenticated
 session; the web app does not ask for a second code during that session.
 Administrators with `users.verify` can mark a user's email as verified from
 the account detail page. Verification requires that the email claim be
@@ -32,15 +32,26 @@ send a password recovery link to a verified, owned email address. The admin
 endpoint requires CSRF and recent MFA and records an audit event; the current
 password remains active until the user completes recovery. Eligible users can
 also receive a one-time 24-hour login link from this page.
-The campaign channel selector offers Email, Push, and Login. Email and Push
-campaigns save content records only. Selecting Login opens an immediate bulk
-send flow: it finds non-deleted accounts with verified email and active
-sign-in eligibility, including administrator accounts, shows the recipient
-count, and queues a one-time sign-in link valid for 24 hours to each account.
-The message is system-generated. Partial failures can be retried from the same
-screen. Enable `PUBLIC_EMAIL_LOGIN` and configure its delivery key and email
-provider on the Go server before using login links. The admin bulk delivery
-worker remains disabled.
+Email campaigns are personalized login email templates. Their subject and
+message can use `{{username}}`, `{{email}}`, `{{login_link}}`,
+`{{expires_in}}`, and `{{app_name}}`; the mustard variable guide inserts them
+at the cursor, and the preview shows a sample recipient. The message must
+include `{{login_link}}`. Templates are plain text: variable values are escaped
+for HTML email and the login link is rendered as a safe sign-in link. Saving a
+campaign as **Active · ready to send** enables the **Send login email
+campaign** action. It finds non-deleted accounts with verified email and
+active sign-in eligibility, including administrator accounts, then issues a
+unique one-time link that expires after 24 hours. Eligibility and email
+ownership are rechecked for every account. The campaign view reports queued,
+failed, and processed counts while sending; progress is saved in the current
+browser and partial failures can be resumed. Retries reuse the same send ID,
+so recipients already queued by the server are not queued twice. Every
+recipient request is bound to the campaign revision; if the campaign is
+edited or archived during a send, remaining requests are rejected until the
+campaign is made active again.
+Push campaigns remain content records. Enable `PUBLIC_EMAIL_LOGIN` and
+configure its delivery key and email provider on the Go server before sending
+login emails. The separate admin bulk delivery worker remains disabled.
 
 To create the first administrator in the combined deployment, use the
 ignored root `.env` file. Set

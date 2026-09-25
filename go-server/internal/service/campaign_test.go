@@ -58,7 +58,7 @@ func TestCampaignServiceEnforcesCapabilitiesBoundsAndLifecycle(t *testing.T) {
 
 	updated, err := campaigns.Update(ctx, writer, CampaignUpdateInput{
 		CampaignID: created.ID, ExpectedRevision: created.Revision,
-		Name: "Newsletter revised", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated", Status: CampaignStatusActive,
+		Name: "Newsletter revised", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated {{login_link}}", Status: CampaignStatusActive,
 	})
 	if err != nil {
 		t.Fatalf("update campaign: %v", err)
@@ -66,7 +66,7 @@ func TestCampaignServiceEnforcesCapabilitiesBoundsAndLifecycle(t *testing.T) {
 	if updated.Revision != 2 || updated.Status != CampaignStatusActive || updated.Name != "Newsletter revised" {
 		t.Fatalf("updated campaign = %#v, want active revision two", updated)
 	}
-	if _, err := campaigns.Update(ctx, writer, CampaignUpdateInput{CampaignID: created.ID, ExpectedRevision: created.Revision, Name: "stale", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated", Status: CampaignStatusActive}); !errors.Is(err, apperrors.ErrConflict) {
+	if _, err := campaigns.Update(ctx, writer, CampaignUpdateInput{CampaignID: created.ID, ExpectedRevision: created.Revision, Name: "stale", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated {{login_link}}", Status: CampaignStatusActive}); !errors.Is(err, apperrors.ErrConflict) {
 		t.Fatalf("stale update error = %v, want conflict", err)
 	}
 	if err := campaigns.Delete(ctx, writer, CampaignRevisionInput{CampaignID: updated.ID, ExpectedRevision: updated.Revision}); !errors.Is(err, apperrors.ErrConflict) {
@@ -80,7 +80,7 @@ func TestCampaignServiceEnforcesCapabilitiesBoundsAndLifecycle(t *testing.T) {
 	if archived.Status != CampaignStatusArchived || archived.Revision != 3 {
 		t.Fatalf("archived campaign = %#v, want archived revision three", archived)
 	}
-	if _, err := campaigns.Update(ctx, writer, CampaignUpdateInput{CampaignID: archived.ID, ExpectedRevision: archived.Revision, Name: "nope", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated", Status: CampaignStatusActive}); !errors.Is(err, apperrors.ErrConflict) {
+	if _, err := campaigns.Update(ctx, writer, CampaignUpdateInput{CampaignID: archived.ID, ExpectedRevision: archived.Revision, Name: "nope", Channel: CampaignChannelEmail, Subject: stringPtr("October"), Body: "Updated {{login_link}}", Status: CampaignStatusActive}); !errors.Is(err, apperrors.ErrConflict) {
 		t.Fatalf("update archived campaign error = %v, want conflict", err)
 	}
 	if err := campaigns.Delete(ctx, writer, CampaignRevisionInput{CampaignID: archived.ID, ExpectedRevision: archived.Revision}); !errors.Is(err, apperrors.ErrConflict) {

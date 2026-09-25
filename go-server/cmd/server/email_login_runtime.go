@@ -24,7 +24,7 @@ func newEmailLoginRuntime(cfg *config.Config, q *db.Queries, security *service.A
 	if q == nil || security == nil || tok == nil || mail == nil ||
 		len(decodeAdminKey(cfg.EmailLoginHMACKey)) < 32 || strings.TrimSpace(cfg.EmailLoginHMACKeyID) == "" ||
 		strings.TrimSpace(cfg.EmailDeliveryKeyID) == "" || strings.TrimSpace(cfg.EmailLoginCallbackURL) == "" ||
-		strings.TrimSpace(cfg.MailFrom) == "" {
+		strings.TrimSpace(cfg.MailFrom) == "" || len(cfg.EmailLoginCallbackURL) > service.MaxEmailLoginCallbackURLBytes {
 		return nil, nil, errors.New("email login requires database, SMTP, callback URL, and explicit keys")
 	}
 	callback, err := url.Parse(cfg.EmailLoginCallbackURL)

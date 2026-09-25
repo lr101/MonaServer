@@ -80,6 +80,7 @@ part 'model/admin_job_page_dto.dart';
 part 'model/admin_job_recipient_dto.dart';
 part 'model/admin_job_recipient_page_dto.dart';
 part 'model/admin_job_status.dart';
+part 'model/admin_login_link_campaign_request_dto.dart';
 part 'model/admin_mail_dto.dart';
 part 'model/admin_mfa_request_dto.dart';
 part 'model/admin_reauthenticate_request_dto.dart';
