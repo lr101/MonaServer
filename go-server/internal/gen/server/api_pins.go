@@ -11,7 +11,9 @@
 package genserver
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -76,6 +78,18 @@ func (c *PinsAPIController) Routes() Routes {
 			"/api/v2/pins/{pinId}/presence",
 			c.SetPinPresence,
 		},
+		"GetPinPhotos": Route{
+			"GetPinPhotos",
+			strings.ToUpper("Get"),
+			"/api/v2/pins/{pinId}/photos",
+			c.GetPinPhotos,
+		},
+		"AddPinPhoto": Route{
+			"AddPinPhoto",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/{pinId}/photos",
+			c.AddPinPhoto,
+		},
 		"DeletePin": Route{
 			"DeletePin",
 			strings.ToUpper("Delete"),
@@ -123,6 +137,18 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Post"),
 			"/api/v2/pins/{pinId}/presence",
 			c.SetPinPresence,
+		},
+		Route{
+			"GetPinPhotos",
+			strings.ToUpper("Get"),
+			"/api/v2/pins/{pinId}/photos",
+			c.GetPinPhotos,
+		},
+		Route{
+			"AddPinPhoto",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/{pinId}/photos",
+			c.AddPinPhoto,
 		},
 		Route{
 			"DeletePin",
@@ -283,6 +309,69 @@ func (c *PinsAPIController) SetPinPresence(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	result, err := c.service.SetPinPresence(r.Context(), pinIdParam, request)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// GetPinPhotos - Get the photo history associated with a pin.
+func (c *PinsAPIController) GetPinPhotos(w http.ResponseWriter, r *http.Request) {
+	pinIdParam := chi.URLParam(r, "pinId")
+	if pinIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"pinId"}, nil)
+		return
+	}
+	result, err := c.service.GetPinPhotos(r.Context(), pinIdParam)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// AddPinPhoto - Add a photo update to an existing pin.
+func (c *PinsAPIController) AddPinPhoto(w http.ResponseWriter, r *http.Request) {
+	pinIdParam := chi.URLParam(r, "pinId")
+	if pinIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"pinId"}, nil)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 12<<20)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	for _, name := range []string{"image", "idempotencyKey", "latitude", "longitude", "accuracyMeters"} {
+		value, ok := fields[name]
+		if !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			c.errorHandler(w, r, &RequiredError{name}, nil)
+			return
+		}
+	}
+	var request PinPhotoRequestDto
+	d := json.NewDecoder(bytes.NewReader(body))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&request); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertPinPhotoRequestDtoRequired(request); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	if err := AssertPinPhotoRequestDtoConstraints(request); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.AddPinPhoto(r.Context(), pinIdParam, request)
 	if err != nil {
 		c.errorHandler(w, r, err, &result)
 		return

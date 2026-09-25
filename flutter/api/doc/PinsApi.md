@@ -9,14 +9,65 @@ All URIs are relative to *https://stick-it.lr-projects.de*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**addPinPhoto**](PinsApi.md#addpinphoto) | **POST** /api/v2/pins/{pinId}/photos | Add a photo update to an existing pin
 [**callSync**](PinsApi.md#callsync) | **GET** /api/v3/sync | Sync all pins and groups based on last seen date
 [**createPin**](PinsApi.md#createpin) | **POST** /api/v2/pins | Create a new pin
 [**deletePin**](PinsApi.md#deletepin) | **DELETE** /api/v2/pins/{pinId} | Delete a pin by ID
 [**getPin**](PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 [**getPinImage**](PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 [**getPinImagesByIds**](PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
+[**getPinPhotos**](PinsApi.md#getpinphotos) | **GET** /api/v2/pins/{pinId}/photos | Get the photo history for a pin
 [**setPinPresence**](PinsApi.md#setpinpresence) | **POST** /api/v2/pins/{pinId}/presence | Set whether the pin is still present
 
+
+# **addPinPhoto**
+> PinPhotoDto addPinPhoto(pinId, pinPhotoRequestDto)
+
+Add a photo update to an existing pin
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = PinsApi();
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
+final pinPhotoRequestDto = PinPhotoRequestDto(); // PinPhotoRequestDto |
+
+try {
+    final result = api_instance.addPinPhoto(pinId, pinPhotoRequestDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling PinsApi->addPinPhoto: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **pinId** | **String**|  |
+ **pinPhotoRequestDto** | [**PinPhotoRequestDto**](PinPhotoRequestDto.md)|  |
+
+### Return type
+
+[**PinPhotoDto**](PinPhotoDto.md)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **callSync**
 > SyncDto callSync(lastSeen)
@@ -311,6 +362,53 @@ Name | Type | Description  | Notes
 ### Return type
 
 [**PinsSyncDto**](PinsSyncDto.md)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **getPinPhotos**
+> List<PinPhotoDto> getPinPhotos(pinId)
+
+Get the photo history for a pin
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = PinsApi();
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
+
+try {
+    final result = api_instance.getPinPhotos(pinId);
+    print(result);
+} catch (e) {
+    print('Exception when calling PinsApi->getPinPhotos: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **pinId** | **String**|  |
+
+### Return type
+
+[**List<PinPhotoDto>**](PinPhotoDto.md)
 
 ### Authorization
 

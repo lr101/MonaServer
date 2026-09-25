@@ -33,7 +33,8 @@ func t02Database(t *testing.T) (*Queries, func()) {
 			admin_mfa_replay_counters, security_incidents, audit_events,
 			rate_limit_buckets, reports, report_notes, audience_snapshots,
 			audience_snapshot_members, admin_jobs, admin_job_items, durable_jobs,
-			outbox_events, device_registrations, communication_preferences, campaigns
+			outbox_events, device_registrations, communication_preferences, campaigns,
+			object_cleanup_queue
 		CASCADE`); err != nil {
 		pool.Close()
 		t.Fatalf("truncate: %v", err)

@@ -77,11 +77,17 @@ func toUserInfo(u *db.User) *UserInfo {
 // User service — ports UserServiceImpl.
 type User struct {
 	q        *db.Queries
-	obj      *Object
+	obj      userObjectStore
 	tok      *token.Helper
 	auth     *Auth
 	mail     *Email
 	security *AccountSecurity
+}
+
+type userObjectStore interface {
+	Put(context.Context, string, []byte, string) error
+	Remove(context.Context, string) error
+	PresignedGet(context.Context, string) (string, error)
 }
 
 func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Email) *User {
@@ -89,7 +95,11 @@ func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Em
 	if auth != nil {
 		security = auth.Security()
 	}
-	return &User{q: q, obj: obj, tok: tok, auth: auth, mail: mail, security: security}
+	var objectStore userObjectStore
+	if obj != nil {
+		objectStore = obj
+	}
+	return &User{q: q, obj: objectStore, tok: tok, auth: auth, mail: mail, security: security}
 }
 
 func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
@@ -106,7 +116,9 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	var groupIDs, pinIDs []uuid.UUID
+	var objectKeys []string
 	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		objectKeys = nil
 		state, err := q.LockUserSecurity(ctx, id)
 		if err != nil {
 			return err
@@ -131,19 +143,51 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 		if err != nil {
 			return err
 		}
+		lockedGroupIDs := make([]uuid.UUID, 0, len(groupIDs))
+		for _, groupID := range groupIDs {
+			locked, err := q.LockGroupForDelete(ctx, groupID)
+			if err != nil {
+				return err
+			}
+			if locked {
+				lockedGroupIDs = append(lockedGroupIDs, groupID)
+			}
+		}
 		pinIDs, err = q.ListPinIDsRemovedWithUser(ctx, id)
 		if err != nil {
 			return err
 		}
 		for _, pinID := range pinIDs {
+			locked, err := q.LockPinForDelete(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			if !locked {
+				continue
+			}
+			keys, err := q.ListPinPhotoKeys(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			objectKeys = append(objectKeys, PinKey(pinID))
+			objectKeys = append(objectKeys, keys...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
 		}
-		for _, groupID := range groupIDs {
+		for _, groupID := range lockedGroupIDs {
+			objectKeys = append(objectKeys,
+				GroupPinKey(groupID),
+				GroupProfileKey(groupID, false),
+				GroupProfileKey(groupID, true),
+			)
 			if err := q.LogDeletion(ctx, db.DeletedEntityGroup, groupID); err != nil {
 				return err
 			}
+		}
+		objectKeys = append(objectKeys, UserProfileKey(id, false), UserProfileKey(id, true))
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
 		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityUser, id); err != nil {
 			return err
@@ -153,18 +197,7 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	if err != nil {
 		return err
 	}
-	if s.obj != nil {
-		for _, pinID := range pinIDs {
-			_ = s.obj.Remove(ctx, PinKey(pinID))
-		}
-		for _, groupID := range groupIDs {
-			_ = s.obj.Remove(ctx, GroupPinKey(groupID))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, false))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, true))
-		}
-		_ = s.obj.Remove(ctx, UserProfileKey(id, false))
-		_ = s.obj.Remove(ctx, UserProfileKey(id, true))
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 

@@ -926,6 +926,69 @@ paths:
       summary: Set whether the pin is still present
       tags:
       - pins
+  /api/v2/pins/{pinId}/photos:
+    get:
+      operationId: getPinPhotos
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/pinPhotoDto"
+                type: array
+          description: Original pin photo and later photo updates
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+      security:
+      - token: []
+      summary: Get the photo history for a pin
+      tags:
+      - pins
+    post:
+      operationId: addPinPhoto
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/pinPhotoRequestDto"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinPhotoDto"
+          description: Photo update added to the pin
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "403":
+          $ref: "#/components/responses/forbidden"
+        "404":
+          $ref: "#/components/responses/notFound"
+        "422":
+          description: A required request field is missing
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security:
+      - token: []
+      summary: Add a photo update to an existing pin
+      tags:
+      - pins
   /api/v2/pins/{pinId}/image:
     get:
       operationId: getPinImage
@@ -4979,6 +5042,73 @@ components:
           type: string
       required:
       - state
+      type: object
+    pinPhotoRequestDto:
+      properties:
+        image:
+          description: Base64-encoded JPEG or PNG image.
+          minLength: 1
+          type: string
+        idempotencyKey:
+          description: Unique request ID reused when retrying this upload.
+          format: uuid
+          type: string
+        latitude:
+          maximum: 90
+          minimum: -90
+          type: number
+        longitude:
+          maximum: 180
+          minimum: -180
+          type: number
+        accuracyMeters:
+          description: Reported horizontal location accuracy; updates require 50 m or better.
+          maximum: 50
+          minimum: 0
+          type: number
+        caption:
+          maxLength: 280
+          nullable: true
+          type: string
+      required:
+      - image
+      - idempotencyKey
+      - latitude
+      - longitude
+      - accuracyMeters
+      type: object
+    pinPhotoDto:
+      properties:
+        id:
+          format: uuid
+          type: string
+        pinId:
+          format: uuid
+          type: string
+        contributorId:
+          format: uuid
+          nullable: true
+          type: string
+        contributorUsername:
+          type: string
+        image:
+          format: url
+          nullable: true
+          type: string
+        caption:
+          nullable: true
+          type: string
+        observedAt:
+          format: date-time
+          type: string
+        isOriginal:
+          type: boolean
+      required:
+      - id
+      - pinId
+      - contributorUsername
+      - observedAt
+      - isOriginal
       type: object
     pinWithOptionalImageDto:
       example:

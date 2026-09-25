@@ -10,4 +10,5 @@ api_ranking.go
 helpers.go
 model_create_group_dto.go
 model_pin_request_dto.go
+model_pin_photo_request_dto.go
 model_admin_report_update_request_dto.go

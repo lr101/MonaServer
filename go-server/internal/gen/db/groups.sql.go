@@ -265,6 +265,17 @@ func (q *Queries) ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]
 	return items, nil
 }
 
+const lockGroupForDelete = `-- name: LockGroupForDelete :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockGroupForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockGroupForDelete, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const logDeletion = `-- name: LogDeletion :exec
 INSERT INTO delete_log (deleted_entity_type, deleted_entity_id, creation_date)
 VALUES ($1, $2, NOW())

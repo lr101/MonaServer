@@ -98,6 +98,7 @@ model_mark_compromised_action_dto.go
 model_member_response_dto.go
 model_notification_dto.go
 model_pin_like_dto.go
+model_pin_photo_dto.go
 model_pin_presence_request_dto.go
 model_pin_with_optional_image_dto.go
 model_pins_sync_dto.go

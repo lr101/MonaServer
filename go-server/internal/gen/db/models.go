@@ -318,6 +318,13 @@ type Member struct {
 	Active       bool             `json:"active"`
 }
 
+type ObjectCleanupQueue struct {
+	ObjectKey     string             `json:"object_key"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	IsStaged      bool               `json:"is_staged"`
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
+}
+
 type OutboxEvent struct {
 	ID             pgtype.UUID        `json:"id"`
 	Topic          string             `json:"topic"`
@@ -348,6 +355,20 @@ type Pin struct {
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	Description     pgtype.Text        `json:"description"`
 	IsGone          bool               `json:"is_gone"`
+}
+
+type PinPhoto struct {
+	ID                  pgtype.UUID        `json:"id"`
+	PinID               pgtype.UUID        `json:"pin_id"`
+	ContributorID       pgtype.UUID        `json:"contributor_id"`
+	ContributorUsername string             `json:"contributor_username"`
+	ImageKey            string             `json:"image_key"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	RequestHash         []byte             `json:"request_hash"`
+	Caption             pgtype.Text        `json:"caption"`
+	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	IsOriginal          bool               `json:"is_original"`
 }
 
 type RateLimitBucket struct {

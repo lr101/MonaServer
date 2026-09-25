@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
+import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     var maxWidth = screenWidth;
-    var maxHeight = screenHeight * 0.7;
+    var maxHeight = screenHeight * 0.5;
 
     if (maxWidth / maxHeight > 3 / 4) {
       maxWidth = maxHeight * 3 / 4;
@@ -46,6 +47,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
       body: Column(
         children: [
           Expanded(
+            flex: 5,
             child: Center(
               child:
                   pin.whenOrNull(
@@ -75,11 +77,23 @@ class _ViewImageState extends ConsumerState<ViewImage> {
             ),
           ),
           if (currentPin != null)
-            PinPresenceControl(
-              pin: currentPin,
-              userPosition: userPosition,
-              isSaving: _isSavingPresence,
-              onToggle: () => _updatePresence(currentPin),
+            Expanded(
+              flex: 5,
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  PinPresenceControl(
+                    pin: currentPin,
+                    userPosition: userPosition,
+                    isSaving: _isSavingPresence,
+                    onToggle: () => _updatePresence(currentPin),
+                  ),
+                  PinPhotoHistoryPanel(
+                    pin: currentPin,
+                    userPosition: userPosition,
+                  ),
+                ],
+              ),
             ),
         ],
       ),

@@ -33,6 +33,31 @@ import (
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
+type memoryPinObjectStore struct {
+	objects map[string][]byte
+}
+
+func newMemoryPinObjectStore() *memoryPinObjectStore {
+	return &memoryPinObjectStore{objects: make(map[string][]byte)}
+}
+
+func (s *memoryPinObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
+	s.objects[key] = bytes.Clone(data)
+	return nil
+}
+
+func (s *memoryPinObjectStore) Remove(_ context.Context, key string) error {
+	delete(s.objects, key)
+	return nil
+}
+
+func (s *memoryPinObjectStore) PresignedGet(_ context.Context, key string) (string, error) {
+	if _, ok := s.objects[key]; !ok {
+		return "", nil
+	}
+	return "https://objects.test/" + key, nil
+}
+
 func TestNewReportServiceConfigRequiresHMACSecret(t *testing.T) {
 	if _, err := newReportServiceConfig(&config.Config{}); err == nil {
 		t.Fatal("report config accepted an empty HMAC secret")
@@ -131,6 +156,10 @@ func buildTestServer(t *testing.T) *httptest.Server {
 }
 
 func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
+	return buildTestServerWithPinStore(t, nil)
+}
+
+func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	dsn := testDSN(t)
 
@@ -170,7 +199,7 @@ func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
 	guardSvc := service.NewGuard(q)
 	userSvc := service.NewUser(q, nil, tok, authSvc, mailSvc)
 	groupSvc := service.NewGroup(q, nil, userSvc)
-	pinSvc := service.NewPin(q, nil)
+	pinSvc := service.NewPin(q, pinStore)
 	memberSvc := service.NewMember(q, nil, groupSvc)
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
@@ -1224,6 +1253,142 @@ func TestEndpointPins(t *testing.T) {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestEndpointPinPhotosIncludesOriginalImage(t *testing.T) {
+	srv, _ := buildTestServerWithPinStore(t, newMemoryPinObjectStore())
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	auth := anon.signup(t, "pin_photo_api_user", "pw123")
+	client := &apiClient{base: srv.URL, bearer: auth.AccessToken}
+	groupID := client.createGroup(t, auth.UserID, "pin_photo_api_group", 0)
+
+	resp := client.do(t, "POST", "/api/v2/pins", map[string]any{
+		"image":        testImageBase64,
+		"latitude":     48.137,
+		"longitude":    11.576,
+		"creationDate": time.Now().UTC().Format(time.RFC3339),
+		"userId":       auth.UserID,
+		"groupId":      groupID,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("create pin: expected 201, got %d", resp.StatusCode)
+	}
+	var pin map[string]any
+	decode(t, resp, &pin)
+	resp.Body.Close()
+	pinID := fmt.Sprintf("%v", pin["id"])
+
+	resp = anon.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated photo history: expected 401, got %d", resp.StatusCode)
+	}
+
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/presence", map[string]string{"state": "gone"})
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("mark pin gone: expected 200, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get pin photo history: expected 200, got %d", resp.StatusCode)
+	}
+	var photos []map[string]any
+	decode(t, resp, &photos)
+	resp.Body.Close()
+	if len(photos) != 1 || photos[0]["isOriginal"] != true {
+		t.Fatalf("pin photo history = %+v, want its original photo", photos)
+	}
+	if photos[0]["contributorUsername"] != "pin_photo_api_user" {
+		t.Fatalf("original contributor = %v, want pin_photo_api_user", photos[0]["contributorUsername"])
+	}
+
+	photoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.137,
+		"longitude":      11.576,
+		"accuracyMeters": 0,
+		"caption":        "Still here after the rain",
+	}
+	incompletePhotoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.137,
+		"accuracyMeters": 5,
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", incompletePhotoRequest)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("photo upload without longitude: expected 422, got %d", resp.StatusCode)
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", photoRequest)
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("add pin photo: expected 201, got %d", resp.StatusCode)
+	}
+	var added map[string]any
+	decode(t, resp, &added)
+	resp.Body.Close()
+	if added["isOriginal"] != false || added["caption"] != "Still here after the rain" {
+		t.Fatalf("added photo = %+v, want a later captioned photo", added)
+	}
+	firstPhotoID := added["id"]
+
+	farPhotoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.138,
+		"longitude":      11.576,
+		"accuracyMeters": 5,
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", farPhotoRequest)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("photo upload from farther than 50 m: expected 403, got %d", resp.StatusCode)
+	}
+
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", photoRequest)
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("retry photo upload: expected 201, got %d", resp.StatusCode)
+	}
+	var retried map[string]any
+	decode(t, resp, &retried)
+	resp.Body.Close()
+	if retried["id"] != firstPhotoID {
+		t.Fatalf("idempotent retry returned photo %v, want %v", retried["id"], firstPhotoID)
+	}
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID, nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get pin after photo update: expected 200, got %d", resp.StatusCode)
+	}
+	var pinAfterUpdate map[string]any
+	decode(t, resp, &pinAfterUpdate)
+	resp.Body.Close()
+	if pinAfterUpdate["isGone"] != true {
+		t.Fatalf("photo update changed pin presence: isGone = %v, want true", pinAfterUpdate["isGone"])
+	}
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get updated pin photo history: expected 200, got %d", resp.StatusCode)
+	}
+	photos = nil
+	decode(t, resp, &photos)
+	resp.Body.Close()
+	if len(photos) != 2 || photos[0]["isOriginal"] != true || photos[1]["isOriginal"] != false {
+		t.Fatalf("updated pin photo history = %+v, want original then new photo", photos)
+	}
 }
 
 func TestPinPresenceRejectsFormerPrivateGroupMember(t *testing.T) {

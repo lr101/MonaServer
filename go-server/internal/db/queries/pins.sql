@@ -5,6 +5,36 @@ INSERT INTO pins (id, latitude, longitude, creation_date, update_date,
                   description, creator_id, group_id, state_province_id)
 VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8);
 
+-- name: CreatePinPhoto :exec
+INSERT INTO pin_photos (
+    id, pin_id, contributor_id, contributor_username, image_key,
+    idempotency_key, request_hash, caption, observed_at, is_original
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
+-- name: ListPinPhotos :many
+SELECT id, pin_id, contributor_id, contributor_username, image_key,
+       idempotency_key, request_hash, caption, observed_at, is_original
+FROM pin_photos
+WHERE pin_id = $1
+ORDER BY is_original DESC, observed_at ASC, id ASC;
+
+-- name: GetPinPhotoByIdempotencyKey :one
+SELECT id, pin_id, contributor_id, contributor_username, image_key,
+       idempotency_key, request_hash, caption, observed_at, is_original
+FROM pin_photos
+WHERE contributor_id = $1 AND idempotency_key = $2;
+
+-- name: ListPinPhotoKeys :many
+SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key;
+
+-- name: TouchPinForPhoto :execrows
+UPDATE pins SET update_date = NOW()
+WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: LockPinForDelete :one
+SELECT id FROM pins WHERE id = $1 FOR UPDATE;
+
 -- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, description,
        creator_id, group_id, state_province_id, is_gone
@@ -33,7 +63,7 @@ DELETE FROM pins WHERE id = $1;
 SELECT id FROM pins WHERE creator_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC;
 
 -- name: ListGroupPinIDs :many
-SELECT id FROM pins WHERE group_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC;
+SELECT id FROM pins WHERE group_id = $1 ORDER BY id;
 
 -- name: ListUpdatedPinsForGroups :many
 SELECT id, latitude, longitude, creation_date, update_date, description,

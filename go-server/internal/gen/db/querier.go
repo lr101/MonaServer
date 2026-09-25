@@ -49,6 +49,7 @@ type Querier interface {
 	// token returned here is the acknowledgement fence for this lease attempt.
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
+	ClaimPendingObjectCleanup(ctx context.Context) (string, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	// Clear the short-lived delivery secret only once the attempt is terminal or
@@ -97,6 +98,7 @@ type Querier interface {
 	CreateOutboxEvent(ctx context.Context, arg CreateOutboxEventParams) error
 	// Pin queries.
 	CreatePin(ctx context.Context, arg CreatePinParams) error
+	CreatePinPhoto(ctx context.Context, arg CreatePinPhotoParams) error
 	// Refresh tokens --
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error
 	CreateReport(ctx context.Context, arg CreateReportParams) (Report, error)
@@ -111,8 +113,10 @@ type Querier interface {
 	DeleteExpiredAccountActionTokens(ctx context.Context, arg DeleteExpiredAccountActionTokensParams) error
 	DeleteExpiredAudienceSnapshots(ctx context.Context, expiresAt pgtype.Timestamptz) error
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
+	DeletePendingObjectCleanup(ctx context.Context, objectKey string) error
 	DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error
 	DisableDeviceRegistration(ctx context.Context, arg DisableDeviceRegistrationParams) error
+	EnqueueObjectCleanup(ctx context.Context, objectKeys []string) error
 	ExtendAdminJobItemLease(ctx context.Context, arg ExtendAdminJobItemLeaseParams) (ExtendAdminJobItemLeaseRow, error)
 	ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJobLeaseParams) (ExtendDurableJobLeaseRow, error)
 	ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEventLeaseParams) (ExtendOutboxEventLeaseRow, error)
@@ -158,6 +162,7 @@ type Querier interface {
 	GetMaxSeasonNumber(ctx context.Context) (int32, error)
 	GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
+	GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPhotoByIdempotencyKeyParams) (GetPinPhotoByIdempotencyKeyRow, error)
 	GetReport(ctx context.Context, id pgtype.UUID) (Report, error)
 	GetReportByRequestID(ctx context.Context, requestID pgtype.Text) (Report, error)
 	GetReportTargetSnapshot(ctx context.Context, id pgtype.UUID) (GetReportTargetSnapshotRow, error)
@@ -219,6 +224,8 @@ type Querier interface {
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
+	ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]string, error)
+	ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListPinPhotosRow, error)
 	ListReportNotes(ctx context.Context, arg ListReportNotesParams) ([]ReportNote, error)
 	ListReportNotesPage(ctx context.Context, arg ListReportNotesPageParams) ([]ReportNote, error)
 	ListReports(ctx context.Context, arg ListReportsParams) ([]Report, error)
@@ -238,6 +245,8 @@ type Querier interface {
 	LockAudienceSnapshot(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	LockCampaignForLoginSend(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	LockEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
+	LockGroupForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	LockPinForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	// Shared HMAC-keyed quotas --------------------------------------------------
 	// Advisory locking is scoped to the logical scope/window, so current and
 	// previous HMAC key rows cannot bypass one another during key rotation.
@@ -247,9 +256,11 @@ type Querier interface {
 	// advisory lock. This keeps the target row and report insert in one ordered
 	// critical section even when a hard delete removes the user row.
 	LockReportTarget(ctx context.Context, dollar_1 string) error
+	LockStagedObjectCleanup(ctx context.Context, objectKey string) (string, error)
 	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
 	MarkAdminBootstrapClaimed(ctx context.Context) error
+	MarkObjectCleanupReady(ctx context.Context, objectKey string) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
 	// Retention and account cleanup --------------------------------------------
 	// Keep incident and audit rows (their IDs and operational summaries are not
@@ -262,6 +273,7 @@ type Querier interface {
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
+	RescheduleObjectCleanup(ctx context.Context, objectKey string) error
 	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
 	// Retry acceptance returns the item to the retryable outcome only for the
@@ -293,8 +305,10 @@ type Querier interface {
 	SoftDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	SoftDeletePin(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteUser(ctx context.Context, id pgtype.UUID) error
+	StageObjectCleanup(ctx context.Context, objectKey string) error
 	SumRateLimitBuckets(ctx context.Context, arg SumRateLimitBucketsParams) (int64, error)
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
+	TouchPinForPhoto(ctx context.Context, id pgtype.UUID) (int64, error)
 	TouchRefreshToken(ctx context.Context, token pgtype.UUID) error
 	UpdateAdminJobProgress(ctx context.Context, arg UpdateAdminJobProgressParams) error
 	UpdateAudienceSnapshotCounts(ctx context.Context, arg UpdateAudienceSnapshotCountsParams) error

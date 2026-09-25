@@ -70,6 +70,13 @@ func pgUUIDPtr(id *uuid.UUID) pgtype.UUID {
 	return pgUUID(*id)
 }
 func goUUID(p pgtype.UUID) uuid.UUID { return uuid.UUID(p.Bytes) }
+func goUUIDPtr(p pgtype.UUID) *uuid.UUID {
+	if !p.Valid {
+		return nil
+	}
+	id := goUUID(p)
+	return &id
+}
 func pgText(s *string) pgtype.Text {
 	if s == nil {
 		return pgtype.Text{}
@@ -489,6 +496,14 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 		CreationDate: goTZ(row.CreationDate),
 		UpdateDate:   goTZ(row.UpdateDate),
 	}, nil
+}
+
+func (q *Queries) LockGroupForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockGroupForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (q *Queries) GroupExistsByName(ctx context.Context, name string) (bool, error) {
@@ -927,6 +942,14 @@ func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bo
 	return rows > 0, err
 }
 
+func (q *Queries) LockPinForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockPinForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
@@ -946,6 +969,134 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		StateProvinceID: sp,
 	})
 	return p.ID, err
+}
+
+type PinPhoto struct {
+	ID                  uuid.UUID
+	PinID               uuid.UUID
+	ContributorID       *uuid.UUID
+	ContributorUsername string
+	ImageKey            string
+	IdempotencyKey      *uuid.UUID
+	RequestHash         []byte
+	Caption             *string
+	ObservedAt          time.Time
+	IsOriginal          bool
+}
+
+func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
+	return q.g.CreatePinPhoto(ctx, dbgen.CreatePinPhotoParams{
+		ID: pgUUID(photo.ID), PinID: pgUUID(photo.PinID),
+		ContributorID:       pgUUIDPtr(photo.ContributorID),
+		ContributorUsername: photo.ContributorUsername,
+		ImageKey:            photo.ImageKey, IdempotencyKey: pgUUIDPtr(photo.IdempotencyKey),
+		RequestHash: photo.RequestHash,
+		Caption:     pgText(photo.Caption),
+		ObservedAt:  pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+	})
+}
+
+func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhoto, error) {
+	rows, err := q.g.ListPinPhotos(ctx, pgUUID(pinID))
+	if err != nil {
+		return nil, err
+	}
+	photos := make([]PinPhoto, 0, len(rows))
+	for _, row := range rows {
+		var contributorID *uuid.UUID
+		if row.ContributorID.Valid {
+			id := goUUID(row.ContributorID)
+			contributorID = &id
+		}
+		photos = append(photos, PinPhoto{
+			ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+			ContributorID:       contributorID,
+			ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+			RequestHash:    row.RequestHash,
+			Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+			IsOriginal: row.IsOriginal,
+		})
+	}
+	return photos, nil
+}
+
+func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID, key uuid.UUID) (*PinPhoto, error) {
+	row, err := q.g.GetPinPhotoByIdempotencyKey(ctx, dbgen.GetPinPhotoByIdempotencyKeyParams{
+		ContributorID: pgUUID(contributorID), IdempotencyKey: pgUUID(key),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var photoContributorID *uuid.UUID
+	if row.ContributorID.Valid {
+		id := goUUID(row.ContributorID)
+		photoContributorID = &id
+	}
+	photo := PinPhoto{
+		ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+		ContributorID:       photoContributorID,
+		ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+		RequestHash:    row.RequestHash,
+		Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+		IsOriginal: row.IsOriginal,
+	}
+	return &photo, nil
+}
+
+func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
+	return q.g.ListPinPhotoKeys(ctx, pgUUID(pinID))
+}
+
+func (q *Queries) EnqueueObjectCleanup(ctx context.Context, objectKeys []string) error {
+	if len(objectKeys) == 0 {
+		return nil
+	}
+	return q.g.EnqueueObjectCleanup(ctx, objectKeys)
+}
+
+func (q *Queries) StageObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.StageObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) error {
+	return q.g.MarkObjectCleanupReady(ctx, objectKey)
+}
+
+func (q *Queries) RescheduleObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.RescheduleObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string) (bool, error) {
+	_, err := q.g.LockStagedObjectCleanup(ctx, objectKey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, bool, error) {
+	key, err := q.g.ClaimPendingObjectCleanup(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return key, true, nil
+}
+
+func (q *Queries) DeletePendingObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.DeletePendingObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) TouchPinForPhoto(ctx context.Context, pinID uuid.UUID) (bool, error) {
+	rows, err := q.g.TouchPinForPhoto(ctx, pgUUID(pinID))
+	return rows > 0, err
 }
 
 func (q *Queries) GetPinByID(ctx context.Context, id uuid.UUID) (*Pin, error) {

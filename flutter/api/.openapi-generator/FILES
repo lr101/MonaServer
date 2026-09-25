@@ -98,6 +98,8 @@ doc/MemberResponseDto.md
 doc/MembersApi.md
 doc/NotificationDto.md
 doc/PinLikeDto.md
+doc/PinPhotoDto.md
+doc/PinPhotoRequestDto.md
 doc/PinPresenceRequestDto.md
 doc/PinRequestDto.md
 doc/PinWithOptionalImageDto.md
@@ -248,6 +250,8 @@ lib/model/mark_compromised_action_dto.dart
 lib/model/member_response_dto.dart
 lib/model/notification_dto.dart
 lib/model/pin_like_dto.dart
+lib/model/pin_photo_dto.dart
+lib/model/pin_photo_request_dto.dart
 lib/model/pin_presence_request_dto.dart
 lib/model/pin_request_dto.dart
 lib/model/pin_with_optional_image_dto.dart

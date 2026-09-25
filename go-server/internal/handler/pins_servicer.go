@@ -223,6 +223,71 @@ func (s *PinsServicer) SetPinPresence(ctx context.Context, pinID string, request
 	return genserver.Response(http.StatusOK, pinDTOtoDto(result)), nil
 }
 
+func (s *PinsServicer) GetPinPhotos(ctx context.Context, pinID string) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(pinID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	userID, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	visible, err := s.guard.IsPinPublicOrMember(ctx, id, userID)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if !visible {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
+	photos, err := s.pin.Photos(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	result := make([]genserver.PinPhotoDto, 0, len(photos))
+	for i := range photos {
+		result = append(result, pinPhotoToDto(photos[i]))
+	}
+	return genserver.Response(http.StatusOK, result), nil
+}
+
+func (s *PinsServicer) AddPinPhoto(ctx context.Context, pinID string, request genserver.PinPhotoRequestDto) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(pinID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	userID, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	visible, err := s.guard.IsPinPublicOrMember(ctx, id, userID)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if !visible {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
+	if len(request.Image) > base64.StdEncoding.EncodedLen(8<<20) {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	imageBytes, err := base64.StdEncoding.DecodeString(request.Image)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	idempotencyKey, err := uuid.Parse(request.IdempotencyKey)
+	if err != nil || idempotencyKey == uuid.Nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	photo, err := s.pin.AddPhoto(ctx, id, userID, service.AddPinPhotoInput{
+		Image: imageBytes, IdempotencyKey: idempotencyKey,
+		Latitude: float64(request.Latitude), Longitude: float64(request.Longitude),
+		AccuracyMeters: float64(request.AccuracyMeters), Caption: request.Caption,
+	})
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	return genserver.Response(http.StatusCreated, pinPhotoToDto(*photo)), nil
+}
+
 func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(pinID)
 	if err != nil {
@@ -360,5 +425,19 @@ func pinDTOtoDto(p *service.PinDTO) genserver.PinWithOptionalImageDto {
 		Description:  p.Description,
 		IsGone:       &isGone,
 		Image:        img,
+	}
+}
+
+func pinPhotoToDto(photo service.PinPhotoDTO) genserver.PinPhotoDto {
+	var contributorID *string
+	if photo.ContributorID != nil {
+		value := photo.ContributorID.String()
+		contributorID = &value
+	}
+	return genserver.PinPhotoDto{
+		Id: photo.ID.String(), PinId: photo.PinID.String(),
+		ContributorId: contributorID, ContributorUsername: photo.ContributorUsername,
+		Image: photo.Image, Caption: photo.Caption,
+		ObservedAt: photo.ObservedAt, IsOriginal: photo.IsOriginal,
 	}
 }

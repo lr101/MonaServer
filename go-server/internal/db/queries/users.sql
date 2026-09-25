@@ -53,13 +53,14 @@ UPDATE users SET failed_login_attempts = 0 WHERE id = $1;
 UPDATE users SET is_deleted = TRUE WHERE id = $1;
 
 -- name: ListAdminGroupIDs :many
-SELECT id FROM groups WHERE admin_id = $1;
+SELECT id FROM groups WHERE admin_id = $1 ORDER BY id;
 
 -- name: ListPinIDsRemovedWithUser :many
 SELECT p.id
 FROM pins p
 JOIN groups g ON g.id = p.group_id
-WHERE p.creator_id = $1 OR g.admin_id = $1;
+WHERE p.creator_id = $1 OR g.admin_id = $1
+ORDER BY p.id;
 
 -- name: HardDeleteUser :exec
 WITH cleared AS (

@@ -92,6 +92,9 @@ func main() {
 			objSvc = o
 		}
 	}
+	if objSvc != nil {
+		go service.NewObjectCleanup(q, objSvc).Run(ctx, time.Minute)
+	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
 
 	achMonaGroupID, _ := uuid.Parse(cfg.AchievementMonaGroupID)
