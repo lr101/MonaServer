@@ -614,10 +614,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       debugPrint(
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
       );
-    } catch (error) {
-      debugPrint(
-        'Network exception fetching image $id from supplied URL: $error',
-      );
+    } catch (_) {
+      debugPrint('Network exception fetching image $id from supplied URL.');
     }
     return null;
   }
@@ -673,8 +671,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return _disposed ? null : fallback;
-    } catch (error) {
-      debugPrint('Network exception fetching image $id: $error');
+    } catch (_) {
+      debugPrint('Network exception fetching image $id.');
       return _disposed ? null : fallback;
     }
   }
