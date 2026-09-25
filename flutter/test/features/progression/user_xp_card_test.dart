@@ -116,27 +116,45 @@ void main() {
   testWidgets('skips XP bar motion when reduced motion is enabled', (
     tester,
   ) async {
+    var xp = UserXpDto(
+      totalXp: 900,
+      currentLevel: 7,
+      currentLevelXp: 700,
+      nextLevelXp: 1050,
+    );
+    late StateSetter update;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: MediaQuery(
             data: const MediaQueryData(disableAnimations: true),
-            child: UserXpCard(
-              xp: UserXpDto(
-                totalXp: 900,
-                currentLevel: 7,
-                currentLevelXp: 700,
-                nextLevelXp: 1050,
-              ),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                update = setState;
+                return UserXpCard(xp: xp);
+              },
             ),
           ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
+    update(() {
+      xp = UserXpDto(
+        totalXp: 1200,
+        currentLevel: 8,
+        currentLevelXp: 1050,
+        nextLevelXp: 1550,
+      );
+    });
+    await tester.pump();
+
+    expect(find.text('Level 8'), findsOneWidget);
+    expect(find.text('1,200 XP'), findsOneWidget);
     final bar = tester.widget<LinearProgressIndicator>(
       find.byType(LinearProgressIndicator),
     );
-    expect(bar.value, closeTo(200 / 350, 0.0001));
+    expect(bar.value, closeTo(150 / 500, 0.0001));
   });
 }

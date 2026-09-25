@@ -50,6 +50,7 @@ class UserXpCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     final progress = XpLevelProgress.fromDto(xp);
     final formattedXp = NumberFormat.decimalPattern(
       Localizations.localeOf(context).toString(),
@@ -100,7 +101,9 @@ class UserXpCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 250),
                           child: Text(
                             'Level ${progress.level}',
                             key: ValueKey(progress.level),
@@ -110,7 +113,9 @@ class UserXpCard extends StatelessWidget {
                           ),
                         ),
                         AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 250),
                           child: Text(
                             '$formattedXp XP',
                             key: ValueKey(progress.totalXp),
@@ -128,7 +133,9 @@ class UserXpCard extends StatelessWidget {
               const SizedBox(height: 14),
               TweenAnimationBuilder<double>(
                 tween: Tween<double>(end: progress.fraction),
-                duration: const Duration(milliseconds: 450),
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 450),
                 curve: Curves.easeOutCubic,
                 builder: (context, value, _) => LinearProgressIndicator(
                   value: value,
@@ -140,7 +147,9 @@ class UserXpCard extends StatelessWidget {
               ),
               const SizedBox(height: 7),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
                 child: Align(
                   alignment: Alignment.centerRight,
                   key: ValueKey(nextLevelText),
@@ -168,6 +177,7 @@ class CompactUserLevelIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     final progress = XpLevelProgress.fromDto(xp);
     return Tooltip(
       message: 'Level ${progress.level} · ${progress.totalXp} XP',
@@ -183,7 +193,9 @@ class CompactUserLevelIndicator extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
               child: Text(
                 'Lv ${progress.level}',
                 key: ValueKey(progress.level),
@@ -196,7 +208,9 @@ class CompactUserLevelIndicator extends StatelessWidget {
             const SizedBox(height: 3),
             TweenAnimationBuilder<double>(
               tween: Tween<double>(end: progress.fraction),
-              duration: const Duration(milliseconds: 450),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 450),
               curve: Curves.easeOutCubic,
               builder: (context, value, _) => LinearProgressIndicator(
                 value: value,
