@@ -38,12 +38,13 @@ func (s *ObjectCleanup) RunOnce(ctx context.Context) error {
 		return nil
 	}
 	var failures []error
+	skippedKeys := make([]string, 0)
 	for range objectCleanupBatchLimit {
 		var key string
 		var found bool
 		err := s.q.InTx(ctx, func(q *db.Queries) error {
 			var err error
-			key, found, err = q.ClaimPendingObjectCleanup(ctx)
+			key, found, err = q.ClaimPendingObjectCleanup(ctx, skippedKeys)
 			if err != nil || !found {
 				return err
 			}
@@ -54,7 +55,11 @@ func (s *ObjectCleanup) RunOnce(ctx context.Context) error {
 		})
 		if err != nil {
 			failures = append(failures, err)
-			break
+			if !found {
+				break
+			}
+			skippedKeys = append(skippedKeys, key)
+			continue
 		}
 		if !found {
 			break

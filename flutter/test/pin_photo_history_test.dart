@@ -105,6 +105,38 @@ void main() {
       expect(session.pendingRequest, isNull);
     },
   );
+
+  test(
+    'photo upload clears definitive client failures but keeps ambiguous ones',
+    () {
+      final session = PinPhotoUploadRetry();
+      final request = PinPhotoRequestDto(
+        image: 'encoded photo',
+        idempotencyKey: 'retry-key',
+        latitude: 50,
+        longitude: 8,
+        accuracyMeters: 5,
+      );
+
+      session.prepare(request);
+      session.handleApiFailure(ApiException(403, 'outside the allowed range'));
+      expect(session.pendingRequest, isNull);
+
+      session.prepare(request);
+      session.handleApiFailure(
+        ApiException.withInner(
+          400,
+          'connection failed',
+          Exception('connection reset after request was sent'),
+          StackTrace.current,
+        ),
+      );
+      expect(session.pendingRequest, same(request));
+
+      session.handleApiFailure(ApiException(503, 'temporary server failure'));
+      expect(session.pendingRequest, same(request));
+    },
+  );
 }
 
 PinEntity _pin({bool synced = true}) => PinEntity(

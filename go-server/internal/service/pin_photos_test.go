@@ -166,6 +166,44 @@ func TestDeletingPinKeepsFailedPhotoCleanupQueued(t *testing.T) {
 	}
 }
 
+func TestObjectCleanupFailureDoesNotStarveLaterKeys(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	const failedKey = "a-permanently-failing-photo"
+	const laterKey = "z-photo-that-can-be-removed"
+	store := &pinPhotoTestObjectStore{
+		objects:       map[string][]byte{failedKey: []byte("failed"), laterKey: []byte("later")},
+		failRemoveKey: failedKey,
+		removeErr:     errors.New("permanent object storage failure"),
+	}
+	if err := q.EnqueueObjectCleanup(ctx, []string{failedKey, laterKey}); err != nil {
+		t.Fatalf("enqueue cleanup keys: %v", err)
+	}
+	err := NewObjectCleanup(q, store).RunOnce(ctx)
+	if err == nil {
+		t.Fatal("cleanup succeeded despite the permanent storage failure")
+	}
+	if store.objectCount() != 1 {
+		t.Fatalf("objects after partial cleanup = %d, want only the failed key", store.objectCount())
+	}
+	assertObjectCleanupQueued(t, q, failedKey)
+	var laterQueued int
+	if err := q.Pool().QueryRow(ctx, `SELECT count(*) FROM object_cleanup_queue WHERE object_key = $1`, laterKey).Scan(&laterQueued); err != nil {
+		t.Fatalf("read later cleanup row: %v", err)
+	}
+	if laterQueued != 0 {
+		t.Fatalf("later cleanup row count = %d, want 0 after the successful removal", laterQueued)
+	}
+
+	store.failRemoveKey = ""
+	if err := NewObjectCleanup(q, store).RunOnce(ctx); err != nil {
+		t.Fatalf("retry failed cleanup: %v", err)
+	}
+	if store.objectCount() != 0 {
+		t.Fatalf("objects after retry = %d, want none", store.objectCount())
+	}
+}
+
 func TestGroupDeleteKeepsFailedPinPhotoCleanupQueued(t *testing.T) {
 	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

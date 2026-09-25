@@ -35,6 +35,10 @@ class PinPhotoUploadRetry {
   PinPhotoRequestDto prepare(PinPhotoRequestDto request) =>
       _pendingRequest ??= request;
 
+  void handleApiFailure(ApiException error) {
+    if (!isAmbiguousPinPhotoFailure(error)) clear();
+  }
+
   void clear() => _pendingRequest = null;
 
   Future<PinPhotoDto?> submit(
@@ -49,6 +53,9 @@ class PinPhotoUploadRetry {
     return response;
   }
 }
+
+bool isAmbiguousPinPhotoFailure(ApiException error) =>
+    error.code == 408 || error.code >= 500 || error.innerException != null;
 
 class PinPhotoHistoryPanel extends ConsumerStatefulWidget {
   const PinPhotoHistoryPanel({
@@ -257,6 +264,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
       ref.invalidate(pinPhotoHistoryProvider(widget.pin.pinId));
       _showMessage('Photo update added.');
     } on ApiException catch (error) {
+      _uploadRetry.handleApiFailure(error);
       if (!mounted) return;
       _showMessage(
         error.code == 403

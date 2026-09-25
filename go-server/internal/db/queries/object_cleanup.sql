@@ -23,8 +23,9 @@ FOR UPDATE;
 -- name: ClaimPendingObjectCleanup :one
 SELECT object_key
 FROM object_cleanup_queue
-WHERE is_staged = FALSE
-   OR created_at <= NOW() - INTERVAL '30 minutes'
+WHERE (is_staged = FALSE
+       OR created_at <= NOW() - INTERVAL '30 minutes')
+  AND NOT (object_key = ANY(sqlc.arg('skip_keys')::text[]))
 ORDER BY created_at, object_key
 LIMIT 1
 FOR UPDATE SKIP LOCKED;

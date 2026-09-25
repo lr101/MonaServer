@@ -1075,8 +1075,8 @@ func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string)
 	return err == nil, err
 }
 
-func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, bool, error) {
-	key, err := q.g.ClaimPendingObjectCleanup(ctx)
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context, skipKeys []string) (string, bool, error) {
+	key, err := q.g.ClaimPendingObjectCleanup(ctx, skipKeys)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}

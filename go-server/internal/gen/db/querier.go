@@ -49,7 +49,7 @@ type Querier interface {
 	// token returned here is the acknowledgement fence for this lease attempt.
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
-	ClaimPendingObjectCleanup(ctx context.Context) (string, error)
+	ClaimPendingObjectCleanup(ctx context.Context, skipKeys []string) (string, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	// Clear the short-lived delivery secret only once the attempt is terminal or
