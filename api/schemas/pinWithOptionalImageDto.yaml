@@ -23,3 +23,7 @@ properties:
     $ref: '../parameters/id.yaml'
   description:
     $ref: '../parameters/veryLongStringNullable.yaml'
+  isGone:
+    type: boolean
+    default: false
+    nullable: true

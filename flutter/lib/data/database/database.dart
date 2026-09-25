@@ -120,6 +120,7 @@ class PinEntities extends Table with CacheTable {
   TextColumn get creator => text()();
   TextColumn get groupId => text()();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
+  BoolColumn get isGone => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSynced => dateTime().nullable()();
 }
 
@@ -178,7 +179,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -226,6 +227,11 @@ class AppDatabase extends _$AppDatabase {
         await m.database.customStatement('DROP TABLE image_entities');
         await m.database.customStatement(
           'ALTER TABLE image_entities_new RENAME TO image_entities',
+        );
+      }
+      if (from < 3) {
+        await m.database.customStatement(
+          'ALTER TABLE pin_entities ADD COLUMN is_gone INTEGER NOT NULL DEFAULT 0',
         );
       }
     },

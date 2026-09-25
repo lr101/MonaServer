@@ -111,7 +111,7 @@ func (q *Queries) FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]Fi
 
 const getPinByID = `-- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, description,
-       creator_id, group_id, state_province_id
+       creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -126,6 +126,7 @@ type GetPinByIDRow struct {
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+	IsGone          bool               `json:"is_gone"`
 }
 
 func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error) {
@@ -141,6 +142,7 @@ func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow
 		&i.CreatorID,
 		&i.GroupID,
 		&i.StateProvinceID,
+		&i.IsGone,
 	)
 	return i, err
 }
@@ -206,7 +208,7 @@ func (q *Queries) ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]p
 
 const listUpdatedPinsForGroups = `-- name: ListUpdatedPinsForGroups :many
 SELECT id, latitude, longitude, creation_date, update_date, description,
-       creator_id, group_id, state_province_id
+       creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE is_deleted = FALSE
   AND group_id = ANY($1::uuid[])
@@ -230,6 +232,7 @@ type ListUpdatedPinsForGroupsRow struct {
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+	IsGone          bool               `json:"is_gone"`
 }
 
 func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error) {
@@ -251,6 +254,7 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedP
 			&i.CreatorID,
 			&i.GroupID,
 			&i.StateProvinceID,
+			&i.IsGone,
 		); err != nil {
 			return nil, err
 		}
@@ -315,7 +319,7 @@ func (q *Queries) PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAt
 
 const searchPins = `-- name: SearchPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
-       p.description, p.creator_id, p.group_id, p.state_province_id
+       p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.is_deleted = FALSE
@@ -380,6 +384,7 @@ type SearchPinsRow struct {
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+	IsGone          bool               `json:"is_gone"`
 }
 
 func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error) {
@@ -411,6 +416,7 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 			&i.CreatorID,
 			&i.GroupID,
 			&i.StateProvinceID,
+			&i.IsGone,
 		); err != nil {
 			return nil, err
 		}
@@ -420,6 +426,25 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPinGone = `-- name: SetPinGone :execrows
+UPDATE pins
+SET is_gone = $2, update_date = NOW()
+WHERE id = $1 AND is_deleted = FALSE
+`
+
+type SetPinGoneParams struct {
+	ID     pgtype.UUID `json:"id"`
+	IsGone bool        `json:"is_gone"`
+}
+
+func (q *Queries) SetPinGone(ctx context.Context, arg SetPinGoneParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPinGone, arg.ID, arg.IsGone)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const softDeletePin = `-- name: SoftDeletePin :exec

@@ -21,6 +21,7 @@ class PinWithOptionalImageDto {
     this.image,
     required this.groupId,
     this.description,
+    this.isGone = false,
   });
 
   String id;
@@ -49,6 +50,8 @@ class PinWithOptionalImageDto {
 
   String? description;
 
+  bool? isGone;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is PinWithOptionalImageDto &&
     other.id == id &&
@@ -58,7 +61,8 @@ class PinWithOptionalImageDto {
     other.creationUser == creationUser &&
     other.image == image &&
     other.groupId == groupId &&
-    other.description == description;
+    other.description == description &&
+    other.isGone == isGone;
 
   @override
   int get hashCode =>
@@ -70,10 +74,11 @@ class PinWithOptionalImageDto {
     (creationUser.hashCode) +
     (image == null ? 0 : image!.hashCode) +
     (groupId.hashCode) +
-    (description == null ? 0 : description!.hashCode);
+    (description == null ? 0 : description!.hashCode) +
+    (isGone == null ? 0 : isGone!.hashCode);
 
   @override
-  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, description=$description]';
+  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, description=$description, isGone=$isGone]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -92,6 +97,11 @@ class PinWithOptionalImageDto {
       json[r'description'] = this.description;
     } else {
       json[r'description'] = null;
+    }
+    if (this.isGone != null) {
+      json[r'isGone'] = this.isGone;
+    } else {
+      json[r'isGone'] = null;
     }
     return json;
   }
@@ -123,6 +133,7 @@ class PinWithOptionalImageDto {
         image: mapValueOfType<String>(json, r'image'),
         groupId: mapValueOfType<String>(json, r'groupId')!,
         description: mapValueOfType<String>(json, r'description'),
+        isGone: mapValueOfType<bool>(json, r'isGone') ?? false,
       );
     }
     return null;

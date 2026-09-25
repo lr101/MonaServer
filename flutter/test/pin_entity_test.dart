@@ -21,4 +21,22 @@ void main() {
       expect(pin.longitude, coordinates[1].toDouble());
     }
   });
+
+  test('carries gone presence into the cached pin entity', () {
+    final dto = PinWithOptionalImageDto.fromJson({
+      'id': 'pin',
+      'creationDate': '2026-09-10T12:00:00Z',
+      'latitude': 50,
+      'longitude': 8,
+      'creationUser': 'user',
+      'groupId': 'group',
+      'isGone': true,
+    })!;
+
+    final pin = PinEntity.fromDto(dto, false);
+
+    expect(dto.isGone, isTrue);
+    expect(pin.isGone, isTrue);
+    expect((pin.copyWith(keepAlive: true) as PinEntity).isGone, isTrue);
+  });
 }

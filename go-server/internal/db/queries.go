@@ -897,6 +897,7 @@ type Pin struct {
 	CreatorID       uuid.UUID
 	GroupID         uuid.UUID
 	StateProvinceID *uuid.UUID
+	IsGone          bool
 }
 
 func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
@@ -915,7 +916,15 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 		CreatorID:       goUUID(r.CreatorID),
 		GroupID:         goUUID(r.GroupID),
 		StateProvinceID: sp,
+		IsGone:          r.IsGone,
 	}
+}
+
+func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bool, error) {
+	rows, err := q.g.SetPinGone(ctx, dbgen.SetPinGoneParams{
+		ID: pgUUID(id), IsGone: isGone,
+	})
+	return rows > 0, err
 }
 
 func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
@@ -1014,6 +1023,7 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
+			IsGone: r.IsGone,
 		})
 	}
 	return out, nil
@@ -1066,6 +1076,7 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
+			IsGone: r.IsGone,
 		})
 	}
 	return out, nil

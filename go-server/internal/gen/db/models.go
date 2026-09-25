@@ -347,6 +347,7 @@ type Pin struct {
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	Description     pgtype.Text        `json:"description"`
+	IsGone          bool               `json:"is_gone"`
 }
 
 type RateLimitBucket struct {

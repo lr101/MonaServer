@@ -21,6 +21,80 @@ AnimationController? createMarkerAnimationController({
     ..repeat();
 }
 
+bool shouldPulsePinMarker({required bool isNearby, required bool isGone}) =>
+    isNearby && !isGone;
+
+class PinMarkerImage extends StatelessWidget {
+  const PinMarkerImage({super.key, required this.isGone, required this.image});
+
+  final bool isGone;
+  final Widget image;
+
+  @override
+  Widget build(BuildContext context) {
+    final pinImage = isGone
+        ? ColorFiltered(
+            colorFilter: const ColorFilter.matrix([
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+            ]),
+            child: image,
+          )
+        : image;
+
+    return Semantics(
+      label: isGone ? 'Pin marked gone' : 'Pin',
+      image: true,
+      child: SizedBox.square(
+        dimension: 30,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(child: pinImage),
+            if (isGone)
+              const Positioned(
+                right: -2,
+                top: -2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(1),
+                    child: Icon(
+                      Icons.remove_circle_outline,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class CustomMarkerContent extends ConsumerStatefulWidget {
   final PinEntity pinDto;
   final bool withAnimation;
@@ -77,6 +151,17 @@ class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
         50.0;
   }
 
+  Widget _markerImage() {
+    return PinMarkerImage(
+      isGone: widget.pinDto.isGone,
+      image: Image.memory(
+        ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
+            ref.read(defaultGroupPinImageProvider),
+        gaplessPlayback: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isInRange = ref.watch(
@@ -84,11 +169,7 @@ class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
         (e) => e.whenOrNull(data: (data) => _isWithinDistance(data)),
       ),
     );
-    final markerImage = Image.memory(
-      ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
-          ref.read(defaultGroupPinImageProvider),
-      gaplessPlayback: true,
-    );
+    final markerImage = _markerImage();
     final controller = _controller;
     if (controller == null || isInRange == null) {
       return Column(
@@ -103,7 +184,10 @@ class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
     return Stack(
       alignment: Alignment.center,
       children: [
-        if (isInRange)
+        if (shouldPulsePinMarker(
+          isNearby: isInRange,
+          isGone: widget.pinDto.isGone,
+        ))
           AnimatedBuilder(
             animation: controller,
             builder: (context, child) {
