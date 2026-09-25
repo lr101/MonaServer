@@ -160,6 +160,32 @@ func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([
 	return items, nil
 }
 
+const lockCampaignForLoginSend = `-- name: LockCampaignForLoginSend :one
+SELECT id, name, channel, subject, title, body, status, revision, created_at, updated_at, created_by_user_id
+FROM campaigns
+WHERE id = $1::uuid
+FOR SHARE
+`
+
+func (q *Queries) LockCampaignForLoginSend(ctx context.Context, id pgtype.UUID) (Campaign, error) {
+	row := q.db.QueryRow(ctx, lockCampaignForLoginSend, id)
+	var i Campaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Channel,
+		&i.Subject,
+		&i.Title,
+		&i.Body,
+		&i.Status,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedByUserID,
+	)
+	return i, err
+}
+
 const updateCampaignIfRevision = `-- name: UpdateCampaignIfRevision :one
 UPDATE campaigns
 SET name = $1::text,

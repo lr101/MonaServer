@@ -19,7 +19,7 @@ func (s *UnavailableV3Servicer) VerifyAdminUserEmail(context.Context, string, st
 	return s.unavailable()
 }
 
-func (s *UnavailableV3Servicer) SendAdminUserLoginLink(context.Context, string, string) (genserver.ImplResponse, error) {
+func (s *UnavailableV3Servicer) SendAdminUserLoginLink(context.Context, string, string, genserver.AdminLoginLinkCampaignRequestDto) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }
 
@@ -76,6 +76,8 @@ func v3ErrorMetadata(status int) (string, string) {
 		return "forbidden", "access is forbidden"
 	case http.StatusNotFound:
 		return "not_found", "resource was not found"
+	case http.StatusGone:
+		return "recipient_unavailable", "recipient is no longer eligible"
 	case http.StatusConflict:
 		return "conflict", "request conflicts with current state"
 	case http.StatusTooManyRequests:

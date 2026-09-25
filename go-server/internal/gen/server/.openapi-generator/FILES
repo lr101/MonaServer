@@ -49,6 +49,7 @@ model_admin_job_page_dto.go
 model_admin_job_recipient_dto.go
 model_admin_job_recipient_page_dto.go
 model_admin_job_status.go
+model_admin_login_link_campaign_request_dto.go
 model_admin_mail_dto.go
 model_admin_mfa_request_dto.go
 model_admin_reauthenticate_request_dto.go

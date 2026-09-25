@@ -198,13 +198,16 @@ class AdminUsersApi {
   ///
   /// * [String] xCSRFToken (required):
   ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-  Future<Response> sendAdminUserLoginLinkWithHttpInfo(String userId, String xCSRFToken,) async {
+  ///
+  /// * [AdminLoginLinkCampaignRequestDto] adminLoginLinkCampaignRequestDto:
+  ///   Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server.
+  Future<Response> sendAdminUserLoginLinkWithHttpInfo(String userId, String xCSRFToken, { AdminLoginLinkCampaignRequestDto? adminLoginLinkCampaignRequestDto, }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v3/admin/users/{userId}/login-link'
       .replaceAll('{userId}', userId);
 
     // ignore: prefer_final_locals
-    Object? postBody;
+    Object? postBody = adminLoginLinkCampaignRequestDto;
 
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
@@ -212,7 +215,7 @@ class AdminUsersApi {
 
     headerParams[r'X-CSRF-Token'] = parameterToString(xCSRFToken);
 
-    const contentTypes = <String>[];
+    const contentTypes = <String>['application/json'];
 
 
     return apiClient.invokeAPI(
@@ -235,8 +238,11 @@ class AdminUsersApi {
   ///
   /// * [String] xCSRFToken (required):
   ///   Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-  Future<void> sendAdminUserLoginLink(String userId, String xCSRFToken,) async {
-    final response = await sendAdminUserLoginLinkWithHttpInfo(userId, xCSRFToken,);
+  ///
+  /// * [AdminLoginLinkCampaignRequestDto] adminLoginLinkCampaignRequestDto:
+  ///   Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server.
+  Future<void> sendAdminUserLoginLink(String userId, String xCSRFToken, { AdminLoginLinkCampaignRequestDto? adminLoginLinkCampaignRequestDto, }) async {
+    final response = await sendAdminUserLoginLinkWithHttpInfo(userId, xCSRFToken,  adminLoginLinkCampaignRequestDto: adminLoginLinkCampaignRequestDto, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

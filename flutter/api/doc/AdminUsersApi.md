@@ -121,7 +121,7 @@ Name | Type | Description  | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **sendAdminUserLoginLink**
-> sendAdminUserLoginLink(userId, xCSRFToken)
+> sendAdminUserLoginLink(userId, xCSRFToken, adminLoginLinkCampaignRequestDto)
 
 Queue a one-time login link to one user's verified email
 
@@ -136,9 +136,10 @@ import 'package:openapi/api.dart';
 final api_instance = AdminUsersApi();
 final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier.
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+final adminLoginLinkCampaignRequestDto = AdminLoginLinkCampaignRequestDto(); // AdminLoginLinkCampaignRequestDto | Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server.
 
 try {
-    api_instance.sendAdminUserLoginLink(userId, xCSRFToken);
+    api_instance.sendAdminUserLoginLink(userId, xCSRFToken, adminLoginLinkCampaignRequestDto);
 } catch (e) {
     print('Exception when calling AdminUsersApi->sendAdminUserLoginLink: $e\n');
 }
@@ -150,6 +151,7 @@ Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **userId** | **String**| Stable account identifier. |
  **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminLoginLinkCampaignRequestDto** | [**AdminLoginLinkCampaignRequestDto**](AdminLoginLinkCampaignRequestDto.md)| Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server. | [optional]
 
 ### Return type
 
@@ -161,7 +163,7 @@ void (empty response body)
 
 ### HTTP request headers
 
- - **Content-Type**: Not defined
+ - **Content-Type**: application/json
  - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

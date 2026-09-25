@@ -20,6 +20,12 @@ SELECT id, name, channel, subject, title, body, status, revision, created_at, up
 FROM campaigns
 WHERE id = sqlc.arg('id')::uuid;
 
+-- name: LockCampaignForLoginSend :one
+SELECT id, name, channel, subject, title, body, status, revision, created_at, updated_at, created_by_user_id
+FROM campaigns
+WHERE id = sqlc.arg('id')::uuid
+FOR SHARE;
+
 -- name: ListCampaigns :many
 SELECT id, name, channel, subject, title, body, status, revision, created_at, updated_at, created_by_user_id
 FROM campaigns

@@ -90,6 +90,24 @@ func (q *Queries) GetCampaign(ctx context.Context, id uuid.UUID) (*Campaign, err
 	return &campaign, nil
 }
 
+// LockCampaignForLoginSend prevents a campaign update or archive from
+// racing with issuance of one recipient's login link. Callers must use it
+// inside their own transaction.
+func (q *Queries) LockCampaignForLoginSend(ctx context.Context, id uuid.UUID) (*Campaign, error) {
+	if id == uuid.Nil {
+		return nil, nil
+	}
+	row, err := q.g.LockCampaignForLoginSend(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	campaign := campaignFromRow(row)
+	return &campaign, nil
+}
+
 func (q *Queries) ListCampaigns(ctx context.Context, query CampaignQuery) ([]Campaign, error) {
 	if query.Limit < 1 || (query.BeforeCreatedAt == nil) != (query.BeforeID == nil) {
 		return nil, ErrInvalidJob

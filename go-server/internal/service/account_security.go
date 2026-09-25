@@ -557,6 +557,10 @@ func (s *AccountSecurity) ConfirmLegacyEmail(ctx context.Context, rawURL string)
 // the account row lock before entering it; email binding validation acquires
 // the canonical claim lock in the documented account-then-claim order.
 func (s *AccountSecurity) issueActionTokenLocked(ctx context.Context, q *db.Queries, state *db.UserSecurityState, purpose string, emailBinding *string, ttl time.Duration) (*ActionToken, error) {
+	return s.issueActionTokenWithIDLocked(ctx, q, state, purpose, emailBinding, ttl, uuid.Nil)
+}
+
+func (s *AccountSecurity) issueActionTokenWithIDLocked(ctx context.Context, q *db.Queries, state *db.UserSecurityState, purpose string, emailBinding *string, ttl time.Duration, tokenID uuid.UUID) (*ActionToken, error) {
 	if s == nil || q == nil || state == nil || state.IsDeleted || ttl <= 0 || !validActionPurpose(purpose) {
 		return nil, ErrInvalidAction
 	}
@@ -590,7 +594,10 @@ func (s *AccountSecurity) issueActionTokenLocked(ctx context.Context, q *db.Quer
 		now = time.Now()
 	}
 	expires := now.Add(ttl)
-	id := uuid.New()
+	id := tokenID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
 	if err := q.CreateAccountActionToken(ctx, db.AccountActionTokenParams{
 		ID: id, TokenHash: hash[:], Purpose: purpose, AccountID: state.ID,
 		EmailBinding: emailBinding, AuthGeneration: state.AuthGeneration, ExpiresAt: expires,

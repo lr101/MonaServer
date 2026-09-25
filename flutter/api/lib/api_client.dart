@@ -242,6 +242,8 @@ class ApiClient {
           return AdminJobRecipientPageDto.fromJson(value);
         case 'AdminJobStatus':
           return AdminJobStatusTypeTransformer().decode(value);
+        case 'AdminLoginLinkCampaignRequestDto':
+          return AdminLoginLinkCampaignRequestDto.fromJson(value);
         case 'AdminMailDto':
           return AdminMailDto.fromJson(value);
         case 'AdminMfaRequestDto':

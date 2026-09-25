@@ -185,6 +185,7 @@ Class | Method | HTTP request | Description
  - [AdminJobRecipientDto](doc//AdminJobRecipientDto.md)
  - [AdminJobRecipientPageDto](doc//AdminJobRecipientPageDto.md)
  - [AdminJobStatus](doc//AdminJobStatus.md)
+ - [AdminLoginLinkCampaignRequestDto](doc//AdminLoginLinkCampaignRequestDto.md)
  - [AdminMailDto](doc//AdminMailDto.md)
  - [AdminMfaRequestDto](doc//AdminMfaRequestDto.md)
  - [AdminReauthenticateRequestDto](doc//AdminReauthenticateRequestDto.md)

@@ -132,6 +132,7 @@ type Querier interface {
 	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
+	GetAccountActionTokenByID(ctx context.Context, id pgtype.UUID) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
 	GetAdminJobItem(ctx context.Context, id pgtype.UUID) (GetAdminJobItemRow, error)
 	GetAdminLoginChallenge(ctx context.Context, id pgtype.UUID) (AdminLoginChallenge, error)
@@ -242,6 +243,7 @@ type Querier interface {
 	// separate statement is required under PostgreSQL READ COMMITTED: a waiting
 	// SELECT FOR UPDATE does not refresh the aggregate's statement snapshot.
 	LockAudienceSnapshot(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	LockCampaignForLoginSend(ctx context.Context, id pgtype.UUID) (Campaign, error)
 	LockEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
 	LockGroupForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	LockPinForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)

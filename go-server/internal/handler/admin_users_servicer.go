@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -140,7 +141,7 @@ func (s *AdminUsersServicer) VerifyAdminUserEmail(ctx context.Context, userID, _
 	return genserver.Response(http.StatusOK, toAdminUserDetails(*user)), nil
 }
 
-func (s *AdminUsersServicer) SendAdminUserLoginLink(ctx context.Context, userID, _ string) (genserver.ImplResponse, error) {
+func (s *AdminUsersServicer) SendAdminUserLoginLink(ctx context.Context, userID, _ string, request genserver.AdminLoginLinkCampaignRequestDto) (genserver.ImplResponse, error) {
 	if s == nil || s.emailLogin == nil {
 		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)
 	}
@@ -155,12 +156,36 @@ func (s *AdminUsersServicer) SendAdminUserLoginLink(ctx context.Context, userID,
 	if err != nil {
 		return adminResponse(ctx, err)
 	}
-	result, err := s.emailLogin.IssueLoginLink(ctx, service.LoginLinkIssueRequest{AccountID: id, ActorID: &actor.ID})
+	issueRequest := service.LoginLinkIssueRequest{AccountID: id, ActorID: &actor.ID}
+	hasCampaignContext := request.CampaignId != "" || request.CampaignRevision != 0 || request.SendId != ""
+	if hasCampaignContext {
+		if !actor.Can("campaigns.read") || !actor.Can("users.read") {
+			return adminResponse(ctx, service.ErrAudienceForbidden)
+		}
+		if request.CampaignId == "" || request.CampaignRevision < 1 || request.SendId == "" {
+			return adminResponse(ctx, service.ErrInvalidCampaign)
+		}
+		campaignID, err := parseAdminUUID(request.CampaignId)
+		if err != nil {
+			return adminResponse(ctx, err)
+		}
+		sendID, err := parseAdminUUID(request.SendId)
+		if err != nil {
+			return adminResponse(ctx, err)
+		}
+		issueRequest.CampaignID = campaignID
+		issueRequest.CampaignRevision = request.CampaignRevision
+		issueRequest.CampaignSendID = sendID
+	}
+	result, err := s.emailLogin.IssueLoginLink(ctx, issueRequest)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidEmailLink) {
+			return adminResponse(ctx, service.ErrLoginRecipientUnavailable)
+		}
 		return adminResponse(ctx, err)
 	}
-	if result == nil || !result.Issued {
-		return adminResponse(ctx, service.ErrUserEmailUnavailable)
+	if result == nil || (!result.Issued && !result.AlreadyQueued) {
+		return adminResponse(ctx, service.ErrLoginRecipientUnavailable)
 	}
 	return genserver.Response(http.StatusAccepted, nil), nil
 }
