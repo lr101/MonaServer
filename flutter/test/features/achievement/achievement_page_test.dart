@@ -26,7 +26,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sticks'), findsOneWidget);
-    expect(find.text('0/2 earned'), findsOneWidget);
+    expect(find.text('0/3 earned'), findsOneWidget);
     expect(find.text('First stick'), findsOneWidget);
     expect(find.text('Easy · 20 XP'), findsNWidgets(2));
     expect(find.text('Claim 20 XP'), findsOneWidget);
@@ -39,6 +39,14 @@ void main() {
     expect(find.text('Stick collector'), findsOneWidget);
     expect(find.text('3/10'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Dedicated collector'),
+      250,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('XP already earned'), findsOneWidget);
+    expect(find.text('Restore badge'), findsOneWidget);
   });
 }
 
@@ -64,6 +72,21 @@ class _TestAchievements extends Achievements {
       claimed: false,
       thresholdValue: 10,
       currentValue: 3,
+      thresholdUp: true,
+    ),
+    UserAchievementsDtoInner(
+      achievementId: 12,
+      name: 'Dedicated collector',
+      description: 'Add fifty sticks.',
+      track: 'sticks',
+      difficulty: 'hard',
+      rewardXp: 100,
+      claimable: true,
+      rewardAvailable: false,
+      definitionVersion: 2,
+      claimed: false,
+      thresholdValue: 50,
+      currentValue: 50,
       thresholdUp: true,
     ),
   ]);

@@ -4,6 +4,11 @@ FROM user_achievement
 WHERE user_id = $1
 ORDER BY achievement_id;
 
+-- name: ListUserAchievementRewardAwards :many
+SELECT achievement_id
+FROM user_achievement_reward_ledger
+WHERE user_id = $1;
+
 -- name: GetUserAchievement :one
 SELECT id, user_id, achievement_id, claimed
 FROM user_achievement

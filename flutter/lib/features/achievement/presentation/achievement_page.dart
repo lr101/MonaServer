@@ -224,7 +224,11 @@ class _AchievementMilestoneCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _RewardPill(difficulty: difficulty, rewardXp: rewardXp),
+                _RewardPill(
+                  difficulty: difficulty,
+                  rewardXp: rewardXp,
+                  rewardAvailable: achievement.rewardAvailable ?? true,
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -265,7 +269,11 @@ class _AchievementMilestoneCard extends ConsumerWidget {
                       child: FilledButton.icon(
                         onPressed: () => _claim(context, ref),
                         icon: const Icon(Icons.redeem),
-                        label: Text('Claim $rewardXp XP'),
+                        label: Text(
+                          achievement.rewardAvailable == false
+                              ? 'Restore badge'
+                              : 'Claim $rewardXp XP',
+                        ),
                       ),
                     )
                   : achievement.claimed
@@ -308,9 +316,14 @@ class _AchievementMilestoneCard extends ConsumerWidget {
     final result = await ref
         .read(achievementsProvider.notifier)
         .claimAchievement(achievement.achievementId);
+    final achievementName =
+        achievement.name ?? _legacyAchievement(achievement).name;
+    final rewardAvailable = achievement.rewardAvailable ?? true;
     final message =
         result ??
-        'Claimed ${achievement.name ?? _legacyAchievement(achievement).name} · +${achievement.rewardXp ?? 20} XP';
+        (rewardAvailable
+            ? 'Claimed $achievementName · +${achievement.rewardXp ?? 20} XP'
+            : 'Restored $achievementName · XP already earned');
     if (result == null && !reduceMotion) {
       await HapticFeedback.lightImpact();
     }
@@ -338,10 +351,15 @@ class _AchievementMilestoneCard extends ConsumerWidget {
 }
 
 class _RewardPill extends StatelessWidget {
-  const _RewardPill({required this.difficulty, required this.rewardXp});
+  const _RewardPill({
+    required this.difficulty,
+    required this.rewardXp,
+    required this.rewardAvailable,
+  });
 
   final String difficulty;
   final int rewardXp;
+  final bool rewardAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +371,9 @@ class _RewardPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        '${_capitalize(difficulty)} · $rewardXp XP',
+        rewardAvailable
+            ? '${_capitalize(difficulty)} · $rewardXp XP'
+            : 'XP already earned',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: colors.onSecondaryContainer,
           fontWeight: FontWeight.w700,

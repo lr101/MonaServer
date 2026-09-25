@@ -116,6 +116,8 @@ LEFT JOIN (
 ) AS pg ON pg.creator_id = m.user_id
 JOIN users u ON u.id = m.user_id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+    AND ua.claimed = TRUE
+    AND user_achievement_is_current(u.id, ua.achievement_id)
 WHERE m.group_id = $1
 GROUP BY m.user_id, u.username, ua.achievement_id
 ORDER BY points DESC, m.user_id;

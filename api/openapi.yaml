@@ -5704,6 +5704,7 @@ components:
         difficulty: easy
         rewardXp: 20
         claimable: false
+        rewardAvailable: true
         definitionVersion: 2
       properties:
         achievementId:
@@ -5720,6 +5721,9 @@ components:
           type: integer
         claimable:
           type: boolean
+        rewardAvailable:
+          type: boolean
+          nullable: true
         definitionVersion:
           type: integer
         claimed:

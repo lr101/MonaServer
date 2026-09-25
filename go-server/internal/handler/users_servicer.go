@@ -209,6 +209,7 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 			Difficulty:        a.Difficulty,
 			RewardXp:          a.RewardXP,
 			Claimable:         a.Claimable,
+			RewardAvailable:   &a.RewardAvailable,
 			DefinitionVersion: a.DefinitionVersion,
 			Claimed:           a.Claimed,
 			CurrentValue:      a.CurrentValue,

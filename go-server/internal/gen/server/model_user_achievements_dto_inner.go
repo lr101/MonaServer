@@ -25,6 +25,8 @@ type UserAchievementsDtoInner struct {
 
 	Claimable bool `json:"claimable,omitempty"`
 
+	RewardAvailable *bool `json:"rewardAvailable,omitempty"`
+
 	DefinitionVersion int32 `json:"definitionVersion,omitempty"`
 
 	Claimed bool `json:"claimed"`

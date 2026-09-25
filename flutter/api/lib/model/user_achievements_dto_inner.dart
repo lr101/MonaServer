@@ -20,6 +20,7 @@ class UserAchievementsDtoInner {
     this.difficulty,
     this.rewardXp,
     this.claimable,
+    this.rewardAvailable,
     this.definitionVersion,
     required this.claimed,
     required this.thresholdValue,
@@ -77,6 +78,8 @@ class UserAchievementsDtoInner {
   ///
   bool? claimable;
 
+  bool? rewardAvailable;
+
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
@@ -102,6 +105,7 @@ class UserAchievementsDtoInner {
     other.difficulty == difficulty &&
     other.rewardXp == rewardXp &&
     other.claimable == claimable &&
+    other.rewardAvailable == rewardAvailable &&
     other.definitionVersion == definitionVersion &&
     other.claimed == claimed &&
     other.thresholdValue == thresholdValue &&
@@ -118,6 +122,7 @@ class UserAchievementsDtoInner {
     (difficulty == null ? 0 : difficulty!.hashCode) +
     (rewardXp == null ? 0 : rewardXp!.hashCode) +
     (claimable == null ? 0 : claimable!.hashCode) +
+    (rewardAvailable == null ? 0 : rewardAvailable!.hashCode) +
     (definitionVersion == null ? 0 : definitionVersion!.hashCode) +
     (claimed.hashCode) +
     (thresholdValue.hashCode) +
@@ -125,7 +130,7 @@ class UserAchievementsDtoInner {
     (thresholdUp.hashCode);
 
   @override
-  String toString() => 'UserAchievementsDtoInner[achievementId=$achievementId, name=$name, description=$description, track=$track, difficulty=$difficulty, rewardXp=$rewardXp, claimable=$claimable, definitionVersion=$definitionVersion, claimed=$claimed, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp]';
+  String toString() => 'UserAchievementsDtoInner[achievementId=$achievementId, name=$name, description=$description, track=$track, difficulty=$difficulty, rewardXp=$rewardXp, claimable=$claimable, rewardAvailable=$rewardAvailable, definitionVersion=$definitionVersion, claimed=$claimed, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -159,6 +164,11 @@ class UserAchievementsDtoInner {
       json[r'claimable'] = this.claimable;
     } else {
       json[r'claimable'] = null;
+    }
+    if (this.rewardAvailable != null) {
+      json[r'rewardAvailable'] = this.rewardAvailable;
+    } else {
+      json[r'rewardAvailable'] = null;
     }
     if (this.definitionVersion != null) {
       json[r'definitionVersion'] = this.definitionVersion;
@@ -198,6 +208,7 @@ class UserAchievementsDtoInner {
         difficulty: mapValueOfType<String>(json, r'difficulty'),
         rewardXp: mapValueOfType<int>(json, r'rewardXp'),
         claimable: mapValueOfType<bool>(json, r'claimable'),
+        rewardAvailable: mapValueOfType<bool>(json, r'rewardAvailable'),
         definitionVersion: mapValueOfType<int>(json, r'definitionVersion'),
         claimed: mapValueOfType<bool>(json, r'claimed')!,
         thresholdValue: mapValueOfType<int>(json, r'thresholdValue')!,
@@ -257,4 +268,3 @@ class UserAchievementsDtoInner {
     'thresholdUp',
   };
 }
-

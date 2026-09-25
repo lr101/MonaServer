@@ -232,6 +232,7 @@ type Querier interface {
 	ListReportsPage(ctx context.Context, arg ListReportsPageParams) ([]Report, error)
 	ListSecurityIncidentsForAccount(ctx context.Context, arg ListSecurityIncidentsForAccountParams) ([]SecurityIncident, error)
 	ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error)
+	ListUserAchievementRewardAwards(ctx context.Context, userID pgtype.UUID) ([]int32, error)
 	ListUserAchievements(ctx context.Context, userID pgtype.UUID) ([]ListUserAchievementsRow, error)
 	ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]ListUserLikedPinsRow, error)
 	ListUserPinIDs(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)

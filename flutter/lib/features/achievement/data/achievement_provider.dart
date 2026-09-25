@@ -44,6 +44,7 @@ class Achievements extends _$Achievements {
                   difficulty: previous.difficulty,
                   rewardXp: previous.rewardXp,
                   claimable: false,
+                  rewardAvailable: false,
                   definitionVersion: previous.definitionVersion,
                   claimed: true,
                   thresholdValue: previous.thresholdValue,

@@ -7820,6 +7820,7 @@ components:
         difficulty: easy
         rewardXp: 20
         claimable: false
+        rewardAvailable: true
         definitionVersion: 2
       properties:
         achievementId:
@@ -7835,6 +7836,9 @@ components:
         rewardXp:
           type: integer
         claimable:
+          type: boolean
+        rewardAvailable:
+          nullable: true
           type: boolean
         definitionVersion:
           type: integer

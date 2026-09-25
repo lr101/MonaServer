@@ -121,6 +121,32 @@ func (q *Queries) GetUserAchievement(ctx context.Context, arg GetUserAchievement
 	return i, err
 }
 
+const listUserAchievementRewardAwards = `-- name: ListUserAchievementRewardAwards :many
+SELECT achievement_id
+FROM user_achievement_reward_ledger
+WHERE user_id = $1
+`
+
+func (q *Queries) ListUserAchievementRewardAwards(ctx context.Context, userID pgtype.UUID) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listUserAchievementRewardAwards, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var achievement_id int32
+		if err := rows.Scan(&achievement_id); err != nil {
+			return nil, err
+		}
+		items = append(items, achievement_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserAchievements = `-- name: ListUserAchievements :many
 SELECT id, achievement_id, claimed
 FROM user_achievement

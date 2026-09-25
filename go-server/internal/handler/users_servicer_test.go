@@ -2,7 +2,9 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
@@ -115,7 +117,7 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 2 {
 				t.Fatalf("first-stick metadata = %+v", item)
 			}
-			if item.Claimed || item.Claimable || item.CurrentValue != 0 {
+			if item.Claimed || item.Claimable || item.RewardAvailable == nil || !*item.RewardAvailable || item.CurrentValue != 0 {
 				t.Fatalf("first-stick initial state = %+v", item)
 			}
 		}
@@ -123,6 +125,60 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	if !firstStickFound {
 		t.Fatal("first-stick milestone missing from response")
 	}
+}
+
+func TestGetUserAchievementsIncludesFalseRewardAvailability(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	pinSvc := service.NewPin(q, nil)
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	ctx := context.Background()
+	user, err := auth.Signup(ctx, "reward_availability_user", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "reward_availability_group", Visibility: 0, GroupAdmin: user.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: user.UserID, GroupID: group.ID,
+	}); err != nil {
+		t.Fatalf("create qualifying pin: %v", err)
+	}
+	if err := userSvc.ClaimAchievement(ctx, user.UserID, 3); err != nil {
+		t.Fatalf("claim achievement: %v", err)
+	}
+
+	resp, err := servicer.GetUserAchievements(middleware.WithUser(ctx, user.UserID, middleware.RoleUser), user.UserID.String())
+	if err != nil {
+		t.Fatalf("get achievements: %v", err)
+	}
+	items, ok := resp.Body.([]genserver.UserAchievementsDtoInner)
+	if !ok {
+		t.Fatalf("response body type = %T", resp.Body)
+	}
+	encoded, err := json.Marshal(items)
+	if err != nil {
+		t.Fatalf("marshal achievements: %v", err)
+	}
+	var payload []map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("decode achievements: %v", err)
+	}
+	for _, item := range payload {
+		if item["achievementId"] == float64(3) {
+			if available, present := item["rewardAvailable"]; !present || available != false {
+				t.Fatalf("serialized rewardAvailable = %v, present=%t; want false", available, present)
+			}
+			return
+		}
+	}
+	t.Fatal("first-stick achievement missing from response")
 }
 
 func TestGetUserXpIncludesLevelProgress(t *testing.T) {

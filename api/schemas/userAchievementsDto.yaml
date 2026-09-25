@@ -22,6 +22,9 @@ items:
       type: integer
     claimable:
       type: boolean
+    rewardAvailable:
+      type: boolean
+      nullable: true
     definitionVersion:
       type: integer
     claimed:

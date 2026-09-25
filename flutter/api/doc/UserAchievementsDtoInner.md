@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **difficulty** | **String** |  | [optional]
 **rewardXp** | **int** |  | [optional]
 **claimable** | **bool** |  | [optional]
+**rewardAvailable** | **bool** |  | [optional]
 **definitionVersion** | **int** |  | [optional]
 **claimed** | **bool** |  |
 **thresholdValue** | **int** |  |

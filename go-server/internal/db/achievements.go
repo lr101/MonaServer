@@ -137,6 +137,7 @@ type AchievementProgress struct {
 	ThresholdUp       bool
 	Claimed           bool
 	Claimable         bool
+	RewardAvailable   bool
 }
 
 func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, _ AchievementConfig) ([]AchievementProgress, error) {
@@ -149,6 +150,14 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, 
 		if c.Claimed {
 			claimedSet[c.AchievementID] = true
 		}
+	}
+	rewards, err := q.g.ListUserAchievementRewardAwards(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	rewardedSet := make(map[int32]bool, len(rewards))
+	for _, id := range rewards {
+		rewardedSet[id] = true
 	}
 
 	type currentProgress struct {
@@ -201,6 +210,7 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, 
 			ThresholdUp:       def.ThresholdUp,
 			Claimed:           claimed,
 			Claimable:         !claimed && qualifies[def.ID],
+			RewardAvailable:   !rewardedSet[def.ID],
 		})
 	}
 	return out, nil
