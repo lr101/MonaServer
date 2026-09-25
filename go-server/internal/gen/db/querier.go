@@ -23,6 +23,7 @@ type Querier interface {
 	// cannot reuse ordinals.  The caller order is retained via WITH ORDINALITY;
 	// duplicate IDs in one batch are ignored without changing existing members.
 	AppendAudienceSnapshotMembers(ctx context.Context, arg AppendAudienceSnapshotMembersParams) error
+	AwardGroupXP(ctx context.Context, arg AwardGroupXPParams) error
 	// Additive storage queries for web administration and email-link auth.
 	// Callers use the db.Queries facade below these generated methods so service
 	// code does not duplicate SQL or accidentally escape a caller transaction.
@@ -156,6 +157,7 @@ type Querier interface {
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
 	GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error)
+	GetGroupXP(ctx context.Context, id pgtype.UUID) (int32, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
 	GetMapInfo(ctx context.Context, arg GetMapInfoParams) (GetMapInfoRow, error)
 	// Season queries.

@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -57,6 +59,23 @@ func TestPrivateGroupDetailsAreHiddenFromNonMembers(t *testing.T) {
 	if got.Description != "" || got.Link != "" || got.GroupAdmin != "" || got.InviteUrl != "" || !got.LastUpdated.IsZero() {
 		t.Fatalf("private fields leaked to non-member: %+v", got)
 	}
+	progress, err := servicer.GetGroupProgression(outsiderCtx, group.ID.String())
+	if err != nil {
+		t.Fatalf("get private group progression: %v", err)
+	}
+	if progress.Code != http.StatusForbidden {
+		t.Fatalf("private group progression status = %d, want %d", progress.Code, http.StatusForbidden)
+	}
+	ownerProgress, err := servicer.GetGroupProgression(
+		middleware.WithUser(ctx, owner.UserID, middleware.RoleUser),
+		group.ID.String(),
+	)
+	if err != nil {
+		t.Fatalf("get private group progression as member: %v", err)
+	}
+	if ownerProgress.Code != http.StatusOK {
+		t.Fatalf("private group progression for member status = %d, want %d", ownerProgress.Code, http.StatusOK)
+	}
 }
 
 func TestGetGroupIncludesBestSeason(t *testing.T) {
@@ -90,6 +109,81 @@ func TestGetGroupIncludesBestSeason(t *testing.T) {
 	got := resp.Body.(genserver.GroupDto)
 	if got.BestSeason == nil || got.BestSeason.Points != 19 || got.BestSeason.Rank != 3 || got.BestSeason.Season.Id != seasonID.String() {
 		t.Fatalf("bestSeason = %+v, want season with 19 points at rank 3", got.BestSeason)
+	}
+}
+
+func TestGroupProgressionRouteReportsLevelsEarnedByPinActivity(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	pinSvc := service.NewPin(q, nil)
+	servicer := NewGroupsServicer(groupSvc, service.NewGuard(q))
+	ctx := context.Background()
+	user, err := auth.Signup(ctx, "group_progression_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_progression_group", Visibility: 0, GroupAdmin: user.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	for i := 0; i < 9; i++ {
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 48.1 + float64(i)/1000, Longitude: 11.6, CreationDate: time.Now(),
+			UserID: user.UserID, GroupID: group.ID,
+		}); err != nil {
+			t.Fatalf("create group pin %d: %v", i, err)
+		}
+	}
+
+	var got struct {
+		TotalXP        int32 `json:"totalXp"`
+		CurrentLevel   int32 `json:"currentLevel"`
+		CurrentLevelXP int32 `json:"currentLevelXp"`
+		NextLevelXP    int32 `json:"nextLevelXp"`
+	}
+	router := genserver.NewRouter(genserver.NewGroupsAPIController(servicer))
+	readProgress := func() struct {
+		TotalXP        int32 `json:"totalXp"`
+		CurrentLevel   int32 `json:"currentLevel"`
+		CurrentLevelXP int32 `json:"currentLevelXp"`
+		NextLevelXP    int32 `json:"nextLevelXp"`
+	} {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "/api/v2/groups/"+group.ID.String()+"/progression", nil)
+		request = request.WithContext(middleware.WithUser(request.Context(), user.UserID, middleware.RoleUser))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("group progression status = %d, body = %s; want 200", response.Code, response.Body.String())
+		}
+		var result struct {
+			TotalXP        int32 `json:"totalXp"`
+			CurrentLevel   int32 `json:"currentLevel"`
+			CurrentLevelXP int32 `json:"currentLevelXp"`
+			NextLevelXP    int32 `json:"nextLevelXp"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatalf("decode group progression: %v", err)
+		}
+		return result
+	}
+	got = readProgress()
+	if got.TotalXP != 45 || got.CurrentLevel != 1 || got.CurrentLevelXP != 0 || got.NextLevelXP != 50 {
+		t.Fatalf("group progression before level-up = %+v, want 45 XP at level 1 toward 50", got)
+	}
+	if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+		Latitude: 48.11, Longitude: 11.6, CreationDate: time.Now(),
+		UserID: user.UserID, GroupID: group.ID,
+	}); err != nil {
+		t.Fatalf("create level-up pin: %v", err)
+	}
+	got = readProgress()
+	if got.TotalXP != 50 || got.CurrentLevel != 2 || got.CurrentLevelXP != 50 || got.NextLevelXP != 150 {
+		t.Fatalf("group progression = %+v, want 50 XP at level 2 with next threshold 150", got)
 	}
 }
 

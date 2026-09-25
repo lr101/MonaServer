@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/features/progression/presentation/group_xp_panel.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
@@ -65,6 +66,12 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         ],
       ),
       boxes: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: GroupXpPanel(groupId: widget.groupId),
+          ),
+        ),
         SliverToBoxAdapter(
           child: ListTile(
             title: const Text(

@@ -961,6 +961,28 @@ func TestEndpointGroups(t *testing.T) {
 		}
 	})
 
+	t.Run("GET /api/v2/groups/{id}/progression requires auth and reports group level", func(t *testing.T) {
+		path := "/api/v2/groups/" + gid + "/progression"
+		unauthorized := anon.do(t, "GET", path, nil)
+		unauthorized.Body.Close()
+		if unauthorized.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated progression status = %d, want %d", unauthorized.StatusCode, http.StatusUnauthorized)
+		}
+
+		resp := c.do(t, "GET", path, nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("progression status = %d, want %d", resp.StatusCode, http.StatusOK)
+		}
+		var progress map[string]any
+		decode(t, resp, &progress)
+		if progress["groupId"] != gid || progress["totalXp"] != float64(0) ||
+			progress["currentLevel"] != float64(1) || progress["currentLevelXp"] != float64(0) ||
+			progress["nextLevelXp"] != float64(50) {
+			t.Fatalf("group progression = %+v, want level 1 at 0/50 XP", progress)
+		}
+	})
+
 	t.Run("GET /api/v2/groups — search", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/groups?search=testgroup&page=0&size=10", nil)
 		defer resp.Body.Close()

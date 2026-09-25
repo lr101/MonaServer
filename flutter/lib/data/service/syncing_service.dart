@@ -9,6 +9,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -143,6 +144,7 @@ class SyncingService extends _$SyncingService {
       try {
         final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
         if (!isCurrent()) return;
+        ref.invalidate(groupProgressionProvider(pin.groupId));
         await pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
         );

@@ -70,6 +70,12 @@ func (c *GroupsAPIController) Routes() Routes {
 			"/api/v2/groups/{groupId}",
 			c.GetGroup,
 		},
+		"GetGroupProgression": Route{
+			"GetGroupProgression",
+			strings.ToUpper("Get"),
+			"/api/v2/groups/{groupId}/progression",
+			c.GetGroupProgression,
+		},
 		"UpdateGroup": Route{
 			"UpdateGroup",
 			strings.ToUpper("Put"),
@@ -147,6 +153,12 @@ func (c *GroupsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Get"),
 			"/api/v2/groups/{groupId}",
 			c.GetGroup,
+		},
+		Route{
+			"GetGroupProgression",
+			strings.ToUpper("Get"),
+			"/api/v2/groups/{groupId}/progression",
+			c.GetGroupProgression,
 		},
 		Route{
 			"UpdateGroup",
@@ -352,6 +364,21 @@ func (c *GroupsAPIController) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// GetGroupProgression - Get a group's XP and level progress
+func (c *GroupsAPIController) GetGroupProgression(w http.ResponseWriter, r *http.Request) {
+	groupIdParam := chi.URLParam(r, "groupId")
+	if groupIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"groupId"}, nil)
+		return
+	}
+	result, err := c.service.GetGroupProgression(r.Context(), groupIdParam)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 

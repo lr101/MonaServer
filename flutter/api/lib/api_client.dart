@@ -326,6 +326,8 @@ class ApiClient {
           return FilterAudience.fromJson(value);
         case 'GroupDto':
           return GroupDto.fromJson(value);
+        case 'GroupProgressionDto':
+          return GroupProgressionDto.fromJson(value);
         case 'GroupRankingDtoInner':
           return GroupRankingDtoInner.fromJson(value);
         case 'GroupsSyncDto':

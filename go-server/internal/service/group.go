@@ -58,6 +58,15 @@ type GroupDTO struct {
 	BestSeason   *db.SeasonItem `json:"bestSeason,omitempty"`
 }
 
+type GroupProgression struct {
+	GroupID        uuid.UUID
+	TotalXP        int32
+	CurrentLevel   int32
+	CurrentLevelXP int32
+	NextLevelXP    int32
+	Visibility     int
+}
+
 func (s *Group) toDTO(ctx context.Context, g *db.Group, withImages bool) (*GroupDTO, error) {
 	count, err := s.q.CountGroupMembers(ctx, g.ID)
 	if err != nil {
@@ -237,6 +246,23 @@ func (s *Group) GetDTO(ctx context.Context, id uuid.UUID) (*GroupDTO, error) {
 		return nil, err
 	}
 	return s.toDTO(ctx, g, true)
+}
+
+func (s *Group) Progression(ctx context.Context, id uuid.UUID) (*GroupProgression, error) {
+	g, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	totalXP, err := s.q.GetGroupXP(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	level := ProgressForGroupXP(int64(totalXP))
+	return &GroupProgression{
+		GroupID: id, TotalXP: totalXP, CurrentLevel: level.Level,
+		CurrentLevelXP: level.CurrentLevel, NextLevelXP: level.NextLevel,
+		Visibility: g.Visibility,
+	}, nil
 }
 
 func (s *Group) GetAdminUsername(ctx context.Context, id uuid.UUID) (string, error) {

@@ -211,6 +211,47 @@ func TestGroupCreateGetUpdate(t *testing.T) {
 	})
 }
 
+func TestCreatingPinAwardsGroupXPOnce(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userID := createTestUser(t, auth, "group_pin_xp_user")
+	groupID := createTestGroup(t, group, userID, "group_pin_xp_group")
+	input := CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
+		UserID: userID, GroupID: groupID,
+	}
+	createdPin, err := pin.Create(ctx, input)
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+	if err := q.AwardGroupXP(ctx, groupID, "pin:"+createdPin.ID.String(), 5); err != nil {
+		t.Fatalf("repeat the same group XP award: %v", err)
+	}
+	var totalXP int32
+	if err := q.Pool().QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, groupID).Scan(&totalXP); err != nil {
+		t.Fatalf("read group XP after pin creation: %v", err)
+	}
+	if totalXP != 5 {
+		t.Fatalf("group XP = %d after creating one pin, want 5", totalXP)
+	}
+	var awardCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT COUNT(*) FROM group_xp_ledger WHERE group_id = $1`, groupID).Scan(&awardCount); err != nil {
+		t.Fatalf("read group XP ledger: %v", err)
+	}
+	if awardCount != 1 {
+		t.Fatalf("group XP ledger rows = %d, want one idempotent pin award", awardCount)
+	}
+	if _, err := pin.Create(ctx, input); err == nil {
+		t.Fatal("retrying the same pin creation should be rejected")
+	}
+	if err := q.Pool().QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, groupID).Scan(&totalXP); err != nil {
+		t.Fatalf("read group XP after retry: %v", err)
+	}
+	if totalXP != 5 {
+		t.Fatalf("group XP = %d after retry, want 5", totalXP)
+	}
+}
+
 func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 	_, auth, _, _, _, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

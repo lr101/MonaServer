@@ -59,3 +59,29 @@ func TestProgressForXPMatchesEveryLevelThreshold(t *testing.T) {
 		}
 	}
 }
+
+func TestProgressForGroupXPUsesGroupLevelLadder(t *testing.T) {
+	tests := []struct {
+		name    string
+		xp      int64
+		level   int32
+		current int32
+		next    int32
+	}{
+		{name: "new group", xp: 0, level: 1, current: 0, next: 50},
+		{name: "before level two", xp: 49, level: 1, current: 0, next: 50},
+		{name: "level two threshold", xp: 50, level: 2, current: 50, next: 150},
+		{name: "level three threshold", xp: 150, level: 3, current: 150, next: 300},
+		{name: "maximum level", xp: 28000, level: 15, current: 28000, next: 28000},
+		{name: "xp beyond maximum", xp: 50000, level: 15, current: 28000, next: 28000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ProgressForGroupXP(tt.xp)
+			if got.Level != tt.level || got.CurrentLevel != tt.current || got.NextLevel != tt.next {
+				t.Fatalf("ProgressForGroupXP(%d) = %+v, want level=%d current=%d next=%d", tt.xp, got, tt.level, tt.current, tt.next)
+			}
+		})
+	}
+}

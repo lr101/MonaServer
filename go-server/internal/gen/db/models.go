@@ -285,6 +285,14 @@ type Group struct {
 	IsDeleted    bool               `json:"is_deleted"`
 	AdminID      pgtype.UUID        `json:"admin_id"`
 	GroupProfile []byte             `json:"group_profile"`
+	GroupXp      int32              `json:"group_xp"`
+}
+
+type GroupXpLedger struct {
+	GroupID   pgtype.UUID        `json:"group_id"`
+	AwardKey  string             `json:"award_key"`
+	XpAwarded int32              `json:"xp_awarded"`
+	AwardedAt pgtype.Timestamptz `json:"awarded_at"`
 }
 
 type GroupsSeason struct {

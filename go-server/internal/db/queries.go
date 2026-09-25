@@ -326,6 +326,11 @@ func (q *Queries) GetUserByIDAndCode(ctx context.Context, id uuid.UUID, code str
 func (q *Queries) AddUserXp(ctx context.Context, id uuid.UUID, delta int32) error {
 	return q.g.AddUserXp(ctx, dbgen.AddUserXpParams{ID: pgUUID(id), Xp: delta})
 }
+func (q *Queries) AwardGroupXP(ctx context.Context, groupID uuid.UUID, awardKey string, amount int32) error {
+	return q.g.AwardGroupXP(ctx, dbgen.AwardGroupXPParams{
+		GroupID: pgUUID(groupID), AwardKey: awardKey, XpAwarded: amount,
+	})
+}
 func (q *Queries) SetUserRecoveryCode(ctx context.Context, id uuid.UUID, code string, exp time.Time) error {
 	return q.g.SetUserRecoveryCode(ctx, dbgen.SetUserRecoveryCodeParams{
 		ID: pgUUID(id), Code: pgTextS(code), CodeExpiration: pgTZ(&exp),
@@ -496,6 +501,10 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 		CreationDate: goTZ(row.CreationDate),
 		UpdateDate:   goTZ(row.UpdateDate),
 	}, nil
+}
+
+func (q *Queries) GetGroupXP(ctx context.Context, id uuid.UUID) (int32, error) {
+	return q.g.GetGroupXP(ctx, pgUUID(id))
 }
 
 func (q *Queries) LockGroupForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
