@@ -1,28 +1,11 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
-
-AnimationController? createMarkerAnimationController({
-  required bool withAnimation,
-  required TickerProvider vsync,
-}) {
-  if (!withAnimation) {
-    return null;
-  }
-  return AnimationController(vsync: vsync, duration: const Duration(seconds: 2))
-    ..repeat();
-}
-
-bool shouldPulsePinMarker({required bool isNearby, required bool isGone}) =>
-    isNearby && !isGone;
 
 class PinMarkerImage extends StatelessWidget {
   const PinMarkerImage({super.key, required this.isGone, required this.image});
@@ -95,115 +78,27 @@ class PinMarkerImage extends StatelessWidget {
   }
 }
 
-class CustomMarkerContent extends ConsumerStatefulWidget {
+class CustomMarkerContent extends ConsumerWidget {
   final PinEntity pinDto;
-  final bool withAnimation;
 
-  const CustomMarkerContent({
-    super.key,
-    required this.pinDto,
-    required this.withAnimation,
-  });
+  const CustomMarkerContent({super.key, required this.pinDto});
 
   @override
-  _CustomMarkerContentState createState() => _CustomMarkerContentState();
-}
-
-class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
-    with TickerProviderStateMixin {
-  AnimationController? _controller;
-  final Distance _distance = const Distance();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = createMarkerAnimationController(
-      withAnimation: widget.withAnimation,
-      vsync: this,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant CustomMarkerContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.withAnimation == widget.withAnimation) {
-      return;
-    }
-    _controller?.dispose();
-    _controller = createMarkerAnimationController(
-      withAnimation: widget.withAnimation,
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  bool _isWithinDistance(Position userPosition) {
-    return _distance.as(
-          LengthUnit.Meter,
-          LatLng(userPosition.latitude, userPosition.longitude),
-          LatLng(widget.pinDto.latitude, widget.pinDto.longitude),
-        ) <=
-        50.0;
-  }
-
-  Widget _markerImage() {
-    return PinMarkerImage(
-      isGone: widget.pinDto.isGone,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final markerImage = PinMarkerImage(
+      isGone: pinDto.isGone,
       image: Image.memory(
-        ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
+        ref.watch(groupPinImageByIdProvider(pinDto.groupId)).value ??
             ref.read(defaultGroupPinImageProvider),
         gaplessPlayback: true,
       ),
     );
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final isInRange = ref.watch(
-      currentLocationProvider.select(
-        (e) => e.whenOrNull(data: (data) => _isWithinDistance(data)),
-      ),
-    );
-    final markerImage = _markerImage();
-    final controller = _controller;
-    if (controller == null || isInRange == null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(height: 30, width: 30, child: markerImage),
-          const SizedBox.square(dimension: 30),
-        ],
-      );
-    }
-
-    return Stack(
-      alignment: Alignment.center,
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (shouldPulsePinMarker(
-          isNearby: isInRange,
-          isGone: widget.pinDto.isGone,
-        ))
-          AnimatedBuilder(
-            animation: controller,
-            builder: (context, child) {
-              final scale = controller.value;
-              return Container(
-                width: 50 + scale * 50,
-                height: 50 + scale * 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.tertiary
-                      .withValues(alpha: 0.8 - (scale - 0.2)),
-                ),
-              );
-            },
-          ),
         SizedBox(height: 30, width: 30, child: markerImage),
+        const SizedBox.square(dimension: 30),
       ],
     );
   }
