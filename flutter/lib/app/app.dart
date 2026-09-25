@@ -1,4 +1,5 @@
 import 'package:buff_lisa/app/lifecycle/sync_lifecycle.dart';
+import 'package:buff_lisa/app/play_store_update_guard.dart';
 import 'package:buff_lisa/app/routing/app_router.dart';
 import 'package:buff_lisa/util/theme/data/material_theme.dart';
 import 'package:buff_lisa/util/theme/service/theme_state.dart';
@@ -26,16 +27,19 @@ class MyApp extends ConsumerWidget {
         theme: theme.light(),
         routerConfig: router,
         builder: (context, child) {
-          if (!kIsWeb) return child!;
-          return ColoredBox(
-            color: Colors.black, // Background color for web outside the app
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 450),
-                child: child,
-              ),
-            ),
-          );
+          final appContent = !kIsWeb
+              ? child!
+              : ColoredBox(
+                  color:
+                      Colors.black, // Background color for web outside the app
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 450),
+                      child: child,
+                    ),
+                  ),
+                );
+          return PlayStoreUpdateGuard(child: appContent);
         },
       ),
     );
