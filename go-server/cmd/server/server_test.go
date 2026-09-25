@@ -1075,7 +1075,7 @@ func TestEndpointMembers(t *testing.T) {
 }
 
 func TestEndpointPins(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, _ := buildTestServerWithQuery(t)
 	defer srv.Close()
 
 	anon := &apiClient{base: srv.URL}
@@ -1085,6 +1085,7 @@ func TestEndpointPins(t *testing.T) {
 	gid := c.createGroup(t, ar.UserID, "pintest_group", 0)
 
 	var pid string
+	var syncWatermark time.Time
 
 	t.Run("GET /api/v2/pins — list group pins (sync)", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/pins?groupId="+gid+"&withImage=false", nil)
@@ -1121,10 +1122,31 @@ func TestEndpointPins(t *testing.T) {
 		if pid == "" || pid == "<nil>" {
 			t.Fatalf("empty pin id: %v", p)
 		}
+		syncWatermark = time.Now().UTC()
 	})
 
 	t.Run("POST /api/v2/pins/{id}/presence — mark gone and restore", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
+		resp := c.do(t, "GET", "/api/v3/sync?lastSeen="+syncWatermark.Format(time.RFC3339Nano), nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("sync before presence update: expected 200, got %d", resp.StatusCode)
+		}
+		var initialSync struct {
+			GroupUpdates []struct {
+				PinsAdded []map[string]any `json:"pinsAdded"`
+			} `json:"groupUpdates"`
+		}
+		decode(t, resp, &initialSync)
+		resp.Body.Close()
+		for _, groupUpdate := range initialSync.GroupUpdates {
+			for _, syncedPin := range groupUpdate.PinsAdded {
+				if syncedPin["id"] == pid {
+					t.Fatalf("pin %s appeared in sync before presence update", pid)
+				}
+			}
+		}
+
+		resp = c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
 			"state": "gone",
 		})
 		if resp.StatusCode != http.StatusOK {
@@ -1150,7 +1172,7 @@ func TestEndpointPins(t *testing.T) {
 			t.Fatalf("listed pins = %+v, want the same pin retained and marked gone", pins.Items)
 		}
 
-		resp = c.do(t, "GET", "/api/v3/sync?lastSeen=2020-01-01T00:00:00Z", nil)
+		resp = c.do(t, "GET", "/api/v3/sync?lastSeen="+syncWatermark.Format(time.RFC3339Nano), nil)
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
 			t.Fatalf("sync after gone report: expected 200, got %d", resp.StatusCode)
@@ -1202,6 +1224,70 @@ func TestEndpointPins(t *testing.T) {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestPinPresenceRejectsFormerPrivateGroupMember(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	owner := anon.signup(t, "presence_private_owner", "pw123")
+	formerMember := anon.signup(t, "presence_former_member", "pw123")
+	ownerClient := &apiClient{base: srv.URL, bearer: owner.AccessToken}
+	memberClient := &apiClient{base: srv.URL, bearer: formerMember.AccessToken}
+
+	groupID := ownerClient.createGroup(t, owner.UserID, "presence_private_group", 1)
+	groupUUID, err := uuid.Parse(groupID)
+	if err != nil {
+		t.Fatalf("parse group id: %v", err)
+	}
+	ownerUUID, err := uuid.Parse(owner.UserID)
+	if err != nil {
+		t.Fatalf("parse owner id: %v", err)
+	}
+	memberUUID, err := uuid.Parse(formerMember.UserID)
+	if err != nil {
+		t.Fatalf("parse former member id: %v", err)
+	}
+	ctx := context.Background()
+	if err := q.AddMember(ctx, groupUUID, ownerUUID); err != nil {
+		t.Fatalf("ensure group owner membership: %v", err)
+	}
+	if err := q.AddMember(ctx, groupUUID, memberUUID); err != nil {
+		t.Fatalf("add private group member: %v", err)
+	}
+
+	resp := ownerClient.do(t, "POST", "/api/v2/pins", map[string]any{
+		"image":        testImageBase64,
+		"latitude":     48.137,
+		"longitude":    11.576,
+		"creationDate": time.Now().UTC().Format(time.RFC3339),
+		"userId":       owner.UserID,
+		"groupId":      groupID,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("create private pin: expected 201, got %d", resp.StatusCode)
+	}
+	var pin map[string]any
+	decode(t, resp, &pin)
+	resp.Body.Close()
+	pinID := fmt.Sprintf("%v", pin["id"])
+
+	if _, err := q.Pool().Exec(ctx,
+		`UPDATE members SET is_deleted = TRUE WHERE group_id = $1 AND user_id = $2`,
+		groupUUID, memberUUID,
+	); err != nil {
+		t.Fatalf("soft-delete former membership: %v", err)
+	}
+
+	resp = memberClient.do(t, "POST", "/api/v2/pins/"+pinID+"/presence", map[string]any{
+		"state": "gone",
+	})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("former private group member could update pin presence: expected 403, got %d", resp.StatusCode)
+	}
 }
 
 // TestPinCreateAuthorization verifies the CreatePin authorization fix:

@@ -15,6 +15,7 @@ Method | HTTP request | Description
 [**getPin**](PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 [**getPinImage**](PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 [**getPinImagesByIds**](PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
+[**setPinPresence**](PinsApi.md#setpinpresence) | **POST** /api/v2/pins/{pinId}/presence | Set whether the pin is still present
 
 
 # **callSync**
@@ -47,7 +48,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **lastSeen** | **DateTime**| Syncs created and deleted pins after this date | [optional] 
+ **lastSeen** | **DateTime**| Syncs created and deleted pins after this date | [optional]
 
 ### Return type
 
@@ -80,7 +81,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = PinsApi();
-final pinRequestDto = PinRequestDto(); // PinRequestDto | 
+final pinRequestDto = PinRequestDto(); // PinRequestDto |
 
 try {
     final result = api_instance.createPin(pinRequestDto);
@@ -94,7 +95,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinRequestDto** | [**PinRequestDto**](PinRequestDto.md)|  | 
+ **pinRequestDto** | [**PinRequestDto**](PinRequestDto.md)|  |
 
 ### Return type
 
@@ -127,7 +128,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = PinsApi();
-final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
 
 try {
     api_instance.deletePin(pinId);
@@ -140,7 +141,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinId** | **String**|  | 
+ **pinId** | **String**|  |
 
 ### Return type
 
@@ -173,7 +174,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = PinsApi();
-final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
 final withImage = true; // bool | Describes if the image of the pin should be returned too
 
 try {
@@ -188,7 +189,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinId** | **String**|  | 
+ **pinId** | **String**|  |
  **withImage** | **bool**| Describes if the image of the pin should be returned too | [optional] [default to false]
 
 ### Return type
@@ -222,7 +223,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = PinsApi();
-final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
 final redirect = true; // bool | When true, this endpoint redirects directly to the target image otherwise the image URL is returned
 
 try {
@@ -237,7 +238,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinId** | **String**|  | 
+ **pinId** | **String**|  |
  **redirect** | **bool**| When true, this endpoint redirects directly to the target image otherwise the image URL is returned | [optional] [default to false]
 
 ### Return type
@@ -296,16 +297,16 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **ids** | [**List<String>**](String.md)| Comma-separated list of image IDs | [optional] [default to const []]
- **groupId** | **String**| Only pins of this group are returned | [optional] 
- **userId** | **String**| Only pins of this user are returned | [optional] 
+ **groupId** | **String**| Only pins of this group are returned | [optional]
+ **userId** | **String**| Only pins of this user are returned | [optional]
  **withImage** | **bool**| Describes if the images of the pins should be returned too | [optional] [default to false]
- **compression** | **int**| Compression level for images (optional) | [optional] 
- **height** | **int**| Height for images (optional) | [optional] 
- **page** | **int**| page number (can only be used when ids is not set). Sorted by creation date descending. Use beforeCreationDate and beforeId for stable cursor pagination. | [optional] 
+ **compression** | **int**| Compression level for images (optional) | [optional]
+ **height** | **int**| Height for images (optional) | [optional]
+ **page** | **int**| page number (can only be used when ids is not set). Sorted by creation date descending. Use beforeCreationDate and beforeId for stable cursor pagination. | [optional]
  **size** | **int**| page size. Defaults to 20 | [optional] [default to 20]
- **updatedAfter** | **DateTime**| only include pins that have been updated after this date.If set all deleted pins after this time are returned. | [optional] 
- **beforeCreationDate** | **DateTime**| stable pagination cursor; provide with beforeId; return pins created before this date, with beforeId breaking ties | [optional] 
- **beforeId** | **String**| stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together | [optional] 
+ **updatedAfter** | **DateTime**| only include pins that have been updated after this date.If set all deleted pins after this time are returned. | [optional]
+ **beforeCreationDate** | **DateTime**| stable pagination cursor; provide with beforeId; return pins created before this date, with beforeId breaking ties | [optional]
+ **beforeId** | **String**| stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together | [optional]
 
 ### Return type
 
@@ -322,3 +323,51 @@ Name | Type | Description  | Notes
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
+# **setPinPresence**
+> PinWithOptionalImageDto setPinPresence(pinId, pinPresenceRequestDto)
+
+Set whether the pin is still present
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = PinsApi();
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
+final pinPresenceRequestDto = PinPresenceRequestDto(); // PinPresenceRequestDto |
+
+try {
+    final result = api_instance.setPinPresence(pinId, pinPresenceRequestDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling PinsApi->setPinPresence: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **pinId** | **String**|  |
+ **pinPresenceRequestDto** | [**PinPresenceRequestDto**](PinPresenceRequestDto.md)|  |
+
+### Return type
+
+[**PinWithOptionalImageDto**](PinWithOptionalImageDto.md)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

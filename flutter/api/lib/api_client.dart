@@ -346,6 +346,8 @@ class ApiClient {
           return NotificationDto.fromJson(value);
         case 'PinLikeDto':
           return PinLikeDto.fromJson(value);
+        case 'PinPresenceRequestDto':
+          return PinPresenceRequestDto.fromJson(value);
         case 'PinRequestDto':
           return PinRequestDto.fromJson(value);
         case 'PinWithOptionalImageDto':

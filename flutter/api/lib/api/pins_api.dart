@@ -69,7 +69,7 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'SyncDto',) as SyncDto;
-    
+
     }
     return null;
   }
@@ -121,7 +121,7 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinWithOptionalImageDto',) as PinWithOptionalImageDto;
-    
+
     }
     return null;
   }
@@ -229,7 +229,7 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinWithOptionalImageDto',) as PinWithOptionalImageDto;
-    
+
     }
     return null;
   }
@@ -292,7 +292,7 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-    
+
     }
     return null;
   }
@@ -440,7 +440,7 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinsSyncDto',) as PinsSyncDto;
-    
+
     }
     return null;
   }

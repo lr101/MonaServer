@@ -130,6 +130,7 @@ Class | Method | HTTP request | Description
 *PinsApi* | [**getPin**](doc//PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 *PinsApi* | [**getPinImage**](doc//PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 *PinsApi* | [**getPinImagesByIds**](doc//PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
+*PinsApi* | [**setPinPresence**](doc//PinsApi.md#setpinpresence) | **POST** /api/v2/pins/{pinId}/presence | Set whether the pin is still present
 *PublicApi* | [**getServerInfo**](doc//PublicApi.md#getserverinfo) | **GET** /api/v2/public/infos | Get public server statistics
 *PublicAuthApi* | [**completeRecovery**](doc//PublicAuthApi.md#completerecovery) | **POST** /api/v3/public/auth/recovery/complete | Complete restricted account recovery
 *PublicAuthApi* | [**exchangeEmailLink**](doc//PublicAuthApi.md#exchangeemaillink) | **POST** /api/v3/public/auth/email-link/exchange | Exchange a one-time email sign-in link
@@ -235,6 +236,7 @@ Class | Method | HTTP request | Description
  - [MemberResponseDto](doc//MemberResponseDto.md)
  - [NotificationDto](doc//NotificationDto.md)
  - [PinLikeDto](doc//PinLikeDto.md)
+ - [PinPresenceRequestDto](doc//PinPresenceRequestDto.md)
  - [PinRequestDto](doc//PinRequestDto.md)
  - [PinWithOptionalImageDto](doc//PinWithOptionalImageDto.md)
  - [PinsSyncDto](doc//PinsSyncDto.md)
