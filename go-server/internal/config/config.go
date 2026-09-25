@@ -35,7 +35,6 @@ type Config struct {
 	AdminTOTPEncryptionKeyID string        `mapstructure:"ADMIN_TOTP_ENCRYPTION_KEY_ID"`
 	AdminSessionHMACKey      string        `mapstructure:"ADMIN_SESSION_HMAC_KEY"`
 	AdminSessionHMACKeyID    string        `mapstructure:"ADMIN_SESSION_HMAC_KEY_ID"`
-	AdminFirstRunToken       string        `mapstructure:"ADMIN_FIRST_RUN_TOKEN"`
 	AdminBootstrapUsername   string        `mapstructure:"ADMIN_BOOTSTRAP_USERNAME"`
 	AdminBootstrapPassword   string        `mapstructure:"ADMIN_BOOTSTRAP_PASSWORD"`
 	AdminBootstrapTOTPSecret string        `mapstructure:"ADMIN_BOOTSTRAP_TOTP_SECRET"`
@@ -86,7 +85,7 @@ func Load() (*Config, error) {
 		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",
 		"EMAIL_DELIVERY_KEY", "EMAIL_DELIVERY_KEY_ID", "EMAIL_LOGIN_CALLBACK_URL", "WEB_ADMIN_API",
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
-		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID", "ADMIN_FIRST_RUN_TOKEN",
+		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID",
 		"ADMIN_BOOTSTRAP_USERNAME", "ADMIN_BOOTSTRAP_PASSWORD", "ADMIN_BOOTSTRAP_TOTP_SECRET",
 		"TRUSTED_PROXY_CIDRS",
 		"ADMIN_SESSION_IDLE_TTL", "ADMIN_SESSION_ABSOLUTE_TTL", "ADMIN_CHALLENGE_TTL",

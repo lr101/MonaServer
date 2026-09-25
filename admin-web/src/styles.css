@@ -7,9 +7,6 @@ button:hover { background: #1844ae; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #8bb1ff; outline-offset: 2px; }
 .outline { background: white; border: 1px solid #b9c2d4; color: #2457d6; }
 .outline:hover { background: #edf3ff; }
-.secondary { background: transparent; color: #2457d6; margin-top: .75rem; padding-left: 0; }
-.secondary:hover { background: transparent; color: #1844ae; text-decoration: underline; }
-.setup-secret { background: #edf3ff; border-radius: .5rem; overflow-wrap: anywhere; padding: 1rem; user-select: all; }
 .app-shell { min-height: 100vh; }
 .loading { padding: 4rem; text-align: center; color: #5e6b85; }
 .card { background: white; border: 1px solid #e2e7f0; border-radius: 1rem; box-shadow: 0 .35rem 1.5rem #243b6310; padding: 1.25rem; }

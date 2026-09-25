@@ -51,15 +51,14 @@ const (
 const AdminSessionCookieName = adminSessionCookieName
 
 var (
-	ErrAdminUnauthorized        = apperrors.New(http.StatusUnauthorized, "admin authentication is required")
-	ErrAdminForbidden           = apperrors.New(http.StatusForbidden, "admin capability is required")
-	ErrAdminRateLimited         = apperrors.New(http.StatusTooManyRequests, "too many admin authentication attempts")
-	ErrAdminUnavailable         = apperrors.New(http.StatusServiceUnavailable, "admin authentication is unavailable")
-	ErrAdminInvalidCSRF         = apperrors.New(http.StatusForbidden, "invalid csrf token")
-	ErrAdminInvalidChallenge    = apperrors.New(http.StatusUnauthorized, "invalid admin challenge")
-	ErrAdminInvalidAction       = apperrors.New(http.StatusBadRequest, "invalid admin action")
-	ErrAdminInvalidSetupRequest = apperrors.New(http.StatusBadRequest, "invalid initial admin setup request")
-	ErrAdminEnrollmentKey       = errors.New("admin enrollment encryption key is unavailable")
+	ErrAdminUnauthorized     = apperrors.New(http.StatusUnauthorized, "admin authentication is required")
+	ErrAdminForbidden        = apperrors.New(http.StatusForbidden, "admin capability is required")
+	ErrAdminRateLimited      = apperrors.New(http.StatusTooManyRequests, "too many admin authentication attempts")
+	ErrAdminUnavailable      = apperrors.New(http.StatusServiceUnavailable, "admin authentication is unavailable")
+	ErrAdminInvalidCSRF      = apperrors.New(http.StatusForbidden, "invalid csrf token")
+	ErrAdminInvalidChallenge = apperrors.New(http.StatusUnauthorized, "invalid admin challenge")
+	ErrAdminInvalidAction    = apperrors.New(http.StatusBadRequest, "invalid admin action")
+	ErrAdminEnrollmentKey    = errors.New("admin enrollment encryption key is unavailable")
 )
 
 // AdminAuthConfig contains deploy-time bounds and key material. EncryptionKey
@@ -70,7 +69,6 @@ type AdminAuthConfig struct {
 	EncryptionKeyID    string
 	HMACKey            []byte
 	HMACKeyID          string
-	FirstRunToken      string
 	SessionIdleTTL     time.Duration
 	SessionAbsoluteTTL time.Duration
 	ChallengeTTL       time.Duration
@@ -502,8 +500,8 @@ func generateTOTPSecret(randomFn func([]byte) error) (string, []byte, error) {
 	return secret, raw, nil
 }
 
-// GenerateEnrollmentSecret returns a base32 secret suitable for an operator
-// enrollment QR/URI. It is intentionally not called from browser endpoints.
+// GenerateEnrollmentSecret returns a base32 secret for explicit operator
+// provisioning. The admin HTTP API never returns an enrollment secret.
 func (a *AdminAuth) GenerateEnrollmentSecret() (string, []byte, error) {
 	if a == nil {
 		return "", nil, ErrAdminEnrollmentKey
@@ -543,8 +541,8 @@ type AdminBootstrapCredentials struct {
 }
 
 // BootstrapInitialAdmin creates a fresh account and admin membership exactly
-// once. The durable claim is shared with browser setup, so restarts cannot
-// reset credentials or revive bootstrap after the first admin is removed.
+// once. The durable claim prevents restarts from resetting credentials or
+// reviving bootstrap after the first admin is removed.
 func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials AdminBootstrapCredentials) (bool, error) {
 	if credentials.Username == "" && credentials.Password == "" && credentials.TOTPSecret == "" {
 		return false, nil
@@ -558,7 +556,7 @@ func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials Admin
 	var created bool
 	err := a.q.InTxRetry(ctx, func(tx *db.Queries) error {
 		created = false
-		claimed, err := tx.ClaimInitialAdminSetup(ctx)
+		claimed, err := tx.ClaimAdminBootstrap(ctx)
 		if err != nil || !claimed {
 			return err
 		}
@@ -595,7 +593,7 @@ func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials Admin
 		keyID := a.cfg.EncryptionKeyID
 		enrolledAt := a.currentTime()
 		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{
-			ID: uuid.New(), UserID: userID, Permissions: firstRunAdminPermissions(), Active: true,
+			ID: uuid.New(), UserID: userID, Permissions: bootstrapAdminPermissions(), Active: true,
 			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt,
 		}); err != nil {
 			return err
@@ -609,98 +607,7 @@ func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials Admin
 	return created && err == nil, err
 }
 
-// InitialAdminSetup enrolls one existing password account. The deployment
-// token and account password are both required; a durable database claim
-// prevents any later browser enrollment, even if the account is deleted.
-func (a *AdminAuth) InitialAdminSetup(ctx context.Context, csrf, username, plainPassword, setupToken string) (*AdminEnrollmentResult, error) {
-	if a == nil || a.q == nil || len(strings.TrimSpace(a.cfg.FirstRunToken)) < 32 || len(a.cfg.EncryptionKey) == 0 || len(a.cfg.HMACKey) == 0 {
-		return nil, ErrAdminUnavailable
-	}
-	cookie := adminCookie(ctx)
-	if !a.validPreAuthEnvelope(cookie) {
-		return nil, ErrAdminUnauthorized
-	}
-	if !a.validatePreAuthCSRF(cookie, csrf) {
-		return nil, ErrAdminInvalidCSRF
-	}
-	if len(username) > 256 || len(plainPassword) < 8 || len(plainPassword) > 256 || len(setupToken) < 32 || len(setupToken) > 256 {
-		return nil, ErrAdminInvalidSetupRequest
-	}
-	username = strings.TrimSpace(username)
-	if username == "" {
-		return nil, ErrAdminInvalidSetupRequest
-	}
-	candidate, err := a.q.GetUserByUsername(ctx, username)
-	if err != nil {
-		return nil, ErrAdminUnavailable
-	}
-	clientIP := adminClientIP(ctx)
-	if err := a.checkFailedChallengeQuota(ctx, candidateID(candidate), clientIP); err != nil {
-		return nil, err
-	}
-	expected := sha256.Sum256([]byte(a.cfg.FirstRunToken))
-	actual := sha256.Sum256([]byte(setupToken))
-	if !hmac.Equal(expected[:], actual[:]) || candidate == nil {
-		if err := a.admitFailedChallenge(ctx, candidateID(candidate), clientIP); err != nil {
-			return nil, err
-		}
-		return nil, ErrAdminUnauthorized
-	}
-	var result *AdminEnrollmentResult
-	err = a.q.InTxRetry(ctx, func(tx *db.Queries) error {
-		state, err := tx.LockUserSecurity(ctx, candidate.ID)
-		if err != nil {
-			return err
-		}
-		user, err := tx.GetUserByID(ctx, candidate.ID)
-		if err != nil {
-			return err
-		}
-		if state == nil || user == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired || !password.Verify(user.Password, plainPassword) {
-			return ErrAdminUnauthorized
-		}
-		claimed, err := tx.ClaimInitialAdminSetup(ctx)
-		if err != nil {
-			return err
-		}
-		if !claimed {
-			return ErrAdminUnauthorized
-		}
-		secretText, secret, err := a.GenerateEnrollmentSecret()
-		if err != nil {
-			return err
-		}
-		ciphertext, err := a.encryptTOTP(secret)
-		if err != nil {
-			return err
-		}
-		keyID := a.cfg.EncryptionKeyID
-		enrolledAt := a.currentTime()
-		if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{
-			ID: uuid.New(), UserID: candidate.ID, Permissions: firstRunAdminPermissions(), Active: true,
-			TotpSecretCiphertext: ciphertext, TotpKeyID: &keyID, TotpEnrolledAt: &enrolledAt,
-		}); err != nil {
-			return err
-		}
-		if err := createAdminAudit(ctx, tx, candidate.ID, "admin_initial_setup", nil, strPtr("enrolled"), nil); err != nil {
-			return err
-		}
-		result = &AdminEnrollmentResult{UserID: candidate.ID, Secret: secretText}
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, ErrAdminUnauthorized) {
-			if quotaErr := a.admitFailedChallenge(ctx, candidate.ID, clientIP); quotaErr != nil {
-				return nil, quotaErr
-			}
-			return nil, ErrAdminUnauthorized
-		}
-		return nil, ErrAdminUnavailable
-	}
-	return result, nil
-}
-
-func firstRunAdminPermissions() []string {
+func bootstrapAdminPermissions() []string {
 	return []string{"audit.read", "campaign.login_link", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read", "users.verify"}
 }
 
@@ -1485,7 +1392,7 @@ func (a *AdminAuth) EnrollAdminOperator(ctx context.Context, username string, pe
 		if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
 			return ErrAdminForbidden
 		}
-		if err := tx.MarkInitialAdminSetupClaimed(ctx); err != nil {
+		if err := tx.MarkAdminBootstrapClaimed(ctx); err != nil {
 			return err
 		}
 		membership, err := tx.GetAdminMembership(ctx, user.ID)

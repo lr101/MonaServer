@@ -213,6 +213,24 @@ func (q *Queries) BackfillEmailLoginClaims(ctx context.Context) error {
 	return err
 }
 
+const claimAdminBootstrap = `-- name: ClaimAdminBootstrap :one
+
+INSERT INTO admin_bootstrap_claims (singleton)
+SELECT TRUE WHERE NOT EXISTS (SELECT 1 FROM admin_memberships)
+ON CONFLICT DO NOTHING
+RETURNING singleton
+`
+
+// Admin membership and bootstrap -------------------------------------------
+// The singleton claim serializes competing environment bootstraps. A prior
+// explicit operator enrollment marks the deployment claimed too.
+func (q *Queries) ClaimAdminBootstrap(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, claimAdminBootstrap)
+	var singleton bool
+	err := row.Scan(&singleton)
+	return singleton, err
+}
+
 const claimAdminJobItems = `-- name: ClaimAdminJobItems :many
 WITH candidates AS (
     SELECT id
@@ -526,25 +544,6 @@ func (q *Queries) ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginC
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const claimInitialAdminSetup = `-- name: ClaimInitialAdminSetup :one
-
-INSERT INTO admin_initial_setup_claims (singleton)
-SELECT TRUE WHERE NOT EXISTS (SELECT 1 FROM admin_memberships)
-ON CONFLICT DO NOTHING
-RETURNING singleton
-`
-
-// Admin membership and browser sessions ------------------------------------
-// The singleton claim serializes competing first-run requests. A prior CLI
-// enrollment marks the deployment claimed too, so web setup cannot grant a
-// second administrator after an existing one was provisioned.
-func (q *Queries) ClaimInitialAdminSetup(ctx context.Context) (bool, error) {
-	row := q.db.QueryRow(ctx, claimInitialAdminSetup)
-	var singleton bool
-	err := row.Scan(&singleton)
-	return singleton, err
 }
 
 const claimJobItem = `-- name: ClaimJobItem :one
@@ -3035,14 +3034,14 @@ func (q *Queries) LockUserSecurityState(ctx context.Context, id pgtype.UUID) (Lo
 	return i, err
 }
 
-const markInitialAdminSetupClaimed = `-- name: MarkInitialAdminSetupClaimed :exec
-INSERT INTO admin_initial_setup_claims (singleton)
+const markAdminBootstrapClaimed = `-- name: MarkAdminBootstrapClaimed :exec
+INSERT INTO admin_bootstrap_claims (singleton)
 VALUES (TRUE)
 ON CONFLICT DO NOTHING
 `
 
-func (q *Queries) MarkInitialAdminSetupClaimed(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, markInitialAdminSetupClaimed)
+func (q *Queries) MarkAdminBootstrapClaimed(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, markAdminBootstrapClaimed)
 	return err
 }
 

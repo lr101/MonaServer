@@ -25,7 +25,7 @@ func TestConfiguredAdminBootstrapCreatesAccountBeforeServing(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 	ctx := context.Background()
-	if _, err := pool.Exec(ctx, `TRUNCATE TABLE admin_initial_setup_claims, users CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE TABLE admin_bootstrap_claims, users CASCADE`); err != nil {
 		t.Fatal(err)
 	}
 	q := db.New(pool)

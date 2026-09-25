@@ -41,7 +41,7 @@ type Admin2Boundary struct {
 	Geom     interface{} `json:"geom"`
 }
 
-type AdminInitialSetupClaim struct {
+type AdminBootstrapClaim struct {
 	Singleton bool               `json:"singleton"`
 	ClaimedAt pgtype.Timestamptz `json:"claimed_at"`
 }
