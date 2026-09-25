@@ -120,22 +120,9 @@ abstract class MapState with _$MapState {
 class MapStates extends _$MapStates {
   @override
   MapState build() {
-    final userPosition = ref
-        .watch(currentLocationProvider)
-        .whenOrNull(data: (position) => position);
-    const distance = Distance();
     return MapState(
       markers: ref.watch(activatedPinsWithoutLoadingProvider).map((pin) {
-        final withAnimation =
-            !pin.isGone &&
-            userPosition != null &&
-            distance.as(
-                  LengthUnit.Meter,
-                  LatLng(userPosition.latitude, userPosition.longitude),
-                  LatLng(pin.latitude, pin.longitude),
-                ) <=
-                50;
-        return CustomMarkerWidget(pinDto: pin, withAnimation: withAnimation);
+        return CustomMarkerWidget(pinDto: pin);
       }).toList(),
     );
   }

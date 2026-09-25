@@ -4,7 +4,6 @@ import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/camera.dart'
     as camera_page;
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
-import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -240,16 +239,6 @@ void main() {
     expect(find.byType(CameraPreview), findsNothing);
   });
 
-  test('static markers do not create an animation controller', () {
-    expect(
-      createMarkerAnimationController(
-        withAnimation: false,
-        vsync: _TestVsync(),
-      ),
-      isNull,
-    );
-  });
-
   test('zoom updates coalesce while a platform update is pending', () async {
     final firstUpdate = Completer<void>();
     final calls = <double>[];
@@ -339,5 +328,3 @@ class _FakeLocationPermissionGateway implements LocationPermissionGateway {
     return requestedPermission;
   }
 }
-
-class _TestVsync extends TestVSync {}
