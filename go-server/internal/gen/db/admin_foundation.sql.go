@@ -1721,6 +1721,33 @@ func (q *Queries) GetAccountActionTokenByHash(ctx context.Context, tokenHash []b
 	return i, err
 }
 
+const getAccountActionTokenByID = `-- name: GetAccountActionTokenByID :one
+SELECT id, token_hash, purpose, account_id, email_binding, auth_generation, expires_at,
+       consumed_at, revoked_at, delivery_attempt_id, created_at, updated_at
+FROM account_action_tokens
+WHERE id = $1::uuid
+`
+
+func (q *Queries) GetAccountActionTokenByID(ctx context.Context, id pgtype.UUID) (AccountActionToken, error) {
+	row := q.db.QueryRow(ctx, getAccountActionTokenByID, id)
+	var i AccountActionToken
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.Purpose,
+		&i.AccountID,
+		&i.EmailBinding,
+		&i.AuthGeneration,
+		&i.ExpiresAt,
+		&i.ConsumedAt,
+		&i.RevokedAt,
+		&i.DeliveryAttemptID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAdminJob = `-- name: GetAdminJob :one
 SELECT id, actor_id, snapshot_id, action, payload_hash, idempotency_key, status,
        account_count, eligible_count, device_count, completed_count, failed_count,

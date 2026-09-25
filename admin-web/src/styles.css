@@ -46,6 +46,19 @@ fieldset { border: 1px solid #e2e7f0; border-radius: .6rem; display: grid; gap: 
 .stack-form label { display: grid; gap: .4rem; }
 .notice { background: #fff9e8; border: 1px solid #ead28b; border-radius: .6rem; margin-bottom: 1rem; padding: .8rem 1rem; }
 .notice p { margin: .25rem 0 .6rem; }
+.variable-info { background: #fff4c6; border: 1px solid #e5cf78; border-radius: .75rem; color: #4f421d; padding: .9rem 1rem; }
+.variable-info > p { color: #695b2b; margin: .2rem 0 .7rem; }
+.variable-list { display: flex; flex-wrap: wrap; gap: .45rem; }
+.variable-chip { background: #f0d66e; border: 1px solid #d7bb4d; border-radius: 999px; color: #453912; font: 600 .86rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; padding: .45rem .7rem; }
+.variable-chip:hover { background: #e8ca54; }
+.variable-chip:disabled { cursor: not-allowed; }
+.template-preview { background: #f8f9fc; border: 1px solid #e2e7f0; border-radius: .75rem; padding: 1rem; }
+.template-preview h4, .template-preview p { margin: 0 0 .5rem; }
+.email-preview { background: white; border: 1px solid #e2e7f0; border-radius: .5rem; line-height: 1.65; min-height: 4rem; padding: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.campaign-progress-card { background: #f7f9ff; border: 1px solid #d9e2fa; border-radius: .75rem; margin: .8rem 0 1rem; padding: 1rem; }
+.campaign-progress { accent-color: #2457d6; display: block; height: .8rem; margin: .7rem 0; width: 100%; }
+.progress-heading { align-items: center; display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; }
+.campaign-progress-card p { margin: 0; }
 .detail-actions { margin-bottom: 1rem; }
 .card dl { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
 .card dt { color: #68748c; font-size: .85rem; }
@@ -63,4 +76,5 @@ pre { max-width: 100%; overflow: auto; white-space: pre-wrap; }
   nav { flex-direction: row; overflow-x: auto; }
   .content { padding: 1rem; }
   header { padding: 1rem; }
+  .variable-info { padding: .75rem; }
 }

@@ -2566,6 +2566,15 @@ paths:
           minLength: 16
           type: string
         style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminLoginLinkCampaignRequestDto"
+        description: Optional campaign send context. Omit it to use the standard single-user
+          sign-in message. Campaign content is loaded from the active campaign on
+          the server.
+        required: false
       responses:
         "202":
           description: Login link delivery queued for the user's verified email
@@ -2593,6 +2602,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/apiErrorDto"
           description: The resource is absent or not visible to the caller.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The account is no longer eligible for a login email.
         "409":
           content:
             application/json:
@@ -4344,6 +4359,12 @@ components:
           schema:
             $ref: "#/components/schemas/apiErrorDto"
       description: The resource is absent or not visible to the caller.
+    gone:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/apiErrorDto"
+      description: The account is no longer eligible for a login email.
     conflict:
       content:
         application/json:
@@ -5044,6 +5065,22 @@ components:
           type: integer
       required:
       - expectedRevision
+      type: object
+    adminLoginLinkCampaignRequestDto:
+      description: "Optional campaign send context. When supplied, all fields are\
+        \ required together and content is loaded from the active campaign."
+      properties:
+        campaignId:
+          format: uuid
+          type: string
+        campaignRevision:
+          format: int64
+          type: integer
+        sendId:
+          description: "Stable identifier for one send attempt, reused when retrying\
+            \ an uncertain request."
+          format: uuid
+          type: string
       type: object
     adminUserFilterDto:
       description: Validated server-side account filter. Filter evaluation never happens

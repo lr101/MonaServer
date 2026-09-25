@@ -32,7 +32,10 @@ const (
 	CampaignStatusArchived CampaignStatus = "archived"
 )
 
-var ErrInvalidCampaign = apperrors.New(http.StatusBadRequest, "invalid campaign")
+var (
+	ErrInvalidCampaign     = apperrors.New(http.StatusBadRequest, "invalid campaign")
+	ErrCampaignNotSendable = apperrors.New(http.StatusConflict, "campaign is no longer ready to send")
+)
 
 type CampaignChannel string
 type CampaignStatus string
@@ -173,7 +176,7 @@ func (s *CampaignService) Create(ctx context.Context, actor AdminActor, input Ca
 	}
 	name, body := strings.TrimSpace(input.Name), strings.TrimSpace(input.Body)
 	subject, title := normalizeCampaignOptionalText(input.Subject), normalizeCampaignOptionalText(input.Title)
-	if err := validateCampaignContent(name, input.Channel, subject, title, body); err != nil || !isMutableCampaignStatus(input.Status) {
+	if err := validateCampaign(name, input.Channel, subject, title, body, input.Status); err != nil {
 		return nil, ErrInvalidCampaign
 	}
 	now := s.now().UTC()
@@ -189,7 +192,7 @@ func (s *CampaignService) Update(ctx context.Context, actor AdminActor, input Ca
 	}
 	name, body := strings.TrimSpace(input.Name), strings.TrimSpace(input.Body)
 	subject, title := normalizeCampaignOptionalText(input.Subject), normalizeCampaignOptionalText(input.Title)
-	if input.CampaignID == uuid.Nil || input.ExpectedRevision < 1 || !isMutableCampaignStatus(input.Status) || validateCampaignContent(name, input.Channel, subject, title, body) != nil {
+	if input.CampaignID == uuid.Nil || input.ExpectedRevision < 1 || validateCampaign(name, input.Channel, subject, title, body, input.Status) != nil {
 		return nil, ErrInvalidCampaign
 	}
 	current, err := s.store.GetCampaign(ctx, input.CampaignID)
@@ -310,6 +313,18 @@ func validateCampaignContent(name string, channel CampaignChannel, subject, titl
 		}
 	default:
 		return ErrInvalidCampaign
+	}
+	return nil
+}
+
+func validateCampaign(name string, channel CampaignChannel, subject, title *string, body string, status CampaignStatus) error {
+	if !isMutableCampaignStatus(status) || validateCampaignContent(name, channel, subject, title, body) != nil {
+		return ErrInvalidCampaign
+	}
+	if status == CampaignStatusActive && channel == CampaignChannelEmail {
+		if subject == nil || validateLoginLinkEmailTemplate(&LoginLinkEmailTemplate{Subject: *subject, Body: body}) != nil {
+			return ErrInvalidCampaign
+		}
 	}
 	return nil
 }

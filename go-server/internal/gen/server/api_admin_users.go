@@ -11,6 +11,9 @@
 package genserver
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -255,7 +258,22 @@ func (c *AdminUsersAPIController) SendAdminUserLoginLink(w http.ResponseWriter, 
 		return
 	}
 	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
-	result, err := c.service.SendAdminUserLoginLink(r.Context(), userIdParam, xCSRFTokenParam)
+	var adminLoginLinkCampaignRequestDtoParam AdminLoginLinkCampaignRequestDto
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(&adminLoginLinkCampaignRequestDtoParam); err != nil && !errors.Is(err, io.EOF) {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertAdminLoginLinkCampaignRequestDtoRequired(adminLoginLinkCampaignRequestDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	if err := AssertAdminLoginLinkCampaignRequestDtoConstraints(adminLoginLinkCampaignRequestDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.SendAdminUserLoginLink(r.Context(), userIdParam, xCSRFTokenParam, adminLoginLinkCampaignRequestDtoParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

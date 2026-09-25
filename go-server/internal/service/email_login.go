@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,8 @@ import (
 )
 
 const (
+	MaxEmailLoginCallbackURLBytes = 1536
+
 	loginLinkTokenTTL       = 15 * time.Minute
 	adminLoginLinkTokenTTL  = 24 * time.Hour
 	recoveryTokenTTL        = 10 * time.Minute
@@ -39,9 +42,10 @@ const (
 var (
 	// Public errors intentionally do not distinguish an absent account, an
 	// unverified/duplicate address, or a restricted account.
-	ErrEmailRateLimited         = apperrors.New(http.StatusTooManyRequests, "too many requests")
-	ErrEmailDeliveryUnavailable = apperrors.New(http.StatusServiceUnavailable, "email delivery is unavailable")
-	ErrInvalidEmailLink         = apperrors.New(http.StatusBadRequest, "invalid email link")
+	ErrEmailRateLimited          = apperrors.New(http.StatusTooManyRequests, "too many requests")
+	ErrEmailDeliveryUnavailable  = apperrors.New(http.StatusServiceUnavailable, "email delivery is unavailable")
+	ErrInvalidEmailLink          = apperrors.New(http.StatusBadRequest, "invalid email link")
+	ErrLoginRecipientUnavailable = apperrors.New(http.StatusGone, "login recipient is no longer eligible")
 )
 
 // EmailRateLimitError keeps the shared quota decision's retry boundary at the
@@ -117,6 +121,7 @@ type LoginLinkDeliveryRequest struct {
 	Username       string
 	To             string
 	Token          string
+	Template       *LoginLinkEmailTemplate
 	ExpiresIn      time.Duration
 	PayloadTTL     time.Duration
 	ActionTokenID  uuid.UUID
@@ -130,12 +135,16 @@ type LoginLinkDeliveryEnqueuer interface {
 	EnqueueLoginLink(context.Context, *db.Queries, LoginLinkDeliveryRequest) (*uuid.UUID, error)
 }
 
-// LoginLinkIssueRequest is the typed port for administrative callers. It
-// accepts an account ID only, so an admin cannot override the trusted email
-// destination with a raw address.
+// LoginLinkIssueRequest is the typed port for administrative callers. A
+// campaign request binds issuance to an active campaign revision and a stable
+// send ID, while the single-user path keeps the standard email content.
 type LoginLinkIssueRequest struct {
-	AccountID uuid.UUID
-	ActorID   *uuid.UUID
+	AccountID        uuid.UUID
+	ActorID          *uuid.UUID
+	Template         *LoginLinkEmailTemplate
+	CampaignID       uuid.UUID
+	CampaignRevision int64
+	CampaignSendID   uuid.UUID
 }
 
 // EmailLinkRequestResult is rich at the service/typed-port boundary but the
@@ -144,6 +153,7 @@ type LoginLinkIssueRequest struct {
 type EmailLinkRequestResult struct {
 	Accepted       bool
 	Issued         bool
+	AlreadyQueued  bool
 	AccountID      uuid.UUID
 	Username       string
 	CanonicalEmail string
@@ -360,7 +370,7 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		if err != nil || !ownedEmailMatches(state, lockedClaim, canonical, *claim.OwnerUserID) || user == nil {
 			return err
 		}
-		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, canonical, s.cfg.LoginTokenTTL, s.cfg.DeliveryPayloadTTL)
+		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, canonical, s.cfg.LoginTokenTTL, s.cfg.DeliveryPayloadTTL, nil, uuid.Nil)
 		if err != nil {
 			return err
 		}
@@ -495,13 +505,13 @@ func ownedEmailMatches(state *db.UserSecurityState, claim *db.EmailLoginClaim, c
 		db.CanonicalEmail(*state.Email) == canonical
 }
 
-func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, state *db.UserSecurityState, user *db.User, canonical string, tokenTTL, payloadTTL time.Duration) (*EmailLinkRequestResult, error) {
+func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, state *db.UserSecurityState, user *db.User, canonical string, tokenTTL, payloadTTL time.Duration, emailTemplate *LoginLinkEmailTemplate, actionTokenID uuid.UUID) (*EmailLinkRequestResult, error) {
 	if tx == nil || state == nil || user == nil || !ownedEmailMatches(state, &db.EmailLoginClaim{CanonicalEmail: canonical, OwnerUserID: &state.ID, State: db.EmailClaimOwned}, canonical, state.ID) {
 		return nil, nil
 	}
 	// issueActionTokenLocked is called after the account and claim locks are
 	// held. It persists only the hash and binds the current generation/email.
-	action, err := s.security.issueActionTokenLocked(ctx, tx, state, db.ActionTokenPurposeLoginLink, &canonical, tokenTTL)
+	action, err := s.security.issueActionTokenWithIDLocked(ctx, tx, state, db.ActionTokenPurposeLoginLink, &canonical, tokenTTL, actionTokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -513,9 +523,13 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 	}
 	deliveryID, err := enqueuer.EnqueueLoginLink(ctx, tx, LoginLinkDeliveryRequest{
 		AccountID: state.ID, Username: user.Username, To: canonical, Token: action.Token,
+		Template:  emailTemplate,
 		ExpiresIn: tokenTTL, PayloadTTL: payloadTTL,
 		ActionTokenID: action.ID, AuthGeneration: state.AuthGeneration, ExpiresAt: action.ExpiresAt,
 	})
+	if errors.Is(err, ErrInvalidLoginLinkTemplate) {
+		return nil, err
+	}
 	if err != nil || deliveryID == nil {
 		return nil, ErrEmailDeliveryUnavailable
 	}
@@ -531,11 +545,56 @@ func (s *EmailLogin) IssueLoginLink(ctx context.Context, request LoginLinkIssueR
 	if s == nil || s.q == nil || request.AccountID == uuid.Nil {
 		return nil, apperrors.ErrBadRequest
 	}
+	hasCampaignContext := request.CampaignID != uuid.Nil || request.CampaignRevision != 0 || request.CampaignSendID != uuid.Nil
+	if hasCampaignContext && (request.CampaignID == uuid.Nil || request.CampaignRevision < 1 || request.CampaignSendID == uuid.Nil) {
+		return nil, apperrors.ErrBadRequest
+	}
+	if request.Template != nil && hasCampaignContext {
+		return nil, apperrors.ErrBadRequest
+	}
+	if err := validateLoginLinkEmailTemplate(request.Template); err != nil {
+		return nil, err
+	}
 	var result *EmailLinkRequestResult
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		emailTemplate := request.Template
+		actionTokenID := uuid.Nil
+		if hasCampaignContext {
+			campaign, err := tx.LockCampaignForLoginSend(ctx, request.CampaignID)
+			if err != nil {
+				return err
+			}
+			if campaign == nil {
+				return apperrors.ErrNotFound
+			}
+			if campaign.Status != string(CampaignStatusActive) || campaign.Channel != string(CampaignChannelEmail) || campaign.Revision != request.CampaignRevision || campaign.Subject == nil {
+				return ErrCampaignNotSendable
+			}
+			emailTemplate = &LoginLinkEmailTemplate{Subject: *campaign.Subject, Body: campaign.Body}
+			if err := validateLoginLinkEmailTemplate(emailTemplate); err != nil {
+				return err
+			}
+			actionTokenID = campaignLoginLinkActionTokenID(request.CampaignID, request.CampaignRevision, request.CampaignSendID, request.AccountID)
+		}
 		state, err := tx.LockUserSecurity(ctx, request.AccountID)
-		if err != nil || state == nil {
+		if err != nil {
 			return err
+		}
+		if actionTokenID != uuid.Nil {
+			existing, err := tx.GetAccountActionTokenByID(ctx, actionTokenID)
+			if err != nil {
+				return err
+			}
+			if existing != nil {
+				if existing.AccountID != request.AccountID || existing.Purpose != db.ActionTokenPurposeLoginLink {
+					return ErrInvalidAction
+				}
+				result = &EmailLinkRequestResult{Accepted: true, AlreadyQueued: true, AccountID: request.AccountID}
+				return nil
+			}
+		}
+		if state == nil {
+			return ErrInvalidEmailLink
 		}
 		if state.Email == nil || !state.EmailConfirmed {
 			return ErrInvalidEmailLink
@@ -549,19 +608,35 @@ func (s *EmailLogin) IssueLoginLink(ctx context.Context, request LoginLinkIssueR
 		if err != nil || user == nil || !ownedEmailMatches(state, claim, canonical, request.AccountID) {
 			return ErrInvalidEmailLink
 		}
-		result, err = s.issueLoginLinkLocked(ctx, tx, state, user, canonical, adminLoginLinkTokenTTL, adminLoginPayloadTTL)
+		result, err = s.issueLoginLinkLocked(ctx, tx, state, user, canonical, adminLoginLinkTokenTTL, adminLoginPayloadTTL, emailTemplate, actionTokenID)
 		if err != nil || result == nil || request.ActorID == nil {
 			return err
 		}
+		var metadata []byte
+		if hasCampaignContext {
+			metadata, err = json.Marshal(map[string]string{
+				"campaignId":       request.CampaignID.String(),
+				"campaignRevision": strconv.FormatInt(request.CampaignRevision, 10),
+				"sendId":           request.CampaignSendID.String(),
+			})
+			if err != nil {
+				return err
+			}
+		}
 		return tx.CreateAuditEvent(ctx, db.AuditEventParams{
 			ID: uuid.New(), ActorID: request.ActorID, TargetAccountID: &request.AccountID,
-			Action: "admin_login_link_queued",
+			Action: "admin_login_link_queued", Metadata: metadata,
 		})
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+func campaignLoginLinkActionTokenID(campaignID uuid.UUID, revision int64, sendID, accountID uuid.UUID) uuid.UUID {
+	key := fmt.Sprintf("campaign-login:%d:%s:%s", revision, sendID, accountID)
+	return uuid.NewSHA1(campaignID, []byte(key))
 }
 
 // ExchangeEmailLink consumes exactly one login token and creates its refresh
@@ -896,6 +971,17 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 		now = time.Now()
 	}
 	content := loginLinkEmailContent(request.Username, request.To, request.Token, e.callback, request.ExpiresIn)
+	if request.Template != nil {
+		callback := loginLinkCallback(request.Token, e.callback)
+		if len(e.callback) > MaxEmailLoginCallbackURLBytes || len(callback) > maxLoginLinkTemplateURLBytes {
+			return nil, ErrInvalidLoginLinkTemplate
+		}
+		subject, body, htmlBody, err := renderLoginLinkEmailContent(request.Template, request.Username, request.To, callback, loginLinkExpiryLabel(request.ExpiresIn))
+		if err != nil {
+			return nil, err
+		}
+		content.Subject, content.Body, content.HTML = subject, body, htmlBody
+	}
 	metadata := authenticatedDeliveryMetadata{
 		ActionTokenID:  request.ActionTokenID,
 		TokenHash:      sha256Bytes(request.Token),
@@ -959,6 +1045,20 @@ type loginLinkEmailData struct {
 }
 
 func loginLinkEmailContent(username, to, rawToken, callback string, expiresIn time.Duration) EmailContent {
+	callback = loginLinkCallback(rawToken, callback)
+	data := loginLinkEmailData{Username: username, URL: callback, ExpiresIn: loginLinkExpiryLabel(expiresIn)}
+	var htmlBody bytes.Buffer
+	if err := loginLinkEmailTemplate.Execute(&htmlBody, data); err != nil {
+		htmlBody.WriteString(template.HTMLEscapeString(callback))
+	}
+	return EmailContent{
+		To: to, Subject: "Sign in to Stick-It",
+		Body: "Use this one-time link to sign in to Stick-It. It expires in " + data.ExpiresIn + ": " + callback,
+		HTML: htmlBody.String(),
+	}
+}
+
+func loginLinkCallback(rawToken, callback string) string {
 	callback = strings.TrimRight(callback, "&?")
 	if !strings.Contains(callback, "token=") {
 		if strings.HasSuffix(callback, "=") {
@@ -971,16 +1071,7 @@ func loginLinkEmailContent(username, to, rawToken, callback string, expiresIn ti
 	} else {
 		callback += rawToken
 	}
-	data := loginLinkEmailData{Username: username, URL: callback, ExpiresIn: loginLinkExpiryLabel(expiresIn)}
-	var htmlBody bytes.Buffer
-	if err := loginLinkEmailTemplate.Execute(&htmlBody, data); err != nil {
-		htmlBody.WriteString(template.HTMLEscapeString(callback))
-	}
-	return EmailContent{
-		To: to, Subject: "Sign in to Stick-It",
-		Body: "Use this one-time link to sign in to Stick-It. It expires in " + data.ExpiresIn + ": " + callback,
-		HTML: htmlBody.String(),
-	}
+	return callback
 }
 
 func loginLinkExpiryLabel(expiresIn time.Duration) string {

@@ -154,9 +154,9 @@ export class AdminApi {
     });
   }
 
-  sendUserLoginLink(userId) {
+  sendUserLoginLink(userId, campaignContext) {
     return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}/login-link`, {
-      method: 'POST', csrf: true,
+      method: 'POST', csrf: true, ...(campaignContext ? { body: campaignContext } : {}),
     });
   }
 

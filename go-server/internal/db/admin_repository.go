@@ -157,6 +157,21 @@ func (q *Queries) GetAccountActionTokenByHash(ctx context.Context, tokenHash []b
 	return &v, nil
 }
 
+func (q *Queries) GetAccountActionTokenByID(ctx context.Context, id uuid.UUID) (*AccountActionToken, error) {
+	if id == uuid.Nil {
+		return nil, nil
+	}
+	r, err := q.g.GetAccountActionTokenByID(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v := accountActionTokenFromRow(r)
+	return &v, nil
+}
+
 // LockAccountActionTokenByHash is a low-level primitive.  Callers must lock
 // the account first (using LockUserSecurity) so every account/token mutation
 // follows the shared lock order documented in admin_foundation.go.

@@ -149,6 +149,12 @@ SELECT id, token_hash, purpose, account_id, email_binding, auth_generation, expi
 FROM account_action_tokens
 WHERE token_hash = $1;
 
+-- name: GetAccountActionTokenByID :one
+SELECT id, token_hash, purpose, account_id, email_binding, auth_generation, expires_at,
+       consumed_at, revoked_at, delivery_attempt_id, created_at, updated_at
+FROM account_action_tokens
+WHERE id = sqlc.arg('id')::uuid;
+
 -- name: LockAccountActionTokenByHash :one
 SELECT id, token_hash, purpose, account_id, email_binding, auth_generation, expires_at,
        consumed_at, revoked_at, delivery_attempt_id, created_at, updated_at
