@@ -21,6 +21,7 @@ class PinEntity extends CacheEntity {
 
   final String groupId; // Assuming this is a groupId
   final bool isHidden;
+  final bool isGone;
   final DateTime? lastSynced;
 
   PinEntity({
@@ -32,6 +33,7 @@ class PinEntity extends CacheEntity {
     required this.creator,
     required this.groupId,
     this.isHidden = false,
+    this.isGone = false,
     this.lastSynced,
     super.keepAlive,
     super.hits,
@@ -52,6 +54,7 @@ class PinEntity extends CacheEntity {
       creator: pinDto.creationUser,
       groupId: pinDto.groupId,
       description: pinDto.description,
+      isGone: pinDto.isGone ?? false,
       lastSynced: DateTime.now(),
       keepAlive: keepAlive,
       onlySession: onlySession,
@@ -77,6 +80,7 @@ class PinEntity extends CacheEntity {
     int? hits,
     bool? keepAlive,
     bool? onlySession,
+    bool? isGone,
   }) {
     return PinEntity(
       pinId: pinId,
@@ -87,6 +91,7 @@ class PinEntity extends CacheEntity {
       creator: creator,
       groupId: groupId,
       isHidden: isHidden,
+      isGone: isGone ?? this.isGone,
       lastSynced: lastSynced,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,

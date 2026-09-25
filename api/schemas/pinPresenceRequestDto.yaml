@@ -1,0 +1,9 @@
+type: object
+required:
+  - state
+properties:
+  state:
+    type: string
+    enum:
+      - here
+      - gone

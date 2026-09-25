@@ -188,6 +188,41 @@ func (s *PinsServicer) GetPin(ctx context.Context, pinID string, withImage bool)
 	return genserver.Response(http.StatusOK, result), nil
 }
 
+func (s *PinsServicer) SetPinPresence(ctx context.Context, pinID string, request genserver.PinPresenceRequestDto) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(pinID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	var isGone bool
+	switch request.State {
+	case "here":
+		isGone = false
+	case "gone":
+		isGone = true
+	default:
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	userID, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	visible, err := s.guard.IsPinPublicOrMember(ctx, id, userID)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if !visible {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
+	if err := s.pin.SetGone(ctx, id, isGone); err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	result, err := s.pin.Get(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	return genserver.Response(http.StatusOK, pinDTOtoDto(result)), nil
+}
+
 func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(pinID)
 	if err != nil {
@@ -292,6 +327,7 @@ func pinToDto(p db.Pin) genserver.PinWithOptionalImageDto {
 	if p.CreationDate != nil {
 		creationDate = *p.CreationDate
 	}
+	isGone := p.IsGone
 	return genserver.PinWithOptionalImageDto{
 		Id:           p.ID.String(),
 		CreationDate: creationDate,
@@ -300,6 +336,7 @@ func pinToDto(p db.Pin) genserver.PinWithOptionalImageDto {
 		CreationUser: p.CreatorID.String(),
 		GroupId:      p.GroupID.String(),
 		Description:  p.Description,
+		IsGone:       &isGone,
 	}
 }
 
@@ -312,6 +349,7 @@ func pinDTOtoDto(p *service.PinDTO) genserver.PinWithOptionalImageDto {
 	if p.Image != nil {
 		img = *p.Image
 	}
+	isGone := p.IsGone
 	return genserver.PinWithOptionalImageDto{
 		Id:           p.ID.String(),
 		CreationDate: creationDate,
@@ -320,6 +358,7 @@ func pinDTOtoDto(p *service.PinDTO) genserver.PinWithOptionalImageDto {
 		CreationUser: p.UserID.String(),
 		GroupId:      p.GroupID.String(),
 		Description:  p.Description,
+		IsGone:       &isGone,
 		Image:        img,
 	}
 }

@@ -484,6 +484,33 @@ class PinService {
     await _pinImageRepository.addImage(newPin.pinId, image, false);
   }
 
+  Future<String?> setPinGone(String pinId, bool isGone) async {
+    final session = captureSession(ref);
+    try {
+      final pin = await _pinRepository.get(pinId);
+      if (pin == null || pin.lastSynced == null) {
+        return 'This pin is not synced yet.';
+      }
+
+      final updatedPin = await _pinsApi.setPinPresence(
+        pinId,
+        PinPresenceRequestDto(
+          state: isGone
+              ? PinPresenceRequestDtoStateEnum.gone
+              : PinPresenceRequestDtoStateEnum.here,
+        ),
+      );
+      if (!isCurrentSession(ref, session)) return null;
+
+      await _pinRepository.put(
+        pin.copyWith(isGone: updatedPin?.isGone ?? isGone) as PinEntity,
+      );
+    } on ApiException catch (e) {
+      return e.message;
+    }
+    return null;
+  }
+
   Future<String?> deletePinFromGroup(
     String pinId, {
     bool showPrompt = false,

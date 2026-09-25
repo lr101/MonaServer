@@ -70,6 +70,12 @@ func (c *PinsAPIController) Routes() Routes {
 			"/api/v2/pins/{pinId}",
 			c.GetPin,
 		},
+		"SetPinPresence": Route{
+			"SetPinPresence",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/{pinId}/presence",
+			c.SetPinPresence,
+		},
 		"DeletePin": Route{
 			"DeletePin",
 			strings.ToUpper("Delete"),
@@ -111,6 +117,12 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Get"),
 			"/api/v2/pins/{pinId}",
 			c.GetPin,
+		},
+		Route{
+			"SetPinPresence",
+			strings.ToUpper("Post"),
+			"/api/v2/pins/{pinId}/presence",
+			c.SetPinPresence,
 		},
 		Route{
 			"DeletePin",
@@ -245,6 +257,36 @@ func (c *PinsAPIController) GetPin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// SetPinPresence - Set whether the pin is still present
+func (c *PinsAPIController) SetPinPresence(w http.ResponseWriter, r *http.Request) {
+	pinIdParam := chi.URLParam(r, "pinId")
+	if pinIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"pinId"}, nil)
+		return
+	}
+	var request PinPresenceRequestDto
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(&request); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertPinPresenceRequestDtoRequired(request); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	if err := AssertPinPresenceRequestDtoConstraints(request); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.SetPinPresence(r.Context(), pinIdParam, request)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 

@@ -282,6 +282,7 @@ type Querier interface {
 	SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error)
 	SetEmailLoginClaim(ctx context.Context, arg SetEmailLoginClaimParams) error
 	SetGroupInviteUrl(ctx context.Context, arg SetGroupInviteUrlParams) error
+	SetPinGone(ctx context.Context, arg SetPinGoneParams) (int64, error)
 	SetUserDeletionUrl(ctx context.Context, arg SetUserDeletionUrlParams) error
 	SetUserProfilePictureExists(ctx context.Context, arg SetUserProfilePictureExistsParams) error
 	SetUserRecoveryCode(ctx context.Context, arg SetUserRecoveryCodeParams) error

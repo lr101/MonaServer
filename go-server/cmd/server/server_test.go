@@ -1123,6 +1123,70 @@ func TestEndpointPins(t *testing.T) {
 		}
 	})
 
+	t.Run("POST /api/v2/pins/{id}/presence — mark gone and restore", func(t *testing.T) {
+		resp := c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
+			"state": "gone",
+		})
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("mark gone: expected 200, got %d", resp.StatusCode)
+		}
+		var gone map[string]any
+		decode(t, resp, &gone)
+		if gone["isGone"] != true {
+			t.Fatalf("presence response isGone = %v, want true", gone["isGone"])
+		}
+
+		resp = c.do(t, "GET", "/api/v2/pins?groupId="+gid+"&withImage=false", nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("list after gone report: expected 200, got %d", resp.StatusCode)
+		}
+		var pins struct {
+			Items []map[string]any `json:"items"`
+		}
+		decode(t, resp, &pins)
+		if len(pins.Items) != 1 || pins.Items[0]["id"] != pid || pins.Items[0]["isGone"] != true {
+			t.Fatalf("listed pins = %+v, want the same pin retained and marked gone", pins.Items)
+		}
+
+		resp = c.do(t, "GET", "/api/v3/sync?lastSeen=2020-01-01T00:00:00Z", nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("sync after gone report: expected 200, got %d", resp.StatusCode)
+		}
+		var syncState struct {
+			GroupUpdates []struct {
+				PinsAdded []map[string]any `json:"pinsAdded"`
+			} `json:"groupUpdates"`
+		}
+		decode(t, resp, &syncState)
+		foundGonePin := false
+		for _, groupUpdate := range syncState.GroupUpdates {
+			for _, syncedPin := range groupUpdate.PinsAdded {
+				if syncedPin["id"] == pid && syncedPin["isGone"] == true {
+					foundGonePin = true
+				}
+			}
+		}
+		if !foundGonePin {
+			t.Fatalf("sync updates = %+v, want pin %s marked gone", syncState.GroupUpdates, pid)
+		}
+
+		resp = c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
+			"state": "here",
+		})
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("mark here: expected 200, got %d", resp.StatusCode)
+		}
+		var restored map[string]any
+		decode(t, resp, &restored)
+		if restored["isGone"] != false {
+			t.Fatalf("restored response isGone = %v, want false", restored["isGone"])
+		}
+	})
+
 	t.Run("GET /api/v2/pins/{id}", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/pins/"+pid, nil)
 		defer resp.Body.Close()

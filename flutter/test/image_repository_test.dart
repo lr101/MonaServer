@@ -295,6 +295,7 @@ void main() {
         [1],
       ],
     );
+    nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN is_gone');
     nativeDatabase.execute('PRAGMA user_version = 1');
 
     final migratedDatabase = AppDatabase(

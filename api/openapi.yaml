@@ -893,6 +893,39 @@ paths:
       summary: Get pin information by ID
       tags:
       - pins
+  /api/v2/pins/{pinId}/presence:
+    post:
+      operationId: setPinPresence
+      parameters:
+      - in: path
+        name: pinId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/pinPresenceRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/pinWithOptionalImageDto"
+          description: Updated pin presence
+        "400":
+          description: Invalid presence status
+        "403":
+          description: Pin is not visible to the current user
+        "404":
+          description: Pin does not exist
+      security:
+      - token: []
+      summary: Set whether the pin is still present
+      tags:
+      - pins
   /api/v2/pins/{pinId}/image:
     get:
       operationId: getPinImage
@@ -4977,6 +5010,16 @@ components:
       - longitude
       - userId
       type: object
+    pinPresenceRequestDto:
+      properties:
+        state:
+          enum:
+          - here
+          - gone
+          type: string
+      required:
+      - state
+      type: object
     pinWithOptionalImageDto:
       example:
         image: https://storage.example.com/stick-it/1/1.png
@@ -4984,6 +5027,7 @@ components:
         latitude: -75.5850925717018
         groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: description
+        isGone: false
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         creationDate: 2017-01-10T14:55:32+01:00
         longitude: 36.988422590534526
@@ -5017,6 +5061,10 @@ components:
           maxLength: 1024
           nullable: true
           type: string
+        isGone:
+          default: false
+          nullable: true
+          type: boolean
       required:
       - creationDate
       - creationUser

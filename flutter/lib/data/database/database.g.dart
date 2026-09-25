@@ -2150,6 +2150,19 @@ class $PinEntitiesTable extends PinEntities
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isGoneMeta = const VerificationMeta('isGone');
+  @override
+  late final GeneratedColumn<bool> isGone = GeneratedColumn<bool>(
+    'is_gone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_gone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastSyncedMeta = const VerificationMeta(
     'lastSynced',
   );
@@ -2176,6 +2189,7 @@ class $PinEntitiesTable extends PinEntities
     creator,
     groupId,
     isHidden,
+    isGone,
     lastSynced,
   ];
   @override
@@ -2291,6 +2305,12 @@ class $PinEntitiesTable extends PinEntities
         isHidden.isAcceptableOrUnknown(data['is_hidden']!, _isHiddenMeta),
       );
     }
+    if (data.containsKey('is_gone')) {
+      context.handle(
+        _isGoneMeta,
+        isGone.isAcceptableOrUnknown(data['is_gone']!, _isGoneMeta),
+      );
+    }
     if (data.containsKey('last_synced')) {
       context.handle(
         _lastSyncedMeta,
@@ -2358,6 +2378,10 @@ class $PinEntitiesTable extends PinEntities
         DriftSqlType.bool,
         data['${effectivePrefix}is_hidden'],
       )!,
+      isGone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_gone'],
+      )!,
       lastSynced: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_synced'],
@@ -2385,6 +2409,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
   final String creator;
   final String groupId;
   final bool isHidden;
+  final bool isGone;
   final DateTime? lastSynced;
   const PinDb({
     required this.isarId,
@@ -2400,6 +2425,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     required this.creator,
     required this.groupId,
     required this.isHidden,
+    required this.isGone,
     this.lastSynced,
   });
   @override
@@ -2420,6 +2446,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     map['creator'] = Variable<String>(creator);
     map['group_id'] = Variable<String>(groupId);
     map['is_hidden'] = Variable<bool>(isHidden);
+    map['is_gone'] = Variable<bool>(isGone);
     if (!nullToAbsent || lastSynced != null) {
       map['last_synced'] = Variable<DateTime>(lastSynced);
     }
@@ -2443,6 +2470,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creator: Value(creator),
       groupId: Value(groupId),
       isHidden: Value(isHidden),
+      isGone: Value(isGone),
       lastSynced: lastSynced == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSynced),
@@ -2468,6 +2496,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creator: serializer.fromJson<String>(json['creator']),
       groupId: serializer.fromJson<String>(json['groupId']),
       isHidden: serializer.fromJson<bool>(json['isHidden']),
+      isGone: serializer.fromJson<bool>(json['isGone']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
     );
   }
@@ -2488,6 +2517,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       'creator': serializer.toJson<String>(creator),
       'groupId': serializer.toJson<String>(groupId),
       'isHidden': serializer.toJson<bool>(isHidden),
+      'isGone': serializer.toJson<bool>(isGone),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
     };
   }
@@ -2506,6 +2536,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     String? creator,
     String? groupId,
     bool? isHidden,
+    bool? isGone,
     Value<DateTime?> lastSynced = const Value.absent(),
   }) => PinDb(
     isarId: isarId ?? this.isarId,
@@ -2521,6 +2552,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     creator: creator ?? this.creator,
     groupId: groupId ?? this.groupId,
     isHidden: isHidden ?? this.isHidden,
+    isGone: isGone ?? this.isGone,
     lastSynced: lastSynced.present ? lastSynced.value : this.lastSynced,
   );
   PinDb copyWithCompanion(PinEntitiesCompanion data) {
@@ -2544,6 +2576,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creator: data.creator.present ? data.creator.value : this.creator,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
+      isGone: data.isGone.present ? data.isGone.value : this.isGone,
       lastSynced: data.lastSynced.present
           ? data.lastSynced.value
           : this.lastSynced,
@@ -2566,6 +2599,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
+          ..write('isGone: $isGone, ')
           ..write('lastSynced: $lastSynced')
           ..write(')'))
         .toString();
@@ -2586,6 +2620,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     creator,
     groupId,
     isHidden,
+    isGone,
     lastSynced,
   );
   @override
@@ -2605,6 +2640,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           other.creator == this.creator &&
           other.groupId == this.groupId &&
           other.isHidden == this.isHidden &&
+          other.isGone == this.isGone &&
           other.lastSynced == this.lastSynced);
 }
 
@@ -2622,6 +2658,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
   final Value<String> creator;
   final Value<String> groupId;
   final Value<bool> isHidden;
+  final Value<bool> isGone;
   final Value<DateTime?> lastSynced;
   const PinEntitiesCompanion({
     this.isarId = const Value.absent(),
@@ -2637,6 +2674,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     this.creator = const Value.absent(),
     this.groupId = const Value.absent(),
     this.isHidden = const Value.absent(),
+    this.isGone = const Value.absent(),
     this.lastSynced = const Value.absent(),
   });
   PinEntitiesCompanion.insert({
@@ -2653,6 +2691,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     required String creator,
     required String groupId,
     this.isHidden = const Value.absent(),
+    this.isGone = const Value.absent(),
     this.lastSynced = const Value.absent(),
   }) : ttl = Value(ttl),
        pinId = Value(pinId),
@@ -2675,6 +2714,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Expression<String>? creator,
     Expression<String>? groupId,
     Expression<bool>? isHidden,
+    Expression<bool>? isGone,
     Expression<DateTime>? lastSynced,
   }) {
     return RawValuesInsertable({
@@ -2691,6 +2731,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       if (creator != null) 'creator': creator,
       if (groupId != null) 'group_id': groupId,
       if (isHidden != null) 'is_hidden': isHidden,
+      if (isGone != null) 'is_gone': isGone,
       if (lastSynced != null) 'last_synced': lastSynced,
     });
   }
@@ -2709,6 +2750,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Value<String>? creator,
     Value<String>? groupId,
     Value<bool>? isHidden,
+    Value<bool>? isGone,
     Value<DateTime?>? lastSynced,
   }) {
     return PinEntitiesCompanion(
@@ -2725,6 +2767,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       creator: creator ?? this.creator,
       groupId: groupId ?? this.groupId,
       isHidden: isHidden ?? this.isHidden,
+      isGone: isGone ?? this.isGone,
       lastSynced: lastSynced ?? this.lastSynced,
     );
   }
@@ -2771,6 +2814,9 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     if (isHidden.present) {
       map['is_hidden'] = Variable<bool>(isHidden.value);
     }
+    if (isGone.present) {
+      map['is_gone'] = Variable<bool>(isGone.value);
+    }
     if (lastSynced.present) {
       map['last_synced'] = Variable<DateTime>(lastSynced.value);
     }
@@ -2793,6 +2839,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
+          ..write('isGone: $isGone, ')
           ..write('lastSynced: $lastSynced')
           ..write(')'))
         .toString();
@@ -6306,6 +6353,7 @@ typedef $$PinEntitiesTableCreateCompanionBuilder =
       required String creator,
       required String groupId,
       Value<bool> isHidden,
+      Value<bool> isGone,
       Value<DateTime?> lastSynced,
     });
 typedef $$PinEntitiesTableUpdateCompanionBuilder =
@@ -6323,6 +6371,7 @@ typedef $$PinEntitiesTableUpdateCompanionBuilder =
       Value<String> creator,
       Value<String> groupId,
       Value<bool> isHidden,
+      Value<bool> isGone,
       Value<DateTime?> lastSynced,
     });
 
@@ -6397,6 +6446,11 @@ class $$PinEntitiesTableFilterComposer
 
   ColumnFilters<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isGone => $composableBuilder(
+    column: $table.isGone,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6480,6 +6534,11 @@ class $$PinEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isGone => $composableBuilder(
+    column: $table.isGone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSynced => $composableBuilder(
     column: $table.lastSynced,
     builder: (column) => ColumnOrderings(column),
@@ -6540,6 +6599,9 @@ class $$PinEntitiesTableAnnotationComposer
   GeneratedColumn<bool> get isHidden =>
       $composableBuilder(column: $table.isHidden, builder: (column) => column);
 
+  GeneratedColumn<bool> get isGone =>
+      $composableBuilder(column: $table.isGone, builder: (column) => column);
+
   GeneratedColumn<DateTime> get lastSynced => $composableBuilder(
     column: $table.lastSynced,
     builder: (column) => column,
@@ -6587,6 +6649,7 @@ class $$PinEntitiesTableTableManager
                 Value<String> creator = const Value.absent(),
                 Value<String> groupId = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
+                Value<bool> isGone = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
               }) => PinEntitiesCompanion(
                 isarId: isarId,
@@ -6602,6 +6665,7 @@ class $$PinEntitiesTableTableManager
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,
+                isGone: isGone,
                 lastSynced: lastSynced,
               ),
           createCompanionCallback:
@@ -6619,6 +6683,7 @@ class $$PinEntitiesTableTableManager
                 required String creator,
                 required String groupId,
                 Value<bool> isHidden = const Value.absent(),
+                Value<bool> isGone = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
               }) => PinEntitiesCompanion.insert(
                 isarId: isarId,
@@ -6634,6 +6699,7 @@ class $$PinEntitiesTableTableManager
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,
+                isGone: isGone,
                 lastSynced: lastSynced,
               ),
           withReferenceMapper: (p0) => p0

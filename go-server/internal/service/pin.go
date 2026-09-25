@@ -31,6 +31,7 @@ type PinDTO struct {
 	Description  *string    `json:"description,omitempty"`
 	UserID       uuid.UUID  `json:"userId"`
 	GroupID      uuid.UUID  `json:"groupId"`
+	IsGone       bool       `json:"isGone"`
 	Image        *string    `json:"image,omitempty"`
 }
 
@@ -39,6 +40,7 @@ func (s *Pin) toDTO(ctx context.Context, p *db.Pin, withImage bool) *PinDTO {
 		ID: p.ID, Latitude: p.Latitude, Longitude: p.Longitude,
 		CreationDate: p.CreationDate, UpdateDate: p.UpdateDate,
 		Description: p.Description, UserID: p.CreatorID, GroupID: p.GroupID,
+		IsGone: p.IsGone,
 	}
 	if withImage && s.obj != nil {
 		if u, _ := s.obj.PresignedGet(ctx, PinKey(p.ID)); u != "" {
@@ -115,6 +117,24 @@ func (s *Pin) Get(ctx context.Context, id uuid.UUID) (*PinDTO, error) {
 		return nil, apperrors.ErrNotFound
 	}
 	return s.toDTO(ctx, p, true), nil
+}
+
+func (s *Pin) SetGone(ctx context.Context, id uuid.UUID, isGone bool) error {
+	p, err := s.q.GetPinByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if p == nil {
+		return apperrors.ErrNotFound
+	}
+	updated, err := s.q.SetPinGone(ctx, id, isGone)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return apperrors.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
