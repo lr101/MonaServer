@@ -20,6 +20,7 @@ import (
 )
 
 const CreatePinXP = 5
+const CreateGroupPinXP = 5
 const maxPinPhotoBytes = 8 << 20
 
 // PinObjectStore is the subset of the object service used by pin photos.
@@ -144,6 +145,9 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 			return err
 		}
 		if err := q.AddUserXp(ctx, in.UserID, CreatePinXP); err != nil {
+			return err
+		}
+		if err := q.AwardGroupXP(ctx, in.GroupID, "pin:"+id.String(), CreateGroupPinXP); err != nil {
 			return err
 		}
 		if len(compressed) > 0 {

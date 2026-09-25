@@ -89,6 +89,7 @@ model_email_link_request_accepted_dto.go
 model_email_link_request_dto.go
 model_filter_audience.go
 model_group_dto.go
+model_group_progression_dto.go
 model_group_ranking_dto_inner.go
 model_groups_sync_dto.go
 model_info_dto.go

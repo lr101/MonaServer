@@ -166,6 +166,7 @@ type GroupsAPIServicer interface {
 	GetGroupsByIds(context.Context, []string, string, string, bool, bool, int32, int32, time.Time) (ImplResponse, error)
 	AddGroup(context.Context, CreateGroupDto) (ImplResponse, error)
 	GetGroup(context.Context, string) (ImplResponse, error)
+	GetGroupProgression(context.Context, string) (ImplResponse, error)
 	UpdateGroup(context.Context, string, UpdateGroupDto) (ImplResponse, error)
 	DeleteGroup(context.Context, string) (ImplResponse, error)
 	GetGroupProfileImage(context.Context, string, bool) (ImplResponse, error)

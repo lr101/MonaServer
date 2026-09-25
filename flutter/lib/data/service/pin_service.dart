@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/foundation.dart';
@@ -457,6 +458,7 @@ class PinService {
       await _addPinToRemote(pin, image);
       if (session.userId != null && isCurrentSession(ref, session)) {
         ref.invalidate(userXpProvider(session.userId!));
+        ref.invalidate(groupProgressionProvider(pin.groupId));
       }
       if (showPrompt) {
         CustomErrorSnackBar.message(

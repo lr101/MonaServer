@@ -29,6 +29,30 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) error {
 	return err
 }
 
+const awardGroupXP = `-- name: AwardGroupXP :exec
+WITH award AS (
+    INSERT INTO group_xp_ledger (group_id, award_key, xp_awarded)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (group_id, award_key) DO NOTHING
+    RETURNING group_id, xp_awarded
+)
+UPDATE groups g
+SET group_xp = g.group_xp + award.xp_awarded
+FROM award
+WHERE g.id = award.group_id
+`
+
+type AwardGroupXPParams struct {
+	GroupID   pgtype.UUID `json:"group_id"`
+	AwardKey  string      `json:"award_key"`
+	XpAwarded int32       `json:"xp_awarded"`
+}
+
+func (q *Queries) AwardGroupXP(ctx context.Context, arg AwardGroupXPParams) error {
+	_, err := q.db.Exec(ctx, awardGroupXP, arg.GroupID, arg.AwardKey, arg.XpAwarded)
+	return err
+}
+
 const countGroupMembers = `-- name: CountGroupMembers :one
 SELECT COUNT(*)::bigint FROM members WHERE group_id = $1
 `
@@ -166,6 +190,17 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]G
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupXP = `-- name: GetGroupXP :one
+SELECT group_xp FROM groups WHERE id = $1 AND is_deleted = FALSE
+`
+
+func (q *Queries) GetGroupXP(ctx context.Context, id pgtype.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getGroupXP, id)
+	var group_xp int32
+	err := row.Scan(&group_xp)
+	return group_xp, err
 }
 
 const groupExistsByName = `-- name: GroupExistsByName :one

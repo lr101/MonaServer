@@ -4,11 +4,26 @@
 INSERT INTO groups (id, name, description, link, visibility, admin_id, invite_url, creation_date, update_date)
 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW());
 
+-- name: AwardGroupXP :exec
+WITH award AS (
+    INSERT INTO group_xp_ledger (group_id, award_key, xp_awarded)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (group_id, award_key) DO NOTHING
+    RETURNING group_id, xp_awarded
+)
+UPDATE groups g
+SET group_xp = g.group_xp + award.xp_awarded
+FROM award
+WHERE g.id = award.group_id;
+
 -- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
        creation_date, update_date
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetGroupXP :one
+SELECT group_xp FROM groups WHERE id = $1 AND is_deleted = FALSE;
 
 -- name: LockGroupForDelete :one
 SELECT id FROM groups WHERE id = $1 FOR UPDATE;

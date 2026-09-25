@@ -226,6 +226,104 @@ func TestMigration43BackfillsAchievementRewardsWithoutChangingUserXP(t *testing.
 	}
 }
 
+func TestMigration45BackfillsGroupXPFromActivePins(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+
+	pool, err := NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schema := "group_progression_migration_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create isolated migration schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+schema); err != nil {
+		t.Fatalf("set isolated migration search path: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		CREATE TABLE groups (id uuid PRIMARY KEY, is_deleted boolean NOT NULL DEFAULT false);
+		CREATE TABLE pins (
+			id uuid PRIMARY KEY,
+			group_id uuid NOT NULL,
+			is_deleted boolean NOT NULL DEFAULT false
+		)`); err != nil {
+		t.Fatalf("create pre-migration tables: %v", err)
+	}
+	groupA, groupB, deletedGroup := uuid.New(), uuid.New(), uuid.New()
+	if _, err := tx.Exec(ctx, `INSERT INTO groups (id, is_deleted) VALUES ($1, FALSE), ($2, FALSE), ($3, TRUE)`, groupA, groupB, deletedGroup); err != nil {
+		t.Fatalf("insert pre-migration groups: %v", err)
+	}
+	activePins := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+	deletedPin := uuid.New()
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pins (id, group_id, is_deleted) VALUES
+			($1, $2, FALSE), ($3, $2, FALSE),
+			($4, $5, FALSE), ($6, $2, TRUE),
+			($7, $8, FALSE)
+	`, activePins[0], groupA, activePins[1], activePins[2], groupB, deletedPin, uuid.New(), deletedGroup); err != nil {
+		t.Fatalf("insert pre-migration pins: %v", err)
+	}
+
+	migration, err := migrationsFS.ReadFile("migrations/000045_group_progression.up.sql")
+	if err != nil {
+		t.Fatalf("read group progression migration: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply group progression migration: %v", err)
+	}
+
+	for _, expected := range []struct {
+		groupID uuid.UUID
+		xp      int32
+		ledger  int
+	}{
+		{groupA, 10, 2},
+		{groupB, 5, 1},
+		{deletedGroup, 0, 0},
+	} {
+		var xp int32
+		if err := tx.QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, expected.groupID).Scan(&xp); err != nil {
+			t.Fatalf("read backfilled XP for group %s: %v", expected.groupID, err)
+		}
+		if xp != expected.xp {
+			t.Errorf("group %s XP = %d, want %d", expected.groupID, xp, expected.xp)
+		}
+		var ledger int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM group_xp_ledger WHERE group_id = $1`, expected.groupID).Scan(&ledger); err != nil {
+			t.Fatalf("read backfilled ledger for group %s: %v", expected.groupID, err)
+		}
+		if ledger != expected.ledger {
+			t.Errorf("group %s ledger rows = %d, want %d", expected.groupID, ledger, expected.ledger)
+		}
+	}
+	var deletedPinAwards int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM group_xp_ledger WHERE award_key = $1`, "pin:"+deletedPin.String()).Scan(&deletedPinAwards); err != nil {
+		t.Fatalf("check deleted pin award: %v", err)
+	}
+	if deletedPinAwards != 0 {
+		t.Fatalf("soft-deleted pin produced %d XP awards, want none", deletedPinAwards)
+	}
+	var deletedGroupAwards int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM group_xp_ledger WHERE group_id = $1`, deletedGroup).Scan(&deletedGroupAwards); err != nil {
+		t.Fatalf("check deleted group awards: %v", err)
+	}
+	if deletedGroupAwards != 0 {
+		t.Fatalf("soft-deleted group has %d XP awards, want none", deletedGroupAwards)
+	}
+}
+
 func TestT02SnapshotOrdinalMigrationRepairsPopulatedData(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {

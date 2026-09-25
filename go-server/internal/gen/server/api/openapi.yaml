@@ -280,6 +280,35 @@ paths:
       summary: Update a group by ID
       tags:
       - groups
+  /api/v2/groups/{groupId}/progression:
+    get:
+      operationId: getGroupProgression
+      parameters:
+      - explode: false
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupProgressionDto"
+          description: Successfully returned group progression
+        "400":
+          description: Bad request parameter format
+        "403":
+          description: Private group requires membership
+        "404":
+          description: Group not found
+      security:
+      - token: []
+      summary: Get a group's XP and level progress
+      tags:
+      - groups
   /api/v2/groups/{groupId}/profile_image:
     get:
       operationId: getGroupProfileImage
@@ -7501,6 +7530,36 @@ components:
       items:
         $ref: "#/components/schemas/userAchievementsDto_inner"
       type: array
+    groupProgressionDto:
+      example:
+        groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        totalXp: 50
+        currentLevel: 2
+        currentLevelXp: 50
+        nextLevelXp: 150
+      properties:
+        groupId:
+          format: uuid
+          type: string
+        totalXp:
+          minimum: 0
+          type: integer
+        currentLevel:
+          minimum: 1
+          type: integer
+        currentLevelXp:
+          minimum: 0
+          type: integer
+        nextLevelXp:
+          minimum: 0
+          type: integer
+      required:
+      - currentLevel
+      - currentLevelXp
+      - groupId
+      - nextLevelXp
+      - totalXp
+      type: object
     groupRankingDto:
       description: An array of sorted groups by rank and points
       items:

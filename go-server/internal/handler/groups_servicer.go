@@ -131,6 +131,37 @@ func (s *GroupsServicer) GetGroup(ctx context.Context, groupID string) (genserve
 	return genserver.Response(http.StatusOK, toGroupDto(dto, includePrivate)), nil
 }
 
+func (s *GroupsServicer) GetGroupProgression(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(groupID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	progress, err := s.group.Progression(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if progress.Visibility != 0 {
+		uid, ok := ctxUserID(ctx)
+		if !ok {
+			return genserver.Response(http.StatusUnauthorized, nil), nil
+		}
+		isMember, err := s.guard.IsGroupMember(ctx, id, uid)
+		if err != nil {
+			return serviceErrResp(ctx, err), nil
+		}
+		if !isMember {
+			return genserver.Response(http.StatusForbidden, nil), nil
+		}
+	}
+	return genserver.Response(http.StatusOK, genserver.GroupProgressionDto{
+		GroupId:        progress.GroupID.String(),
+		TotalXp:        progress.TotalXP,
+		CurrentLevel:   progress.CurrentLevel,
+		CurrentLevelXp: progress.CurrentLevelXP,
+		NextLevelXp:    progress.NextLevelXP,
+	}), nil
+}
+
 func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto genserver.UpdateGroupDto) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(groupID)
 	if err != nil {

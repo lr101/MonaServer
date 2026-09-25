@@ -15,6 +15,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -169,6 +170,62 @@ void main() {
     },
   );
 
+  test('offline pin upload success refreshes group progression', () async {
+    final f = await _fixture();
+    await f.container.read(pinRepositoryProvider).put(_draft());
+    await f.container
+        .read(pinImageRepositoryProvider)
+        .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+    f.api.upload = Completer<PinWithOptionalImageDto?>();
+    final progression = f.container.listen(
+      groupProgressionProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(progression.close);
+    await f.container.read(groupProgressionProvider('group').future);
+    expect(f.groups.requests, 1);
+
+    final syncing = f.container
+        .read(syncingServiceProvider.notifier)
+        .syncToBackend();
+    await f.api.uploadStarted.future;
+    f.api.upload!.complete(_createdPin());
+    await syncing;
+    await f.container.pump();
+    final refreshed = await f.container.read(
+      groupProgressionProvider('group').future,
+    );
+
+    expect(f.groups.requests, 2);
+    expect(refreshed?.totalXp, 5);
+  });
+
+  test('handled offline pin conflict refreshes group progression', () async {
+    final f = await _fixture();
+    await f.container.read(pinRepositoryProvider).put(_draft());
+    await f.container
+        .read(pinImageRepositoryProvider)
+        .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+    f.api.uploadError = ApiException(409, 'duplicate');
+    final progression = f.container.listen(
+      groupProgressionProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(progression.close);
+    await f.container.read(groupProgressionProvider('group').future);
+    expect(f.groups.requests, 1);
+
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+    await f.container.pump();
+    final refreshed = await f.container.read(
+      groupProgressionProvider('group').future,
+    );
+
+    expect(f.groups.requests, 2);
+    expect(refreshed?.totalXp, 5);
+    expect(await f.container.read(pinRepositoryProvider).get('draft'), isNull);
+  });
+
   test('finds local groups that are absent from the server sync', () {
     final response = SyncDto(
       groupUpdates: [
@@ -191,11 +248,13 @@ class _Pins extends PinsApi {
   int calls = 0;
   Completer<SyncDto?>? response;
   Completer<PinWithOptionalImageDto?>? upload;
+  Object? uploadError;
   final started = Completer<void>();
   final uploadStarted = Completer<void>();
   @override
   Future<PinWithOptionalImageDto?> createPin(PinRequestDto request) {
     uploadStarted.complete();
+    if (uploadError != null) return Future.error(uploadError!);
     return upload!.future;
   }
 
@@ -208,13 +267,33 @@ class _Pins extends PinsApi {
   }
 }
 
-Future<({ProviderContainer container, AppDatabase db, _Pins api})>
+class _Groups extends GroupsApi {
+  int requests = 0;
+
+  @override
+  Future<GroupProgressionDto?> getGroupProgression(String groupId) async {
+    requests++;
+    final totalXp = requests == 1 ? 0 : 5;
+    return GroupProgressionDto(
+      groupId: groupId,
+      totalXp: totalXp,
+      currentLevel: 1,
+      currentLevelXp: totalXp,
+      nextLevelXp: 50,
+    );
+  }
+}
+
+Future<
+  ({ProviderContainer container, AppDatabase db, _Pins api, _Groups groups})
+>
 _fixture() async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   final db = AppDatabase(NativeDatabase.memory());
   addTearDown(db.close);
   final api = _Pins();
+  final groups = _Groups();
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
@@ -227,11 +306,12 @@ _fixture() async {
         ),
       ),
       pinApiProvider.overrideWithValue(api),
+      groupApiProvider.overrideWithValue(groups),
       userServiceProvider('alice').overrideWith(_NoUser.new),
     ],
   );
   addTearDown(container.dispose);
-  return (container: container, db: db, api: api);
+  return (container: container, db: db, api: api, groups: groups);
 }
 
 PinEntity _draft() => PinEntity(
@@ -244,4 +324,13 @@ PinEntity _draft() => PinEntity(
   ttl: DateTime.utc(2099),
   onlySession: false,
   keepAlive: true,
+);
+
+PinWithOptionalImageDto _createdPin() => PinWithOptionalImageDto(
+  id: 'server-pin',
+  latitude: 1,
+  longitude: 2,
+  creationDate: DateTime.utc(2026),
+  creationUser: 'alice',
+  groupId: 'group',
 );

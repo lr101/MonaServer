@@ -1,0 +1,26 @@
+get:
+  operationId: getGroupProgression
+  security:
+    - token: [ ]
+  summary: Get a group's XP and level progress
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successfully returned group progression
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupProgressionDto.yaml'
+    '400':
+      description: Bad request parameter format
+    '403':
+      description: Private group requires membership
+    '404':
+      description: Group not found

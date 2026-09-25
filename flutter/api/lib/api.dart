@@ -122,6 +122,7 @@ part 'model/email_link_request_accepted_dto.dart';
 part 'model/email_link_request_dto.dart';
 part 'model/filter_audience.dart';
 part 'model/group_dto.dart';
+part 'model/group_progression_dto.dart';
 part 'model/group_ranking_dto_inner.dart';
 part 'model/groups_sync_dto.dart';
 part 'model/info_dto.dart';

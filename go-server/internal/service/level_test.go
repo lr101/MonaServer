@@ -59,3 +59,31 @@ func TestProgressForXPMatchesEveryLevelThreshold(t *testing.T) {
 		}
 	}
 }
+
+func TestProgressForGroupXPUsesGroupLevelLadder(t *testing.T) {
+	for i, threshold := range groupLevelThresholds {
+		got := ProgressForGroupXP(int64(threshold))
+		wantNext := threshold
+		if i+1 < len(groupLevelThresholds) {
+			wantNext = groupLevelThresholds[i+1]
+		}
+		if got.Level != int32(i+1) || got.CurrentLevel != threshold || got.NextLevel != wantNext {
+			t.Errorf("ProgressForGroupXP(%d) = %+v, want level=%d current=%d next=%d", threshold, got, i+1, threshold, wantNext)
+		}
+
+		if i == 0 {
+			continue
+		}
+		before := ProgressForGroupXP(int64(threshold - 1))
+		previous := groupLevelThresholds[i-1]
+		if before.Level != int32(i) || before.CurrentLevel != previous || before.NextLevel != threshold {
+			t.Errorf("ProgressForGroupXP(%d) = %+v, want level=%d current=%d next=%d", threshold-1, before, i, previous, threshold)
+		}
+	}
+
+	beyond := ProgressForGroupXP(50000)
+	last := groupLevelThresholds[len(groupLevelThresholds)-1]
+	if beyond.Level != int32(len(groupLevelThresholds)) || beyond.CurrentLevel != last || beyond.NextLevel != last {
+		t.Errorf("ProgressForGroupXP(50000) = %+v, want maximum level at %d XP", beyond, last)
+	}
+}
