@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
+import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
@@ -32,7 +33,15 @@ class UserProfile extends ConsumerWidget {
       actions: _buildActions(context),
       hasBackButton: false,
       profileQuickViewBoxes: _buildQuickStats(userPins, ref),
-      boxes: _buildDetailList(currentUser, likes),
+      boxes: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: UserXpProfilePanel(userId: userId),
+          ),
+        ),
+        ..._buildDetailList(currentUser, likes),
+      ],
       body: ImageGrid(pinProvider: pinUserServiceProvider(userId)),
     );
   }

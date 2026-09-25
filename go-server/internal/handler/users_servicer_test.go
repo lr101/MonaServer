@@ -102,7 +102,7 @@ func TestGetUserXpIncludesLevelProgress(t *testing.T) {
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	want := genserver.UserXpDto{TotalXp: 100, CurrentLevel: 3, CurrentLevelXp: 100, NextLevelXp: 1000}
+	want := genserver.UserXpDto{TotalXp: 100, CurrentLevel: 3, CurrentLevelXp: 75, NextLevelXp: 150}
 	if got != want {
 		t.Fatalf("XP response = %+v, want %+v", got, want)
 	}

@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -341,6 +342,7 @@ class UserGroupService extends _$UserGroupService {
           keepAlive: true,
         );
         await groupRepository.put(entity);
+        ref.invalidate(userXpProvider(_userId));
         return null;
       } else {
         return "Failed to create group remotely unexpectedly";
