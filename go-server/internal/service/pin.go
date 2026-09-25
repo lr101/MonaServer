@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"math"
 	"reflect"
 	"strings"
@@ -123,10 +124,18 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 			return nil, apperrors.ErrBadRequest
 		}
 	}
-	var id uuid.UUID
-	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+	id := uuid.New()
+	imageKey := PinKey(id)
+	stagedImage := len(compressed) > 0 && s.obj != nil
+	if stagedImage {
+		if err := s.q.StageObjectCleanup(ctx, imageKey); err != nil {
+			return nil, err
+		}
+	}
+	err = s.q.InTx(ctx, func(q *db.Queries) error {
 		var err error
 		id, err = q.CreatePin(ctx, db.Pin{
+			ID:       id,
 			Latitude: in.Latitude, Longitude: in.Longitude,
 			CreationDate: &in.CreationDate, Description: in.Description,
 			CreatorID: in.UserID, GroupID: in.GroupID, StateProvinceID: boundary,
@@ -139,7 +148,14 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 		}
 		if len(compressed) > 0 {
 			if s.obj != nil {
-				if err := s.obj.Put(ctx, PinKey(id), compressed, "image/jpeg"); err != nil {
+				locked, err := q.LockStagedObjectCleanup(ctx, imageKey)
+				if err != nil {
+					return err
+				}
+				if !locked {
+					return apperrors.ErrUnavailable
+				}
+				if err := s.obj.Put(ctx, imageKey, compressed, "image/jpeg"); err != nil {
 					return err
 				}
 			}
@@ -148,17 +164,26 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 				return err
 			}
 			contributorID := in.UserID
-			return q.CreatePinPhoto(ctx, db.PinPhoto{
+			if err := q.CreatePinPhoto(ctx, db.PinPhoto{
 				ID: id, PinID: id, ContributorID: &contributorID,
-				ContributorUsername: contributorUsername, ImageKey: PinKey(id),
+				ContributorUsername: contributorUsername, ImageKey: imageKey,
 				Caption: in.Description, ObservedAt: in.CreationDate,
 				IsOriginal: true,
-			})
+			}); err != nil {
+				return err
+			}
+			if stagedImage {
+				return q.DeletePendingObjectCleanup(ctx, imageKey)
+			}
+			return nil
 		}
 		return nil
-	}); err != nil {
-		if id != uuid.Nil && len(compressed) > 0 && s.obj != nil {
-			_ = s.obj.Remove(ctx, PinKey(id))
+	})
+	if err != nil {
+		if stagedImage {
+			if readyErr := s.releaseStagedObjectCleanup(ctx, imageKey); readyErr != nil {
+				return nil, errors.Join(err, readyErr)
+			}
 		}
 		return nil, err
 	}
@@ -208,7 +233,13 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	var photoKeys []string
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
-		var err error
+		locked, err := q.LockPinForDelete(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return apperrors.ErrNotFound
+		}
 		photoKeys, err = q.ListPinPhotoKeys(ctx, id)
 		if err != nil {
 			return err
@@ -301,9 +332,6 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 	}
 	photoID := uuid.New()
 	imageKey := PinPhotoKey(pinID, photoID)
-	if err := s.obj.Put(ctx, imageKey, compressed, "image/jpeg"); err != nil {
-		return nil, apperrors.ErrUnavailable
-	}
 	observedAt := time.Now().UTC()
 	photo := db.PinPhoto{
 		ID: photoID, PinID: pinID, ContributorID: &contributorID,
@@ -311,7 +339,22 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 		IdempotencyKey: &in.IdempotencyKey, RequestHash: requestHash,
 		Caption: caption, ObservedAt: observedAt,
 	}
+	if err := s.q.StageObjectCleanup(ctx, imageKey); err != nil {
+		return nil, err
+	}
+	var putErr error
 	err = s.q.InTx(ctx, func(q *db.Queries) error {
+		locked, err := q.LockStagedObjectCleanup(ctx, imageKey)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return apperrors.ErrUnavailable
+		}
+		if err := s.obj.Put(ctx, imageKey, compressed, "image/jpeg"); err != nil {
+			putErr = err
+			return err
+		}
 		updated, err := q.TouchPinForPhoto(ctx, pinID)
 		if err != nil {
 			return err
@@ -319,10 +362,15 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 		if !updated {
 			return apperrors.ErrNotFound
 		}
-		return q.CreatePinPhoto(ctx, photo)
+		if err := q.CreatePinPhoto(ctx, photo); err != nil {
+			return err
+		}
+		return q.DeletePendingObjectCleanup(ctx, imageKey)
 	})
 	if err != nil {
-		_ = s.obj.Remove(ctx, imageKey)
+		if readyErr := s.releaseStagedObjectCleanup(ctx, imageKey); readyErr != nil {
+			return nil, errors.Join(err, readyErr)
+		}
 		existing, lookupErr := s.q.GetPinPhotoByIdempotencyKey(ctx, contributorID, in.IdempotencyKey)
 		if lookupErr != nil {
 			return nil, lookupErr
@@ -330,9 +378,22 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 		if existing != nil {
 			return s.resolveIdempotentPhoto(ctx, existing, pinID, requestHash)
 		}
+		if putErr != nil {
+			return nil, apperrors.ErrUnavailable
+		}
 		return nil, err
 	}
 	return s.photoDTO(ctx, photo)
+}
+
+func (s *Pin) releaseStagedObjectCleanup(ctx context.Context, objectKey string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := s.q.MarkObjectCleanupReady(cleanupCtx, objectKey); err != nil {
+		return err
+	}
+	tryObjectCleanup(cleanupCtx, s.q, s.obj)
+	return nil
 }
 
 func (s *Pin) resolveIdempotentPhoto(ctx context.Context, existing *db.PinPhoto, pinID uuid.UUID, requestHash []byte) (*PinPhotoDTO, error) {

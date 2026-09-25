@@ -9,6 +9,23 @@ import (
 	"context"
 )
 
+const claimPendingObjectCleanup = `-- name: ClaimPendingObjectCleanup :one
+SELECT object_key
+FROM object_cleanup_queue
+WHERE is_staged = FALSE
+   OR created_at <= NOW() - INTERVAL '30 minutes'
+ORDER BY created_at, object_key
+LIMIT 1
+FOR UPDATE SKIP LOCKED
+`
+
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, claimPendingObjectCleanup)
+	var object_key string
+	err := row.Scan(&object_key)
+	return object_key, err
+}
+
 const deletePendingObjectCleanup = `-- name: DeletePendingObjectCleanup :exec
 DELETE FROM object_cleanup_queue
 WHERE object_key = $1
@@ -30,29 +47,39 @@ func (q *Queries) EnqueueObjectCleanup(ctx context.Context, objectKeys []string)
 	return err
 }
 
-const listPendingObjectCleanup = `-- name: ListPendingObjectCleanup :many
+const lockStagedObjectCleanup = `-- name: LockStagedObjectCleanup :one
 SELECT object_key
 FROM object_cleanup_queue
-ORDER BY created_at, object_key
-LIMIT $1::int
+WHERE object_key = $1 AND is_staged = TRUE
+FOR UPDATE
 `
 
-func (q *Queries) ListPendingObjectCleanup(ctx context.Context, pageLimit int32) ([]string, error) {
-	rows, err := q.db.Query(ctx, listPendingObjectCleanup, pageLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var object_key string
-		if err := rows.Scan(&object_key); err != nil {
-			return nil, err
-		}
-		items = append(items, object_key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string) (string, error) {
+	row := q.db.QueryRow(ctx, lockStagedObjectCleanup, objectKey)
+	var object_key string
+	err := row.Scan(&object_key)
+	return object_key, err
+}
+
+const markObjectCleanupReady = `-- name: MarkObjectCleanupReady :exec
+UPDATE object_cleanup_queue
+SET is_staged = FALSE, created_at = NOW()
+WHERE object_key = $1
+`
+
+func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) error {
+	_, err := q.db.Exec(ctx, markObjectCleanupReady, objectKey)
+	return err
+}
+
+const stageObjectCleanup = `-- name: StageObjectCleanup :exec
+INSERT INTO object_cleanup_queue (object_key, is_staged)
+VALUES ($1, TRUE)
+ON CONFLICT (object_key) DO UPDATE
+SET is_staged = TRUE, created_at = NOW()
+`
+
+func (q *Queries) StageObjectCleanup(ctx context.Context, objectKey string) error {
+	_, err := q.db.Exec(ctx, stageObjectCleanup, objectKey)
+	return err
 }

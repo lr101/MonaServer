@@ -301,13 +301,28 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	pinIDs, err := s.q.ListGroupPinIDs(ctx, id)
-	if err != nil {
-		return err
-	}
-	objectKeys := make([]string, 0, len(pinIDs)*2+3)
+	var objectKeys []string
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		locked, err := q.LockGroupForDelete(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return apperrors.ErrNotFound
+		}
+		pinIDs, err := q.ListGroupPinIDs(ctx, id)
+		if err != nil {
+			return err
+		}
+		objectKeys = make([]string, 0, len(pinIDs)*2+3)
 		for _, pinID := range pinIDs {
+			pinLocked, err := q.LockPinForDelete(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			if !pinLocked {
+				continue
+			}
 			keys, err := q.ListPinPhotoKeys(ctx, pinID)
 			if err != nil {
 				return err

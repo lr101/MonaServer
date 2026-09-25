@@ -49,6 +49,7 @@ type Querier interface {
 	// token returned here is the acknowledgement fence for this lease attempt.
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
+	ClaimPendingObjectCleanup(ctx context.Context) (string, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	// Clear the short-lived delivery secret only once the attempt is terminal or
@@ -220,7 +221,6 @@ type Querier interface {
 	ListDeviceRegistrations(ctx context.Context, userID pgtype.UUID) ([]DeviceRegistration, error)
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
-	ListPendingObjectCleanup(ctx context.Context, pageLimit int32) ([]string, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]string, error)
@@ -243,6 +243,8 @@ type Querier interface {
 	// SELECT FOR UPDATE does not refresh the aggregate's statement snapshot.
 	LockAudienceSnapshot(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	LockEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
+	LockGroupForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	LockPinForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	// Shared HMAC-keyed quotas --------------------------------------------------
 	// Advisory locking is scoped to the logical scope/window, so current and
 	// previous HMAC key rows cannot bypass one another during key rotation.
@@ -252,9 +254,11 @@ type Querier interface {
 	// advisory lock. This keeps the target row and report insert in one ordered
 	// critical section even when a hard delete removes the user row.
 	LockReportTarget(ctx context.Context, dollar_1 string) error
+	LockStagedObjectCleanup(ctx context.Context, objectKey string) (string, error)
 	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
 	MarkAdminBootstrapClaimed(ctx context.Context) error
+	MarkObjectCleanupReady(ctx context.Context, objectKey string) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
 	// Retention and account cleanup --------------------------------------------
 	// Keep incident and audit rows (their IDs and operational summaries are not
@@ -298,6 +302,7 @@ type Querier interface {
 	SoftDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	SoftDeletePin(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteUser(ctx context.Context, id pgtype.UUID) error
+	StageObjectCleanup(ctx context.Context, objectKey string) error
 	SumRateLimitBuckets(ctx context.Context, arg SumRateLimitBucketsParams) (int64, error)
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchPinForPhoto(ctx context.Context, id pgtype.UUID) (int64, error)

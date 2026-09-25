@@ -143,11 +143,28 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 		if err != nil {
 			return err
 		}
+		lockedGroupIDs := make([]uuid.UUID, 0, len(groupIDs))
+		for _, groupID := range groupIDs {
+			locked, err := q.LockGroupForDelete(ctx, groupID)
+			if err != nil {
+				return err
+			}
+			if locked {
+				lockedGroupIDs = append(lockedGroupIDs, groupID)
+			}
+		}
 		pinIDs, err = q.ListPinIDsRemovedWithUser(ctx, id)
 		if err != nil {
 			return err
 		}
 		for _, pinID := range pinIDs {
+			locked, err := q.LockPinForDelete(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			if !locked {
+				continue
+			}
 			keys, err := q.ListPinPhotoKeys(ctx, pinID)
 			if err != nil {
 				return err
@@ -158,7 +175,7 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 				return err
 			}
 		}
-		for _, groupID := range groupIDs {
+		for _, groupID := range lockedGroupIDs {
 			objectKeys = append(objectKeys,
 				GroupPinKey(groupID),
 				GroupProfileKey(groupID, false),

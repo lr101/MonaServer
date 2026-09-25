@@ -10,6 +10,9 @@ SELECT id, name, description, link, visibility, admin_id, invite_url,
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE;
 
+-- name: LockGroupForDelete :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE;
+
 -- name: GroupExistsByName :one
 SELECT EXISTS (SELECT 1 FROM groups WHERE name = $1 AND is_deleted = FALSE);
 

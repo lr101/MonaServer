@@ -447,7 +447,7 @@ func (q *Queries) InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) 
 }
 
 const listAdminGroupIDs = `-- name: ListAdminGroupIDs :many
-SELECT id FROM groups WHERE admin_id = $1
+SELECT id FROM groups WHERE admin_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error) {
@@ -499,6 +499,7 @@ SELECT p.id
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.creator_id = $1 OR g.admin_id = $1
+ORDER BY p.id
 `
 
 func (q *Queries) ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error) {

@@ -263,7 +263,7 @@ func (q *Queries) ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.
 }
 
 const listGroupPinIDs = `-- name: ListGroupPinIDs :many
-SELECT id FROM pins WHERE group_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC
+SELECT id FROM pins WHERE group_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error) {
@@ -444,6 +444,17 @@ func (q *Queries) ListUserPinIDs(ctx context.Context, creatorID pgtype.UUID) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockPinForDelete = `-- name: LockPinForDelete :one
+SELECT id FROM pins WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockPinForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockPinForDelete, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const pinExistsForUserAt = `-- name: PinExistsForUserAt :one

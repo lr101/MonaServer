@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,18 +14,32 @@ import (
 )
 
 type pinPhotoTestObjectStore struct {
+	mu             sync.Mutex
 	objects        map[string][]byte
+	lastPutKey     string
+	failRemoveAll  bool
 	failRemoveKey  string
 	removeErr      error
+	cancelOnPut    context.CancelFunc
 	cancelOnRemove context.CancelFunc
 }
 
 func (s *pinPhotoTestObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastPutKey = key
 	s.objects[key] = append([]byte(nil), data...)
+	if s.cancelOnPut != nil {
+		cancel := s.cancelOnPut
+		s.cancelOnPut = nil
+		cancel()
+	}
 	return nil
 }
 
 func (s *pinPhotoTestObjectStore) Remove(ctx context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -33,6 +49,9 @@ func (s *pinPhotoTestObjectStore) Remove(ctx context.Context, key string) error 
 		cancel()
 		return ctx.Err()
 	}
+	if s.failRemoveAll {
+		return s.removeErr
+	}
 	if key == s.failRemoveKey {
 		return s.removeErr
 	}
@@ -41,6 +60,8 @@ func (s *pinPhotoTestObjectStore) Remove(ctx context.Context, key string) error 
 }
 
 func (s *pinPhotoTestObjectStore) GetIfExists(_ context.Context, key string) ([]byte, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	data, exists := s.objects[key]
 	return append([]byte(nil), data...), exists, nil
 }
@@ -191,11 +212,236 @@ func TestCancelledPinDeleteCleanupLeavesKeysForBackgroundRetry(t *testing.T) {
 	assertObjectCleanupQueued(t, q, updateKey)
 }
 
+func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	userID := createTestUser(t, auth, "cancel_photo_create_user")
+	groupID := createTestGroup(t, group, userID, "cancel_photo_create_group")
+	created, err := pin.Create(context.Background(), CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now().UTC(),
+		UserID: userID, GroupID: groupID,
+	})
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+	imageBytes, err := base64.StdEncoding.DecodeString(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+	)
+	if err != nil {
+		t.Fatalf("decode test image: %v", err)
+	}
+	store := &pinPhotoTestObjectStore{
+		objects: make(map[string][]byte), cancelOnPut: cancel,
+		failRemoveAll: true, removeErr: errors.New("temporary object store failure"),
+	}
+	pin.obj = store
+
+	_, err = pin.AddPhoto(ctx, created.ID, userID, AddPinPhotoInput{
+		Image: imageBytes, IdempotencyKey: uuid.New(),
+		Latitude: 48.1, Longitude: 11.6, AccuracyMeters: 5,
+	})
+	if err == nil {
+		t.Fatal("add photo update succeeded after its upload cancelled the request")
+	}
+	if len(store.objects) != 1 {
+		t.Fatalf("stored objects after cancelled photo create = %d, want uploaded object retained for retry", len(store.objects))
+	}
+	key := store.lastPutKey
+	if key == "" {
+		t.Fatal("photo upload did not reach object storage")
+	}
+	assertObjectCleanupQueued(t, q, key)
+
+	store.failRemoveAll = false
+	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
+		t.Fatalf("retry object cleanup: %v", err)
+	}
+	if _, exists := store.objects[key]; exists {
+		t.Fatal("uploaded photo object remains after successful cleanup retry")
+	}
+}
+
+func TestCancelledOriginalPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	userID := createTestUser(t, auth, "cancel_original_photo_user")
+	groupID := createTestGroup(t, group, userID, "cancel_original_photo_group")
+	imageBytes, err := base64.StdEncoding.DecodeString(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+	)
+	if err != nil {
+		t.Fatalf("decode test image: %v", err)
+	}
+	store := &pinPhotoTestObjectStore{
+		objects: make(map[string][]byte), cancelOnPut: cancel,
+		failRemoveAll: true, removeErr: errors.New("temporary object store failure"),
+	}
+	pin.obj = store
+
+	_, err = pin.Create(ctx, CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now().UTC(),
+		UserID: userID, GroupID: groupID, Image: imageBytes,
+	})
+	if err == nil {
+		t.Fatal("pin creation succeeded after its original photo upload cancelled the request")
+	}
+	key := store.lastPutKey
+	if key == "" || store.objectCount() != 1 {
+		t.Fatalf("original photo upload key %q, stored object count %d; want one uploaded object", key, store.objectCount())
+	}
+	assertObjectCleanupQueued(t, q, key)
+
+	store.failRemoveAll = false
+	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
+		t.Fatalf("retry original photo object cleanup: %v", err)
+	}
+	if store.objectCount() != 0 {
+		t.Fatal("original photo object remains after successful cleanup retry")
+	}
+}
+
 func (s *pinPhotoTestObjectStore) PresignedGet(_ context.Context, key string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.objects[key]; !ok {
 		return "", nil
 	}
 	return "https://objects.test/" + key, nil
+}
+
+func (s *pinPhotoTestObjectStore) objectCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.objects)
+}
+
+func TestConcurrentPinPhotoUploadAndDeleteDoesNotOrphanPhoto(t *testing.T) {
+	for _, deletion := range []string{"pin", "group", "user"} {
+		t.Run(deletion, func(t *testing.T) {
+			q, auth, user, _, pin, group, _, _, _ := setupServices(t)
+			ctx := context.Background()
+			userID := createTestUser(t, auth, "photo_delete_race_"+deletion)
+			groupID := createTestGroup(t, group, userID, "photo_delete_race_group_"+deletion)
+			created, err := pin.Create(ctx, CreatePinInput{
+				Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now().UTC(),
+				UserID: userID, GroupID: groupID,
+			})
+			if err != nil {
+				t.Fatalf("create pin: %v", err)
+			}
+			store := &pinPhotoTestObjectStore{objects: make(map[string][]byte)}
+			pin.obj = store
+			group.obj = store
+			user.obj = store
+			imageBytes, err := base64.StdEncoding.DecodeString(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+			)
+			if err != nil {
+				t.Fatalf("decode test image: %v", err)
+			}
+			pausePhotoInsertForPin(t, q, created.ID)
+			photoDone := make(chan error, 1)
+			go func() {
+				_, err := pin.AddPhoto(ctx, created.ID, userID, AddPinPhotoInput{
+					Image: imageBytes, IdempotencyKey: uuid.New(),
+					Latitude: 48.1, Longitude: 11.6, AccuracyMeters: 5,
+				})
+				photoDone <- err
+			}()
+			waitForPausedPhotoInsert(t, q)
+
+			deleteDone := make(chan error, 1)
+			go func() {
+				var err error
+				switch deletion {
+				case "pin":
+					err = pin.Delete(ctx, created.ID)
+				case "group":
+					err = group.Delete(ctx, groupID)
+				case "user":
+					if err = q.SetUserRecoveryCode(ctx, userID, "000042", time.Now().Add(time.Hour)); err == nil {
+						err = user.Delete(ctx, userID, 42)
+					}
+				}
+				deleteDone <- err
+			}()
+
+			select {
+			case err := <-photoDone:
+				if err != nil && deletion != "user" {
+					t.Fatalf("photo upload failed while deletion waited on pin: %v", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("photo upload did not finish")
+			}
+			select {
+			case err := <-deleteDone:
+				if err != nil {
+					t.Fatalf("delete %s: %v", deletion, err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatalf("%s deletion did not finish", deletion)
+			}
+			if count := store.objectCount(); count != 0 {
+				t.Fatalf("objects after concurrent %s deletion = %d, want none", deletion, count)
+			}
+		})
+	}
+}
+
+func pausePhotoInsertForPin(t *testing.T, q *db.Queries, pinID uuid.UUID) {
+	t.Helper()
+	ctx := context.Background()
+	function := fmt.Sprintf(`
+CREATE OR REPLACE FUNCTION test_pause_pin_photo_insert() RETURNS trigger AS $$
+BEGIN
+  IF NEW.pin_id = '%s'::uuid THEN
+    PERFORM pg_sleep(1.5);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;`, pinID)
+	if _, err := q.Pool().Exec(ctx, `DROP TRIGGER IF EXISTS test_pause_pin_photo_insert ON pin_photos`); err != nil {
+		t.Fatalf("drop old test trigger: %v", err)
+	}
+	if _, err := q.Pool().Exec(ctx, function); err != nil {
+		t.Fatalf("create test trigger function: %v", err)
+	}
+	if _, err := q.Pool().Exec(ctx, `CREATE TRIGGER test_pause_pin_photo_insert BEFORE INSERT ON pin_photos FOR EACH ROW EXECUTE FUNCTION test_pause_pin_photo_insert()`); err != nil {
+		t.Fatalf("create test trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = q.Pool().Exec(context.Background(), `DROP TRIGGER IF EXISTS test_pause_pin_photo_insert ON pin_photos`)
+		_, _ = q.Pool().Exec(context.Background(), `DROP FUNCTION IF EXISTS test_pause_pin_photo_insert()`)
+	})
+}
+
+func waitForPausedPhotoInsert(t *testing.T, q *db.Queries) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var paused bool
+		err := q.Pool().QueryRow(context.Background(), `
+SELECT EXISTS (
+  SELECT 1 FROM pg_stat_activity
+  WHERE pid <> pg_backend_pid()
+    AND datname = current_database()
+    AND usename = current_user
+    AND state = 'active'
+    AND query ILIKE '%INSERT INTO pin_photos%'
+    AND wait_event = 'PgSleep'
+)`).Scan(&paused)
+		if err != nil {
+			t.Fatalf("wait for paused photo insert: %v", err)
+		}
+		if paused {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("photo insert did not reach the concurrency gate")
 }
 
 func TestNewPinTreatsTypedNilObjectStoreAsUnavailable(t *testing.T) {

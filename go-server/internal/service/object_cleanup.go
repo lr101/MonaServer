@@ -37,18 +37,27 @@ func (s *ObjectCleanup) RunOnce(ctx context.Context) error {
 	if s == nil || s.q == nil || s.obj == nil {
 		return nil
 	}
-	keys, err := s.q.ListPendingObjectCleanup(ctx, objectCleanupBatchLimit)
-	if err != nil {
-		return err
-	}
 	var failures []error
-	for _, key := range keys {
-		if err := s.obj.Remove(ctx, key); err != nil {
-			failures = append(failures, fmt.Errorf("remove object %q: %w", key, err))
-			continue
+	for range objectCleanupBatchLimit {
+		var key string
+		var found bool
+		err := s.q.InTx(ctx, func(q *db.Queries) error {
+			var err error
+			key, found, err = q.ClaimPendingObjectCleanup(ctx)
+			if err != nil || !found {
+				return err
+			}
+			if err := s.obj.Remove(ctx, key); err != nil {
+				return fmt.Errorf("remove object %q: %w", key, err)
+			}
+			return q.DeletePendingObjectCleanup(ctx, key)
+		})
+		if err != nil {
+			failures = append(failures, err)
+			break
 		}
-		if err := s.q.DeletePendingObjectCleanup(ctx, key); err != nil {
-			failures = append(failures, fmt.Errorf("acknowledge object cleanup %q: %w", key, err))
+		if !found {
+			break
 		}
 	}
 	return errors.Join(failures...)

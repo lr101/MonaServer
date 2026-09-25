@@ -32,6 +32,9 @@ SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key;
 UPDATE pins SET update_date = NOW()
 WHERE id = $1 AND is_deleted = FALSE;
 
+-- name: LockPinForDelete :one
+SELECT id FROM pins WHERE id = $1 FOR UPDATE;
+
 -- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, description,
        creator_id, group_id, state_province_id, is_gone
@@ -60,7 +63,7 @@ DELETE FROM pins WHERE id = $1;
 SELECT id FROM pins WHERE creator_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC;
 
 -- name: ListGroupPinIDs :many
-SELECT id FROM pins WHERE group_id = $1 AND is_deleted = FALSE ORDER BY creation_date DESC;
+SELECT id FROM pins WHERE group_id = $1 ORDER BY id;
 
 -- name: ListUpdatedPinsForGroups :many
 SELECT id, latitude, longitude, creation_date, update_date, description,

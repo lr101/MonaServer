@@ -498,6 +498,14 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 	}, nil
 }
 
+func (q *Queries) LockGroupForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockGroupForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (q *Queries) GroupExistsByName(ctx context.Context, name string) (bool, error) {
 	return q.g.GroupExistsByName(ctx, pgTextS(name))
 }
@@ -934,6 +942,14 @@ func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bo
 	return rows > 0, err
 }
 
+func (q *Queries) LockPinForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockPinForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
@@ -1043,8 +1059,31 @@ func (q *Queries) EnqueueObjectCleanup(ctx context.Context, objectKeys []string)
 	return q.g.EnqueueObjectCleanup(ctx, objectKeys)
 }
 
-func (q *Queries) ListPendingObjectCleanup(ctx context.Context, limit int32) ([]string, error) {
-	return q.g.ListPendingObjectCleanup(ctx, limit)
+func (q *Queries) StageObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.StageObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) error {
+	return q.g.MarkObjectCleanupReady(ctx, objectKey)
+}
+
+func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string) (bool, error) {
+	_, err := q.g.LockStagedObjectCleanup(ctx, objectKey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, bool, error) {
+	key, err := q.g.ClaimPendingObjectCleanup(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return key, true, nil
 }
 
 func (q *Queries) DeletePendingObjectCleanup(ctx context.Context, objectKey string) error {
