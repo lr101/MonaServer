@@ -30,13 +30,13 @@ func TestAdminCampaignsServicerEnforcesCapabilitiesCSRFAndLifecycle(t *testing.T
 	}
 
 	wrongCSRF, err := servicer.UpdateAdminCampaign(ctx, campaign.Id, "wrong", genserver.AdminCampaignUpdateRequestDto{
-		Name: "Newsletter", Channel: genserver.ADMINCAMPAIGNCHANNEL_EMAIL, Subject: &subject, Body: "Hello", Status: genserver.ACTIVE, ExpectedRevision: campaign.Revision,
+		Name: "Newsletter", Channel: genserver.ADMINCAMPAIGNCHANNEL_EMAIL, Subject: &subject, Body: "Hello {{login_link}}", Status: genserver.ACTIVE, ExpectedRevision: campaign.Revision,
 	})
 	if err != nil || wrongCSRF.Code != http.StatusForbidden {
 		t.Fatalf("wrong csrf update = %#v, %v", wrongCSRF, err)
 	}
 	updated, err := servicer.UpdateAdminCampaign(ctx, campaign.Id, csrf, genserver.AdminCampaignUpdateRequestDto{
-		Name: "Newsletter", Channel: genserver.ADMINCAMPAIGNCHANNEL_EMAIL, Subject: &subject, Body: "Hello", Status: genserver.ACTIVE, ExpectedRevision: campaign.Revision,
+		Name: "Newsletter", Channel: genserver.ADMINCAMPAIGNCHANNEL_EMAIL, Subject: &subject, Body: "Hello {{login_link}}", Status: genserver.ACTIVE, ExpectedRevision: campaign.Revision,
 	})
 	if err != nil || updated.Code != http.StatusOK {
 		t.Fatalf("update response = %#v, %v", updated, err)
