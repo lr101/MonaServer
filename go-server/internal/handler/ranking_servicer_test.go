@@ -40,6 +40,13 @@ func TestUserRankingIncludesSelectedAchievement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
+	for _, name := range []string{"ranking_badge_group_2", "ranking_badge_group_3"} {
+		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+			Name: name, Visibility: 0, GroupAdmin: user.UserID,
+		}); err != nil {
+			t.Fatalf("create qualifying group %q: %v", name, err)
+		}
+	}
 	if _, err := pinSvc.Create(ctx, service.CreatePinInput{
 		Latitude: 1, Longitude: 1, CreationDate: time.Now(), UserID: user.UserID, GroupID: group.ID,
 	}); err != nil {

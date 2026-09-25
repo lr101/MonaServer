@@ -5698,8 +5698,33 @@ components:
         thresholdValue: 6
         thresholdUp: true
         currentValue: 1
+        name: First stick
+        description: Add your first stick.
+        track: sticks
+        difficulty: easy
+        rewardXp: 20
+        claimable: false
+        rewardAvailable: true
+        definitionVersion: 2
       properties:
         achievementId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        track:
+          type: string
+        difficulty:
+          type: string
+        rewardXp:
+          type: integer
+        claimable:
+          type: boolean
+        rewardAvailable:
+          type: boolean
+          nullable: true
+        definitionVersion:
           type: integer
         claimed:
           type: boolean

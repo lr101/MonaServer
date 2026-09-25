@@ -477,6 +477,14 @@ type UserAchievement struct {
 	UpdateDate    pgtype.Timestamptz `json:"update_date"`
 }
 
+type UserAchievementRewardLedger struct {
+	UserID            pgtype.UUID        `json:"user_id"`
+	AchievementID     int32              `json:"achievement_id"`
+	XpAwarded         int32              `json:"xp_awarded"`
+	DefinitionVersion int32              `json:"definition_version"`
+	AwardedAt         pgtype.Timestamptz `json:"awarded_at"`
+}
+
 type UsersSeason struct {
 	ID           pgtype.UUID        `json:"id"`
 	UserID       pgtype.UUID        `json:"user_id"`

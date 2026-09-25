@@ -161,6 +161,8 @@ SELECT p.creator_id, u.username, u.description,
 FROM pins p
 JOIN users u ON p.creator_id = u.id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+    AND ua.claimed = TRUE
+    AND user_achievement_is_current(u.id, ua.achievement_id)
 JOIN admin2_boundaries b ON p.state_province_id = b.id
 WHERE p.is_deleted = FALSE
   AND ($1::text IS NULL OR b.gid_0 = $1::text)

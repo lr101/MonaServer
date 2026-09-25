@@ -137,6 +137,95 @@ func TestMigration37BackfillsPinsWithNullCreationDate(t *testing.T) {
 	}
 }
 
+func TestMigration43BackfillsAchievementRewardsWithoutChangingUserXP(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+
+	pool, err := NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schema := "achievement_reward_migration_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create isolated migration schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+schema); err != nil {
+		t.Fatalf("set isolated migration search path: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `CREATE TABLE users (id uuid PRIMARY KEY, xp integer NOT NULL DEFAULT 0)`); err != nil {
+		t.Fatalf("create isolated users: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `CREATE TABLE user_achievement (user_id uuid NOT NULL, achievement_id integer NOT NULL, claimed boolean NOT NULL, update_date timestamptz)`); err != nil {
+		t.Fatalf("create isolated user achievements: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO users (id, xp) VALUES
+		('00000000-0000-0000-0000-000000000001', 240),
+		('00000000-0000-0000-0000-000000000002', 75)`); err != nil {
+		t.Fatalf("seed legacy users: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO user_achievement (user_id, achievement_id, claimed, update_date) VALUES
+		('00000000-0000-0000-0000-000000000001', 3, TRUE, '2025-01-01T00:00:00Z'),
+		('00000000-0000-0000-0000-000000000001', 4, FALSE, '2025-01-02T00:00:00Z'),
+		('00000000-0000-0000-0000-000000000002', 15, TRUE, '2025-01-03T00:00:00Z')`); err != nil {
+		t.Fatalf("seed legacy achievement rows: %v", err)
+	}
+
+	migration, err := migrationsFS.ReadFile("migrations/000043_user_achievement_reward_ledger.up.sql")
+	if err != nil {
+		t.Fatalf("read migration 43: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply migration 43: %v", err)
+	}
+
+	var ownerXP, otherXP int
+	if err := tx.QueryRow(ctx, `SELECT xp FROM users WHERE id = '00000000-0000-0000-0000-000000000001'`).Scan(&ownerXP); err != nil {
+		t.Fatalf("read first user XP: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `SELECT xp FROM users WHERE id = '00000000-0000-0000-0000-000000000002'`).Scan(&otherXP); err != nil {
+		t.Fatalf("read second user XP: %v", err)
+	}
+	if ownerXP != 240 || otherXP != 75 {
+		t.Fatalf("migration changed historical XP: first=%d second=%d", ownerXP, otherXP)
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT achievement_id, xp_awarded, definition_version
+		FROM user_achievement_reward_ledger
+		ORDER BY user_id, achievement_id
+	`)
+	if err != nil {
+		t.Fatalf("read backfilled reward ledger: %v", err)
+	}
+	defer rows.Close()
+	type reward struct{ id, xp, version int }
+	var got []reward
+	for rows.Next() {
+		var item reward
+		if err := rows.Scan(&item.id, &item.xp, &item.version); err != nil {
+			t.Fatalf("scan backfilled reward: %v", err)
+		}
+		got = append(got, item)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate reward ledger: %v", err)
+	}
+	if len(got) != 2 || got[0] != (reward{id: 3, xp: 20, version: 1}) || got[1] != (reward{id: 15, xp: 20, version: 1}) {
+		t.Fatalf("backfilled rewards = %v, want two prior 20 XP awards at version 1", got)
+	}
+}
+
 func TestT02SnapshotOrdinalMigrationRepairsPopulatedData(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {

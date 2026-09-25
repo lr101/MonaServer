@@ -1445,6 +1445,27 @@ func (q *Queries) GetSelectedUserAchievementID(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
+	def, ok := achievementDefinition(id)
+	if !ok {
+		if err := q.g.ReconcileUserAchievementClaim(ctx, dbgen.ReconcileUserAchievementClaimParams{
+			ID: pgUUID(userID), AchievementID: id,
+		}); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	current, err := q.runAchievementQuery(ctx, def, userID)
+	if err != nil {
+		return nil, err
+	}
+	if current < int(def.Threshold) {
+		if err := q.g.ReconcileUserAchievementClaim(ctx, dbgen.ReconcileUserAchievementClaimParams{
+			ID: pgUUID(userID), AchievementID: id,
+		}); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
 	return &id, nil
 }
 
@@ -1461,11 +1482,16 @@ func (q *Queries) ListUserAchievements(ctx context.Context, userID uuid.UUID) ([
 }
 
 func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, achievementID int32) error {
+	def, ok := achievementDefinition(achievementID)
+	if !ok {
+		return apperrors.ErrNotFound
+	}
 	_, err := q.g.ClaimUserAchievementAndAwardXP(ctx, dbgen.ClaimUserAchievementAndAwardXPParams{
-		ID:            pgUUID(uuid.New()),
-		UserID:        pgUUID(userID),
-		AchievementID: achievementID,
-		Xp:            20,
+		ID:                pgUUID(uuid.New()),
+		UserID:            pgUUID(userID),
+		AchievementID:     achievementID,
+		XpAwarded:         def.RewardXP,
+		DefinitionVersion: def.DefinitionVersion,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperrors.ErrConflict

@@ -4,6 +4,11 @@ FROM user_achievement
 WHERE user_id = $1
 ORDER BY achievement_id;
 
+-- name: ListUserAchievementRewardAwards :many
+SELECT achievement_id
+FROM user_achievement_reward_ledger
+WHERE user_id = $1;
+
 -- name: GetUserAchievement :one
 SELECT id, user_id, achievement_id, claimed
 FROM user_achievement
@@ -27,6 +32,17 @@ UPDATE user_achievement
 SET claimed = TRUE, update_date = NOW()
 WHERE user_id = $1 AND achievement_id = $2;
 
+-- name: ReconcileUserAchievementClaim :exec
+WITH revoked AS (
+    UPDATE user_achievement
+    SET claimed = FALSE, update_date = NOW()
+    WHERE user_id = $1 AND achievement_id = $2 AND claimed = TRUE
+    RETURNING id
+)
+UPDATE users u
+SET selected_batch = NULL, update_date = NOW()
+WHERE u.id = $1 AND u.selected_batch IN (SELECT id FROM revoked);
+
 -- name: ClaimUserAchievementAndAwardXP :one
 WITH claim AS (
     INSERT INTO user_achievement (
@@ -35,11 +51,22 @@ WITH claim AS (
     VALUES ($1, $2, $3, TRUE, NOW(), NOW())
     ON CONFLICT (user_id, achievement_id) DO UPDATE
         SET claimed = TRUE, update_date = NOW()
-        WHERE user_achievement.claimed = FALSE
-    RETURNING user_id
+    WHERE user_achievement.claimed = FALSE
+    RETURNING user_id, achievement_id
+), reward AS (
+    INSERT INTO user_achievement_reward_ledger (
+        user_id, achievement_id, xp_awarded, definition_version, awarded_at
+    )
+    SELECT user_id, achievement_id, $4, $5, NOW()
+    FROM claim
+    ON CONFLICT (user_id, achievement_id) DO NOTHING
+    RETURNING user_id, xp_awarded
+), award AS (
+    UPDATE users u
+    SET xp = xp + reward.xp_awarded, update_date = NOW()
+    FROM reward
+    WHERE u.id = reward.user_id
+    RETURNING u.id
 )
-UPDATE users u
-SET xp = xp + $4, update_date = NOW()
-FROM claim
-WHERE u.id = claim.user_id
-RETURNING u.id;
+SELECT claim.user_id
+FROM claim;

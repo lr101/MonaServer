@@ -13,6 +13,22 @@ package genserver
 type UserAchievementsDtoInner struct {
 	AchievementId int32 `json:"achievementId"`
 
+	Name string `json:"name,omitempty"`
+
+	Description string `json:"description,omitempty"`
+
+	Track string `json:"track,omitempty"`
+
+	Difficulty string `json:"difficulty,omitempty"`
+
+	RewardXp int32 `json:"rewardXp,omitempty"`
+
+	Claimable bool `json:"claimable,omitempty"`
+
+	RewardAvailable *bool `json:"rewardAvailable,omitempty"`
+
+	DefinitionVersion int32 `json:"definitionVersion,omitempty"`
+
 	Claimed bool `json:"claimed"`
 
 	ThresholdValue int32 `json:"thresholdValue"`

@@ -14,6 +14,14 @@ class UserAchievementsDtoInner {
   /// Returns a new [UserAchievementsDtoInner] instance.
   UserAchievementsDtoInner({
     required this.achievementId,
+    this.name,
+    this.description,
+    this.track,
+    this.difficulty,
+    this.rewardXp,
+    this.claimable,
+    this.rewardAvailable,
+    this.definitionVersion,
     required this.claimed,
     required this.thresholdValue,
     required this.currentValue,
@@ -21,6 +29,64 @@ class UserAchievementsDtoInner {
   });
 
   int achievementId;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? name;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? description;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? track;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? difficulty;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? rewardXp;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  bool? claimable;
+
+  bool? rewardAvailable;
+
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? definitionVersion;
 
   bool claimed;
 
@@ -33,6 +99,14 @@ class UserAchievementsDtoInner {
   @override
   bool operator ==(Object other) => identical(this, other) || other is UserAchievementsDtoInner &&
     other.achievementId == achievementId &&
+    other.name == name &&
+    other.description == description &&
+    other.track == track &&
+    other.difficulty == difficulty &&
+    other.rewardXp == rewardXp &&
+    other.claimable == claimable &&
+    other.rewardAvailable == rewardAvailable &&
+    other.definitionVersion == definitionVersion &&
     other.claimed == claimed &&
     other.thresholdValue == thresholdValue &&
     other.currentValue == currentValue &&
@@ -42,17 +116,65 @@ class UserAchievementsDtoInner {
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (achievementId.hashCode) +
+    (name == null ? 0 : name!.hashCode) +
+    (description == null ? 0 : description!.hashCode) +
+    (track == null ? 0 : track!.hashCode) +
+    (difficulty == null ? 0 : difficulty!.hashCode) +
+    (rewardXp == null ? 0 : rewardXp!.hashCode) +
+    (claimable == null ? 0 : claimable!.hashCode) +
+    (rewardAvailable == null ? 0 : rewardAvailable!.hashCode) +
+    (definitionVersion == null ? 0 : definitionVersion!.hashCode) +
     (claimed.hashCode) +
     (thresholdValue.hashCode) +
     (currentValue.hashCode) +
     (thresholdUp.hashCode);
 
   @override
-  String toString() => 'UserAchievementsDtoInner[achievementId=$achievementId, claimed=$claimed, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp]';
+  String toString() => 'UserAchievementsDtoInner[achievementId=$achievementId, name=$name, description=$description, track=$track, difficulty=$difficulty, rewardXp=$rewardXp, claimable=$claimable, rewardAvailable=$rewardAvailable, definitionVersion=$definitionVersion, claimed=$claimed, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'achievementId'] = this.achievementId;
+    if (this.name != null) {
+      json[r'name'] = this.name;
+    } else {
+      json[r'name'] = null;
+    }
+    if (this.description != null) {
+      json[r'description'] = this.description;
+    } else {
+      json[r'description'] = null;
+    }
+    if (this.track != null) {
+      json[r'track'] = this.track;
+    } else {
+      json[r'track'] = null;
+    }
+    if (this.difficulty != null) {
+      json[r'difficulty'] = this.difficulty;
+    } else {
+      json[r'difficulty'] = null;
+    }
+    if (this.rewardXp != null) {
+      json[r'rewardXp'] = this.rewardXp;
+    } else {
+      json[r'rewardXp'] = null;
+    }
+    if (this.claimable != null) {
+      json[r'claimable'] = this.claimable;
+    } else {
+      json[r'claimable'] = null;
+    }
+    if (this.rewardAvailable != null) {
+      json[r'rewardAvailable'] = this.rewardAvailable;
+    } else {
+      json[r'rewardAvailable'] = null;
+    }
+    if (this.definitionVersion != null) {
+      json[r'definitionVersion'] = this.definitionVersion;
+    } else {
+      json[r'definitionVersion'] = null;
+    }
       json[r'claimed'] = this.claimed;
       json[r'thresholdValue'] = this.thresholdValue;
       json[r'currentValue'] = this.currentValue;
@@ -80,6 +202,14 @@ class UserAchievementsDtoInner {
 
       return UserAchievementsDtoInner(
         achievementId: mapValueOfType<int>(json, r'achievementId')!,
+        name: mapValueOfType<String>(json, r'name'),
+        description: mapValueOfType<String>(json, r'description'),
+        track: mapValueOfType<String>(json, r'track'),
+        difficulty: mapValueOfType<String>(json, r'difficulty'),
+        rewardXp: mapValueOfType<int>(json, r'rewardXp'),
+        claimable: mapValueOfType<bool>(json, r'claimable'),
+        rewardAvailable: mapValueOfType<bool>(json, r'rewardAvailable'),
+        definitionVersion: mapValueOfType<int>(json, r'definitionVersion'),
         claimed: mapValueOfType<bool>(json, r'claimed')!,
         thresholdValue: mapValueOfType<int>(json, r'thresholdValue')!,
         currentValue: mapValueOfType<int>(json, r'currentValue')!,
@@ -138,4 +268,3 @@ class UserAchievementsDtoInner {
     'thresholdUp',
   };
 }
-

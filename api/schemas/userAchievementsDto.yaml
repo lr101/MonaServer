@@ -10,6 +10,23 @@ items:
   properties:
     achievementId:
       type: integer
+    name:
+      type: string
+    description:
+      type: string
+    track:
+      type: string
+    difficulty:
+      type: string
+    rewardXp:
+      type: integer
+    claimable:
+      type: boolean
+    rewardAvailable:
+      type: boolean
+      nullable: true
+    definitionVersion:
+      type: integer
     claimed:
       type: boolean
     thresholdValue:

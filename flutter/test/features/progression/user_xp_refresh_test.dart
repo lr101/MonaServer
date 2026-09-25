@@ -31,6 +31,14 @@ void main() {
       await fixture.prepare();
 
       expect(await fixture.performAction(), isNull);
+      if (action == _Mutation.achievement) {
+        final claimed = fixture.container
+            .read(achievementsProvider)
+            .value!
+            .single;
+        expect(claimed.claimed, isTrue);
+        expect(claimed.rewardAvailable, isFalse);
+      }
       await fixture.secondXpRequestStarted.future.timeout(
         const Duration(seconds: 2),
       );
@@ -42,6 +50,14 @@ void main() {
         fixture.container.read(userXpProvider('alice')).value?.totalXp,
         25,
       );
+      if (action == _Mutation.achievement) {
+        final claimedAchievement = fixture.container
+            .read(achievementsProvider)
+            .value!
+            .single;
+        expect(claimedAchievement.claimed, isTrue);
+        expect(claimedAchievement.rewardAvailable, isFalse);
+      }
     });
 
     test('${action.label} API failure does not refresh XP', () async {
@@ -163,14 +179,16 @@ class _Fixture {
   Future<void> prepare() async {
     final groups = container.listen(userGroupServiceProvider, (_, _) {});
     final xp = container.listen(userXpProvider('alice'), (_, _) {});
+    final achievements = action == _Mutation.achievement
+        ? container.listen(achievementsProvider, (_, _) {})
+        : null;
     await container.read(userGroupServiceProvider.future);
     await container.read(userXpProvider('alice').future);
     if (action == _Mutation.achievement) {
       await container.read(achievementsProvider.future);
     }
-    // These subscriptions are held until dispose so mutation invalidations
-    // rebuild the existing XP provider instead of relying on auto-disposal.
-    _subscriptions.addAll([groups, xp]);
+    // Keep providers used by mutations alive as a visible page would.
+    _subscriptions.addAll([groups, xp, if (achievements != null) achievements]);
   }
 
   final _subscriptions = <ProviderSubscription<dynamic>>[];
@@ -194,7 +212,7 @@ class _Fixture {
             ),
           ),
     _Mutation.achievement =>
-      container.read(achievementsProvider.notifier).claimAchievement(1),
+      container.read(achievementsProvider.notifier).claimAchievement(3),
   };
 
   Future<http.Response> handle(http.Request request) async {
@@ -220,7 +238,7 @@ class _Fixture {
       return http.Response(
         jsonEncode([
           {
-            'achievementId': 1,
+            'achievementId': 3,
             'claimed': false,
             'thresholdValue': 1,
             'currentValue': 1,
@@ -247,7 +265,7 @@ class _Fixture {
       request.method == 'POST' && request.url.path == '/api/v2/groups',
     _Mutation.achievement =>
       request.method == 'POST' &&
-          request.url.path == '/api/v2/users/alice/achievements/1',
+          request.url.path == '/api/v2/users/alice/achievements/3',
   };
 
   http.Response _mutationResponse(int status) {

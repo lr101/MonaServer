@@ -27,17 +27,34 @@ class Achievements extends _$Achievements {
           .claimUserAchievement(userId, achievementId);
       if (!isCurrentSession(ref, session)) return 'Session ended';
       if (state.hasValue) {
-        final index = state.value!.indexWhere(
+        final achievements = state.value!;
+        final index = achievements.indexWhere(
           (element) => element.achievementId == achievementId,
         );
-        state.value![index] = UserAchievementsDtoInner(
-          achievementId: achievementId,
-          claimed: true,
-          thresholdValue: state.value![index].thresholdValue,
-          currentValue: state.value![index].currentValue,
-          thresholdUp: state.value![index].thresholdUp,
-        );
-        ref.notifyListeners();
+        if (index >= 0) {
+          final previous = achievements[index];
+          state = AsyncData([
+            for (var i = 0; i < achievements.length; i++)
+              if (i == index)
+                UserAchievementsDtoInner(
+                  achievementId: previous.achievementId,
+                  name: previous.name,
+                  description: previous.description,
+                  track: previous.track,
+                  difficulty: previous.difficulty,
+                  rewardXp: previous.rewardXp,
+                  claimable: false,
+                  rewardAvailable: false,
+                  definitionVersion: previous.definitionVersion,
+                  claimed: true,
+                  thresholdValue: previous.thresholdValue,
+                  currentValue: previous.currentValue,
+                  thresholdUp: previous.thresholdUp,
+                )
+              else
+                achievements[i],
+          ]);
+        }
       }
       ref.invalidate(userXpProvider(userId));
     } on ApiException catch (e) {
