@@ -71,9 +71,11 @@ CHROME_EXECUTABLE=/path/to/chrome-wrapper mise exec -- flutter test --no-pub \
 The permission tests inject denied/pending discovery results; the simulated
 camera test checks actual preview initialization, exactly two media requests (permission and selected camera), and nonempty captured bytes. The Playwright camera tests also cover the group shutter, approval screen, return to preview and denial/retry.
 These checks do not establish physical lens selection or Safari/Firefox mobile
-behavior. Web preview intentionally fits the full stream rather than cropping
-it to fill a differently shaped viewport. Native shutter/group and camera
-selection controls are shared; flash is disabled on web.
+behavior. Web and native previews use a centered 3:4 frame with a cover crop,
+matching the normalized image sent for review. The group carousel is width
+bounded so group choices and its centered shutter stay close together on
+tablets and wide browser windows. Camera selection is shared; flash is disabled
+on web.
 
 
 The web discovery adapter is isolated in

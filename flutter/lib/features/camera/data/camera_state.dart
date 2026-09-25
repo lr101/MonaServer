@@ -29,6 +29,19 @@ bool isValidCameraPreviewSize(Size? previewSize) {
       previewSize.height > 0;
 }
 
+Size cameraPreviewFrameSize(Size available) {
+  if (!available.width.isFinite ||
+      !available.height.isFinite ||
+      available.width <= 0 ||
+      available.height <= 0) {
+    return Size.zero;
+  }
+  final width = available.width < available.height * 3 / 4
+      ? available.width
+      : available.height * 3 / 4;
+  return Size(width, width * 4 / 3);
+}
+
 int? cameraIndexForLength(int index, int length) {
   if (length <= 0) {
     return null;

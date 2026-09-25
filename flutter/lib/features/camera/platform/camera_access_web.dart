@@ -111,7 +111,7 @@ void Function() configureCameraPreview(CameraController controller) {
   final video = plugin.getCamera(controller.cameraId).videoElement;
   // The browser may renegotiate stream dimensions on rotation, independently
   // of camera_web's one-time initialized previewSize.
-  video.style.objectFit = 'contain';
+  video.style.objectFit = 'cover';
   void updateSize(web.Event? _) {
     if (video.videoWidth > 0 && video.videoHeight > 0) {
       controller.value = controller.value.copyWith(

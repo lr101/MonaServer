@@ -6,7 +6,6 @@ import 'package:buff_lisa/features/camera/presentation/camera.dart'
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -94,7 +93,25 @@ void main() {
     );
   });
 
-  testWidgets('camera preview viewport follows orientation changes', (
+  test(
+    'camera preview frame keeps 3:4 inside portrait and landscape bounds',
+    () {
+      expect(
+        cameraPreviewFrameSize(const Size(390, 760)),
+        const Size(390, 520),
+      );
+      expect(
+        cameraPreviewFrameSize(const Size(1200, 600)),
+        const Size(450, 600),
+      );
+      expect(
+        cameraPreviewFrameSize(const Size(390, 140)),
+        const Size(105, 140),
+      );
+    },
+  );
+
+  testWidgets('native camera preview frame stays 3:4 across orientations', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -115,56 +132,58 @@ void main() {
       ),
     );
 
-    var previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, 320);
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+    var frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, 320);
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
 
     controller.value = controller.value.copyWith(
       deviceOrientation: DeviceOrientation.landscapeRight,
     );
     await tester.pump();
 
-    previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, 320);
-    expect(previewChildSize.height, closeTo(320 * 9 / 16, 0.001));
+    frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, 320);
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
   });
 
-  testWidgets(
-    'web camera preview preserves the upright full stream without cropping',
-    (tester) async {
-      final controller = _FakeCameraController(
-        orientation: DeviceOrientation.portraitUp,
-      );
-      addTearDown(controller.dispose);
+  testWidgets('web camera preview center-crops into a stable 3:4 frame', (
+    tester,
+  ) async {
+    final controller = _FakeCameraController(
+      orientation: DeviceOrientation.portraitUp,
+    );
+    addTearDown(controller.dispose);
 
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Center(
-            child: SizedBox(
-              width: 320,
-              height: 480,
-              child: camera_page.cameraPreviewViewport(controller, isWeb: true),
-            ),
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 320,
+            height: 480,
+            child: camera_page.cameraPreviewViewport(controller, isWeb: true),
           ),
         ),
-      );
+      ),
+    );
 
-      expect(find.byType(CameraPreview), findsNothing);
-      expect(find.byType(RotatedBox), findsNothing);
-      expect(
-        tester.widget<FittedBox>(find.byType(FittedBox)).fit,
-        BoxFit.contain,
-      );
-      expect(
-        tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
-        closeTo(16 / 9, 0.001),
-      );
-      final previewChildSize = _fittedPreviewChildSize(tester);
-      expect(previewChildSize.width, closeTo(320, 0.001));
-      expect(previewChildSize.height, closeTo(180, 0.001));
-    },
-  );
+    expect(find.byType(CameraPreview), findsNothing);
+    expect(find.byType(RotatedBox), findsNothing);
+    expect(tester.widget<FittedBox>(find.byType(FittedBox)).fit, BoxFit.cover);
+    expect(
+      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
+      closeTo(16 / 9, 0.001),
+    );
+    final frame = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frame.width, closeTo(320, 0.001));
+    expect(frame.height, closeTo(320 * 4 / 3, 0.001));
+  });
 
   testWidgets('web front camera leaves browser mirroring upright', (
     tester,
@@ -191,7 +210,7 @@ void main() {
     expect(find.byType(RotatedBox), findsNothing);
   });
 
-  testWidgets('web camera preview frames a portrait stream as portrait', (
+  testWidgets('web camera preview crops a portrait stream to the 3:4 frame', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -214,9 +233,11 @@ void main() {
     );
 
     expect(find.byType(RotatedBox), findsNothing);
-    final previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, closeTo(320, 0.001));
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+    final frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, closeTo(320, 0.001));
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
   });
 
   testWidgets('camera preview ignores invalid preview dimensions safely', (
@@ -258,13 +279,6 @@ void main() {
 
     expect(calls, [1.2, 2.0]);
   });
-}
-
-Size _fittedPreviewChildSize(WidgetTester tester) {
-  final fittedBox = tester.renderObject<RenderFittedBox>(
-    find.byType(FittedBox),
-  );
-  return fittedBox.child!.size;
 }
 
 class _FakeCameraController extends CameraController {

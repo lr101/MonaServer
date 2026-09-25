@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/camera_group_selector.dart';
 import 'package:buff_lisa/features/camera/presentation/camera_selector.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
@@ -18,7 +19,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mutex/mutex.dart';
 import 'package:native_exif/native_exif.dart';
-import 'package:snapping_page_scroll/snapping_page_scroll.dart';
 
 class Camera extends ConsumerStatefulWidget {
   const Camera({super.key});
@@ -28,7 +28,7 @@ class Camera extends ConsumerStatefulWidget {
 }
 
 class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
-  final PageController pageController = PageController(viewportFraction: 0.3);
+  late final PageController pageController;
   double scaleFactor = 1.0;
   double basScaleFactor = 1.0;
   final _m = Mutex();
@@ -41,6 +41,15 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _capturingNotifier = ref.read(cameraCapturingProvider.notifier);
+    final groupIds = ref.read(groupOrderServiceProvider);
+    final initialGroupIndex = cameraIndexForLength(
+      ref.read(cameraGroupIndexProvider),
+      groupIds.length,
+    );
+    pageController = PageController(
+      viewportFraction: CameraGroupSelector.itemViewportFraction,
+      initialPage: initialGroupIndex ?? 0,
+    );
     WidgetsBinding.instance.addObserver(this);
     unawaited(_discoverCameras());
     _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
@@ -310,39 +319,14 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                   ),
                 ),
                 if (groupIds.isNotEmpty)
-                  SizedBox(
-                    height: (MediaQuery.of(context).size.height) * 0.15,
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: SnappingPageScroll(
-                            controller: pageController,
-                            onPageChanged: onPageChange,
-                            children: List.generate(
-                              groupIds.length,
-                              (index) => groupCard(groupIds[index], index),
-                            ),
-                          ),
-                        ),
-                        Center(
-                          child: IgnorePointer(
-                            child: Container(
-                              padding: const EdgeInsets.all(2.0),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  width: 5.0,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              height:
-                                  (MediaQuery.of(context).size.height) *
-                                  0.07 *
-                                  2,
-                            ),
-                          ),
-                        ),
-                      ],
+                  CameraGroupSelector(
+                    controller: pageController,
+                    selectedIndex: ref.watch(cameraGroupIndexProvider),
+                    onPageChanged: onPageChange,
+                    onCapture: (index) => takePicture(groupIds[index], index),
+                    children: List.generate(
+                      groupIds.length,
+                      (index) => groupCard(groupIds[index]),
                     ),
                   ),
                 const SizedBox(height: 5),
@@ -388,25 +372,14 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     ref.read(cameraGroupIndexProvider.notifier).updateIndex(index);
   }
 
-  Widget groupCard(String groupId, int index) {
+  Widget groupCard(String groupId) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(5),
-        child: Semantics(
-          button: true,
-          label: index == ref.watch(cameraGroupIndexProvider)
-              ? 'Take photo'
-              : 'Select group',
-          child: GestureDetector(
-            onTap: () => takePicture(groupId, index),
-            child: RoundImage(
-              size: (MediaQuery.of(context).size.height) * 0.06,
-              imageCallback: ref.watch(
-                groupProfilePictureByIdProvider(groupId),
-              ),
-              child: Container(),
-            ),
-          ),
+        child: RoundImage(
+          size: cameraGroupAvatarSize(MediaQuery.sizeOf(context).height),
+          imageCallback: ref.watch(groupProfilePictureByIdProvider(groupId)),
+          child: Container(),
         ),
       ),
     );
@@ -536,9 +509,13 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
 
       return LayoutBuilder(
         builder: (context, constraints) {
-          // Browser video is already upright. Rotating it again or filling
-          // a portrait viewport with a landscape feed crops the field of view.
-          final aspectRatio = useWebPreview
+          final frameSize = cameraPreviewFrameSize(
+            Size(constraints.maxWidth, constraints.maxHeight),
+          );
+          if (frameSize == Size.zero) return const SizedBox.shrink();
+          // Browser video is already upright. Keep its orientation and crop
+          // both platforms to the same centered 3:4 frame used on capture.
+          final sourceAspectRatio = useWebPreview
               ? previewSize!.width / previewSize.height
               : cameraPreviewAspectRatio(
                   sensorAspectRatio: value.aspectRatio,
@@ -546,18 +523,24 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
                 );
           final preview = useWebPreview
               ? AspectRatio(
-                  aspectRatio: aspectRatio,
+                  aspectRatio: sourceAspectRatio,
                   child: controller.buildPreview(),
                 )
               : CameraPreview(controller);
 
-          return ClipRect(
-            child: FittedBox(
-              fit: useWebPreview ? BoxFit.contain : BoxFit.cover,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: constraints.maxWidth / aspectRatio,
-                child: preview,
+          return Center(
+            child: SizedBox.fromSize(
+              key: const ValueKey('camera-preview-frame'),
+              size: frameSize,
+              child: ClipRect(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: sourceAspectRatio,
+                    height: 1,
+                    child: preview,
+                  ),
+                ),
               ),
             ),
           );
