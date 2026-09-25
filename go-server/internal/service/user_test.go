@@ -146,6 +146,14 @@ func TestUserDelete(t *testing.T) {
 	})
 }
 
+func TestNewUserTreatsTypedNilObjectStoreAsUnavailable(t *testing.T) {
+	var object *Object
+	user := NewUser(nil, object, nil, nil, nil)
+	if user.obj != nil {
+		t.Fatal("typed nil object store should be treated as unavailable")
+	}
+}
+
 func TestClaimAchievementCreatesRowAwardsXpOnceAndRejectsDuplicate(t *testing.T) {
 	q, auth, user, _, _, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

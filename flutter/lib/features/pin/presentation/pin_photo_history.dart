@@ -27,6 +27,29 @@ bool canAddPinPhotoHere(Position? userPosition, PinEntity pin) {
       isPinWithinPresenceRange(userPosition, pin);
 }
 
+class PinPhotoUploadRetry {
+  PinPhotoRequestDto? _pendingRequest;
+
+  PinPhotoRequestDto? get pendingRequest => _pendingRequest;
+
+  PinPhotoRequestDto prepare(PinPhotoRequestDto request) =>
+      _pendingRequest ??= request;
+
+  void clear() => _pendingRequest = null;
+
+  Future<PinPhotoDto?> submit(
+    Future<PinPhotoDto?> Function(PinPhotoRequestDto request) send,
+  ) async {
+    final request = _pendingRequest;
+    if (request == null) {
+      throw StateError('No pin photo upload is pending.');
+    }
+    final response = await send(request);
+    _pendingRequest = null;
+    return response;
+  }
+}
+
 class PinPhotoHistoryPanel extends ConsumerStatefulWidget {
   const PinPhotoHistoryPanel({
     super.key,
@@ -44,6 +67,15 @@ class PinPhotoHistoryPanel extends ConsumerStatefulWidget {
 
 class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
   bool _isPreparingOrUploading = false;
+  final _uploadRetry = PinPhotoUploadRetry();
+
+  @override
+  void didUpdateWidget(covariant PinPhotoHistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pin.pinId != widget.pin.pinId) {
+      _uploadRetry.clear();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +87,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
         widget.userPosition!.accuracy >= 0 &&
         widget.userPosition!.accuracy <= 50;
     final canAdd = canAddPinPhotoHere(widget.userPosition, widget.pin);
+    final retryPending = _uploadRetry.pendingRequest != null;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -87,21 +120,30 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
                 synced: widget.pin.lastSynced != null,
                 nearby: nearby,
                 locationIsAccurate: locationIsAccurate,
+                retryPending: retryPending,
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: canAdd && !_isPreparingOrUploading ? _addPhoto : null,
+              onPressed: (retryPending || canAdd) && !_isPreparingOrUploading
+                  ? _addPhoto
+                  : null,
               icon: _isPreparingOrUploading
                   ? const SizedBox.square(
                       dimension: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.add_a_photo_outlined),
+                  : Icon(
+                      retryPending
+                          ? Icons.refresh_rounded
+                          : Icons.add_a_photo_outlined,
+                    ),
               label: Text(
                 _isPreparingOrUploading
                     ? 'Preparing photo…'
+                    : retryPending
+                    ? 'Retry photo update'
                     : 'Add photo update',
               ),
             ),
@@ -149,7 +191,11 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     required bool synced,
     required bool nearby,
     required bool locationIsAccurate,
+    required bool retryPending,
   }) {
+    if (retryPending) {
+      return 'The last upload may have succeeded. Retry it to check before adding another photo.';
+    }
     if (!synced) return 'Sync this pin before adding a photo.';
     if (widget.userPosition == null) return 'Waiting for a location fix.';
     if (!locationIsAccurate) {
@@ -160,47 +206,53 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
   }
 
   Future<void> _addPhoto() async {
+    final pendingRequest = _uploadRetry.pendingRequest;
     if (_isPreparingOrUploading ||
-        !canAddPinPhotoHere(widget.userPosition, widget.pin)) {
+        (pendingRequest == null &&
+            !canAddPinPhotoHere(widget.userPosition, widget.pin))) {
       return;
     }
     setState(() => _isPreparingOrUploading = true);
     try {
-      final XFile? picked = await CustomImagePicker.pick(context: context);
-      if (!mounted || picked == null) return;
-      final Uint8List? imageBytes = await CustomImagePicker.autoCrop(
-        res: picked,
-      );
-      if (!mounted) return;
-      if (imageBytes == null) {
-        _showMessage('Choose a valid photo to add an update.');
-        return;
+      if (pendingRequest == null) {
+        final XFile? picked = await CustomImagePicker.pick(context: context);
+        if (!mounted || picked == null) return;
+        final Uint8List? imageBytes = await CustomImagePicker.autoCrop(
+          res: picked,
+        );
+        if (!mounted) return;
+        if (imageBytes == null) {
+          _showMessage('Choose a valid photo to add an update.');
+          return;
+        }
+
+        final caption = await showDialog<String?>(
+          context: context,
+          builder: (context) => _PinPhotoComposer(imageBytes: imageBytes),
+        );
+        if (!mounted || caption == null) return;
+
+        final position = widget.userPosition;
+        if (!canAddPinPhotoHere(position, widget.pin)) {
+          _showMessage('Move closer to the pin and try again.');
+          return;
+        }
+        _uploadRetry.prepare(
+          PinPhotoRequestDto(
+            image: base64Encode(imageBytes),
+            idempotencyKey: const Uuid().v4(),
+            latitude: position!.latitude,
+            longitude: position.longitude,
+            accuracyMeters: position.accuracy,
+            caption: caption.isEmpty ? null : caption,
+          ),
+        );
       }
 
-      final caption = await showDialog<String?>(
-        context: context,
-        builder: (context) => _PinPhotoComposer(imageBytes: imageBytes),
+      await _uploadRetry.submit(
+        (request) =>
+            ref.read(pinApiProvider).addPinPhoto(widget.pin.pinId, request),
       );
-      if (!mounted || caption == null) return;
-
-      final position = widget.userPosition;
-      if (!canAddPinPhotoHere(position, widget.pin)) {
-        _showMessage('Move closer to the pin and try again.');
-        return;
-      }
-      await ref
-          .read(pinApiProvider)
-          .addPinPhoto(
-            widget.pin.pinId,
-            PinPhotoRequestDto(
-              image: base64Encode(imageBytes),
-              idempotencyKey: const Uuid().v4(),
-              latitude: position!.latitude,
-              longitude: position.longitude,
-              accuracyMeters: position.accuracy,
-              caption: caption.isEmpty ? null : caption,
-            ),
-          );
       if (!mounted) return;
       ref.invalidate(pinPhotoHistoryProvider(widget.pin.pinId));
       _showMessage('Photo update added.');

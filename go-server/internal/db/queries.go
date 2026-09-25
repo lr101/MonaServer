@@ -971,12 +971,12 @@ type PinPhoto struct {
 func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
 	return q.g.CreatePinPhoto(ctx, dbgen.CreatePinPhotoParams{
 		ID: pgUUID(photo.ID), PinID: pgUUID(photo.PinID),
-		ContributorID: pgUUIDPtr(photo.ContributorID),
+		ContributorID:       pgUUIDPtr(photo.ContributorID),
 		ContributorUsername: photo.ContributorUsername,
-		ImageKey: photo.ImageKey, IdempotencyKey: pgUUIDPtr(photo.IdempotencyKey),
+		ImageKey:            photo.ImageKey, IdempotencyKey: pgUUIDPtr(photo.IdempotencyKey),
 		RequestHash: photo.RequestHash,
-		Caption: pgText(photo.Caption),
-		ObservedAt: pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+		Caption:     pgText(photo.Caption),
+		ObservedAt:  pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
 	})
 }
 
@@ -994,11 +994,11 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhot
 		}
 		photos = append(photos, PinPhoto{
 			ID: goUUID(row.ID), PinID: goUUID(row.PinID),
-			ContributorID: contributorID,
+			ContributorID:       contributorID,
 			ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
 			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
-			RequestHash: row.RequestHash,
-			Caption: goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+			RequestHash:    row.RequestHash,
+			Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
 			IsOriginal: row.IsOriginal,
 		})
 	}
@@ -1022,11 +1022,11 @@ func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID
 	}
 	photo := PinPhoto{
 		ID: goUUID(row.ID), PinID: goUUID(row.PinID),
-		ContributorID: photoContributorID,
+		ContributorID:       photoContributorID,
 		ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
 		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
-		RequestHash: row.RequestHash,
-		Caption: goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+		RequestHash:    row.RequestHash,
+		Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
 		IsOriginal: row.IsOriginal,
 	}
 	return &photo, nil
@@ -1034,6 +1034,21 @@ func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID
 
 func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
 	return q.g.ListPinPhotoKeys(ctx, pgUUID(pinID))
+}
+
+func (q *Queries) EnqueueObjectCleanup(ctx context.Context, objectKeys []string) error {
+	if len(objectKeys) == 0 {
+		return nil
+	}
+	return q.g.EnqueueObjectCleanup(ctx, objectKeys)
+}
+
+func (q *Queries) ListPendingObjectCleanup(ctx context.Context, limit int32) ([]string, error) {
+	return q.g.ListPendingObjectCleanup(ctx, limit)
+}
+
+func (q *Queries) DeletePendingObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.DeletePendingObjectCleanup(ctx, objectKey)
 }
 
 func (q *Queries) TouchPinForPhoto(ctx context.Context, pinID uuid.UUID) (bool, error) {

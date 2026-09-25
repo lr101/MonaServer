@@ -305,17 +305,26 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	pinPhotoKeys := make(map[uuid.UUID][]string, len(pinIDs))
+	objectKeys := make([]string, 0, len(pinIDs)*2+3)
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
 		for _, pinID := range pinIDs {
 			keys, err := q.ListPinPhotoKeys(ctx, pinID)
 			if err != nil {
 				return err
 			}
-			pinPhotoKeys[pinID] = keys
+			objectKeys = append(objectKeys, PinKey(pinID))
+			objectKeys = append(objectKeys, keys...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
+		}
+		objectKeys = append(objectKeys,
+			GroupPinKey(id),
+			GroupProfileKey(id, false),
+			GroupProfileKey(id, true),
+		)
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
 		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityGroup, id); err != nil {
 			return err
@@ -324,19 +333,7 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	}); err != nil {
 		return err
 	}
-	if s.obj != nil {
-		for _, pinID := range pinIDs {
-			_ = s.obj.Remove(ctx, PinKey(pinID))
-			for _, key := range pinPhotoKeys[pinID] {
-				if key != PinKey(pinID) {
-					_ = s.obj.Remove(ctx, key)
-				}
-			}
-		}
-		_ = s.obj.Remove(ctx, GroupPinKey(id))
-		_ = s.obj.Remove(ctx, GroupProfileKey(id, false))
-		_ = s.obj.Remove(ctx, GroupProfileKey(id, true))
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 

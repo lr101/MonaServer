@@ -77,11 +77,17 @@ func toUserInfo(u *db.User) *UserInfo {
 // User service — ports UserServiceImpl.
 type User struct {
 	q        *db.Queries
-	obj      *Object
+	obj      userObjectStore
 	tok      *token.Helper
 	auth     *Auth
 	mail     *Email
 	security *AccountSecurity
+}
+
+type userObjectStore interface {
+	Put(context.Context, string, []byte, string) error
+	Remove(context.Context, string) error
+	PresignedGet(context.Context, string) (string, error)
 }
 
 func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Email) *User {
@@ -89,7 +95,11 @@ func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Em
 	if auth != nil {
 		security = auth.Security()
 	}
-	return &User{q: q, obj: obj, tok: tok, auth: auth, mail: mail, security: security}
+	var objectStore userObjectStore
+	if obj != nil {
+		objectStore = obj
+	}
+	return &User{q: q, obj: objectStore, tok: tok, auth: auth, mail: mail, security: security}
 }
 
 func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
@@ -106,8 +116,9 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	var groupIDs, pinIDs []uuid.UUID
-	pinPhotoKeys := make(map[uuid.UUID][]string)
+	var objectKeys []string
 	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		objectKeys = nil
 		state, err := q.LockUserSecurity(ctx, id)
 		if err != nil {
 			return err
@@ -141,15 +152,25 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 			if err != nil {
 				return err
 			}
-			pinPhotoKeys[pinID] = keys
+			objectKeys = append(objectKeys, PinKey(pinID))
+			objectKeys = append(objectKeys, keys...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
 		}
 		for _, groupID := range groupIDs {
+			objectKeys = append(objectKeys,
+				GroupPinKey(groupID),
+				GroupProfileKey(groupID, false),
+				GroupProfileKey(groupID, true),
+			)
 			if err := q.LogDeletion(ctx, db.DeletedEntityGroup, groupID); err != nil {
 				return err
 			}
+		}
+		objectKeys = append(objectKeys, UserProfileKey(id, false), UserProfileKey(id, true))
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
 		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityUser, id); err != nil {
 			return err
@@ -159,23 +180,7 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	if err != nil {
 		return err
 	}
-	if s.obj != nil {
-		for _, pinID := range pinIDs {
-			_ = s.obj.Remove(ctx, PinKey(pinID))
-			for _, key := range pinPhotoKeys[pinID] {
-				if key != PinKey(pinID) {
-					_ = s.obj.Remove(ctx, key)
-				}
-			}
-		}
-		for _, groupID := range groupIDs {
-			_ = s.obj.Remove(ctx, GroupPinKey(groupID))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, false))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, true))
-		}
-		_ = s.obj.Remove(ctx, UserProfileKey(id, false))
-		_ = s.obj.Remove(ctx, UserProfileKey(id, true))
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 

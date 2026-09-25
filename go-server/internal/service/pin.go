@@ -213,6 +213,10 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			return err
 		}
+		objectKeys := append([]string{PinKey(id)}, photoKeys...)
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
+		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityPin, id); err != nil {
 			return err
 		}
@@ -220,14 +224,7 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 	}); err != nil {
 		return err
 	}
-	if s.obj != nil {
-		_ = s.obj.Remove(ctx, PinKey(id))
-		for _, key := range photoKeys {
-			if key != PinKey(id) {
-				_ = s.obj.Remove(ctx, key)
-			}
-		}
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 

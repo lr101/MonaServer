@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,66 @@ func TestMigration23RestoresMembersSoftDeleteColumn(t *testing.T) {
 	}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("restored membership states = %v, want %v", got, want)
+	}
+}
+
+func TestMigration37BackfillsPinsWithNullCreationDate(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+
+	pool, err := NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schema := "pin_photo_migration_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create isolated schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+schema); err != nil {
+		t.Fatalf("set isolated schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		CREATE TABLE users (id uuid PRIMARY KEY, username text);
+		CREATE TABLE pins (
+			id uuid PRIMARY KEY,
+			creator_id uuid,
+			description text,
+			creation_date timestamptz,
+			update_date timestamptz
+		)`); err != nil {
+		t.Fatalf("create legacy tables: %v", err)
+	}
+	updateDate := time.Date(2024, 3, 4, 5, 6, 7, 0, time.UTC)
+	pinID := uuid.New()
+	if _, err := tx.Exec(ctx, `INSERT INTO pins (id, creation_date, update_date) VALUES ($1, NULL, $2)`, pinID, updateDate); err != nil {
+		t.Fatalf("insert legacy pin with null creation date: %v", err)
+	}
+
+	migration, err := migrationsFS.ReadFile("migrations/000037_pin_photos.up.sql")
+	if err != nil {
+		t.Fatalf("read pin photos migration: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply pin photos migration: %v", err)
+	}
+
+	var observedAt, createdAt time.Time
+	if err := tx.QueryRow(ctx, `SELECT observed_at, created_at FROM pin_photos WHERE pin_id = $1`, pinID).Scan(&observedAt, &createdAt); err != nil {
+		t.Fatalf("read backfilled original photo: %v", err)
+	}
+	if !observedAt.Equal(updateDate) || !createdAt.Equal(updateDate) {
+		t.Fatalf("backfilled photo dates = %s/%s, want %s/%s", observedAt, createdAt, updateDate, updateDate)
 	}
 }
 

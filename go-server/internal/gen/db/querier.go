@@ -112,8 +112,10 @@ type Querier interface {
 	DeleteExpiredAccountActionTokens(ctx context.Context, arg DeleteExpiredAccountActionTokensParams) error
 	DeleteExpiredAudienceSnapshots(ctx context.Context, expiresAt pgtype.Timestamptz) error
 	DeleteLike(ctx context.Context, arg DeleteLikeParams) error
+	DeletePendingObjectCleanup(ctx context.Context, objectKey string) error
 	DeleteRefreshToken(ctx context.Context, token pgtype.UUID) error
 	DisableDeviceRegistration(ctx context.Context, arg DisableDeviceRegistrationParams) error
+	EnqueueObjectCleanup(ctx context.Context, objectKeys []string) error
 	ExtendAdminJobItemLease(ctx context.Context, arg ExtendAdminJobItemLeaseParams) (ExtendAdminJobItemLeaseRow, error)
 	ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJobLeaseParams) (ExtendDurableJobLeaseRow, error)
 	ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEventLeaseParams) (ExtendOutboxEventLeaseRow, error)
@@ -218,6 +220,7 @@ type Querier interface {
 	ListDeviceRegistrations(ctx context.Context, userID pgtype.UUID) ([]DeviceRegistration, error)
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
+	ListPendingObjectCleanup(ctx context.Context, pageLimit int32) ([]string, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]string, error)

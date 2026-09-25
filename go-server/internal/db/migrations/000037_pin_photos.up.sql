@@ -26,7 +26,8 @@ INSERT INTO pin_photos (
     caption, observed_at, created_at, is_original
 )
 SELECT p.id, p.id, p.creator_id, COALESCE(u.username, 'Former user'),
-       'pins/' || p.id || '.png', p.description, p.creation_date,
-       p.creation_date, TRUE
+       'pins/' || p.id || '.png', p.description,
+       COALESCE(p.creation_date, p.update_date, NOW()),
+       COALESCE(p.creation_date, p.update_date, NOW()), TRUE
 FROM pins p
 LEFT JOIN users u ON u.id = p.creator_id;

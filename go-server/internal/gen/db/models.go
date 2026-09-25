@@ -318,6 +318,11 @@ type Member struct {
 	Active       bool             `json:"active"`
 }
 
+type ObjectCleanupQueue struct {
+	ObjectKey string             `json:"object_key"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type OutboxEvent struct {
 	ID             pgtype.UUID        `json:"id"`
 	Topic          string             `json:"topic"`

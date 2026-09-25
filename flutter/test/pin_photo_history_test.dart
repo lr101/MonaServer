@@ -67,6 +67,44 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'photo upload retry preserves its exact request until success',
+    () async {
+      final session = PinPhotoUploadRetry();
+      final request = PinPhotoRequestDto(
+        image: 'encoded photo',
+        idempotencyKey: 'retry-key',
+        latitude: 50,
+        longitude: 8,
+        accuracyMeters: 5,
+        caption: 'Still here',
+      );
+      final submitted = <PinPhotoRequestDto>[];
+      session.prepare(request);
+
+      await expectLater(
+        session.submit((request) {
+          submitted.add(request);
+          return Future<PinPhotoDto?>.error(
+            StateError('response lost after server committed'),
+          );
+        }),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(session.pendingRequest, same(request));
+      await session.submit((request) async {
+        submitted.add(request);
+        return null;
+      });
+
+      expect(submitted, hasLength(2));
+      expect(submitted[0], same(request));
+      expect(submitted[1], same(request));
+      expect(session.pendingRequest, isNull);
+    },
+  );
 }
 
 PinEntity _pin({bool synced = true}) => PinEntity(
