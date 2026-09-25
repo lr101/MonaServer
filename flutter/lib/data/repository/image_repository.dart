@@ -614,10 +614,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       debugPrint(
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
       );
-    } catch (error) {
-      debugPrint(
-        'Network exception fetching image $id from supplied URL: $error',
-      );
+    } catch (_) {
+      debugPrint('Network exception fetching image $id from supplied URL.');
     }
     return null;
   }
@@ -673,8 +671,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return _disposed ? null : fallback;
-    } catch (error) {
-      debugPrint('Network exception fetching image $id: $error');
+    } catch (_) {
+      debugPrint('Network exception fetching image $id.');
       return _disposed ? null : fallback;
     }
   }
@@ -688,8 +686,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
-    final response = await _httpGet(Uri.parse(url))
-        .timeout(const Duration(seconds: 15));
+    final http.Response response;
+    try {
+      response = await _httpGet(Uri.parse(url))
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // The exception can include the full presigned URI. Some callers do not
+      // await this cache refresh, so only propagate a sanitized error.
+      throw Exception('Failed to override image.');
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(
         'Failed to override image. Status: ${response.statusCode}',

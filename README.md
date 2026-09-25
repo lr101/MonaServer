@@ -92,6 +92,7 @@ and the `app_config` environment group before enabling the workflow.
 - `flutter/e2e/`: Playwright tests and MCP browser configuration for Flutter web
 - `testdata/`: disposable integration stack, fixture scenarios, and seed command
 - `docs/AGENT_LOCAL_STACK.md`: agent runbook for Compose and Dockerless local services
+- `docs/KNOWLEDGEBASE.md`: cross-component implementation notes and documentation index
 - `go-server/`: server module, database migrations, tests, and container image
 - `api/`: OpenAPI sources and bundled contract
 - `compose.yaml`: Traefik-ready deployment with a combined app image

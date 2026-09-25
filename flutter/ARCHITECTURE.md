@@ -1,19 +1,18 @@
 # Flutter architecture
 
-Status: incremental migration in progress. Reviewed against repository code on
-2026-09-14, including composition-root, session-expiry and owned-sync slices. This is the current
-architecture and remaining plan; implemented reliability work does not mean the target layers exist yet.
+Status: incremental migration in progress. This page records the current
+architecture and remaining migration work; implemented reliability work does
+not mean the target feature layers exist yet.
 
 Start here for ownership and design decisions. Use [README.md](README.md) for
 setup, [AGENTS.md](AGENTS.md) for change and verification rules, and
 [the local stack guide](../docs/AGENT_LOCAL_STACK.md) for services.
 
-## Current state after the first three slices
+## Current implementation
 
-The initial behavior-hardening work and architecture quick wins are implemented
-in the existing structure. Later changes strengthen those paths. Auth and groups
-are still the **planned first feature-layer migrations**, not completed
-`domain`/`data`/`presentation` slices.
+The behavior-hardening work and architecture quick wins below are implemented
+in the existing structure. Auth and groups remain the **planned first
+feature-layer migrations**, not completed `domain`/`data`/`presentation` slices.
 
 | Area | Implemented behavior and source | Regression coverage in `test/` |
 | --- | --- | --- |
@@ -78,15 +77,11 @@ features to `migratedFeatures` as their migration completes. Rule fixtures cover
 the future domain/data/presentation boundaries; repository ports must use the
 `*_repository.dart` naming convention for the presentation import check.
 `core/session/session_status.dart` defines post-bootstrap session status.
-The router is now owned in `app/routing/`; the previous `util/routing/` entry
+The router is owned in `app/routing/`; the previous `util/routing/` entry
 point re-exports it for existing callers. It listens to session status and
-disposes both its router and refresh notifier with its provider. See the
-[startup slice verification](../docs/reports/flutter-startup-2026-09-11.md) for
-checks, browser evidence and platform limits. The
-[session-expiry verification](../docs/reports/flutter-session-expiry-2026-09-12.md)
-records the subsequent routing, persistence and reauthentication checks.
-[Sync lifecycle verification](../docs/reports/flutter-sync-lifecycle-2026-09-14.md)
-covers the third slice.
+disposes both its router and refresh notifier with its provider. Cross-component
+session, cache, media, and sync behavior is summarized in the repository
+[knowledgebase](../docs/KNOWLEDGEBASE.md).
 
 Drift remains the local cache, using hashed IDs, TTL/hit counts and keep-alive
 flags. The bootstrap database owns migrations and the physical connection;
