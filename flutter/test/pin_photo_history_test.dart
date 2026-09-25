@@ -54,6 +54,7 @@ void main() {
     expect(find.text('Original pin photo'), findsOneWidget);
     expect(find.text('Update by walker'), findsOneWidget);
     expect(find.text('The sign is still here'), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
     expect(
       find.text('Get within 50 m of this pin to add a photo.'),
       findsOneWidget,
@@ -175,6 +176,7 @@ class _FakePinsApi extends PinsApi {
       id: 'original',
       pinId: pinId,
       contributorUsername: 'walker',
+      image: 'https://example.test/original.png',
       caption: 'The sign is still here',
       observedAt: DateTime.utc(2026),
       isOriginal: true,
@@ -183,6 +185,7 @@ class _FakePinsApi extends PinsApi {
       id: 'later',
       pinId: pinId,
       contributorUsername: 'walker',
+      image: 'https://example.test/update.png',
       observedAt: DateTime.utc(2026, 1, 2),
       isOriginal: false,
     ),

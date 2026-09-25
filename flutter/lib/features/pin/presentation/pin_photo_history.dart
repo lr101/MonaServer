@@ -175,7 +175,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
               ),
               data: (photos) => photos.isEmpty
                   ? Text(
-                      'No photos have been added to this pin yet.',
+                      'No photo updates yet.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     )
                   : Column(
@@ -307,18 +307,6 @@ class _PinPhotoTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (photo.image case final imageUrl?)
-            AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const _PhotoUnavailable(),
-              ),
-            )
-          else
-            const AspectRatio(aspectRatio: 4 / 3, child: _PhotoUnavailable()),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -354,22 +342,6 @@ class _PinPhotoTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PhotoUnavailable extends StatelessWidget {
-  const _PhotoUnavailable();
-
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-    child: Center(
-      child: Icon(
-        Icons.image_not_supported_outlined,
-        size: 42,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    ),
-  );
 }
 
 class _PinPhotoComposer extends StatefulWidget {

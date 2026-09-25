@@ -20,8 +20,10 @@ class FeedCardImageHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 1. Fetch images
     final userImage = ref.watch(getUserProfileSmallProvider(pin.creator));
-    final groupImage = ref.watch(groupProfilePictureSmallByIdProvider(pin.groupId));
-    
+    final groupImage = ref.watch(
+      groupProfilePictureSmallByIdProvider(pin.groupId),
+    );
+
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(pin.creator));
     final username = ref.watch(userByIdUsernameProvider(pin.creator));
 
@@ -46,10 +48,10 @@ class FeedCardImageHeader extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 children: [
                   Positioned(
-                    left: avatarSize, 
-                    child:  RoundImage(
-                          imageCallback: groupImage,
-                          size: avatarSize, 
+                    left: avatarSize,
+                    child: RoundImage(
+                      imageCallback: groupImage,
+                      size: avatarSize,
                     ),
                   ),
 
@@ -57,17 +59,16 @@ class FeedCardImageHeader extends ConsumerWidget {
                     left: 0,
                     child: ClickableUser(
                       userId: pin.creator,
-                      child:RoundImage(
-                          imageCallback: userImage, 
-                          size: avatarSize, 
-                        ),
+                      child: RoundImage(
+                        imageCallback: userImage,
+                        size: avatarSize,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
-            
-            
+
             // 3. TEXT INFO
             Expanded(
               child: Column(
@@ -113,7 +114,8 @@ class FeedCardImageHeader extends ConsumerWidget {
   }
 
   Widget getDistance() {
-    final text = "~ ${distance! >= 1000 ? "${distance! ~/ 1000}km near you" : "${distance!.toInt()}m near you"}";
+    final text =
+        "~ ${distance! >= 1000 ? "${distance! ~/ 1000}km near you" : "${distance!.toInt()}m near you"}";
     return Text(
       text,
       style: const TextStyle(
@@ -126,12 +128,13 @@ class FeedCardImageHeader extends ConsumerWidget {
 
   Widget getPinLocation() {
     return FutureBuilder<List<Placemark>>(
-      future: placemarkFromCoordinates(
-        pin.latitude,
-        pin.longitude,
+      future: Future.sync(
+        () => placemarkFromCoordinates(pin.latitude, pin.longitude),
       ),
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+        if (snapshot.hasData &&
+            snapshot.data != null &&
+            snapshot.data!.isNotEmpty) {
           final Placemark first = snapshot.data!.first;
           String near = "";
           if (first.locality != null) {
@@ -151,7 +154,9 @@ class FeedCardImageHeader extends ConsumerWidget {
             ),
           );
         } else {
-          return const Text("", style: TextStyle(
+          return const Text(
+            "",
+            style: TextStyle(
               fontStyle: FontStyle.italic,
               color: Colors.white,
               fontSize: 10,
