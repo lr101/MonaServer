@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/camera.dart';
+import 'package:buff_lisa/features/camera/presentation/camera_group_selector.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:camera/camera.dart';
 // ignore: depend_on_referenced_packages
@@ -81,6 +82,78 @@ class _CameraPlatform extends CameraPlatform {
 }
 
 void main() {
+  testWidgets('group shutter stays centered on a bounded carousel on tablets', (
+    tester,
+  ) async {
+    final controller = PageController(
+      viewportFraction: CameraGroupSelector.itemViewportFraction,
+      initialPage: 2,
+    );
+    final capturedGroups = <int>[];
+    var selectedIndex = 2;
+    await tester.binding.setSurfaceSize(const Size(1600, 420));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      controller.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: StatefulBuilder(
+              builder: (context, setState) => CameraGroupSelector(
+                controller: controller,
+                selectedIndex: selectedIndex,
+                onPageChanged: (index) => setState(() => selectedIndex = index),
+                onCapture: capturedGroups.add,
+                children: List.generate(
+                  5,
+                  (index) => Center(child: CircleAvatar(child: Text('$index'))),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final carousel = tester.getRect(find.byType(PageView));
+    final ring = tester.getRect(
+      find.byKey(const ValueKey('camera-group-shutter-ring')),
+    );
+    expect(carousel.width, closeTo(420, .01));
+    expect(ring.center.dx, closeTo(carousel.center.dx, .01));
+    expect(ring.center.dy, closeTo(carousel.center.dy, .01));
+    expect(
+      tester.getRect(find.text('2')).center.dx,
+      closeTo(ring.center.dx, 1),
+    );
+    expect(
+      (tester.getRect(find.text('3')).center.dx - ring.center.dx).abs(),
+      lessThan(104),
+    );
+
+    await tester.timedDragFrom(
+      ring.center + Offset(ring.width / 2 + 8, 0),
+      const Offset(-140, 0),
+      const Duration(milliseconds: 500),
+    );
+    await tester.pumpAndSettle();
+    expect(selectedIndex, isNot(2));
+    final selectedRing = tester.getRect(
+      find.byKey(const ValueKey('camera-group-shutter-ring')),
+    );
+    expect(
+      tester.getRect(find.text('$selectedIndex')).center.dx,
+      closeTo(selectedRing.center.dx, 1),
+    );
+    await tester.tapAt(selectedRing.center);
+    expect(capturedGroups, [selectedIndex]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('pin update mode captures from preview and returns the file', (
     tester,
   ) async {
