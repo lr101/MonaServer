@@ -81,6 +81,9 @@ class GroupAchievementsCard extends StatelessWidget {
                 _AchievementRow(
                   achievement: sortedAchievements[index],
                   canClaim: group?.userIsMember == true,
+                  claimUnavailableText: group == null
+                      ? 'Checking membership'
+                      : 'Join to claim',
                   reduceMotion: reduceMotion,
                   isClaiming:
                       claimingAchievementId ==
@@ -161,6 +164,7 @@ class _AchievementRow extends StatelessWidget {
   const _AchievementRow({
     required this.achievement,
     required this.canClaim,
+    required this.claimUnavailableText,
     required this.reduceMotion,
     required this.isClaiming,
     required this.isCelebrating,
@@ -169,6 +173,7 @@ class _AchievementRow extends StatelessWidget {
 
   final GroupAchievementsDtoInner achievement;
   final bool canClaim;
+  final String claimUnavailableText;
   final bool reduceMotion;
   final bool isClaiming;
   final bool isCelebrating;
@@ -237,7 +242,7 @@ class _AchievementRow extends StatelessWidget {
               else if (achievement.claimable)
                 if (!canClaim)
                   Text(
-                    'Join to claim',
+                    claimUnavailableText,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

@@ -99,7 +99,7 @@ void main() {
     expect(find.text('Claim'), findsNothing);
   });
 
-  testWidgets('unknown membership does not enable claiming a reward', (
+  testWidgets('unknown membership shows a pending state and disables claim', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -116,7 +116,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Join to claim'), findsOneWidget);
+    expect(find.text('Checking membership'), findsOneWidget);
     expect(find.text('Claim'), findsNothing);
   });
 
