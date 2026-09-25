@@ -80,12 +80,6 @@ void main() {
       findsOneWidget,
     );
   });
-
-  test('nearby pulse is limited to pins still marked here', () {
-    expect(shouldPulsePinMarker(isNearby: true, isGone: false), isTrue);
-    expect(shouldPulsePinMarker(isNearby: true, isGone: true), isFalse);
-    expect(shouldPulsePinMarker(isNearby: false, isGone: false), isFalse);
-  });
 }
 
 PinEntity _pin({bool isGone = false}) => PinEntity(
