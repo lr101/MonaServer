@@ -154,6 +154,7 @@ class SyncingService extends _$SyncingService {
         if (!isCurrent()) return;
         if (e.code != 409) rethrow;
         // Preserve the legacy duplicate policy until server idempotency lands.
+        ref.invalidate(groupProgressionProvider(pin.groupId));
         await pinRepository.delete(pin.pinId);
       } catch (_) {
         if (!isCurrent()) return;

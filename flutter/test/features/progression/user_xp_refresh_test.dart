@@ -15,6 +15,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,30 @@ import 'package:http/testing.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  test('online pin creation refreshes group progression', () async {
+    final fixture = await _Fixture.create(_Mutation.pin);
+    addTearDown(fixture.dispose);
+    final progression = fixture.container.listen(
+      groupProgressionProvider('group-id'),
+      (_, _) {},
+    );
+    fixture.keep(progression);
+    await fixture.container.read(groupProgressionProvider('group-id').future);
+    expect(fixture.groupProgressionRequests, 1);
+
+    expect(await fixture.performAction(), isNull);
+    await fixture.secondGroupProgressionRequestStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    await fixture.container.pump();
+    final refreshed = await fixture.container.read(
+      groupProgressionProvider('group-id').future,
+    );
+
+    expect(fixture.groupProgressionRequests, 2);
+    expect(refreshed?.totalXp, 5);
+  });
+
   for (final action in _Mutation.values) {
     test('${action.label} refreshes XP', () async {
       final fixture = await _Fixture.create(action);
@@ -133,7 +158,9 @@ class _Fixture {
   final mutationRequestStarted = Completer<void>();
   final secondXpRequestStarted = Completer<void>();
   final mutationResponse = Completer<http.Response>();
+  final secondGroupProgressionRequestStarted = Completer<void>();
   int xpRequests = 0;
+  int groupProgressionRequests = 0;
 
   static Future<_Fixture> create(
     _Mutation action, {
@@ -193,6 +220,10 @@ class _Fixture {
 
   final _subscriptions = <ProviderSubscription<dynamic>>[];
 
+  void keep(ProviderSubscription<dynamic> subscription) {
+    _subscriptions.add(subscription);
+  }
+
   Future<String?> performAction() => switch (action) {
     _Mutation.pin =>
       container
@@ -216,6 +247,25 @@ class _Fixture {
   };
 
   Future<http.Response> handle(http.Request request) async {
+    if (request.method == 'GET' &&
+        request.url.path == '/api/v2/groups/group-id/progression') {
+      groupProgressionRequests++;
+      if (groupProgressionRequests == 2 &&
+          !secondGroupProgressionRequestStarted.isCompleted) {
+        secondGroupProgressionRequestStarted.complete();
+      }
+      final totalXp = groupProgressionRequests == 1 ? 0 : 5;
+      return http.Response(
+        jsonEncode({
+          'groupId': 'group-id',
+          'totalXp': totalXp,
+          'currentLevel': 1,
+          'currentLevelXp': totalXp,
+          'nextLevelXp': 50,
+        }),
+        200,
+      );
+    }
     if (request.method == 'GET' &&
         request.url.path == '/api/v2/users/alice/xp') {
       xpRequests++;
