@@ -119,7 +119,6 @@ func main() {
 		EncryptionKeyID:    cfg.AdminTOTPEncryptionKeyID,
 		HMACKey:            decodeAdminKey(cfg.AdminSessionHMACKey),
 		HMACKeyID:          cfg.AdminSessionHMACKeyID,
-		FirstRunToken:      cfg.AdminFirstRunToken,
 		SessionIdleTTL:     cfg.AdminSessionIdleTTL,
 		SessionAbsoluteTTL: cfg.AdminSessionAbsoluteTTL,
 		ChallengeTTL:       cfg.AdminChallengeTTL,
@@ -540,7 +539,6 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 			r.Use(v3FeatureFlag(cfg.WebAdminAPI))
 			r.Use(requireAdminBrowserSession)
 			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
-			registerRoutes(r.With(adminInitialSetupBodyLimit), adminSessionCtrl, isInitialAdminSetupRoute)
 			registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
 			registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
 			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
@@ -552,7 +550,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		return
 	}
 
-	// Password and initial-MFA challenges use only a pre-auth envelope. They do
+	// Password and MFA challenges use only a pre-auth envelope. They do
 	// not pass through the authenticated CSRF/recent-MFA guards below; the
 	// generated service receives and verifies their explicit CSRF header.
 	r.Group(func(r chi.Router) {
@@ -561,7 +559,6 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 		r.Use(middleware.AdminCORS())
 		r.Use(middleware.AdminPreAuthGuard)
 		registerRoutes(r, adminSessionCtrl, isAdminPreAuthSessionRoute)
-		registerRoutes(r.With(adminInitialSetupBodyLimit), adminSessionCtrl, isInitialAdminSetupRoute)
 	})
 
 	// Session restoration and reauthentication/logout use the authenticated
@@ -626,7 +623,7 @@ func isAdminBootstrapRoute(pattern string) bool {
 }
 
 func isNonBootstrapAdminRoute(pattern string) bool {
-	return !isAdminBootstrapRoute(pattern) && !isInitialAdminSetupRoute(pattern)
+	return !isAdminBootstrapRoute(pattern)
 }
 
 func isAdminPreAuthSessionRoute(pattern string) bool {
@@ -636,17 +633,6 @@ func isAdminPreAuthSessionRoute(pattern string) bool {
 	default:
 		return false
 	}
-}
-
-func isInitialAdminSetupRoute(pattern string) bool {
-	return pattern == "/api/v3/admin/session/initial-setup"
-}
-
-func adminInitialSetupBodyLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 4096)
-		next.ServeHTTP(w, r)
-	})
 }
 
 func isAdminAuthenticatedSessionRoute(pattern string) bool {

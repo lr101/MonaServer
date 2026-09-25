@@ -28,6 +28,10 @@ type Querier interface {
 	// code does not duplicate SQL or accidentally escape a caller transaction.
 	// Canonical email claims -----------------------------------------------------
 	BackfillEmailLoginClaims(ctx context.Context) error
+	// Admin membership and bootstrap -------------------------------------------
+	// The singleton claim serializes competing environment bootstraps. A prior
+	// explicit operator enrollment marks the deployment claimed too.
+	ClaimAdminBootstrap(ctx context.Context) (bool, error)
 	ClaimAdminJobItems(ctx context.Context, arg ClaimAdminJobItemsParams) ([]ClaimAdminJobItemsRow, error)
 	// Expired running leases are made claimable in the same statement that claims
 	// work.  A fresh lease token makes an old worker's acknowledgement harmless.
@@ -38,11 +42,6 @@ type Querier interface {
 	// not own that kind.
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
-	// Admin membership and browser sessions ------------------------------------
-	// The singleton claim serializes competing first-run requests. A prior CLI
-	// enrollment marks the deployment claimed too, so web setup cannot grant a
-	// second administrator after an existing one was provisioned.
-	ClaimInitialAdminSetup(ctx context.Context) (bool, error)
 	// Claim one requested item for the T07 action boundary.  The candidate row
 	// lock and lease transition are one statement.  A targeted claim waits for an
 	// in-flight row transition, then rechecks eligibility, so a concurrent worker
@@ -248,7 +247,7 @@ type Querier interface {
 	LockReportTarget(ctx context.Context, dollar_1 string) error
 	LockUserSecurityState(ctx context.Context, id pgtype.UUID) (LockUserSecurityStateRow, error)
 	LogDeletion(ctx context.Context, arg LogDeletionParams) error
-	MarkInitialAdminSetupClaimed(ctx context.Context) error
+	MarkAdminBootstrapClaimed(ctx context.Context) error
 	PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAtParams) (bool, error)
 	// Retention and account cleanup --------------------------------------------
 	// Keep incident and audit rows (their IDs and operational summaries are not

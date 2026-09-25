@@ -51,14 +51,10 @@ authenticator app. The Go container also needs stable
 `ADMIN_TOTP_ENCRYPTION_KEY` and `ADMIN_SESSION_HMAC_KEY` values. On first
 startup, it creates the account and MFA membership; subsequent restarts do
 not change the password or seed. Sign in with the configured username and
-password, then enter the authenticator code. After setup, remove the three
-bootstrap credentials from `.env` and recreate the app container. Do not
-remove or rotate the encryption key: existing MFA secrets depend on it.
+password, then enter the authenticator code. After startup creates the account,
+remove the three bootstrap credentials from `.env` and recreate the app
+container. Do not remove or rotate the encryption key: existing MFA secrets
+depend on it.
 
-Alternatively, create a normal password-enabled account using the consumer
-app, configure the Go container with `ADMIN_FIRST_RUN_TOKEN` (generate one with
-`openssl rand -hex 32`), and choose **Set up first administrator** on the admin
-login page. Save the displayed authenticator key, then remove the setup token.
-Only one of these first-time paths can succeed: the database permanently
-closes setup after the first enrollment, even if that administrator is later
-deleted. There is no default admin account.
+There is no default admin account. The admin login page is available after the
+configured environment bootstrap creates the first administrator.

@@ -91,7 +91,6 @@ Class | Method | HTTP request | Description
 *AdminSessionApi* | [**bootstrapAdminSession**](doc//AdminSessionApi.md#bootstrapadminsession) | **POST** /api/v3/admin/session/bootstrap | Bootstrap an admin browser session
 *AdminSessionApi* | [**completeAdminSessionMfa**](doc//AdminSessionApi.md#completeadminsessionmfa) | **POST** /api/v3/admin/session/mfa | Complete admin MFA
 *AdminSessionApi* | [**getAdminSession**](doc//AdminSessionApi.md#getadminsession) | **GET** /api/v3/admin/session | Restore the current admin session
-*AdminSessionApi* | [**initialAdminSetup**](doc//AdminSessionApi.md#initialadminsetup) | **POST** /api/v3/admin/session/initial-setup | Set up the first administrator
 *AdminSessionApi* | [**logoutAdminSession**](doc//AdminSessionApi.md#logoutadminsession) | **POST** /api/v3/admin/session/logout | Log out of the admin session
 *AdminSessionApi* | [**reauthenticateAdminSession**](doc//AdminSessionApi.md#reauthenticateadminsession) | **POST** /api/v3/admin/session/reauthenticate | Reauthenticate an admin session for a sensitive action
 *AdminUsersApi* | [**getAdminUser**](doc//AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
@@ -176,8 +175,6 @@ Class | Method | HTTP request | Description
  - [AdminCampaignRevisionRequestDto](doc//AdminCampaignRevisionRequestDto.md)
  - [AdminCampaignStatus](doc//AdminCampaignStatus.md)
  - [AdminCampaignUpdateRequestDto](doc//AdminCampaignUpdateRequestDto.md)
- - [AdminInitialSetupRequestDto](doc//AdminInitialSetupRequestDto.md)
- - [AdminInitialSetupResponseDto](doc//AdminInitialSetupResponseDto.md)
  - [AdminJobAcceptedDto](doc//AdminJobAcceptedDto.md)
  - [AdminJobCommandRequestDto](doc//AdminJobCommandRequestDto.md)
  - [AdminJobCreateRequestDto](doc//AdminJobCreateRequestDto.md)

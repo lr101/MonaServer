@@ -116,15 +116,6 @@ export class AdminApi {
     });
   }
 
-  setupInitialAdmin(username, password, setupToken) {
-    return this.request('/api/v3/admin/session/initial-setup', {
-      method: 'POST',
-      csrf: true,
-      preserveCsrfOnUnauthorized: true,
-      body: { username, password, setupToken },
-    });
-  }
-
   completeMfa(challengeId, code) {
     return this.request('/api/v3/admin/session/mfa', {
       method: 'POST',

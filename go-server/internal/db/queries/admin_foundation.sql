@@ -241,19 +241,18 @@ UPDATE delivery_attempts
 SET encrypted_payload = NULL, delivery_key_id = NULL, updated_at = now()
 WHERE payload_expires_at < $1 OR accepted_at < $2;
 
--- Admin membership and browser sessions ------------------------------------
+-- Admin membership and bootstrap -------------------------------------------
 
--- The singleton claim serializes competing first-run requests. A prior CLI
--- enrollment marks the deployment claimed too, so web setup cannot grant a
--- second administrator after an existing one was provisioned.
--- name: ClaimInitialAdminSetup :one
-INSERT INTO admin_initial_setup_claims (singleton)
+-- The singleton claim serializes competing environment bootstraps. A prior
+-- explicit operator enrollment marks the deployment claimed too.
+-- name: ClaimAdminBootstrap :one
+INSERT INTO admin_bootstrap_claims (singleton)
 SELECT TRUE WHERE NOT EXISTS (SELECT 1 FROM admin_memberships)
 ON CONFLICT DO NOTHING
 RETURNING singleton;
 
--- name: MarkInitialAdminSetupClaimed :exec
-INSERT INTO admin_initial_setup_claims (singleton)
+-- name: MarkAdminBootstrapClaimed :exec
+INSERT INTO admin_bootstrap_claims (singleton)
 VALUES (TRUE)
 ON CONFLICT DO NOTHING;
 
