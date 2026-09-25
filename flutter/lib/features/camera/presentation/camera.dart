@@ -21,7 +21,10 @@ import 'package:native_exif/native_exif.dart';
 import 'package:snapping_page_scroll/snapping_page_scroll.dart';
 
 class Camera extends ConsumerStatefulWidget {
-  const Camera({super.key});
+  const Camera({super.key, this.pinPhotoMode = false});
+
+  /// Captures a photo for an existing pin and returns it to the calling page.
+  final bool pinPhotoMode;
 
   @override
   ConsumerState<Camera> createState() => _CameraState();
@@ -35,6 +38,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   late final ZoomUpdateCoalescer _zoomUpdates;
   late final CameraCapturing _capturingNotifier;
   bool _discoveringCameras = true;
+  bool _pinCapturing = false;
   Object? _discoveryError;
 
   @override
@@ -65,13 +69,16 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   Widget _cameraDiscoveryStatus(Widget child) {
     return Scaffold(
+      appBar: widget.pinPhotoMode
+          ? AppBar(title: const Text('Take pin photo'))
+          : null,
       body: SafeArea(child: Center(child: child)),
     );
   }
 
   @override
   void dispose() {
-    _capturingNotifier.setCapturing(false);
+    if (!widget.pinPhotoMode) _capturingNotifier.setCapturing(false);
     WidgetsBinding.instance.removeObserver(this);
     pageController.dispose();
     super.dispose();
@@ -138,10 +145,15 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       globalDataServiceProvider.select((t) => t.cameras),
     );
     final cameraFlashMode = ref.watch(cameraTorchProvider);
-    final groupIds = ref.watch(groupOrderServiceProvider);
+    final groupIds = widget.pinPhotoMode
+        ? <String>[]
+        : ref.watch(groupOrderServiceProvider);
     if (cameras.isEmpty) {
-      return const Scaffold(
-        body: SafeArea(
+      return Scaffold(
+        appBar: widget.pinPhotoMode
+            ? AppBar(title: const Text('Take pin photo'))
+            : null,
+        body: const SafeArea(
           child: Center(
             child: Text('No cameras are available on this device.'),
           ),
@@ -152,6 +164,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
     return Scaffold(
+      appBar: widget.pinPhotoMode
+          ? AppBar(title: const Text('Take pin photo'))
+          : null,
       body: SafeArea(
         child: Stack(
           children: [
@@ -205,7 +220,10 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                         alignment: FractionalOffset.bottomCenter,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 75),
-                          child: ref.watch(cameraCapturingProvider)
+                          child:
+                              (widget.pinPhotoMode
+                                  ? _pinCapturing
+                                  : ref.watch(cameraCapturingProvider))
                               ? Container(
                                   decoration: BoxDecoration(
                                     color: Theme.of(context).highlightColor,
@@ -287,17 +305,18 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                                         maxMenuHeight: maxMenuHeight,
                                       ),
                                       const SizedBox(height: controlSpacing),
-                                      Material(
-                                        color: Colors.grey.withValues(
-                                          alpha: 0.5,
+                                      if (!widget.pinPhotoMode)
+                                        Material(
+                                          color: Colors.grey.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          shape: const CircleBorder(),
+                                          child: IconButton(
+                                            tooltip: 'Upload photo',
+                                            onPressed: uploadFileImage,
+                                            icon: const Icon(Icons.upload),
+                                          ),
                                         ),
-                                        shape: const CircleBorder(),
-                                        child: IconButton(
-                                          tooltip: 'Upload photo',
-                                          onPressed: uploadFileImage,
-                                          icon: const Icon(Icons.upload),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -306,6 +325,23 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                           },
                         ),
                       ),
+                      if (widget.pinPhotoMode)
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: IconButton.filled(
+                              tooltip: 'Take photo',
+                              iconSize: 36,
+                              onPressed:
+                                  controllerAsync.value?.value.isInitialized ==
+                                      true
+                                  ? capturePinPhoto
+                                  : null,
+                              icon: const Icon(Icons.camera_alt),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -439,6 +475,29 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       if (mounted) {
         _capturingNotifier.setCapturing(false);
       }
+    }
+  }
+
+  Future<void> capturePinPhoto() async {
+    final controller = ref.read(cameraControllerProvider).value;
+    if (_m.isLocked || controller == null || !controller.value.isInitialized) {
+      return;
+    }
+    await _m.acquire();
+    setState(() => _pinCapturing = true);
+    try {
+      final image = await controller.takePicture();
+      if (mounted) Navigator.of(context).pop(image);
+    } catch (error) {
+      if (mounted) {
+        CustomErrorSnackBar.message(
+          message: 'Could not take photo. Try again.',
+        );
+      }
+      debugPrint('Could not take pin photo: $error');
+    } finally {
+      _m.release();
+      if (mounted) setState(() => _pinCapturing = false);
     }
   }
 

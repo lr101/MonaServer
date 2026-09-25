@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
@@ -47,6 +49,8 @@ class _FakeCameraController extends CameraController {
     sensorOrientation: 90,
   );
 
+  Completer<XFile>? pendingCapture;
+
   @override
   Widget buildPreview() => const SizedBox.expand();
 
@@ -58,6 +62,13 @@ class _FakeCameraController extends CameraController {
 
   @override
   Future<void> resumePreview() async {}
+
+  @override
+  Future<XFile> takePicture() =>
+      pendingCapture?.future ??
+      Future.value(
+        XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'pin-update.jpg'),
+      );
 }
 
 class _CameraPlatform extends CameraPlatform {
@@ -70,6 +81,85 @@ class _CameraPlatform extends CameraPlatform {
 }
 
 void main() {
+  testWidgets('pin update mode captures from preview and returns the file', (
+    tester,
+  ) async {
+    const cameras = [_FakeCameraController.cameraDescription];
+    final controller = _FakeCameraController();
+    final originalPlatform = CameraPlatform.instance;
+    CameraPlatform.instance = _CameraPlatform(cameras);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    addTearDown(() async {
+      CameraPlatform.instance = originalPlatform;
+      await controller.dispose();
+    });
+
+    XFile? captured;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: null,
+              refreshToken: null,
+              cameras: cameras,
+            ),
+          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          groupOrderServiceProvider.overrideWithValue([]),
+          cameraControllerProvider.overrideWith(
+            (ref) => Future.value(controller),
+          ),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  captured = await Navigator.of(context).push<XFile>(
+                    MaterialPageRoute(
+                      builder: (_) => const Camera(pinPhotoMode: true),
+                    ),
+                  );
+                },
+                child: const Text('Open pin camera'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open pin camera'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Take pin photo'), findsOneWidget);
+    expect(find.byTooltip('Take photo'), findsOneWidget);
+    expect(find.byTooltip('Upload photo'), findsNothing);
+    await tester.tap(find.byTooltip('Take photo'));
+    await tester.pumpAndSettle();
+
+    expect(captured, isNotNull);
+    expect(await captured!.readAsBytes(), [1, 2, 3]);
+    expect(find.text('Open pin camera'), findsOneWidget);
+
+    controller.pendingCapture = Completer<XFile>();
+    await tester.tap(find.text('Open pin camera'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Take photo'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('Open pin camera')),
+    );
+    expect(container.read(cameraCapturingProvider), isFalse);
+    controller.pendingCapture!.complete(
+      XFile.fromData(Uint8List.fromList([1, 2, 3])),
+    );
+    await tester.pump();
+  });
+
   testWidgets(
     'keeps selector above upload in the preview corner on compact screens',
     (tester) async {

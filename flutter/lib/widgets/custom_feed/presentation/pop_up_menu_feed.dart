@@ -17,7 +17,6 @@ class PopUpMenuFeed extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userId = ref.watch(globalDataServiceProvider).userId!;
-    final pinService = ref.watch(pinServiceProvider);
     final adminId = ref
         .watch(groupMetadataProvider(pinDto.groupId))
         .whenOrNull(data: (d) => d?.groupAdmin);
@@ -76,7 +75,7 @@ class PopUpMenuFeed extends ConsumerWidget {
               extra: ["Report user"],
             );
           case 4:
-            _deleteStick(ref, context, pinService);
+            _deleteStick(ref, context, ref.read(pinServiceProvider));
         }
       },
     );
