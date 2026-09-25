@@ -85,6 +85,7 @@ doc/EmailLinkExchangeResponseDto.md
 doc/EmailLinkRequestAcceptedDto.md
 doc/EmailLinkRequestDto.md
 doc/FilterAudience.md
+doc/GroupAchievementsDtoInner.md
 doc/GroupDto.md
 doc/GroupProgressionDto.md
 doc/GroupRankingDtoInner.md
@@ -241,6 +242,7 @@ lib/model/email_link_exchange_response_dto.dart
 lib/model/email_link_request_accepted_dto.dart
 lib/model/email_link_request_dto.dart
 lib/model/filter_audience.dart
+lib/model/group_achievements_dto_inner.dart
 lib/model/group_dto.dart
 lib/model/group_progression_dto.dart
 lib/model/group_ranking_dto_inner.dart

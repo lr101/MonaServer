@@ -78,6 +78,63 @@ func TestPrivateGroupDetailsAreHiddenFromNonMembers(t *testing.T) {
 	}
 }
 
+func TestGroupAchievementVisibilityAndClaimRequireMembership(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	servicer := NewGroupsServicer(groupSvc, service.NewGuard(q))
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "group_achievement_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup owner: %v", err)
+	}
+	outsider, err := auth.Signup(ctx, "group_achievement_outsider", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup outsider: %v", err)
+	}
+
+	publicGroup, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_achievement_public", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create public group: %v", err)
+	}
+	outsiderCtx := middleware.WithUser(ctx, outsider.UserID, middleware.RoleUser)
+	publicProgress, err := servicer.GetGroupAchievements(outsiderCtx, publicGroup.ID.String())
+	if err != nil {
+		t.Fatalf("get public group achievements: %v", err)
+	}
+	if publicProgress.Code != http.StatusOK {
+		t.Fatalf("public group achievements status = %d, want %d", publicProgress.Code, http.StatusOK)
+	}
+	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 3 ||
+		got[0].RewardPinStyle != "moss" || got[0].Track != "active_pins" {
+		t.Fatalf("public group achievements = %+v, want three pin style rewards", got)
+	}
+	nonMemberClaim, err := servicer.ClaimGroupAchievement(outsiderCtx, publicGroup.ID.String(), 1)
+	if err != nil {
+		t.Fatalf("claim public group achievement as outsider: %v", err)
+	}
+	if nonMemberClaim.Code != http.StatusForbidden {
+		t.Fatalf("non-member claim status = %d, want %d", nonMemberClaim.Code, http.StatusForbidden)
+	}
+
+	privateGroup, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_achievement_private", Visibility: 1, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create private group: %v", err)
+	}
+	privateProgress, err := servicer.GetGroupAchievements(outsiderCtx, privateGroup.ID.String())
+	if err != nil {
+		t.Fatalf("get private group achievements as outsider: %v", err)
+	}
+	if privateProgress.Code != http.StatusForbidden {
+		t.Fatalf("private group achievements status = %d, want %d", privateProgress.Code, http.StatusForbidden)
+	}
+}
+
 func TestGetGroupIncludesBestSeason(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q

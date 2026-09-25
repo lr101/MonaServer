@@ -252,6 +252,83 @@ func TestCreatingPinAwardsGroupXPOnce(t *testing.T) {
 	}
 }
 
+func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
+	_, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	memberID := createTestUser(t, auth, "group_achievement_member")
+	groupID := createTestGroup(t, group, memberID, "group_achievement_styles")
+
+	groupDto, err := group.GetDTO(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get new group: %v", err)
+	}
+	if groupDto.PinStyle != "classic" {
+		t.Fatalf("new group pin style = %q, want classic", groupDto.PinStyle)
+	}
+	lockedStyle := "moss"
+	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle}); err != apperrors.ErrForbidden {
+		t.Fatalf("select locked group pin style error = %v, want forbidden", err)
+	}
+
+	lastPinID := uuid.Nil
+	for i := 0; i < 10; i++ {
+		created, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
+			UserID: memberID, GroupID: groupID,
+		})
+		if err != nil {
+			t.Fatalf("create group pin %d: %v", i+1, err)
+		}
+		lastPinID = created.ID
+	}
+	if err := pin.SetGone(ctx, lastPinID, true); err != nil {
+		t.Fatalf("mark a group pin gone: %v", err)
+	}
+	progress, err := group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get progress with a gone pin: %v", err)
+	}
+	if progress[0].CurrentValue != 9 || progress[0].Claimable {
+		t.Fatalf("gone pin counted as active: %+v", progress[0])
+	}
+	if err := pin.SetGone(ctx, lastPinID, false); err != nil {
+		t.Fatalf("mark a group pin active: %v", err)
+	}
+
+	progress, err = group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get group achievement progress: %v", err)
+	}
+	if len(progress) != 3 || progress[0].CurrentValue != 10 || !progress[0].Claimable {
+		t.Fatalf("first group achievement progress = %+v, want 10 pins and claimable", progress)
+	}
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 1); err != nil {
+		t.Fatalf("claim first group achievement: %v", err)
+	}
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 1); err != nil {
+		t.Fatalf("repeat group achievement claim: %v", err)
+	}
+	updated, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle})
+	if err != nil {
+		t.Fatalf("select unlocked group pin style: %v", err)
+	}
+	if updated.PinStyle != lockedStyle {
+		t.Fatalf("selected group pin style = %q, want %q", updated.PinStyle, lockedStyle)
+	}
+	stillLocked := "aurora"
+	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &stillLocked}); err != apperrors.ErrForbidden {
+		t.Fatalf("select unearned group pin style error = %v, want forbidden", err)
+	}
+
+	progress, err = group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("read claimed group achievement: %v", err)
+	}
+	if !progress[0].Claimed || progress[0].Claimable {
+		t.Fatalf("claimed achievement state = %+v, want claimed and no longer claimable", progress[0])
+	}
+}
+
 func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 	_, auth, _, _, _, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

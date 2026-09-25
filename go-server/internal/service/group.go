@@ -55,6 +55,7 @@ type GroupDTO struct {
 	ProfileImage *string        `json:"profileImage,omitempty"`
 	ProfileSmall *string        `json:"profileImageSmall,omitempty"`
 	PinImage     *string        `json:"pinImage,omitempty"`
+	PinStyle     string         `json:"pinStyle"`
 	BestSeason   *db.SeasonItem `json:"bestSeason,omitempty"`
 }
 
@@ -75,6 +76,7 @@ func (s *Group) toDTO(ctx context.Context, g *db.Group, withImages bool) (*Group
 	out := &GroupDTO{
 		ID: g.ID, Name: g.Name, Description: g.Description, Link: g.Link,
 		Visibility: g.Visibility, AdminID: g.AdminID, InviteUrl: g.InviteUrl,
+		PinStyle:     g.PinStyle,
 		CreationDate: g.CreationDate, UpdateDate: g.UpdateDate, Members: count,
 	}
 	out.BestSeason, err = s.q.GetBestGroupSeason(ctx, g.ID)
@@ -277,6 +279,7 @@ type UpdateGroupInput struct {
 	Visibility   *int       `json:"visibility,omitempty"`
 	GroupAdmin   *uuid.UUID `json:"groupAdmin,omitempty"`
 	ProfileImage []byte     `json:"profileImage,omitempty"`
+	PinStyle     *string    `json:"pinStyle,omitempty"`
 }
 
 func (s *Group) Update(ctx context.Context, id uuid.UUID, in UpdateGroupInput) (*GroupDTO, error) {
@@ -293,11 +296,26 @@ func (s *Group) Update(ctx context.Context, id uuid.UUID, in UpdateGroupInput) (
 			return nil, apperrors.ErrNotFound
 		}
 	}
+	if in.PinStyle != nil {
+		if !db.ValidGroupPinStyle(*in.PinStyle) {
+			return nil, apperrors.ErrBadRequest
+		}
+		unlocked, err := s.q.IsGroupPinStyleUnlocked(ctx, id, *in.PinStyle)
+		if err != nil {
+			return nil, err
+		}
+		if !unlocked {
+			return nil, apperrors.ErrForbidden
+		}
+	}
 	images, err := prepareGroupImages(in.ProfileImage)
 	if err != nil {
 		return nil, err
 	}
-	u := db.GroupUpdate{Name: in.Name, Description: in.Description, Link: in.Link, AdminID: in.GroupAdmin}
+	u := db.GroupUpdate{
+		Name: in.Name, Description: in.Description, Link: in.Link,
+		AdminID: in.GroupAdmin, PinStyle: in.PinStyle,
+	}
 	if in.Visibility != nil {
 		u.Visibility = in.Visibility
 		if *in.Visibility == 1 {

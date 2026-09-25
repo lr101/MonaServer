@@ -15,6 +15,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -170,60 +171,123 @@ void main() {
     },
   );
 
-  test('offline pin upload success refreshes group progression', () async {
+  test(
+    'offline pin upload success refreshes group progression and achievements',
+    () async {
+      final f = await _fixture();
+      await f.container.read(pinRepositoryProvider).put(_draft());
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      final progression = f.container.listen(
+        groupProgressionProvider('group'),
+        (_, _) {},
+      );
+      final achievements = f.container.listen(
+        groupAchievementsProvider('group'),
+        (_, _) {},
+      );
+      addTearDown(progression.close);
+      addTearDown(achievements.close);
+      await f.container.read(groupProgressionProvider('group').future);
+      await f.container.read(groupAchievementsProvider('group').future);
+      expect(f.groups.requests, 1);
+      expect(f.groups.achievementRequests, 1);
+
+      final syncing = f.container
+          .read(syncingServiceProvider.notifier)
+          .syncToBackend();
+      await f.api.uploadStarted.future;
+      f.api.upload!.complete(_createdPin());
+      await syncing;
+      await f.container.pump();
+      final refreshed = await f.container.read(
+        groupProgressionProvider('group').future,
+      );
+      await f.container.read(groupAchievementsProvider('group').future);
+
+      expect(f.groups.requests, 2);
+      expect(f.groups.achievementRequests, 2);
+      expect(refreshed?.totalXp, 5);
+    },
+  );
+
+  test(
+    'handled offline pin conflict refreshes progression and achievements',
+    () async {
+      final f = await _fixture();
+      await f.container.read(pinRepositoryProvider).put(_draft());
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+      f.api.uploadError = ApiException(409, 'duplicate');
+      final progression = f.container.listen(
+        groupProgressionProvider('group'),
+        (_, _) {},
+      );
+      final achievements = f.container.listen(
+        groupAchievementsProvider('group'),
+        (_, _) {},
+      );
+      addTearDown(progression.close);
+      addTearDown(achievements.close);
+      await f.container.read(groupProgressionProvider('group').future);
+      await f.container.read(groupAchievementsProvider('group').future);
+      expect(f.groups.requests, 1);
+      expect(f.groups.achievementRequests, 1);
+
+      await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+      await f.container.pump();
+      final refreshed = await f.container.read(
+        groupProgressionProvider('group').future,
+      );
+      await f.container.read(groupAchievementsProvider('group').future);
+
+      expect(f.groups.requests, 2);
+      expect(f.groups.achievementRequests, 2);
+      expect(refreshed?.totalXp, 5);
+      expect(
+        await f.container.read(pinRepositoryProvider).get('draft'),
+        isNull,
+      );
+    },
+  );
+
+  test('remote group pin updates refresh group achievements', () async {
     final f = await _fixture();
-    await f.container.read(pinRepositoryProvider).put(_draft());
-    await f.container
-        .read(pinImageRepositoryProvider)
-        .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
-    f.api.upload = Completer<PinWithOptionalImageDto?>();
-    final progression = f.container.listen(
-      groupProgressionProvider('group'),
+    final achievements = f.container.listen(
+      groupAchievementsProvider('group'),
       (_, _) {},
     );
-    addTearDown(progression.close);
-    await f.container.read(groupProgressionProvider('group').future);
-    expect(f.groups.requests, 1);
+    addTearDown(achievements.close);
+    await f.container.read(groupAchievementsProvider('group').future);
+    expect(f.groups.achievementRequests, 1);
 
+    f.api.response = Completer<SyncDto?>();
     final syncing = f.container
         .read(syncingServiceProvider.notifier)
         .syncToBackend();
-    await f.api.uploadStarted.future;
-    f.api.upload!.complete(_createdPin());
+    await f.api.started.future;
+    f.api.response!.complete(
+      SyncDto(
+        groupUpdates: [
+          SyncDtoGroupUpdatesInner(
+            group: GroupDto(id: 'group', name: 'Group', visibility: 0),
+            pinsAdded: [_createdPin()],
+          ),
+        ],
+      ),
+    );
     await syncing;
     await f.container.pump();
-    final refreshed = await f.container.read(
-      groupProgressionProvider('group').future,
+    await f.container.read(groupAchievementsProvider('group').future);
+
+    expect(f.groups.achievementRequests, 2);
+    expect(
+      await f.container.read(pinRepositoryProvider).get('server-pin'),
+      isNotNull,
     );
-
-    expect(f.groups.requests, 2);
-    expect(refreshed?.totalXp, 5);
-  });
-
-  test('handled offline pin conflict refreshes group progression', () async {
-    final f = await _fixture();
-    await f.container.read(pinRepositoryProvider).put(_draft());
-    await f.container
-        .read(pinImageRepositoryProvider)
-        .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
-    f.api.uploadError = ApiException(409, 'duplicate');
-    final progression = f.container.listen(
-      groupProgressionProvider('group'),
-      (_, _) {},
-    );
-    addTearDown(progression.close);
-    await f.container.read(groupProgressionProvider('group').future);
-    expect(f.groups.requests, 1);
-
-    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
-    await f.container.pump();
-    final refreshed = await f.container.read(
-      groupProgressionProvider('group').future,
-    );
-
-    expect(f.groups.requests, 2);
-    expect(refreshed?.totalXp, 5);
-    expect(await f.container.read(pinRepositoryProvider).get('draft'), isNull);
   });
 
   test('finds local groups that are absent from the server sync', () {
@@ -269,6 +333,7 @@ class _Pins extends PinsApi {
 
 class _Groups extends GroupsApi {
   int requests = 0;
+  int achievementRequests = 0;
 
   @override
   Future<GroupProgressionDto?> getGroupProgression(String groupId) async {
@@ -281,6 +346,14 @@ class _Groups extends GroupsApi {
       currentLevelXp: totalXp,
       nextLevelXp: 50,
     );
+  }
+
+  @override
+  Future<List<GroupAchievementsDtoInner>?> getGroupAchievements(
+    String groupId,
+  ) async {
+    achievementRequests++;
+    return const [];
   }
 }
 

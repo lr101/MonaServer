@@ -22,6 +22,9 @@ void main() {
     final db = AppDatabase(
       NativeDatabase.memory(
         setup: (database) {
+          database.execute(
+            'CREATE TABLE group_entities (group_id TEXT NOT NULL)',
+          );
           database.execute('CREATE TABLE pin_entities (pin_id TEXT NOT NULL)');
           database.userVersion = 2;
         },

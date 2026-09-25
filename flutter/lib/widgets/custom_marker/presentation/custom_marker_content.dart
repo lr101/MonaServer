@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -8,10 +9,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
 class PinMarkerImage extends StatelessWidget {
-  const PinMarkerImage({super.key, required this.isGone, required this.image});
+  const PinMarkerImage({
+    super.key,
+    required this.isGone,
+    required this.image,
+    this.style = 'classic',
+  });
 
   final bool isGone;
   final Widget image;
+  final String style;
 
   @override
   Widget build(BuildContext context) {
@@ -43,15 +50,31 @@ class PinMarkerImage extends StatelessWidget {
           )
         : image;
 
+    final frameColor = _pinStyleColor(style);
+    final hasFrame = style != 'classic';
+    final framedImage = hasFrame
+        ? Container(
+            key: ValueKey('pin-style-frame-$style'),
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: frameColor, width: 2),
+            ),
+            child: ClipOval(child: pinImage),
+          )
+        : pinImage;
+
     return Semantics(
-      label: isGone ? 'Pin marked gone' : 'Pin',
+      label: isGone
+          ? 'Pin marked gone${hasFrame ? ' · ${_pinStyleName(style)} frame' : ''}'
+          : 'Pin${hasFrame ? ' · ${_pinStyleName(style)} frame' : ''}',
       image: true,
       child: SizedBox.square(
         dimension: 30,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Positioned.fill(child: pinImage),
+            Positioned.fill(child: framedImage),
             if (isGone)
               const Positioned(
                 right: -2,
@@ -85,8 +108,10 @@ class CustomMarkerContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final group = ref.watch(groupMetadataProvider(pinDto.groupId)).value;
     final markerImage = PinMarkerImage(
       isGone: pinDto.isGone,
+      style: group?.pinStyle ?? 'classic',
       image: Image.memory(
         ref.watch(groupPinImageByIdProvider(pinDto.groupId)).value ??
             ref.read(defaultGroupPinImageProvider),
@@ -103,6 +128,20 @@ class CustomMarkerContent extends ConsumerWidget {
     );
   }
 }
+
+Color _pinStyleColor(String style) => switch (style) {
+  'moss' => const Color(0xff668465),
+  'sunset' => const Color(0xffd57b50),
+  'aurora' => const Color(0xff6d77ba),
+  _ => Colors.transparent,
+};
+
+String _pinStyleName(String style) => switch (style) {
+  'moss' => 'Moss',
+  'sunset' => 'Sunset',
+  'aurora' => 'Aurora',
+  _ => 'Classic',
+};
 
 class RankedClusterMarker extends ConsumerWidget {
   final List<GroupRankingDtoInner> ranking;

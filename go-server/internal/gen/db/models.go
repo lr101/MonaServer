@@ -286,6 +286,21 @@ type Group struct {
 	AdminID      pgtype.UUID        `json:"admin_id"`
 	GroupProfile []byte             `json:"group_profile"`
 	GroupXp      int32              `json:"group_xp"`
+	PinStyle     string             `json:"pin_style"`
+}
+
+type GroupAchievementClaim struct {
+	GroupID       pgtype.UUID        `json:"group_id"`
+	AchievementID int32              `json:"achievement_id"`
+	ClaimedBy     pgtype.UUID        `json:"claimed_by"`
+	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
+}
+
+type GroupPinStyleUnlock struct {
+	GroupID       pgtype.UUID        `json:"group_id"`
+	PinStyle      string             `json:"pin_style"`
+	AchievementID int32              `json:"achievement_id"`
+	UnlockedAt    pgtype.Timestamptz `json:"unlocked_at"`
 }
 
 type GroupXpLedger struct {

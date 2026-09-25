@@ -296,6 +296,7 @@ void main() {
       ],
     );
     nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN is_gone');
+    nativeDatabase.execute('ALTER TABLE group_entities DROP COLUMN pin_style');
     nativeDatabase.execute('PRAGMA user_version = 1');
 
     final migratedDatabase = AppDatabase(
@@ -313,6 +314,13 @@ void main() {
     expect(rows, hasLength(1));
     expect(rows.single.cacheKey, 'groupSmall:group-1');
     expect(rows.single.type, ImageType.groupSmall);
+    final groupColumns = await migratedDatabase
+        .customSelect('PRAGMA table_info(group_entities)')
+        .get();
+    expect(
+      groupColumns.map((column) => column.read<String>('name')),
+      contains('pin_style'),
+    );
   });
 
   test('active image watchers are protected from cache pruning', () async {

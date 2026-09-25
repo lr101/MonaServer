@@ -24,6 +24,7 @@ class GroupDto {
     this.profileImage,
     this.profileImageSmall,
     this.pinImage,
+    this.pinStyle,
     this.bestSeason,
   });
 
@@ -98,6 +99,8 @@ class GroupDto {
   ///
   String? pinImage;
 
+  GroupDtoPinStyleEnum? pinStyle;
+
   SeasonItemDto? bestSeason;
 
   @override
@@ -113,6 +116,7 @@ class GroupDto {
     other.profileImage == profileImage &&
     other.profileImageSmall == profileImageSmall &&
     other.pinImage == pinImage &&
+    other.pinStyle == pinStyle &&
     other.bestSeason == bestSeason;
 
   @override
@@ -129,10 +133,11 @@ class GroupDto {
     (profileImage == null ? 0 : profileImage!.hashCode) +
     (profileImageSmall == null ? 0 : profileImageSmall!.hashCode) +
     (pinImage == null ? 0 : pinImage!.hashCode) +
+    (pinStyle == null ? 0 : pinStyle!.hashCode) +
     (bestSeason == null ? 0 : bestSeason!.hashCode);
 
   @override
-  String toString() => 'GroupDto[id=$id, description=$description, inviteUrl=$inviteUrl, name=$name, visibility=$visibility, groupAdmin=$groupAdmin, link=$link, lastUpdated=$lastUpdated, profileImage=$profileImage, profileImageSmall=$profileImageSmall, pinImage=$pinImage, bestSeason=$bestSeason]';
+  String toString() => 'GroupDto[id=$id, description=$description, inviteUrl=$inviteUrl, name=$name, visibility=$visibility, groupAdmin=$groupAdmin, link=$link, lastUpdated=$lastUpdated, profileImage=$profileImage, profileImageSmall=$profileImageSmall, pinImage=$pinImage, pinStyle=$pinStyle, bestSeason=$bestSeason]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -179,6 +184,11 @@ class GroupDto {
     } else {
       json[r'pinImage'] = null;
     }
+    if (this.pinStyle != null) {
+      json[r'pinStyle'] = this.pinStyle;
+    } else {
+      json[r'pinStyle'] = null;
+    }
     if (this.bestSeason != null) {
       json[r'bestSeason'] = this.bestSeason;
     } else {
@@ -217,6 +227,7 @@ class GroupDto {
         profileImage: mapValueOfType<String>(json, r'profileImage'),
         profileImageSmall: mapValueOfType<String>(json, r'profileImageSmall'),
         pinImage: mapValueOfType<String>(json, r'pinImage'),
+        pinStyle: GroupDtoPinStyleEnum.fromJson(json[r'pinStyle']),
         bestSeason: SeasonItemDto.fromJson(json[r'bestSeason']),
       );
     }
@@ -271,3 +282,81 @@ class GroupDto {
   };
 }
 
+
+class GroupDtoPinStyleEnum {
+  /// Instantiate a new enum with the provided [value].
+  const GroupDtoPinStyleEnum._(this.value);
+
+  /// The underlying value of this enum member.
+  final String value;
+
+  @override
+  String toString() => value;
+
+  String toJson() => value;
+
+  static const classic = GroupDtoPinStyleEnum._(r'classic');
+  static const moss = GroupDtoPinStyleEnum._(r'moss');
+  static const sunset = GroupDtoPinStyleEnum._(r'sunset');
+  static const aurora = GroupDtoPinStyleEnum._(r'aurora');
+
+  /// List of all possible values in this [enum][GroupDtoPinStyleEnum].
+  static const values = <GroupDtoPinStyleEnum>[
+    classic,
+    moss,
+    sunset,
+    aurora,
+  ];
+
+  static GroupDtoPinStyleEnum? fromJson(dynamic value) => GroupDtoPinStyleEnumTypeTransformer().decode(value);
+
+  static List<GroupDtoPinStyleEnum> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <GroupDtoPinStyleEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = GroupDtoPinStyleEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [GroupDtoPinStyleEnum] to String,
+/// and [decode] dynamic data back to [GroupDtoPinStyleEnum].
+class GroupDtoPinStyleEnumTypeTransformer {
+  factory GroupDtoPinStyleEnumTypeTransformer() => _instance ??= const GroupDtoPinStyleEnumTypeTransformer._();
+
+  const GroupDtoPinStyleEnumTypeTransformer._();
+
+  String encode(GroupDtoPinStyleEnum data) => data.value;
+
+  /// Decodes a [dynamic value][data] to a GroupDtoPinStyleEnum.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  GroupDtoPinStyleEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data != null) {
+      switch (data) {
+        case r'classic': return GroupDtoPinStyleEnum.classic;
+        case r'moss': return GroupDtoPinStyleEnum.moss;
+        case r'sunset': return GroupDtoPinStyleEnum.sunset;
+        case r'aurora': return GroupDtoPinStyleEnum.aurora;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// Singleton [GroupDtoPinStyleEnumTypeTransformer] instance.
+  static GroupDtoPinStyleEnumTypeTransformer? _instance;
+}

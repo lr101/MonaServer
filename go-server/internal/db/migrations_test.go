@@ -324,6 +324,89 @@ func TestMigration45BackfillsGroupXPFromActivePins(t *testing.T) {
 	}
 }
 
+func TestMigration46AddsGroupPinCustomizationAndAchievementClaims(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+
+	pool, err := NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schema := "group_customization_migration_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create isolated migration schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+schema); err != nil {
+		t.Fatalf("set isolated migration search path: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		CREATE TABLE users (id uuid PRIMARY KEY);
+		CREATE TABLE groups (
+			id uuid PRIMARY KEY,
+			is_deleted boolean NOT NULL DEFAULT false
+		)`); err != nil {
+		t.Fatalf("create pre-migration tables: %v", err)
+	}
+	groupID, memberID := uuid.New(), uuid.New()
+	if _, err := tx.Exec(ctx, `INSERT INTO groups (id) VALUES ($1)`, groupID); err != nil {
+		t.Fatalf("insert pre-migration group: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO users (id) VALUES ($1)`, memberID); err != nil {
+		t.Fatalf("insert pre-migration user: %v", err)
+	}
+
+	migration, err := migrationsFS.ReadFile("migrations/000046_group_achievements_and_pin_styles.up.sql")
+	if err != nil {
+		t.Fatalf("read group customization migration: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply group customization migration: %v", err)
+	}
+
+	var pinStyle string
+	if err := tx.QueryRow(ctx, `SELECT pin_style FROM groups WHERE id = $1`, groupID).Scan(&pinStyle); err != nil {
+		t.Fatalf("read default group pin style: %v", err)
+	}
+	if pinStyle != "classic" {
+		t.Fatalf("default group pin style = %q, want classic", pinStyle)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO group_achievement_claims (group_id, achievement_id, claimed_by)
+		VALUES ($1, 1, $2)`, groupID, memberID); err != nil {
+		t.Fatalf("insert group achievement claim: %v", err)
+	}
+	var claims int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM group_achievement_claims WHERE group_id = $1`, groupID).Scan(&claims); err != nil {
+		t.Fatalf("count group achievement claims: %v", err)
+	}
+	if claims != 1 {
+		t.Fatalf("group achievement claims = %d, want 1", claims)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO group_pin_style_unlocks (group_id, pin_style, achievement_id)
+		VALUES ($1, 'moss', 1)`, groupID); err != nil {
+		t.Fatalf("insert earned group pin style: %v", err)
+	}
+	var unlocked int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM group_pin_style_unlocks WHERE group_id = $1 AND pin_style = 'moss'`, groupID).Scan(&unlocked); err != nil {
+		t.Fatalf("count earned group pin styles: %v", err)
+	}
+	if unlocked != 1 {
+		t.Fatalf("earned group pin styles = %d, want 1", unlocked)
+	}
+}
+
 func TestT02SnapshotOrdinalMigrationRepairsPopulatedData(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {

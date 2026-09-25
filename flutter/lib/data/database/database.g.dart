@@ -180,6 +180,18 @@ class $GroupEntitiesTable extends GroupEntities
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pinStyleMeta = const VerificationMeta(
+    'pinStyle',
+  );
+  @override
+  late final GeneratedColumn<String> pinStyle = GeneratedColumn<String>(
+    'pin_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('classic'),
+  );
   @override
   late final GeneratedColumnWithTypeConverter<SeasonEntity?, String>
   bestSeason = GeneratedColumn<String>(
@@ -206,6 +218,7 @@ class $GroupEntitiesTable extends GroupEntities
     isActivated,
     lastUpdated,
     link,
+    pinStyle,
     bestSeason,
   ];
   @override
@@ -335,6 +348,12 @@ class $GroupEntitiesTable extends GroupEntities
         link.isAcceptableOrUnknown(data['link']!, _linkMeta),
       );
     }
+    if (data.containsKey('pin_style')) {
+      context.handle(
+        _pinStyleMeta,
+        pinStyle.isAcceptableOrUnknown(data['pin_style']!, _pinStyleMeta),
+      );
+    }
     return context;
   }
 
@@ -404,6 +423,10 @@ class $GroupEntitiesTable extends GroupEntities
         DriftSqlType.string,
         data['${effectivePrefix}link'],
       ),
+      pinStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pin_style'],
+      )!,
       bestSeason: $GroupEntitiesTable.$converterbestSeasonn.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -440,6 +463,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
   final bool isActivated;
   final DateTime? lastUpdated;
   final String? link;
+  final String pinStyle;
   final SeasonEntity? bestSeason;
   const GroupDb({
     required this.isarId,
@@ -457,6 +481,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     required this.isActivated,
     this.lastUpdated,
     this.link,
+    required this.pinStyle,
     this.bestSeason,
   });
   @override
@@ -487,6 +512,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     if (!nullToAbsent || link != null) {
       map['link'] = Variable<String>(link);
     }
+    map['pin_style'] = Variable<String>(pinStyle);
     if (!nullToAbsent || bestSeason != null) {
       map['best_season'] = Variable<String>(
         $GroupEntitiesTable.$converterbestSeasonn.toSql(bestSeason),
@@ -520,6 +546,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ? const Value.absent()
           : Value(lastUpdated),
       link: link == null && nullToAbsent ? const Value.absent() : Value(link),
+      pinStyle: Value(pinStyle),
       bestSeason: bestSeason == null && nullToAbsent
           ? const Value.absent()
           : Value(bestSeason),
@@ -547,6 +574,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
       isActivated: serializer.fromJson<bool>(json['isActivated']),
       lastUpdated: serializer.fromJson<DateTime?>(json['lastUpdated']),
       link: serializer.fromJson<String?>(json['link']),
+      pinStyle: serializer.fromJson<String>(json['pinStyle']),
       bestSeason: serializer.fromJson<SeasonEntity?>(json['bestSeason']),
     );
   }
@@ -569,6 +597,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
       'isActivated': serializer.toJson<bool>(isActivated),
       'lastUpdated': serializer.toJson<DateTime?>(lastUpdated),
       'link': serializer.toJson<String?>(link),
+      'pinStyle': serializer.toJson<String>(pinStyle),
       'bestSeason': serializer.toJson<SeasonEntity?>(bestSeason),
     };
   }
@@ -589,6 +618,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     bool? isActivated,
     Value<DateTime?> lastUpdated = const Value.absent(),
     Value<String?> link = const Value.absent(),
+    String? pinStyle,
     Value<SeasonEntity?> bestSeason = const Value.absent(),
   }) => GroupDb(
     isarId: isarId ?? this.isarId,
@@ -606,6 +636,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     isActivated: isActivated ?? this.isActivated,
     lastUpdated: lastUpdated.present ? lastUpdated.value : this.lastUpdated,
     link: link.present ? link.value : this.link,
+    pinStyle: pinStyle ?? this.pinStyle,
     bestSeason: bestSeason.present ? bestSeason.value : this.bestSeason,
   );
   GroupDb copyWithCompanion(GroupEntitiesCompanion data) {
@@ -639,6 +670,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ? data.lastUpdated.value
           : this.lastUpdated,
       link: data.link.present ? data.link.value : this.link,
+      pinStyle: data.pinStyle.present ? data.pinStyle.value : this.pinStyle,
       bestSeason: data.bestSeason.present
           ? data.bestSeason.value
           : this.bestSeason,
@@ -663,6 +695,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ..write('isActivated: $isActivated, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('link: $link, ')
+          ..write('pinStyle: $pinStyle, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
         .toString();
@@ -685,6 +718,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     isActivated,
     lastUpdated,
     link,
+    pinStyle,
     bestSeason,
   );
   @override
@@ -706,6 +740,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           other.isActivated == this.isActivated &&
           other.lastUpdated == this.lastUpdated &&
           other.link == this.link &&
+          other.pinStyle == this.pinStyle &&
           other.bestSeason == this.bestSeason);
 }
 
@@ -725,6 +760,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
   final Value<bool> isActivated;
   final Value<DateTime?> lastUpdated;
   final Value<String?> link;
+  final Value<String> pinStyle;
   final Value<SeasonEntity?> bestSeason;
   const GroupEntitiesCompanion({
     this.isarId = const Value.absent(),
@@ -742,6 +778,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     this.isActivated = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.link = const Value.absent(),
+    this.pinStyle = const Value.absent(),
     this.bestSeason = const Value.absent(),
   });
   GroupEntitiesCompanion.insert({
@@ -760,6 +797,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     this.isActivated = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.link = const Value.absent(),
+    this.pinStyle = const Value.absent(),
     this.bestSeason = const Value.absent(),
   }) : ttl = Value(ttl),
        groupId = Value(groupId),
@@ -782,6 +820,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     Expression<bool>? isActivated,
     Expression<DateTime>? lastUpdated,
     Expression<String>? link,
+    Expression<String>? pinStyle,
     Expression<String>? bestSeason,
   }) {
     return RawValuesInsertable({
@@ -800,6 +839,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
       if (isActivated != null) 'is_activated': isActivated,
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (link != null) 'link': link,
+      if (pinStyle != null) 'pin_style': pinStyle,
       if (bestSeason != null) 'best_season': bestSeason,
     });
   }
@@ -820,6 +860,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     Value<bool>? isActivated,
     Value<DateTime?>? lastUpdated,
     Value<String?>? link,
+    Value<String>? pinStyle,
     Value<SeasonEntity?>? bestSeason,
   }) {
     return GroupEntitiesCompanion(
@@ -838,6 +879,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
       isActivated: isActivated ?? this.isActivated,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       link: link ?? this.link,
+      pinStyle: pinStyle ?? this.pinStyle,
       bestSeason: bestSeason ?? this.bestSeason,
     );
   }
@@ -890,6 +932,9 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     if (link.present) {
       map['link'] = Variable<String>(link.value);
     }
+    if (pinStyle.present) {
+      map['pin_style'] = Variable<String>(pinStyle.value);
+    }
     if (bestSeason.present) {
       map['best_season'] = Variable<String>(
         $GroupEntitiesTable.$converterbestSeasonn.toSql(bestSeason.value),
@@ -916,6 +961,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
           ..write('isActivated: $isActivated, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('link: $link, ')
+          ..write('pinStyle: $pinStyle, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
         .toString();
@@ -5400,6 +5446,7 @@ typedef $$GroupEntitiesTableCreateCompanionBuilder =
       Value<bool> isActivated,
       Value<DateTime?> lastUpdated,
       Value<String?> link,
+      Value<String> pinStyle,
       Value<SeasonEntity?> bestSeason,
     });
 typedef $$GroupEntitiesTableUpdateCompanionBuilder =
@@ -5419,6 +5466,7 @@ typedef $$GroupEntitiesTableUpdateCompanionBuilder =
       Value<bool> isActivated,
       Value<DateTime?> lastUpdated,
       Value<String?> link,
+      Value<String> pinStyle,
       Value<SeasonEntity?> bestSeason,
     });
 
@@ -5503,6 +5551,11 @@ class $$GroupEntitiesTableFilterComposer
 
   ColumnFilters<String> get link => $composableBuilder(
     column: $table.link,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pinStyle => $composableBuilder(
+    column: $table.pinStyle,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5597,6 +5650,11 @@ class $$GroupEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get pinStyle => $composableBuilder(
+    column: $table.pinStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get bestSeason => $composableBuilder(
     column: $table.bestSeason,
     builder: (column) => ColumnOrderings(column),
@@ -5671,6 +5729,9 @@ class $$GroupEntitiesTableAnnotationComposer
   GeneratedColumn<String> get link =>
       $composableBuilder(column: $table.link, builder: (column) => column);
 
+  GeneratedColumn<String> get pinStyle =>
+      $composableBuilder(column: $table.pinStyle, builder: (column) => column);
+
   GeneratedColumnWithTypeConverter<SeasonEntity?, String> get bestSeason =>
       $composableBuilder(
         column: $table.bestSeason,
@@ -5724,6 +5785,7 @@ class $$GroupEntitiesTableTableManager
                 Value<bool> isActivated = const Value.absent(),
                 Value<DateTime?> lastUpdated = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String> pinStyle = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => GroupEntitiesCompanion(
                 isarId: isarId,
@@ -5741,6 +5803,7 @@ class $$GroupEntitiesTableTableManager
                 isActivated: isActivated,
                 lastUpdated: lastUpdated,
                 link: link,
+                pinStyle: pinStyle,
                 bestSeason: bestSeason,
               ),
           createCompanionCallback:
@@ -5760,6 +5823,7 @@ class $$GroupEntitiesTableTableManager
                 Value<bool> isActivated = const Value.absent(),
                 Value<DateTime?> lastUpdated = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String> pinStyle = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => GroupEntitiesCompanion.insert(
                 isarId: isarId,
@@ -5777,6 +5841,7 @@ class $$GroupEntitiesTableTableManager
                 isActivated: isActivated,
                 lastUpdated: lastUpdated,
                 link: link,
+                pinStyle: pinStyle,
                 bestSeason: bestSeason,
               ),
           withReferenceMapper: (p0) => p0

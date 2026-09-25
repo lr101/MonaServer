@@ -43,6 +43,7 @@ type Querier interface {
 	// not own that kind.
 	ClaimDurableJobsByKinds(ctx context.Context, arg ClaimDurableJobsByKindsParams) ([]ClaimDurableJobsByKindsRow, error)
 	ClaimEmailLoginClaim(ctx context.Context, arg ClaimEmailLoginClaimParams) (EmailLoginClaim, error)
+	ClaimGroupAchievement(ctx context.Context, arg ClaimGroupAchievementParams) (int64, error)
 	// Claim one requested item for the T07 action boundary.  The candidate row
 	// lock and lease transition are one statement.  A targeted claim waits for an
 	// in-flight row transition, then rechecks eligibility, so a concurrent worker
@@ -156,6 +157,8 @@ type Querier interface {
 	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
+	// Group achievements count active pins that belong to the group.
+	GetGroupPinCount(ctx context.Context, groupID pgtype.UUID) (int32, error)
 	GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error)
 	GetGroupXP(ctx context.Context, id pgtype.UUID) (int32, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
@@ -198,6 +201,7 @@ type Querier interface {
 	// Guard queries: fast authorization checks used by middleware.
 	IsGroupAdmin(ctx context.Context, arg IsGroupAdminParams) (bool, error)
 	IsGroupMember(ctx context.Context, arg IsGroupMemberParams) (bool, error)
+	IsGroupPinStyleUnlocked(ctx context.Context, arg IsGroupPinStyleUnlockedParams) (bool, error)
 	IsGroupVisible(ctx context.Context, arg IsGroupVisibleParams) (bool, error)
 	IsMember(ctx context.Context, arg IsMemberParams) (bool, error)
 	IsPinCreator(ctx context.Context, arg IsPinCreatorParams) (bool, error)
@@ -222,6 +226,7 @@ type Querier interface {
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeviceRegistrations(ctx context.Context, userID pgtype.UUID) ([]DeviceRegistration, error)
+	ListGroupAchievementClaims(ctx context.Context, groupID pgtype.UUID) ([]int32, error)
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
@@ -314,6 +319,7 @@ type Querier interface {
 	TouchAdminSession(ctx context.Context, arg TouchAdminSessionParams) error
 	TouchPinForPhoto(ctx context.Context, id pgtype.UUID) (int64, error)
 	TouchRefreshToken(ctx context.Context, token pgtype.UUID) error
+	UnlockGroupPinStyle(ctx context.Context, arg UnlockGroupPinStyleParams) error
 	UpdateAdminJobProgress(ctx context.Context, arg UpdateAdminJobProgressParams) error
 	UpdateAudienceSnapshotCounts(ctx context.Context, arg UpdateAudienceSnapshotCountsParams) error
 	UpdateCampaignIfRevision(ctx context.Context, arg UpdateCampaignIfRevisionParams) (Campaign, error)

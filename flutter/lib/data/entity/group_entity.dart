@@ -6,9 +6,7 @@ import 'package:buff_lisa/data/entity/season_entity.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:openapi/api.dart';
 
-
 class GroupEntity extends CacheEntity {
-
   @override
   int get isarId => fastHash(groupId);
 
@@ -32,6 +30,8 @@ class GroupEntity extends CacheEntity {
 
   final String? link;
 
+  final String pinStyle;
+
   final SeasonEntity? bestSeason;
 
   GroupEntity({
@@ -45,14 +45,21 @@ class GroupEntity extends CacheEntity {
     this.isActivated = false,
     this.lastUpdated,
     this.link,
+    this.pinStyle = 'classic',
     this.bestSeason,
     super.keepAlive,
     super.hits,
     required super.ttl,
-    required super.onlySession
+    required super.onlySession,
   });
-  
-  factory GroupEntity.fromGroupDto(GroupDto groupDto, bool onlySession, bool userIsMember, {bool keepAlive = false, bool isActivated = false}) {
+
+  factory GroupEntity.fromGroupDto(
+    GroupDto groupDto,
+    bool onlySession,
+    bool userIsMember, {
+    bool keepAlive = false,
+    bool isActivated = false,
+  }) {
     return GroupEntity(
       groupId: groupDto.id,
       name: groupDto.name,
@@ -63,14 +70,16 @@ class GroupEntity extends CacheEntity {
       inviteUrl: groupDto.inviteUrl,
       groupAdmin: groupDto.groupAdmin,
       lastUpdated: groupDto.lastUpdated,
-      bestSeason: groupDto.bestSeason == null ? null : SeasonEntity.fromDto(groupDto.bestSeason!),
+      bestSeason: groupDto.bestSeason == null
+          ? null
+          : SeasonEntity.fromDto(groupDto.bestSeason!),
       link: groupDto.link,
+      pinStyle: groupDto.pinStyle?.value ?? 'classic',
       keepAlive: keepAlive,
       ttl: DateTime.now(),
-      onlySession: onlySession
+      onlySession: onlySession,
     );
   }
-
 
   CreateGroupDto toCreateGroupDto(Uint8List image) {
     return CreateGroupDto(
@@ -83,6 +92,14 @@ class GroupEntity extends CacheEntity {
     );
   }
 
+  static UpdateGroupDtoPinStyleEnum _updatePinStyle(String style) =>
+      switch (style) {
+        'moss' => UpdateGroupDtoPinStyleEnum.moss,
+        'sunset' => UpdateGroupDtoPinStyleEnum.sunset,
+        'aurora' => UpdateGroupDtoPinStyleEnum.aurora,
+        _ => UpdateGroupDtoPinStyleEnum.classic,
+      };
+
   UpdateGroupDto toUpdateGroupDto(Uint8List? image) {
     return UpdateGroupDto(
       name: name,
@@ -91,11 +108,18 @@ class GroupEntity extends CacheEntity {
       visibility: visibility,
       groupAdmin: groupAdmin,
       link: link,
+      pinStyle: _updatePinStyle(pinStyle),
     );
   }
 
   @override
-  GroupEntity copyWith({DateTime? ttl, int? hits, bool? keepAlive, bool? onlySession}) {
+  GroupEntity copyWith({
+    DateTime? ttl,
+    int? hits,
+    bool? keepAlive,
+    bool? onlySession,
+    String? pinStyle,
+  }) {
     return GroupEntity(
       groupId: groupId,
       name: name,
@@ -107,11 +131,12 @@ class GroupEntity extends CacheEntity {
       lastUpdated: lastUpdated,
       isActivated: isActivated,
       link: link,
+      pinStyle: pinStyle ?? this.pinStyle,
       bestSeason: bestSeason,
       keepAlive: keepAlive ?? this.keepAlive,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,
-      onlySession: onlySession ?? this.onlySession
+      onlySession: onlySession ?? this.onlySession,
     );
   }
 }

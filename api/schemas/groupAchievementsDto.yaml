@@ -1,0 +1,39 @@
+type: array
+items:
+  type: object
+  required:
+    - achievementId
+    - claimed
+    - claimable
+    - thresholdValue
+    - currentValue
+    - thresholdUp
+    - rewardPinStyle
+  properties:
+    achievementId:
+      type: integer
+      minimum: 1
+    name:
+      type: string
+    description:
+      type: string
+    track:
+      type: string
+    difficulty:
+      type: string
+      enum: [easy, medium, hard]
+    claimed:
+      type: boolean
+    claimable:
+      type: boolean
+    thresholdValue:
+      type: integer
+      minimum: 1
+    currentValue:
+      type: integer
+      minimum: 0
+    thresholdUp:
+      type: boolean
+    rewardPinStyle:
+      type: string
+      enum: [moss, sunset, aurora]
