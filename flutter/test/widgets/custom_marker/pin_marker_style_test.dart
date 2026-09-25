@@ -6,14 +6,18 @@ void main() {
   testWidgets('pin marker shows the selected frame and gone state', (
     tester,
   ) async {
+    final markerKey = GlobalKey();
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: Scaffold(
           body: Center(
-            child: PinMarkerImage(
-              isGone: true,
-              style: 'moss',
-              image: ColoredBox(color: Colors.blue),
+            child: RepaintBoundary(
+              key: markerKey,
+              child: const PinMarkerImage(
+                isGone: true,
+                style: 'moss',
+                image: ColoredBox(color: Colors.blue),
+              ),
             ),
           ),
         ),
@@ -24,6 +28,11 @@ void main() {
     expect(
       find.bySemanticsLabel('Pin marked gone · Moss frame'),
       findsOneWidget,
+    );
+
+    await expectLater(
+      find.byKey(markerKey),
+      matchesGoldenFile('goldens/pin_marker_gone_moss.png'),
     );
   });
 }

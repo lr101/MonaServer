@@ -80,7 +80,7 @@ class GroupAchievementsCard extends StatelessWidget {
                 if (index > 0) const SizedBox(height: 8),
                 _AchievementRow(
                   achievement: sortedAchievements[index],
-                  canClaim: group?.userIsMember != false,
+                  canClaim: group?.userIsMember == true,
                   reduceMotion: reduceMotion,
                   isClaiming:
                       claimingAchievementId ==

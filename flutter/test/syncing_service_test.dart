@@ -6,10 +6,12 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
+import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
+import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
@@ -288,6 +290,56 @@ void main() {
       await f.container.read(pinRepositoryProvider).get('server-pin'),
       isNotNull,
     );
+  });
+
+  test('remote group metadata revisions refresh group achievements', () async {
+    final f = await _fixture();
+    final previousUpdate = DateTime.utc(2026);
+    await f.container
+        .read(groupRepositoryProvider)
+        .put(
+          GroupEntity(
+            groupId: 'group',
+            name: 'Group',
+            visibility: 0,
+            userIsMember: true,
+            lastUpdated: previousUpdate,
+            ttl: DateTime.utc(2099),
+            onlySession: false,
+          ),
+        );
+    final achievements = f.container.listen(
+      groupAchievementsProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(achievements.close);
+    await f.container.read(groupAchievementsProvider('group').future);
+    expect(f.groups.achievementRequests, 1);
+
+    f.api.response = Completer<SyncDto?>();
+    final syncing = f.container
+        .read(syncingServiceProvider.notifier)
+        .syncToBackend();
+    await f.api.started.future;
+    f.api.response!.complete(
+      SyncDto(
+        groupUpdates: [
+          SyncDtoGroupUpdatesInner(
+            group: GroupDto(
+              id: 'group',
+              name: 'Group',
+              visibility: 0,
+              lastUpdated: previousUpdate.add(const Duration(seconds: 1)),
+            ),
+          ),
+        ],
+      ),
+    );
+    await syncing;
+    await f.container.pump();
+    await f.container.read(groupAchievementsProvider('group').future);
+
+    expect(f.groups.achievementRequests, 2);
   });
 
   test('finds local groups that are absent from the server sync', () {

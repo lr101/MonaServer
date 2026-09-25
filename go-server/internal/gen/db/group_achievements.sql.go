@@ -12,18 +12,28 @@ import (
 )
 
 const claimGroupAchievement = `-- name: ClaimGroupAchievement :execrows
-INSERT INTO group_achievement_claims (group_id, achievement_id, claimed_by)
-SELECT $1::uuid,
-       $2::integer,
-       $3::uuid
-WHERE (
-    SELECT COUNT(*)
-    FROM pins p
-    WHERE p.group_id = $1
-      AND p.is_deleted = FALSE
-      AND p.is_gone = FALSE
-) >= $4::integer
-ON CONFLICT (group_id, achievement_id) DO NOTHING
+WITH claimed AS (
+    INSERT INTO group_achievement_claims (group_id, achievement_id, claimed_by)
+    SELECT $1::uuid,
+           $2::integer,
+           $3::uuid
+    WHERE (
+        SELECT COUNT(*)
+        FROM pins p
+        WHERE p.group_id = $1
+          AND p.is_deleted = FALSE
+          AND p.is_gone = FALSE
+    ) >= $4::integer
+    ON CONFLICT (group_id, achievement_id) DO NOTHING
+    RETURNING group_id
+)
+UPDATE groups g
+SET update_date = GREATEST(
+    NOW(),
+    COALESCE(g.update_date, NOW() - INTERVAL '1 microsecond') + INTERVAL '1 microsecond'
+)
+FROM claimed
+WHERE g.id = claimed.group_id
 `
 
 type ClaimGroupAchievementParams struct {

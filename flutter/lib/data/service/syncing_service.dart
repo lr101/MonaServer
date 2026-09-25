@@ -113,6 +113,12 @@ class SyncingService extends _$SyncingService {
       registerGroupImageUrls(ref, groupDto);
       final existingGroup = await groupRepository.get(groupDto.id);
       if (!isCurrent()) return;
+      final syncedPinStyle = groupDto.pinStyle?.value ?? 'classic';
+      final achievementStateChanged =
+          existingGroup == null ||
+          existingGroup.pinStyle != syncedPinStyle ||
+          (groupDto.lastUpdated != null &&
+              groupDto.lastUpdated != existingGroup.lastUpdated);
       await groupRepository.put(
         GroupEntity.fromGroupDto(
           groupDto,
@@ -122,6 +128,10 @@ class SyncingService extends _$SyncingService {
           isActivated: existingGroup?.isActivated ?? true,
         ),
       );
+
+      if (achievementStateChanged) {
+        ref.invalidate(groupAchievementsProvider(groupDto.id));
+      }
 
       if (!isCurrent()) return;
       if (groupUpdate.pinsAdded.isNotEmpty) {

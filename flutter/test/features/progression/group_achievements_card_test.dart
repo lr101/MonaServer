@@ -99,6 +99,27 @@ void main() {
     expect(find.text('Claim'), findsNothing);
   });
 
+  testWidgets('unknown membership does not enable claiming a reward', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [_achievement()],
+            group: null,
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) => Future<String?>.value(),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Join to claim'), findsOneWidget);
+    expect(find.text('Claim'), findsNothing);
+  });
+
   testWidgets('panel claims a reward and saves the shared pin frame', (
     tester,
   ) async {
