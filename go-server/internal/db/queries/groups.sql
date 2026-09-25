@@ -18,7 +18,7 @@ WHERE g.id = award.group_id;
 
 -- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE;
 
@@ -43,6 +43,7 @@ SET name       = COALESCE(sqlc.narg('name'),       name),
     link       = COALESCE(sqlc.narg('link'),       link),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),
     admin_id   = COALESCE(sqlc.narg('admin_id'),   admin_id),
+    pin_style  = COALESCE(sqlc.narg('pin_style'),  pin_style),
     invite_url = CASE
                    WHEN sqlc.arg('clear_invite_url')::boolean THEN NULL
                    ELSE COALESCE(sqlc.narg('invite_url'), invite_url)
@@ -61,7 +62,7 @@ DELETE FROM groups WHERE id = $1;
 
 -- name: SearchGroups :many
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE is_deleted = FALSE
   AND (cardinality(sqlc.arg('ids')::uuid[]) = 0 OR id = ANY(sqlc.arg('ids')::uuid[]))
@@ -74,7 +75,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: SearchGroupsInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = sqlc.arg('user_id')
@@ -88,7 +89,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: SearchGroupsNotInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = sqlc.arg('user_id'))

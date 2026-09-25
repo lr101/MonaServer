@@ -460,6 +460,7 @@ type Group struct {
 	InviteUrl    *string
 	CreationDate *time.Time
 	UpdateDate   *time.Time
+	PinStyle     string
 }
 
 func (q *Queries) CreateGroup(ctx context.Context, g Group) (uuid.UUID, error) {
@@ -500,6 +501,7 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 		InviteUrl:    goText(row.InviteUrl),
 		CreationDate: goTZ(row.CreationDate),
 		UpdateDate:   goTZ(row.UpdateDate),
+		PinStyle:     row.PinStyle,
 	}, nil
 }
 
@@ -535,6 +537,7 @@ type GroupUpdate struct {
 	AdminID        *uuid.UUID
 	InviteUrl      *string
 	ClearInviteURL bool
+	PinStyle       *string
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) error {
@@ -556,6 +559,9 @@ func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) 
 	}
 	if u.InviteUrl != nil {
 		p.InviteUrl = pgTextS(*u.InviteUrl)
+	}
+	if u.PinStyle != nil {
+		p.PinStyle = pgTextS(*u.PinStyle)
 	}
 	return q.g.UpdateGroup(ctx, p)
 }
@@ -600,7 +606,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	} else if *s.WithUser {
 		if s.UserID == nil {
@@ -613,7 +623,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	} else {
 		if s.UserID == nil {
@@ -626,7 +640,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	}
 	out := make([]Group, 0, len(rows))
@@ -640,6 +658,7 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			Link: goText(r.Link), Visibility: vis, AdminID: goUUID(r.AdminID),
 			InviteUrl:    goText(r.InviteUrl),
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+			PinStyle: r.PinStyle.String,
 		})
 	}
 	return out, nil
@@ -655,6 +674,7 @@ type groupRow struct {
 	InviteUrl    pgtype.Text
 	CreationDate pgtype.Timestamptz
 	UpdateDate   pgtype.Timestamptz
+	PinStyle     pgtype.Text
 }
 
 func (q *Queries) ListDeletedGroupsAfter(ctx context.Context, after time.Time) ([]uuid.UUID, error) {

@@ -26,6 +26,9 @@ properties:
     $ref: '../parameters/imageUrl.yaml'
   pinImage:
     $ref: '../parameters/imageUrl.yaml'
+  pinStyle:
+    type: string
+    enum: [classic, moss, sunset, aurora]
   bestSeason:
     nullable: true
     allOf:

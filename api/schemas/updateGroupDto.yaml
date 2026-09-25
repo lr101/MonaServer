@@ -24,3 +24,7 @@ properties:
     nullable: true
     allOf:
       - $ref: '../parameters/shortString.yaml'
+  pinStyle:
+    type: string
+    nullable: true
+    enum: [classic, moss, sunset, aurora]

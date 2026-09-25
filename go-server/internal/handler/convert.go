@@ -33,6 +33,10 @@ func toGroupDto(g *service.GroupDTO, includePrivateFields bool) genserver.GroupD
 	if g.PinImage != nil {
 		pinImage = *g.PinImage
 	}
+	pinStyle := g.PinStyle
+	if pinStyle == "" {
+		pinStyle = "classic"
+	}
 	desc := ""
 	if g.Description != nil {
 		desc = *g.Description
@@ -52,6 +56,7 @@ func toGroupDto(g *service.GroupDTO, includePrivateFields bool) genserver.GroupD
 		ProfileImage:      profileImage,
 		ProfileImageSmall: profileImageSmall,
 		PinImage:          pinImage,
+		PinStyle:          pinStyle,
 	}
 	if includePrivateFields {
 		out.Description = desc

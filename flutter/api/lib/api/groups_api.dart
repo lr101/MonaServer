@@ -68,6 +68,56 @@ class GroupsApi {
     return null;
   }
 
+  /// Claim a group achievement and unlock its pin style reward
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] groupId (required):
+  ///
+  /// * [int] achievementId (required):
+  Future<Response> claimGroupAchievementWithHttpInfo(String groupId, int achievementId,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v2/groups/{groupId}/achievements/{achievementId}'
+      .replaceAll('{groupId}', groupId)
+      .replaceAll('{achievementId}', achievementId.toString());
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Claim a group achievement and unlock its pin style reward
+  ///
+  /// Parameters:
+  ///
+  /// * [String] groupId (required):
+  ///
+  /// * [int] achievementId (required):
+  Future<void> claimGroupAchievement(String groupId, int achievementId,) async {
+    final response = await claimGroupAchievementWithHttpInfo(groupId, achievementId,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+  }
+
   /// Delete a group by ID
   ///
   /// Note: This method returns the HTTP [Response].
@@ -161,6 +211,62 @@ class GroupsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupDto',) as GroupDto;
+
+    }
+    return null;
+  }
+
+  /// Get group achievement progress and pin style rewards
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] groupId (required):
+  Future<Response> getGroupAchievementsWithHttpInfo(String groupId,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v2/groups/{groupId}/achievements'
+      .replaceAll('{groupId}', groupId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Get group achievement progress and pin style rewards
+  ///
+  /// Parameters:
+  ///
+  /// * [String] groupId (required):
+  Future<List<GroupAchievementsDtoInner>?> getGroupAchievements(String groupId,) async {
+    final response = await getGroupAchievementsWithHttpInfo(groupId,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<GroupAchievementsDtoInner>') as List)
+        .cast<GroupAchievementsDtoInner>()
+        .toList(growable: false);
 
     }
     return null;

@@ -309,6 +309,68 @@ paths:
       summary: Get a group's XP and level progress
       tags:
       - groups
+  /api/v2/groups/{groupId}/achievements:
+    get:
+      operationId: getGroupAchievements
+      parameters:
+      - explode: false
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupAchievementsDto"
+          description: Successfully returned group achievements
+        "400":
+          description: Bad request parameter format
+        "403":
+          description: Private group requires membership
+        "404":
+          description: Group not found
+      security:
+      - token: []
+      summary: Get group achievement progress and pin style rewards
+      tags:
+      - groups
+  /api/v2/groups/{groupId}/achievements/{achievementId}:
+    post:
+      operationId: claimGroupAchievement
+      parameters:
+      - explode: false
+        in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+        style: simple
+      - explode: false
+        in: path
+        name: achievementId
+        required: true
+        schema:
+          minimum: 1
+          type: integer
+        style: simple
+      responses:
+        "200":
+          description: Group achievement claimed
+        "400":
+          description: Bad request parameter format
+        "403":
+          description: Group membership is required or the achievement is not claimable
+        "404":
+          description: Group not found
+      security:
+      - token: []
+      summary: Claim a group achievement and unlock its pin style reward
+      tags:
+      - groups
   /api/v2/groups/{groupId}/profile_image:
     get:
       operationId: getGroupProfileImage
@@ -6946,6 +7008,13 @@ components:
           example: https://storage.example.com/stick-it/1/1.png
           format: url
           type: string
+        pinStyle:
+          enum:
+          - classic
+          - moss
+          - sunset
+          - aurora
+          type: string
         bestSeason:
           allOf:
           - $ref: "#/components/schemas/seasonItemDto"
@@ -6985,6 +7054,14 @@ components:
           type: string
         link:
           maxLength: 256
+          nullable: true
+          type: string
+        pinStyle:
+          enum:
+          - classic
+          - moss
+          - sunset
+          - aurora
           nullable: true
           type: string
       type: object
@@ -7560,6 +7637,10 @@ components:
       - nextLevelXp
       - totalXp
       type: object
+    groupAchievementsDto:
+      items:
+        $ref: "#/components/schemas/groupAchievementsDto_inner"
+      type: array
     groupRankingDto:
       description: An array of sorted groups by rank and points
       items:
@@ -8056,6 +8137,62 @@ components:
       required:
       - group
       - pinsAdded
+      type: object
+    groupAchievementsDto_inner:
+      example:
+        difficulty: easy
+        rewardPinStyle: moss
+        claimed: true
+        name: name
+        achievementId: 1
+        description: description
+        claimable: true
+        thresholdValue: 1
+        track: track
+        thresholdUp: true
+        currentValue: 0
+      properties:
+        achievementId:
+          minimum: 1
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        track:
+          type: string
+        difficulty:
+          enum:
+          - easy
+          - medium
+          - hard
+          type: string
+        claimed:
+          type: boolean
+        claimable:
+          type: boolean
+        thresholdValue:
+          minimum: 1
+          type: integer
+        currentValue:
+          minimum: 0
+          type: integer
+        thresholdUp:
+          type: boolean
+        rewardPinStyle:
+          enum:
+          - moss
+          - sunset
+          - aurora
+          type: string
+      required:
+      - achievementId
+      - claimable
+      - claimed
+      - currentValue
+      - rewardPinStyle
+      - thresholdUp
+      - thresholdValue
       type: object
   securitySchemes:
     adminSession:

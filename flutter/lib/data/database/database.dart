@@ -89,6 +89,7 @@ class GroupEntities extends Table with CacheTable {
   BoolColumn get isActivated => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastUpdated => dateTime().nullable()();
   TextColumn get link => text().nullable()();
+  TextColumn get pinStyle => text().withDefault(const Constant('classic'))();
   TextColumn get bestSeason => text().map(const SeasonConverter()).nullable()();
 }
 
@@ -179,7 +180,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -233,6 +234,9 @@ class AppDatabase extends _$AppDatabase {
         await m.database.customStatement(
           'ALTER TABLE pin_entities ADD COLUMN is_gone INTEGER NOT NULL DEFAULT 0',
         );
+      }
+      if (from < 4) {
+        await m.addColumn(groupEntities, groupEntities.pinStyle);
       }
     },
   );

@@ -109,7 +109,7 @@ func (q *Queries) GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pg
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -124,6 +124,7 @@ type GetGroupByIDRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error) {
@@ -139,6 +140,7 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByI
 		&i.InviteUrl,
 		&i.CreationDate,
 		&i.UpdateDate,
+		&i.PinStyle,
 	)
 	return i, err
 }
@@ -345,7 +347,7 @@ func (q *Queries) RemoveMember(ctx context.Context, arg RemoveMemberParams) erro
 
 const searchGroups = `-- name: SearchGroups :many
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE is_deleted = FALSE
   AND (cardinality($1::uuid[]) = 0 OR id = ANY($1::uuid[]))
@@ -375,6 +377,7 @@ type SearchGroupsRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error) {
@@ -402,6 +405,7 @@ func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]S
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -415,7 +419,7 @@ func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]S
 
 const searchGroupsInUser = `-- name: SearchGroupsInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = $1
@@ -447,6 +451,7 @@ type SearchGroupsInUserRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error) {
@@ -475,6 +480,7 @@ func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUser
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -488,7 +494,7 @@ func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUser
 
 const searchGroupsNotInUser = `-- name: SearchGroupsNotInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = $1)
@@ -520,6 +526,7 @@ type SearchGroupsNotInUserRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error) {
@@ -548,6 +555,7 @@ func (q *Queries) SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNot
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -589,12 +597,13 @@ SET name       = COALESCE($1,       name),
     link       = COALESCE($3,       link),
     visibility = COALESCE($4, visibility),
     admin_id   = COALESCE($5,   admin_id),
+    pin_style  = COALESCE($6,  pin_style),
     invite_url = CASE
-                   WHEN $6::boolean THEN NULL
-                   ELSE COALESCE($7, invite_url)
+                   WHEN $7::boolean THEN NULL
+                   ELSE COALESCE($8, invite_url)
                  END,
     update_date= NOW()
-WHERE id = $8
+WHERE id = $9
 `
 
 type UpdateGroupParams struct {
@@ -603,6 +612,7 @@ type UpdateGroupParams struct {
 	Link           pgtype.Text `json:"link"`
 	Visibility     pgtype.Int4 `json:"visibility"`
 	AdminID        pgtype.UUID `json:"admin_id"`
+	PinStyle       pgtype.Text `json:"pin_style"`
 	ClearInviteUrl bool        `json:"clear_invite_url"`
 	InviteUrl      pgtype.Text `json:"invite_url"`
 	ID             pgtype.UUID `json:"id"`
@@ -615,6 +625,7 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) error 
 		arg.Link,
 		arg.Visibility,
 		arg.AdminID,
+		arg.PinStyle,
 		arg.ClearInviteUrl,
 		arg.InviteUrl,
 		arg.ID,

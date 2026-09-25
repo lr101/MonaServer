@@ -76,6 +76,18 @@ func (c *GroupsAPIController) Routes() Routes {
 			"/api/v2/groups/{groupId}/progression",
 			c.GetGroupProgression,
 		},
+		"GetGroupAchievements": Route{
+			"GetGroupAchievements",
+			strings.ToUpper("Get"),
+			"/api/v2/groups/{groupId}/achievements",
+			c.GetGroupAchievements,
+		},
+		"ClaimGroupAchievement": Route{
+			"ClaimGroupAchievement",
+			strings.ToUpper("Post"),
+			"/api/v2/groups/{groupId}/achievements/{achievementId}",
+			c.ClaimGroupAchievement,
+		},
 		"UpdateGroup": Route{
 			"UpdateGroup",
 			strings.ToUpper("Put"),
@@ -159,6 +171,18 @@ func (c *GroupsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Get"),
 			"/api/v2/groups/{groupId}/progression",
 			c.GetGroupProgression,
+		},
+		Route{
+			"GetGroupAchievements",
+			strings.ToUpper("Get"),
+			"/api/v2/groups/{groupId}/achievements",
+			c.GetGroupAchievements,
+		},
+		Route{
+			"ClaimGroupAchievement",
+			strings.ToUpper("Post"),
+			"/api/v2/groups/{groupId}/achievements/{achievementId}",
+			c.ClaimGroupAchievement,
 		},
 		Route{
 			"UpdateGroup",
@@ -375,6 +399,45 @@ func (c *GroupsAPIController) GetGroupProgression(w http.ResponseWriter, r *http
 		return
 	}
 	result, err := c.service.GetGroupProgression(r.Context(), groupIdParam)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// GetGroupAchievements - Get group achievement progress and pin style rewards
+func (c *GroupsAPIController) GetGroupAchievements(w http.ResponseWriter, r *http.Request) {
+	groupIdParam := chi.URLParam(r, "groupId")
+	if groupIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"groupId"}, nil)
+		return
+	}
+	result, err := c.service.GetGroupAchievements(r.Context(), groupIdParam)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// ClaimGroupAchievement - Claim a group achievement and unlock its pin style reward
+func (c *GroupsAPIController) ClaimGroupAchievement(w http.ResponseWriter, r *http.Request) {
+	groupIdParam := chi.URLParam(r, "groupId")
+	if groupIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"groupId"}, nil)
+		return
+	}
+	achievementIdParam, err := parseNumericParameter[int32](
+		chi.URLParam(r, "achievementId"),
+		WithRequire[int32](parseInt32),
+		WithMinimum[int32](1),
+	)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Param: "achievementId", Err: err}, nil)
+		return
+	}
+	result, err := c.service.ClaimGroupAchievement(r.Context(), groupIdParam, achievementIdParam)
 	if err != nil {
 		c.errorHandler(w, r, err, &result)
 		return

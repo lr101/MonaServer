@@ -38,6 +38,8 @@ type GroupDto struct {
 
 	PinImage string `json:"pinImage,omitempty"`
 
+	PinStyle string `json:"pinStyle,omitempty"`
+
 	BestSeason *SeasonItemDto `json:"bestSeason,omitempty"`
 }
 

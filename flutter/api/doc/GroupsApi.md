@@ -10,8 +10,10 @@ All URIs are relative to *https://stick-it.lr-projects.de*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**addGroup**](GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
+[**claimGroupAchievement**](GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and unlock its pin style reward
 [**deleteGroup**](GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 [**getGroup**](GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
+[**getGroupAchievements**](GroupsApi.md#getgroupachievements) | **GET** /api/v2/groups/{groupId}/achievements | Get group achievement progress and pin style rewards
 [**getGroupAdmin**](GroupsApi.md#getgroupadmin) | **GET** /api/v2/groups/{groupId}/admin | Get admin of group
 [**getGroupDescription**](GroupsApi.md#getgroupdescription) | **GET** /api/v2/groups/{groupId}/description | Get description of group
 [**getGroupInviteUrl**](GroupsApi.md#getgroupinviteurl) | **GET** /api/v2/groups/{groupId}/invite_url | Get invite url of group
@@ -68,6 +70,54 @@ Name | Type | Description  | Notes
 
  - **Content-Type**: application/json
  - **Accept**: application/json, text/plain; charset=utf-8
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **claimGroupAchievement**
+> claimGroupAchievement(groupId, achievementId)
+
+Claim a group achievement and unlock its pin style reward
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = GroupsApi();
+final groupId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
+final achievementId = 56; // int |
+
+try {
+    api_instance.claimGroupAchievement(groupId, achievementId);
+} catch (e) {
+    print('Exception when calling GroupsApi->claimGroupAchievement: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **groupId** | **String**|  |
+ **achievementId** | **int**|  |
+
+### Return type
+
+void (empty response body)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: Not defined
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
@@ -161,6 +211,53 @@ Name | Type | Description  | Notes
 
  - **Content-Type**: Not defined
  - **Accept**: application/json, text/plain; charset=utf-8
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **getGroupAchievements**
+> List<GroupAchievementsDtoInner> getGroupAchievements(groupId)
+
+Get group achievement progress and pin style rewards
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = GroupsApi();
+final groupId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
+
+try {
+    final result = api_instance.getGroupAchievements(groupId);
+    print(result);
+} catch (e) {
+    print('Exception when calling GroupsApi->getGroupAchievements: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **groupId** | **String**|  |
+
+### Return type
+
+[**List<GroupAchievementsDtoInner>**](GroupAchievementsDtoInner.md)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

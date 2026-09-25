@@ -121,6 +121,7 @@ part 'model/email_link_exchange_response_dto.dart';
 part 'model/email_link_request_accepted_dto.dart';
 part 'model/email_link_request_dto.dart';
 part 'model/filter_audience.dart';
+part 'model/group_achievements_dto_inner.dart';
 part 'model/group_dto.dart';
 part 'model/group_progression_dto.dart';
 part 'model/group_ranking_dto_inner.dart';

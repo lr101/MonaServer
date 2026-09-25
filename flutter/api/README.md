@@ -106,8 +106,10 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**userLogin**](doc//AuthApi.md#userlogin) | **POST** /api/v2/public/login | User login
 *BatchApi* | [**batchRead**](doc//BatchApi.md#batchread) | **POST** /api/v3/batch | Read several authenticated resources in one request
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
+*GroupsApi* | [**claimGroupAchievement**](doc//GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and unlock its pin style reward
 *GroupsApi* | [**deleteGroup**](doc//GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 *GroupsApi* | [**getGroup**](doc//GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
+*GroupsApi* | [**getGroupAchievements**](doc//GroupsApi.md#getgroupachievements) | **GET** /api/v2/groups/{groupId}/achievements | Get group achievement progress and pin style rewards
 *GroupsApi* | [**getGroupAdmin**](doc//GroupsApi.md#getgroupadmin) | **GET** /api/v2/groups/{groupId}/admin | Get admin of group
 *GroupsApi* | [**getGroupDescription**](doc//GroupsApi.md#getgroupdescription) | **GET** /api/v2/groups/{groupId}/description | Get description of group
 *GroupsApi* | [**getGroupInviteUrl**](doc//GroupsApi.md#getgroupinviteurl) | **GET** /api/v2/groups/{groupId}/invite_url | Get invite url of group
@@ -227,6 +229,7 @@ Class | Method | HTTP request | Description
  - [EmailLinkRequestAcceptedDto](doc//EmailLinkRequestAcceptedDto.md)
  - [EmailLinkRequestDto](doc//EmailLinkRequestDto.md)
  - [FilterAudience](doc//FilterAudience.md)
+ - [GroupAchievementsDtoInner](doc//GroupAchievementsDtoInner.md)
  - [GroupDto](doc//GroupDto.md)
  - [GroupProgressionDto](doc//GroupProgressionDto.md)
  - [GroupRankingDtoInner](doc//GroupRankingDtoInner.md)

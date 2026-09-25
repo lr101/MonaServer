@@ -78,6 +78,161 @@ func TestPrivateGroupDetailsAreHiddenFromNonMembers(t *testing.T) {
 	}
 }
 
+func TestGroupAchievementVisibilityAndClaimRequireMembership(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	servicer := NewGroupsServicer(groupSvc, service.NewGuard(q))
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "group_achievement_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup owner: %v", err)
+	}
+	outsider, err := auth.Signup(ctx, "group_achievement_outsider", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup outsider: %v", err)
+	}
+
+	publicGroup, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_achievement_public", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create public group: %v", err)
+	}
+	outsiderCtx := middleware.WithUser(ctx, outsider.UserID, middleware.RoleUser)
+	publicProgress, err := servicer.GetGroupAchievements(outsiderCtx, publicGroup.ID.String())
+	if err != nil {
+		t.Fatalf("get public group achievements: %v", err)
+	}
+	if publicProgress.Code != http.StatusOK {
+		t.Fatalf("public group achievements status = %d, want %d", publicProgress.Code, http.StatusOK)
+	}
+	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 3 ||
+		got[0].RewardPinStyle != "moss" || got[0].Track != "active_pins" {
+		t.Fatalf("public group achievements = %+v, want three pin style rewards", got)
+	}
+	nonMemberClaim, err := servicer.ClaimGroupAchievement(outsiderCtx, publicGroup.ID.String(), 1)
+	if err != nil {
+		t.Fatalf("claim public group achievement as outsider: %v", err)
+	}
+	if nonMemberClaim.Code != http.StatusForbidden {
+		t.Fatalf("non-member claim status = %d, want %d", nonMemberClaim.Code, http.StatusForbidden)
+	}
+
+	privateGroup, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_achievement_private", Visibility: 1, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create private group: %v", err)
+	}
+	privateProgress, err := servicer.GetGroupAchievements(outsiderCtx, privateGroup.ID.String())
+	if err != nil {
+		t.Fatalf("get private group achievements as outsider: %v", err)
+	}
+	if privateProgress.Code != http.StatusForbidden {
+		t.Fatalf("private group achievements status = %d, want %d", privateProgress.Code, http.StatusForbidden)
+	}
+}
+
+func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	guard := service.NewGuard(q)
+	groups := NewGroupsServicer(groupSvc, guard)
+	pinSvc := service.NewPin(q, nil)
+	pins := NewPinsServicer(pinSvc, groupSvc, guard, q)
+	ctx := context.Background()
+
+	claimant, err := auth.Signup(ctx, "group_achievement_claim_member", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup claimant: %v", err)
+	}
+	admin, err := auth.Signup(ctx, "group_achievement_claim_admin", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup admin: %v", err)
+	}
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "group_achievement_claim_sync", Visibility: 0, GroupAdmin: admin.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := q.AddMember(ctx, group.ID, claimant.UserID); err != nil {
+		t.Fatalf("add claimant: %v", err)
+	}
+	createdAt := time.Now()
+	for i := 0; i < 10; i++ {
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 1 + float64(i)/1000, Longitude: 1 + float64(i)/1000,
+			CreationDate: createdAt,
+			UserID:       admin.UserID, GroupID: group.ID,
+		}); err != nil {
+			t.Fatalf("create active pin %d: %v", i+1, err)
+		}
+	}
+
+	oldUpdate := time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := q.Pool().Exec(ctx, `UPDATE groups SET update_date = $2 WHERE id = $1`, group.ID, oldUpdate); err != nil {
+		t.Fatalf("set group sync cursor: %v", err)
+	}
+	oldPinUpdate := oldUpdate.Add(-time.Hour)
+	if _, err := q.Pool().Exec(ctx, `UPDATE pins SET update_date = $2 WHERE group_id = $1`, group.ID, oldPinUpdate); err != nil {
+		t.Fatalf("set pin sync cursor: %v", err)
+	}
+	claimantCtx := middleware.WithUser(ctx, claimant.UserID, middleware.RoleUser)
+	claim, err := groups.ClaimGroupAchievement(claimantCtx, group.ID.String(), 1)
+	if err != nil {
+		t.Fatalf("claim group achievement: %v", err)
+	}
+	if claim.Code != http.StatusOK {
+		t.Fatalf("claim status = %d, want %d", claim.Code, http.StatusOK)
+	}
+
+	adminCtx := middleware.WithUser(ctx, admin.UserID, middleware.RoleUser)
+	sync, err := pins.Sync(adminCtx, oldUpdate)
+	if err != nil {
+		t.Fatalf("sync for group admin: %v", err)
+	}
+	if sync.Code != http.StatusOK {
+		t.Fatalf("sync status = %d, want %d", sync.Code, http.StatusOK)
+	}
+	syncDTO, ok := sync.Body.(genserver.SyncDto)
+	if !ok {
+		t.Fatalf("sync response body type = %T, want genserver.SyncDto", sync.Body)
+	}
+	var syncedGroup *genserver.GroupDto
+	for i := range syncDTO.GroupUpdates {
+		if syncDTO.GroupUpdates[i].Group.Id == group.ID.String() {
+			syncedGroup = &syncDTO.GroupUpdates[i].Group
+			if len(syncDTO.GroupUpdates[i].PinsAdded) != 0 {
+				t.Fatalf(
+					"admin sync returned %d pins, want metadata-only update",
+					len(syncDTO.GroupUpdates[i].PinsAdded),
+				)
+			}
+			break
+		}
+	}
+	if syncedGroup == nil || !syncedGroup.LastUpdated.After(oldUpdate) {
+		t.Fatalf("admin sync group update = %+v, want claim revision after %s", syncedGroup, oldUpdate)
+	}
+
+	progress, err := groups.GetGroupAchievements(adminCtx, group.ID.String())
+	if err != nil {
+		t.Fatalf("get achievements for admin: %v", err)
+	}
+	items, ok := progress.Body.([]genserver.GroupAchievementsDtoInner)
+	if !ok || len(items) != 3 {
+		t.Fatalf("admin achievement body = %#v, want three rewards", progress.Body)
+	}
+	if !items[0].Claimed || items[0].RewardPinStyle != "moss" {
+		t.Fatalf("admin achievement = %+v, want claimant's moss reward", items[0])
+	}
+}
+
 func TestGetGroupIncludesBestSeason(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
