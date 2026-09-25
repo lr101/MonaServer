@@ -319,9 +319,10 @@ type Member struct {
 }
 
 type ObjectCleanupQueue struct {
-	ObjectKey string             `json:"object_key"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	IsStaged  bool               `json:"is_staged"`
+	ObjectKey     string             `json:"object_key"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	IsStaged      bool               `json:"is_staged"`
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
 }
 
 type OutboxEvent struct {

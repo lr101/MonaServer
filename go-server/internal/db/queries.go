@@ -1067,6 +1067,10 @@ func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) 
 	return q.g.MarkObjectCleanupReady(ctx, objectKey)
 }
 
+func (q *Queries) RescheduleObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.RescheduleObjectCleanup(ctx, objectKey)
+}
+
 func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string) (bool, error) {
 	_, err := q.g.LockStagedObjectCleanup(ctx, objectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1075,8 +1079,8 @@ func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string)
 	return err == nil, err
 }
 
-func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context, skipKeys []string) (string, bool, error) {
-	key, err := q.g.ClaimPendingObjectCleanup(ctx, skipKeys)
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, bool, error) {
+	key, err := q.g.ClaimPendingObjectCleanup(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}

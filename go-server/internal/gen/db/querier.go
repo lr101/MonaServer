@@ -49,7 +49,7 @@ type Querier interface {
 	// token returned here is the acknowledgement fence for this lease attempt.
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
-	ClaimPendingObjectCleanup(ctx context.Context, skipKeys []string) (string, error)
+	ClaimPendingObjectCleanup(ctx context.Context) (string, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	// Clear the short-lived delivery secret only once the attempt is terminal or
@@ -271,6 +271,7 @@ type Querier interface {
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
 	RemoveMember(ctx context.Context, arg RemoveMemberParams) error
+	RescheduleObjectCleanup(ctx context.Context, objectKey string) error
 	ResetAdminMFAReplayScope(ctx context.Context, arg ResetAdminMFAReplayScopeParams) error
 	ResetFailedLogin(ctx context.Context, id pgtype.UUID) error
 	// Retry acceptance returns the item to the retryable outcome only for the

@@ -120,7 +120,7 @@ func TestMigration37BackfillsPinsWithNullCreationDate(t *testing.T) {
 		t.Fatalf("insert legacy pin with null creation date: %v", err)
 	}
 
-	migration, err := migrationsFS.ReadFile("migrations/000037_pin_photos.up.sql")
+	migration, err := migrationsFS.ReadFile("migrations/000038_pin_photos.up.sql")
 	if err != nil {
 		t.Fatalf("read pin photos migration: %v", err)
 	}

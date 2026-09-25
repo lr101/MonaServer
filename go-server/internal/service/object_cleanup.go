@@ -38,31 +38,31 @@ func (s *ObjectCleanup) RunOnce(ctx context.Context) error {
 		return nil
 	}
 	var failures []error
-	skippedKeys := make([]string, 0)
 	for range objectCleanupBatchLimit {
 		var key string
 		var found bool
+		var cleanupErr error
 		err := s.q.InTx(ctx, func(q *db.Queries) error {
 			var err error
-			key, found, err = q.ClaimPendingObjectCleanup(ctx, skippedKeys)
+			key, found, err = q.ClaimPendingObjectCleanup(ctx)
 			if err != nil || !found {
 				return err
 			}
 			if err := s.obj.Remove(ctx, key); err != nil {
-				return fmt.Errorf("remove object %q: %w", key, err)
+				cleanupErr = fmt.Errorf("remove object %q: %w", key, err)
+				return q.RescheduleObjectCleanup(ctx, key)
 			}
 			return q.DeletePendingObjectCleanup(ctx, key)
 		})
 		if err != nil {
 			failures = append(failures, err)
-			if !found {
-				break
-			}
-			skippedKeys = append(skippedKeys, key)
-			continue
+			break
 		}
 		if !found {
 			break
+		}
+		if cleanupErr != nil {
+			failures = append(failures, cleanupErr)
 		}
 	}
 	return errors.Join(failures...)

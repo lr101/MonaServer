@@ -12,16 +12,15 @@ import (
 const claimPendingObjectCleanup = `-- name: ClaimPendingObjectCleanup :one
 SELECT object_key
 FROM object_cleanup_queue
-WHERE (is_staged = FALSE
-       OR created_at <= NOW() - INTERVAL '30 minutes')
-  AND NOT (object_key = ANY($1::text[]))
-ORDER BY created_at, object_key
+WHERE (is_staged = FALSE AND next_attempt_at <= NOW())
+   OR (is_staged = TRUE AND created_at <= NOW() - INTERVAL '30 minutes')
+ORDER BY next_attempt_at, created_at, object_key
 LIMIT 1
 FOR UPDATE SKIP LOCKED
 `
 
-func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context, skipKeys []string) (string, error) {
-	row := q.db.QueryRow(ctx, claimPendingObjectCleanup, skipKeys)
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, claimPendingObjectCleanup)
 	var object_key string
 	err := row.Scan(&object_key)
 	return object_key, err
@@ -64,7 +63,7 @@ func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string)
 
 const markObjectCleanupReady = `-- name: MarkObjectCleanupReady :exec
 UPDATE object_cleanup_queue
-SET is_staged = FALSE, created_at = NOW()
+SET is_staged = FALSE, created_at = NOW(), next_attempt_at = NOW()
 WHERE object_key = $1
 `
 
@@ -73,11 +72,22 @@ func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) 
 	return err
 }
 
+const rescheduleObjectCleanup = `-- name: RescheduleObjectCleanup :exec
+UPDATE object_cleanup_queue
+SET is_staged = FALSE, next_attempt_at = NOW() + INTERVAL '1 minute'
+WHERE object_key = $1
+`
+
+func (q *Queries) RescheduleObjectCleanup(ctx context.Context, objectKey string) error {
+	_, err := q.db.Exec(ctx, rescheduleObjectCleanup, objectKey)
+	return err
+}
+
 const stageObjectCleanup = `-- name: StageObjectCleanup :exec
 INSERT INTO object_cleanup_queue (object_key, is_staged)
 VALUES ($1, TRUE)
 ON CONFLICT (object_key) DO UPDATE
-SET is_staged = TRUE, created_at = NOW()
+SET is_staged = TRUE, created_at = NOW(), next_attempt_at = NOW()
 `
 
 func (q *Queries) StageObjectCleanup(ctx context.Context, objectKey string) error {

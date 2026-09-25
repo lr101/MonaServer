@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,14 +15,15 @@ import (
 )
 
 type pinPhotoTestObjectStore struct {
-	mu             sync.Mutex
-	objects        map[string][]byte
-	lastPutKey     string
-	failRemoveAll  bool
-	failRemoveKey  string
-	removeErr      error
-	cancelOnPut    context.CancelFunc
-	cancelOnRemove context.CancelFunc
+	mu               sync.Mutex
+	objects          map[string][]byte
+	lastPutKey       string
+	failRemoveAll    bool
+	failRemoveKey    string
+	failRemovePrefix string
+	removeErr        error
+	cancelOnPut      context.CancelFunc
+	cancelOnRemove   context.CancelFunc
 }
 
 func (s *pinPhotoTestObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
@@ -53,6 +55,9 @@ func (s *pinPhotoTestObjectStore) Remove(ctx context.Context, key string) error 
 		return s.removeErr
 	}
 	if key == s.failRemoveKey {
+		return s.removeErr
+	}
+	if s.failRemovePrefix != "" && strings.HasPrefix(key, s.failRemovePrefix) {
 		return s.removeErr
 	}
 	delete(s.objects, key)
@@ -106,6 +111,13 @@ func assertObjectCleanupQueued(t *testing.T, q *db.Queries, key string) {
 	}
 }
 
+func makeObjectCleanupEligible(t *testing.T, q *db.Queries, key string) {
+	t.Helper()
+	if _, err := q.Pool().Exec(context.Background(), `UPDATE object_cleanup_queue SET next_attempt_at = NOW() WHERE object_key = $1`, key); err != nil {
+		t.Fatalf("make object cleanup eligible for %s: %v", key, err)
+	}
+}
+
 func TestDeletingPinKeepsFailedPhotoCleanupQueued(t *testing.T) {
 	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -152,6 +164,7 @@ func TestDeletingPinKeepsFailedPhotoCleanupQueued(t *testing.T) {
 	}
 
 	store.failRemoveKey = ""
+	makeObjectCleanupEligible(t, q, updateKey)
 	if err := NewObjectCleanup(q, store).RunOnce(ctx); err != nil {
 		t.Fatalf("retry object cleanup: %v", err)
 	}
@@ -196,11 +209,67 @@ func TestObjectCleanupFailureDoesNotStarveLaterKeys(t *testing.T) {
 	}
 
 	store.failRemoveKey = ""
+	makeObjectCleanupEligible(t, q, failedKey)
 	if err := NewObjectCleanup(q, store).RunOnce(ctx); err != nil {
 		t.Fatalf("retry failed cleanup: %v", err)
 	}
 	if store.objectCount() != 0 {
 		t.Fatalf("objects after retry = %d, want none", store.objectCount())
+	}
+}
+
+func TestObjectCleanupRetriesBeyondPersistentFailuresAcrossBatches(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	const healthyKey = "z-photo-that-can-be-removed-after-a-large-failure-batch"
+	failedKeys := make([]string, objectCleanupBatchLimit+1)
+	objects := make(map[string][]byte, len(failedKeys)+1)
+	for i := range failedKeys {
+		failedKeys[i] = fmt.Sprintf("a-persistently-failing-photo-%03d", i)
+		objects[failedKeys[i]] = []byte("failed")
+	}
+	objects[healthyKey] = []byte("healthy")
+	queuedKeys := append(append([]string(nil), failedKeys...), healthyKey)
+	store := &pinPhotoTestObjectStore{
+		objects:          objects,
+		failRemovePrefix: "a-persistently-failing-photo-",
+		removeErr:        errors.New("persistent object storage failure"),
+	}
+	if err := q.EnqueueObjectCleanup(ctx, queuedKeys); err != nil {
+		t.Fatalf("enqueue cleanup keys: %v", err)
+	}
+	cleanup := NewObjectCleanup(q, store)
+
+	for run := 0; run < 2; run++ {
+		if err := cleanup.RunOnce(ctx); err == nil {
+			t.Fatalf("cleanup run %d succeeded despite persistent removal failures", run+1)
+		}
+	}
+
+	if _, exists := store.objects[healthyKey]; exists {
+		t.Fatal("healthy photo was starved by persistent failures across cleanup batches")
+	}
+	assertObjectCleanupQueued(t, q, failedKeys[0])
+	var failedCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT count(*) FROM object_cleanup_queue WHERE object_key = ANY($1::text[])`, failedKeys).Scan(&failedCount); err != nil {
+		t.Fatalf("count remaining failed cleanup rows: %v", err)
+	}
+	if failedCount != len(failedKeys) {
+		t.Fatalf("remaining failed cleanup rows = %d, want %d", failedCount, len(failedKeys))
+	}
+	var delayedFailedCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT count(*) FROM object_cleanup_queue WHERE object_key = ANY($1::text[]) AND next_attempt_at > NOW()`, failedKeys).Scan(&delayedFailedCount); err != nil {
+		t.Fatalf("count delayed failed cleanup rows: %v", err)
+	}
+	if delayedFailedCount != len(failedKeys) {
+		t.Fatalf("delayed failed cleanup rows = %d, want %d", delayedFailedCount, len(failedKeys))
+	}
+	var healthyCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT count(*) FROM object_cleanup_queue WHERE object_key = $1`, healthyKey).Scan(&healthyCount); err != nil {
+		t.Fatalf("read healthy cleanup row: %v", err)
+	}
+	if healthyCount != 0 {
+		t.Fatalf("healthy cleanup rows = %d, want 0 after cleanup", healthyCount)
 	}
 }
 
@@ -292,6 +361,7 @@ func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) 
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry object cleanup: %v", err)
 	}
@@ -332,6 +402,7 @@ func TestCancelledOriginalPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *tes
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry original photo object cleanup: %v", err)
 	}
