@@ -35,21 +35,33 @@ WITH claim AS (
     VALUES ($1, $2, $3, TRUE, NOW(), NOW())
     ON CONFLICT (user_id, achievement_id) DO UPDATE
         SET claimed = TRUE, update_date = NOW()
-        WHERE user_achievement.claimed = FALSE
-    RETURNING user_id
+    WHERE user_achievement.claimed = FALSE
+    RETURNING user_id, achievement_id
+), reward AS (
+    INSERT INTO user_achievement_reward_ledger (
+        user_id, achievement_id, xp_awarded, definition_version, awarded_at
+    )
+    SELECT user_id, achievement_id, $4, $5, NOW()
+    FROM claim
+    ON CONFLICT (user_id, achievement_id) DO NOTHING
+    RETURNING user_id, xp_awarded
+), award AS (
+    UPDATE users u
+    SET xp = xp + reward.xp_awarded, update_date = NOW()
+    FROM reward
+    WHERE u.id = reward.user_id
+    RETURNING u.id
 )
-UPDATE users u
-SET xp = xp + $4, update_date = NOW()
+SELECT claim.user_id
 FROM claim
-WHERE u.id = claim.user_id
-RETURNING u.id
 `
 
 type ClaimUserAchievementAndAwardXPParams struct {
-	ID            pgtype.UUID `json:"id"`
-	UserID        pgtype.UUID `json:"user_id"`
-	AchievementID int32       `json:"achievement_id"`
-	Xp            int32       `json:"xp"`
+	ID                pgtype.UUID `json:"id"`
+	UserID            pgtype.UUID `json:"user_id"`
+	AchievementID     int32       `json:"achievement_id"`
+	XpAwarded         int32       `json:"xp_awarded"`
+	DefinitionVersion int32       `json:"definition_version"`
 }
 
 func (q *Queries) ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error) {
@@ -57,11 +69,12 @@ func (q *Queries) ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimU
 		arg.ID,
 		arg.UserID,
 		arg.AchievementID,
-		arg.Xp,
+		arg.XpAwarded,
+		arg.DefinitionVersion,
 	)
-	var id pgtype.UUID
-	err := row.Scan(&id)
-	return id, err
+	var user_id pgtype.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const getSelectedUserAchievementID = `-- name: GetSelectedUserAchievementID :one
@@ -139,6 +152,28 @@ func (q *Queries) ListUserAchievements(ctx context.Context, userID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const reconcileUserAchievementClaim = `-- name: ReconcileUserAchievementClaim :exec
+WITH revoked AS (
+    UPDATE user_achievement
+    SET claimed = FALSE, update_date = NOW()
+    WHERE user_id = $1 AND achievement_id = $2 AND claimed = TRUE
+    RETURNING id
+)
+UPDATE users u
+SET selected_batch = NULL, update_date = NOW()
+WHERE u.id = $1 AND u.selected_batch IN (SELECT id FROM revoked)
+`
+
+type ReconcileUserAchievementClaimParams struct {
+	ID            pgtype.UUID `json:"id"`
+	AchievementID int32       `json:"achievement_id"`
+}
+
+func (q *Queries) ReconcileUserAchievementClaim(ctx context.Context, arg ReconcileUserAchievementClaimParams) error {
+	_, err := q.db.Exec(ctx, reconcileUserAchievementClaim, arg.ID, arg.AchievementID)
+	return err
 }
 
 const upsertUserAchievement = `-- name: UpsertUserAchievement :one

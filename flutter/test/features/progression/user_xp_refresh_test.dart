@@ -194,7 +194,7 @@ class _Fixture {
             ),
           ),
     _Mutation.achievement =>
-      container.read(achievementsProvider.notifier).claimAchievement(1),
+      container.read(achievementsProvider.notifier).claimAchievement(3),
   };
 
   Future<http.Response> handle(http.Request request) async {
@@ -220,7 +220,7 @@ class _Fixture {
       return http.Response(
         jsonEncode([
           {
-            'achievementId': 1,
+            'achievementId': 3,
             'claimed': false,
             'thresholdValue': 1,
             'currentValue': 1,
@@ -247,7 +247,7 @@ class _Fixture {
       request.method == 'POST' && request.url.path == '/api/v2/groups',
     _Mutation.achievement =>
       request.method == 'POST' &&
-          request.url.path == '/api/v2/users/alice/achievements/1',
+          request.url.path == '/api/v2/users/alice/achievements/3',
   };
 
   http.Response _mutationResponse(int status) {

@@ -5,52 +5,141 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
 )
 
-// AchievementDef mirrors AchievementType from the Kotlin server.
+const userAchievementDefinitionVersion int32 = 2
+
+// AchievementDef is a server-owned personal milestone and reward.
 type AchievementDef struct {
-	ID          int32
-	Threshold   int32
-	ThresholdUp bool // true = currentValue >= threshold to claim
-	sql         string
-	needsGroup  bool
-	needsDate   bool
+	ID                int32
+	Name              string
+	Description       string
+	Track             string
+	Difficulty        string
+	RewardXP          int32
+	DefinitionVersion int32
+	Threshold         int32
+	ThresholdUp       bool // true = currentValue >= threshold to claim
+	sql               string
 }
 
-// AchievementConfig holds environment-specific parameters used by certain achievements.
+// AchievementConfig remains part of the handler construction API for callers
+// that still provide the legacy achievement configuration.
 type AchievementConfig struct {
 	MonaGroupID   uuid.UUID
 	CreatedBefore time.Time
 }
 
 var achievementDefs = []AchievementDef{
-	{0, 10, true, `SELECT COALESCE(MAX(cnt),0) FROM (SELECT COUNT(*) AS cnt FROM pins WHERE creator_id=$1 AND is_deleted=FALSE GROUP BY state_province_id) t`, false, false},
-	{1, 1, true, `SELECT COUNT(*)::int FROM users WHERE creation_date < $2 AND id=$1 AND is_deleted=FALSE`, false, true},
-	{2, 1, true, `SELECT COUNT(*)::int FROM members WHERE user_id=$1 AND group_id=$2 AND is_deleted=FALSE`, true, false},
-	{3, 1, true, `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`, false, false},
-	{4, 1, true, `SELECT COUNT(*)::int FROM members WHERE user_id=$1 AND is_deleted=FALSE`, false, false},
-	{5, 1000, true, `SELECT COUNT(*)::int FROM likes WHERE user_id=$1 AND like_all=TRUE`, false, false},
-	{6, 1000, true, `SELECT COUNT(*)::int FROM likes WHERE user_id=$1 AND like_art=TRUE`, false, false},
-	{7, 1000, true, `SELECT COUNT(*)::int FROM likes WHERE user_id=$1 AND like_location=TRUE`, false, false},
-	{8, 1000, true, `SELECT COUNT(*)::int FROM likes WHERE user_id=$1 AND like_photography=TRUE`, false, false},
-	{9, 500, true, `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`, false, false},
-	{10, 100, true, `SELECT COALESCE(MAX(cnt),0) FROM (SELECT COUNT(*) AS cnt FROM pins JOIN admin2_boundaries ON pins.state_province_id=admin2_boundaries.id WHERE creator_id=$1 AND is_deleted=FALSE GROUP BY admin2_boundaries.gid_1) t`, false, false},
-	{11, 250, true, `SELECT COALESCE(MAX(cnt),0) FROM (SELECT COUNT(*) AS cnt FROM pins JOIN admin2_boundaries ON pins.state_province_id=admin2_boundaries.id WHERE creator_id=$1 AND is_deleted=FALSE GROUP BY admin2_boundaries.gid_0) t`, false, false},
-	{12, 3, false, `WITH rk AS (SELECT creator_id, RANK() OVER (PARTITION BY b.gid_2 ORDER BY COUNT(*) DESC) AS r FROM pins JOIN admin2_boundaries b ON pins.state_province_id=b.id WHERE is_deleted=FALSE GROUP BY creator_id,b.gid_2) SELECT COALESCE(MIN(r),0)::int FROM rk WHERE creator_id=$1`, false, false},
-	{13, 3, false, `WITH rk AS (SELECT creator_id, RANK() OVER (PARTITION BY b.gid_1 ORDER BY COUNT(*) DESC) AS r FROM pins JOIN admin2_boundaries b ON pins.state_province_id=b.id WHERE is_deleted=FALSE GROUP BY creator_id,b.gid_1) SELECT COALESCE(MIN(r),0)::int FROM rk WHERE creator_id=$1`, false, false},
-	{14, 3, false, `WITH rk AS (SELECT creator_id, RANK() OVER (PARTITION BY b.gid_0 ORDER BY COUNT(*) DESC) AS r FROM pins JOIN admin2_boundaries b ON pins.state_province_id=b.id WHERE is_deleted=FALSE GROUP BY creator_id,b.gid_0) SELECT COALESCE(MIN(r),0)::int FROM rk WHERE creator_id=$1`, false, false},
-	{15, 3, false, `WITH rk AS (SELECT creator_id, RANK() OVER (ORDER BY COUNT(*) DESC) AS r FROM pins WHERE is_deleted=FALSE GROUP BY creator_id) SELECT COALESCE(MIN(r),0)::int FROM rk WHERE creator_id=$1`, false, false},
+	{
+		ID: 0, Name: "First place", Description: "Add a stick in your first place.",
+		Track: "places", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 1, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT state_province_id)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE AND state_province_id IS NOT NULL`,
+	},
+	{
+		ID: 2, Name: "First crew", Description: "Join your first group.",
+		Track: "groups", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 1, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
+	},
+	{
+		ID: 3, Name: "First stick", Description: "Add your first stick.",
+		Track: "sticks", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 1, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+	},
+	{
+		ID: 4, Name: "Team regular", Description: "Join three groups.",
+		Track: "groups", Difficulty: "medium", RewardXP: 50, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 3, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
+	},
+	{
+		ID: 5, Name: "Supporter", Description: "Give likes to ten sticks from other people.",
+		Track: "likes_given", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+	},
+	{
+		ID: 6, Name: "Getting noticed", Description: "Receive ten likes on your sticks.",
+		Track: "likes_received", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+	},
+	{
+		ID: 7, Name: "Super supporter", Description: "Give likes to fifty sticks from other people.",
+		Track: "likes_given", Difficulty: "medium", RewardXP: 50, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 50, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+	},
+	{
+		ID: 8, Name: "Fan favorite", Description: "Receive likes on fifty of your sticks.",
+		Track: "likes_received", Difficulty: "medium", RewardXP: 50, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 50, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+	},
+	{
+		ID: 9, Name: "Stick collector", Description: "Add ten sticks.",
+		Track: "sticks", Difficulty: "medium", RewardXP: 50, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+	},
+	{
+		ID: 10, Name: "Explorer", Description: "Add sticks in three different places.",
+		Track: "places", Difficulty: "medium", RewardXP: 50, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 3, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT state_province_id)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE AND state_province_id IS NOT NULL`,
+	},
+	{
+		ID: 11, Name: "Wide-ranging explorer", Description: "Add sticks in ten different places.",
+		Track: "places", Difficulty: "hard", RewardXP: 100, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT state_province_id)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE AND state_province_id IS NOT NULL`,
+	},
+	{
+		ID: 12, Name: "Dedicated collector", Description: "Add fifty sticks.",
+		Track: "sticks", Difficulty: "hard", RewardXP: 100, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 50, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+	},
+	{
+		ID: 13, Name: "Community regular", Description: "Join ten groups.",
+		Track: "groups", Difficulty: "hard", RewardXP: 100, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
+	},
+	{
+		ID: 14, Name: "Big supporter", Description: "Give likes to one hundred sticks from other people.",
+		Track: "likes_given", Difficulty: "hard", RewardXP: 100, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 100, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+	},
+	{
+		ID: 15, Name: "Community favorite", Description: "Receive likes on one hundred of your sticks.",
+		Track: "likes_received", Difficulty: "hard", RewardXP: 100, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 100, ThresholdUp: true,
+		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+	},
 }
 
 type AchievementProgress struct {
-	ID           int32
-	CurrentValue int32
-	Threshold    int32
-	ThresholdUp  bool
-	Claimed      bool
+	ID                int32
+	Name              string
+	Description       string
+	Track             string
+	Difficulty        string
+	RewardXP          int32
+	DefinitionVersion int32
+	CurrentValue      int32
+	Threshold         int32
+	ThresholdUp       bool
+	Claimed           bool
+	Claimable         bool
 }
 
-func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, cfg AchievementConfig) ([]AchievementProgress, error) {
+func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, _ AchievementConfig) ([]AchievementProgress, error) {
 	claimed, err := q.ListUserAchievements(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -62,54 +151,85 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, 
 		}
 	}
 
-	out := make([]AchievementProgress, 0, len(achievementDefs))
+	type currentProgress struct {
+		def   AchievementDef
+		value int32
+	}
+	currents := make([]currentProgress, 0, len(achievementDefs))
+	currentByTrack := make(map[string]int32, 5)
+	qualifies := make(map[int32]bool, len(achievementDefs))
 	for _, def := range achievementDefs {
-		cur, err := q.runAchievementQuery(ctx, def, userID, cfg)
-		if err != nil {
-			cur = 0
+		cur, ok := currentByTrack[def.Track]
+		if !ok {
+			value, err := q.runAchievementQuery(ctx, def, userID)
+			if err != nil {
+				return nil, err
+			}
+			cur = int32(value)
+			currentByTrack[def.Track] = cur
 		}
+		qualifies[def.ID] = cur >= def.Threshold
+		currents = append(currents, currentProgress{def: def, value: cur})
+	}
+
+	for _, c := range claimed {
+		if !c.Claimed || qualifies[c.AchievementID] {
+			continue
+		}
+		if err := q.g.ReconcileUserAchievementClaim(ctx, dbgen.ReconcileUserAchievementClaimParams{
+			ID: pgUUID(userID), AchievementID: c.AchievementID,
+		}); err != nil {
+			return nil, err
+		}
+		delete(claimedSet, c.AchievementID)
+	}
+
+	out := make([]AchievementProgress, 0, len(currents))
+	for _, current := range currents {
+		def := current.def
+		claimed := claimedSet[def.ID]
 		out = append(out, AchievementProgress{
-			ID:           def.ID,
-			CurrentValue: int32(cur),
-			Threshold:    def.Threshold,
-			ThresholdUp:  def.ThresholdUp,
-			Claimed:      claimedSet[def.ID],
+			ID:                def.ID,
+			Name:              def.Name,
+			Description:       def.Description,
+			Track:             def.Track,
+			Difficulty:        def.Difficulty,
+			RewardXP:          def.RewardXP,
+			DefinitionVersion: def.DefinitionVersion,
+			CurrentValue:      current.value,
+			Threshold:         def.Threshold,
+			ThresholdUp:       def.ThresholdUp,
+			Claimed:           claimed,
+			Claimable:         !claimed && qualifies[def.ID],
 		})
 	}
 	return out, nil
 }
 
-func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID, cfg AchievementConfig) (bool, error) {
-	for _, def := range achievementDefs {
-		if def.ID != achievementID {
-			continue
-		}
-		cur, err := q.runAchievementQuery(ctx, def, userID, cfg)
-		if err != nil {
-			return false, err
-		}
-		if def.ThresholdUp {
-			return cur >= int(def.Threshold), nil
-		}
-		return cur <= int(def.Threshold) && cur > 0, nil
+func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID, _ AchievementConfig) (bool, error) {
+	def, ok := achievementDefinition(achievementID)
+	if !ok {
+		return false, nil
 	}
-	return false, nil
+	cur, err := q.runAchievementQuery(ctx, def, userID)
+	if err != nil {
+		return false, err
+	}
+	return cur >= int(def.Threshold), nil
 }
 
-func (q *Queries) runAchievementQuery(ctx context.Context, def AchievementDef, userID uuid.UUID, cfg AchievementConfig) (int, error) {
-	var row interface{ Scan(...any) error }
-	uid := pgUUID(userID)
-	if def.needsGroup && def.needsDate {
-		row = q.runner.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID), pgTZ(&cfg.CreatedBefore))
-	} else if def.needsGroup {
-		row = q.runner.QueryRow(ctx, def.sql, uid, pgUUID(cfg.MonaGroupID))
-	} else if def.needsDate {
-		row = q.runner.QueryRow(ctx, def.sql, uid, pgTZ(&cfg.CreatedBefore))
-	} else {
-		row = q.runner.QueryRow(ctx, def.sql, uid)
+func achievementDefinition(achievementID int32) (AchievementDef, bool) {
+	for _, def := range achievementDefs {
+		if def.ID == achievementID {
+			return def, true
+		}
 	}
+	return AchievementDef{}, false
+}
+
+func (q *Queries) runAchievementQuery(ctx context.Context, def AchievementDef, userID uuid.UUID) (int, error) {
 	var n int
-	if err := row.Scan(&n); err != nil {
+	if err := q.runner.QueryRow(ctx, def.sql, pgUUID(userID)).Scan(&n); err != nil {
 		return 0, err
 	}
 	return n, nil

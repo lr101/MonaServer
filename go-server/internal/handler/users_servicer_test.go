@@ -20,10 +20,16 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 	if err != nil {
 		t.Fatalf("signup: %v", err)
 	}
-	if err := q.ClaimUserAchievement(ctx, user.UserID, 4); err != nil {
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "achievement_profile_group", Visibility: 0, GroupAdmin: user.UserID,
+	}); err != nil {
+		t.Fatalf("create group for achievement eligibility: %v", err)
+	}
+	if err := q.ClaimUserAchievement(ctx, user.UserID, 2); err != nil {
 		t.Fatalf("claim achievement: %v", err)
 	}
-	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 4)
+	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 2)
 	if err != nil || rowID == nil {
 		t.Fatalf("get achievement row: id=%v err=%v", rowID, err)
 	}
@@ -51,8 +57,8 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if got.SelectedBatch == nil || *got.SelectedBatch != 4 {
-		t.Fatalf("selectedBatch = %v, want 4", got.SelectedBatch)
+	if got.SelectedBatch == nil || *got.SelectedBatch != 2 {
+		t.Fatalf("selectedBatch = %v, want 2", got.SelectedBatch)
 	}
 	if got.IsMessagingRegistered == nil || !*got.IsMessagingRegistered {
 		t.Fatalf("isMessagingRegistered = %v, want true", got.IsMessagingRegistered)
@@ -77,6 +83,46 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 		t.Fatalf("messaging registration = %v for another user, want false", public.IsMessagingRegistered)
 	}
 
+}
+
+func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	ctx := context.Background()
+	user, err := auth.Signup(ctx, "achievement_catalog_user", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+
+	userCtx := middleware.WithUser(ctx, user.UserID, middleware.RoleUser)
+	resp, err := servicer.GetUserAchievements(userCtx, user.UserID.String())
+	if err != nil {
+		t.Fatalf("get achievements: %v", err)
+	}
+	items, ok := resp.Body.([]genserver.UserAchievementsDtoInner)
+	if !ok {
+		t.Fatalf("response body type = %T", resp.Body)
+	}
+	if len(items) != 15 {
+		t.Fatalf("achievement count = %d, want 15", len(items))
+	}
+	firstStickFound := false
+	for _, item := range items {
+		if item.Name == "First stick" {
+			firstStickFound = true
+			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 2 {
+				t.Fatalf("first-stick metadata = %+v", item)
+			}
+			if item.Claimed || item.Claimable || item.CurrentValue != 0 {
+				t.Fatalf("first-stick initial state = %+v", item)
+			}
+		}
+	}
+	if !firstStickFound {
+		t.Fatal("first-stick milestone missing from response")
+	}
 }
 
 func TestGetUserXpIncludesLevelProgress(t *testing.T) {

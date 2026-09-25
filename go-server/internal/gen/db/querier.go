@@ -269,6 +269,7 @@ type Querier interface {
 	PurgeDeletedAccountData(ctx context.Context, id pgtype.UUID) error
 	PurgeExpiredAdminChallenges(ctx context.Context, arg PurgeExpiredAdminChallengesParams) error
 	PurgeRateLimitBuckets(ctx context.Context, windowEnd pgtype.Timestamptz) error
+	ReconcileUserAchievementClaim(ctx context.Context, arg ReconcileUserAchievementClaimParams) error
 	ReleaseAdminJobItemLease(ctx context.Context, arg ReleaseAdminJobItemLeaseParams) (pgtype.UUID, error)
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)

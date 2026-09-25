@@ -202,11 +202,18 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
 		dtos = append(dtos, genserver.UserAchievementsDtoInner{
-			AchievementId:  a.ID,
-			Claimed:        a.Claimed,
-			CurrentValue:   a.CurrentValue,
-			ThresholdValue: a.Threshold,
-			ThresholdUp:    a.ThresholdUp,
+			AchievementId:     a.ID,
+			Name:              a.Name,
+			Description:       a.Description,
+			Track:             a.Track,
+			Difficulty:        a.Difficulty,
+			RewardXp:          a.RewardXP,
+			Claimable:         a.Claimable,
+			DefinitionVersion: a.DefinitionVersion,
+			Claimed:           a.Claimed,
+			CurrentValue:      a.CurrentValue,
+			ThresholdValue:    a.Threshold,
+			ThresholdUp:       a.ThresholdUp,
 		})
 	}
 	return genserver.Response(http.StatusOK, dtos), nil
