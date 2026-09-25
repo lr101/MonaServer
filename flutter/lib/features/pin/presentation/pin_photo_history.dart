@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/features/camera/presentation/camera.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/custom_image_picker.dart';
 import 'package:flutter/material.dart';
@@ -132,28 +133,38 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: (retryPending || canAdd) && !_isPreparingOrUploading
-                  ? _addPhoto
-                  : null,
-              icon: _isPreparingOrUploading
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      retryPending
-                          ? Icons.refresh_rounded
-                          : Icons.add_a_photo_outlined,
-                    ),
-              label: Text(
-                _isPreparingOrUploading
-                    ? 'Preparing photo…'
-                    : retryPending
-                    ? 'Retry photo update'
-                    : 'Add photo update',
+            if (retryPending)
+              FilledButton.icon(
+                onPressed: _isPreparingOrUploading ? null : _addPhoto,
+                icon: _isPreparingOrUploading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                label: Text(
+                  _isPreparingOrUploading
+                      ? 'Retrying photo update…'
+                      : 'Retry photo update',
+                ),
+              )
+            else ...[
+              FilledButton.icon(
+                onPressed: canAdd && !_isPreparingOrUploading
+                    ? () => _addPhoto(fromCamera: true)
+                    : null,
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Take photo'),
               ),
-            ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: canAdd && !_isPreparingOrUploading
+                    ? _addPhoto
+                    : null,
+                icon: const Icon(Icons.upload_outlined),
+                label: const Text('Upload photo'),
+              ),
+            ],
             const SizedBox(height: 12),
             history.when(
               loading: () => const Center(
@@ -212,7 +223,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     return 'Add a photo to show what this place looks like now.';
   }
 
-  Future<void> _addPhoto() async {
+  Future<void> _addPhoto({bool fromCamera = false}) async {
     final pendingRequest = _uploadRetry.pendingRequest;
     if (_isPreparingOrUploading ||
         (pendingRequest == null &&
@@ -222,7 +233,13 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     setState(() => _isPreparingOrUploading = true);
     try {
       if (pendingRequest == null) {
-        final XFile? picked = await CustomImagePicker.pick(context: context);
+        final XFile? picked = fromCamera
+            ? await Navigator.of(context).push<XFile>(
+                MaterialPageRoute(
+                  builder: (_) => const Camera(pinPhotoMode: true),
+                ),
+              )
+            : await CustomImagePicker.pick(context: context);
         if (!mounted || picked == null) return;
         final Uint8List? imageBytes = await CustomImagePicker.autoCrop(
           res: picked,

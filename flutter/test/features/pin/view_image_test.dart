@@ -76,7 +76,8 @@ void main() {
     expect(find.text('Original pin photo'), findsWidgets);
     await tester.drag(find.byType(ListView), const Offset(0, -550));
     await tester.pumpAndSettle();
-    expect(find.text('Add photo update'), findsOneWidget);
+    expect(find.text('Take photo'), findsOneWidget);
+    expect(find.text('Upload photo'), findsOneWidget);
     expect(find.text('Mark gone'), findsOneWidget);
     expect(find.text('A note on this pin'), findsOneWidget);
   });
