@@ -135,7 +135,7 @@ func TestGroupAchievementVisibilityAndClaimRequireMembership(t *testing.T) {
 	}
 }
 
-func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
+func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
@@ -146,29 +146,29 @@ func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
 	pins := NewPinsServicer(pinSvc, groupSvc, guard, q)
 	ctx := context.Background()
 
-	owner, err := auth.Signup(ctx, "group_achievement_claim_owner", "password123", nil)
+	claimant, err := auth.Signup(ctx, "group_achievement_claim_member", "password123", nil)
 	if err != nil {
-		t.Fatalf("signup owner: %v", err)
+		t.Fatalf("signup claimant: %v", err)
 	}
-	otherMember, err := auth.Signup(ctx, "group_achievement_claim_member", "password123", nil)
+	admin, err := auth.Signup(ctx, "group_achievement_claim_admin", "password123", nil)
 	if err != nil {
-		t.Fatalf("signup other member: %v", err)
+		t.Fatalf("signup admin: %v", err)
 	}
 	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
-		Name: "group_achievement_claim_sync", Visibility: 0, GroupAdmin: owner.UserID,
+		Name: "group_achievement_claim_sync", Visibility: 0, GroupAdmin: admin.UserID,
 	})
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if err := q.AddMember(ctx, group.ID, otherMember.UserID); err != nil {
-		t.Fatalf("add second member: %v", err)
+	if err := q.AddMember(ctx, group.ID, claimant.UserID); err != nil {
+		t.Fatalf("add claimant: %v", err)
 	}
 	createdAt := time.Now()
 	for i := 0; i < 10; i++ {
 		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
 			Latitude: 1 + float64(i)/1000, Longitude: 1 + float64(i)/1000,
 			CreationDate: createdAt,
-			UserID:       owner.UserID, GroupID: group.ID,
+			UserID:       admin.UserID, GroupID: group.ID,
 		}); err != nil {
 			t.Fatalf("create active pin %d: %v", i+1, err)
 		}
@@ -182,8 +182,8 @@ func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
 	if _, err := q.Pool().Exec(ctx, `UPDATE pins SET update_date = $2 WHERE group_id = $1`, group.ID, oldPinUpdate); err != nil {
 		t.Fatalf("set pin sync cursor: %v", err)
 	}
-	ownerCtx := middleware.WithUser(ctx, owner.UserID, middleware.RoleUser)
-	claim, err := groups.ClaimGroupAchievement(ownerCtx, group.ID.String(), 1)
+	claimantCtx := middleware.WithUser(ctx, claimant.UserID, middleware.RoleUser)
+	claim, err := groups.ClaimGroupAchievement(claimantCtx, group.ID.String(), 1)
 	if err != nil {
 		t.Fatalf("claim group achievement: %v", err)
 	}
@@ -191,10 +191,10 @@ func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
 		t.Fatalf("claim status = %d, want %d", claim.Code, http.StatusOK)
 	}
 
-	memberCtx := middleware.WithUser(ctx, otherMember.UserID, middleware.RoleUser)
-	sync, err := pins.Sync(memberCtx, oldUpdate)
+	adminCtx := middleware.WithUser(ctx, admin.UserID, middleware.RoleUser)
+	sync, err := pins.Sync(adminCtx, oldUpdate)
 	if err != nil {
-		t.Fatalf("sync for second member: %v", err)
+		t.Fatalf("sync for group admin: %v", err)
 	}
 	if sync.Code != http.StatusOK {
 		t.Fatalf("sync status = %d, want %d", sync.Code, http.StatusOK)
@@ -209,7 +209,7 @@ func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
 			syncedGroup = &syncDTO.GroupUpdates[i].Group
 			if len(syncDTO.GroupUpdates[i].PinsAdded) != 0 {
 				t.Fatalf(
-					"second member sync returned %d pins, want metadata-only update",
+					"admin sync returned %d pins, want metadata-only update",
 					len(syncDTO.GroupUpdates[i].PinsAdded),
 				)
 			}
@@ -217,19 +217,19 @@ func TestGroupAchievementClaimIsVisibleToOtherMemberAfterSync(t *testing.T) {
 		}
 	}
 	if syncedGroup == nil || !syncedGroup.LastUpdated.After(oldUpdate) {
-		t.Fatalf("second member sync group update = %+v, want claim revision after %s", syncedGroup, oldUpdate)
+		t.Fatalf("admin sync group update = %+v, want claim revision after %s", syncedGroup, oldUpdate)
 	}
 
-	progress, err := groups.GetGroupAchievements(memberCtx, group.ID.String())
+	progress, err := groups.GetGroupAchievements(adminCtx, group.ID.String())
 	if err != nil {
-		t.Fatalf("get achievements for second member: %v", err)
+		t.Fatalf("get achievements for admin: %v", err)
 	}
 	items, ok := progress.Body.([]genserver.GroupAchievementsDtoInner)
 	if !ok || len(items) != 3 {
-		t.Fatalf("second member achievement body = %#v, want three rewards", progress.Body)
+		t.Fatalf("admin achievement body = %#v, want three rewards", progress.Body)
 	}
 	if !items[0].Claimed || items[0].RewardPinStyle != "moss" {
-		t.Fatalf("second member achievement = %+v, want claimed moss reward", items[0])
+		t.Fatalf("admin achievement = %+v, want claimant's moss reward", items[0])
 	}
 }
 
