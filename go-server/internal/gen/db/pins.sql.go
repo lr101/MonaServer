@@ -44,6 +44,43 @@ func (q *Queries) CreatePin(ctx context.Context, arg CreatePinParams) error {
 	return err
 }
 
+const createPinPhoto = `-- name: CreatePinPhoto :exec
+INSERT INTO pin_photos (
+    id, pin_id, contributor_id, contributor_username, image_key,
+    idempotency_key, request_hash, caption, observed_at, is_original
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+`
+
+type CreatePinPhotoParams struct {
+	ID                  pgtype.UUID        `json:"id"`
+	PinID               pgtype.UUID        `json:"pin_id"`
+	ContributorID       pgtype.UUID        `json:"contributor_id"`
+	ContributorUsername string             `json:"contributor_username"`
+	ImageKey            string             `json:"image_key"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	RequestHash         []byte             `json:"request_hash"`
+	Caption             pgtype.Text        `json:"caption"`
+	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
+	IsOriginal          bool               `json:"is_original"`
+}
+
+func (q *Queries) CreatePinPhoto(ctx context.Context, arg CreatePinPhotoParams) error {
+	_, err := q.db.Exec(ctx, createPinPhoto,
+		arg.ID,
+		arg.PinID,
+		arg.ContributorID,
+		arg.ContributorUsername,
+		arg.ImageKey,
+		arg.IdempotencyKey,
+		arg.RequestHash,
+		arg.Caption,
+		arg.ObservedAt,
+		arg.IsOriginal,
+	)
+	return err
+}
+
 const findBoundaryForPoint = `-- name: FindBoundaryForPoint :one
 SELECT id
 FROM admin2_boundaries
@@ -147,6 +184,49 @@ func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow
 	return i, err
 }
 
+const getPinPhotoByIdempotencyKey = `-- name: GetPinPhotoByIdempotencyKey :one
+SELECT id, pin_id, contributor_id, contributor_username, image_key,
+       idempotency_key, request_hash, caption, observed_at, is_original
+FROM pin_photos
+WHERE contributor_id = $1 AND idempotency_key = $2
+`
+
+type GetPinPhotoByIdempotencyKeyParams struct {
+	ContributorID  pgtype.UUID `json:"contributor_id"`
+	IdempotencyKey pgtype.UUID `json:"idempotency_key"`
+}
+
+type GetPinPhotoByIdempotencyKeyRow struct {
+	ID                  pgtype.UUID        `json:"id"`
+	PinID               pgtype.UUID        `json:"pin_id"`
+	ContributorID       pgtype.UUID        `json:"contributor_id"`
+	ContributorUsername string             `json:"contributor_username"`
+	ImageKey            string             `json:"image_key"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	RequestHash         []byte             `json:"request_hash"`
+	Caption             pgtype.Text        `json:"caption"`
+	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
+	IsOriginal          bool               `json:"is_original"`
+}
+
+func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPhotoByIdempotencyKeyParams) (GetPinPhotoByIdempotencyKeyRow, error) {
+	row := q.db.QueryRow(ctx, getPinPhotoByIdempotencyKey, arg.ContributorID, arg.IdempotencyKey)
+	var i GetPinPhotoByIdempotencyKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.PinID,
+		&i.ContributorID,
+		&i.ContributorUsername,
+		&i.ImageKey,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Caption,
+		&i.ObservedAt,
+		&i.IsOriginal,
+	)
+	return i, err
+}
+
 const hardDeletePin = `-- name: HardDeletePin :exec
 DELETE FROM pins WHERE id = $1
 `
@@ -199,6 +279,82 @@ func (q *Queries) ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]p
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPinPhotoKeys = `-- name: ListPinPhotoKeys :many
+SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key
+`
+
+func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listPinPhotoKeys, pinID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var image_key string
+		if err := rows.Scan(&image_key); err != nil {
+			return nil, err
+		}
+		items = append(items, image_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPinPhotos = `-- name: ListPinPhotos :many
+SELECT id, pin_id, contributor_id, contributor_username, image_key,
+       idempotency_key, request_hash, caption, observed_at, is_original
+FROM pin_photos
+WHERE pin_id = $1
+ORDER BY is_original DESC, observed_at ASC, id ASC
+`
+
+type ListPinPhotosRow struct {
+	ID                  pgtype.UUID        `json:"id"`
+	PinID               pgtype.UUID        `json:"pin_id"`
+	ContributorID       pgtype.UUID        `json:"contributor_id"`
+	ContributorUsername string             `json:"contributor_username"`
+	ImageKey            string             `json:"image_key"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	RequestHash         []byte             `json:"request_hash"`
+	Caption             pgtype.Text        `json:"caption"`
+	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
+	IsOriginal          bool               `json:"is_original"`
+}
+
+func (q *Queries) ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListPinPhotosRow, error) {
+	rows, err := q.db.Query(ctx, listPinPhotos, pinID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPinPhotosRow
+	for rows.Next() {
+		var i ListPinPhotosRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PinID,
+			&i.ContributorID,
+			&i.ContributorUsername,
+			&i.ImageKey,
+			&i.IdempotencyKey,
+			&i.RequestHash,
+			&i.Caption,
+			&i.ObservedAt,
+			&i.IsOriginal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -454,4 +610,17 @@ UPDATE pins SET is_deleted = TRUE, update_date = NOW() WHERE id = $1
 func (q *Queries) SoftDeletePin(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, softDeletePin, id)
 	return err
+}
+
+const touchPinForPhoto = `-- name: TouchPinForPhoto :execrows
+UPDATE pins SET update_date = NOW()
+WHERE id = $1 AND is_deleted = FALSE
+`
+
+func (q *Queries) TouchPinForPhoto(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, touchPinForPhoto, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

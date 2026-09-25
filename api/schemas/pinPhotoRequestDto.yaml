@@ -1,0 +1,33 @@
+type: object
+required:
+  - image
+  - idempotencyKey
+  - latitude
+  - longitude
+  - accuracyMeters
+properties:
+  image:
+    type: string
+    minLength: 1
+    description: Base64-encoded JPEG or PNG image.
+  idempotencyKey:
+    type: string
+    format: uuid
+    description: Unique request ID reused when retrying this upload.
+  latitude:
+    type: number
+    minimum: -90
+    maximum: 90
+  longitude:
+    type: number
+    minimum: -180
+    maximum: 180
+  accuracyMeters:
+    type: number
+    minimum: 0
+    maximum: 50
+    description: Reported horizontal location accuracy; updates require 50 m or better.
+  caption:
+    type: string
+    maxLength: 280
+    nullable: true

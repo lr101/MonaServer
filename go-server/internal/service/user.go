@@ -106,6 +106,7 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	var groupIDs, pinIDs []uuid.UUID
+	pinPhotoKeys := make(map[uuid.UUID][]string)
 	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
 		state, err := q.LockUserSecurity(ctx, id)
 		if err != nil {
@@ -136,6 +137,11 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 			return err
 		}
 		for _, pinID := range pinIDs {
+			keys, err := q.ListPinPhotoKeys(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			pinPhotoKeys[pinID] = keys
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
@@ -156,6 +162,11 @@ func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	if s.obj != nil {
 		for _, pinID := range pinIDs {
 			_ = s.obj.Remove(ctx, PinKey(pinID))
+			for _, key := range pinPhotoKeys[pinID] {
+				if key != PinKey(pinID) {
+					_ = s.obj.Remove(ctx, key)
+				}
+			}
 		}
 		for _, groupID := range groupIDs {
 			_ = s.obj.Remove(ctx, GroupPinKey(groupID))

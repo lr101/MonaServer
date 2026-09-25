@@ -350,6 +350,20 @@ type Pin struct {
 	IsGone          bool               `json:"is_gone"`
 }
 
+type PinPhoto struct {
+	ID                  pgtype.UUID        `json:"id"`
+	PinID               pgtype.UUID        `json:"pin_id"`
+	ContributorID       pgtype.UUID        `json:"contributor_id"`
+	ContributorUsername string             `json:"contributor_username"`
+	ImageKey            string             `json:"image_key"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	RequestHash         []byte             `json:"request_hash"`
+	Caption             pgtype.Text        `json:"caption"`
+	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	IsOriginal          bool               `json:"is_original"`
+}
+
 type RateLimitBucket struct {
 	Scope          string             `json:"scope"`
 	IdentifierHmac []byte             `json:"identifier_hmac"`

@@ -123,12 +123,14 @@ Class | Method | HTTP request | Description
 *MembersApi* | [**deleteMemberFromGroup**](doc//MembersApi.md#deletememberfromgroup) | **DELETE** /api/v2/groups/{groupId}/members | leave group or delete group when the user is the last group member
 *MembersApi* | [**getGroupMembers**](doc//MembersApi.md#getgroupmembers) | **GET** /api/v2/groups/{groupId}/members | Get members of a group by ID
 *MembersApi* | [**joinGroup**](doc//MembersApi.md#joingroup) | **POST** /api/v2/groups/{groupId}/members | Add a member to a group by ID
+*PinsApi* | [**addPinPhoto**](doc//PinsApi.md#addpinphoto) | **POST** /api/v2/pins/{pinId}/photos | Add a photo update to an existing pin
 *PinsApi* | [**callSync**](doc//PinsApi.md#callsync) | **GET** /api/v3/sync | Sync all pins and groups based on last seen date
 *PinsApi* | [**createPin**](doc//PinsApi.md#createpin) | **POST** /api/v2/pins | Create a new pin
 *PinsApi* | [**deletePin**](doc//PinsApi.md#deletepin) | **DELETE** /api/v2/pins/{pinId} | Delete a pin by ID
 *PinsApi* | [**getPin**](doc//PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 *PinsApi* | [**getPinImage**](doc//PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 *PinsApi* | [**getPinImagesByIds**](doc//PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
+*PinsApi* | [**getPinPhotos**](doc//PinsApi.md#getpinphotos) | **GET** /api/v2/pins/{pinId}/photos | Get the photo history for a pin
 *PinsApi* | [**setPinPresence**](doc//PinsApi.md#setpinpresence) | **POST** /api/v2/pins/{pinId}/presence | Set whether the pin is still present
 *PublicApi* | [**getServerInfo**](doc//PublicApi.md#getserverinfo) | **GET** /api/v2/public/infos | Get public server statistics
 *PublicAuthApi* | [**completeRecovery**](doc//PublicAuthApi.md#completerecovery) | **POST** /api/v3/public/auth/recovery/complete | Complete restricted account recovery
@@ -233,6 +235,8 @@ Class | Method | HTTP request | Description
  - [MemberResponseDto](doc//MemberResponseDto.md)
  - [NotificationDto](doc//NotificationDto.md)
  - [PinLikeDto](doc//PinLikeDto.md)
+ - [PinPhotoDto](doc//PinPhotoDto.md)
+ - [PinPhotoRequestDto](doc//PinPhotoRequestDto.md)
  - [PinPresenceRequestDto](doc//PinPresenceRequestDto.md)
  - [PinRequestDto](doc//PinRequestDto.md)
  - [PinWithOptionalImageDto](doc//PinWithOptionalImageDto.md)

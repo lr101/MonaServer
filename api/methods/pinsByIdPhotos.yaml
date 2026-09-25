@@ -1,0 +1,62 @@
+get:
+  operationId: getPinPhotos
+  security:
+    - token: []
+  summary: Get the photo history for a pin
+  tags:
+    - pins
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Original pin photo and later photo updates
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '../schemas/pinPhotoDto.yaml'
+    '403':
+      description: Pin is not visible to the current user
+    '404':
+      description: Pin does not exist
+post:
+  operationId: addPinPhoto
+  security:
+    - token: []
+  summary: Add a photo update to an existing pin
+  tags:
+    - pins
+  parameters:
+    - name: pinId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/pinPhotoRequestDto.yaml'
+  responses:
+    '201':
+      description: Photo update added to the pin
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/pinPhotoDto.yaml'
+    '400':
+      description: Invalid image, caption, or location
+    '403':
+      description: Pin is not visible or photo update is not nearby
+    '404':
+      description: Pin does not exist
+    '422':
+      description: A required request field is missing
+    '503':
+      description: Image storage is unavailable

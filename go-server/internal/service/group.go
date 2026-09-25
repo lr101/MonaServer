@@ -305,8 +305,14 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	pinPhotoKeys := make(map[uuid.UUID][]string, len(pinIDs))
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
 		for _, pinID := range pinIDs {
+			keys, err := q.ListPinPhotoKeys(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			pinPhotoKeys[pinID] = keys
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
@@ -321,6 +327,11 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	if s.obj != nil {
 		for _, pinID := range pinIDs {
 			_ = s.obj.Remove(ctx, PinKey(pinID))
+			for _, key := range pinPhotoKeys[pinID] {
+				if key != PinKey(pinID) {
+					_ = s.obj.Remove(ctx, key)
+				}
+			}
 		}
 		_ = s.obj.Remove(ctx, GroupPinKey(id))
 		_ = s.obj.Remove(ctx, GroupProfileKey(id, false))

@@ -70,6 +70,13 @@ func pgUUIDPtr(id *uuid.UUID) pgtype.UUID {
 	return pgUUID(*id)
 }
 func goUUID(p pgtype.UUID) uuid.UUID { return uuid.UUID(p.Bytes) }
+func goUUIDPtr(p pgtype.UUID) *uuid.UUID {
+	if !p.Valid {
+		return nil
+	}
+	id := goUUID(p)
+	return &id
+}
 func pgText(s *string) pgtype.Text {
 	if s == nil {
 		return pgtype.Text{}
@@ -946,6 +953,92 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		StateProvinceID: sp,
 	})
 	return p.ID, err
+}
+
+type PinPhoto struct {
+	ID                  uuid.UUID
+	PinID               uuid.UUID
+	ContributorID       *uuid.UUID
+	ContributorUsername string
+	ImageKey            string
+	IdempotencyKey      *uuid.UUID
+	RequestHash         []byte
+	Caption             *string
+	ObservedAt          time.Time
+	IsOriginal          bool
+}
+
+func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
+	return q.g.CreatePinPhoto(ctx, dbgen.CreatePinPhotoParams{
+		ID: pgUUID(photo.ID), PinID: pgUUID(photo.PinID),
+		ContributorID: pgUUIDPtr(photo.ContributorID),
+		ContributorUsername: photo.ContributorUsername,
+		ImageKey: photo.ImageKey, IdempotencyKey: pgUUIDPtr(photo.IdempotencyKey),
+		RequestHash: photo.RequestHash,
+		Caption: pgText(photo.Caption),
+		ObservedAt: pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+	})
+}
+
+func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhoto, error) {
+	rows, err := q.g.ListPinPhotos(ctx, pgUUID(pinID))
+	if err != nil {
+		return nil, err
+	}
+	photos := make([]PinPhoto, 0, len(rows))
+	for _, row := range rows {
+		var contributorID *uuid.UUID
+		if row.ContributorID.Valid {
+			id := goUUID(row.ContributorID)
+			contributorID = &id
+		}
+		photos = append(photos, PinPhoto{
+			ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+			ContributorID: contributorID,
+			ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+			RequestHash: row.RequestHash,
+			Caption: goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+			IsOriginal: row.IsOriginal,
+		})
+	}
+	return photos, nil
+}
+
+func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID, key uuid.UUID) (*PinPhoto, error) {
+	row, err := q.g.GetPinPhotoByIdempotencyKey(ctx, dbgen.GetPinPhotoByIdempotencyKeyParams{
+		ContributorID: pgUUID(contributorID), IdempotencyKey: pgUUID(key),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var photoContributorID *uuid.UUID
+	if row.ContributorID.Valid {
+		id := goUUID(row.ContributorID)
+		photoContributorID = &id
+	}
+	photo := PinPhoto{
+		ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+		ContributorID: photoContributorID,
+		ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+		RequestHash: row.RequestHash,
+		Caption: goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+		IsOriginal: row.IsOriginal,
+	}
+	return &photo, nil
+}
+
+func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
+	return q.g.ListPinPhotoKeys(ctx, pgUUID(pinID))
+}
+
+func (q *Queries) TouchPinForPhoto(ctx context.Context, pinID uuid.UUID) (bool, error) {
+	rows, err := q.g.TouchPinForPhoto(ctx, pgUUID(pinID))
+	return rows > 0, err
 }
 
 func (q *Queries) GetPinByID(ctx context.Context, id uuid.UUID) (*Pin, error) {

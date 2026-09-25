@@ -16,6 +16,63 @@ class PinsApi {
 
   final ApiClient apiClient;
 
+  /// Add a photo update to an existing pin
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] pinId (required):
+  ///
+  /// * [PinPhotoRequestDto] pinPhotoRequestDto (required):
+  Future<Response> addPinPhotoWithHttpInfo(String pinId, PinPhotoRequestDto pinPhotoRequestDto,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v2/pins/{pinId}/photos'
+      .replaceAll('{pinId}', pinId);
+
+    // ignore: prefer_final_locals
+    Object? postBody = pinPhotoRequestDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Add a photo update to an existing pin
+  ///
+  /// Parameters:
+  ///
+  /// * [String] pinId (required):
+  ///
+  /// * [PinPhotoRequestDto] pinPhotoRequestDto (required):
+  Future<PinPhotoDto?> addPinPhoto(String pinId, PinPhotoRequestDto pinPhotoRequestDto,) async {
+    final response = await addPinPhotoWithHttpInfo(pinId, pinPhotoRequestDto,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinPhotoDto',) as PinPhotoDto;
+
+    }
+    return null;
+  }
+
   /// Sync all pins and groups based on last seen date
   ///
   /// Note: This method returns the HTTP [Response].
@@ -440,6 +497,62 @@ class PinsApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinsSyncDto',) as PinsSyncDto;
+
+    }
+    return null;
+  }
+
+  /// Get the photo history for a pin
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] pinId (required):
+  Future<Response> getPinPhotosWithHttpInfo(String pinId,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v2/pins/{pinId}/photos'
+      .replaceAll('{pinId}', pinId);
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Get the photo history for a pin
+  ///
+  /// Parameters:
+  ///
+  /// * [String] pinId (required):
+  Future<List<PinPhotoDto>?> getPinPhotos(String pinId,) async {
+    final response = await getPinPhotosWithHttpInfo(pinId,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      final responseBody = await _decodeBodyBytes(response);
+      return (await apiClient.deserializeAsync(responseBody, 'List<PinPhotoDto>') as List)
+        .cast<PinPhotoDto>()
+        .toList(growable: false);
 
     }
     return null;

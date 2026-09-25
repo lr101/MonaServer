@@ -187,6 +187,11 @@ func isNotFound(err error) bool {
 // PinKey returns pins/{id}.png.
 func PinKey(id uuid.UUID) string { return fmt.Sprintf("pins/%s.png", id) }
 
+// PinPhotoKey returns an immutable key for a later pin photo update.
+func PinPhotoKey(pinID, photoID uuid.UUID) string {
+	return fmt.Sprintf("pins/%s/photos/%s.jpg", pinID, photoID)
+}
+
 // GroupPinKey returns groups/{id}/group_pin.png.
 func GroupPinKey(id uuid.UUID) string { return fmt.Sprintf("groups/%s/group_pin.png", id) }
 
