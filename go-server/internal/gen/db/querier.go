@@ -157,6 +157,7 @@ type Querier interface {
 	GetGeoJson(ctx context.Context, arg GetGeoJsonParams) ([]interface{}, error)
 	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
+	GetGroupAvatarProgressionsByIDs(ctx context.Context, arg GetGroupAvatarProgressionsByIDsParams) ([]GetGroupAvatarProgressionsByIDsRow, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
 	// Group achievements count active pins that belong to the group.
 	GetGroupPinCount(ctx context.Context, groupID pgtype.UUID) (int32, error)
@@ -186,6 +187,7 @@ type Querier interface {
 	GetUserRanking(ctx context.Context, arg GetUserRankingParams) ([]GetUserRankingRow, error)
 	// User security state --------------------------------------------------------
 	GetUserSecurityState(ctx context.Context, id pgtype.UUID) (GetUserSecurityStateRow, error)
+	GetUserXPByIDs(ctx context.Context, ids []pgtype.UUID) ([]GetUserXPByIDsRow, error)
 	GetUsernameByID(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GroupExistsByName(ctx context.Context, name pgtype.Text) (bool, error)
 	HardDeleteGroup(ctx context.Context, id pgtype.UUID) error

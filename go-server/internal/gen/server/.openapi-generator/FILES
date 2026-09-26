@@ -107,6 +107,7 @@ model_pin_photo_dto.go
 model_pin_presence_request_dto.go
 model_pin_with_optional_image_dto.go
 model_pins_sync_dto.go
+model_profile_progression_dto.go
 model_push_action_dto.go
 model_ranking_search_dto_inner.go
 model_recovery_complete_request_dto.go

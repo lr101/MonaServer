@@ -6887,6 +6887,8 @@ components:
           - groupPinImage
           - user
           - pinLikes
+          - userProgression
+          - groupProgression
           type: string
         id:
           format: uuid
@@ -6911,12 +6913,14 @@ components:
         results:
         - kind: pinImage
           imageUrl: imageUrl
+          progression: ""
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           user: ""
           status: 0
           likes: ""
         - kind: pinImage
           imageUrl: imageUrl
+          progression: ""
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           user: ""
           status: 0
@@ -6933,6 +6937,7 @@ components:
       example:
         kind: pinImage
         imageUrl: imageUrl
+        progression: ""
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         user: ""
         status: 0
@@ -6948,6 +6953,8 @@ components:
           - groupPinImage
           - user
           - pinLikes
+          - userProgression
+          - groupProgression
           type: string
         id:
           format: uuid
@@ -6964,6 +6971,10 @@ components:
         likes:
           allOf:
           - $ref: "#/components/schemas/pinLikeDto"
+          nullable: true
+        progression:
+          allOf:
+          - $ref: "#/components/schemas/profileProgressionDto"
           nullable: true
       required:
       - id
@@ -7874,6 +7885,23 @@ components:
       - groupId
       - nextLevelXp
       - totalXp
+      type: object
+    profileProgressionDto:
+      properties:
+        level:
+          format: int32
+          minimum: 1
+          type: integer
+        fraction:
+          description: "Fraction of XP progress through the current level, from 0\
+            \ to 1."
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+      - fraction
+      - level
       type: object
     groupAchievementsDto:
       items:

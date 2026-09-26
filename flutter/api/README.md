@@ -252,6 +252,7 @@ Class | Method | HTTP request | Description
  - [PinRequestDto](doc//PinRequestDto.md)
  - [PinWithOptionalImageDto](doc//PinWithOptionalImageDto.md)
  - [PinsSyncDto](doc//PinsSyncDto.md)
+ - [ProfileProgressionDto](doc//ProfileProgressionDto.md)
  - [PushActionDto](doc//PushActionDto.md)
  - [RankingSearchDtoInner](doc//RankingSearchDtoInner.md)
  - [RecoveryCompleteRequestDto](doc//RecoveryCompleteRequestDto.md)

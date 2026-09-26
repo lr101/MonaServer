@@ -212,6 +212,7 @@ Widget _userXpAvatarPanel({
 }) {
   return ProviderScope(
     overrides: [
+      userIdProvider.overrideWithValue('user-1'),
       userXpProvider('user-1').overrideWith((ref) => loadProgression()),
       defaultErrorImageProvider.overrideWithValue(_avatarBytes),
     ],

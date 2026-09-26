@@ -25,6 +25,19 @@ WHERE id = $1 AND is_deleted = FALSE;
 -- name: GetGroupXP :one
 SELECT group_xp FROM groups WHERE id = $1 AND is_deleted = FALSE;
 
+-- name: GetGroupAvatarProgressionsByIDs :many
+SELECT g.id, g.group_xp, g.visibility,
+       EXISTS (
+           SELECT 1
+           FROM members m
+           WHERE m.group_id = g.id
+             AND m.user_id = sqlc.arg('viewer_id')
+             AND m.is_deleted = FALSE
+       ) AS is_member
+FROM groups g
+WHERE g.is_deleted = FALSE
+  AND g.id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: LockGroupForDelete :one
 SELECT id FROM groups WHERE id = $1 FOR UPDATE;
 

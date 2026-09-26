@@ -11,6 +11,19 @@ var levelThresholds = [...]int32{
 	3250, 4750, 7000, 10000, 14000,
 }
 
+type AvatarLevelProgression struct {
+	Level    int32
+	Fraction float64
+}
+
+func AvatarProgressionForXP(total int64) AvatarLevelProgression {
+	progress := ProgressForXP(total)
+	return AvatarLevelProgression{
+		Level:    progress.Level,
+		Fraction: levelFraction(total, progress.CurrentLevel, progress.NextLevel),
+	}
+}
+
 func ProgressForXP(total int64) XPProgress {
 	levelIndex := 0
 	for i := 1; i < len(levelThresholds); i++ {
@@ -61,4 +74,26 @@ func ProgressForGroupXP(total int64) GroupLevelProgress {
 		CurrentLevel: groupLevelThresholds[levelIndex],
 		NextLevel:    groupLevelThresholds[nextIndex],
 	}
+}
+
+func AvatarProgressionForGroupXP(total int64) AvatarLevelProgression {
+	progress := ProgressForGroupXP(total)
+	return AvatarLevelProgression{
+		Level:    progress.Level,
+		Fraction: levelFraction(total, progress.CurrentLevel, progress.NextLevel),
+	}
+}
+
+func levelFraction(total int64, current, next int32) float64 {
+	if next <= current {
+		return 1
+	}
+	fraction := float64(total-int64(current)) / float64(next-current)
+	if fraction < 0 {
+		return 0
+	}
+	if fraction > 1 {
+		return 1
+	}
+	return fraction
 }

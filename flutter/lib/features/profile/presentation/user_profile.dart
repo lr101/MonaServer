@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -5,8 +6,7 @@ import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
-import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
+import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
@@ -16,11 +16,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:openapi/api.dart';
 
-class UserProfile extends ConsumerWidget {
-  const UserProfile({super.key});
+class UserProfile extends ConsumerStatefulWidget {
+  const UserProfile({
+    super.key,
+    this.initialTabIndex = 0,
+    this.hasBackButton = false,
+  });
+
+  final int initialTabIndex;
+  final bool hasBackButton;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UserProfile> createState() => _UserProfileState();
+}
+
+class _UserProfileState extends ConsumerState<UserProfile>
+    with TickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: 2,
+      initialIndex: widget.initialTabIndex,
+      vsync: this,
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final userId = ref.watch(userIdProvider);
     final userPins = ref.watch(pinUserServiceProvider(userId));
     final currentUser = ref.watch(currentUserProvider);
@@ -31,18 +62,25 @@ class UserProfile extends ConsumerWidget {
       avatar: profileImage,
       title: _buildTitle(currentUser),
       actions: _buildActions(context),
-      hasBackButton: false,
+      hasBackButton: widget.hasBackButton,
       profileQuickViewBoxes: _buildQuickStats(userPins, ref),
-      boxes: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: UserXpProfilePanel(userId: userId),
-          ),
-        ),
-        ..._buildDetailList(currentUser, likes),
-      ],
-      body: ImageGrid(pinProvider: pinUserServiceProvider(userId)),
+      bottom: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        dividerColor: Colors.transparent,
+        tabs: const [
+          Tab(icon: Icon(Icons.image_outlined), text: 'Pins'),
+          Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Achievements'),
+        ],
+      ),
+      boxes: _buildDetailList(currentUser, likes),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          ImageGrid(pinProvider: pinUserServiceProvider(userId)),
+          const UserAchievementsTab(),
+        ],
+      ),
     );
   }
 
@@ -64,7 +102,7 @@ class UserProfile extends ConsumerWidget {
               batchId: currentUser.value!.selectedBatch!,
               fontSize: 10,
             ),
-            onTap: () => navigatorKey.currentContext?.pushNamed("achievements"),
+            onTap: () => _tabController.animateTo(1),
           ),
       ],
     );
@@ -73,10 +111,6 @@ class UserProfile extends ConsumerWidget {
   List<Widget> _buildActions(BuildContext context) {
     return [
       IconButton(
-        onPressed: () => context.pushNamed("achievements"),
-        icon: const Icon(Icons.emoji_events),
-      ),
-      IconButton(
         tooltip: "Settings",
         onPressed: () => context.pushNamed("settings"),
         icon: const Icon(Icons.settings),
@@ -84,7 +118,7 @@ class UserProfile extends ConsumerWidget {
     ];
   }
 
-  Widget _buildQuickStats(AsyncValue<dynamic> userPins, WidgetRef ref) {
+  Widget _buildQuickStats(AsyncValue<List<PinEntity>> userPins, WidgetRef ref) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [

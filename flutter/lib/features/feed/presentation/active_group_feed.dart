@@ -46,7 +46,7 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed> with Automati
             toolbarHeight: 60, 
             flexibleSpace: Padding(
               padding: EdgeInsets.all(4),
-              child: TopStatusBar(showProfileProgression: false),
+              child: TopStatusBar(),
             ),
           ),
 
