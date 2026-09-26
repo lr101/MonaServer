@@ -18,6 +18,11 @@ void main() {
   testWidgets('pin page shows one picture without a feed map overlay', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final pin = PinEntity(
       pinId: 'pin',
       latitude: 50,
@@ -75,11 +80,13 @@ void main() {
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
     );
     expect(find.text('Original pin photo'), findsWidgets);
-    await tester.drag(find.byType(ListView), const Offset(0, -550));
-    await tester.pumpAndSettle();
     expect(find.text('Take photo'), findsOneWidget);
     expect(find.text('Upload'), findsOneWidget);
     expect(find.text('Mark gone'), findsOneWidget);
     expect(find.text('A note on this pin'), findsOneWidget);
+    expect(
+      tester.getBottomRight(find.text('Upload')).dy,
+      lessThanOrEqualTo(tester.view.physicalSize.height),
+    );
   });
 }
