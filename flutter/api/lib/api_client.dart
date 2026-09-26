@@ -364,6 +364,8 @@ class ApiClient {
           return PinWithOptionalImageDto.fromJson(value);
         case 'PinsSyncDto':
           return PinsSyncDto.fromJson(value);
+        case 'ProfileProgressionDto':
+          return ProfileProgressionDto.fromJson(value);
         case 'PushActionDto':
           return PushActionDto.fromJson(value);
         case 'RankingSearchDtoInner':

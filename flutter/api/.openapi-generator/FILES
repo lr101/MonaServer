@@ -109,6 +109,7 @@ doc/PinRequestDto.md
 doc/PinWithOptionalImageDto.md
 doc/PinsApi.md
 doc/PinsSyncDto.md
+doc/ProfileProgressionDto.md
 doc/PublicApi.md
 doc/PublicAuthApi.md
 doc/PushActionDto.md
