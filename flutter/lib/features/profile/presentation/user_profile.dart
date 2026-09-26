@@ -66,11 +66,20 @@ class _UserProfileState extends ConsumerState<UserProfile>
       profileQuickViewBoxes: _buildQuickStats(userPins, ref),
       bottom: TabBar(
         controller: _tabController,
-        isScrollable: true,
+        isScrollable: false,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         dividerColor: Colors.transparent,
         tabs: const [
-          Tab(icon: Icon(Icons.image_outlined), text: 'Pins'),
-          Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Achievements'),
+          Tab(
+            icon: Icon(Icons.image_outlined),
+            text: 'Pins',
+            iconMargin: EdgeInsets.zero,
+          ),
+          Tab(
+            icon: Icon(Icons.emoji_events_outlined),
+            text: 'Achievements',
+            iconMargin: EdgeInsets.zero,
+          ),
         ],
       ),
       boxes: _buildDetailList(currentUser, likes),
