@@ -322,6 +322,8 @@ class ApiClient {
           return EmailLinkRequestAcceptedDto.fromJson(value);
         case 'EmailLinkRequestDto':
           return EmailLinkRequestDto.fromJson(value);
+        case 'EmailLoginCodeExchangeRequestDto':
+          return EmailLoginCodeExchangeRequestDto.fromJson(value);
         case 'FilterAudience':
           return FilterAudience.fromJson(value);
         case 'GroupAchievementsDtoInner':
@@ -374,6 +376,8 @@ class ApiClient {
           return PinWithOptionalImageDto.fromJson(value);
         case 'PinsSyncDto':
           return PinsSyncDto.fromJson(value);
+        case 'ProfileProgressionDto':
+          return ProfileProgressionDto.fromJson(value);
         case 'PushActionDto':
           return PushActionDto.fromJson(value);
         case 'RankingSearchDtoInner':

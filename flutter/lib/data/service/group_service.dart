@@ -10,6 +10,8 @@ import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,6 +72,9 @@ class GroupMetadataLoader {
 
   Future<GroupEntity?> load(String groupId) {
     if (!session.isActive) return Future.value();
+    preloadGroupProfileProgressions([
+      groupId,
+    ], (id) => ref.read(groupAvatarProgressionProvider(id).future));
     final activeLoad = _activeLoads[groupId];
     if (activeLoad != null) return activeLoad;
 
@@ -343,6 +348,7 @@ class UserGroupService extends _$UserGroupService {
         );
         await groupRepository.put(entity);
         ref.invalidate(userXpProvider(_userId));
+        ref.invalidate(userAvatarProgressionProvider(_userId));
         return null;
       } else {
         return "Failed to create group remotely unexpectedly";

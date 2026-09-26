@@ -80,7 +80,10 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	cfg := &config.Config{WebAdminAPI: true}
 	tok := token.NewHelper("consumer-router-secret", time.Minute)
 	enqueuer := &routerLoginLinkEnqueuer{}
-	emailLogin := service.NewEmailLogin(q, service.NewAccountSecurity(q), tok, service.EmailLoginConfig{}, enqueuer)
+	emailLogin := service.NewEmailLogin(q, service.NewAccountSecurity(q), tok, service.EmailLoginConfig{
+		HMACKeyID: "router-email-login-v1",
+		HMACKey:   []byte("router-email-login-key"),
+	}, enqueuer)
 	r := chi.NewRouter()
 	r.Use(globalCORS())
 	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin)
@@ -210,7 +213,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	if linkQueued.Code != http.StatusAccepted {
 		t.Fatalf("login link status = %d, body = %s", linkQueued.Code, linkQueued.Body.String())
 	}
-	if len(enqueuer.requests) != 1 || enqueuer.requests[0].AccountID != enrollment.UserID || enqueuer.requests[0].To != "router@example.com" {
+	if len(enqueuer.requests) != 1 || enqueuer.requests[0].AccountID != enrollment.UserID || enqueuer.requests[0].To != "router@example.com" || len(enqueuer.requests[0].Code) != 6 {
 		t.Fatalf("login link delivery requests = %d; expected one to the verified account", len(enqueuer.requests))
 	}
 

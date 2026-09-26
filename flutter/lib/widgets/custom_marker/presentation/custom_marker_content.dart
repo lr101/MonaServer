@@ -4,6 +4,7 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
@@ -402,13 +403,11 @@ class RankedClusterMarker extends ConsumerWidget {
                         // Group Image
                         if (group != null)
                           SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: RoundImage(
-                              size: 16,
-                              imageCallback: ref.watch(
-                                groupProfilePictureByIdProvider(group.id),
-                              ),
+                            width: 22,
+                            height: 22,
+                            child: SmallProfilePicture.group(
+                              groupId: group.id,
+                              radius: 8,
                               child: Container(color: Colors.grey[800]),
                             ),
                           ),

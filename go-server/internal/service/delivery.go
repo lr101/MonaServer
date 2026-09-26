@@ -112,9 +112,11 @@ func plainTextHTML(body string) string {
 	return "<p>" + strings.Join(parts, "<br>") + "</p>"
 }
 
-// SanitizeHTML strips scripts, event handlers, remote media, CSS, forms,
-// frames, and unsafe links. Text from harmless unknown elements is retained;
-// content inside active/dangerous elements is discarded entirely.
+// SanitizeHTML strips scripts, event handlers, remote media, arbitrary CSS,
+// forms, frames, and unsafe links. It preserves a small set of fixed app-brand
+// styles on inline links and spans so transactional mail keeps its orange
+// accent. Text from harmless unknown elements is retained; content inside
+// active/dangerous elements is discarded entirely.
 func SanitizeHTML(raw string) (string, error) {
 	if len([]byte(raw)) > maxEmailHTMLBytes {
 		return "", ErrEmailContentTooLarge
@@ -178,6 +180,18 @@ func renderSafeNode(b *strings.Builder, node *xhtml.Node) {
 				}
 			}
 		}
+		if tag == "a" || tag == "span" {
+			for _, attr := range node.Attr {
+				if strings.EqualFold(attr.Key, "style") {
+					if style := safeEmailStyle(attr.Val); style != "" {
+						b.WriteString(` style="`)
+						b.WriteString(html.EscapeString(style))
+						b.WriteByte('"')
+					}
+					break
+				}
+			}
+		}
 		b.WriteByte('>')
 		if tag != "br" {
 			for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -187,6 +201,47 @@ func renderSafeNode(b *strings.Builder, node *xhtml.Node) {
 			b.WriteString(tag)
 			b.WriteByte('>')
 		}
+	}
+}
+
+func safeEmailStyle(raw string) string {
+	approved := make([]string, 0, 4)
+	for _, declaration := range strings.Split(raw, ";") {
+		property, value, found := strings.Cut(declaration, ":")
+		if !found {
+			continue
+		}
+		property = strings.ToLower(strings.TrimSpace(property))
+		value = strings.ToLower(strings.Join(strings.Fields(value), " "))
+		if safeEmailStyleValue(property, value) {
+			approved = append(approved, property+":"+value)
+		}
+	}
+	return strings.Join(approved, ";")
+}
+
+func safeEmailStyleValue(property, value string) bool {
+	switch property {
+	case "background-color":
+		return value == "#ffb77c"
+	case "color":
+		return value == "#ffb77c" || value == "#4b2800" || value == "#8a4300"
+	case "display":
+		return value == "inline-block"
+	case "padding":
+		return value == "12px 20px" || value == "13px 28px"
+	case "font-size":
+		return value == "15px" || value == "20px"
+	case "font-weight":
+		return value == "600" || value == "700"
+	case "text-decoration":
+		return value == "none"
+	case "border-radius":
+		return value == "8px"
+	case "letter-spacing":
+		return value == ".5px" || value == "0.5px"
+	default:
+		return false
 	}
 }
 

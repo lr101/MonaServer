@@ -7,9 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class UserGroupOverview extends ConsumerWidget {
-  const UserGroupOverview({super.key, required this.groupId});
+  const UserGroupOverview({super.key, required this.groupId, this.inviteUrl});
 
   final String groupId;
+  final String? inviteUrl;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,6 +32,7 @@ class UserGroupOverview extends ConsumerWidget {
             details: details,
             floatingActionButton: GroupJoinActionButton(
               groupDto: group,
+              inviteUrl: inviteUrl,
               key: Key("group-join-$groupId"),
             ),
           );
@@ -38,6 +40,7 @@ class UserGroupOverview extends ConsumerWidget {
           return CustomAvatarScaffold(
             floatingActionButton: GroupJoinActionButton(
               groupDto: group,
+              inviteUrl: inviteUrl,
               key: Key("no-user-group-join-$groupId"),
             ),
             avatar: details.profileImage,

@@ -1,9 +1,8 @@
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/util/types/achievement.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +40,7 @@ class MemberTile extends ConsumerWidget {
           ],),
         ],
       ),
-      leading: RoundImage(imageCallback: ref.watch(getUserProfileSmallProvider(memberDto.userId)), size: 25.0),
+      leading: SmallProfilePicture.user(userId: memberDto.userId, radius: 22),
       trailing: Text("${memberDto.points} sticks"),
     );
     if (isCurrentUser) {

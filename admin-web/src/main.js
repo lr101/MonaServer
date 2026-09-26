@@ -12,11 +12,12 @@ let startupInProgress = false;
 const loginTemplateVariables = [
   { name: 'username', description: 'The recipient’s username.' },
   { name: 'email', description: 'The verified email address receiving this message.' },
+  { name: 'login_code', description: 'Their six-character one-time sign-in code. It expires with the link.' },
   { name: 'login_link', description: 'Their unique, one-time sign-in link. It expires after 24 hours.' },
   { name: 'expires_in', description: 'The link lifetime, shown as “24 hours”.' },
   { name: 'app_name', description: 'The application name, Stick-It.' },
 ];
-const defaultLoginEmailBody = 'Hello {{username}},\n\nUse the link below to sign in to {{app_name}}:\n{{login_link}}\n\nThis one-time link expires in {{expires_in}}. If you did not request it, you can ignore this email.';
+const defaultLoginEmailBody = 'Hello {{username}},\n\nEnter this one-time code in the app to sign in to {{app_name}}:\n{{login_code}}\n\nPrefer the link?\n{{login_link}}\n\nThe code and link expire in {{expires_in}}. If you did not request this email, you can ignore it.';
 const loginProgressStoragePrefix = 'admin.login-email-send.';
 
 state.subscribe(render);
@@ -150,7 +151,7 @@ function campaignPushFields(campaign, archived, selected) {
   const disabled = archived || !selected;
   return `<section data-channel-fields="push" ${selected ? '' : 'hidden'}><label>Push title<input name="title" value="${escape(campaign.title ?? '')}" maxlength="200" required ${disabled ? 'disabled' : ''}></label><label>Push message<textarea name="body" rows="8" maxlength="10000" required ${disabled ? 'disabled' : ''}>${escape(campaign.body ?? '')}</textarea></label></section>`;
 }
-function templateVariableInfo(target, disabled) { const variables = loginTemplateVariables.filter(({ name }) => target === 'subject' ? !['login_link', 'username', 'email'].includes(name) : true); const note = target === 'subject' ? 'Use app_name or expires_in here; the subject must fit 200 bytes for every recipient. Put username, email, and the login link in the message body.' : 'Include {{login_link}} in the message so recipients can sign in.'; return `<aside class="variable-info"><strong>Available variables</strong><p>Select a token to insert it at the cursor. ${note}</p><div class="variable-list">${variables.map(({ name, description }) => `<button type="button" class="variable-chip" data-insert-variable="${name}" data-target="${target}" title="${escape(description)}" ${disabled ? 'disabled' : ''}>{{${name}}}</button>`).join('')}</div></aside>`; }
+function templateVariableInfo(target, disabled) { const variables = loginTemplateVariables.filter(({ name }) => target === 'subject' ? !['login_link', 'login_code', 'username', 'email'].includes(name) : true); const note = target === 'subject' ? 'Use app_name or expires_in here; the subject must fit 200 bytes for every recipient. Put the code and sign-in link in the message body.' : 'Include both {{login_code}} and {{login_link}} in the message so recipients can choose how to sign in.'; return `<aside class="variable-info"><strong>Available variables</strong><p>Select a token to insert it at the cursor. ${note}</p><div class="variable-list">${variables.map(({ name, description }) => `<button type="button" class="variable-chip" data-insert-variable="${name}" data-target="${target}" title="${escape(description)}" ${disabled ? 'disabled' : ''}>{{${name}}}</button>`).join('')}</div></aside>`; }
 function emptyCampaign() { return { channel: 'email', subject: 'Sign in to {{app_name}}', body: defaultLoginEmailBody, status: 'draft' }; }
 function auditRow(event) { return `<article class="record card"><div><h3>${escape(event.action ?? 'Audit event')}</h3><p class="muted">${escape(event.targetUserId ?? '')} · ${formatDate(event.occurredAt)}</p></div><span class="badge">${escape(event.outcome ?? 'recorded')}</span><details><summary>Details</summary><pre>${escape(JSON.stringify(event.details ?? event.reason ?? '', null, 2))}</pre></details></article>`; }
 function collection(items = [], renderRow, nextCursor, kind) { if (!items.length && !nextCursor) return '<p class="muted">No records returned.</p>'; return `<div class="records">${items.map(renderRow).join('')}</div>${nextCursor ? `<button data-next-page="${kind}" data-cursor="${escape(nextCursor)}">Load more</button>` : ''}`; }
@@ -358,7 +359,7 @@ function validateLoginTemplate(template) {
   const body = template.body?.trim() ?? '';
   if (!subject || !body) return 'Add both an email subject and message before activating this campaign.';
   if (new TextEncoder().encode(subject).length > 200 || new TextEncoder().encode(body).length > 10000) return 'Keep the subject within 200 UTF-8 bytes and the message within 10,000 UTF-8 bytes.';
-  if ([...subject.matchAll(/{{\s*([a-z_]+)\s*}}/g)].some((match) => match[1] === 'login_link')) return 'Put {{login_link}} in the email message, not the subject.';
+  if ([...subject.matchAll(/{{\s*([a-z_]+)\s*}}/g)].some((match) => ['login_link', 'login_code'].includes(match[1]))) return 'Put {{login_link}} and {{login_code}} in the email message, not the subject.';
   const supported = new Set(loginTemplateVariables.map(({ name }) => name));
   const validateText = (text) => {
     const matches = [...text.matchAll(/{{\s*([a-z_]+)\s*}}/g)];
@@ -369,13 +370,14 @@ function validateLoginTemplate(template) {
   if (!validateText(subject) || !validateText(body)) return 'Use only the listed variables, written with double braces, such as {{username}}.';
   if ([...subject.matchAll(/{{\s*([a-z_]+)\s*}}/g)].some((match) => ['username', 'email'].includes(match[1]))) return 'Use {{username}} and {{email}} in the message body. Subjects must stay within 200 bytes for every recipient.';
   if (![...body.matchAll(/{{\s*([a-z_]+)\s*}}/g)].some((match) => match[1] === 'login_link')) return 'Add {{login_link}} to the message so recipients can sign in.';
+  if (![...body.matchAll(/{{\s*([a-z_]+)\s*}}/g)].some((match) => match[1] === 'login_code')) return 'Add {{login_code}} to the message so recipients can sign in with a code.';
   if (loginTemplateWorstCaseBytes(subject) > 200 || loginTemplateWorstCaseBytes(body) > 10000 || loginTemplateWorstCaseBytes(body, true) > 20000) return 'Personalized email content could exceed the delivery size limits. Shorten the message or remove repeated variables.';
   return null;
 }
 function loginTemplateWorstCaseBytes(source, htmlMode = false) {
   const textBytes = (value) => new TextEncoder().encode(value).length;
   const htmlStaticBytes = (value) => textBytes(String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&#34;', "'": '&#39;' })[character]).replaceAll('\n', '<br>\n'));
-  const maxima = { username: 1020, email: 320, login_link: 1536 + 7 + 43, expires_in: 9, app_name: 8 };
+  const maxima = { username: 1020, email: 320, login_code: 6, login_link: 1536 + 7 + 43, expires_in: 9, app_name: 8 };
   const staticBytes = (value) => htmlMode ? htmlStaticBytes(value) : textBytes(value);
   let size = 0;
   let last = 0;
@@ -390,6 +392,7 @@ function loginTemplateWorstCaseBytes(source, htmlMode = false) {
 function previewTemplate(value, username, email) {
   const sample = {
     username, email, app_name: 'Stick-It', expires_in: '24 hours',
+    login_code: 'A2B4C6',
     login_link: 'https://example.com/login?token=example',
   };
   return String(value ?? '').replace(/{{\s*([a-z_]+)\s*}}/g, (_, name) => sample[name] ?? `{{${name}}}`);

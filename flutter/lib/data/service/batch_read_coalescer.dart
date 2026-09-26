@@ -16,6 +16,8 @@ enum BatchReadKind {
   groupPinImage,
   user,
   pinLikes,
+  userProgression,
+  groupProgression,
 }
 
 /// A single, de-duplicatable resource read.
@@ -42,6 +44,8 @@ BatchReadItemKindEnum batchItemKind(BatchReadKind kind) => switch (kind) {
   BatchReadKind.groupPinImage => BatchReadItemKindEnum.groupPinImage,
   BatchReadKind.user => BatchReadItemKindEnum.user,
   BatchReadKind.pinLikes => BatchReadItemKindEnum.pinLikes,
+  BatchReadKind.userProgression => BatchReadItemKindEnum.userProgression,
+  BatchReadKind.groupProgression => BatchReadItemKindEnum.groupProgression,
 };
 
 BatchReadResultKindEnum batchResultKind(BatchReadItemKindEnum kind) =>
@@ -57,6 +61,10 @@ BatchReadResultKindEnum batchResultKind(BatchReadItemKindEnum kind) =>
         BatchReadResultKindEnum.groupPinImage,
       BatchReadItemKindEnum.user => BatchReadResultKindEnum.user,
       BatchReadItemKindEnum.pinLikes => BatchReadResultKindEnum.pinLikes,
+      BatchReadItemKindEnum.userProgression =>
+        BatchReadResultKindEnum.userProgression,
+      BatchReadItemKindEnum.groupProgression =>
+        BatchReadResultKindEnum.groupProgression,
       _ => throw ArgumentError.value(kind, 'kind'),
     };
 
@@ -69,6 +77,8 @@ BatchReadKind batchReadKind(BatchReadResultKindEnum kind) => switch (kind) {
   BatchReadResultKindEnum.groupPinImage => BatchReadKind.groupPinImage,
   BatchReadResultKindEnum.user => BatchReadKind.user,
   BatchReadResultKindEnum.pinLikes => BatchReadKind.pinLikes,
+  BatchReadResultKindEnum.userProgression => BatchReadKind.userProgression,
+  BatchReadResultKindEnum.groupProgression => BatchReadKind.groupProgression,
   _ => throw ArgumentError.value(kind, 'kind'),
 };
 

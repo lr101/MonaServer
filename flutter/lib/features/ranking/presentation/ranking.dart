@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/features/ranking/data/ranking_state.dart';
 import 'package:buff_lisa/features/ranking/presentation/ranking_list_wrapper.dart';
 import 'package:buff_lisa/features/ranking/presentation/ranking_tab_button.dart';
@@ -210,6 +212,10 @@ class _RankingState extends ConsumerState<Ranking>
           _prefetchImage(BatchReadKind.groupImageSmall, group.id);
         }
       }
+      preloadGroupProfileProgressions(
+        items.map((item) => item.groupInfoDto?.id).whereType<String>(),
+        (id) => ref.read(groupAvatarProgressionProvider(id).future),
+      );
       if (items.length < _pageSize) {
         _pagingControllerGroup.appendLastPage(items);
       } else {
@@ -221,12 +227,18 @@ class _RankingState extends ConsumerState<Ranking>
   }
 
   void _prefetchUserImages(Iterable<UserRankingDtoInner> items) {
+    final userIds = <String>[];
     for (final item in items) {
       final userId = item.userInfoDto?.userId;
       if (userId != null) {
+        userIds.add(userId);
         _prefetchImage(BatchReadKind.userImageSmall, userId);
       }
     }
+    preloadUserProfileProgressions(
+      userIds,
+      (id) => ref.read(userAvatarProgressionProvider(id).future),
+    );
   }
 
   void _prefetchImage(BatchReadKind kind, String id) {

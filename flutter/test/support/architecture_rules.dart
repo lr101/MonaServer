@@ -58,6 +58,7 @@ bool _allowed(String file, String target) {
         target == 'lib/app/app_configuration.dart' ||
         target == 'lib/app/routing/app_router.dart' ||
         target == 'lib/app/lifecycle/sync_lifecycle.dart' ||
+        target == 'lib/app/lifecycle/app_link_lifecycle.dart' ||
         target == 'lib/app/play_store_update_guard.dart';
   }
   if (file.startsWith('lib/core/')) return pure || core;

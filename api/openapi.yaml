@@ -1901,6 +1901,35 @@ paths:
       - publicAuth
       x-availability: disabled
       x-feature-flag: public_email_login
+  /api/v3/public/auth/email-code/exchange:
+    post:
+      description: Verify a six-character one-time email code and exchange it for the same credentials as the email sign-in link. Attempts are rate-limited and the code is bound to the submitted identifier.
+      operationId: exchangeEmailLoginCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/emailLoginCodeExchangeRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/emailLinkExchangeResponseDto"
+          description: Existing account token pair and canonical username
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "429":
+          $ref: "#/components/responses/rateLimited"
+        "503":
+          $ref: "#/components/responses/unavailable"
+      security: []
+      summary: Exchange a one-time email sign-in code
+      tags:
+      - publicAuth
+      x-availability: disabled
+      x-feature-flag: public_email_login
   /api/v3/public/auth/recovery/complete:
     post:
       description: Complete restricted password recovery with a purpose-limited action token.
@@ -3273,6 +3302,31 @@ components:
           type: string
       required:
       - token
+      type: object
+    emailLoginCodeExchangeRequestDto:
+      description: Six-character one-time email sign-in code bound to the submitted address or username.
+      example:
+        code: A2B4C6
+        email: person@example.com
+        identifierType: email
+      properties:
+        code:
+          maxLength: 6
+          minLength: 6
+          pattern: ^[A-Za-z0-9]{6}$
+          type: string
+        email:
+          maxLength: 320
+          type: string
+        identifierType:
+          description: Explicit identifier kind. Defaults to email for older clients.
+          enum:
+          - email
+          - username
+          type: string
+      required:
+      - code
+      - email
       type: object
     emailLinkExchangeResponseDto:
       description: Existing consumer token pair plus the authoritative canonical username.
@@ -4786,6 +4840,8 @@ components:
           - groupPinImage
           - user
           - pinLikes
+          - userProgression
+          - groupProgression
           type: string
         id:
           format: uuid
@@ -4826,6 +4882,8 @@ components:
           - groupPinImage
           - user
           - pinLikes
+          - userProgression
+          - groupProgression
           type: string
         id:
           format: uuid
@@ -4843,6 +4901,10 @@ components:
           nullable: true
           allOf:
           - $ref: "#/components/schemas/pinLikeDto"
+        progression:
+          nullable: true
+          allOf:
+          - $ref: "#/components/schemas/profileProgressionDto"
       required:
       - kind
       - id
@@ -5653,6 +5715,22 @@ components:
       - currentLevel
       - currentLevelXp
       - nextLevelXp
+      type: object
+    profileProgressionDto:
+      properties:
+        level:
+          format: int32
+          minimum: 1
+          type: integer
+        fraction:
+          description: Fraction of XP progress through the current level, from 0 to 1.
+          format: double
+          maximum: 1
+          minimum: 0
+          type: number
+      required:
+      - level
+      - fraction
       type: object
     groupAchievementsDto:
       items:

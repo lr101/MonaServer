@@ -46,12 +46,13 @@ func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "404.html", nil)
 		return
 	}
-	if u.Expiration != nil && time.Now().After(*u.Expiration) {
+	if u.Expiration != nil && !u.Expiration.After(time.Now()) {
 		renderTemplate(w, "time-expired.html", nil)
 		return
 	}
-	// The legacy URL is upgraded only once, under the account lock, into a
-	// current-generation recovery action bound to the account's owned email.
+	// Each page load gets a current-generation recovery action bound to the
+	// account's owned email. The original email URL remains usable until its
+	// own expiry or successful password reset.
 	action, err := v.security.IssueLegacyActionToken(r.Context(), url, db.ActionTokenPurposeRecovery, 10*time.Minute)
 	if err != nil || action == nil {
 		renderTemplate(w, "404.html", nil)

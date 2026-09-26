@@ -2,11 +2,14 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:openapi/api.dart';
+
+export 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart'
+    show AvatarLevelBadge, SmallProfilePicture, UserXpAvatarIndicator;
 
 class UserXpProfilePanel extends ConsumerWidget {
   const UserXpProfilePanel({super.key, required this.userId});
@@ -57,111 +60,11 @@ class UserXpAvatarPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final avatar = RoundImage(size: 20, imageCallback: imageCallback);
-    return ref
-        .watch(userXpProvider(userId))
-        .when(
-          data: (xp) => xp == null
-              ? avatar
-              : UserXpAvatarIndicator(
-                  progress: XpLevelProgress.fromDto(xp),
-                  avatar: RoundImage(size: 17, imageCallback: imageCallback),
-                ),
-          error: (error, stackTrace) => avatar,
-          loading: () => avatar,
-        );
-  }
-}
-
-class UserXpAvatarIndicator extends StatelessWidget {
-  const UserXpAvatarIndicator({
-    super.key,
-    required this.progress,
-    required this.avatar,
-  });
-
-  final XpLevelProgress progress;
-  final Widget avatar;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final nextLevelText = progress.xpToNextLevel == 0
-        ? 'maximum level, ${progress.totalXp} total XP'
-        : '${progress.xpToNextLevel} XP to next level';
-    final levelProgressLabel = progress.xpToNextLevel == 0
-        ? 'Level ${progress.level}, $nextLevelText'
-        : 'Level ${progress.level}, ${progress.xpIntoLevel} XP into this level, '
-              '$nextLevelText';
-
-    return Tooltip(
-      excludeFromSemantics: true,
-      message: 'Level ${progress.level} · ${progress.totalXp} XP',
-      child: Semantics(
-        excludeSemantics: true,
-        label: levelProgressLabel,
-        child: SizedBox.square(
-          dimension: 40,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: progress.fraction),
-                duration: reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 450),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, _) => SizedBox.square(
-                  dimension: 40,
-                  child: CircularProgressIndicator(
-                    value: value,
-                    strokeWidth: 2.5,
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    valueColor: AlwaysStoppedAnimation(
-                      theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox.square(dimension: 34, child: avatar),
-              Positioned(
-                left: 0,
-                bottom: 0,
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: CircleBorder(
-                      side: BorderSide(
-                        color: theme.colorScheme.surfaceContainer,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                  child: SizedBox.square(
-                    dimension: 16,
-                    child: Center(
-                      child: FittedBox(
-                        child: Padding(
-                          padding: const EdgeInsets.all(1),
-                          child: Text(
-                            '${progress.level}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onPrimary,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SmallProfilePicture.user(
+      userId: userId,
+      radius: 17,
+      imageCallback: imageCallback,
+      showProgressRing: true,
     );
   }
 }

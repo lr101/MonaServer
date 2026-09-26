@@ -1,3 +1,5 @@
+import 'package:buff_lisa/app/app_links.dart';
+import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
@@ -10,6 +12,7 @@ import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/member_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GroupOverview extends ConsumerStatefulWidget {
@@ -37,7 +40,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -60,28 +63,15 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
       actions: widget.actions,
       bottom: TabBar(
         controller: _tabController,
+        isScrollable: true,
         dividerColor: Colors.transparent,
         tabs: const [
-          Tab(icon: Icon(Icons.groups)),
-          Tab(icon: Icon(Icons.image)),
+          Tab(icon: Icon(Icons.groups_outlined), text: 'Members'),
+          Tab(icon: Icon(Icons.image_outlined), text: 'Pins'),
+          Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Achievements'),
         ],
       ),
       boxes: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: GroupXpPanel(groupId: widget.groupId),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: GroupAchievementsPanel(
-              groupId: widget.groupId,
-              group: group,
-            ),
-          ),
-        ),
         SliverToBoxAdapter(
           child: ListTile(
             title: const Text(
@@ -150,6 +140,11 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           SliverToBoxAdapter(
             child: ListTile(
               onTap: () => clickedOnInviteCode(group),
+              trailing: IconButton(
+                tooltip: 'Copy invite link',
+                onPressed: () => clickedOnInviteLink(group),
+                icon: const Icon(Icons.link),
+              ),
               title: const Text(
                 "Invite code",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -176,6 +171,14 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
             loading: () => const Center(child: CircularProgressIndicator()),
           ),
           ImageGrid(pinProvider: groupDetailsPinsProvider(widget.groupId)),
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            children: [
+              GroupXpPanel(groupId: widget.groupId),
+              const SizedBox(height: 12),
+              GroupAchievementsPanel(groupId: widget.groupId, group: group),
+            ],
+          ),
         ],
       ),
     );
@@ -185,5 +188,20 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
     if (group?.inviteUrl != null) {
       Clipboard.setData(ClipboardData(text: group!.inviteUrl!));
     }
+  }
+
+  Future<void> clickedOnInviteLink(GroupEntity? group) async {
+    final inviteCode = group?.inviteUrl;
+    if (group == null || inviteCode == null) return;
+
+    final link = groupInviteShareLink(
+      apiHost: resolveApiHost(configuredHost: dotenv.env['API_HOST']),
+      groupId: group.groupId,
+      inviteCode: inviteCode,
+    );
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Invite link copied')));
   }
 }

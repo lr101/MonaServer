@@ -18,9 +18,12 @@ import (
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
-type handlerLoginLinkEnqueuer struct{}
+type handlerLoginLinkEnqueuer struct {
+	code string
+}
 
-func (handlerLoginLinkEnqueuer) EnqueueLoginLink(context.Context, *db.Queries, service.LoginLinkDeliveryRequest) (*uuid.UUID, error) {
+func (e *handlerLoginLinkEnqueuer) EnqueueLoginLink(_ context.Context, _ *db.Queries, request service.LoginLinkDeliveryRequest) (*uuid.UUID, error) {
+	e.code = request.Code
 	id := uuid.New()
 	return &id, nil
 }
@@ -39,7 +42,7 @@ func TestPublicAuthServicerMapsRequestExchangeAndRecovery(t *testing.T) {
 	}
 	login := service.NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), service.EmailLoginConfig{
 		HMACKeyID: "handler-v1", HMACKey: []byte("handler-v1-" + uuid.NewString()),
-	}, handlerLoginLinkEnqueuer{})
+	}, &handlerLoginLinkEnqueuer{})
 	recovery := service.NewAccountRecovery(q, auth.Security())
 	servicer := NewPublicAuthServicer(login, recovery)
 
@@ -72,6 +75,38 @@ func TestPublicAuthServicerMapsRequestExchangeAndRecovery(t *testing.T) {
 	}
 }
 
+func TestPublicAuthServicerExchangesEmailLoginCode(t *testing.T) {
+	base, auth := setupAuthServicer(t)
+	ctx := context.Background()
+	email := "handler-code@example.com"
+	pair, err := auth.Signup(ctx, "handler_code_owner", "password123", &email)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if err := base.q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	enqueuer := &handlerLoginLinkEnqueuer{}
+	login := service.NewEmailLogin(base.q, auth.Security(), token.NewHelper("test-secret", time.Minute), service.EmailLoginConfig{
+		HMACKeyID: "handler-code-v1", HMACKey: []byte("handler-code-" + uuid.NewString()),
+	}, enqueuer)
+	if _, err := login.RequestEmailLink(ctx, service.EmailLoginRequest{Email: email, ClientIP: "192.0.2.110"}); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	servicer := NewPublicAuthServicer(login, nil)
+	response, err := servicer.ExchangeEmailLoginCode(
+		service.WithEmailLoginClientIP(ctx, "192.0.2.111"),
+		genserver.EmailLoginCodeExchangeRequestDto{Email: email, IdentifierType: "email", Code: enqueuer.code},
+	)
+	if err != nil || response.Code != http.StatusOK {
+		t.Fatalf("code response = %#v, err=%v", response, err)
+	}
+	body, ok := response.Body.(genserver.EmailLinkExchangeResponseDto)
+	if !ok || body.Username != "handler_code_owner" || body.Tokens.UserId != pair.UserID.String() {
+		t.Fatalf("code response body = %#v, want sign-in credentials", response.Body)
+	}
+}
+
 func TestPublicAuthServicerReturnsUnavailableWhenDependenciesMissing(t *testing.T) {
 	servicer := NewPublicAuthServicer(nil, nil)
 	response, err := servicer.RequestEmailLink(context.Background(), genserver.EmailLinkRequestDto{Email: "person@example.com"})
@@ -97,7 +132,7 @@ func TestPublicAuthV3ErrorHandlerWritesEnvelopeAndRetryAfter(t *testing.T) {
 	}
 	login := service.NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), service.EmailLoginConfig{
 		HMACKeyID: "handler-rate-v1", HMACKey: []byte("handler-rate-" + uuid.NewString()), IPLimit: 1,
-	}, handlerLoginLinkEnqueuer{})
+	}, &handlerLoginLinkEnqueuer{})
 	controller := genserver.NewPublicAuthAPIController(
 		NewPublicAuthServicer(login, service.NewAccountRecovery(q, auth.Security())),
 		genserver.WithPublicAuthAPIErrorHandler(PublicAuthV3ErrorHandler),

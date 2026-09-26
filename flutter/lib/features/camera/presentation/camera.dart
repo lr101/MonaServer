@@ -1,14 +1,15 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/camera_group_selector.dart';
 import 'package:buff_lisa/features/camera/presentation/camera_selector.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/custom_image_picker.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -78,12 +79,23 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   Widget _cameraDiscoveryStatus(Widget child) {
     return Scaffold(
-      appBar: widget.pinPhotoMode
-          ? AppBar(title: const Text('Take pin photo'))
-          : null,
+      appBar: _pinPhotoAppBar(),
       body: SafeArea(child: Center(child: child)),
     );
   }
+
+  PreferredSizeWidget? _pinPhotoAppBar() => widget.pinPhotoMode
+      ? AppBar(
+          title: const Text('Take pin photo'),
+          actions: [
+            IconButton(
+              tooltip: 'Choose from gallery',
+              onPressed: choosePinPhotoFromGallery,
+              icon: const Icon(Icons.photo_library_outlined),
+            ),
+          ],
+        )
+      : null;
 
   @override
   void dispose() {
@@ -157,11 +169,13 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final groupIds = widget.pinPhotoMode
         ? <String>[]
         : ref.watch(groupOrderServiceProvider);
+    preloadGroupProfileProgressions(
+      groupIds,
+      (id) => ref.read(groupAvatarProgressionProvider(id).future),
+    );
     if (cameras.isEmpty) {
       return Scaffold(
-        appBar: widget.pinPhotoMode
-            ? AppBar(title: const Text('Take pin photo'))
-            : null,
+        appBar: _pinPhotoAppBar(),
         body: const SafeArea(
           child: Center(
             child: Text('No cameras are available on this device.'),
@@ -173,9 +187,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
     return Scaffold(
-      appBar: widget.pinPhotoMode
-          ? AppBar(title: const Text('Take pin photo'))
-          : null,
+      appBar: _pinPhotoAppBar(),
       body: SafeArea(
         child: Stack(
           children: [
@@ -412,10 +424,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(5),
-        child: RoundImage(
-          size: cameraGroupAvatarSize(MediaQuery.sizeOf(context).height),
-          imageCallback: ref.watch(groupProfilePictureByIdProvider(groupId)),
-          child: Container(),
+        child: SmallProfilePicture.group(
+          groupId: groupId,
+          radius: cameraGroupAvatarSize(MediaQuery.sizeOf(context).height) - 3,
         ),
       ),
     );
@@ -471,6 +482,13 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     } finally {
       _m.release();
       if (mounted) setState(() => _pinCapturing = false);
+    }
+  }
+
+  Future<void> choosePinPhotoFromGallery() async {
+    final pickedFile = await CustomImagePicker.pick(context: context);
+    if (pickedFile != null && mounted) {
+      Navigator.of(context).pop(pickedFile);
     }
   }
 
@@ -580,27 +598,28 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
                   sensorAspectRatio: value.aspectRatio,
                   orientation: value.deviceOrientation,
                 );
+          // The browser video already uses object-fit: cover. Keep its
+          // platform view at the visible frame's actual size instead of
+          // scaling the HTML view with a FittedBox.
           final preview = useWebPreview
-              ? AspectRatio(
-                  aspectRatio: sourceAspectRatio,
+              ? KeyedSubtree(
+                  key: const ValueKey('camera-platform-preview'),
                   child: controller.buildPreview(),
                 )
-              : CameraPreview(controller);
+              : FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: sourceAspectRatio,
+                    height: 1,
+                    child: CameraPreview(controller),
+                  ),
+                );
 
           return Center(
             child: SizedBox.fromSize(
               key: const ValueKey('camera-preview-frame'),
               size: frameSize,
-              child: ClipRect(
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: sourceAspectRatio,
-                    height: 1,
-                    child: preview,
-                  ),
-                ),
-              ),
+              child: ClipRect(child: preview),
             ),
           );
         },

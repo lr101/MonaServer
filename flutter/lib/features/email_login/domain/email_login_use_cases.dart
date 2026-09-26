@@ -45,6 +45,30 @@ final class ExchangeEmailLink {
   }
 }
 
+final class ExchangeEmailLoginCode {
+  ExchangeEmailLoginCode(this._port);
+
+  final EmailLoginCodeExchangePort _port;
+
+  Future<EmailLinkExchangeResult> call(
+    EmailLoginIdentifier identifier,
+    String? rawCode,
+  ) async {
+    final code = EmailLoginCode.tryParse(rawCode);
+    if (code == null) return const EmailLinkExchangeResult.invalid();
+    try {
+      final result = await _port.exchangeCode(identifier, code);
+      if (result.status == EmailLinkExchangeStatus.success &&
+          result.exchange == null) {
+        return const EmailLinkExchangeResult.unavailable();
+      }
+      return result;
+    } catch (_) {
+      return const EmailLinkExchangeResult.unavailable();
+    }
+  }
+}
+
 /// Captures and scrubs launch data without redeeming it. Redemption is owned
 /// by the callback controller after an explicit user confirmation.
 final class CaptureEmailLinkLaunch {

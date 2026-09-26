@@ -303,6 +303,18 @@ func TestV3OwnSessionRequiresBearerAuthentication(t *testing.T) {
 	assertV3RuntimeError(t, recorder, http.StatusServiceUnavailable, "feature_unavailable")
 }
 
+func TestV3EmailLoginCodeExchangeIsPublicAndRegistered(t *testing.T) {
+	r, _, _ := newV3RuntimeRouter(t, &config.Config{PublicEmailLogin: true})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v3/public/auth/email-code/exchange",
+		strings.NewReader(`{"email":"person@example.com","identifierType":"email","code":"A2B4C6"}`),
+	)
+	recorder := httptest.NewRecorder()
+	r.ServeHTTP(recorder, request)
+	assertV3RuntimeError(t, recorder, http.StatusServiceUnavailable, "feature_unavailable")
+}
+
 func assertV3RuntimeError(t *testing.T, recorder *httptest.ResponseRecorder, wantStatus int, wantCode string) {
 	t.Helper()
 	if recorder.Code != wantStatus {

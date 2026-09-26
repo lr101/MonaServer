@@ -76,8 +76,8 @@ func TestRecoverPasswordViewDoesNotGrantBearerJWT(t *testing.T) {
 	}
 	rec = httptest.NewRecorder()
 	view.RecoverPassword(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "404") {
-		t.Fatalf("contained recovery view status/body = %d/%q, want 404 page", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Choose a new password") {
+		t.Fatalf("reopened recovery view status/body = %d/%q, want active password form", rec.Code, rec.Body.String())
 	}
 }
 
@@ -119,10 +119,10 @@ func TestRecoverPasswordViewOpensForNormalAccount(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 	rec := httptest.NewRecorder()
 	view.RecoverPassword(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Recover Password") || strings.Contains(rec.Body.String(), "This page does not exist") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Choose a new password") || strings.Contains(rec.Body.String(), "This page does not exist") {
 		t.Fatalf("normal account recovery view = %d/%q, want password form", rec.Code, rec.Body.String())
 	}
-	match := regexp.MustCompile(`savePass\('([^']+)'\)`).FindStringSubmatch(rec.Body.String())
+	match := regexp.MustCompile(`id="token" value="([^"]+)"`).FindStringSubmatch(rec.Body.String())
 	if len(match) != 2 {
 		t.Fatal("recovery form has no one-use token")
 	}

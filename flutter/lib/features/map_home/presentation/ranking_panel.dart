@@ -1,9 +1,10 @@
 import 'package:buff_lisa/data/repository/geo_json_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_ranking_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/user_ranking_tile.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +48,25 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
       asyncRankings = ref.watch(groupRankingProvider(currentGid));
     } else {
       asyncRankings = ref.watch(userRankingProvider(currentGid));
+    }
+
+    final rankingItems = asyncRankings.value ?? const <dynamic>[];
+    if (view == ViewState.group) {
+      preloadGroupProfileProgressions(
+        rankingItems
+            .whereType<GroupRankingDtoInner>()
+            .map((item) => item.groupInfoDto?.id)
+            .whereType<String>(),
+        (id) => ref.read(groupAvatarProgressionProvider(id).future),
+      );
+    } else {
+      preloadUserProfileProgressions(
+        rankingItems
+            .whereType<UserRankingDtoInner>()
+            .map((item) => item.userInfoDto?.userId)
+            .whereType<String>(),
+        (id) => ref.read(userAvatarProgressionProvider(id).future),
+      );
     }
 
     final double screenHeight = MediaQuery.of(context).size.height - kBottomNavigationBarHeight - kToolbarHeight;
@@ -264,11 +284,10 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        RoundImage(imageCallback: item is GroupRankingDtoInner 
-            ? ref.watch(groupProfilePictureSmallByIdProvider(id))
-            : ref.watch(getUserProfileSmallProvider(id)),
-          size: 12,
-        ),
+        if (item is GroupRankingDtoInner)
+          SmallProfilePicture.group(groupId: id, radius: 9)
+        else
+          SmallProfilePicture.user(userId: id, radius: 9),
         const SizedBox(width: 6),
         Text(
           "#$rank of ${length ?? 0}",

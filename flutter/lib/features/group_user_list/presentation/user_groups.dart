@@ -1,6 +1,8 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/features/group_user_list/presentation/pop_up_menu_create_group.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_scaffold.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +51,10 @@ class _UserGroupsState extends ConsumerState<UserGroups> {
   }
   
   void updatePage(List<GroupEntity> groups) {
+    preloadGroupProfileProgressions(
+      groups.map((group) => group.groupId),
+      (id) => ref.read(groupAvatarProgressionProvider(id).future),
+    );
     _pagingController.refresh();
     _pagingController.appendLastPage(groups);
   }

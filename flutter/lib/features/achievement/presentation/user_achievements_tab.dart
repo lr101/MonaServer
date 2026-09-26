@@ -11,8 +11,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
-class AchievementsPage extends ConsumerWidget {
-  const AchievementsPage({super.key});
+class UserAchievementsTab extends ConsumerWidget {
+  const UserAchievementsTab({super.key});
 
   static const _tracks = <String>[
     'sticks',
@@ -28,59 +28,46 @@ class AchievementsPage extends ConsumerWidget {
     final achievements = ref.watch(achievementsProvider);
     final userId = ref.watch(userIdProvider);
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(userId));
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Achievements',
-          style: TextStyle(fontWeight: FontWeight.bold),
+    return achievements.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Achievements could not be loaded.'),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => ref.invalidate(achievementsProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+          ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: UserXpCompactPanel(userId: userId),
-          ),
-        ],
       ),
-      body: achievements.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Achievements could not be loaded.'),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => ref.invalidate(achievementsProvider),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+      data: (items) => RefreshIndicator(
+        onRefresh: () => ref.refresh(achievementsProvider.future),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          children: [
+            UserXpProfilePanel(userId: userId),
+            const SizedBox(height: 12),
+            Text(
+              'Choose a track and work through its milestones. Claim each reward when it is ready.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            for (final track in _tracks)
+              _AchievementTrackSection(
+                track: track,
+                achievements:
+                    items.where((item) => _trackFor(item) == track).toList()
+                      ..sort(
+                        (a, b) => a.thresholdValue.compareTo(b.thresholdValue),
+                      ),
+                selectedBatch: selectedBatch.value,
+                userId: userId,
               ),
-            ],
-          ),
-        ),
-        data: (items) => RefreshIndicator(
-          onRefresh: () => ref.refresh(achievementsProvider.future),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-            children: [
-              Text(
-                'Choose a track and work through its milestones. Claim each reward when it is ready.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              for (final track in _tracks)
-                _AchievementTrackSection(
-                  track: track,
-                  achievements:
-                      items.where((item) => _trackFor(item) == track).toList()
-                        ..sort(
-                          (a, b) =>
-                              a.thresholdValue.compareTo(b.thresholdValue),
-                        ),
-                  selectedBatch: selectedBatch.value,
-                  userId: userId,
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );

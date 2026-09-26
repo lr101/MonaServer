@@ -157,6 +157,25 @@ final class EmailLinkToken {
   String toString() => '[redacted email-link token]';
 }
 
+/// Six-character code from an email login message. Codes are normalized to
+/// uppercase and redacted from diagnostics because they are credentials.
+final class EmailLoginCode {
+  const EmailLoginCode._(this.value);
+
+  static EmailLoginCode? tryParse(String? raw) {
+    final value = raw?.trim();
+    if (value == null || !RegExp(r'^[A-Za-z0-9]{6}$').hasMatch(value)) {
+      return null;
+    }
+    return EmailLoginCode._(value.toUpperCase());
+  }
+
+  final String value;
+
+  @override
+  String toString() => '[redacted email-login code]';
+}
+
 enum EmailLinkLaunchStatus { captured, malformed, scrubFailed }
 
 final class EmailLinkLaunchData {

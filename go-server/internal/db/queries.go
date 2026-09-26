@@ -144,6 +144,27 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) 
 	return userFromIDRow(row), nil
 }
 
+type UserXPRecord struct {
+	UserID  uuid.UUID
+	TotalXP int64
+}
+
+func (q *Queries) GetUserXPByIDs(ctx context.Context, ids []uuid.UUID) ([]UserXPRecord, error) {
+	pgIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		pgIDs[i] = pgUUID(id)
+	}
+	rows, err := q.g.GetUserXPByIDs(ctx, pgIDs)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]UserXPRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, UserXPRecord{UserID: goUUID(row.ID), TotalXP: int64(row.Xp)})
+	}
+	return records, nil
+}
+
 func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 	var sb *uuid.UUID
 	if r.SelectedBatch.Valid {
@@ -507,6 +528,37 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 
 func (q *Queries) GetGroupXP(ctx context.Context, id uuid.UUID) (int32, error) {
 	return q.g.GetGroupXP(ctx, pgUUID(id))
+}
+
+type GroupAvatarProgressionRecord struct {
+	GroupID    uuid.UUID
+	TotalXP    int64
+	Visibility int
+	IsMember   bool
+}
+
+func (q *Queries) GetGroupAvatarProgressionsByIDs(ctx context.Context, viewerID uuid.UUID, ids []uuid.UUID) ([]GroupAvatarProgressionRecord, error) {
+	pgIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		pgIDs[i] = pgUUID(id)
+	}
+	rows, err := q.g.GetGroupAvatarProgressionsByIDs(ctx, dbgen.GetGroupAvatarProgressionsByIDsParams{
+		ViewerID: pgUUID(viewerID),
+		Ids:      pgIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	records := make([]GroupAvatarProgressionRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, GroupAvatarProgressionRecord{
+			GroupID:    goUUID(row.ID),
+			TotalXP:    int64(row.GroupXp),
+			Visibility: int(row.Visibility.Int32),
+			IsMember:   row.IsMember,
+		})
+	}
+	return records, nil
 }
 
 func (q *Queries) LockGroupForDelete(ctx context.Context, id uuid.UUID) (bool, error) {

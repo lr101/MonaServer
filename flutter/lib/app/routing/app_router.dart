@@ -1,7 +1,7 @@
+import 'package:buff_lisa/app/app_links.dart';
 import 'package:buff_lisa/app/routing/session_redirect.dart';
-
+import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/features/achievement/presentation/achievement_page.dart';
 import 'package:buff_lisa/features/auth/presentation/auth.dart';
 import 'package:buff_lisa/features/auth/presentation/logout_screen.dart';
 import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
@@ -18,6 +18,7 @@ import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/navigation/presentation/navigation.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/features/profile/presentation/other_user_profile.dart';
+import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/settings/presentation/settings.dart';
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/change_email.dart';
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/change_password.dart';
@@ -40,6 +41,16 @@ final authStateProvider = StateProvider<bool>((ref) => false);
 String initialEmailLoginLocation(EmailLinkLaunchData? launch) =>
     launch == null ? '/login' : '/email-login/callback';
 
+String initialAppLocation({
+  required EmailLinkLaunchData? emailLaunch,
+  required AppLaunchData? appLaunch,
+}) {
+  if (emailLaunch != null || appLaunch?.emailLink != null) {
+    return '/email-login/callback';
+  }
+  return appLaunch?.groupInviteLocation ?? initialEmailLoginLocation(null);
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(
@@ -48,17 +59,64 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
   final router = GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: initialEmailLoginLocation(
-      ref.watch(emailLinkLaunchDataProvider),
+    initialLocation: initialAppLocation(
+      emailLaunch: ref.watch(emailLinkLaunchDataProvider),
+      appLaunch: ref.watch(appLaunchDataProvider),
     ),
     refreshListenable: refresh,
-    redirect: (context, state) => sessionRedirect(
-      status: ref.read(globalDataServiceProvider).sessionStatus,
-      cleanupRequired: ref
+    redirect: (context, state) {
+      final data = ref.read(globalDataServiceProvider);
+      final cleanupRequired = ref
           .read(globalDataServiceProvider.notifier)
-          .cleanupRequired,
-      location: state.matchedLocation,
-    ),
+          .cleanupRequired;
+      final location = state.matchedLocation;
+
+      // Account cleanup takes precedence over opening an invitation.
+      if (cleanupRequired && location != '/logout') {
+        return sessionRedirect(
+          status: data.sessionStatus,
+          cleanupRequired: cleanupRequired,
+          location: location,
+        );
+      }
+
+      if (data.sessionStatus != SessionStatus.signedIn) {
+        final unauthenticatedRedirect = sessionRedirect(
+          status: data.sessionStatus,
+          cleanupRequired: cleanupRequired,
+          location: location,
+        );
+        if (unauthenticatedRedirect != null) {
+          if (unauthenticatedRedirect == '/login') {
+            // Keep invite query data in memory while the user signs in. It is
+            // not passed through the server's login-link callback URL.
+            ref.read(pendingAppDestinationProvider.notifier).state = state.uri
+                .toString();
+          }
+          return unauthenticatedRedirect;
+        }
+      }
+
+      if (data.sessionStatus == SessionStatus.signedIn) {
+        final pendingDestination = ref.read(pendingAppDestinationProvider);
+        if (pendingDestination != null) {
+          if (state.uri.toString() == pendingDestination) {
+            // The app launched directly into the invite while already signed
+            // in. Do not reopen it on a later visit to the home screen.
+            ref.read(pendingAppDestinationProvider.notifier).state = null;
+          } else if (location == '/home') {
+            ref.read(pendingAppDestinationProvider.notifier).state = null;
+            return pendingDestination;
+          }
+        }
+      }
+
+      return sessionRedirect(
+        status: data.sessionStatus,
+        cleanupRequired: cleanupRequired,
+        location: location,
+      );
+    },
     routes: [
       // WEB ---
       GoRoute(
@@ -82,14 +140,43 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'emailLogin',
         builder: (context, state) => EmailLinkRequestScreen(
           requestPort: ref.read(emailLinkRequestPortProvider),
+          onCodeEntry: (identifier) =>
+              context.pushNamed('emailLoginCode', extra: identifier),
           onBack: () => context.goNamed('login'),
         ),
+      ),
+      GoRoute(
+        path: '/email-login/code',
+        name: 'emailLoginCode',
+        builder: (context, state) {
+          final identifier = state.extra;
+          if (identifier is! EmailLoginIdentifier) {
+            return EmailLinkRequestScreen(
+              requestPort: ref.read(emailLinkRequestPortProvider),
+              onCodeEntry: (requestedIdentifier) => context.pushNamed(
+                'emailLoginCode',
+                extra: requestedIdentifier,
+              ),
+              onBack: () => context.goNamed('login'),
+            );
+          }
+          return EmailLoginCodeScreen(
+            identifier: identifier,
+            codeExchangePort: ref.read(emailLoginCodeExchangePortProvider),
+            admissionPort: ref.read(emailLoginAdmissionPortProvider),
+            onRequestNewLink: () => context.goNamed('emailLogin'),
+            onSignedIn: () => context.goNamed('home'),
+            onBack: () => context.goNamed('emailLogin'),
+          );
+        },
       ),
       GoRoute(
         path: '/email-login/callback',
         name: 'emailLoginCallback',
         builder: (context, state) => EmailLoginCallbackScreen(
-          launch: ref.read(emailLinkLaunchDataProvider),
+          launch:
+              ref.read(runtimeEmailLinkLaunchDataProvider) ??
+              ref.read(emailLinkLaunchDataProvider),
           exchangePort: ref.read(emailLinkExchangePortProvider),
           admissionPort: ref.read(emailLoginAdmissionPortProvider),
           onRequestNewLink: () => context.goNamed('emailLogin'),
@@ -160,7 +247,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'groupOverview',
         builder: (context, state) {
           final groupId = state.pathParameters['id']!;
-          return UserGroupOverview(groupId: groupId);
+          return UserGroupOverview(
+            groupId: groupId,
+            inviteUrl: state.uri.queryParameters['invite'],
+          );
         },
       ),
       GoRoute(
@@ -230,7 +320,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         name: 'achievements',
-        builder: (context, state) => const AchievementsPage(),
+        builder: (context, state) =>
+            const UserProfile(initialTabIndex: 1, hasBackButton: true),
       ),
       GoRoute(
         path: '/osm-copyright',

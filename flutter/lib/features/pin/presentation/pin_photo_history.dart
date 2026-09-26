@@ -63,10 +63,12 @@ class PinPhotoHistoryPanel extends ConsumerStatefulWidget {
     super.key,
     required this.pin,
     required this.userPosition,
+    this.showAvailabilityMessage = true,
   });
 
   final PinEntity pin;
   final Position? userPosition;
+  final bool showAvailabilityMessage;
 
   @override
   ConsumerState<PinPhotoHistoryPanel> createState() =>
@@ -116,30 +118,17 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
             ),
           )
         else
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: canAdd && !_isPreparingOrUploading
-                      ? () => _addPhoto(fromCamera: true)
-                      : null,
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Take photo'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: canAdd && !_isPreparingOrUploading
-                      ? _addPhoto
-                      : null,
-                  icon: const Icon(Icons.upload_outlined),
-                  label: const Text('Upload'),
-                ),
-              ),
-            ],
+          FilledButton.icon(
+            onPressed: canAdd && !_isPreparingOrUploading ? _addPhoto : null,
+            icon: _isPreparingOrUploading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_a_photo_outlined),
+            label: const Text('Update'),
           ),
-        if (!retryPending && !canAdd) ...[
+        if (widget.showAvailabilityMessage && !retryPending && !canAdd) ...[
           const SizedBox(height: 4),
           Text(
             _availabilityMessage(
@@ -186,7 +175,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     return 'Add a photo to show what this place looks like now.';
   }
 
-  Future<void> _addPhoto({bool fromCamera = false}) async {
+  Future<void> _addPhoto() async {
     final pendingRequest = _uploadRetry.pendingRequest;
     if (_isPreparingOrUploading ||
         (pendingRequest == null &&
@@ -196,13 +185,9 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     setState(() => _isPreparingOrUploading = true);
     try {
       if (pendingRequest == null) {
-        final XFile? picked = fromCamera
-            ? await Navigator.of(context).push<XFile>(
-                MaterialPageRoute(
-                  builder: (_) => const Camera(pinPhotoMode: true),
-                ),
-              )
-            : await CustomImagePicker.pick(context: context);
+        final XFile? picked = await Navigator.of(context).push<XFile>(
+          MaterialPageRoute(builder: (_) => const Camera(pinPhotoMode: true)),
+        );
         if (!mounted || picked == null) return;
         final Uint8List? imageBytes = await CustomImagePicker.autoCrop(
           res: picked,

@@ -33,11 +33,12 @@ endpoint requires CSRF and recent MFA and records an audit event; the current
 password remains active until the user completes recovery. Eligible users can
 also receive a one-time 24-hour login link from this page.
 Email campaigns are personalized login email templates. Their subject and
-message can use `{{username}}`, `{{email}}`, `{{login_link}}`,
-`{{expires_in}}`, and `{{app_name}}`; the mustard variable guide inserts them
-at the cursor, and the preview shows a sample recipient. The message must
-include `{{login_link}}`. Templates are plain text: variable values are escaped
-for HTML email and the login link is rendered as a safe sign-in link. Saving a
+message can use `{{username}}`, `{{email}}`, `{{login_code}}`,
+`{{login_link}}`, `{{expires_in}}`, and `{{app_name}}`; the mustard variable
+guide inserts them at the cursor, and the preview shows a sample recipient.
+The message must include both `{{login_code}}` and `{{login_link}}`. Templates
+are plain text: variable values are escaped for HTML email, the code is
+rendered as text, and the login link is rendered as a safe sign-in link. Saving a
 campaign as **Active · ready to send** enables the **Send login email
 campaign** action. It finds non-deleted accounts with verified email and
 active sign-in eligibility, including administrator accounts, then issues a

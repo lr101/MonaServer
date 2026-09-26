@@ -140,6 +140,7 @@ final class EmailLinkRequestController {
 enum EmailLoginViewStatus {
   idle,
   invalidLink,
+  invalidCode,
   awaitingConfirmation,
   exchanging,
   expiredLink,
@@ -170,6 +171,9 @@ final class EmailLoginViewState {
          status: EmailLoginViewStatus.invalidLink,
          exchangeStatus: exchangeStatus,
        );
+
+  const EmailLoginViewState.invalidCode()
+    : this._(status: EmailLoginViewStatus.invalidCode);
 
   const EmailLoginViewState.awaitingConfirmation()
     : this._(status: EmailLoginViewStatus.awaitingConfirmation);
@@ -245,14 +249,21 @@ typedef EmailLoginStateListener = void Function(EmailLoginViewState state);
 /// expectedGeneration:)` transition; sync remains owned by AppSyncLifecycle.
 final class EmailLoginController {
   EmailLoginController({
-    required EmailLinkExchangePort exchangePort,
     required EmailLoginAdmissionPort admissionPort,
-  }) : _exchange = ExchangeEmailLink(exchangePort),
+    EmailLinkExchangePort? exchangePort,
+    EmailLoginCodeExchangePort? codeExchangePort,
+  }) : _exchange = exchangePort == null
+           ? null
+           : ExchangeEmailLink(exchangePort),
+       _exchangeCode = codeExchangePort == null
+           ? null
+           : ExchangeEmailLoginCode(codeExchangePort),
        _admit = AdmitEmailLogin(admissionPort),
        _revokeUseCase = RevokeEmailLoginCredential(admissionPort),
        _admissionPort = admissionPort;
 
-  final ExchangeEmailLink _exchange;
+  final ExchangeEmailLink? _exchange;
+  final ExchangeEmailLoginCode? _exchangeCode;
   final AdmitEmailLogin _admit;
   final RevokeEmailLoginCredential _revokeUseCase;
   final EmailLoginAdmissionPort _admissionPort;
@@ -311,6 +322,11 @@ final class EmailLoginController {
     if (!_state.canConfirm || _pendingToken == null) {
       return Future.value(_state);
     }
+    final exchangeLink = _exchange;
+    if (exchangeLink == null) {
+      _emit(const EmailLoginViewState.unavailable());
+      return Future.value(_state);
+    }
 
     final session = _safeSession();
     if (session == null) {
@@ -331,7 +347,61 @@ final class EmailLoginController {
     _emit(const EmailLoginViewState.exchanging());
 
     late Future<EmailLoginViewState> tracked;
-    tracked = _exchangeAndContinue(token, session, operation);
+    tracked = _exchangeAndContinue(
+      () => exchangeLink(token),
+      session,
+      operation,
+    );
+    tracked = tracked.whenComplete(() {
+      if (identical(_exchangeInFlight, tracked)) _exchangeInFlight = null;
+    });
+    _exchangeInFlight = tracked;
+    return tracked;
+  }
+
+  /// Verifies a one-time email code after the user submits the code form.
+  /// Unlike a captured email link, code entry is already an explicit action.
+  Future<EmailLoginViewState> submitCode(
+    EmailLoginIdentifier identifier,
+    String? rawCode,
+  ) {
+    if (_disposed) return Future.value(_state);
+    final inFlight = _exchangeInFlight;
+    if (inFlight != null) return inFlight;
+    final exchangeCode = _exchangeCode;
+    if (exchangeCode == null) {
+      _emit(const EmailLoginViewState.unavailable());
+      return Future.value(_state);
+    }
+    if (EmailLoginCode.tryParse(rawCode) == null) {
+      _emit(const EmailLoginViewState.invalidCode());
+      return Future.value(_state);
+    }
+
+    final session = _safeSession();
+    if (session == null) {
+      _emit(const EmailLoginViewState.unavailable());
+      return Future.value(_state);
+    }
+    if (session.cleanupRequired) {
+      _clearPending();
+      _emit(const EmailLoginViewState.cleanupRequired());
+      return Future.value(_state);
+    }
+
+    final operation = ++_operation;
+    _pendingSession = session;
+    _pendingExpectedGeneration = session.generation;
+    _pendingOperation = operation;
+    _emit(const EmailLoginViewState.exchanging());
+
+    late Future<EmailLoginViewState> tracked;
+    tracked = _exchangeAndContinue(
+      () => exchangeCode.call(identifier, rawCode),
+      session,
+      operation,
+      isCode: true,
+    );
     tracked = tracked.whenComplete(() {
       if (identical(_exchangeInFlight, tracked)) _exchangeInFlight = null;
     });
@@ -412,11 +482,12 @@ final class EmailLoginController {
   }
 
   Future<EmailLoginViewState> _exchangeAndContinue(
-    EmailLinkToken token,
+    Future<EmailLinkExchangeResult> Function() exchange,
     EmailLoginSessionSnapshot session,
-    int operation,
-  ) async {
-    final result = await _exchange(token);
+    int operation, {
+    bool isCode = false,
+  }) async {
+    final result = await exchange();
     if (!_isCurrent(operation)) {
       await _revokeResult(result);
       return _state;
@@ -463,9 +534,11 @@ final class EmailLoginController {
       case EmailLinkExchangeStatus.invalid:
         _clearPending();
         _emit(
-          const EmailLoginViewState.invalidLink(
-            exchangeStatus: EmailLinkExchangeStatus.invalid,
-          ),
+          isCode
+              ? const EmailLoginViewState.invalidCode()
+              : const EmailLoginViewState.invalidLink(
+                  exchangeStatus: EmailLinkExchangeStatus.invalid,
+                ),
         );
         return _state;
       case EmailLinkExchangeStatus.expired:

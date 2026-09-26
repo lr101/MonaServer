@@ -61,6 +61,12 @@ func (c *PublicAuthAPIController) Routes() Routes {
 			"/api/v3/public/auth/email-link/exchange",
 			c.ExchangeEmailLink,
 		},
+		"ExchangeEmailLoginCode": Route{
+			"ExchangeEmailLoginCode",
+			strings.ToUpper("Post"),
+			"/api/v3/public/auth/email-code/exchange",
+			c.ExchangeEmailLoginCode,
+		},
 		"CompleteRecovery": Route{
 			"CompleteRecovery",
 			strings.ToUpper("Post"),
@@ -84,6 +90,12 @@ func (c *PublicAuthAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Post"),
 			"/api/v3/public/auth/email-link/exchange",
 			c.ExchangeEmailLink,
+		},
+		Route{
+			"ExchangeEmailLoginCode",
+			strings.ToUpper("Post"),
+			"/api/v3/public/auth/email-code/exchange",
+			c.ExchangeEmailLoginCode,
 		},
 		Route{
 			"CompleteRecovery",
@@ -139,6 +151,33 @@ func (c *PublicAuthAPIController) ExchangeEmailLink(w http.ResponseWriter, r *ht
 		return
 	}
 	result, err := c.service.ExchangeEmailLink(r.Context(), emailLinkExchangeRequestDtoParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// ExchangeEmailLoginCode - Exchange a one-time email sign-in code
+func (c *PublicAuthAPIController) ExchangeEmailLoginCode(w http.ResponseWriter, r *http.Request) {
+	var emailLoginCodeExchangeRequestDtoParam EmailLoginCodeExchangeRequestDto
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(&emailLoginCodeExchangeRequestDtoParam); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertEmailLoginCodeExchangeRequestDtoRequired(emailLoginCodeExchangeRequestDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	if err := AssertEmailLoginCodeExchangeRequestDtoConstraints(emailLoginCodeExchangeRequestDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.ExchangeEmailLoginCode(r.Context(), emailLoginCodeExchangeRequestDtoParam)
 	// If an error occurred, encode the error with the status code
 	if err != nil {
 		c.errorHandler(w, r, err, &result)

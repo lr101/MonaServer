@@ -52,6 +52,26 @@ void main() {
   );
 
   test(
+    'code adapter binds the normalized code to the requested identifier',
+    () async {
+      final api = _FakePublicAuthApi()..exchangeResult = _exchangeResponse();
+      final identifier = EmailLoginIdentifier.tryParse('person@example.com')!;
+
+      final result = await PublicAuthEmailLoginAdapter(api)
+          .exchangeCode(identifier, EmailLoginCode.tryParse('a2b4c6')!);
+
+      expect(result.status, EmailLinkExchangeStatus.success);
+      expect(api.exchangedCodeRequest?.email, 'person@example.com');
+      expect(api.exchangedCodeRequest?.code, 'A2B4C6');
+      expect(
+        api.exchangedCodeRequest?.identifierType,
+        EmailLoginCodeExchangeRequestDtoIdentifierTypeEnum.email,
+      );
+      expect(api.exchangedCodeRequest.toString(), isNot(contains('A2B4C6')));
+    },
+  );
+
+  test(
     'exchange adapter rejects incomplete credentials without exposing them',
     () async {
       final api = _FakePublicAuthApi()
@@ -210,6 +230,8 @@ class _FakePublicAuthApi extends PublicAuthApi {
   Object? exchangeError;
   EmailLinkExchangeResponseDto? exchangeResult;
   String? exchangedToken;
+  EmailLoginCodeExchangeRequestDto? exchangedCodeRequest;
+  Object? codeExchangeError;
   Object? recoveryError;
   String? recoveryToken;
   String? recoveryPassword;
@@ -228,6 +250,15 @@ class _FakePublicAuthApi extends PublicAuthApi {
   ) async {
     if (exchangeError != null) throw exchangeError!;
     exchangedToken = request.token;
+    return exchangeResult;
+  }
+
+  @override
+  Future<EmailLinkExchangeResponseDto?> exchangeEmailLoginCode(
+    EmailLoginCodeExchangeRequestDto request,
+  ) async {
+    if (codeExchangeError != null) throw codeExchangeError!;
+    exchangedCodeRequest = request;
     return exchangeResult;
   }
 

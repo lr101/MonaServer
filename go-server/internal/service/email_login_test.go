@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -119,6 +121,83 @@ func TestEmailLoginRequestUsesCanonicalOwnedEmailAndReturnsGenericAcceptance(t *
 	}
 	if enqueuer.requests[0].Token != result.Action.Token {
 		t.Fatal("delivery token differs from issued action token")
+	}
+}
+
+func TestEmailLoginCodeRedeemsAndInvalidatesSiblingLink(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "login-code@example.com"
+	userID := confirmTestEmail(t, q, auth, "login_code_owner", email)
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := newTestEmailLogin(q, auth, enqueuer)
+
+	issued, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.60"})
+	if err != nil || issued == nil || issued.Action == nil {
+		t.Fatalf("request = %#v, err=%v", issued, err)
+	}
+	if len(enqueuer.requests) != 1 {
+		t.Fatalf("delivery requests = %d, want one", len(enqueuer.requests))
+	}
+	code := enqueuer.requests[0].Code
+	if !regexp.MustCompile(`^[A-Z0-9]{6}$`).MatchString(code) {
+		t.Fatalf("login code = %q, want six letters or numbers", code)
+	}
+	plainHash := sha256.Sum256([]byte(code))
+	storedPlain, err := q.GetAccountActionTokenByHash(ctx, plainHash[:])
+	if err != nil || storedPlain != nil {
+		t.Fatalf("plain code hash was persisted: token=%#v err=%v", storedPlain, err)
+	}
+	codeHash := login.loginCodeHashes(code, email)[0]
+	storedCode, err := q.GetAccountActionTokenByHash(ctx, codeHash)
+	if err != nil || storedCode == nil || storedCode.EmailBinding == nil || *storedCode.EmailBinding != email {
+		t.Fatalf("keyed code token = %#v, err=%v", storedCode, err)
+	}
+
+	if _, err := login.ExchangeEmailLoginCode(ctx, EmailLoginCodeExchangeRequest{
+		Email: "another@example.com", IdentifierType: "email", Code: code, ClientIP: "192.0.2.62",
+	}); err == nil {
+		t.Fatal("code was accepted for a different email address")
+	}
+
+	exchanged, err := login.ExchangeEmailLoginCode(ctx, EmailLoginCodeExchangeRequest{
+		Email: email, IdentifierType: "email", Code: strings.ToLower(code), ClientIP: "192.0.2.61",
+	})
+	if err != nil || exchanged == nil || exchanged.Pair == nil || exchanged.Pair.UserID != userID {
+		t.Fatalf("code exchange = %#v, err=%v", exchanged, err)
+	}
+	if _, err := login.ExchangeEmailLink(ctx, issued.Action.Token); err == nil {
+		t.Fatal("sibling sign-in link was still usable after code redemption")
+	}
+}
+
+func TestEmailLoginCodeRateLimitsFailedVerificationAttempts(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "login-code-rate@example.com"
+	confirmTestEmail(t, q, auth, "login_code_rate_owner", email)
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{
+		HMACKeyID: "test-v1", HMACKey: uniqueQuotaKey(), CodeAddressLimit: 1,
+	}, enqueuer)
+	if _, err := login.RequestEmailLink(ctx, EmailLoginRequest{Email: email, ClientIP: "192.0.2.63"}); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	wrongCode := "000000"
+	if wrongCode == enqueuer.requests[0].Code {
+		wrongCode = "000001"
+	}
+	_, firstErr := login.ExchangeEmailLoginCode(ctx, EmailLoginCodeExchangeRequest{
+		Email: email, Code: wrongCode, ClientIP: "192.0.2.64",
+	})
+	if firstErr == nil || apperrors.HTTPStatus(firstErr) != 400 {
+		t.Fatalf("first invalid-code error = %v, want generic 400", firstErr)
+	}
+	_, secondErr := login.ExchangeEmailLoginCode(ctx, EmailLoginCodeExchangeRequest{
+		Email: email, Code: enqueuer.requests[0].Code, ClientIP: "192.0.2.65",
+	})
+	if secondErr == nil || apperrors.HTTPStatus(secondErr) != 429 {
+		t.Fatalf("next verification error = %v, want rate-limited 429", secondErr)
 	}
 }
 
