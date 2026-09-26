@@ -32,9 +32,11 @@ class _GroupPinCustomizerState extends ConsumerState<GroupPinCustomizer> {
     _catalog = _loadCatalog();
   }
 
-  Future<GroupPinDesignCatalogDto?> _loadCatalog() => ref
-      .read(groupPinDesignsApiProvider)
-      .getGroupPinDesignCatalog(widget.groupId);
+  Future<GroupPinDesignCatalogDto?> _loadCatalog() => Future.sync(
+    () => ref
+        .read(groupPinDesignsApiProvider)
+        .getGroupPinDesignCatalog(widget.groupId),
+  );
 
   @override
   Widget build(BuildContext context) => ExpansionTile(
