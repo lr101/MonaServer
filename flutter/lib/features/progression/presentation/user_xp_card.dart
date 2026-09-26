@@ -88,16 +88,19 @@ class UserXpAvatarIndicator extends StatelessWidget {
     final theme = Theme.of(context);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final nextLevelText = progress.xpToNextLevel == 0
-        ? 'maximum level'
+        ? 'maximum level, ${progress.totalXp} total XP'
         : '${progress.xpToNextLevel} XP to next level';
+    final levelProgressLabel = progress.xpToNextLevel == 0
+        ? 'Level ${progress.level}, $nextLevelText'
+        : 'Level ${progress.level}, ${progress.xpIntoLevel} XP into this level, '
+              '$nextLevelText';
 
     return Tooltip(
+      excludeFromSemantics: true,
       message: 'Level ${progress.level} · ${progress.totalXp} XP',
       child: Semantics(
-        container: true,
-        label:
-            'Profile image, level ${progress.level}, '
-            '${progress.xpIntoLevel} XP into this level, $nextLevelText',
+        excludeSemantics: true,
+        label: levelProgressLabel,
         child: SizedBox.square(
           dimension: 40,
           child: Stack(
