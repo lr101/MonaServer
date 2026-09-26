@@ -105,6 +105,8 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**requestPasswordRecovery**](doc//AuthApi.md#requestpasswordrecovery) | **GET** /api/v2/public/recover | Request password recovery
 *AuthApi* | [**userLogin**](doc//AuthApi.md#userlogin) | **POST** /api/v2/public/login | User login
 *BatchApi* | [**batchRead**](doc//BatchApi.md#batchread) | **POST** /api/v3/batch | Read several authenticated resources in one request
+*GroupPinDesignsApi* | [**getGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#getgrouppindesigncatalog) | **GET** /api/v2/groups/{groupId}/pin-designs | Get the pin designs available for a group
+*GroupPinDesignsApi* | [**updateGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#updategrouppindesigncatalog) | **PUT** /api/v2/groups/{groupId}/pin-designs | Update a group's earned pin design
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
 *GroupsApi* | [**claimGroupAchievement**](doc//GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and unlock its pin style reward
 *GroupsApi* | [**deleteGroup**](doc//GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
@@ -234,6 +236,11 @@ Class | Method | HTTP request | Description
  - [FilterAudience](doc//FilterAudience.md)
  - [GroupAchievementsDtoInner](doc//GroupAchievementsDtoInner.md)
  - [GroupDto](doc//GroupDto.md)
+ - [GroupPinDesignBadge](doc//GroupPinDesignBadge.md)
+ - [GroupPinDesignCatalogDto](doc//GroupPinDesignCatalogDto.md)
+ - [GroupPinDesignDto](doc//GroupPinDesignDto.md)
+ - [GroupPinDesignShape](doc//GroupPinDesignShape.md)
+ - [GroupPinDesignStyle](doc//GroupPinDesignStyle.md)
  - [GroupProgressionDto](doc//GroupProgressionDto.md)
  - [GroupRankingDtoInner](doc//GroupRankingDtoInner.md)
  - [GroupsSyncDto](doc//GroupsSyncDto.md)
@@ -271,6 +278,7 @@ Class | Method | HTTP request | Description
  - [SyncDtoGroupUpdatesInner](doc//SyncDtoGroupUpdatesInner.md)
  - [TokenResponseDto](doc//TokenResponseDto.md)
  - [UpdateGroupDto](doc//UpdateGroupDto.md)
+ - [UpdateGroupPinDesignCatalogDto](doc//UpdateGroupPinDesignCatalogDto.md)
  - [UserAchievementsDtoInner](doc//UserAchievementsDtoInner.md)
  - [UserInfoDto](doc//UserInfoDto.md)
  - [UserLikesDto](doc//UserLikesDto.md)

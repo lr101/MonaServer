@@ -88,6 +88,12 @@ doc/EmailLoginCodeExchangeRequestDto.md
 doc/FilterAudience.md
 doc/GroupAchievementsDtoInner.md
 doc/GroupDto.md
+doc/GroupPinDesignBadge.md
+doc/GroupPinDesignCatalogDto.md
+doc/GroupPinDesignDto.md
+doc/GroupPinDesignShape.md
+doc/GroupPinDesignStyle.md
+doc/GroupPinDesignsApi.md
 doc/GroupProgressionDto.md
 doc/GroupRankingDtoInner.md
 doc/GroupsApi.md
@@ -134,6 +140,7 @@ doc/SyncDto.md
 doc/SyncDtoGroupUpdatesInner.md
 doc/TokenResponseDto.md
 doc/UpdateGroupDto.md
+doc/UpdateGroupPinDesignCatalogDto.md
 doc/UserAchievementsDtoInner.md
 doc/UserInfoDto.md
 doc/UserLikesDto.md
@@ -157,6 +164,7 @@ lib/api/admin_session_api.dart
 lib/api/admin_users_api.dart
 lib/api/auth_api.dart
 lib/api/batch_api.dart
+lib/api/group_pin_designs_api.dart
 lib/api/groups_api.dart
 lib/api/likes_api.dart
 lib/api/members_api.dart
@@ -249,6 +257,11 @@ lib/model/email_login_code_exchange_request_dto.dart
 lib/model/filter_audience.dart
 lib/model/group_achievements_dto_inner.dart
 lib/model/group_dto.dart
+lib/model/group_pin_design_badge.dart
+lib/model/group_pin_design_catalog_dto.dart
+lib/model/group_pin_design_dto.dart
+lib/model/group_pin_design_shape.dart
+lib/model/group_pin_design_style.dart
 lib/model/group_progression_dto.dart
 lib/model/group_ranking_dto_inner.dart
 lib/model/groups_sync_dto.dart
@@ -286,6 +299,7 @@ lib/model/sync_dto.dart
 lib/model/sync_dto_group_updates_inner.dart
 lib/model/token_response_dto.dart
 lib/model/update_group_dto.dart
+lib/model/update_group_pin_design_catalog_dto.dart
 lib/model/user_achievements_dto_inner.dart
 lib/model/user_info_dto.dart
 lib/model/user_likes_dto.dart

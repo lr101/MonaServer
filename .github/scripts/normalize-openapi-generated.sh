@@ -16,10 +16,13 @@ while IFS= read -r -d '' generated_file; do
   fi
 
   if [ "$relative_file" = "lib/model/email_login_code_exchange_request_dto.dart" ]; then
-    dart format "$generated_file" >/dev/null
     # The email sign-in code is a short-lived secret and must not appear in
     # generated model logs.
     sed -i 's/EmailLoginCodeExchangeRequestDto\[code=\$code,/EmailLoginCodeExchangeRequestDto[code=[redacted],/' "$generated_file"
+  fi
+
+  if [[ "$generated_file" == *.dart ]]; then
+    dart format "$generated_file" >/dev/null
   fi
 
   # OpenAPI Generator 7.x emits trailing spaces and sometimes multiple blank
