@@ -9,6 +9,7 @@ import (
 type Config struct {
 	// Server
 	Port        string `mapstructure:"PORT"`
+	WebHost     string `mapstructure:"WEB_HOST"`
 	AppURL      string `mapstructure:"APP_URL"`
 	RedirectURL string `mapstructure:"APP_REDIRECT_URL"`
 
@@ -79,7 +80,7 @@ func Load() (*Config, error) {
 	// Viper's Unmarshal does not consult AutomaticEnv unless keys have been
 	// bound or seeded; explicitly bind every tag used below.
 	for _, k := range []string{
-		"PORT", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
+		"PORT", "WEB_HOST", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
 		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
 		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",

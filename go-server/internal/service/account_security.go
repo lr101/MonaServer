@@ -425,10 +425,11 @@ func (s *AccountSecurity) IssueActionToken(ctx context.Context, q *db.Queries, u
 	return issued, nil
 }
 
-// IssueLegacyActionToken upgrades one still-current legacy URL to a
-// purpose-bound opaque action while holding the account lock. The legacy URL
-// is versioned in the same transaction, so a concurrent request cannot mint a
-// second action from it or carry it across an email/generation mutation.
+// IssueLegacyActionToken upgrades a still-current legacy URL to a
+// purpose-bound opaque action while holding the account lock. Recovery page
+// loads may mint sibling actions, but each is bounded by the original link's
+// expiry and completing one recovery revokes all siblings. Delete links remain
+// single-use when exchanged.
 func (s *AccountSecurity) IssueLegacyActionToken(ctx context.Context, rawURL, purpose string, ttl time.Duration) (*ActionToken, error) {
 	if s == nil || s.q == nil || rawURL == "" || ttl <= 0 ||
 		(purpose != db.ActionTokenPurposeRecovery && purpose != db.ActionTokenPurposeDeleteAccount) {
@@ -492,11 +493,21 @@ func (s *AccountSecurity) IssueLegacyActionToken(ctx context.Context, rawURL, pu
 				return ErrInvalidAction
 			}
 		}
-		issued, err = s.issueActionTokenLocked(ctx, tx, state, purpose, emailBinding, ttl)
+		actionExpiresAt := now.Add(ttl)
+		if expiresAt.Before(actionExpiresAt) {
+			actionExpiresAt = *expiresAt
+		}
+		if !actionExpiresAt.After(now) {
+			return ErrInvalidAction
+		}
+		issued, err = s.issueActionTokenUntilLocked(ctx, tx, state, purpose, emailBinding, actionExpiresAt, uuid.Nil)
 		if err != nil {
 			return err
 		}
-		return versionLegacyActionURL(ctx, tx, lookup.ID, purpose, now)
+		if purpose == db.ActionTokenPurposeDeleteAccount {
+			return versionLegacyActionURL(ctx, tx, lookup.ID, purpose, now)
+		}
+		return nil
 	}
 	var err error
 	if s.q.Pool() == nil {
@@ -561,7 +572,25 @@ func (s *AccountSecurity) issueActionTokenLocked(ctx context.Context, q *db.Quer
 }
 
 func (s *AccountSecurity) issueActionTokenWithIDLocked(ctx context.Context, q *db.Queries, state *db.UserSecurityState, purpose string, emailBinding *string, ttl time.Duration, tokenID uuid.UUID) (*ActionToken, error) {
-	if s == nil || q == nil || state == nil || state.IsDeleted || ttl <= 0 || !validActionPurpose(purpose) {
+	if s == nil || q == nil || ttl <= 0 {
+		return nil, ErrInvalidAction
+	}
+	now := s.now()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return s.issueActionTokenUntilLocked(ctx, q, state, purpose, emailBinding, now.Add(ttl), tokenID)
+}
+
+func (s *AccountSecurity) issueActionTokenUntilLocked(ctx context.Context, q *db.Queries, state *db.UserSecurityState, purpose string, emailBinding *string, expires time.Time, tokenID uuid.UUID) (*ActionToken, error) {
+	if s == nil || q == nil || state == nil || state.IsDeleted || !validActionPurpose(purpose) {
+		return nil, ErrInvalidAction
+	}
+	now := s.now()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if !expires.After(now) {
 		return nil, ErrInvalidAction
 	}
 	if purpose == db.ActionTokenPurposeRecovery {
@@ -589,11 +618,6 @@ func (s *AccountSecurity) issueActionTokenWithIDLocked(ctx context.Context, q *d
 		return nil, err
 	}
 	hash := sha256.Sum256([]byte(raw))
-	now := s.now()
-	if now.IsZero() {
-		now = time.Now()
-	}
-	expires := now.Add(ttl)
 	id := tokenID
 	if id == uuid.Nil {
 		id = uuid.New()
@@ -643,9 +667,6 @@ func (s *AccountSecurity) CompleteRecovery(ctx context.Context, rawToken, newPas
 		if err != nil {
 			return err
 		}
-		if err := tx.UpdateUserPassword(ctx, consumed.AccountID, passwordHash); err != nil {
-			return err
-		}
 		if _, err := tx.AdvanceUserAuthGeneration(ctx, consumed.AccountID); err != nil {
 			return err
 		}
@@ -653,6 +674,12 @@ func (s *AccountSecurity) CompleteRecovery(ctx context.Context, rawToken, newPas
 			return err
 		}
 		if err := invalidateLegacyActionValues(ctx, tx, consumed.AccountID, consumed.EmailBinding, true, now); err != nil {
+			return err
+		}
+		// UpdateUserPassword clears reset_password_url and its expiration. Run it
+		// after the legacy-value fence so the successfully redeemed link is
+		// removed from the row instead of replaced with an expired placeholder.
+		if err := tx.UpdateUserPassword(ctx, consumed.AccountID, passwordHash); err != nil {
 			return err
 		}
 		if err := tx.InvalidateUserTokens(ctx, consumed.AccountID); err != nil {

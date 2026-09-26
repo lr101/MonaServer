@@ -242,12 +242,16 @@ func recoveryEmailContent(username, to, rawToken, callback string) EmailContent 
 	return EmailContent{
 		To: to, Subject: "Recover your Stick-It account",
 		Body: "Use this restricted recovery link to choose a new Stick-It password: " + callback,
-		HTML: "<p>Hi " + escapeHTML(username) + ",</p><p>Use this restricted recovery link to choose a new password:</p><p><a href=\"" + escapeHTML(callback) + "\">Recover your account</a></p>",
+		HTML: actionEmail(actionEmailData{
+			Title:   "Recover your Stick-It account",
+			Heading: "Recover your account",
+			Name:    username,
+			Intro:   "Use this link to choose a new password for your Stick-It account. It expires in 10 minutes.",
+			Button:  "Recover account",
+			URL:     callback,
+			Note:    "If you didn’t request this, you can ignore this email.",
+		}),
 	}
-}
-
-func escapeHTML(value string) string {
-	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&#34;", "'", "&#39;").Replace(value)
 }
 
 func enqueueEncryptedEmail(ctx context.Context, tx *db.Queries, accountID uuid.UUID, idempotencyKey, kind string, _ EmailContent, envelope EncryptedDeliveryPayload, now time.Time) (*uuid.UUID, error) {

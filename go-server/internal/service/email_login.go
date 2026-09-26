@@ -1031,31 +1031,65 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 	return &attemptID, nil
 }
 
-var loginLinkEmailTemplate = template.Must(template.New("email-login").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light"><title>Sign in to Stick-It</title></head>
-<body style="font-family:Arial,sans-serif;background:#f3f4f6;padding:24px"><main style="max-width:480px;margin:auto;background:#fff;padding:32px;border-radius:12px">
-<h1>Sign in to Stick-It</h1><p>Hi {{.Username}},</p><p>Use the button below to sign in. This link expires in {{.ExpiresIn}} and can be used once.</p>
-<p><a href="{{.URL}}" style="display:inline-block;padding:12px 20px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px">Sign in</a></p>
-<p>If you did not request this email, you can ignore it.</p></main></body></html>`))
+var loginLinkEmailTemplate = template.Must(template.New("email-login-content").Parse(`
+<p>Hi {{.Username}},</p><p>Use the button below to sign in. This link expires in {{.ExpiresIn}} and can be used once.</p>
+<p><a href="{{.URL}}" style="display:inline-block;padding:12px 20px;background-color:{{.Accent}};color:{{.Foreground}};font-weight:600;text-decoration:none;border-radius:8px">Sign in</a></p>
+<p>If you did not request this email, you can ignore it.</p>`))
+
+var loginLinkEmailShellTemplate = template.Must(template.New("email-login-shell").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>{{.Title}}</title></head>
+<body style="margin:0;padding:24px;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#fff;border-radius:14px;overflow:hidden">
+<tr><td style="padding:18px 28px;background:{{.Accent}};color:{{.Foreground}};font-size:20px;font-weight:700;letter-spacing:.5px"><span style="background-color:{{.Accent}};color:{{.Foreground}};font-size:20px;font-weight:700;letter-spacing:.5px">Stick-It</span></td></tr>
+<tr><td style="padding:30px;color:#263238;line-height:1.6"><h1 style="margin:0 0 20px;font-size:22px;color:#191c20">{{.Title}}</h1>{{.Body}}</td></tr>
+<tr><td style="padding:18px 28px;background:#f4f6f8;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px">© Stick-It · This is an automated message, please don’t reply.</td></tr>
+</table></td></tr></table></body></html>`))
 
 type loginLinkEmailData struct {
-	Username  string
-	URL       string
-	ExpiresIn string
+	Username   string
+	URL        string
+	ExpiresIn  string
+	Accent     string
+	Foreground string
+}
+
+type loginLinkEmailShellData struct {
+	Title      string
+	Accent     string
+	Foreground string
+	Body       template.HTML
 }
 
 func loginLinkEmailContent(username, to, rawToken, callback string, expiresIn time.Duration) EmailContent {
 	callback = loginLinkCallback(rawToken, callback)
-	data := loginLinkEmailData{Username: username, URL: callback, ExpiresIn: loginLinkExpiryLabel(expiresIn)}
-	var htmlBody bytes.Buffer
-	if err := loginLinkEmailTemplate.Execute(&htmlBody, data); err != nil {
-		htmlBody.WriteString(template.HTMLEscapeString(callback))
+	data := loginLinkEmailData{
+		Username: username, URL: callback, ExpiresIn: loginLinkExpiryLabel(expiresIn),
+		Accent: brandOrange, Foreground: brandOrangeForeground,
+	}
+	var content bytes.Buffer
+	if err := loginLinkEmailTemplate.Execute(&content, data); err != nil {
+		content.WriteString(template.HTMLEscapeString(callback))
 	}
 	return EmailContent{
 		To: to, Subject: "Sign in to Stick-It",
 		Body: "Use this one-time link to sign in to Stick-It. It expires in " + data.ExpiresIn + ": " + callback,
-		HTML: htmlBody.String(),
+		HTML: loginLinkEmailShell("Sign in to Stick-It", content.String()),
 	}
+}
+
+// loginLinkEmailShell wraps HTML emitted by the fixed login-link renderers;
+// body must never contain caller-provided markup.
+func loginLinkEmailShell(title, body string) string {
+	var output bytes.Buffer
+	err := loginLinkEmailShellTemplate.Execute(&output, loginLinkEmailShellData{
+		Title: title, Accent: brandOrange, Foreground: brandOrangeForeground,
+		Body: template.HTML(body),
+	})
+	if err != nil {
+		return body
+	}
+	return output.String()
 }
 
 func loginLinkCallback(rawToken, callback string) string {

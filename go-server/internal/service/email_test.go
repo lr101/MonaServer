@@ -70,17 +70,17 @@ func TestActionEmailRendersDirectLink(t *testing.T) {
 	}
 }
 
-// TestActionEmailDangerAccent checks destructive emails use the red accent and
-// can surface an optional code.
-func TestActionEmailDangerAccent(t *testing.T) {
+// TestActionEmailUsesAppOrange checks destructive emails use the shared app
+// accent and can surface an optional code.
+func TestActionEmailUsesAppOrange(t *testing.T) {
 	html := actionEmail(actionEmailData{
 		Title: "Delete", Heading: "Delete your account", Name: "bob",
 		Intro: "intro", Button: "Delete account",
 		URL:  "https://app.example.com/public/delete-account/tok",
-		Code: "123456", Danger: true, Note: "note",
+		Code: "123456", Note: "note",
 	})
-	if !strings.Contains(html, "#dc2626") {
-		t.Fatal("destructive email should use the red accent colour")
+	if !strings.Contains(html, brandOrange) {
+		t.Fatal("destructive email should use the app orange accent colour")
 	}
 	if !strings.Contains(html, "123456") {
 		t.Fatal("email should display the provided code")
