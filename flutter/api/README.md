@@ -139,6 +139,7 @@ Class | Method | HTTP request | Description
 *PublicApi* | [**getServerInfo**](doc//PublicApi.md#getserverinfo) | **GET** /api/v2/public/infos | Get public server statistics
 *PublicAuthApi* | [**completeRecovery**](doc//PublicAuthApi.md#completerecovery) | **POST** /api/v3/public/auth/recovery/complete | Complete restricted account recovery
 *PublicAuthApi* | [**exchangeEmailLink**](doc//PublicAuthApi.md#exchangeemaillink) | **POST** /api/v3/public/auth/email-link/exchange | Exchange a one-time email sign-in link
+*PublicAuthApi* | [**exchangeEmailLoginCode**](doc//PublicAuthApi.md#exchangeemaillogincode) | **POST** /api/v3/public/auth/email-code/exchange | Exchange a one-time email sign-in code
 *PublicAuthApi* | [**requestEmailLink**](doc//PublicAuthApi.md#requestemaillink) | **POST** /api/v3/public/auth/email-link/request | Request a one-time email sign-in link
 *RankingApi* | [**getGeoJson**](doc//RankingApi.md#getgeojson) | **GET** /api/v2/map/geojson |
 *RankingApi* | [**getMapInfo**](doc//RankingApi.md#getmapinfo) | **GET** /api/v2/map |
@@ -229,6 +230,7 @@ Class | Method | HTTP request | Description
  - [EmailLinkExchangeResponseDto](doc//EmailLinkExchangeResponseDto.md)
  - [EmailLinkRequestAcceptedDto](doc//EmailLinkRequestAcceptedDto.md)
  - [EmailLinkRequestDto](doc//EmailLinkRequestDto.md)
+ - [EmailLoginCodeExchangeRequestDto](doc//EmailLoginCodeExchangeRequestDto.md)
  - [FilterAudience](doc//FilterAudience.md)
  - [GroupAchievementsDtoInner](doc//GroupAchievementsDtoInner.md)
  - [GroupDto](doc//GroupDto.md)

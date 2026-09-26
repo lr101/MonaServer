@@ -80,11 +80,11 @@ doc/BatchReadResult.md
 doc/CreateGroupDto.md
 doc/CreateLikeDto.md
 doc/EmailActionDto.md
-doc/EmailLoginCodeExchangeRequestDto.md
 doc/EmailLinkExchangeRequestDto.md
 doc/EmailLinkExchangeResponseDto.md
 doc/EmailLinkRequestAcceptedDto.md
 doc/EmailLinkRequestDto.md
+doc/EmailLoginCodeExchangeRequestDto.md
 doc/FilterAudience.md
 doc/GroupAchievementsDtoInner.md
 doc/GroupDto.md
@@ -240,11 +240,11 @@ lib/model/batch_read_result.dart
 lib/model/create_group_dto.dart
 lib/model/create_like_dto.dart
 lib/model/email_action_dto.dart
-lib/model/email_login_code_exchange_request_dto.dart
 lib/model/email_link_exchange_request_dto.dart
 lib/model/email_link_exchange_response_dto.dart
 lib/model/email_link_request_accepted_dto.dart
 lib/model/email_link_request_dto.dart
+lib/model/email_login_code_exchange_request_dto.dart
 lib/model/filter_audience.dart
 lib/model/group_achievements_dto_inner.dart
 lib/model/group_dto.dart
