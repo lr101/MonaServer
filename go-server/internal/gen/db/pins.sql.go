@@ -102,6 +102,102 @@ func (q *Queries) FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForP
 	return id, err
 }
 
+const findNearbyPins = `-- name: FindNearbyPins :many
+SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
+       p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone,
+       COALESCE(g.name, '')::text AS group_name,
+       ROUND(ST_Distance(
+         ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+         ST_SetSRID(ST_Point($1::float8, $2::float8), 4326)::geography
+       ))::int AS distance_meters
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE
+  AND g.is_deleted = FALSE
+  AND ST_DWithin(
+      ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+      ST_SetSRID(ST_Point($1::float8, $2::float8), 4326)::geography,
+      $3::float8
+  )
+  AND (
+      g.visibility = 0
+      OR EXISTS (
+          SELECT 1
+          FROM members m
+          WHERE m.group_id = g.id
+            AND m.user_id = $4::uuid
+            AND m.is_deleted = FALSE
+      )
+  )
+ORDER BY ST_Distance(
+    ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+    ST_SetSRID(ST_Point($1::float8, $2::float8), 4326)::geography
+  ), p.id
+LIMIT $5
+`
+
+type FindNearbyPinsParams struct {
+	Longitude    float64     `json:"longitude"`
+	Latitude     float64     `json:"latitude"`
+	RadiusMeters float64     `json:"radius_meters"`
+	CallerID     pgtype.UUID `json:"caller_id"`
+	Lim          int32       `json:"lim"`
+}
+
+type FindNearbyPinsRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	Latitude        pgtype.Float8      `json:"latitude"`
+	Longitude       pgtype.Float8      `json:"longitude"`
+	CreationDate    pgtype.Timestamptz `json:"creation_date"`
+	UpdateDate      pgtype.Timestamptz `json:"update_date"`
+	Description     pgtype.Text        `json:"description"`
+	CreatorID       pgtype.UUID        `json:"creator_id"`
+	GroupID         pgtype.UUID        `json:"group_id"`
+	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+	IsGone          bool               `json:"is_gone"`
+	GroupName       string             `json:"group_name"`
+	DistanceMeters  int32              `json:"distance_meters"`
+}
+
+func (q *Queries) FindNearbyPins(ctx context.Context, arg FindNearbyPinsParams) ([]FindNearbyPinsRow, error) {
+	rows, err := q.db.Query(ctx, findNearbyPins,
+		arg.Longitude,
+		arg.Latitude,
+		arg.RadiusMeters,
+		arg.CallerID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindNearbyPinsRow
+	for rows.Next() {
+		var i FindNearbyPinsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Latitude,
+			&i.Longitude,
+			&i.CreationDate,
+			&i.UpdateDate,
+			&i.Description,
+			&i.CreatorID,
+			&i.GroupID,
+			&i.StateProvinceID,
+			&i.IsGone,
+			&i.GroupName,
+			&i.DistanceMeters,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUsersWithNewPinsSinceLastActive = `-- name: FindUsersWithNewPinsSinceLastActive :many
 SELECT u.id, u.firebase_token, COUNT(DISTINCT p.id)::int AS pin_count
 FROM users u

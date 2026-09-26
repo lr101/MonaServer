@@ -119,6 +119,39 @@ WHERE p.is_deleted = FALSE
 ORDER BY p.creation_date DESC, p.id DESC
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
+-- name: FindNearbyPins :many
+SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
+       p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone,
+       COALESCE(g.name, '')::text AS group_name,
+       ROUND(ST_Distance(
+         ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+         ST_SetSRID(ST_Point(sqlc.arg('longitude')::float8, sqlc.arg('latitude')::float8), 4326)::geography
+       ))::int AS distance_meters
+FROM pins p
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE
+  AND g.is_deleted = FALSE
+  AND ST_DWithin(
+      ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+      ST_SetSRID(ST_Point(sqlc.arg('longitude')::float8, sqlc.arg('latitude')::float8), 4326)::geography,
+      sqlc.arg('radius_meters')::float8
+  )
+  AND (
+      g.visibility = 0
+      OR EXISTS (
+          SELECT 1
+          FROM members m
+          WHERE m.group_id = g.id
+            AND m.user_id = sqlc.arg('caller_id')::uuid
+            AND m.is_deleted = FALSE
+      )
+  )
+ORDER BY ST_Distance(
+    ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
+    ST_SetSRID(ST_Point(sqlc.arg('longitude')::float8, sqlc.arg('latitude')::float8), 4326)::geography
+  ), p.id
+LIMIT sqlc.arg('lim');
+
 -- name: ListDeletedPinsAfter :many
 SELECT deleted_entity_id FROM delete_log
 WHERE deleted_entity_type = 1 AND creation_date > $1

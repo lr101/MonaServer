@@ -13,6 +13,7 @@ Method | HTTP request | Description
 [**callSync**](PinsApi.md#callsync) | **GET** /api/v3/sync | Sync all pins and groups based on last seen date
 [**createPin**](PinsApi.md#createpin) | **POST** /api/v2/pins | Create a new pin
 [**deletePin**](PinsApi.md#deletepin) | **DELETE** /api/v2/pins/{pinId} | Delete a pin by ID
+[**getNearbyPins**](PinsApi.md#getnearbypins) | **GET** /api/v2/pins/nearby | Find nearby visible pins
 [**getPin**](PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 [**getPinImage**](PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 [**getPinImagesByIds**](PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
@@ -206,6 +207,59 @@ void (empty response body)
 
  - **Content-Type**: Not defined
  - **Accept**: text/plain; charset=utf-8
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **getNearbyPins**
+> NearbyPinsDto getNearbyPins(latitude, longitude, radiusMeters)
+
+Find nearby visible pins
+
+Returns up to ten visible pins within the requested radius, ordered by distance. Gone pins remain included so they can be found as historical pins.
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure HTTP Bearer authorization: token
+// Case 1. Use String Token
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken('YOUR_ACCESS_TOKEN');
+// Case 2. Use Function which generate token.
+// String yourTokenGeneratorFunction() { ... }
+//defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
+
+final api_instance = PinsApi();
+final latitude = 8.14; // num | Latitude for the nearby search center
+final longitude = 8.14; // num | Longitude for the nearby search center
+final radiusMeters = 56; // int | Search radius, limited to 1000 meters
+
+try {
+    final result = api_instance.getNearbyPins(latitude, longitude, radiusMeters);
+    print(result);
+} catch (e) {
+    print('Exception when calling PinsApi->getNearbyPins: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **latitude** | **num**| Latitude for the nearby search center |
+ **longitude** | **num**| Longitude for the nearby search center |
+ **radiusMeters** | **int**| Search radius, limited to 1000 meters |
+
+### Return type
+
+[**NearbyPinsDto**](NearbyPinsDto.md)
+
+### Authorization
+
+[token](../README.md#token)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

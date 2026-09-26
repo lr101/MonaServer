@@ -228,6 +228,80 @@ class PinsApi {
     }
   }
 
+  /// Find nearby visible pins
+  ///
+  /// Returns up to ten visible pins within the requested radius, ordered by distance. Gone pins remain included so they can be found as historical pins.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [num] latitude (required):
+  ///   Latitude for the nearby search center
+  ///
+  /// * [num] longitude (required):
+  ///   Longitude for the nearby search center
+  ///
+  /// * [int] radiusMeters (required):
+  ///   Search radius, limited to 1000 meters
+  Future<Response> getNearbyPinsWithHttpInfo(num latitude, num longitude, int radiusMeters,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v2/pins/nearby';
+
+    // ignore: prefer_final_locals
+    Object? postBody;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+      queryParams.addAll(_queryParams('', 'latitude', latitude));
+      queryParams.addAll(_queryParams('', 'longitude', longitude));
+      queryParams.addAll(_queryParams('', 'radiusMeters', radiusMeters));
+
+    const contentTypes = <String>[];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'GET',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Find nearby visible pins
+  ///
+  /// Returns up to ten visible pins within the requested radius, ordered by distance. Gone pins remain included so they can be found as historical pins.
+  ///
+  /// Parameters:
+  ///
+  /// * [num] latitude (required):
+  ///   Latitude for the nearby search center
+  ///
+  /// * [num] longitude (required):
+  ///   Longitude for the nearby search center
+  ///
+  /// * [int] radiusMeters (required):
+  ///   Search radius, limited to 1000 meters
+  Future<NearbyPinsDto?> getNearbyPins(num latitude, num longitude, int radiusMeters,) async {
+    final response = await getNearbyPinsWithHttpInfo(latitude, longitude, radiusMeters,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'NearbyPinsDto',) as NearbyPinsDto;
+
+    }
+    return null;
+  }
+
   /// Get pin information by ID
   ///
   /// Note: This method returns the HTTP [Response].

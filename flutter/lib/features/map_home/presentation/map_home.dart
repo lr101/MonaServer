@@ -4,6 +4,7 @@ import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/map_home/data/marker_window_state.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
 import 'package:buff_lisa/features/map_home/presentation/join_group_hint.dart';
+import 'package:buff_lisa/features/map_home/presentation/nearby_pin_cue_overlay.dart';
 import 'package:buff_lisa/features/map_home/presentation/osm_copyright.dart';
 import 'package:buff_lisa/features/map_home/presentation/ranking_panel.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -127,6 +128,15 @@ class _MapHomeState extends ConsumerState<MapHome>
             heroTag: "moveToCurrentLocation",
             onPressed: moveToCurrentPosition,
             child: const Icon(Icons.my_location),
+          ),
+        ),
+        Positioned(
+          bottom: panelHeaderSize + 72,
+          left: 12,
+          right: 12,
+          child: NearbyPinCueOverlay(
+            onOpenPin: (pinId) =>
+                context.pushNamed('viewImage', pathParameters: {'id': pinId}),
           ),
         ),
         const Positioned(

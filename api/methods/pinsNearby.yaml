@@ -1,0 +1,38 @@
+get:
+  operationId: getNearbyPins
+  tags:
+    - pins
+  security:
+    - token: []
+  summary: Find nearby visible pins
+  description: >-
+    Returns up to ten visible pins within the requested radius, ordered by
+    distance. Gone pins remain included so they can be found as historical pins.
+  parameters:
+    - name: latitude
+      in: query
+      required: true
+      schema:
+        $ref: '../parameters/latitude.yaml'
+    - name: longitude
+      in: query
+      required: true
+      schema:
+        $ref: '../parameters/longitude.yaml'
+    - name: radiusMeters
+      in: query
+      required: true
+      description: Search radius, limited to 1000 meters
+      schema:
+        $ref: '../parameters/radiusMeters.yaml'
+  responses:
+    '200':
+      description: Nearby pins visible to the authenticated user
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/nearbyPinsDto.yaml'
+    '400':
+      description: Coordinates or radius are outside the supported range
+    '401':
+      description: Unauthenticated
