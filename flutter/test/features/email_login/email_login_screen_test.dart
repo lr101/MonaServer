@@ -44,7 +44,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('If an account is eligible, a sign-in link is on its way.'),
+        find.text(
+          'If an account is eligible, an email with a sign-in code and link is on its way.',
+        ),
         findsOneWidget,
       );
       await tester.tap(find.byKey(const Key('email-login-resend')));

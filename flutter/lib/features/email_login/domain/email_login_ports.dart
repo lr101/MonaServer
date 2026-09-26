@@ -12,6 +12,14 @@ abstract interface class EmailLinkExchangePort {
   Future<EmailLinkExchangeResult> exchange(EmailLinkToken token);
 }
 
+/// Verifies an email code against the identifier that requested its message.
+abstract interface class EmailLoginCodeExchangePort {
+  Future<EmailLinkExchangeResult> exchangeCode(
+    EmailLoginIdentifier identifier,
+    EmailLoginCode code,
+  );
+}
+
 /// One-shot browser launch access used before the normal router/bootstrap.
 ///
 /// The web adapter owns the platform-specific location API and must remove the

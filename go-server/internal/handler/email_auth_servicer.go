@@ -59,6 +59,25 @@ func (s *PublicAuthServicer) ExchangeEmailLink(ctx context.Context, request gens
 	}), nil
 }
 
+func (s *PublicAuthServicer) ExchangeEmailLoginCode(ctx context.Context, request genserver.EmailLoginCodeExchangeRequestDto) (genserver.ImplResponse, error) {
+	if s == nil || s.login == nil {
+		return publicAuthErrorResponse(service.ErrEmailDeliveryUnavailable)
+	}
+	result, err := s.login.ExchangeEmailLoginCode(ctx, service.EmailLoginCodeExchangeRequest{
+		Email: request.Email, IdentifierType: request.IdentifierType, Code: request.Code,
+		ClientIP: service.EmailLoginClientIPFromContext(ctx),
+	})
+	if err != nil {
+		return publicAuthErrorResponse(err)
+	}
+	if result == nil || result.Pair == nil {
+		return publicAuthErrorResponse(service.ErrInvalidEmailLink)
+	}
+	return genserver.Response(http.StatusOK, genserver.EmailLinkExchangeResponseDto{
+		Tokens: toTokenResponseDto(result.Pair), Username: result.Username,
+	}), nil
+}
+
 func (s *PublicAuthServicer) CompleteRecovery(ctx context.Context, request genserver.RecoveryCompleteRequestDto) (genserver.ImplResponse, error) {
 	if s == nil || s.recovery == nil {
 		return publicAuthErrorResponse(service.ErrEmailDeliveryUnavailable)

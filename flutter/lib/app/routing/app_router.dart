@@ -82,8 +82,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'emailLogin',
         builder: (context, state) => EmailLinkRequestScreen(
           requestPort: ref.read(emailLinkRequestPortProvider),
+          onCodeEntry: (identifier) =>
+              context.pushNamed('emailLoginCode', extra: identifier),
           onBack: () => context.goNamed('login'),
         ),
+      ),
+      GoRoute(
+        path: '/email-login/code',
+        name: 'emailLoginCode',
+        builder: (context, state) {
+          final identifier = state.extra;
+          if (identifier is! EmailLoginIdentifier) {
+            return EmailLinkRequestScreen(
+              requestPort: ref.read(emailLinkRequestPortProvider),
+              onCodeEntry: (requestedIdentifier) => context.pushNamed(
+                'emailLoginCode',
+                extra: requestedIdentifier,
+              ),
+              onBack: () => context.goNamed('login'),
+            );
+          }
+          return EmailLoginCodeScreen(
+            identifier: identifier,
+            codeExchangePort: ref.read(emailLoginCodeExchangePortProvider),
+            admissionPort: ref.read(emailLoginAdmissionPortProvider),
+            onRequestNewLink: () => context.goNamed('emailLogin'),
+            onSignedIn: () => context.goNamed('home'),
+            onBack: () => context.goNamed('emailLogin'),
+          );
+        },
       ),
       GoRoute(
         path: '/email-login/callback',

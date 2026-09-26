@@ -115,7 +115,63 @@ class PublicAuthApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'EmailLinkExchangeResponseDto',) as EmailLinkExchangeResponseDto;
-    
+
+    }
+    return null;
+  }
+
+  /// Exchange a one-time email sign-in code
+  ///
+  /// Verify a six-character one-time email code and exchange it for the same credentials as the email sign-in link. Attempts are rate-limited and the code is bound to the submitted identifier.
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [EmailLoginCodeExchangeRequestDto] emailLoginCodeExchangeRequestDto (required):
+  Future<Response> exchangeEmailLoginCodeWithHttpInfo(EmailLoginCodeExchangeRequestDto emailLoginCodeExchangeRequestDto,) async {
+    // ignore: prefer_const_declarations
+    final path = r'/api/v3/public/auth/email-code/exchange';
+
+    // ignore: prefer_final_locals
+    Object? postBody = emailLoginCodeExchangeRequestDto;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+
+    return apiClient.invokeAPI(
+      path,
+      'POST',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Exchange a one-time email sign-in code
+  ///
+  /// Verify a six-character one-time email code and exchange it for the same credentials as the email sign-in link. Attempts are rate-limited and the code is bound to the submitted identifier.
+  ///
+  /// Parameters:
+  ///
+  /// * [EmailLoginCodeExchangeRequestDto] emailLoginCodeExchangeRequestDto (required):
+  Future<EmailLinkExchangeResponseDto?> exchangeEmailLoginCode(EmailLoginCodeExchangeRequestDto emailLoginCodeExchangeRequestDto,) async {
+    final response = await exchangeEmailLoginCodeWithHttpInfo(emailLoginCodeExchangeRequestDto,);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'EmailLinkExchangeResponseDto',) as EmailLinkExchangeResponseDto;
+
     }
     return null;
   }
@@ -171,7 +227,7 @@ class PublicAuthApi {
     // FormatException when trying to decode an empty string.
     if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
       return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'EmailLinkRequestAcceptedDto',) as EmailLinkRequestAcceptedDto;
-    
+
     }
     return null;
   }

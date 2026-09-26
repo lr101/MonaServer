@@ -15,6 +15,7 @@ const (
 	maxLoginLinkTemplateUsernameBytes = 255 * 4 // users.username is varchar(255), and PostgreSQL permits 4-byte UTF-8 runes.
 	maxLoginLinkTemplateEmailBytes    = 320
 	maxLoginLinkTemplateURLBytes      = MaxEmailLoginCallbackURLBytes + len("?token=") + 43
+	loginCodeBytes                    = 6
 )
 
 var (
@@ -34,6 +35,7 @@ type loginLinkTemplateValues struct {
 	Username  string
 	Email     string
 	LoginLink string
+	LoginCode string
 	ExpiresIn string
 	AppName   string
 }
@@ -92,6 +94,8 @@ func loginLinkTemplateValueWorstCaseBytes(name string, htmlMode bool) int {
 			return len(`<a href="">Sign in</a>`) + 6*maxLoginLinkTemplateURLBytes
 		}
 		return maxLoginLinkTemplateURLBytes
+	case "login_code":
+		maximum = loginCodeBytes
 	case "expires_in":
 		maximum = len("24 hours")
 	case "app_name":
@@ -112,6 +116,7 @@ func validLoginLinkTemplateText(value string, allowLoginLink bool) bool {
 	allowed := map[string]bool{"username": true, "email": true, "expires_in": true, "app_name": true}
 	if allowLoginLink {
 		allowed["login_link"] = true
+		allowed["login_code"] = true
 	}
 	hasLoginLink := false
 	for _, match := range matches {
@@ -126,13 +131,27 @@ func validLoginLinkTemplateText(value string, allowLoginLink bool) bool {
 	return true
 }
 
-func renderLoginLinkEmailContent(templateValue *LoginLinkEmailTemplate, username, to, loginURL string, expiresIn string) (string, string, string, error) {
+func hasLoginLinkPlaceholder(source, name string) bool {
+	for _, match := range loginLinkPlaceholder.FindAllStringSubmatch(source, -1) {
+		if match[1] == name {
+			return true
+		}
+	}
+	return false
+}
+
+func renderLoginLinkEmailContent(templateValue *LoginLinkEmailTemplate, username, to, loginURL, loginCode, expiresIn string) (string, string, string, error) {
+	body := templateValue.Body
+	if !hasLoginLinkPlaceholder(body, "login_code") {
+		body += "\n\nSign-in code: {{login_code}}"
+	}
 	values := loginLinkTemplateValues{
-		Username: username, Email: to, LoginLink: loginURL, ExpiresIn: expiresIn, AppName: LoginLinkAppName,
+		Username: username, Email: to, LoginLink: loginURL, LoginCode: loginCode,
+		ExpiresIn: expiresIn, AppName: LoginLinkAppName,
 	}
 	subject := renderLoginLinkTemplate(templateValue.Subject, values, false, false)
-	textBody := renderLoginLinkTemplate(templateValue.Body, values, false, false)
-	htmlBody := renderLoginLinkTemplate(templateValue.Body, values, true, true)
+	textBody := renderLoginLinkTemplate(body, values, false, false)
+	htmlBody := renderLoginLinkTemplate(body, values, true, true)
 	if _, err := RenderEmail(EmailContent{To: to, Subject: subject, Body: textBody, HTML: htmlBody}); err != nil {
 		return "", "", "", ErrInvalidLoginLinkTemplate
 	}
@@ -178,6 +197,8 @@ func loginLinkTemplateValue(name string, values loginLinkTemplateValues) string 
 		return values.Email
 	case "login_link":
 		return values.LoginLink
+	case "login_code":
+		return values.LoginCode
 	case "expires_in":
 		return values.ExpiresIn
 	case "app_name":

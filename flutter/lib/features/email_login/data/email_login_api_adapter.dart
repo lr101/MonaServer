@@ -5,7 +5,11 @@ import 'package:openapi/api.dart';
 /// Converts the generated public-auth client into the bounded email-login
 /// ports. Generated DTOs and transport details do not escape this boundary.
 class PublicAuthEmailLoginAdapter
-    implements EmailLinkRequestPort, EmailLinkExchangePort, EmailRecoveryPort {
+    implements
+        EmailLinkRequestPort,
+        EmailLinkExchangePort,
+        EmailLoginCodeExchangePort,
+        EmailRecoveryPort {
   PublicAuthEmailLoginAdapter(this._api);
 
   final PublicAuthApi _api;
@@ -38,6 +42,46 @@ class PublicAuthEmailLoginAdapter
     try {
       final response = await _api.exchangeEmailLink(
         EmailLinkExchangeRequestDto(token: token.value),
+      );
+      if (response == null ||
+          !_hasUsableCredentials(response.tokens) ||
+          response.username.trim().isEmpty) {
+        return const EmailLinkExchangeResult.unavailable();
+      }
+      return EmailLinkExchangeResult.success(
+        EmailLinkExchange(
+          credentials: EmailLoginCredentials(
+            accessToken: response.tokens.accessToken,
+            refreshToken: response.tokens.refreshToken,
+            userId: response.tokens.userId,
+          ),
+          canonicalUsername: response.username,
+        ),
+      );
+    } on ApiException catch (error) {
+      return switch (error.code) {
+        400 => const EmailLinkExchangeResult.invalid(),
+        _ => const EmailLinkExchangeResult.unavailable(),
+      };
+    } catch (_) {
+      return const EmailLinkExchangeResult.unavailable();
+    }
+  }
+
+  @override
+  Future<EmailLinkExchangeResult> exchangeCode(
+    EmailLoginIdentifier identifier,
+    EmailLoginCode code,
+  ) async {
+    try {
+      final response = await _api.exchangeEmailLoginCode(
+        EmailLoginCodeExchangeRequestDto(
+          code: code.value,
+          email: identifier.value,
+          identifierType: identifier.kind == EmailLoginIdentifierKind.username
+              ? EmailLoginCodeExchangeRequestDtoIdentifierTypeEnum.username
+              : EmailLoginCodeExchangeRequestDtoIdentifierTypeEnum.email,
+        ),
       );
       if (response == null ||
           !_hasUsableCredentials(response.tokens) ||

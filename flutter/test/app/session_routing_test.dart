@@ -87,6 +87,19 @@ void main() {
     }
   });
 
+  test('email-code entry remains public while signed out', () {
+    for (final status in [SessionStatus.signedOut, SessionStatus.expired]) {
+      expect(
+        sessionRedirect(
+          status: status,
+          cleanupRequired: false,
+          location: '/email-login/code',
+        ),
+        isNull,
+      );
+    }
+  });
+
   test(
     'cleanup redirects email callbacks through the existing logout flow',
     () {
