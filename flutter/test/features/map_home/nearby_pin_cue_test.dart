@@ -152,9 +152,9 @@ void main() {
           groupMetadataProvider('group-1').overrideWith((ref) async* {
             yield null;
           }),
-          groupPinImageByIdProvider('group-1')
+          groupProfilePictureSmallByIdProvider('group-1')
               .overrideWith((ref) => Stream.value(null)),
-          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: MaterialApp(
           home: StatefulBuilder(
@@ -213,9 +213,9 @@ void main() {
           groupMetadataProvider('group-1').overrideWith((ref) async* {
             yield null;
           }),
-          groupPinImageByIdProvider('group-1')
+          groupProfilePictureSmallByIdProvider('group-1')
               .overrideWith((ref) => Stream.value(null)),
-          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: cueApp(),
       ),
@@ -248,9 +248,9 @@ void main() {
           groupMetadataProvider('group-1').overrideWith((ref) async* {
             yield null;
           }),
-          groupPinImageByIdProvider('group-1')
+          groupProfilePictureSmallByIdProvider('group-1')
               .overrideWith((ref) => Stream.value(null)),
-          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: cueApp(),
       ),

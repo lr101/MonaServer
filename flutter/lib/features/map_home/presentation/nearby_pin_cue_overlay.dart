@@ -171,9 +171,9 @@ class NearbyPinCueCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final pin = nearbyPin.pin;
     final group = ref.watch(groupMetadataProvider(pin.groupId)).value;
-    final groupImage =
-        ref.watch(groupPinImageByIdProvider(pin.groupId)).value ??
-        ref.watch(defaultGroupPinImageProvider);
+    final groupProfileImage =
+        (ref.watch(groupProfilePictureSmallByIdProvider(pin.groupId)).value ??
+        ref.read(defaultErrorImageProvider))!;
     final catalog = ref.watch(groupPinDesignCatalogProvider(pin.groupId)).value;
     final style = group?.pinStyle ?? 'classic';
     final design = MapPinDesign.forCatalog(catalog, style);
@@ -207,16 +207,18 @@ class NearbyPinCueCard extends ConsumerWidget {
                     children: [
                       SizedBox.square(
                         dimension: 38,
-                        child: PinMarkerImage(
-                          isGone: isGone,
-                          style: style,
-                          design: design,
-                          image: Image.memory(
-                            groupImage!,
-                            fit: BoxFit.cover,
-                            alignment: Alignment(
-                              design.imageAlignmentX,
-                              design.imageAlignmentY,
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: 48 / 56,
+                            child: PinMarkerImage(
+                              isGone: isGone,
+                              style: style,
+                              design: design,
+                              image: Image.memory(
+                                groupProfileImage,
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                              ),
                             ),
                           ),
                         ),
