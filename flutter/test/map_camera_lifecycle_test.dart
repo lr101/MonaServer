@@ -150,9 +150,7 @@ void main() {
     expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
   });
 
-  testWidgets('web camera preview center-crops into a stable 3:4 frame', (
-    tester,
-  ) async {
+  testWidgets('web platform view fills its stable 3:4 frame', (tester) async {
     final controller = _FakeCameraController(
       orientation: DeviceOrientation.portraitUp,
     );
@@ -173,16 +171,16 @@ void main() {
 
     expect(find.byType(CameraPreview), findsNothing);
     expect(find.byType(RotatedBox), findsNothing);
-    expect(tester.widget<FittedBox>(find.byType(FittedBox)).fit, BoxFit.cover);
-    expect(
-      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
-      closeTo(16 / 9, 0.001),
-    );
+    expect(find.byType(FittedBox), findsNothing);
     final frame = tester.getSize(
       find.byKey(const ValueKey('camera-preview-frame')),
     );
     expect(frame.width, closeTo(320, 0.001));
     expect(frame.height, closeTo(320 * 4 / 3, 0.001));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('camera-platform-preview'))),
+      frame,
+    );
   });
 
   testWidgets('web front camera leaves browser mirroring upright', (

@@ -10,6 +10,7 @@ void main() {
   testWidgets('shows one photo at a time and swipes to the next update', (
     tester,
   ) async {
+    var selectedIndex = -1;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -19,6 +20,7 @@ void main() {
                 width: 320,
                 child: PinPhotoCarousel(
                   originalImage: Uint8List.fromList(kTransparentImage),
+                  onPageChanged: (index) => selectedIndex = index,
                   photos: [
                     PinPhotoDto(
                       id: 'original',
@@ -45,19 +47,22 @@ void main() {
       ),
     );
 
-    expect(find.text('1 / 2'), findsOneWidget);
-    expect(find.text('Original pin photo'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsOneWidget);
     expect(find.text('Still here today'), findsNothing);
+    expect(
+      tester.getSize(find.byType(PageView)).height,
+      closeTo(tester.getSize(find.byType(PageView)).width * 4 / 3, 0.1),
+    );
     final originalImage = tester.widget<Image>(find.byType(Image));
     expect(originalImage.image, isA<ResizeImage>());
 
     await tester.drag(find.byType(PageView), const Offset(-500, 0));
     await tester.pump();
 
-    expect(find.text('2 / 2'), findsOneWidget);
-    expect(find.text('Update by walker'), findsOneWidget);
-    expect(find.text('Still here today'), findsOneWidget);
-    expect(find.text('Original pin photo'), findsNothing);
+    expect(find.text('2/2'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsNothing);
+    expect(selectedIndex, 1);
     final updateImage = tester.widget<Image>(find.byType(Image));
     expect(updateImage.image, isA<NetworkImage>());
     expect(
@@ -79,8 +84,8 @@ void main() {
       ),
     );
 
-    expect(find.text('1 / 1'), findsNothing);
-    expect(find.text('Original pin photo'), findsOneWidget);
+    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsOneWidget);
     expect(find.byType(PageView), findsOneWidget);
   });
 }

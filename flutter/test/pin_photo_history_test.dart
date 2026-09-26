@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
+import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:camera/camera.dart';
 // ignore: depend_on_referenced_packages
 import 'package:camera_platform_interface/camera_platform_interface.dart';
@@ -20,7 +21,16 @@ import 'package:openapi/api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('upload photo still picks from the gallery', (tester) async {
+  testWidgets('update opens camera and can choose a photo from the gallery', (
+    tester,
+  ) async {
+    const cameraDescription = CameraDescription(
+      name: 'pin-camera',
+      lensDirection: CameraLensDirection.back,
+      sensorOrientation: 90,
+    );
+    final originalCameraPlatform = CameraPlatform.instance;
+    CameraPlatform.instance = _PinCameraPlatform(cameraDescription);
     final originalPicker = ImagePickerPlatform.instance;
     final picker = _PinGalleryPlatform(
       XFile.fromData(
@@ -28,11 +38,33 @@ void main() {
       ),
     );
     ImagePickerPlatform.instance = picker;
-    addTearDown(() => ImagePickerPlatform.instance = originalPicker);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final controller = _PinCameraController(cameraDescription);
+    final api = _FakePinsApi();
+    addTearDown(() async {
+      CameraPlatform.instance = originalCameraPlatform;
+      ImagePickerPlatform.instance = originalPicker;
+      await controller.dispose();
+    });
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [pinApiProvider.overrideWithValue(_FakePinsApi())],
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'walker',
+              refreshToken: null,
+              cameras: [cameraDescription],
+            ),
+          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          groupOrderServiceProvider.overrideWithValue([]),
+          cameraControllerProvider.overrideWith(
+            (ref) => Future.value(controller),
+          ),
+          pinApiProvider.overrideWithValue(api),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
@@ -46,7 +78,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Upload'));
+    await tester.tap(find.text('Update'));
+    await tester.pumpAndSettle();
+    expect(find.text('Take pin photo'), findsOneWidget);
+    await tester.tap(find.byTooltip('Choose from gallery'));
     await _waitForComposer(tester);
 
     expect(picker.requestedSource, ImageSource.gallery);
@@ -101,10 +136,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Take photo'), findsOneWidget);
-    expect(find.text('Upload'), findsOneWidget);
+    expect(find.text('Update'), findsOneWidget);
 
-    await tester.tap(find.text('Take photo'));
+    await tester.tap(find.text('Update'));
     await tester.pumpAndSettle();
     expect(find.text('Take pin photo'), findsOneWidget);
     await tester.tap(find.byTooltip('Take photo'));
@@ -121,15 +155,13 @@ void main() {
     expect(api.submitted?.longitude, 8);
     expect(api.submitted?.accuracyMeters, 5);
 
-    await tester.tap(find.text('Take photo'));
+    await tester.tap(find.text('Update'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Take photo'),
-          )
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Update'))
           .onPressed,
       isNotNull,
     );
@@ -178,9 +210,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Original pin photo'), findsNothing);
-    expect(find.text('Update by walker'), findsNothing);
-    expect(find.text('The sign is still here'), findsNothing);
+    expect(find.text('Update'), findsOneWidget);
     expect(find.byType(Image), findsNothing);
     expect(
       find.text('Get within 50 m of this pin to add a photo.'),
@@ -188,15 +218,7 @@ void main() {
     );
     expect(
       tester
-          .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Take photo'),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Upload'))
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Update'))
           .onPressed,
       isNull,
     );

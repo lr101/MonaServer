@@ -77,12 +77,23 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   Widget _cameraDiscoveryStatus(Widget child) {
     return Scaffold(
-      appBar: widget.pinPhotoMode
-          ? AppBar(title: const Text('Take pin photo'))
-          : null,
+      appBar: _pinPhotoAppBar(),
       body: SafeArea(child: Center(child: child)),
     );
   }
+
+  PreferredSizeWidget? _pinPhotoAppBar() => widget.pinPhotoMode
+      ? AppBar(
+          title: const Text('Take pin photo'),
+          actions: [
+            IconButton(
+              tooltip: 'Choose from gallery',
+              onPressed: choosePinPhotoFromGallery,
+              icon: const Icon(Icons.photo_library_outlined),
+            ),
+          ],
+        )
+      : null;
 
   @override
   void dispose() {
@@ -158,9 +169,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
         : ref.watch(groupOrderServiceProvider);
     if (cameras.isEmpty) {
       return Scaffold(
-        appBar: widget.pinPhotoMode
-            ? AppBar(title: const Text('Take pin photo'))
-            : null,
+        appBar: _pinPhotoAppBar(),
         body: const SafeArea(
           child: Center(
             child: Text('No cameras are available on this device.'),
@@ -172,9 +181,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
     return Scaffold(
-      appBar: widget.pinPhotoMode
-          ? AppBar(title: const Text('Take pin photo'))
-          : null,
+      appBar: _pinPhotoAppBar(),
       body: SafeArea(
         child: Stack(
           children: [
@@ -472,6 +479,13 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> choosePinPhotoFromGallery() async {
+    final pickedFile = await CustomImagePicker.pick(context: context);
+    if (pickedFile != null && mounted) {
+      Navigator.of(context).pop(pickedFile);
+    }
+  }
+
   Future<void> _handleImage(XFile file, {required bool fromGallery}) async {
     final controller = ref.read(cameraControllerProvider).value;
     var openedReview = false;
@@ -578,27 +592,28 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
                   sensorAspectRatio: value.aspectRatio,
                   orientation: value.deviceOrientation,
                 );
+          // The browser video already uses object-fit: cover. Keep its
+          // platform view at the visible frame's actual size instead of
+          // scaling the HTML view with a FittedBox.
           final preview = useWebPreview
-              ? AspectRatio(
-                  aspectRatio: sourceAspectRatio,
+              ? KeyedSubtree(
+                  key: const ValueKey('camera-platform-preview'),
                   child: controller.buildPreview(),
                 )
-              : CameraPreview(controller);
+              : FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: sourceAspectRatio,
+                    height: 1,
+                    child: CameraPreview(controller),
+                  ),
+                );
 
           return Center(
             child: SizedBox.fromSize(
               key: const ValueKey('camera-preview-frame'),
               size: frameSize,
-              child: ClipRect(
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: sourceAspectRatio,
-                    height: 1,
-                    child: preview,
-                  ),
-                ),
-              ),
+              child: ClipRect(child: preview),
             ),
           );
         },

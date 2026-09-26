@@ -15,7 +15,7 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('pin page shows one picture without a feed map overlay', (
+  testWidgets('pin page keeps photo details and actions in a compact layout', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -60,6 +60,15 @@ void main() {
                 observedAt: DateTime.utc(2026),
                 isOriginal: true,
               ),
+              PinPhotoDto(
+                id: 'update',
+                pinId: 'pin',
+                contributorUsername: 'walker',
+                image: 'https://example.test/update.png',
+                caption: 'Still here today',
+                observedAt: DateTime.utc(2026, 2),
+                isOriginal: false,
+              ),
             ]),
           ),
         ],
@@ -74,19 +83,40 @@ void main() {
     );
     expect(find.byType(PageView), findsOneWidget);
     expect(find.text('The riverside gate'), findsOneWidget);
+    expect(find.text('Map pin'), findsNothing);
+    expect(find.text('50.00000, 8.00000'), findsNothing);
     expect(find.byType(FeedMap), findsNothing);
     expect(
       tester.getTopLeft(find.text('The riverside gate')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
     );
-    expect(find.text('Original pin photo'), findsWidgets);
-    expect(find.text('Take photo'), findsOneWidget);
-    expect(find.text('Upload'), findsOneWidget);
-    expect(find.text('Mark gone'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('Original pin photo'), findsNothing);
+    expect(find.text('Update'), findsOneWidget);
+    expect(find.text('Take photo'), findsNothing);
+    expect(find.text('Upload'), findsNothing);
+    expect(find.text('Mark as gone'), findsOneWidget);
     expect(find.text('A note on this pin'), findsOneWidget);
     expect(
-      tester.getBottomRight(find.text('Upload')).dy,
+      tester.getTopLeft(find.widgetWithText(FilledButton, 'Update')).dy,
+      closeTo(
+        tester
+            .getTopLeft(find.widgetWithText(OutlinedButton, 'Mark as gone'))
+            .dy,
+        0.1,
+      ),
+    );
+    expect(
+      tester.getBottomRight(find.text('Update')).dy,
       lessThanOrEqualTo(tester.view.physicalSize.height),
     );
+
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Still here today'), findsOneWidget);
+    expect(find.text('A note on this pin'), findsNothing);
+    expect(find.text('ORIGINAL'), findsNothing);
+    expect(find.text('2/2'), findsOneWidget);
   });
 }
