@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/base64"
+	"math"
 	"net/http"
 	"time"
 
@@ -115,6 +116,34 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 		}
 	}
 	return genserver.Response(http.StatusOK, genserver.PinsSyncDto{Items: items, Deleted: deleted}), nil
+}
+
+func (s *PinsServicer) GetNearbyPins(ctx context.Context, latitude, longitude float64, radiusMeters int32) (genserver.ImplResponse, error) {
+	caller, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	if math.IsNaN(latitude) || math.IsInf(latitude, 0) || latitude < -90 || latitude > 90 ||
+		math.IsNaN(longitude) || math.IsInf(longitude, 0) || longitude < -180 || longitude > 180 ||
+		radiusMeters < 1 || radiusMeters > 1000 {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+
+	pins, err := s.q.FindNearbyPins(ctx, caller, latitude, longitude, radiusMeters, 10)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	items := make([]genserver.NearbyPinDto, 0, len(pins))
+	for _, nearby := range pins {
+		pin := pinToDto(nearby.Pin)
+		if imageURL, err := s.pin.LatestImageURL(ctx, nearby.Pin.ID); err == nil && imageURL != nil {
+			pin.Image = *imageURL
+		}
+		items = append(items, genserver.NearbyPinDto{
+			Pin: pin, DistanceMeters: nearby.DistanceMeters, GroupName: nearby.GroupName,
+		})
+	}
+	return genserver.Response(http.StatusOK, genserver.NearbyPinsDto{Items: items}), nil
 }
 
 func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDto) (genserver.ImplResponse, error) {

@@ -66,6 +66,12 @@ func (c *PinsAPIController) Routes() Routes {
 			"/api/v2/pins",
 			c.CreatePin,
 		},
+		"GetNearbyPins": Route{
+			"GetNearbyPins",
+			strings.ToUpper("Get"),
+			"/api/v2/pins/nearby",
+			c.GetNearbyPins,
+		},
 		"GetPin": Route{
 			"GetPin",
 			strings.ToUpper("Get"),
@@ -125,6 +131,12 @@ func (c *PinsAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Post"),
 			"/api/v2/pins",
 			c.CreatePin,
+		},
+		Route{
+			"GetNearbyPins",
+			strings.ToUpper("Get"),
+			"/api/v2/pins/nearby",
+			c.GetNearbyPins,
 		},
 		Route{
 			"GetPin",
@@ -218,6 +230,53 @@ func (c *PinsAPIController) GetPinImagesByIds(w http.ResponseWriter, r *http.Req
 		return
 	}
 	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
+// GetNearbyPins - Find nearby visible pins
+func (c *PinsAPIController) GetNearbyPins(w http.ResponseWriter, r *http.Request) {
+	query, err := parseQuery(r.URL.RawQuery)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	for _, name := range []string{"latitude", "longitude", "radiusMeters"} {
+		if !query.Has(name) {
+			c.errorHandler(w, r, &RequiredError{name}, nil)
+			return
+		}
+	}
+
+	latitude, err := parseNumericParameter[float64](
+		query.Get("latitude"), WithParse[float64](parseFloat64),
+		WithMinimum[float64](-90), WithMaximum[float64](90),
+	)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Param: "latitude", Err: err}, nil)
+		return
+	}
+	longitude, err := parseNumericParameter[float64](
+		query.Get("longitude"), WithParse[float64](parseFloat64),
+		WithMinimum[float64](-180), WithMaximum[float64](180),
+	)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Param: "longitude", Err: err}, nil)
+		return
+	}
+	radiusMeters, err := parseNumericParameter[int32](
+		query.Get("radiusMeters"), WithParse[int32](parseInt32),
+		WithMinimum[int32](1), WithMaximum[int32](1000),
+	)
+	if err != nil {
+		c.errorHandler(w, r, &ParsingError{Param: "radiusMeters", Err: err}, nil)
+		return
+	}
+
+	result, err := c.service.GetNearbyPins(r.Context(), latitude, longitude, radiusMeters)
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 

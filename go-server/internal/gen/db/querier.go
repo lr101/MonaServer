@@ -123,6 +123,7 @@ type Querier interface {
 	ExtendDurableJobLease(ctx context.Context, arg ExtendDurableJobLeaseParams) (ExtendDurableJobLeaseRow, error)
 	ExtendOutboxEventLease(ctx context.Context, arg ExtendOutboxEventLeaseParams) (ExtendOutboxEventLeaseRow, error)
 	FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForPointParams) (pgtype.UUID, error)
+	FindNearbyPins(ctx context.Context, arg FindNearbyPinsParams) ([]FindNearbyPinsRow, error)
 	FindRefreshToken(ctx context.Context, token pgtype.UUID) (FindRefreshTokenRow, error)
 	FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]FindUsersWithNewPinsSinceLastActiveRow, error)
 	FinishAdminJobItem(ctx context.Context, arg FinishAdminJobItemParams) (pgtype.UUID, error)

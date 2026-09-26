@@ -98,6 +98,8 @@ doc/MapInfoDto.md
 doc/MarkCompromisedActionDto.md
 doc/MemberResponseDto.md
 doc/MembersApi.md
+doc/NearbyPinDto.md
+doc/NearbyPinsDto.md
 doc/NotificationDto.md
 doc/PinLikeDto.md
 doc/PinPhotoDto.md
@@ -252,6 +254,8 @@ lib/model/login_link_action_dto.dart
 lib/model/map_info_dto.dart
 lib/model/mark_compromised_action_dto.dart
 lib/model/member_response_dto.dart
+lib/model/nearby_pin_dto.dart
+lib/model/nearby_pins_dto.dart
 lib/model/notification_dto.dart
 lib/model/pin_like_dto.dart
 lib/model/pin_photo_dto.dart

@@ -208,6 +208,7 @@ type MembersAPIServicer interface {
 // and updated with the logic required for the API.
 type PinsAPIServicer interface {
 	GetPinImagesByIds(context.Context, []string, string, string, bool, int32, int32, int32, int32, time.Time, time.Time, string) (ImplResponse, error)
+	GetNearbyPins(context.Context, float64, float64, int32) (ImplResponse, error)
 	CreatePin(context.Context, PinRequestDto) (ImplResponse, error)
 	GetPin(context.Context, string, bool) (ImplResponse, error)
 	SetPinPresence(context.Context, string, PinPresenceRequestDto) (ImplResponse, error)

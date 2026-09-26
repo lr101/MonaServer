@@ -130,6 +130,7 @@ Class | Method | HTTP request | Description
 *PinsApi* | [**callSync**](doc//PinsApi.md#callsync) | **GET** /api/v3/sync | Sync all pins and groups based on last seen date
 *PinsApi* | [**createPin**](doc//PinsApi.md#createpin) | **POST** /api/v2/pins | Create a new pin
 *PinsApi* | [**deletePin**](doc//PinsApi.md#deletepin) | **DELETE** /api/v2/pins/{pinId} | Delete a pin by ID
+*PinsApi* | [**getNearbyPins**](doc//PinsApi.md#getnearbypins) | **GET** /api/v2/pins/nearby | Find nearby visible pins
 *PinsApi* | [**getPin**](doc//PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 *PinsApi* | [**getPinImage**](doc//PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 *PinsApi* | [**getPinImagesByIds**](doc//PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
@@ -239,6 +240,8 @@ Class | Method | HTTP request | Description
  - [MapInfoDto](doc//MapInfoDto.md)
  - [MarkCompromisedActionDto](doc//MarkCompromisedActionDto.md)
  - [MemberResponseDto](doc//MemberResponseDto.md)
+ - [NearbyPinDto](doc//NearbyPinDto.md)
+ - [NearbyPinsDto](doc//NearbyPinsDto.md)
  - [NotificationDto](doc//NotificationDto.md)
  - [PinLikeDto](doc//PinLikeDto.md)
  - [PinPhotoDto](doc//PinPhotoDto.md)

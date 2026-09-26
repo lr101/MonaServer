@@ -1221,6 +1221,12 @@ type PinSearch struct {
 	Offset             int32
 }
 
+type NearbyPin struct {
+	Pin            Pin
+	GroupName      string
+	DistanceMeters int32
+}
+
 func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 	ids := make([]pgtype.UUID, len(s.IDs))
 	for i, id := range s.IDs {
@@ -1257,6 +1263,37 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
 			IsGone: r.IsGone,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) FindNearbyPins(ctx context.Context, callerID uuid.UUID, latitude, longitude float64, radiusMeters int32, limit int32) ([]NearbyPin, error) {
+	if limit <= 0 || limit > 10 {
+		limit = 10
+	}
+	rows, err := q.g.FindNearbyPins(ctx, dbgen.FindNearbyPinsParams{
+		Longitude: longitude, Latitude: latitude, RadiusMeters: float64(radiusMeters),
+		CallerID: pgUUID(callerID), Lim: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]NearbyPin, 0, len(rows))
+	for _, r := range rows {
+		var boundary *uuid.UUID
+		if r.StateProvinceID.Valid {
+			id := goUUID(r.StateProvinceID)
+			boundary = &id
+		}
+		out = append(out, NearbyPin{
+			Pin: Pin{
+				ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
+				CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+				Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+				GroupID: goUUID(r.GroupID), StateProvinceID: boundary, IsGone: r.IsGone,
+			},
+			GroupName: r.GroupName, DistanceMeters: r.DistanceMeters,
 		})
 	}
 	return out, nil

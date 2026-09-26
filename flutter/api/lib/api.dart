@@ -131,6 +131,8 @@ part 'model/login_link_action_dto.dart';
 part 'model/map_info_dto.dart';
 part 'model/mark_compromised_action_dto.dart';
 part 'model/member_response_dto.dart';
+part 'model/nearby_pin_dto.dart';
+part 'model/nearby_pins_dto.dart';
 part 'model/notification_dto.dart';
 part 'model/pin_like_dto.dart';
 part 'model/pin_photo_dto.dart';

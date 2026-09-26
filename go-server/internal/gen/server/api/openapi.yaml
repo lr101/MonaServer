@@ -1055,6 +1055,53 @@ paths:
       summary: Create a new pin
       tags:
       - pins
+  /api/v2/pins/nearby:
+    get:
+      description: "Returns up to ten visible pins within the requested radius, ordered\
+        \ by distance. Gone pins remain included so they can be found as historical\
+        \ pins."
+      operationId: getNearbyPins
+      parameters:
+      - description: Latitude for the nearby search center
+        explode: true
+        in: query
+        name: latitude
+        required: true
+        schema:
+          $ref: "#/components/schemas/latitude"
+        style: form
+      - description: Longitude for the nearby search center
+        explode: true
+        in: query
+        name: longitude
+        required: true
+        schema:
+          $ref: "#/components/schemas/longitude"
+        style: form
+      - description: "Search radius, limited to 1000 meters"
+        explode: true
+        in: query
+        name: radiusMeters
+        required: true
+        schema:
+          $ref: "#/components/schemas/radiusMeters"
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/nearbyPinsDto"
+          description: Nearby pins visible to the authenticated user
+        "400":
+          description: Coordinates or radius are outside the supported range
+        "401":
+          description: Unauthenticated
+      security:
+      - token: []
+      summary: Find nearby visible pins
+      tags:
+      - pins
   /api/v2/pins/{pinId}:
     delete:
       operationId: deletePin
@@ -7381,6 +7428,105 @@ components:
       - latitude
       - longitude
       type: object
+    nearbyPinDto:
+      example:
+        distanceMeters: 0
+        groupName: groupName
+        pin:
+          image: https://storage.example.com/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          isGone: false
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+      properties:
+        pin:
+          $ref: "#/components/schemas/pinWithOptionalImageDto"
+        distanceMeters:
+          minimum: 0
+          type: integer
+        groupName:
+          type: string
+      required:
+      - distanceMeters
+      - groupName
+      - pin
+      type: object
+    nearbyPinsDto:
+      example:
+        items:
+        - distanceMeters: 0
+          groupName: groupName
+          pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+        - distanceMeters: 0
+          groupName: groupName
+          pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+        - distanceMeters: 0
+          groupName: groupName
+          pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+        - distanceMeters: 0
+          groupName: groupName
+          pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+        - distanceMeters: 0
+          groupName: groupName
+          pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/nearbyPinDto"
+          maxItems: 10
+          type: array
+      required:
+      - items
+      type: object
     pinLikeDto:
       example:
         likedLocationByUser: true
@@ -7663,6 +7809,10 @@ components:
       maximum: 180
       minimum: -180
       type: number
+    radiusMeters:
+      maximum: 1000
+      minimum: 1
+      type: integer
     mapInfoDto:
       example:
         gid2: gid2

@@ -98,6 +98,8 @@ model_login_link_action_dto.go
 model_map_info_dto.go
 model_mark_compromised_action_dto.go
 model_member_response_dto.go
+model_nearby_pin_dto.go
+model_nearby_pins_dto.go
 model_notification_dto.go
 model_pin_like_dto.go
 model_pin_photo_dto.go

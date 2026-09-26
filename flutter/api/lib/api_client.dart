@@ -344,6 +344,10 @@ class ApiClient {
           return MarkCompromisedActionDto.fromJson(value);
         case 'MemberResponseDto':
           return MemberResponseDto.fromJson(value);
+        case 'NearbyPinDto':
+          return NearbyPinDto.fromJson(value);
+        case 'NearbyPinsDto':
+          return NearbyPinsDto.fromJson(value);
         case 'NotificationDto':
           return NotificationDto.fromJson(value);
         case 'PinLikeDto':

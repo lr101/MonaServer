@@ -1277,6 +1277,133 @@ func TestEndpointPins(t *testing.T) {
 	})
 }
 
+func TestEndpointNearbyPinsReturnsNearestVisiblePins(t *testing.T) {
+	pinStore := newMemoryPinObjectStore()
+	srv, q := buildTestServerWithPinStore(t, pinStore)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	ownerAuth := anon.signup(t, "nearby_pin_owner", "pw123")
+	viewerAuth := anon.signup(t, "nearby_pin_viewer", "pw123")
+	owner := &apiClient{base: srv.URL, bearer: ownerAuth.AccessToken}
+	viewer := &apiClient{base: srv.URL, bearer: viewerAuth.AccessToken}
+
+	publicGroupID := owner.createGroup(t, ownerAuth.UserID, "nearby_public_group", 0)
+	privateGroupID := owner.createGroup(t, ownerAuth.UserID, "nearby_private_group", 1)
+	createPin := func(groupID, latitude string) string {
+		t.Helper()
+		lat, err := strconv.ParseFloat(latitude, 64)
+		if err != nil {
+			t.Fatalf("parse fixture latitude: %v", err)
+		}
+		resp := owner.do(t, http.MethodPost, "/api/v2/pins", map[string]any{
+			"image": testImageBase64, "latitude": lat, "longitude": 11.576,
+			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"userId":       ownerAuth.UserID, "groupId": groupID,
+		})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create pin in group %s: status = %d, want 201", groupID, resp.StatusCode)
+		}
+		var created map[string]any
+		decode(t, resp, &created)
+		return fmt.Sprint(created["id"])
+	}
+
+	publicNearID := createPin(publicGroupID, "48.1371")
+	createPin(publicGroupID, "48.138")
+	privatePinID := createPin(privateGroupID, "48.13701")
+	for i := 2; i < 11; i++ {
+		createPin(publicGroupID, strconv.FormatFloat(48.137+float64(i)*0.00008, 'f', 6, 64))
+	}
+	ownerID, err := uuid.Parse(ownerAuth.UserID)
+	if err != nil {
+		t.Fatalf("parse owner ID: %v", err)
+	}
+	publicNearUUID, err := uuid.Parse(publicNearID)
+	if err != nil {
+		t.Fatalf("parse public pin ID: %v", err)
+	}
+	latestPhotoKey := "pins/nearby-latest-photo.png"
+	pinStore.objects[latestPhotoKey] = []byte("latest-photo")
+	if _, err := q.Pool().Exec(context.Background(), `
+		INSERT INTO pin_photos (
+			id, pin_id, contributor_id, contributor_username, image_key,
+			observed_at, is_original
+		) VALUES ($1, $2, $3, 'nearby_pin_owner', $4, $5, FALSE)
+	`, uuid.New(), publicNearUUID, ownerID, latestPhotoKey, time.Now().UTC()); err != nil {
+		t.Fatalf("insert latest photo fixture: %v", err)
+	}
+	resp := owner.do(t, http.MethodPost, "/api/v2/pins/"+publicNearID+"/presence", map[string]any{
+		"state": "gone",
+	})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mark nearby pin gone: status = %d, want 200", resp.StatusCode)
+	}
+	resp = anon.do(t, http.MethodGet, "/api/v2/pins/nearby?latitude=48.137&longitude=11.576&radiusMeters=500", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated nearby search status = %d, want 401", resp.StatusCode)
+	}
+
+	resp = viewer.do(t, http.MethodGet, "/api/v2/pins/nearby?latitude=48.137&longitude=11.576&radiusMeters=500", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("nearby search status = %d, want 200", resp.StatusCode)
+	}
+	var nearby struct {
+		Items []struct {
+			Pin struct {
+				ID     string `json:"id"`
+				IsGone bool   `json:"isGone"`
+				Image  string `json:"image"`
+			} `json:"pin"`
+			DistanceMeters int    `json:"distanceMeters"`
+			GroupName      string `json:"groupName"`
+		} `json:"items"`
+	}
+	decode(t, resp, &nearby)
+	resp.Body.Close()
+	if len(nearby.Items) != 10 {
+		t.Fatalf("nearby items = %d, want the bounded ten public pins", len(nearby.Items))
+	}
+	if nearby.Items[0].Pin.ID != publicNearID {
+		t.Fatalf("nearest pin id = %q, want %q", nearby.Items[0].Pin.ID, publicNearID)
+	}
+	if nearby.Items[0].DistanceMeters < 10 || nearby.Items[0].DistanceMeters > 12 {
+		t.Fatalf("nearest distance = %d m, want about 11 m", nearby.Items[0].DistanceMeters)
+	}
+	if !nearby.Items[0].Pin.IsGone {
+		t.Fatal("nearby results omitted the nearest pin's gone state")
+	}
+	if nearby.Items[0].Pin.Image != "https://objects.test/"+latestPhotoKey {
+		t.Fatalf("nearby thumbnail = %q, want latest photo URL", nearby.Items[0].Pin.Image)
+	}
+	if nearby.Items[0].GroupName != "nearby_public_group" {
+		t.Fatalf("nearest group name = %q, want public group", nearby.Items[0].GroupName)
+	}
+	for i, item := range nearby.Items {
+		if item.Pin.ID == privatePinID {
+			t.Fatal("nearby results exposed a private-group pin to a nonmember")
+		}
+		if i > 0 && item.DistanceMeters < nearby.Items[i-1].DistanceMeters {
+			t.Fatalf("nearby results are not ordered by distance: %+v", nearby.Items)
+		}
+	}
+
+	for _, invalidQuery := range []string{
+		"latitude=91&longitude=0&radiusMeters=500",
+		"latitude=48&longitude=11&radiusMeters=5001",
+	} {
+		resp := viewer.do(t, http.MethodGet, "/api/v2/pins/nearby?"+invalidQuery, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("nearby search query %q status = %d, want 400", invalidQuery, resp.StatusCode)
+		}
+	}
+}
+
 func TestEndpointPinPhotosIncludesOriginalImage(t *testing.T) {
 	srv, _ := buildTestServerWithPinStore(t, newMemoryPinObjectStore())
 	defer srv.Close()

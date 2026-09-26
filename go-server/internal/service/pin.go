@@ -264,10 +264,25 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *Pin) ImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
+	return s.imageURLForKey(ctx, PinKey(id))
+}
+
+func (s *Pin) LatestImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
+	photos, err := s.q.ListPinPhotos(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(photos) == 0 {
+		return s.ImageURL(ctx, id)
+	}
+	return s.imageURLForKey(ctx, photos[len(photos)-1].ImageKey)
+}
+
+func (s *Pin) imageURLForKey(ctx context.Context, key string) (*string, error) {
 	if s.obj == nil {
 		return nil, nil
 	}
-	u, err := s.obj.PresignedGet(ctx, PinKey(id))
+	u, err := s.obj.PresignedGet(ctx, key)
 	if err != nil || u == "" {
 		return nil, err
 	}
