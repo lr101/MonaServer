@@ -132,7 +132,7 @@ func renderLoginLinkEmailContent(templateValue *LoginLinkEmailTemplate, username
 	}
 	subject := renderLoginLinkTemplate(templateValue.Subject, values, false, false)
 	textBody := renderLoginLinkTemplate(templateValue.Body, values, false, false)
-	htmlBody := renderLoginLinkTemplate(templateValue.Body, values, true, true)
+	htmlBody := loginLinkEmailShell("Sign in to Stick-It", renderLoginLinkTemplate(templateValue.Body, values, true, true))
 	if _, err := RenderEmail(EmailContent{To: to, Subject: subject, Body: textBody, HTML: htmlBody}); err != nil {
 		return "", "", "", ErrInvalidLoginLinkTemplate
 	}
@@ -153,7 +153,7 @@ func renderLoginLinkTemplate(source string, values loginLinkTemplateValues, html
 		value := loginLinkTemplateValue(name, values)
 		if htmlMode {
 			if name == "login_link" && linkedLoginURL {
-				output.WriteString(`<a href="` + html.EscapeString(value) + `">Sign in</a>`)
+				output.WriteString(`<a href="` + html.EscapeString(value) + `" style="display:inline-block;padding:12px 20px;background-color:` + brandOrange + `;color:` + brandOrangeForeground + `;font-weight:600;text-decoration:none;border-radius:8px">Sign in</a>`)
 			} else {
 				output.WriteString(html.EscapeString(value))
 			}

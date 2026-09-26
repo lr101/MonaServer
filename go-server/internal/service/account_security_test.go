@@ -483,7 +483,7 @@ func TestEmailChangeInvalidatesLegacyResetAndDeletionValues(t *testing.T) {
 	}
 }
 
-func TestLegacyResetActionBindsCurrentEmailAndGenerationAndIsSingleUse(t *testing.T) {
+func TestLegacyResetActionBindsCurrentEmailAndGenerationAndKeepsLinkActive(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
 	email := "legacy-reset-binding@example.test"
@@ -499,7 +499,8 @@ func TestLegacyResetActionBindsCurrentEmailAndGenerationAndIsSingleUse(t *testin
 		t.Fatalf("containment: %v", err)
 	}
 	legacyURL := "legacy-reset-binding-url"
-	if err := q.SetUserResetPasswordUrl(ctx, pair.UserID, legacyURL, time.Now().Add(time.Minute)); err != nil {
+	linkExpiresAt := time.Now().Add(time.Minute)
+	if err := q.SetUserResetPasswordUrl(ctx, pair.UserID, legacyURL, linkExpiresAt); err != nil {
 		t.Fatalf("set legacy reset URL: %v", err)
 	}
 	action, err := security.IssueLegacyActionToken(ctx, legacyURL, db.ActionTokenPurposeRecovery, time.Minute)
@@ -514,11 +515,18 @@ func TestLegacyResetActionBindsCurrentEmailAndGenerationAndIsSingleUse(t *testin
 	if err != nil || stored == nil || stored.EmailBinding == nil || *stored.EmailBinding != email || stored.AuthGeneration != 1 {
 		t.Fatalf("stored legacy action = %#v err=%v, want current bound generation", stored, err)
 	}
-	if _, err := security.IssueLegacyActionToken(ctx, legacyURL, db.ActionTokenPurposeRecovery, time.Minute); apperrors.HTTPStatus(err) != 400 {
-		t.Fatalf("reused legacy reset URL error = %v, want status 400", err)
+	secondAction, err := security.IssueLegacyActionToken(ctx, legacyURL, db.ActionTokenPurposeRecovery, time.Minute)
+	if err != nil || secondAction == nil {
+		t.Fatalf("reused legacy reset URL action = %#v err=%v, want an active link", secondAction, err)
 	}
-	if got, err := q.GetUserByResetPasswordUrl(ctx, legacyURL); err != nil || got != nil {
-		t.Fatalf("legacy reset URL after upgrade = %#v err=%v, want invalidated", got, err)
+	if secondAction.Token == action.Token {
+		t.Fatal("reopened reset link reused the same one-use action token")
+	}
+	if secondAction.ExpiresAt.After(linkExpiresAt) {
+		t.Fatalf("reopened action expires at %s, after original link expiry %s", secondAction.ExpiresAt, linkExpiresAt)
+	}
+	if got, err := q.GetUserByResetPasswordUrl(ctx, legacyURL); err != nil || got == nil {
+		t.Fatalf("legacy reset URL after page load = %#v err=%v, want it to remain active", got, err)
 	}
 }
 
@@ -547,7 +555,7 @@ func TestLegacyResetURLIsRejectedAfterEmailChange(t *testing.T) {
 	}
 }
 
-func TestConcurrentLegacyResetUpgradeConsumesURLOnce(t *testing.T) {
+func TestConcurrentLegacyResetPageLoadsKeepURLActive(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
 	email := "legacy-reset-race@example.test"
@@ -592,8 +600,8 @@ func TestConcurrentLegacyResetUpgradeConsumesURLOnce(t *testing.T) {
 			t.Fatalf("legacy reset race error = %v, want invalid replay or success", err)
 		}
 	}
-	if successes != 1 || failures != 1 {
-		t.Fatalf("legacy reset race outcomes = successes %d failures %d, want one each", successes, failures)
+	if successes != 2 || failures != 0 {
+		t.Fatalf("legacy reset page load outcomes = successes %d failures %d, want two successes", successes, failures)
 	}
 }
 
