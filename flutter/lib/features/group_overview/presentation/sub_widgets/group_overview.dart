@@ -1,3 +1,5 @@
+import 'package:buff_lisa/app/app_links.dart';
+import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
@@ -10,6 +12,7 @@ import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/member_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GroupOverview extends ConsumerStatefulWidget {
@@ -150,6 +153,11 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           SliverToBoxAdapter(
             child: ListTile(
               onTap: () => clickedOnInviteCode(group),
+              trailing: IconButton(
+                tooltip: 'Copy invite link',
+                onPressed: () => clickedOnInviteLink(group),
+                icon: const Icon(Icons.link),
+              ),
               title: const Text(
                 "Invite code",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -185,5 +193,20 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
     if (group?.inviteUrl != null) {
       Clipboard.setData(ClipboardData(text: group!.inviteUrl!));
     }
+  }
+
+  Future<void> clickedOnInviteLink(GroupEntity? group) async {
+    final inviteCode = group?.inviteUrl;
+    if (group == null || inviteCode == null) return;
+
+    final link = groupInviteShareLink(
+      apiHost: resolveApiHost(configuredHost: dotenv.env['API_HOST']),
+      groupId: group.groupId,
+      inviteCode: inviteCode,
+    );
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Invite link copied')));
   }
 }

@@ -6,11 +6,18 @@ import 'package:buff_lisa/features/email_login/data/email_login_session_adapter.
 import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_ports.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:openapi/api.dart';
 
 /// Filled by composition before normal routing begins. A scrubbed reload has
 /// no callback token to replay.
 final emailLinkLaunchDataProvider = Provider<EmailLinkLaunchData?>(
+  (ref) => null,
+);
+
+/// Populated when a login link is opened while the native app is already
+/// running. The initial-link provider above remains the cold-start payload.
+final runtimeEmailLinkLaunchDataProvider = StateProvider<EmailLinkLaunchData?>(
   (ref) => null,
 );
 

@@ -10,6 +10,7 @@ environment:
   sdk: ">=3.13.0 <4.0.0"
 
 dependencies:
+  app_links: ^7.2.1
   cached_network_image:
   camera:
   # The web discovery adapter uses this version's metadata bridge.
