@@ -66,7 +66,8 @@ configured API host.
 cache cleanup, selects secure storage, initializes native map tiles/Firebase,
 and wires Riverpod. It closes Drift if a later startup step fails. It bridges the
 validated host into dotenv for existing consumers. `app/app.dart` owns `MyApp`,
-the existing theme/router wiring, web shell and `AppSyncLifecycle`. Fake startup tests live in
+the existing theme/router wiring, web shell, `AppLinkLifecycle` and
+`AppSyncLifecycle`. Fake startup tests live in
 `test/app/bootstrap_test.dart`; native plugin initialization still needs device
 verification. `GlobalDataService` still combines session and platform concerns.
 Screens still import repositories and generated DTOs; map state still contains
