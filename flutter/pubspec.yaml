@@ -84,7 +84,7 @@ dependencies:
   font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
-  analyzer: ^13.3.0
+  analyzer: ^14.0.0
   build_runner: ^2.16.0
   change_app_package_name:
   flutter_launcher_icons:
