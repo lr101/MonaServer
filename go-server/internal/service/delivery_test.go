@@ -117,6 +117,23 @@ func TestRenderEmailSanitizesHTMLAndEnforcesBounds(t *testing.T) {
 	}
 }
 
+func TestSanitizeHTMLPreservesOnlyApprovedBrandStyles(t *testing.T) {
+	got, err := SanitizeHTML(`<a href="https://example.test" style="background-color:#FFB77C;color:#4B2800;padding:12px 20px;position:fixed;background-image:url(https://evil.test);color:red">Reset</a>`)
+	if err != nil {
+		t.Fatalf("sanitize HTML: %v", err)
+	}
+	for _, want := range []string{`background-color:#ffb77c`, `color:#4b2800`, `padding:12px 20px`, `>Reset</a>`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("sanitized HTML %q does not contain %q", got, want)
+		}
+	}
+	for _, forbidden := range []string{"position", "background-image", "evil.test", "color:red"} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("sanitized HTML %q contains unsafe style %q", got, forbidden)
+		}
+	}
+}
+
 type fakeEmailProvider struct {
 	mu       sync.Mutex
 	result   ProviderResult

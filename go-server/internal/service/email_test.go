@@ -48,6 +48,19 @@ func TestViewLinkUsesPublicAppURL(t *testing.T) {
 	}
 }
 
+func TestViewLinkUsesWebHostBeforeAppURL(t *testing.T) {
+	e := NewEmail(&config.Config{
+		WebHost:     "app.example.com/",
+		AppURL:      "https://api.example.com",
+		RedirectURL: "https://redirect.example.com",
+	}, nil)
+	got := e.viewLink("/public/recover/", "abc123")
+	want := "https://app.example.com/public/recover/abc123"
+	if got != want {
+		t.Fatalf("view link = %q, want %q", got, want)
+	}
+}
+
 // TestActionEmailRendersDirectLink verifies the branded template embeds the
 // direct link (button + fallback) and greets the user, with no ?c= wrapper.
 func TestActionEmailRendersDirectLink(t *testing.T) {
