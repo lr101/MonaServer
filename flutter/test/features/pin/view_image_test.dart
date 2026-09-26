@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
+import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,7 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('pin page shows one picture without a feed map overlay', (
+  testWidgets('pin page keeps photo details and actions in a compact layout', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -56,9 +57,19 @@ void main() {
               PinPhotoDto(
                 id: 'original',
                 pinId: 'pin',
-                contributorUsername: 'maker',
-                observedAt: DateTime.utc(2026),
+                contributorId: 'photo-maker-id',
+                contributorUsername: 'Original photographer',
+                observedAt: DateTime.utc(2025, 12, 31),
                 isOriginal: true,
+              ),
+              PinPhotoDto(
+                id: 'update',
+                pinId: 'pin',
+                contributorUsername: List.filled(64, 'walker').join(' '),
+                image: 'https://example.test/update.png',
+                caption: 'Still here today',
+                observedAt: DateTime.utc(2026, 2),
+                isOriginal: false,
               ),
             ]),
           ),
@@ -74,19 +85,62 @@ void main() {
     );
     expect(find.byType(PageView), findsOneWidget);
     expect(find.text('The riverside gate'), findsOneWidget);
+    expect(find.text('Original photographer'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ClickableUser && widget.userId == 'photo-maker-id',
+      ),
+      findsOneWidget,
+    );
+    final originalDate = MaterialLocalizations.of(
+      tester.element(find.text('Original photographer')),
+    ).formatMediumDate(DateTime.utc(2025, 12, 31).toLocal());
+    expect(find.text('· $originalDate'), findsOneWidget);
+    expect(find.text('Map pin'), findsNothing);
+    expect(find.text('50.00000, 8.00000'), findsNothing);
     expect(find.byType(FeedMap), findsNothing);
     expect(
       tester.getTopLeft(find.text('The riverside gate')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
     );
-    expect(find.text('Original pin photo'), findsWidgets);
-    expect(find.text('Take photo'), findsOneWidget);
-    expect(find.text('Upload'), findsOneWidget);
-    expect(find.text('Mark gone'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('Original pin photo'), findsNothing);
+    expect(find.text('Update'), findsOneWidget);
+    expect(find.text('Take photo'), findsNothing);
+    expect(find.text('Upload'), findsNothing);
+    expect(find.text('Mark as gone'), findsOneWidget);
     expect(find.text('A note on this pin'), findsOneWidget);
     expect(
-      tester.getBottomRight(find.text('Upload')).dy,
+      tester.getTopLeft(find.widgetWithText(FilledButton, 'Update')).dy,
+      closeTo(
+        tester
+            .getTopLeft(find.widgetWithText(OutlinedButton, 'Mark as gone'))
+            .dy,
+        0.1,
+      ),
+    );
+    expect(
+      tester.getBottomRight(find.text('Update')).dy,
       lessThanOrEqualTo(tester.view.physicalSize.height),
     );
+
+    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    final longUsername = List.filled(64, 'walker').join(' ');
+    expect(find.text(longUsername), findsOneWidget);
+    final authorText = tester.widget<Text>(find.text(longUsername));
+    expect(authorText.maxLines, 1);
+    expect(authorText.overflow, TextOverflow.ellipsis);
+    expect(find.byType(ClickableUser), findsNothing);
+    expect(find.text('Still here today'), findsOneWidget);
+    expect(find.text('A note on this pin'), findsNothing);
+    expect(find.text('ORIGINAL'), findsNothing);
+    expect(find.text('2/2'), findsOneWidget);
+    final updateDate = MaterialLocalizations.of(
+      tester.element(find.text(longUsername)),
+    ).formatMediumDate(DateTime.utc(2026, 2).toLocal());
+    expect(find.text('· $updateDate'), findsOneWidget);
   });
 }

@@ -32,9 +32,11 @@ void main() {
       ),
     );
 
-    final nearbyButton = tester.widget<FilledButton>(find.byType(FilledButton));
+    final nearbyButton = tester.widget<OutlinedButton>(
+      find.byType(OutlinedButton),
+    );
     expect(nearbyButton.onPressed, isNotNull);
-    await tester.tap(find.text('Mark gone'));
+    await tester.tap(find.text('Mark as gone'));
     expect(toggled, isTrue);
 
     await tester.pumpWidget(
@@ -52,7 +54,7 @@ void main() {
 
     expect(find.text('Get within 50 m to update this pin'), findsOneWidget);
     expect(
-      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
       isNull,
     );
   });

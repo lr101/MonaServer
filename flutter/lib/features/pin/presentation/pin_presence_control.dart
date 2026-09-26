@@ -20,11 +20,13 @@ class PinPresenceControl extends StatelessWidget {
     required this.userPosition,
     required this.isSaving,
     required this.onToggle,
+    this.showStatusMessage = true,
   });
 
   final PinEntity pin;
   final Position? userPosition;
   final bool isSaving;
+  final bool showStatusMessage;
   final VoidCallback onToggle;
 
   @override
@@ -43,7 +45,7 @@ class PinPresenceControl extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilledButton.icon(
+        OutlinedButton.icon(
           onPressed: canUpdate ? onToggle : null,
           icon: isSaving
               ? const SizedBox.square(
@@ -55,9 +57,9 @@ class PinPresenceControl extends StatelessWidget {
                       ? Icons.location_on_outlined
                       : Icons.location_off_outlined,
                 ),
-          label: Text(pin.isGone ? 'Mark still here' : 'Mark gone'),
+          label: Text(pin.isGone ? 'Mark as here' : 'Mark as gone'),
         ),
-        if (!canUpdate && !isSaving) ...[
+        if (showStatusMessage && !canUpdate && !isSaving) ...[
           const SizedBox(height: 4),
           Semantics(
             liveRegion: true,
