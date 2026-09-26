@@ -145,6 +145,15 @@ class SyncingService extends _$SyncingService {
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
+        final creatorIds = groupUpdate.pinsAdded
+            .map((pin) => pin.creationUser)
+            .toSet();
+        for (final creatorId in creatorIds) {
+          ref.invalidate(userXpProvider(creatorId));
+          ref.invalidate(userAvatarProgressionProvider(creatorId));
+        }
+        ref.invalidate(groupProgressionProvider(groupDto.id));
+        ref.invalidate(groupAvatarProgressionProvider(groupDto.id));
         ref.invalidate(groupAchievementsProvider(groupDto.id));
       }
 
