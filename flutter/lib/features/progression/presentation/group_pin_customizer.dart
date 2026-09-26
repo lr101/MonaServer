@@ -44,7 +44,7 @@ class _GroupPinCustomizerState extends ConsumerState<GroupPinCustomizer> {
     childrenPadding: EdgeInsets.zero,
     maintainState: true,
     title: const Text('Customize earned designs'),
-    subtitle: const Text('Shape, colors, image crop, and achievement badges'),
+    subtitle: const Text('Shape, outline, image zoom, and achievement badges'),
     children: [
       FutureBuilder<GroupPinDesignCatalogDto?>(
         future: _catalog,
@@ -177,8 +177,11 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final design = _design;
-    final groupImage = ref.watch(defaultGroupPinImageProvider);
-    final pinImage = ref.watch(groupPinImageByIdProvider(widget.groupId)).value;
+    final groupProfileImage =
+        (ref
+            .watch(groupProfilePictureSmallByIdProvider(widget.groupId))
+            .value ??
+        ref.read(defaultErrorImageProvider))!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,12 +195,9 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
               style: design.style,
               design: design,
               image: Image.memory(
-                pinImage ?? groupImage,
+                groupProfileImage,
                 fit: BoxFit.cover,
-                alignment: Alignment(
-                  design.imageAlignmentX,
-                  design.imageAlignmentY,
-                ),
+                gaplessPlayback: true,
               ),
             ),
           ),
@@ -238,24 +238,9 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
         ),
         const SizedBox(height: 12),
         _ColorPaletteControl(
-          title: 'Pin color',
-          selected: design.bodyColor,
-          onSelected: (color) => _change(design.copyWith(bodyColor: color)),
-          enabled: !_saving,
-        ),
-        const SizedBox(height: 10),
-        _ColorPaletteControl(
           title: 'Outline color',
           selected: design.outlineColor,
           onSelected: (color) => _change(design.copyWith(outlineColor: color)),
-          enabled: !_saving,
-        ),
-        const SizedBox(height: 10),
-        _ColorPaletteControl(
-          title: 'Image frame color',
-          selected: design.imageBorderColor,
-          onSelected: (color) =>
-              _change(design.copyWith(imageBorderColor: color)),
           enabled: !_saving,
         ),
         const SizedBox(height: 8),
@@ -268,36 +253,6 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
           onChanged: _saving
               ? null
               : (value) => _change(design.copyWith(imageZoom: value)),
-        ),
-        _SliderControl(
-          label: 'Image left / right',
-          value: design.imageAlignmentX,
-          minimum: -1,
-          maximum: 1,
-          divisions: 20,
-          onChanged: _saving
-              ? null
-              : (value) => _change(design.copyWith(imageAlignmentX: value)),
-        ),
-        _SliderControl(
-          label: 'Image up / down',
-          value: design.imageAlignmentY,
-          minimum: -1,
-          maximum: 1,
-          divisions: 20,
-          onChanged: _saving
-              ? null
-              : (value) => _change(design.copyWith(imageAlignmentY: value)),
-        ),
-        _SliderControl(
-          label: 'Image frame inset',
-          value: design.imageInset,
-          minimum: 0,
-          maximum: 8,
-          divisions: 16,
-          onChanged: _saving
-              ? null
-              : (value) => _change(design.copyWith(imageInset: value)),
         ),
         _SliderControl(
           label: 'Outline width',

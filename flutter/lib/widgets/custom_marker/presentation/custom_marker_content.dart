@@ -8,7 +8,6 @@ import 'package:buff_lisa/features/progression/presentation/small_profile_pictur
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -76,23 +75,19 @@ class PinMarkerImage extends StatelessWidget {
               .clamp(.55, 1.0);
           final width = 48 * scale;
           final height = 56 * scale;
-          final outline = resolvedDesign.outlineWidth;
+          final strokeWidth = resolvedDesign.outlineWidth * scale;
           final headDiameter = math.min(
             width * (resolvedDesign.shape == 'circle' ? .9 : .88),
             height * (resolvedDesign.shape == 'circle' ? .82 : .72),
           );
-          final frameDiameter = math.max(
-            8.0,
-            headDiameter - 2 * (resolvedDesign.imageInset + outline) * scale,
-          );
-          final imageDiameter = math.max(4 * scale, frameDiameter - 4 * scale);
-          final frameLeft = (width - frameDiameter) / 2;
           final headCenterY = switch (resolvedDesign.shape) {
             'circle' => height - headDiameter / 2 - scale,
             'shield' => height * .36,
             _ => height * .34,
           };
-          final frameTop = headCenterY - frameDiameter / 2;
+          final overlayDiameter = headDiameter * .64;
+          final overlayLeft = (width - overlayDiameter) / 2;
+          final overlayTop = headCenterY - overlayDiameter / 2;
           final badgeIcon = _badgeIcon(resolvedDesign.badge);
 
           return SizedBox(
@@ -102,27 +97,24 @@ class PinMarkerImage extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Positioned.fill(
-                  child: CustomPaint(painter: _MapPinPainter(resolvedDesign)),
-                ),
-                Positioned(
-                  left: frameLeft,
-                  top: frameTop,
-                  width: frameDiameter,
-                  height: frameDiameter,
-                  child: Container(
+                  child: CustomPaint(
                     key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
-                    padding: EdgeInsets.all(2 * scale),
-                    decoration: BoxDecoration(
-                      color: resolvedDesign.imageBorderColor,
-                      shape: BoxShape.circle,
+                    painter: _MapPinShadowPainter(
+                      resolvedDesign,
+                      strokeWidth: strokeWidth,
                     ),
-                    child: ClipOval(
-                      child: SizedBox.square(
-                        dimension: imageDiameter,
-                        child: Transform.scale(
-                          scale: resolvedDesign.imageZoom,
-                          child: pinImage,
-                        ),
+                    foregroundPainter: _MapPinOutlinePainter(
+                      resolvedDesign,
+                      strokeWidth: strokeWidth,
+                    ),
+                    child: ClipPath(
+                      clipper: _MapPinClipper(
+                        resolvedDesign.shape,
+                        strokeWidth: strokeWidth,
+                      ),
+                      child: Transform.scale(
+                        scale: resolvedDesign.imageZoom,
+                        child: pinImage,
                       ),
                     ),
                   ),
@@ -153,8 +145,8 @@ class PinMarkerImage extends StatelessWidget {
                   ),
                 if (isGone)
                   Positioned(
-                    left: frameLeft + frameDiameter - 10 * scale,
-                    top: frameTop + frameDiameter - 10 * scale,
+                    left: overlayLeft + overlayDiameter - 10 * scale,
+                    top: overlayTop + overlayDiameter - 10 * scale,
                     child: DecoratedBox(
                       decoration: const BoxDecoration(
                         color: Colors.black54,
@@ -197,10 +189,9 @@ class CustomMarkerContent extends ConsumerWidget {
       style: style,
       design: design,
       image: Image.memory(
-        ref.watch(groupPinImageByIdProvider(pinDto.groupId)).value ??
-            ref.read(defaultGroupPinImageProvider),
+        ref.watch(groupProfilePictureSmallByIdProvider(pinDto.groupId)).value ??
+            ref.read(defaultErrorImageProvider),
         fit: BoxFit.cover,
-        alignment: Alignment(design.imageAlignmentX, design.imageAlignmentY),
         gaplessPlayback: true,
       ),
     );
@@ -217,19 +208,20 @@ IconData? _badgeIcon(String badge) => switch (badge) {
   _ => null,
 };
 
-class _MapPinPainter extends CustomPainter {
-  const _MapPinPainter(this.design);
+class _MapPinShadowPainter extends CustomPainter {
+  const _MapPinShadowPainter(this.design, {required this.strokeWidth});
 
   final MapPinDesign design;
+  final double strokeWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
     final scale = size.width / 48;
-    final strokeWidth = design.outlineWidth * scale;
     final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
-    canvas.save();
-    canvas.translate(strokeWidth / 2, strokeWidth / 2);
-    final path = _mapPinPath(pathSize, design.shape);
+    final path = _mapPinPath(
+      pathSize,
+      design.shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
     if (design.shadow) {
       canvas.drawShadow(
         path,
@@ -238,22 +230,59 @@ class _MapPinPainter extends CustomPainter {
         true,
       );
     }
-    canvas.drawPath(path, Paint()..color = design.bodyColor);
-    if (design.outlineWidth > 0) {
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = design.outlineColor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth,
-      );
-    }
-    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_MapPinPainter oldDelegate) =>
-      oldDelegate.design != design;
+  bool shouldRepaint(_MapPinShadowPainter oldDelegate) =>
+      oldDelegate.design != design || oldDelegate.strokeWidth != strokeWidth;
+}
+
+class _MapPinOutlinePainter extends CustomPainter {
+  const _MapPinOutlinePainter(this.design, {required this.strokeWidth});
+
+  final MapPinDesign design;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (design.outlineWidth <= 0) return;
+    final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
+    final path = _mapPinPath(
+      pathSize,
+      design.shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = design.outlineColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MapPinOutlinePainter oldDelegate) =>
+      oldDelegate.design != design || oldDelegate.strokeWidth != strokeWidth;
+}
+
+class _MapPinClipper extends CustomClipper<Path> {
+  const _MapPinClipper(this.shape, {required this.strokeWidth});
+
+  final String shape;
+  final double strokeWidth;
+
+  @override
+  Path getClip(Size size) {
+    final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
+    return _mapPinPath(
+      pathSize,
+      shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
+  }
+
+  @override
+  bool shouldReclip(_MapPinClipper oldClipper) =>
+      oldClipper.shape != shape || oldClipper.strokeWidth != strokeWidth;
 }
 
 Path _mapPinPath(Size size, String shape) {
