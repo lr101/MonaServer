@@ -30,6 +30,7 @@ class PinPresenceControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nearby = isPinWithinPresenceRange(userPosition, pin);
+    final canUpdate = pin.lastSynced != null && nearby && !isSaving;
     final statusText = pin.lastSynced == null
         ? 'Upload this pin before updating its presence'
         : pin.isGone
@@ -39,42 +40,35 @@ class PinPresenceControl extends StatelessWidget {
         : nearby
         ? 'Marked as still here'
         : 'Get within 50 m to update this pin';
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                statusText,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: pin.lastSynced == null || !nearby || isSaving
-                  ? null
-                  : onToggle,
-              icon: isSaving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      pin.isGone
-                          ? Icons.location_on_outlined
-                          : Icons.location_off_outlined,
-                    ),
-              label: Text(pin.isGone ? 'Mark still here' : 'Mark gone'),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: canUpdate ? onToggle : null,
+          icon: isSaving
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  pin.isGone
+                      ? Icons.location_on_outlined
+                      : Icons.location_off_outlined,
+                ),
+          label: Text(pin.isGone ? 'Mark still here' : 'Mark gone'),
         ),
-      ),
+        if (!canUpdate && !isSaving) ...[
+          const SizedBox(height: 4),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              statusText,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

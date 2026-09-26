@@ -21,6 +21,8 @@ properties:
     $ref: '../parameters/imageUrl.yaml'
   groupId:
     $ref: '../parameters/id.yaml'
+  title:
+    $ref: '../parameters/pinTitle.yaml'
   description:
     $ref: '../parameters/veryLongStringNullable.yaml'
   isGone:

@@ -937,6 +937,7 @@ type Pin struct {
 	Longitude       float64
 	CreationDate    *time.Time
 	UpdateDate      *time.Time
+	Title           *string
 	Description     *string
 	CreatorID       uuid.UUID
 	GroupID         uuid.UUID
@@ -956,6 +957,7 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 		Longitude:       r.Longitude.Float64,
 		CreationDate:    goTZ(r.CreationDate),
 		UpdateDate:      goTZ(r.UpdateDate),
+		Title:           goText(r.Title),
 		Description:     goText(r.Description),
 		CreatorID:       goUUID(r.CreatorID),
 		GroupID:         goUUID(r.GroupID),
@@ -992,6 +994,7 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		Latitude:        pgtype.Float8{Float64: p.Latitude, Valid: true},
 		Longitude:       pgtype.Float8{Float64: p.Longitude, Valid: true},
 		CreationDate:    pgTZ(p.CreationDate),
+		Title:           pgText(p.Title),
 		Description:     pgText(p.Description),
 		CreatorID:       pgUUID(p.CreatorID),
 		GroupID:         pgUUID(p.GroupID),
@@ -1201,7 +1204,7 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 		out = append(out, Pin{
 			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
-			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
 			IsGone: r.IsGone,
 		})
@@ -1260,7 +1263,7 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 		out = append(out, Pin{
 			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
-			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
 			IsGone: r.IsGone,
 		})

@@ -20,6 +20,7 @@ class PinRequestDto {
     required this.groupId,
     this.creationDate,
     this.description,
+    this.title,
   });
 
   String image;
@@ -46,6 +47,8 @@ class PinRequestDto {
 
   String? description;
 
+  String? title;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is PinRequestDto &&
     other.image == image &&
@@ -54,7 +57,8 @@ class PinRequestDto {
     other.userId == userId &&
     other.groupId == groupId &&
     other.creationDate == creationDate &&
-    other.description == description;
+    other.description == description &&
+    other.title == title;
 
   @override
   int get hashCode =>
@@ -65,10 +69,11 @@ class PinRequestDto {
     (userId.hashCode) +
     (groupId.hashCode) +
     (creationDate == null ? 0 : creationDate!.hashCode) +
-    (description == null ? 0 : description!.hashCode);
+    (description == null ? 0 : description!.hashCode) +
+    (title == null ? 0 : title!.hashCode);
 
   @override
-  String toString() => 'PinRequestDto[image=$image, latitude=$latitude, longitude=$longitude, userId=$userId, groupId=$groupId, creationDate=$creationDate, description=$description]';
+  String toString() => 'PinRequestDto[image=$image, latitude=$latitude, longitude=$longitude, userId=$userId, groupId=$groupId, creationDate=$creationDate, description=$description, title=$title]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -86,6 +91,11 @@ class PinRequestDto {
       json[r'description'] = this.description;
     } else {
       json[r'description'] = null;
+    }
+    if (this.title != null) {
+      json[r'title'] = this.title;
+    } else {
+      json[r'title'] = null;
     }
     return json;
   }
@@ -116,6 +126,7 @@ class PinRequestDto {
         groupId: mapValueOfType<String>(json, r'groupId')!,
         creationDate: mapDateTime(json, r'creationDate', r''),
         description: mapValueOfType<String>(json, r'description'),
+        title: mapValueOfType<String>(json, r'title'),
       );
     }
     return null;
@@ -170,4 +181,3 @@ class PinRequestDto {
     'groupId',
   };
 }
-

@@ -46,7 +46,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Upload photo'));
+    await tester.tap(find.text('Upload'));
     await _waitForComposer(tester);
 
     expect(picker.requestedSource, ImageSource.gallery);
@@ -102,7 +102,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Take photo'), findsOneWidget);
-    expect(find.text('Upload photo'), findsOneWidget);
+    expect(find.text('Upload'), findsOneWidget);
 
     await tester.tap(find.text('Take photo'));
     await tester.pumpAndSettle();
@@ -127,7 +127,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Take photo'))
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Take photo'),
+          )
           .onPressed,
       isNotNull,
     );
@@ -156,7 +158,7 @@ void main() {
     expect(photo!.image, isNull);
   });
 
-  testWidgets('photo history shows contributors and disables distant uploads', (
+  testWidgets('photo actions stay compact and disable when far from the pin', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -176,9 +178,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Original pin photo'), findsOneWidget);
-    expect(find.text('Update by walker'), findsOneWidget);
-    expect(find.text('The sign is still here'), findsOneWidget);
+    expect(find.text('Original pin photo'), findsNothing);
+    expect(find.text('Update by walker'), findsNothing);
+    expect(find.text('The sign is still here'), findsNothing);
     expect(find.byType(Image), findsNothing);
     expect(
       find.text('Get within 50 m of this pin to add a photo.'),
@@ -186,15 +188,15 @@ void main() {
     );
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Take photo'))
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Take photo'),
+          )
           .onPressed,
       isNull,
     );
     expect(
       tester
-          .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Upload photo'),
-          )
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Upload'))
           .onPressed,
       isNull,
     );

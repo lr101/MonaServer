@@ -2,8 +2,8 @@
 
 -- name: CreatePin :exec
 INSERT INTO pins (id, latitude, longitude, creation_date, update_date,
-                  description, creator_id, group_id, state_province_id)
-VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8);
+                  title, description, creator_id, group_id, state_province_id)
+VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9);
 
 -- name: CreatePinPhoto :exec
 INSERT INTO pin_photos (
@@ -36,7 +36,7 @@ WHERE id = $1 AND is_deleted = FALSE;
 SELECT id FROM pins WHERE id = $1 FOR UPDATE;
 
 -- name: GetPinByID :one
-SELECT id, latitude, longitude, creation_date, update_date, description,
+SELECT id, latitude, longitude, creation_date, update_date, title, description,
        creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE;
@@ -66,7 +66,7 @@ SELECT id FROM pins WHERE creator_id = $1 AND is_deleted = FALSE ORDER BY creati
 SELECT id FROM pins WHERE group_id = $1 ORDER BY id;
 
 -- name: ListUpdatedPinsForGroups :many
-SELECT id, latitude, longitude, creation_date, update_date, description,
+SELECT id, latitude, longitude, creation_date, update_date, title, description,
        creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE is_deleted = FALSE
@@ -77,7 +77,7 @@ ORDER BY update_date DESC;
 
 -- name: SearchPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
-       p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
+       p.title, p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.is_deleted = FALSE

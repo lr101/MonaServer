@@ -14,8 +14,8 @@ import (
 const createPin = `-- name: CreatePin :exec
 
 INSERT INTO pins (id, latitude, longitude, creation_date, update_date,
-                  description, creator_id, group_id, state_province_id)
-VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8)
+                  title, description, creator_id, group_id, state_province_id)
+VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9)
 `
 
 type CreatePinParams struct {
@@ -23,6 +23,7 @@ type CreatePinParams struct {
 	Latitude        pgtype.Float8      `json:"latitude"`
 	Longitude       pgtype.Float8      `json:"longitude"`
 	CreationDate    pgtype.Timestamptz `json:"creation_date"`
+	Title           pgtype.Text        `json:"title"`
 	Description     pgtype.Text        `json:"description"`
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
@@ -36,6 +37,7 @@ func (q *Queries) CreatePin(ctx context.Context, arg CreatePinParams) error {
 		arg.Latitude,
 		arg.Longitude,
 		arg.CreationDate,
+		arg.Title,
 		arg.Description,
 		arg.CreatorID,
 		arg.GroupID,
@@ -243,7 +245,7 @@ func (q *Queries) FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]Fi
 }
 
 const getPinByID = `-- name: GetPinByID :one
-SELECT id, latitude, longitude, creation_date, update_date, description,
+SELECT id, latitude, longitude, creation_date, update_date, title, description,
        creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE
@@ -255,6 +257,7 @@ type GetPinByIDRow struct {
 	Longitude       pgtype.Float8      `json:"longitude"`
 	CreationDate    pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate      pgtype.Timestamptz `json:"update_date"`
+	Title           pgtype.Text        `json:"title"`
 	Description     pgtype.Text        `json:"description"`
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
@@ -271,6 +274,7 @@ func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow
 		&i.Longitude,
 		&i.CreationDate,
 		&i.UpdateDate,
+		&i.Title,
 		&i.Description,
 		&i.CreatorID,
 		&i.GroupID,
@@ -459,7 +463,7 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListP
 }
 
 const listUpdatedPinsForGroups = `-- name: ListUpdatedPinsForGroups :many
-SELECT id, latitude, longitude, creation_date, update_date, description,
+SELECT id, latitude, longitude, creation_date, update_date, title, description,
        creator_id, group_id, state_province_id, is_gone
 FROM pins
 WHERE is_deleted = FALSE
@@ -480,6 +484,7 @@ type ListUpdatedPinsForGroupsRow struct {
 	Longitude       pgtype.Float8      `json:"longitude"`
 	CreationDate    pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate      pgtype.Timestamptz `json:"update_date"`
+	Title           pgtype.Text        `json:"title"`
 	Description     pgtype.Text        `json:"description"`
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
@@ -502,6 +507,7 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedP
 			&i.Longitude,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.Title,
 			&i.Description,
 			&i.CreatorID,
 			&i.GroupID,
@@ -582,7 +588,7 @@ func (q *Queries) PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAt
 
 const searchPins = `-- name: SearchPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
-       p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
+       p.title, p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.is_deleted = FALSE
@@ -643,6 +649,7 @@ type SearchPinsRow struct {
 	Longitude       pgtype.Float8      `json:"longitude"`
 	CreationDate    pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate      pgtype.Timestamptz `json:"update_date"`
+	Title           pgtype.Text        `json:"title"`
 	Description     pgtype.Text        `json:"description"`
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
@@ -675,6 +682,7 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 			&i.Longitude,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.Title,
 			&i.Description,
 			&i.CreatorID,
 			&i.GroupID,

@@ -7281,6 +7281,10 @@ components:
           maxLength: 1024
           nullable: true
           type: string
+        title:
+          maxLength: 120
+          nullable: true
+          type: string
       required:
       - groupId
       - image
@@ -7382,6 +7386,7 @@ components:
         latitude: -75.5850925717018
         groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: description
+        title: A familiar place
         isGone: false
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         creationDate: 2017-01-10T14:55:32+01:00
@@ -7412,6 +7417,10 @@ components:
         groupId:
           format: uuid
           type: string
+        title:
+          maxLength: 120
+          nullable: true
+          type: string
         description:
           maxLength: 1024
           nullable: true
@@ -7438,6 +7447,7 @@ components:
           latitude: -75.5850925717018
           groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           description: description
+          title: A familiar place
           isGone: false
           id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
           creationDate: 2017-01-10T14:55:32+01:00
@@ -7466,6 +7476,7 @@ components:
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             description: description
+            title: A familiar place
             isGone: false
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
@@ -7478,6 +7489,7 @@ components:
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             description: description
+            title: A familiar place
             isGone: false
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
@@ -7490,6 +7502,7 @@ components:
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             description: description
+            title: A familiar place
             isGone: false
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
@@ -7502,6 +7515,7 @@ components:
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             description: description
+            title: A familiar place
             isGone: false
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00
@@ -7514,6 +7528,7 @@ components:
             latitude: -75.5850925717018
             groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             description: description
+            title: A familiar place
             isGone: false
             id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
             creationDate: 2017-01-10T14:55:32+01:00

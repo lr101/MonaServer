@@ -178,6 +178,7 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 		Latitude:     float64(dto.Latitude),
 		Longitude:    float64(dto.Longitude),
 		CreationDate: dto.CreationDate,
+		Title:        dto.Title,
 		Description:  dto.Description,
 		UserID:       uid,
 		GroupID:      gid,
@@ -429,6 +430,7 @@ func pinToDto(p db.Pin) genserver.PinWithOptionalImageDto {
 		Longitude:    float32(p.Longitude),
 		CreationUser: p.CreatorID.String(),
 		GroupId:      p.GroupID.String(),
+		Title:        p.Title,
 		Description:  p.Description,
 		IsGone:       &isGone,
 	}
@@ -451,6 +453,7 @@ func pinDTOtoDto(p *service.PinDTO) genserver.PinWithOptionalImageDto {
 		Longitude:    float32(p.Longitude),
 		CreationUser: p.UserID.String(),
 		GroupId:      p.GroupID.String(),
+		Title:        p.Title,
 		Description:  p.Description,
 		IsGone:       &isGone,
 		Image:        img,

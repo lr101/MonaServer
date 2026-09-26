@@ -20,6 +20,7 @@ class PinWithOptionalImageDto {
     required this.creationUser,
     this.image,
     required this.groupId,
+    this.title,
     this.description,
     this.isGone = false,
   });
@@ -48,6 +49,8 @@ class PinWithOptionalImageDto {
 
   String groupId;
 
+  String? title;
+
   String? description;
 
   bool? isGone;
@@ -61,6 +64,7 @@ class PinWithOptionalImageDto {
     other.creationUser == creationUser &&
     other.image == image &&
     other.groupId == groupId &&
+    other.title == title &&
     other.description == description &&
     other.isGone == isGone;
 
@@ -74,11 +78,12 @@ class PinWithOptionalImageDto {
     (creationUser.hashCode) +
     (image == null ? 0 : image!.hashCode) +
     (groupId.hashCode) +
+    (title == null ? 0 : title!.hashCode) +
     (description == null ? 0 : description!.hashCode) +
     (isGone == null ? 0 : isGone!.hashCode);
 
   @override
-  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, description=$description, isGone=$isGone]';
+  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, title=$title, description=$description, isGone=$isGone]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -93,6 +98,11 @@ class PinWithOptionalImageDto {
       json[r'image'] = null;
     }
       json[r'groupId'] = this.groupId;
+    if (this.title != null) {
+      json[r'title'] = this.title;
+    } else {
+      json[r'title'] = null;
+    }
     if (this.description != null) {
       json[r'description'] = this.description;
     } else {
@@ -132,6 +142,7 @@ class PinWithOptionalImageDto {
         creationUser: mapValueOfType<String>(json, r'creationUser')!,
         image: mapValueOfType<String>(json, r'image'),
         groupId: mapValueOfType<String>(json, r'groupId')!,
+        title: mapValueOfType<String>(json, r'title'),
         description: mapValueOfType<String>(json, r'description'),
         isGone: mapValueOfType<bool>(json, r'isGone') ?? false,
       );
@@ -189,4 +200,3 @@ class PinWithOptionalImageDto {
     'groupId',
   };
 }
-

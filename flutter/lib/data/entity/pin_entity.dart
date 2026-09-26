@@ -12,6 +12,7 @@ class PinEntity extends CacheEntity {
   final double latitude;
   final double longitude;
   final DateTime creationDate;
+  final String? title;
   final String? description;
 
   int get creatorFastId => fastHash(creator);
@@ -29,6 +30,7 @@ class PinEntity extends CacheEntity {
     required this.latitude,
     required this.longitude,
     required this.creationDate,
+    this.title,
     this.description,
     required this.creator,
     required this.groupId,
@@ -53,6 +55,7 @@ class PinEntity extends CacheEntity {
       creationDate: pinDto.creationDate,
       creator: pinDto.creationUser,
       groupId: pinDto.groupId,
+      title: pinDto.title,
       description: pinDto.description,
       isGone: pinDto.isGone ?? false,
       lastSynced: DateTime.now(),
@@ -70,6 +73,7 @@ class PinEntity extends CacheEntity {
       userId: creator,
       groupId: groupId,
       creationDate: creationDate,
+      title: title,
       description: description,
     );
   }
@@ -87,6 +91,7 @@ class PinEntity extends CacheEntity {
       latitude: latitude,
       longitude: longitude,
       creationDate: creationDate,
+      title: title,
       description: description,
       creator: creator,
       groupId: groupId,

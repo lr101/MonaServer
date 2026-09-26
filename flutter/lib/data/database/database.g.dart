@@ -2148,6 +2148,15 @@ class $PinEntitiesTable extends PinEntities
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -2231,6 +2240,7 @@ class $PinEntitiesTable extends PinEntities
     latitude,
     longitude,
     creationDate,
+    title,
     description,
     creator,
     groupId,
@@ -2320,6 +2330,12 @@ class $PinEntitiesTable extends PinEntities
     } else if (isInserting) {
       context.missing(_creationDateMeta);
     }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
     if (data.containsKey('description')) {
       context.handle(
         _descriptionMeta,
@@ -2408,6 +2424,10 @@ class $PinEntitiesTable extends PinEntities
         DriftSqlType.dateTime,
         data['${effectivePrefix}creation_date'],
       )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -2451,6 +2471,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
   final double latitude;
   final double longitude;
   final DateTime creationDate;
+  final String? title;
   final String? description;
   final String creator;
   final String groupId;
@@ -2467,6 +2488,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     required this.latitude,
     required this.longitude,
     required this.creationDate,
+    this.title,
     this.description,
     required this.creator,
     required this.groupId,
@@ -2486,6 +2508,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
     map['creation_date'] = Variable<DateTime>(creationDate);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
@@ -2510,6 +2535,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       latitude: Value(latitude),
       longitude: Value(longitude),
       creationDate: Value(creationDate),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
@@ -2538,6 +2566,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
       creationDate: serializer.fromJson<DateTime>(json['creationDate']),
+      title: serializer.fromJson<String?>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
       creator: serializer.fromJson<String>(json['creator']),
       groupId: serializer.fromJson<String>(json['groupId']),
@@ -2559,6 +2588,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
       'creationDate': serializer.toJson<DateTime>(creationDate),
+      'title': serializer.toJson<String?>(title),
       'description': serializer.toJson<String?>(description),
       'creator': serializer.toJson<String>(creator),
       'groupId': serializer.toJson<String>(groupId),
@@ -2578,6 +2608,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     double? latitude,
     double? longitude,
     DateTime? creationDate,
+    Value<String?> title = const Value.absent(),
     Value<String?> description = const Value.absent(),
     String? creator,
     String? groupId,
@@ -2594,6 +2625,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
     creationDate: creationDate ?? this.creationDate,
+    title: title.present ? title.value : this.title,
     description: description.present ? description.value : this.description,
     creator: creator ?? this.creator,
     groupId: groupId ?? this.groupId,
@@ -2616,6 +2648,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creationDate: data.creationDate.present
           ? data.creationDate.value
           : this.creationDate,
+      title: data.title.present ? data.title.value : this.title,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -2641,6 +2674,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
@@ -2662,6 +2696,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     latitude,
     longitude,
     creationDate,
+    title,
     description,
     creator,
     groupId,
@@ -2682,6 +2717,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
           other.creationDate == this.creationDate &&
+          other.title == this.title &&
           other.description == this.description &&
           other.creator == this.creator &&
           other.groupId == this.groupId &&
@@ -2700,6 +2736,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
   final Value<double> latitude;
   final Value<double> longitude;
   final Value<DateTime> creationDate;
+  final Value<String?> title;
   final Value<String?> description;
   final Value<String> creator;
   final Value<String> groupId;
@@ -2716,6 +2753,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.creationDate = const Value.absent(),
+    this.title = const Value.absent(),
     this.description = const Value.absent(),
     this.creator = const Value.absent(),
     this.groupId = const Value.absent(),
@@ -2733,6 +2771,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     required double latitude,
     required double longitude,
     required DateTime creationDate,
+    this.title = const Value.absent(),
     this.description = const Value.absent(),
     required String creator,
     required String groupId,
@@ -2756,6 +2795,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Expression<double>? latitude,
     Expression<double>? longitude,
     Expression<DateTime>? creationDate,
+    Expression<String>? title,
     Expression<String>? description,
     Expression<String>? creator,
     Expression<String>? groupId,
@@ -2773,6 +2813,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (creationDate != null) 'creation_date': creationDate,
+      if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (creator != null) 'creator': creator,
       if (groupId != null) 'group_id': groupId,
@@ -2792,6 +2833,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Value<double>? latitude,
     Value<double>? longitude,
     Value<DateTime>? creationDate,
+    Value<String?>? title,
     Value<String?>? description,
     Value<String>? creator,
     Value<String>? groupId,
@@ -2809,6 +2851,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       creationDate: creationDate ?? this.creationDate,
+      title: title ?? this.title,
       description: description ?? this.description,
       creator: creator ?? this.creator,
       groupId: groupId ?? this.groupId,
@@ -2848,6 +2891,9 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     if (creationDate.present) {
       map['creation_date'] = Variable<DateTime>(creationDate.value);
     }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -2881,6 +2927,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
@@ -6414,6 +6461,7 @@ typedef $$PinEntitiesTableCreateCompanionBuilder =
       required double latitude,
       required double longitude,
       required DateTime creationDate,
+      Value<String?> title,
       Value<String?> description,
       required String creator,
       required String groupId,
@@ -6432,6 +6480,7 @@ typedef $$PinEntitiesTableUpdateCompanionBuilder =
       Value<double> latitude,
       Value<double> longitude,
       Value<DateTime> creationDate,
+      Value<String?> title,
       Value<String?> description,
       Value<String> creator,
       Value<String> groupId,
@@ -6491,6 +6540,11 @@ class $$PinEntitiesTableFilterComposer
 
   ColumnFilters<DateTime> get creationDate => $composableBuilder(
     column: $table.creationDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6579,6 +6633,11 @@ class $$PinEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -6650,6 +6709,9 @@ class $$PinEntitiesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
   GeneratedColumn<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => column,
@@ -6710,6 +6772,7 @@ class $$PinEntitiesTableTableManager
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
                 Value<DateTime> creationDate = const Value.absent(),
+                Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String> creator = const Value.absent(),
                 Value<String> groupId = const Value.absent(),
@@ -6726,6 +6789,7 @@ class $$PinEntitiesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 creationDate: creationDate,
+                title: title,
                 description: description,
                 creator: creator,
                 groupId: groupId,
@@ -6744,6 +6808,7 @@ class $$PinEntitiesTableTableManager
                 required double latitude,
                 required double longitude,
                 required DateTime creationDate,
+                Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 required String creator,
                 required String groupId,
@@ -6760,6 +6825,7 @@ class $$PinEntitiesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 creationDate: creationDate,
+                title: title,
                 description: description,
                 creator: creator,
                 groupId: groupId,

@@ -56,7 +56,9 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AspectRatio(
-          aspectRatio: 3 / 4,
+          // A landscape frame leaves room for the pin details and actions on
+          // a regular phone screen while keeping the swipe interaction clear.
+          aspectRatio: 6 / 5,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: PageView.builder(
@@ -101,14 +103,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
           ),
         if (current?.caption case final caption? when caption.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(caption),
-        ],
-        if (count > 1) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Swipe for more photos',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(caption, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],
       ],
     );
