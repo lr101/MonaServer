@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
@@ -92,14 +91,10 @@ class SmallProfilePicture extends ConsumerWidget {
     }
 
     final id = groupId!;
-    ref.watch(
-      userGroupServiceProvider.select(
-        (groups) => groups.value?.any((group) => group.groupId == id),
-      ),
-    );
     return ref
         .watch(groupAvatarProgressionProvider(id))
         .when(
+          skipLoadingOnRefresh: false,
           data: (progression) => progression == null
               ? avatar
               : UserXpAvatarIndicator(

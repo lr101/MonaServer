@@ -35,7 +35,7 @@ class FeedCardImageHeader extends ConsumerWidget {
           children: [
             // 2. PAIRED PROFILE PICTURES
             SizedBox(
-              width: avatarSize * 4,
+              width: (avatarSize * 2 + 6) * 2,
               height: 40,
               child: Stack(
                 alignment: Alignment.centerLeft,

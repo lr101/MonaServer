@@ -12,6 +12,7 @@ import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -167,6 +168,7 @@ class SyncingService extends _$SyncingService {
       try {
         final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
         if (!isCurrent()) return;
+        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
@@ -179,6 +181,7 @@ class SyncingService extends _$SyncingService {
         if (!isCurrent()) return;
         if (e.code != 409) rethrow;
         // Preserve the legacy duplicate policy until server idempotency lands.
+        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));

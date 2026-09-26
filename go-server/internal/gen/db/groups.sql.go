@@ -112,7 +112,9 @@ SELECT g.id, g.group_xp, g.visibility,
        EXISTS (
            SELECT 1
            FROM members m
-           WHERE m.group_id = g.id AND m.user_id = $1
+           WHERE m.group_id = g.id
+             AND m.user_id = $1
+             AND m.is_deleted = FALSE
        ) AS is_member
 FROM groups g
 WHERE g.is_deleted = FALSE

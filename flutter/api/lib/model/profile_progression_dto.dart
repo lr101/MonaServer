@@ -67,7 +67,9 @@ class ProfileProgressionDto {
 
       return ProfileProgressionDto(
         level: mapValueOfType<int>(json, r'level')!,
-        fraction: mapValueOfType<double>(json, r'fraction')!,
+        // Go's JSON encoder emits integral float64 values (0 and 1) without a
+        // decimal point, so accept both integer and double JSON numbers.
+        fraction: mapValueOfType<num>(json, r'fraction')!.toDouble(),
       );
     }
     return null;
@@ -119,4 +121,3 @@ class ProfileProgressionDto {
     'fraction',
   };
 }
-
