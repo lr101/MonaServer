@@ -55,6 +55,7 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
 | `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
+| `WEB_HOST` | — | Public HTTPS hostname; canonical domain for email links |
 | `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and own-session revoke routes; restricted recovery completion remains unavailable |
 | `EMAIL_LOGIN_HMAC_KEY`, `EMAIL_LOGIN_HMAC_KEY_ID` | — | At least 32 bytes and stable ID for public request quotas; required when email login is enabled |
 | `EMAIL_DELIVERY_KEY`, `EMAIL_DELIVERY_KEY_ID` | — | 32-byte AES key and stable ID for durable email payloads; required when email login is enabled |
@@ -69,7 +70,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `ADMIN_RECENT_MFA_TTL` | `5m` | Legacy setting retained for configuration compatibility; login MFA now lasts for the authenticated session |
 | `ADMIN_PREAUTH_TTL` | `10m` | Pre-authentication browser envelope lifetime |
 | `ADMIN_LOGIN_FAILURE_LIMIT` / `ADMIN_LOGIN_IP_LIMIT` / `ADMIN_LOGIN_GLOBAL_LIMIT` | `5` / `100` / `1000` | Shared account, IP, and global admin proof-failure quotas |
-| `APP_URL` / `APP_REDIRECT_URL` | — | Public URL; used in email links |
+| `APP_URL` | — | Full public URL for email links when `WEB_HOST` is unset |
+| `APP_REDIRECT_URL` | — | Public URL used for the root redirect and as a final email-link fallback |
 | `RUSTFS_ENDPOINT` | — | Internal S3 endpoint, e.g. `rustfs:9000` |
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |

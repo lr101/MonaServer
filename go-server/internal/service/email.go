@@ -19,6 +19,12 @@ type Email struct {
 	tmpl *template.Template
 }
 
+const (
+	brandOrange           = "#FFB77C"
+	brandOrangeForeground = "#4B2800"
+	brandOrangeLink       = "#8A4300"
+)
+
 func NewEmail(cfg *config.Config, tmpl *template.Template) *Email {
 	return &Email{cfg: cfg, tmpl: tmpl}
 }
@@ -73,12 +79,24 @@ func (e *Email) SendTemplated(ctx context.Context, to, subject, tmplName string,
 	return e.SendHTML(ctx, to, subject, buf.String())
 }
 
-// viewLink builds a direct link to a public view route from a bare token.
-// It uses RedirectURL as the single origin, so the domain is never duplicated.
+// viewLink builds a direct link to a public view route from a bare token. The
+// deployed WEB_HOST is the canonical origin, with app URL settings as fallbacks
+// for standalone deployments.
 func (e *Email) viewLink(route, token string) string {
-	baseURL := e.cfg.AppURL
-	if baseURL == "" {
-		baseURL = e.cfg.RedirectURL
+	var baseURL string
+	if e.cfg != nil {
+		if strings.TrimSpace(e.cfg.WebHost) != "" {
+			baseURL = strings.TrimSpace(e.cfg.WebHost)
+			if !strings.Contains(baseURL, "://") {
+				baseURL = "https://" + strings.Trim(baseURL, "/")
+			}
+		}
+		if baseURL == "" {
+			baseURL = strings.TrimSpace(e.cfg.AppURL)
+		}
+		if baseURL == "" {
+			baseURL = strings.TrimSpace(e.cfg.RedirectURL)
+		}
 	}
 	return strings.TrimRight(baseURL, "/") + route + token
 }
@@ -124,7 +142,6 @@ func (e *Email) SendDeleteAccount(ctx context.Context, username, to, token, code
 		Button:  "Delete account",
 		URL:     e.viewLink("/public/delete-account/", token),
 		Code:    code,
-		Danger:  true,
 		Note:    "If you didn’t request this, please ignore this email and your account will stay active.",
 	})
 	return e.SendHTML(ctx, to, "Delete your account", html)
@@ -140,16 +157,16 @@ type actionEmailData struct {
 	URL     string // call-to-action link (also shown as a fallback)
 	Code    string // optional code to highlight (delete flow)
 	Note    string // small print below the button
-	Danger  bool   // red accent for destructive actions
 }
 
-// accent returns the brand accent colour, red for destructive actions.
+// Accent returns the app's orange primary color for every transactional email.
 func (d actionEmailData) Accent() string {
-	if d.Danger {
-		return "#dc2626"
-	}
-	return "#4f46e5"
+	return brandOrange
 }
+
+func (actionEmailData) AccentForeground() string { return brandOrangeForeground }
+
+func (actionEmailData) LinkAccent() string { return brandOrangeLink }
 
 var actionEmailTmpl = template.Must(template.New("email").Parse(`<!DOCTYPE html>
 <html lang="en">
@@ -167,7 +184,7 @@ var actionEmailTmpl = template.Must(template.New("email").Parse(`<!DOCTYPE html>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <tr>
             <td style="background-color:{{.Accent}};padding:20px 32px;">
-              <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">Stick-It</span>
+              <span style="background-color:{{.Accent}};color:{{.AccentForeground}};font-size:20px;font-weight:700;letter-spacing:0.5px;">Stick-It</span>
             </td>
           </tr>
           <tr>
@@ -183,12 +200,12 @@ var actionEmailTmpl = template.Must(template.New("email").Parse(`<!DOCTYPE html>
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
                 <tr>
                   <td align="center" style="border-radius:8px;background-color:{{.Accent}};">
-                    <a href="{{.URL}}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">{{.Button}}</a>
+                    <a href="{{.URL}}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:{{.AccentForeground}};background-color:{{.Accent}};text-decoration:none;border-radius:8px;">{{.Button}}</a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#6b7280;">If the button doesn’t work, copy and paste this link into your browser:</p>
-              <p style="margin:0 0 24px;font-size:13px;line-height:1.6;word-break:break-all;"><a href="{{.URL}}" style="color:{{.Accent}};">{{.URL}}</a></p>
+              <p style="margin:0 0 24px;font-size:13px;line-height:1.6;word-break:break-all;"><a href="{{.URL}}" style="color:{{.LinkAccent}};">{{.URL}}</a></p>
               <p style="margin:0;font-size:13px;line-height:1.6;color:#9ca3af;">{{.Note}}</p>
             </td>
           </tr>

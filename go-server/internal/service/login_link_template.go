@@ -143,7 +143,7 @@ func hasLoginLinkPlaceholder(source, name string) bool {
 func renderLoginLinkEmailContent(templateValue *LoginLinkEmailTemplate, username, to, loginURL, loginCode, expiresIn string) (string, string, string, error) {
 	body := templateValue.Body
 	if !hasLoginLinkPlaceholder(body, "login_code") {
-		body += "\n\nSign-in code: {{login_code}}"
+		body = "Sign-in code: {{login_code}}\n\n" + body
 	}
 	values := loginLinkTemplateValues{
 		Username: username, Email: to, LoginLink: loginURL, LoginCode: loginCode,
@@ -151,7 +151,7 @@ func renderLoginLinkEmailContent(templateValue *LoginLinkEmailTemplate, username
 	}
 	subject := renderLoginLinkTemplate(templateValue.Subject, values, false, false)
 	textBody := renderLoginLinkTemplate(body, values, false, false)
-	htmlBody := renderLoginLinkTemplate(body, values, true, true)
+	htmlBody := loginLinkEmailShell("Sign in to Stick-It", renderLoginLinkTemplate(body, values, true, true))
 	if _, err := RenderEmail(EmailContent{To: to, Subject: subject, Body: textBody, HTML: htmlBody}); err != nil {
 		return "", "", "", ErrInvalidLoginLinkTemplate
 	}
@@ -173,6 +173,8 @@ func renderLoginLinkTemplate(source string, values loginLinkTemplateValues, html
 		if htmlMode {
 			if name == "login_link" && linkedLoginURL {
 				output.WriteString(`<a href="` + html.EscapeString(value) + `">Sign in</a>`)
+			} else if name == "login_code" {
+				output.WriteString(`<span style="font-size:20px;font-weight:700;color:` + brandOrangeForeground + `">` + html.EscapeString(value) + `</span>`)
 			} else {
 				output.WriteString(html.EscapeString(value))
 			}

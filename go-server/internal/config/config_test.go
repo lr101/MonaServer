@@ -23,6 +23,18 @@ func TestLoadReadsRustfsObjectStorageVariables(t *testing.T) {
 	}
 }
 
+func TestLoadReadsWebHost(t *testing.T) {
+	t.Setenv("WEB_HOST", "app.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.WebHost != "app.example.com" {
+		t.Fatalf("WEB_HOST = %q, want app.example.com", cfg.WebHost)
+	}
+}
+
 func TestLoadReadsV3FeatureFlags(t *testing.T) {
 	t.Setenv("PUBLIC_EMAIL_LOGIN", "true")
 	t.Setenv("WEB_ADMIN_API", "true")

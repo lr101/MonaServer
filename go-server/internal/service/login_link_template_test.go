@@ -58,12 +58,18 @@ func TestLoginLinkEmailTemplateAcceptsCodePlaceholder(t *testing.T) {
 	if !strings.Contains(body, "A2B4C6") || !strings.Contains(htmlBody, "A2B4C6") {
 		t.Fatalf("rendered message omitted code: body=%q html=%q", body, htmlBody)
 	}
+	if !strings.Contains(htmlBody, `<span style="font-size:20px;font-weight:700;color:#4B2800">A2B4C6</span>`) {
+		t.Fatalf("HTML message did not emphasize the code: %q", htmlBody)
+	}
 	if !strings.Contains(htmlBody, `<a href="https://app.example/#/email-login/callback?token=opaque">Sign in</a>`) {
 		t.Fatalf("HTML message omitted its sign-in link: %q", htmlBody)
 	}
+	if strings.Contains(htmlBody, "display:inline-block") {
+		t.Fatalf("HTML sign-in link was rendered as a primary button: %q", htmlBody)
+	}
 }
 
-func TestLegacyLoginLinkEmailTemplateGetsCodeAppended(t *testing.T) {
+func TestLegacyLoginLinkEmailTemplatePutsCodeFirst(t *testing.T) {
 	template := &LoginLinkEmailTemplate{
 		Subject: "Sign in",
 		Body:    "Open {{login_link}} to sign in.",
@@ -74,8 +80,8 @@ func TestLegacyLoginLinkEmailTemplateGetsCodeAppended(t *testing.T) {
 	if err != nil {
 		t.Fatalf("render legacy template: %v", err)
 	}
-	if !strings.Contains(body, "Sign-in code: Q7R2W9") {
-		t.Fatalf("legacy campaign did not receive its code: %q", body)
+	if !strings.HasPrefix(body, "Sign-in code: Q7R2W9\n\n") {
+		t.Fatalf("legacy campaign did not put its code first: %q", body)
 	}
 }
 
@@ -88,5 +94,18 @@ func TestStandardLoginLinkEmailIncludesCodeAndSecondaryLink(t *testing.T) {
 	}
 	if !strings.Contains(content.HTML, "A2B4C6") || !strings.Contains(content.HTML, "https://app.example/#/email-login/callback?token=opaque-token") {
 		t.Fatalf("standard HTML email omitted code or link: %q", content.HTML)
+	}
+	rendered, err := RenderEmail(content)
+	if err != nil {
+		t.Fatalf("render standard email: %v", err)
+	}
+	if !strings.Contains(rendered.HTML, `<span style="font-size:20px;font-weight:700;color:#4b2800">A2B4C6</span>`) {
+		t.Fatalf("sanitizer removed code emphasis: %q", rendered.HTML)
+	}
+	if !strings.Contains(rendered.HTML, `<a href="https://app.example/#/email-login/callback?token=opaque-token">Sign in</a>`) {
+		t.Fatalf("sanitized email omitted secondary sign-in link: %q", rendered.HTML)
+	}
+	if strings.Contains(rendered.HTML, "display:inline-block") {
+		t.Fatalf("sanitized email rendered the sign-in link as a primary button: %q", rendered.HTML)
 	}
 }
