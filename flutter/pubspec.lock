@@ -385,6 +385,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  cupertino_ui:
+    dependency: transitive
+    description:
+      name: cupertino_ui
+      sha256: c23816577a1280cff409e989541767887011f8f1d8c1863a794ed308af46f2a9
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   dart_earcut:
     dependency: transitive
     description:
@@ -961,10 +969,10 @@ packages:
     dependency: "direct main"
     description:
       name: go_router
-      sha256: "7974313e217a7771557add6ff2238acb63f635317c35fa590d348fb238f00896"
+      sha256: "008ab21d89d0de8ccd79586838f7533f126c2d894f50bf25f2947888d3c225b5"
       url: "https://pub.dev"
     source: hosted
-    version: "17.1.0"
+    version: "18.0.1"
   graphs:
     dependency: transitive
     description:
@@ -1285,6 +1293,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_ui:
+    dependency: transitive
+    description:
+      name: material_ui
+      sha256: "134ab2f0843545c4e661e4ba2753fe1bcf0753cb690d5a9ee4870638a40411e9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.0"
   meta:
     dependency: "direct dev"
     description:
@@ -2283,4 +2299,4 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.13.0 <4.0.0"
-  flutter: ">=3.44.0"
+  flutter: ">=3.47.0"
