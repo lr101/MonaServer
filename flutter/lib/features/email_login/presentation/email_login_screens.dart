@@ -206,6 +206,17 @@ class _EmailLoginCallbackScreenState extends State<EmailLoginCallbackScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant EmailLoginCallbackScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.launch != widget.launch) {
+      _sentSignedInNavigation = false;
+      _controller.setLaunchData(
+        widget.launch ?? const EmailLinkLaunchData.malformed(),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _controller
       ..removeListener(_onStateChanged)
