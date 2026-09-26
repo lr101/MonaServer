@@ -117,6 +117,7 @@ class PinEntities extends Table with CacheTable {
   RealColumn get latitude => real()();
   RealColumn get longitude => real()();
   DateTimeColumn get creationDate => dateTime()();
+  TextColumn get title => text().nullable()();
   TextColumn get description => text().nullable()();
   TextColumn get creator => text()();
   TextColumn get groupId => text()();
@@ -180,7 +181,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -237,6 +238,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await m.addColumn(groupEntities, groupEntities.pinStyle);
+      }
+      if (from < 5) {
+        await m.addColumn(pinEntities, pinEntities.title);
       }
     },
   );

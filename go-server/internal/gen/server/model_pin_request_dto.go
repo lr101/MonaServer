@@ -13,6 +13,7 @@ package genserver
 import (
 	"errors"
 	"time"
+	"unicode/utf8"
 )
 
 type PinRequestDto struct {
@@ -27,6 +28,8 @@ type PinRequestDto struct {
 	GroupId string `json:"groupId"`
 
 	CreationDate time.Time `json:"creationDate,omitempty"`
+
+	Title *string `json:"title,omitempty"`
 
 	Description *string `json:"description,omitempty"`
 }
@@ -46,6 +49,9 @@ func AssertPinRequestDtoRequired(obj PinRequestDto) error {
 
 // AssertPinRequestDtoConstraints checks if the values respects the defined constraints
 func AssertPinRequestDtoConstraints(obj PinRequestDto) error {
+	if obj.Title != nil && utf8.RuneCountInString(*obj.Title) > 120 {
+		return &ParsingError{Param: "Title", Err: errors.New("title must be at most 120 characters")}
+	}
 	if obj.Latitude < -90 {
 		return &ParsingError{Param: "Latitude", Err: errors.New(errMsgMinValueConstraint)}
 	}

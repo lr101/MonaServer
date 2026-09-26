@@ -53,6 +53,7 @@ type PinDTO struct {
 	Longitude    float64    `json:"longitude"`
 	CreationDate *time.Time `json:"creationDate,omitempty"`
 	UpdateDate   *time.Time `json:"updateDate,omitempty"`
+	Title        *string    `json:"title,omitempty"`
 	Description  *string    `json:"description,omitempty"`
 	UserID       uuid.UUID  `json:"userId"`
 	GroupID      uuid.UUID  `json:"groupId"`
@@ -64,7 +65,7 @@ func (s *Pin) toDTO(ctx context.Context, p *db.Pin, withImage bool) *PinDTO {
 	out := &PinDTO{
 		ID: p.ID, Latitude: p.Latitude, Longitude: p.Longitude,
 		CreationDate: p.CreationDate, UpdateDate: p.UpdateDate,
-		Description: p.Description, UserID: p.CreatorID, GroupID: p.GroupID,
+		Title: p.Title, Description: p.Description, UserID: p.CreatorID, GroupID: p.GroupID,
 		IsGone: p.IsGone,
 	}
 	if withImage && s.obj != nil {
@@ -80,6 +81,7 @@ type CreatePinInput struct {
 	Latitude     float64   `json:"latitude"`
 	Longitude    float64   `json:"longitude"`
 	CreationDate time.Time `json:"creationDate"`
+	Title        *string   `json:"title,omitempty"`
 	Description  *string   `json:"description,omitempty"`
 	UserID       uuid.UUID `json:"userId"`
 	GroupID      uuid.UUID `json:"groupId"`
@@ -138,7 +140,7 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 		id, err = q.CreatePin(ctx, db.Pin{
 			ID:       id,
 			Latitude: in.Latitude, Longitude: in.Longitude,
-			CreationDate: &in.CreationDate, Description: in.Description,
+			CreationDate: &in.CreationDate, Title: in.Title, Description: in.Description,
 			CreatorID: in.UserID, GroupID: in.GroupID, StateProvinceID: boundary,
 		})
 		if err != nil {

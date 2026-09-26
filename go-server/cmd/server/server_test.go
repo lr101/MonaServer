@@ -1160,6 +1160,7 @@ func TestEndpointPins(t *testing.T) {
 			"latitude":     48.137,
 			"longitude":    11.576,
 			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"title":        "Munich square",
 			"userId":       ar.UserID,
 			"groupId":      gid,
 		})
@@ -1170,6 +1171,9 @@ func TestEndpointPins(t *testing.T) {
 		var p map[string]any
 		decode(t, resp, &p)
 		pid = fmt.Sprintf("%v", p["id"])
+		if p["title"] != "Munich square" {
+			t.Fatalf("created title = %v, want Munich square", p["title"])
+		}
 		if pid == "" || pid == "<nil>" {
 			t.Fatalf("empty pin id: %v", p)
 		}

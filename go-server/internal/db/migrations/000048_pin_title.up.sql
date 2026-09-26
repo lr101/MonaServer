@@ -1,0 +1,1 @@
+ALTER TABLE pins ADD COLUMN title varchar(120) NULL DEFAULT NULL;

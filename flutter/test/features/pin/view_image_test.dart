@@ -6,7 +6,6 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_header.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +23,7 @@ void main() {
       latitude: 50,
       longitude: 8,
       creationDate: DateTime.utc(2026),
+      title: 'The riverside gate',
       creator: 'maker',
       groupId: 'group',
       description: 'A note on this pin',
@@ -68,16 +68,17 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(PageView), findsOneWidget);
+    expect(find.text('The riverside gate'), findsOneWidget);
     expect(find.byType(FeedMap), findsNothing);
     expect(
-      tester.getTopLeft(find.byType(FeedCardImageHeader)).dy,
+      tester.getTopLeft(find.text('The riverside gate')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
     );
     expect(find.text('Original pin photo'), findsWidgets);
     await tester.drag(find.byType(ListView), const Offset(0, -550));
     await tester.pumpAndSettle();
     expect(find.text('Take photo'), findsOneWidget);
-    expect(find.text('Upload photo'), findsOneWidget);
+    expect(find.text('Upload'), findsOneWidget);
     expect(find.text('Mark gone'), findsOneWidget);
     expect(find.text('A note on this pin'), findsOneWidget);
   });

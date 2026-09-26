@@ -378,6 +378,7 @@ type Pin struct {
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	Description     pgtype.Text        `json:"description"`
 	IsGone          bool               `json:"is_gone"`
+	Title           pgtype.Text        `json:"title"`
 }
 
 type PinPhoto struct {

@@ -97,111 +97,78 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     final canAdd = canAddPinPhotoHere(widget.userPosition, widget.pin);
     final retryPending = _uploadRetry.pendingRequest != null;
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.photo_library_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Photos & updates',
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (retryPending)
+          OutlinedButton.icon(
+            onPressed: _isPreparingOrUploading ? null : _addPhoto,
+            icon: _isPreparingOrUploading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+            label: Text(
+              _isPreparingOrUploading
+                  ? 'Retrying photo update…'
+                  : 'Retry photo update',
             ),
-            const SizedBox(height: 6),
-            Text(
-              _availabilityMessage(
-                synced: widget.pin.lastSynced != null,
-                nearby: nearby,
-                locationIsAccurate: locationIsAccurate,
-                retryPending: retryPending,
-              ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            if (retryPending)
-              FilledButton.icon(
-                onPressed: _isPreparingOrUploading ? null : _addPhoto,
-                icon: _isPreparingOrUploading
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh_rounded),
-                label: Text(
-                  _isPreparingOrUploading
-                      ? 'Retrying photo update…'
-                      : 'Retry photo update',
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: canAdd && !_isPreparingOrUploading
+                      ? () => _addPhoto(fromCamera: true)
+                      : null,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Take photo'),
                 ),
-              )
-            else ...[
-              FilledButton.icon(
-                onPressed: canAdd && !_isPreparingOrUploading
-                    ? () => _addPhoto(fromCamera: true)
-                    : null,
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Take photo'),
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: canAdd && !_isPreparingOrUploading
-                    ? _addPhoto
-                    : null,
-                icon: const Icon(Icons.upload_outlined),
-                label: const Text('Upload photo'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: canAdd && !_isPreparingOrUploading
+                      ? _addPhoto
+                      : null,
+                  icon: const Icon(Icons.upload_outlined),
+                  label: const Text('Upload'),
+                ),
               ),
             ],
-            const SizedBox(height: 12),
-            history.when(
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(12),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-              error: (_, _) => Row(
-                children: [
-                  const Expanded(child: Text('Photo history is unavailable.')),
-                  TextButton(
-                    onPressed: () => ref.invalidate(
-                      pinPhotoHistoryProvider(widget.pin.pinId),
-                    ),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-              data: (photos) => photos.isEmpty
-                  ? Text(
-                      'No photo updates yet.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    )
-                  : Column(
-                      children: [
-                        for (final photo in photos)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: _PinPhotoTile(photo: photo),
-                          ),
-                      ],
-                    ),
+          ),
+        if (!retryPending && !canAdd) ...[
+          const SizedBox(height: 4),
+          Text(
+            _availabilityMessage(
+              synced: widget.pin.lastSynced != null,
+              nearby: nearby,
+              locationIsAccurate: locationIsAccurate,
             ),
-          ],
-        ),
-      ),
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
+        if (history.hasError) ...[
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Photo history unavailable',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              TextButton(
+                onPressed: () =>
+                    ref.invalidate(pinPhotoHistoryProvider(widget.pin.pinId)),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 
@@ -209,11 +176,7 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     required bool synced,
     required bool nearby,
     required bool locationIsAccurate,
-    required bool retryPending,
   }) {
-    if (retryPending) {
-      return 'The last upload may have succeeded. Retry it to check before adding another photo.';
-    }
     if (!synced) return 'Sync this pin before adding a photo.';
     if (widget.userPosition == null) return 'Waiting for a location fix.';
     if (!locationIsAccurate) {
@@ -299,65 +262,6 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
-  }
-}
-
-class _PinPhotoTile extends StatelessWidget {
-  const _PinPhotoTile({required this.photo});
-
-  final PinPhotoDto photo;
-
-  @override
-  Widget build(BuildContext context) {
-    final localDate = photo.observedAt.toLocal();
-    final localizations = MaterialLocalizations.of(context);
-    final dateLabel =
-        '${localizations.formatMediumDate(localDate)} · '
-        '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localDate))}';
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        photo.isOriginal
-                            ? 'Original pin photo'
-                            : 'Update by ${photo.contributorUsername}',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      dateLabel,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-                if (photo.caption case final caption?
-                    when caption.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(caption),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

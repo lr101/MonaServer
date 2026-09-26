@@ -295,6 +295,7 @@ void main() {
         [1],
       ],
     );
+    nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN title');
     nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN is_gone');
     nativeDatabase.execute('ALTER TABLE group_entities DROP COLUMN pin_style');
     nativeDatabase.execute('PRAGMA user_version = 1');

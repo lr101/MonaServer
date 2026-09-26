@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
@@ -38,5 +40,27 @@ void main() {
     expect(dto.isGone, isTrue);
     expect(pin.isGone, isTrue);
     expect((pin.copyWith(keepAlive: true) as PinEntity).isGone, isTrue);
+  });
+
+  test('preserves a pin title from the API and when creating a request', () {
+    final dto = PinWithOptionalImageDto.fromJson({
+      'id': 'pin',
+      'creationDate': '2026-09-10T12:00:00Z',
+      'latitude': 50,
+      'longitude': 8,
+      'creationUser': 'user',
+      'groupId': 'group',
+      'title': 'Riverside gate',
+    })!;
+
+    final pin = PinEntity.fromDto(dto, false);
+    final request = pin.toRequestDto(Uint8List.fromList([1]));
+
+    expect(pin.title, 'Riverside gate');
+    expect(
+      (pin.copyWith(keepAlive: true) as PinEntity).title,
+      'Riverside gate',
+    );
+    expect(request.toJson()['title'], 'Riverside gate');
   });
 }

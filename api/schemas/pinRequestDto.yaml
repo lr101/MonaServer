@@ -18,5 +18,7 @@ properties:
     $ref: '../parameters/id.yaml'
   creationDate:
     $ref: '../parameters/date.yaml'
+  title:
+    $ref: '../parameters/pinTitle.yaml'
   description:
     $ref: '../parameters/veryLongStringNullable.yaml'

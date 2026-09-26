@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **creationUser** | **String** |  |
 **image** | **String** |  | [optional]
 **groupId** | **String** |  |
+**title** | **String** |  | [optional]
 **description** | **String** |  | [optional]
 **isGone** | **bool** |  | [optional] [default to false]
 

@@ -54,6 +54,7 @@ func TestPinCreateGetDelete(t *testing.T) {
 	gid := createTestGroup(t, group, uid, "pingroup")
 
 	t.Run("create pin", func(t *testing.T) {
+		title := "Riverside lookout"
 		before, err := q.GetUserByID(ctx, uid)
 		if err != nil {
 			t.Fatalf("get user before pin: %v", err)
@@ -62,6 +63,7 @@ func TestPinCreateGetDelete(t *testing.T) {
 			Latitude:     52.5,
 			Longitude:    13.4,
 			CreationDate: time.Now(),
+			Title:        &title,
 			UserID:       uid,
 			GroupID:      gid,
 		})
@@ -73,6 +75,16 @@ func TestPinCreateGetDelete(t *testing.T) {
 		}
 		if dto.UserID != uid {
 			t.Fatalf("creator mismatch")
+		}
+		if dto.Title == nil || *dto.Title != title {
+			t.Fatalf("created title = %v, want %q", dto.Title, title)
+		}
+		stored, err := q.GetPinByID(ctx, dto.ID)
+		if err != nil {
+			t.Fatalf("get created pin: %v", err)
+		}
+		if stored.Title == nil || *stored.Title != title {
+			t.Fatalf("stored title = %v, want %q", stored.Title, title)
 		}
 		after, err := q.GetUserByID(ctx, uid)
 		if err != nil {
