@@ -10,6 +10,12 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
 FROM users
 WHERE id = $1 AND is_deleted = FALSE;
 
+-- name: GetUserXPByIDs :many
+SELECT id, xp
+FROM users
+WHERE is_deleted = FALSE
+  AND id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: GetUserByUsername :one
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,

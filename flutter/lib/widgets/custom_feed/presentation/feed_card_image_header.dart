@@ -1,9 +1,8 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,17 +17,11 @@ class FeedCardImageHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Fetch images
-    final userImage = ref.watch(getUserProfileSmallProvider(pin.creator));
-    final groupImage = ref.watch(
-      groupProfilePictureSmallByIdProvider(pin.groupId),
-    );
-
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(pin.creator));
     final username = ref.watch(userByIdUsernameProvider(pin.creator));
 
     // Common size for both avatars
-    const double avatarSize = 14.0; // Radius (so diameter is 36)
+    const double avatarSize = 11.0;
 
     return Padding(
       padding: const EdgeInsets.all(10),
@@ -40,18 +33,18 @@ class FeedCardImageHeader extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           children: [
-            // 2. STACKED IMAGES
+            // 2. PAIRED PROFILE PICTURES
             SizedBox(
-              width: avatarSize * 4, // Width to hold both overlapped images
+              width: (avatarSize * 2 + 6) * 2,
               height: 40,
               child: Stack(
                 alignment: Alignment.centerLeft,
                 children: [
                   Positioned(
-                    left: avatarSize,
-                    child: RoundImage(
-                      imageCallback: groupImage,
-                      size: avatarSize,
+                    left: avatarSize * 2.5,
+                    child: SmallProfilePicture.group(
+                      groupId: pin.groupId,
+                      radius: avatarSize,
                     ),
                   ),
 
@@ -59,9 +52,9 @@ class FeedCardImageHeader extends ConsumerWidget {
                     left: 0,
                     child: ClickableUser(
                       userId: pin.creator,
-                      child: RoundImage(
-                        imageCallback: userImage,
-                        size: avatarSize,
+                      child: SmallProfilePicture.user(
+                        userId: pin.creator,
+                        radius: avatarSize,
                       ),
                     ),
                   ),

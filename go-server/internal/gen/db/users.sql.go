@@ -405,6 +405,38 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 	return i, err
 }
 
+const getUserXPByIDs = `-- name: GetUserXPByIDs :many
+SELECT id, xp
+FROM users
+WHERE is_deleted = FALSE
+  AND id = ANY($1::uuid[])
+`
+
+type GetUserXPByIDsRow struct {
+	ID pgtype.UUID `json:"id"`
+	Xp int32       `json:"xp"`
+}
+
+func (q *Queries) GetUserXPByIDs(ctx context.Context, ids []pgtype.UUID) ([]GetUserXPByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getUserXPByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserXPByIDsRow
+	for rows.Next() {
+		var i GetUserXPByIDsRow
+		if err := rows.Scan(&i.ID, &i.Xp); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUsernameByID = `-- name: GetUsernameByID :one
 SELECT username FROM users WHERE id = $1 AND is_deleted = FALSE
 `

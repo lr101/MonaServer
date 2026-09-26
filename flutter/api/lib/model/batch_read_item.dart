@@ -136,6 +136,8 @@ class BatchReadItemKindEnum {
   static const groupPinImage = BatchReadItemKindEnum._(r'groupPinImage');
   static const user = BatchReadItemKindEnum._(r'user');
   static const pinLikes = BatchReadItemKindEnum._(r'pinLikes');
+  static const userProgression = BatchReadItemKindEnum._(r'userProgression');
+  static const groupProgression = BatchReadItemKindEnum._(r'groupProgression');
 
   /// List of all possible values in this [enum][BatchReadItemKindEnum].
   static const values = <BatchReadItemKindEnum>[
@@ -147,6 +149,8 @@ class BatchReadItemKindEnum {
     groupPinImage,
     user,
     pinLikes,
+    userProgression,
+    groupProgression,
   ];
 
   static BatchReadItemKindEnum? fromJson(dynamic value) => BatchReadItemKindEnumTypeTransformer().decode(value);
@@ -193,6 +197,8 @@ class BatchReadItemKindEnumTypeTransformer {
         case r'groupPinImage': return BatchReadItemKindEnum.groupPinImage;
         case r'user': return BatchReadItemKindEnum.user;
         case r'pinLikes': return BatchReadItemKindEnum.pinLikes;
+        case r'userProgression': return BatchReadItemKindEnum.userProgression;
+        case r'groupProgression': return BatchReadItemKindEnum.groupProgression;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

@@ -1,7 +1,6 @@
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_group.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,11 +30,9 @@ class FeedTimelineHeader extends ConsumerWidget {
                 quarterTurns: isRotated ? 1 : 0,
                 child: ClickableGroup(
                   groupId: groupId,
-                  child: RoundImage(
-                    size: 15,
-                    imageCallback: ref.watch(
-                      groupProfilePictureByIdProvider(groupId),
-                    ),
+                  child: SmallProfilePicture.group(
+                    groupId: groupId,
+                    radius: 12,
                   ),
                 ),
               ),

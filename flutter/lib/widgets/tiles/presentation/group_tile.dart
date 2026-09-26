@@ -1,7 +1,5 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_cached_image.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -47,31 +45,19 @@ class GroupTile extends ConsumerWidget {
           ),
         ],
       ),
-      leading: !loadImage ? const CircleAvatar(radius: 25.0) : _image(ref),
+      leading: SmallProfilePicture.group(
+        groupId: groupDto.groupId,
+        radius: 22,
+        imageUrl: imageUrl,
+        cachedImageOnly: userCachedImage,
+        loadImage: loadImage,
+        placeholderAvatar: !loadImage ? const CircleAvatar(radius: 25) : null,
+      ),
     );
     if (onTap == null) {
       return listTile;
     } else {
       return GestureDetector(onTap: onTap, child: listTile);
     }
-  }
-
-  Widget _image(WidgetRef ref) {
-    final imageCallback = imageUrl == null || imageUrl!.isEmpty
-        ? ref.watch(groupProfilePictureSmallByIdProvider(groupDto.groupId))
-        : ref.watch(
-            groupProfilePictureSmallByUrlProvider((
-              groupId: groupDto.groupId,
-              url: imageUrl!,
-            )),
-          );
-    if (!userCachedImage) {
-      return RoundImage(
-        imageCallback: imageCallback,
-        size: 25.0,
-        child: Container(),
-      );
-    }
-    return RoundCachedImage(image: imageCallback.value, size: 25.0);
   }
 }

@@ -1,5 +1,4 @@
-import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +44,10 @@ class GroupRankingTile extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               if (groupDto.rankNr! <= 3) Icon(Icons.emoji_events, color: groupDto.rankNr == 1 ? Colors.yellow : groupDto.rankNr == 2 ? Colors.grey : Colors.brown,) else Text("${groupDto.rankNr}.",),
-              RoundImage(imageCallback: ref.watch(groupProfilePictureSmallByIdProvider(groupDto.groupInfoDto!.id)), size: (height - 10) / 2),
+              SmallProfilePicture.group(
+                groupId: groupDto.groupInfoDto!.id,
+                radius: (height - 10) / 2 - 3,
+              ),
             ],
           ),),
         ),

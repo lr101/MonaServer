@@ -109,6 +109,7 @@ doc/PinRequestDto.md
 doc/PinWithOptionalImageDto.md
 doc/PinsApi.md
 doc/PinsSyncDto.md
+doc/ProfileProgressionDto.md
 doc/PublicApi.md
 doc/PublicAuthApi.md
 doc/PushActionDto.md
@@ -264,6 +265,7 @@ lib/model/pin_presence_request_dto.dart
 lib/model/pin_request_dto.dart
 lib/model/pin_with_optional_image_dto.dart
 lib/model/pins_sync_dto.dart
+lib/model/profile_progression_dto.dart
 lib/model/push_action_dto.dart
 lib/model/ranking_search_dto_inner.dart
 lib/model/recovery_complete_request_dto.dart
