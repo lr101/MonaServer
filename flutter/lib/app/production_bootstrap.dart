@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:buff_lisa/app/app.dart';
 import 'package:buff_lisa/app/app_configuration.dart';
+import 'package:buff_lisa/app/app_links.dart';
 import 'package:buff_lisa/app/email_link_launch.dart';
+import 'package:buff_lisa/app/native_app_link_source.dart';
 import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
@@ -45,10 +47,25 @@ Future<Map<String, String>> loadAppEnvironment() async {
 Future<EmailLinkLaunchData?> captureProductionEmailLinkLaunch() =>
     captureInitialEmailLink();
 
+/// Captures a browser email callback or a native Android App Link before the
+/// router is created. The native source begins buffering events immediately.
+Future<AppLaunchData?> captureProductionAppLaunch() async {
+  if (kIsWeb) {
+    final emailLink = await captureProductionEmailLinkLaunch();
+    return emailLink == null ? null : AppLaunchData(emailLink: emailLink);
+  }
+
+  final uri = await NativeAppLinkSource.instance.getInitialLink();
+  final launch = AppLaunchData.fromUri(uri);
+  return launch.emailLink == null && launch.groupInviteLocation == null
+      ? null
+      : launch;
+}
+
 /// Owns platform initialization and the legacy provider composition root.
 Future<Widget> initializeApplication(
   AppConfiguration configuration, {
-  EmailLinkLaunchData? launchData,
+  AppLaunchData? launchData,
 }) async {
   // Legacy consumers still read dotenv until their feature migration.
   dotenv.env['API_HOST'] = configuration.apiHost;
@@ -128,7 +145,13 @@ Future<Widget> initializeApplication(
         defaultGroupPinImageProvider.overrideWithValue(defaultGroupImage),
         defaultErrorImageProvider.overrideWithValue(defaultErrorImage),
         driftRepoProvider.overrideWithValue(database),
-        emailLinkLaunchDataProvider.overrideWithValue(launchData),
+        emailLinkLaunchDataProvider.overrideWithValue(launchData?.emailLink),
+        appLaunchDataProvider.overrideWithValue(launchData),
+        appLinkEventsProvider.overrideWithValue(
+          kIsWeb
+              ? const Stream<Uri>.empty()
+              : NativeAppLinkSource.instance.events,
+        ),
       ],
       child: const MyApp(),
     );
