@@ -38,6 +38,10 @@ final emailLinkExchangePortProvider = Provider<EmailLinkExchangePort>(
   (ref) => ref.watch(publicAuthEmailLoginAdapterProvider),
 );
 
+final emailLoginCodeExchangePortProvider = Provider<EmailLoginCodeExchangePort>(
+  (ref) => ref.watch(publicAuthEmailLoginAdapterProvider),
+);
+
 final emailRecoveryPortProvider = Provider<EmailRecoveryPort>(
   (ref) => ref.watch(publicAuthEmailLoginAdapterProvider),
 );

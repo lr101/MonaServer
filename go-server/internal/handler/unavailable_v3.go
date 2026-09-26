@@ -232,6 +232,10 @@ func (s *UnavailableV3Servicer) ExchangeEmailLink(context.Context, genserver.Ema
 	return s.unavailable()
 }
 
+func (s *UnavailableV3Servicer) ExchangeEmailLoginCode(context.Context, genserver.EmailLoginCodeExchangeRequestDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func (s *UnavailableV3Servicer) CompleteRecovery(context.Context, genserver.RecoveryCompleteRequestDto) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }

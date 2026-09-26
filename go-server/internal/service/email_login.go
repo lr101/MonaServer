@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,6 +39,11 @@ const (
 	addressDailyScope = "public_email_login.address.daily"
 	ipBurstScope      = "public_email_login.ip.burst"
 	globalScope       = "public_email_login.global"
+	codeAddressScope  = "public_email_login.code.address"
+	codeIPScope       = "public_email_login.code.ip"
+	codeGlobalScope   = "public_email_login.code.global"
+	loginCodeAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	loginCodeLength   = 6
 )
 
 var (
@@ -96,6 +103,13 @@ type EmailLoginConfig struct {
 	GlobalWindow       time.Duration
 	GlobalLimit        int64
 
+	CodeAddressWindow time.Duration
+	CodeAddressLimit  int64
+	CodeIPWindow      time.Duration
+	CodeIPLimit       int64
+	CodeGlobalWindow  time.Duration
+	CodeGlobalLimit   int64
+
 	LoginTokenTTL      time.Duration
 	RecoveryTokenTTL   time.Duration
 	DeliveryPayloadTTL time.Duration
@@ -113,14 +127,25 @@ type EmailLoginRequest struct {
 	ClientIP       string
 }
 
+// EmailLoginCodeExchangeRequest binds the short one-time code to the same
+// public identifier used to request it. ClientIP is supplied by trusted route
+// middleware and is used for brute-force admission limits.
+type EmailLoginCodeExchangeRequest struct {
+	Email          string
+	IdentifierType string
+	Code           string
+	ClientIP       string
+}
+
 // LoginLinkDeliveryRequest is passed to the durable delivery adapter. Token
-// is ephemeral and must only be encrypted by an adapter or delivered to a
-// provider; it must never be logged or stored in plaintext.
+// and Code are ephemeral and must only be encrypted by an adapter or delivered
+// to a provider; they must never be logged or stored in plaintext.
 type LoginLinkDeliveryRequest struct {
 	AccountID      uuid.UUID
 	Username       string
 	To             string
 	Token          string
+	Code           string
 	Template       *LoginLinkEmailTemplate
 	ExpiresIn      time.Duration
 	PayloadTTL     time.Duration
@@ -224,6 +249,24 @@ func (c EmailLoginConfig) withDefaults() EmailLoginConfig {
 	}
 	if c.GlobalLimit <= 0 {
 		c.GlobalLimit = 100
+	}
+	if c.CodeAddressWindow <= 0 {
+		c.CodeAddressWindow = 15 * time.Minute
+	}
+	if c.CodeAddressLimit <= 0 {
+		c.CodeAddressLimit = 8
+	}
+	if c.CodeIPWindow <= 0 {
+		c.CodeIPWindow = 15 * time.Minute
+	}
+	if c.CodeIPLimit <= 0 {
+		c.CodeIPLimit = 40
+	}
+	if c.CodeGlobalWindow <= 0 {
+		c.CodeGlobalWindow = time.Minute
+	}
+	if c.CodeGlobalLimit <= 0 {
+		c.CodeGlobalLimit = 200
 	}
 	if c.LoginTokenTTL <= 0 {
 		c.LoginTokenTTL = loginLinkTokenTTL
@@ -497,6 +540,77 @@ func keysForQuota(keys []quotaHMACKey, scope string, start, end time.Time, limit
 	return out
 }
 
+func generateEmailLoginCode() (string, error) {
+	var code strings.Builder
+	code.Grow(loginCodeLength)
+	max := big.NewInt(int64(len(loginCodeAlphabet)))
+	for i := 0; i < loginCodeLength; i++ {
+		index, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		code.WriteByte(loginCodeAlphabet[index.Int64()])
+	}
+	return code.String(), nil
+}
+
+func validEmailLoginCode(code string) bool {
+	if len(code) != loginCodeLength {
+		return false
+	}
+	for _, character := range code {
+		if !strings.ContainsRune(loginCodeAlphabet, character) {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeEmailLoginCode(raw string) (string, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) != loginCodeLength {
+		return "", false
+	}
+	code := []byte(trimmed)
+	for i, character := range code {
+		switch {
+		case character >= 'a' && character <= 'z':
+			code[i] = character - 'a' + 'A'
+		case (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9'):
+		default:
+			return "", false
+		}
+	}
+	return string(code), true
+}
+
+// loginCodeHashes uses a server-held HMAC key so a database-only disclosure
+// does not make the short code space practical to search offline. Previous
+// keys remain valid for the lifetime of outstanding action tokens.
+func (s *EmailLogin) loginCodeHashes(code, canonicalEmail string) [][]byte {
+	if s == nil || !s.quotaKeyConfigured() {
+		return nil
+	}
+	keys := []quotaHMACKey{{ID: s.cfg.HMACKeyID, Secret: s.cfg.HMACKey}}
+	for id, secret := range s.cfg.PreviousHMACKeys {
+		if id == "" || len(secret) == 0 || id == s.cfg.HMACKeyID {
+			continue
+		}
+		keys = append(keys, quotaHMACKey{ID: id, Secret: secret})
+	}
+	hashes := make([][]byte, 0, len(keys))
+	for _, key := range keys {
+		mac := hmac.New(sha256.New, key.Secret)
+		_, _ = mac.Write([]byte("email-login-code-v1"))
+		_, _ = mac.Write([]byte{0})
+		_, _ = mac.Write([]byte(canonicalEmail))
+		_, _ = mac.Write([]byte{0})
+		_, _ = mac.Write([]byte(code))
+		hashes = append(hashes, mac.Sum(nil))
+	}
+	return hashes
+}
+
 func ownedEmailMatches(state *db.UserSecurityState, claim *db.EmailLoginClaim, canonical string, owner uuid.UUID) bool {
 	return state != nil && claim != nil && claim.State == db.EmailClaimOwned && !claim.IsAmbiguous && claim.OwnerUserID != nil &&
 		*claim.OwnerUserID == owner && owner == state.ID && !state.IsDeleted &&
@@ -509,10 +623,25 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 	if tx == nil || state == nil || user == nil || !ownedEmailMatches(state, &db.EmailLoginClaim{CanonicalEmail: canonical, OwnerUserID: &state.ID, State: db.EmailClaimOwned}, canonical, state.ID) {
 		return nil, nil
 	}
+	code, err := generateEmailLoginCode()
+	if err != nil {
+		return nil, ErrEmailDeliveryUnavailable
+	}
 	// issueActionTokenLocked is called after the account and claim locks are
 	// held. It persists only the hash and binds the current generation/email.
 	action, err := s.security.issueActionTokenWithIDLocked(ctx, tx, state, db.ActionTokenPurposeLoginLink, &canonical, tokenTTL, actionTokenID)
 	if err != nil {
+		return nil, err
+	}
+	codeHashes := s.loginCodeHashes(code, canonical)
+	if len(codeHashes) == 0 {
+		return nil, ErrEmailDeliveryUnavailable
+	}
+	if err := tx.CreateAccountActionToken(ctx, db.AccountActionTokenParams{
+		ID: uuid.New(), TokenHash: codeHashes[0], Purpose: db.ActionTokenPurposeLoginLink,
+		AccountID: state.ID, EmailBinding: &canonical, AuthGeneration: state.AuthGeneration,
+		ExpiresAt: action.ExpiresAt,
+	}); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -522,7 +651,7 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 		return nil, ErrEmailDeliveryUnavailable
 	}
 	deliveryID, err := enqueuer.EnqueueLoginLink(ctx, tx, LoginLinkDeliveryRequest{
-		AccountID: state.ID, Username: user.Username, To: canonical, Token: action.Token,
+		AccountID: state.ID, Username: user.Username, To: canonical, Token: action.Token, Code: code,
 		Template:  emailTemplate,
 		ExpiresIn: tokenTTL, PayloadTTL: payloadTTL,
 		ActionTokenID: action.ID, AuthGeneration: state.AuthGeneration, ExpiresAt: action.ExpiresAt,
@@ -651,24 +780,137 @@ func (s *EmailLogin) ExchangeEmailLink(ctx context.Context, rawToken string) (*E
 		now = time.Now()
 	}
 	hash := sha256.Sum256([]byte(rawToken))
+	return s.exchangeLoginActionToken(ctx, hash[:], nil, now)
+}
+
+// ExchangeEmailLoginCode rate-limits verification before looking up a code,
+// binds it to the requested email or username, then redeems it through the
+// same atomic account-token path as the email link.
+func (s *EmailLogin) ExchangeEmailLoginCode(ctx context.Context, request EmailLoginCodeExchangeRequest) (*EmailLinkExchangeResult, error) {
+	if s == nil || s.q == nil || s.security == nil || s.tok == nil {
+		return nil, ErrInvalidEmailLink
+	}
+	canonical, err := s.loginCodeAddress(ctx, request.Email, request.IdentifierType)
+	if err != nil {
+		return nil, err
+	}
+	code, valid := normalizeEmailLoginCode(request.Code)
+	if !valid {
+		return nil, ErrInvalidEmailLink
+	}
+	now := s.clock()()
+	if now.IsZero() {
+		now = time.Now()
+	}
+	allowed, limited, retryAt, err := s.acquireCodeExchangeQuotas(ctx, canonical, request.ClientIP, now)
+	if err != nil {
+		return nil, err
+	}
+	if limited || !allowed {
+		return nil, &EmailRateLimitError{RetryAt: retryAt, Now: now}
+	}
+	for _, hash := range s.loginCodeHashes(code, canonical) {
+		result, err := s.exchangeLoginActionToken(ctx, hash, &canonical, now)
+		if err == nil {
+			return result, nil
+		}
+		if !errors.Is(err, ErrInvalidEmailLink) {
+			return nil, err
+		}
+	}
+	return nil, ErrInvalidEmailLink
+}
+
+func (s *EmailLogin) loginCodeAddress(ctx context.Context, identifier, identifierType string) (string, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" || !utf8.ValidString(identifier) {
+		return "", apperrors.ErrBadRequest
+	}
+	if identifierType == "" {
+		identifierType = "email"
+	}
+	switch identifierType {
+	case "email":
+		canonical := db.CanonicalEmail(identifier)
+		if canonical == "" {
+			return "", apperrors.ErrBadRequest
+		}
+		return canonical, nil
+	case "username":
+		if utf8.RuneCountInString(identifier) > 256 {
+			return "", apperrors.ErrBadRequest
+		}
+		user, err := s.q.GetUserByUsername(ctx, identifier)
+		if err != nil {
+			return "", err
+		}
+		if user != nil && user.EmailConfirmed && user.Email != nil {
+			if canonical := db.CanonicalEmail(*user.Email); canonical != "" {
+				return canonical, nil
+			}
+		}
+		return "username:" + strings.ToLower(identifier), nil
+	default:
+		return "", apperrors.ErrBadRequest
+	}
+}
+
+func (s *EmailLogin) acquireCodeExchangeQuotas(ctx context.Context, canonical, clientIP string, now time.Time) (allowed, limited bool, retryAt time.Time, err error) {
+	allowed = true
+	err = s.q.InTxRetry(ctx, func(tx *db.Queries) error {
+		buckets := []struct {
+			scope      string
+			identifier string
+			window     time.Duration
+			limit      int64
+		}{
+			{codeAddressScope, canonical, s.cfg.CodeAddressWindow, s.cfg.CodeAddressLimit},
+			{codeIPScope, clientIP, s.cfg.CodeIPWindow, s.cfg.CodeIPLimit},
+			{codeGlobalScope, "global", s.cfg.CodeGlobalWindow, s.cfg.CodeGlobalLimit},
+		}
+		for _, bucket := range buckets {
+			bucketAllowed, bucketRetryAt, err := s.acquireQuota(ctx, tx, bucket.scope, bucket.identifier, now, bucket.window, bucket.limit)
+			if err != nil {
+				return err
+			}
+			if !bucketAllowed {
+				allowed = false
+				limited = true
+				if retryAt.IsZero() || bucketRetryAt.Before(retryAt) {
+					retryAt = bucketRetryAt
+				}
+			}
+		}
+		return nil
+	})
+	return allowed, limited, retryAt, err
+}
+
+func (s *EmailLogin) exchangeLoginActionToken(ctx context.Context, hash []byte, expectedEmail *string, now time.Time) (*EmailLinkExchangeResult, error) {
 	var result *EmailLinkExchangeResult
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
-		initial, err := tx.GetAccountActionTokenByHash(ctx, hash[:])
+		initial, err := tx.GetAccountActionTokenByHash(ctx, hash)
 		if err != nil || initial == nil || initial.Purpose != db.ActionTokenPurposeLoginLink || initial.EmailBinding == nil {
 			return ErrInvalidEmailLink
 		}
+		if expectedEmail != nil && db.CanonicalEmail(*initial.EmailBinding) != *expectedEmail {
+			return ErrInvalidEmailLink
+		}
 		state, err := tx.LockUserSecurity(ctx, initial.AccountID)
-		if err != nil || state == nil {
+		if err != nil {
 			return err
+		}
+		if state == nil {
+			return ErrInvalidEmailLink
 		}
 		claim, err := tx.LockEmailLoginClaim(ctx, *initial.EmailBinding)
 		if err != nil {
 			return err
 		}
-		if !ownedEmailMatches(state, claim, db.CanonicalEmail(*initial.EmailBinding), initial.AccountID) {
+		if claim == nil || !ownedEmailMatches(state, claim, db.CanonicalEmail(*initial.EmailBinding), initial.AccountID) {
 			return ErrInvalidEmailLink
 		}
-		consumed, ok, err := tx.ConsumeAccountActionToken(ctx, hash[:], db.ActionTokenPurposeLoginLink, now)
+		consumed, ok, err := tx.ConsumeAccountActionToken(ctx, hash, db.ActionTokenPurposeLoginLink, now)
 		if err != nil {
 			return err
 		}
@@ -963,20 +1205,20 @@ func NewDurableLoginLinkEnqueuer(keys *DeliveryKeyRing, callback string, clock f
 }
 
 func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.Queries, request LoginLinkDeliveryRequest) (*uuid.UUID, error) {
-	if e == nil || e.keys == nil || tx == nil || request.AccountID == uuid.Nil || request.ActionTokenID == uuid.Nil || request.Token == "" || request.To == "" {
+	if e == nil || e.keys == nil || tx == nil || request.AccountID == uuid.Nil || request.ActionTokenID == uuid.Nil || request.Token == "" || !validEmailLoginCode(request.Code) || request.To == "" {
 		return nil, ErrEmailDeliveryUnavailable
 	}
 	now := e.clock()
 	if now.IsZero() {
 		now = time.Now()
 	}
-	content := loginLinkEmailContent(request.Username, request.To, request.Token, e.callback, request.ExpiresIn)
+	content := loginLinkEmailContent(request.Username, request.To, request.Token, e.callback, request.Code, request.ExpiresIn)
 	if request.Template != nil {
 		callback := loginLinkCallback(request.Token, e.callback)
 		if len(e.callback) > MaxEmailLoginCallbackURLBytes || len(callback) > maxLoginLinkTemplateURLBytes {
 			return nil, ErrInvalidLoginLinkTemplate
 		}
-		subject, body, htmlBody, err := renderLoginLinkEmailContent(request.Template, request.Username, request.To, callback, loginLinkExpiryLabel(request.ExpiresIn))
+		subject, body, htmlBody, err := renderLoginLinkEmailContent(request.Template, request.Username, request.To, callback, request.Code, loginLinkExpiryLabel(request.ExpiresIn))
 		if err != nil {
 			return nil, err
 		}
@@ -1032,8 +1274,9 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 }
 
 var loginLinkEmailTemplate = template.Must(template.New("email-login-content").Parse(`
-<p>Hi {{.Username}},</p><p>Use the button below to sign in. This link expires in {{.ExpiresIn}} and can be used once.</p>
-<p><a href="{{.URL}}" style="display:inline-block;padding:12px 20px;background-color:{{.Accent}};color:{{.Foreground}};font-weight:600;text-decoration:none;border-radius:8px">Sign in</a></p>
+<p>Hi {{.Username}},</p><p>Enter this one-time code in the app to sign in. It expires in {{.ExpiresIn}} and can be used once:</p>
+<p><span style="font-size:20px;font-weight:700;color:{{.Foreground}}">{{.Code}}</span></p><p>Or use this sign-in link:</p>
+<p><a href="{{.URL}}">Sign in</a></p>
 <p>If you did not request this email, you can ignore it.</p>`))
 
 var loginLinkEmailShellTemplate = template.Must(template.New("email-login-shell").Parse(`<!doctype html>
@@ -1049,6 +1292,7 @@ var loginLinkEmailShellTemplate = template.Must(template.New("email-login-shell"
 type loginLinkEmailData struct {
 	Username   string
 	URL        string
+	Code       string
 	ExpiresIn  string
 	Accent     string
 	Foreground string
@@ -1061,10 +1305,10 @@ type loginLinkEmailShellData struct {
 	Body       template.HTML
 }
 
-func loginLinkEmailContent(username, to, rawToken, callback string, expiresIn time.Duration) EmailContent {
+func loginLinkEmailContent(username, to, rawToken, callback, code string, expiresIn time.Duration) EmailContent {
 	callback = loginLinkCallback(rawToken, callback)
 	data := loginLinkEmailData{
-		Username: username, URL: callback, ExpiresIn: loginLinkExpiryLabel(expiresIn),
+		Username: username, URL: callback, Code: code, ExpiresIn: loginLinkExpiryLabel(expiresIn),
 		Accent: brandOrange, Foreground: brandOrangeForeground,
 	}
 	var content bytes.Buffer
@@ -1073,7 +1317,7 @@ func loginLinkEmailContent(username, to, rawToken, callback string, expiresIn ti
 	}
 	return EmailContent{
 		To: to, Subject: "Sign in to Stick-It",
-		Body: "Use this one-time link to sign in to Stick-It. It expires in " + data.ExpiresIn + ": " + callback,
+		Body: "Your one-time sign-in code is " + code + ". It expires in " + data.ExpiresIn + ". You can also sign in with this link: " + callback,
 		HTML: loginLinkEmailShell("Sign in to Stick-It", content.String()),
 	}
 }

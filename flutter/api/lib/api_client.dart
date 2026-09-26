@@ -322,6 +322,8 @@ class ApiClient {
           return EmailLinkRequestAcceptedDto.fromJson(value);
         case 'EmailLinkRequestDto':
           return EmailLinkRequestDto.fromJson(value);
+        case 'EmailLoginCodeExchangeRequestDto':
+          return EmailLoginCodeExchangeRequestDto.fromJson(value);
         case 'FilterAudience':
           return FilterAudience.fromJson(value);
         case 'GroupAchievementsDtoInner':

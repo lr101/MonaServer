@@ -408,6 +408,7 @@ type AdminUsersAPIServicer interface {
 type PublicAuthAPIServicer interface {
 	RequestEmailLink(context.Context, EmailLinkRequestDto) (ImplResponse, error)
 	ExchangeEmailLink(context.Context, EmailLinkExchangeRequestDto) (ImplResponse, error)
+	ExchangeEmailLoginCode(context.Context, EmailLoginCodeExchangeRequestDto) (ImplResponse, error)
 	CompleteRecovery(context.Context, RecoveryCompleteRequestDto) (ImplResponse, error)
 }
 

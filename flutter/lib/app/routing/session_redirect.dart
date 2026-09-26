@@ -14,6 +14,7 @@ String? sessionRedirect({
         '/logout',
         '/email-login',
         '/email-login/callback',
+        '/email-login/code',
       }.contains(location)) {
     return '/login';
   }

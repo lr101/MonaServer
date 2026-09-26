@@ -87,6 +87,7 @@ model_email_link_exchange_request_dto.go
 model_email_link_exchange_response_dto.go
 model_email_link_request_accepted_dto.go
 model_email_link_request_dto.go
+model_email_login_code_exchange_request_dto.go
 model_filter_audience.go
 model_group_achievements_dto_inner.go
 model_group_dto.go

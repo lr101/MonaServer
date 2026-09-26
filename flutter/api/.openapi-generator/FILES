@@ -84,6 +84,7 @@ doc/EmailLinkExchangeRequestDto.md
 doc/EmailLinkExchangeResponseDto.md
 doc/EmailLinkRequestAcceptedDto.md
 doc/EmailLinkRequestDto.md
+doc/EmailLoginCodeExchangeRequestDto.md
 doc/FilterAudience.md
 doc/GroupAchievementsDtoInner.md
 doc/GroupDto.md
@@ -244,6 +245,7 @@ lib/model/email_link_exchange_request_dto.dart
 lib/model/email_link_exchange_response_dto.dart
 lib/model/email_link_request_accepted_dto.dart
 lib/model/email_link_request_dto.dart
+lib/model/email_login_code_exchange_request_dto.dart
 lib/model/filter_audience.dart
 lib/model/group_achievements_dto_inner.dart
 lib/model/group_dto.dart
