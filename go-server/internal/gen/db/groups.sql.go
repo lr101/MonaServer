@@ -107,6 +107,55 @@ func (q *Queries) GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pg
 	return username, err
 }
 
+const getGroupAvatarProgressionsByIDs = `-- name: GetGroupAvatarProgressionsByIDs :many
+SELECT g.id, g.group_xp, g.visibility,
+       EXISTS (
+           SELECT 1
+           FROM members m
+           WHERE m.group_id = g.id AND m.user_id = $1
+       ) AS is_member
+FROM groups g
+WHERE g.is_deleted = FALSE
+  AND g.id = ANY($2::uuid[])
+`
+
+type GetGroupAvatarProgressionsByIDsParams struct {
+	ViewerID pgtype.UUID   `json:"viewer_id"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+type GetGroupAvatarProgressionsByIDsRow struct {
+	ID         pgtype.UUID `json:"id"`
+	GroupXp    int32       `json:"group_xp"`
+	Visibility pgtype.Int4 `json:"visibility"`
+	IsMember   bool        `json:"is_member"`
+}
+
+func (q *Queries) GetGroupAvatarProgressionsByIDs(ctx context.Context, arg GetGroupAvatarProgressionsByIDsParams) ([]GetGroupAvatarProgressionsByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getGroupAvatarProgressionsByIDs, arg.ViewerID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupAvatarProgressionsByIDsRow
+	for rows.Next() {
+		var i GetGroupAvatarProgressionsByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupXp,
+			&i.Visibility,
+			&i.IsMember,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
        creation_date, update_date, pin_style

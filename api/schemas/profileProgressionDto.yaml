@@ -1,0 +1,15 @@
+type: object
+required:
+  - level
+  - fraction
+properties:
+  level:
+    type: integer
+    format: int32
+    minimum: 1
+  fraction:
+    description: Fraction of XP progress through the current level, from 0 to 1.
+    type: number
+    format: double
+    minimum: 0
+    maximum: 1

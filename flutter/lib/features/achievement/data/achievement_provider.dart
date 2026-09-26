@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -57,6 +58,7 @@ class Achievements extends _$Achievements {
         }
       }
       ref.invalidate(userXpProvider(userId));
+      ref.invalidate(userAvatarProgressionProvider(userId));
     } on ApiException catch (e) {
       return e.message ?? "Claim unsuccessful";
     }

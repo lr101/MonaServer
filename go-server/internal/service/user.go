@@ -113,6 +113,18 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 	return u, nil
 }
 
+func (s *User) AvatarProgressions(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]AvatarLevelProgression, error) {
+	records, err := s.q.GetUserXPByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	progressions := make(map[uuid.UUID]AvatarLevelProgression, len(records))
+	for _, record := range records {
+		progressions[record.UserID] = AvatarProgressionForXP(record.TotalXP)
+	}
+	return progressions, nil
+}
+
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
 	var groupIDs, pinIDs []uuid.UUID

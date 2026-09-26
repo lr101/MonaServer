@@ -267,6 +267,26 @@ func (s *Group) Progression(ctx context.Context, id uuid.UUID) (*GroupProgressio
 	}, nil
 }
 
+type GroupAvatarProgression struct {
+	Progression AvatarLevelProgression
+	Visible     bool
+}
+
+func (s *Group) AvatarProgressions(ctx context.Context, viewerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]GroupAvatarProgression, error) {
+	records, err := s.q.GetGroupAvatarProgressionsByIDs(ctx, viewerID, ids)
+	if err != nil {
+		return nil, err
+	}
+	progressions := make(map[uuid.UUID]GroupAvatarProgression, len(records))
+	for _, record := range records {
+		progressions[record.GroupID] = GroupAvatarProgression{
+			Progression: AvatarProgressionForGroupXP(record.TotalXP),
+			Visible:     record.Visibility == 0 || record.IsMember,
+		}
+	}
+	return progressions, nil
+}
+
 func (s *Group) GetAdminUsername(ctx context.Context, id uuid.UUID) (string, error) {
 	return s.q.GetGroupAdminUsername(ctx, id)
 }
