@@ -4,6 +4,8 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_scaffold.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/material.dart';
@@ -87,6 +89,10 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
         registerGroupImageUrls(ref, e);
         return GroupEntity.fromGroupDto(e, true, false);
       }).toList();
+      preloadGroupProfileProgressions(
+        groupDtos.map((group) => group.groupId),
+        (id) => ref.read(groupAvatarProgressionProvider(id).future),
+      );
       if (groupDtos.length < _pageSize) {
         _pagingController.appendLastPage(groupDtos);
       } else {

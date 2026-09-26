@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -8,12 +10,34 @@ final userAvatarProgressionProvider = FutureProvider.autoDispose
     .family<ProfileProgressionDto?, String>((ref, userId) async {
       if (!ref.watch(accountSessionProvider).isActive) return null;
 
-      final session = watchSession(ref);
-      final result = await ref
-          .watch(batchReadCoalescerProvider)
-          .readKey(BatchReadKey(BatchReadKind.userProgression, userId));
-      if (!isCurrentSession(ref, session)) return null;
-      return result.progression;
+      final keepAlive = ref.keepAlive();
+      var keepAliveClosed = false;
+      void closeKeepAlive() {
+        if (keepAliveClosed) return;
+        keepAliveClosed = true;
+        keepAlive.close();
+      }
+
+      Timer? expiry;
+      ref.onDispose(() {
+        expiry?.cancel();
+        closeKeepAlive();
+      });
+      try {
+        final session = watchSession(ref);
+        final result = await ref
+            .watch(batchReadCoalescerProvider)
+            .readKey(BatchReadKey(BatchReadKind.userProgression, userId));
+        if (!isCurrentSession(ref, session)) {
+          closeKeepAlive();
+          return null;
+        }
+        expiry = Timer(const Duration(minutes: 5), closeKeepAlive);
+        return result.progression;
+      } catch (_) {
+        closeKeepAlive();
+        rethrow;
+      }
     });
 
 final groupAvatarProgressionProvider = FutureProvider.autoDispose
@@ -25,10 +49,32 @@ final groupAvatarProgressionProvider = FutureProvider.autoDispose
         ),
       );
 
-      final session = watchSession(ref);
-      final result = await ref
-          .watch(batchReadCoalescerProvider)
-          .readKey(BatchReadKey(BatchReadKind.groupProgression, groupId));
-      if (!isCurrentSession(ref, session)) return null;
-      return result.progression;
+      final keepAlive = ref.keepAlive();
+      var keepAliveClosed = false;
+      void closeKeepAlive() {
+        if (keepAliveClosed) return;
+        keepAliveClosed = true;
+        keepAlive.close();
+      }
+
+      Timer? expiry;
+      ref.onDispose(() {
+        expiry?.cancel();
+        closeKeepAlive();
+      });
+      try {
+        final session = watchSession(ref);
+        final result = await ref
+            .watch(batchReadCoalescerProvider)
+            .readKey(BatchReadKey(BatchReadKind.groupProgression, groupId));
+        if (!isCurrentSession(ref, session)) {
+          closeKeepAlive();
+          return null;
+        }
+        expiry = Timer(const Duration(minutes: 5), closeKeepAlive);
+        return result.progression;
+      } catch (_) {
+        closeKeepAlive();
+        rethrow;
+      }
     });

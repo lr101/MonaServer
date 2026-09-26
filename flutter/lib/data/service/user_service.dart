@@ -10,6 +10,8 @@ import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -25,6 +27,9 @@ class UserService extends _$UserService {
   @override
   Stream<UserEntity?> build(String userId) {
     if (!ref.watch(accountSessionProvider).isActive) return Stream.value(null);
+    preloadUserProfileProgressions([
+      userId,
+    ], (id) => ref.read(userAvatarProgressionProvider(id).future));
     _repo = ref.watch(userRepositoryProvider);
     _global = ref.watch(globalDataServiceProvider);
     final userApi = ref.watch(userApiProvider);

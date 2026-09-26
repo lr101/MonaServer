@@ -9,7 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:openapi/api.dart';
 
 export 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart'
-    show AvatarLevelProgress, SmallProfilePicture, UserXpAvatarIndicator;
+    show AvatarLevelBadge, SmallProfilePicture, UserXpAvatarIndicator;
 
 class UserXpProfilePanel extends ConsumerWidget {
   const UserXpProfilePanel({super.key, required this.userId});
@@ -64,6 +64,7 @@ class UserXpAvatarPanel extends ConsumerWidget {
       userId: userId,
       radius: 17,
       imageCallback: imageCallback,
+      showProgressRing: true,
     );
   }
 }

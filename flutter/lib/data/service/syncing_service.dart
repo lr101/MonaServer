@@ -178,6 +178,7 @@ class SyncingService extends _$SyncingService {
         final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
         if (!isCurrent()) return;
         ref.invalidate(userXpProvider(ref.read(userIdProvider)));
+        ref.invalidate(userAvatarProgressionProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
@@ -191,6 +192,7 @@ class SyncingService extends _$SyncingService {
         if (e.code != 409) rethrow;
         // Preserve the legacy duplicate policy until server idempotency lands.
         ref.invalidate(userXpProvider(ref.read(userIdProvider)));
+        ref.invalidate(userAvatarProgressionProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));

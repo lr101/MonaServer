@@ -1,4 +1,6 @@
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,10 @@ class GroupFilterWidget extends ConsumerWidget {
     final theme = Theme.of(context);
 
     final orderedIds = ref.watch(groupActiveServiceProvider);
+    preloadGroupProfileProgressions(
+      orderedIds,
+      (id) => ref.read(groupAvatarProgressionProvider(id).future),
+    );
 
     return GestureDetector(
       onTap: () => _showFilterSheet(context),
@@ -132,6 +138,10 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orderedIds = ref.watch(groupOrderServiceProvider);
+    preloadGroupProfileProgressions(
+      orderedIds,
+      (id) => ref.read(groupAvatarProgressionProvider(id).future),
+    );
 
     return Container(
       decoration: BoxDecoration(
