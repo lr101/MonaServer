@@ -65,6 +65,11 @@ class _ViewImageState extends ConsumerState<ViewImage> {
               _selectedPhotoIndex > 0 && _selectedPhotoIndex <= updates.length
               ? updates[_selectedPhotoIndex - 1]
               : null;
+          final originalPhoto = photos
+              .where((photo) => photo.isOriginal)
+              .firstOrNull;
+          final selectedPhoto = selectedUpdate ?? originalPhoto;
+          final isOriginalSelected = selectedUpdate == null;
           final updateEnabled = canAddPinPhotoHere(userPosition, currentPin);
           final presenceEnabled =
               currentPin.lastSynced != null &&
@@ -103,8 +108,9 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
                         child: _selectedPhotoDetails(
-                          key: ValueKey(selectedUpdate?.id ?? 'original'),
-                          photo: selectedUpdate,
+                          key: ValueKey(selectedPhoto?.id ?? 'original'),
+                          photo: selectedPhoto,
+                          isOriginal: isOriginalSelected,
                           title: title == null || title.isEmpty ? null : title,
                           description:
                               description == null || description.isEmpty
@@ -162,6 +168,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
   Widget _selectedPhotoDetails({
     required Key key,
     required PinPhotoDto? photo,
+    required bool isOriginal,
     required String? title,
     required String? description,
     required String creatorId,
@@ -170,17 +177,34 @@ class _ViewImageState extends ConsumerState<ViewImage> {
   }) {
     final date = photo?.observedAt ?? pin.creationDate;
     final author = photo?.contributorUsername ?? creatorName;
-    final authorId = photo?.contributorId ?? creatorId;
+    final authorText = Text(
+      author,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall,
+    );
+    final contributorId = photo?.contributorId;
+    final Widget authorWidget;
+    if (isOriginal) {
+      authorWidget = ClickableUser(
+        userId: contributorId ?? creatorId,
+        child: authorText,
+      );
+    } else if (contributorId != null && contributorId.isNotEmpty) {
+      authorWidget = ClickableUser(userId: contributorId, child: authorText);
+    } else {
+      authorWidget = authorText;
+    }
     final dateLabel = MaterialLocalizations.of(context)
         .formatMediumDate(date.toLocal());
     final detailsText = photo?.caption?.trim();
-    final body = photo == null ? description : detailsText;
+    final body = isOriginal ? description : detailsText;
 
     return Column(
       key: key,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (photo == null && title != null)
+        if (isOriginal && title != null)
           Text(
             title,
             maxLines: 2,
@@ -188,7 +212,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
-        if (photo != null)
+        if (!isOriginal)
           Text(
             'Update',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -204,10 +228,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 4),
-            ClickableUser(
-              userId: authorId,
-              child: Text(author, style: Theme.of(context).textTheme.bodySmall),
-            ),
+            Flexible(child: authorWidget),
             const SizedBox(width: 6),
             Text(
               '· $dateLabel',
