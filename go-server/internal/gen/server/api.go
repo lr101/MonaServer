@@ -361,6 +361,12 @@ type AdminCampaignsAPIServicer interface {
 	DeleteAdminCampaign(context.Context, string, string, AdminCampaignRevisionRequestDto) (ImplResponse, error)
 }
 
+// GroupPinDesignsAPIServicer defines the group-scoped pin design contract.
+type GroupPinDesignsAPIServicer interface {
+	GetGroupPinDesignCatalog(context.Context, string) (ImplResponse, error)
+	UpdateGroupPinDesignCatalog(context.Context, string, UpdateGroupPinDesignCatalogDto) (ImplResponse, error)
+}
+
 // AdminJobsAPIServicer defines the v3 admin job service contract.
 type AdminJobsAPIServicer interface {
 	ListAdminJobs(context.Context, string, int32, AdminJobStatus, AdminActionKind) (ImplResponse, error)

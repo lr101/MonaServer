@@ -12,6 +12,8 @@ tags:
   name: auth
 - description: Everything about Groups
   name: groups
+- description: Group-scoped earned pin designs
+  name: groupPinDesigns
 - description: Everything about Pins
   name: pins
 - description: Everything about Users
@@ -304,6 +306,71 @@ paths:
       summary: Get group achievement progress and pin style rewards
       tags:
       - groups
+  /api/v2/groups/{groupId}/pin-designs:
+    get:
+      operationId: getGroupPinDesignCatalog
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupPinDesignCatalogDto"
+          description: Current group pin designs, including defaults for unlocked styles
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          description: Private group requires membership or group admin
+        "404":
+          $ref: "#/components/responses/notFound"
+      security:
+      - token: []
+      summary: Get the pin designs available for a group
+      tags:
+      - groupPinDesigns
+    put:
+      operationId: updateGroupPinDesignCatalog
+      parameters:
+      - in: path
+        name: groupId
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateGroupPinDesignCatalogDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/groupPinDesignCatalogDto"
+          description: Updated group pin designs
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "401":
+          $ref: "#/components/responses/unauthorized"
+        "403":
+          description: Group administrator required or style is not unlocked
+        "404":
+          $ref: "#/components/responses/notFound"
+        "409":
+          $ref: "#/components/responses/conflict"
+      security:
+      - token: []
+      summary: Update a group's earned pin design
+      tags:
+      - groupPinDesigns
   /api/v2/groups/{groupId}/achievements/{achievementId}:
     post:
       operationId: claimGroupAchievement
@@ -5633,6 +5700,116 @@ components:
         - rewardPinStyle
         type: object
       type: array
+    groupPinDesignStyle:
+      enum:
+      - classic
+      - moss
+      - sunset
+      - aurora
+      type: string
+    groupPinDesignShape:
+      enum:
+      - teardrop
+      - circle
+      - shield
+      type: string
+    groupPinDesignBadge:
+      enum:
+      - none
+      - star
+      - leaf
+      - sun
+      - spark
+      type: string
+    groupPinDesignDto:
+      properties:
+        badge:
+          $ref: "#/components/schemas/groupPinDesignBadge"
+        bodyColor:
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          type: string
+        imageBorderColor:
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          type: string
+        imageInset:
+          maximum: 8
+          minimum: 0
+          type: number
+          x-go-required-pointer: true
+        imageZoom:
+          maximum: 2.5
+          minimum: 1
+          type: number
+        imageAlignmentX:
+          maximum: 1
+          minimum: -1
+          type: number
+          x-go-required-pointer: true
+        imageAlignmentY:
+          maximum: 1
+          minimum: -1
+          type: number
+          x-go-required-pointer: true
+        name:
+          maxLength: 24
+          minLength: 1
+          type: string
+        outlineColor:
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          type: string
+        outlineWidth:
+          maximum: 5
+          minimum: 0
+          type: number
+          x-go-required-pointer: true
+        shadow:
+          type: boolean
+          x-go-required-pointer: true
+        shape:
+          $ref: "#/components/schemas/groupPinDesignShape"
+        style:
+          $ref: "#/components/schemas/groupPinDesignStyle"
+      required:
+      - style
+      - name
+      - shape
+      - bodyColor
+      - outlineColor
+      - outlineWidth
+      - imageInset
+      - imageZoom
+      - imageAlignmentX
+      - imageAlignmentY
+      - imageBorderColor
+      - badge
+      - shadow
+      type: object
+    groupPinDesignCatalogDto:
+      properties:
+        designs:
+          items:
+            $ref: "#/components/schemas/groupPinDesignDto"
+          type: array
+        revision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - revision
+      - designs
+      type: object
+    updateGroupPinDesignCatalogDto:
+      properties:
+        design:
+          $ref: "#/components/schemas/groupPinDesignDto"
+        expectedRevision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - expectedRevision
+      - design
+      type: object
     groupRankingDto:
       description: An array of sorted groups by rank and points
       items:

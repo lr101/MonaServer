@@ -36,6 +36,7 @@ class _GroupAchievementsPanelState
           ? const SizedBox.shrink()
           : GroupAchievementsCard(
               achievements: items,
+              groupId: widget.groupId,
               group: widget.group,
               currentUserId: ref.watch(userIdProvider),
               claimingAchievementId: _claimingAchievementId,

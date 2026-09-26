@@ -112,6 +112,8 @@ func main() {
 	// Servicers wrapping business logic and implementing genserver interfaces.
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
+	groupPinDesignCatalog := service.NewGroupPinDesignCatalogService(q)
+	groupPinDesignsServicer := handler.NewGroupPinDesignsServicer(groupPinDesignCatalog, groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
@@ -145,6 +147,7 @@ func main() {
 	// Generated controllers (handle HTTP param parsing).
 	authCtrl := genserver.NewAuthAPIController(authServicer)
 	groupsCtrl := genserver.NewGroupsAPIController(groupsServicer)
+	groupPinDesignsCtrl := genserver.NewGroupPinDesignsAPIController(groupPinDesignsServicer, genserver.WithGroupPinDesignsAPIErrorHandler(handler.V3ErrorHandler))
 	pinsCtrl := genserver.NewPinsAPIController(pinsServicer)
 	membersCtrl := genserver.NewMembersAPIController(membersServicer)
 	likesCtrl := genserver.NewLikesAPIController(likesServicer)
@@ -236,6 +239,7 @@ func main() {
 		r.Use(validateBatchReadJSON)
 
 		registerRoutes(r, groupsCtrl, alwaysTrue)
+		registerRoutes(r, groupPinDesignsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)

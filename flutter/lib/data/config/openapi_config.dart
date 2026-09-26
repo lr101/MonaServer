@@ -500,6 +500,10 @@ PinsApi pinApi(Ref ref) => PinsApi(ref.watch(openApiConfigProvider));
 @Riverpod(keepAlive: true)
 GroupsApi groupApi(Ref ref) => GroupsApi(ref.watch(openApiConfigProvider));
 
+final groupPinDesignsApiProvider = Provider<GroupPinDesignsApi>(
+  (ref) => GroupPinDesignsApi(ref.watch(openApiConfigProvider)),
+);
+
 @Riverpod(keepAlive: true)
 UsersApi userApi(Ref ref) => UsersApi(ref.watch(openApiConfigProvider));
 

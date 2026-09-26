@@ -1,0 +1,65 @@
+type: object
+required:
+  - style
+  - name
+  - shape
+  - bodyColor
+  - outlineColor
+  - outlineWidth
+  - imageInset
+  - imageZoom
+  - imageAlignmentX
+  - imageAlignmentY
+  - imageBorderColor
+  - badge
+  - shadow
+properties:
+  style:
+    type: string
+    enum: [classic, moss, sunset, aurora]
+  name:
+    type: string
+    minLength: 1
+    maxLength: 24
+  shape:
+    type: string
+    enum: [teardrop, circle, shield]
+  bodyColor:
+    type: string
+    pattern: '^#[0-9A-Fa-f]{6}$'
+  outlineColor:
+    type: string
+    pattern: '^#[0-9A-Fa-f]{6}$'
+  outlineWidth:
+    type: number
+    x-go-required-pointer: true
+    minimum: 0
+    maximum: 5
+  imageInset:
+    type: number
+    x-go-required-pointer: true
+    minimum: 0
+    maximum: 8
+  imageZoom:
+    type: number
+    minimum: 1
+    maximum: 2.5
+  imageAlignmentX:
+    type: number
+    x-go-required-pointer: true
+    minimum: -1
+    maximum: 1
+  imageAlignmentY:
+    type: number
+    x-go-required-pointer: true
+    minimum: -1
+    maximum: 1
+  imageBorderColor:
+    type: string
+    pattern: '^#[0-9A-Fa-f]{6}$'
+  badge:
+    type: string
+    enum: [none, star, leaf, sun, spark]
+  shadow:
+    type: boolean
+    x-go-required-pointer: true

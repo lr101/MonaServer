@@ -4,6 +4,8 @@ import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/features/map_home/data/nearby_pin_cue.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -172,6 +174,9 @@ class NearbyPinCueCard extends ConsumerWidget {
     final groupImage =
         ref.watch(groupPinImageByIdProvider(pin.groupId)).value ??
         ref.watch(defaultGroupPinImageProvider);
+    final catalog = ref.watch(groupPinDesignCatalogProvider(pin.groupId)).value;
+    final style = group?.pinStyle ?? 'classic';
+    final design = MapPinDesign.forCatalog(catalog, style);
     final isGone = pin.isGone ?? false;
     final distance = _distanceLabel(nearbyPin.distanceMeters);
 
@@ -204,8 +209,16 @@ class NearbyPinCueCard extends ConsumerWidget {
                         dimension: 38,
                         child: PinMarkerImage(
                           isGone: isGone,
-                          style: group?.pinStyle ?? 'classic',
-                          image: Image.memory(groupImage!, fit: BoxFit.cover),
+                          style: style,
+                          design: design,
+                          image: Image.memory(
+                            groupImage!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment(
+                              design.imageAlignmentX,
+                              design.imageAlignmentY,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),

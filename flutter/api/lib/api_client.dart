@@ -328,6 +328,16 @@ class ApiClient {
           return GroupAchievementsDtoInner.fromJson(value);
         case 'GroupDto':
           return GroupDto.fromJson(value);
+        case 'GroupPinDesignBadge':
+          return GroupPinDesignBadgeTypeTransformer().decode(value);
+        case 'GroupPinDesignCatalogDto':
+          return GroupPinDesignCatalogDto.fromJson(value);
+        case 'GroupPinDesignDto':
+          return GroupPinDesignDto.fromJson(value);
+        case 'GroupPinDesignShape':
+          return GroupPinDesignShapeTypeTransformer().decode(value);
+        case 'GroupPinDesignStyle':
+          return GroupPinDesignStyleTypeTransformer().decode(value);
         case 'GroupProgressionDto':
           return GroupProgressionDto.fromJson(value);
         case 'GroupRankingDtoInner':
@@ -400,6 +410,8 @@ class ApiClient {
           return TokenResponseDto.fromJson(value);
         case 'UpdateGroupDto':
           return UpdateGroupDto.fromJson(value);
+        case 'UpdateGroupPinDesignCatalogDto':
+          return UpdateGroupPinDesignCatalogDto.fromJson(value);
         case 'UserAchievementsDtoInner':
           return UserAchievementsDtoInner.fromJson(value);
         case 'UserInfoDto':
