@@ -133,45 +133,102 @@ void main() {
     expect(await result.future, isEmpty);
   });
 
-  testWidgets('nearby cue opens the pin and persists a daily dismissal', (
+  testWidgets('opening a pin prevents the same cue returning this session', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     final openedPinIds = <String>[];
     final nearbyPin = _nearbyPin();
+    var isMapActive = true;
+    late StateSetter updateState;
 
-    Future<void> showCue() async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            nearbyPinCandidatesProvider.overrideWith((ref) => [nearbyPin]),
-            sharedPreferencesProvider.overrideWithValue(preferences),
-            userIdProvider.overrideWithValue('walker-1'),
-            groupMetadataProvider('group-1').overrideWith((ref) async* {
-              yield null;
-            }),
-            groupPinImageByIdProvider('group-1')
-                .overrideWith((ref) => Stream.value(null)),
-            defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: NearbyPinCueOverlay(onOpenPin: openedPinIds.add),
-            ),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          nearbyPinCandidatesProvider.overrideWith((ref) => [nearbyPin]),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          userIdProvider.overrideWithValue('walker-1'),
+          groupMetadataProvider('group-1').overrideWith((ref) async* {
+            yield null;
+          }),
+          groupPinImageByIdProvider('group-1')
+              .overrideWith((ref) => Stream.value(null)),
+          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateState = setState;
+              return Scaffold(
+                body: NearbyPinCueOverlay(
+                  isActive: isMapActive,
+                  onOpenPin: openedPinIds.add,
+                ),
+              );
+            },
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-    }
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    await showCue();
     expect(find.text('Pin nearby'), findsOneWidget);
     expect(find.text('Walkers'), findsOneWidget);
     expect(find.text('21 m away'), findsOneWidget);
 
     await tester.tap(find.text('Walkers'));
+    await tester.pumpAndSettle();
     expect(openedPinIds, ['pin-1']);
+    expect(find.text('Pin nearby'), findsNothing);
+
+    updateState(() => isMapActive = false);
+    await tester.pumpAndSettle();
+    updateState(() => isMapActive = true);
+    await tester.pumpAndSettle();
+    expect(find.text('Pin nearby'), findsNothing);
+  });
+
+  testWidgets('nearby cue dismissal lasts for the local day', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final nearbyPin = _nearbyPin();
+
+    Widget cueApp() => MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: NearbyPinCueOverlay(isActive: true, onOpenPin: (_) {}),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          nearbyPinCandidatesProvider.overrideWith((ref) => [nearbyPin]),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          userIdProvider.overrideWithValue('walker-1'),
+          groupMetadataProvider('group-1').overrideWith((ref) async* {
+            yield null;
+          }),
+          groupPinImageByIdProvider('group-1')
+              .overrideWith((ref) => Stream.value(null)),
+          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: cueApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pin nearby'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AnimatedSwitcher),
+        matching: find.byType(FadeTransition),
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.byTooltip('Dismiss nearby pin for today'));
     await tester.pumpAndSettle();
@@ -181,10 +238,104 @@ void main() {
       _dateStamp(DateTime.now()),
     );
 
-    await showCue();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          nearbyPinCandidatesProvider.overrideWith((ref) => [nearbyPin]),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          userIdProvider.overrideWithValue('walker-1'),
+          groupMetadataProvider('group-1').overrideWith((ref) async* {
+            yield null;
+          }),
+          groupPinImageByIdProvider('group-1')
+              .overrideWith((ref) => Stream.value(null)),
+          defaultGroupPinImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: cueApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pin nearby'), findsNothing);
+  });
+
+  testWidgets('does not query when the map tab is not selected', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    var locationListenCount = 0;
+    final api = _RecordingPinsApi(returnNearbyPin: false);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentLocationProvider.overrideWith(
+            (ref) => Stream<Position>.multi((_) => locationListenCount++),
+          ),
+          pinApiProvider.overrideWithValue(api),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          userIdProvider.overrideWithValue('walker-1'),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: NearbyPinCueOverlay(isActive: false, onOpenPin: _ignorePin),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(locationListenCount, 0);
+    expect(api.requestCount, 0);
+    expect(find.text('Pin nearby'), findsNothing);
+  });
+
+  testWidgets('stops nearby requests while the app is paused', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final positions = StreamController<Position>.broadcast();
+    final api = _RecordingPinsApi(returnNearbyPin: false);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await positions.close();
+    });
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentLocationProvider.overrideWith((ref) => positions.stream),
+          pinApiProvider.overrideWithValue(api),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          userIdProvider.overrideWithValue('walker-1'),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: NearbyPinCueOverlay(isActive: true, onOpenPin: _ignorePin),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(positions.hasListener, isTrue);
+    positions.add(_position(accuracy: 5));
+    await tester.pumpAndSettle();
+    expect(api.requestCount, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+    positions.add(_position(accuracy: 5, latitude: 51.51));
+    await tester.pump();
+
+    expect(api.requestCount, 1);
     expect(find.text('Pin nearby'), findsNothing);
   });
 }
+
+void _ignorePin(String pinId) {}
 
 Completer<List<NearbyPinDto>> _watchResults(
   ProviderContainer container,
@@ -238,9 +389,12 @@ String _dateStamp(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}';
 
 class _RecordingPinsApi extends PinsApi {
-  _RecordingPinsApi({this.error}) : super(ApiClient());
+  _RecordingPinsApi({this.error, this.returnNearbyPin = true})
+    : super(ApiClient());
 
   final Object? error;
+  final bool returnNearbyPin;
+  final requested = Completer<void>();
   num? requestedLatitude;
   num? requestedLongitude;
   int? requestedRadius;
@@ -253,25 +407,28 @@ class _RecordingPinsApi extends PinsApi {
     int radiusMeters,
   ) async {
     requestCount++;
+    if (!requested.isCompleted) requested.complete();
     requestedLatitude = latitude;
     requestedLongitude = longitude;
     requestedRadius = radiusMeters;
     if (error != null) throw error!;
     return NearbyPinsDto(
-      items: [
-        NearbyPinDto(
-          pin: PinWithOptionalImageDto(
-            id: 'pin-1',
-            creationDate: DateTime.utc(2026),
-            latitude: latitude,
-            longitude: longitude,
-            creationUser: 'creator',
-            groupId: 'group-1',
-          ),
-          distanceMeters: 21,
-          groupName: 'Walkers',
-        ),
-      ],
+      items: returnNearbyPin
+          ? [
+              NearbyPinDto(
+                pin: PinWithOptionalImageDto(
+                  id: 'pin-1',
+                  creationDate: DateTime.utc(2026),
+                  latitude: latitude,
+                  longitude: longitude,
+                  creationUser: 'creator',
+                  groupId: 'group-1',
+                ),
+                distanceMeters: 21,
+                groupName: 'Walkers',
+              ),
+            ]
+          : const [],
     );
   }
 }

@@ -11,8 +11,13 @@ import 'package:openapi/api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NearbyPinCueOverlay extends ConsumerStatefulWidget {
-  const NearbyPinCueOverlay({super.key, required this.onOpenPin});
+  const NearbyPinCueOverlay({
+    super.key,
+    required this.isActive,
+    required this.onOpenPin,
+  });
 
+  final bool isActive;
   final ValueChanged<String> onOpenPin;
 
   @override
@@ -20,27 +25,68 @@ class NearbyPinCueOverlay extends ConsumerStatefulWidget {
       _NearbyPinCueOverlayState();
 }
 
-class _NearbyPinCueOverlayState extends ConsumerState<NearbyPinCueOverlay> {
+class _NearbyPinCueOverlayState extends ConsumerState<NearbyPinCueOverlay>
+    with WidgetsBindingObserver {
   String? _locallyDismissedKey;
+  String? _sessionUserId;
+  final Set<String> _openedPinIds = {};
+  late AppLifecycleState _lifecycleState;
+
+  @override
+  void initState() {
+    super.initState();
+    final binding = WidgetsBinding.instance;
+    _lifecycleState = binding.lifecycleState ?? AppLifecycleState.resumed;
+    binding.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == _lifecycleState) return;
+    setState(() => _lifecycleState = state);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final preferences = ref.watch(sharedPreferencesProvider);
     final userId = ref.watch(userIdProvider);
+    if (_sessionUserId != userId) {
+      _sessionUserId = userId;
+      _openedPinIds.clear();
+    }
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final isForegroundMap =
+        widget.isActive &&
+        _lifecycleState == AppLifecycleState.resumed &&
+        (ModalRoute.isCurrentOf(context) ?? true);
     final today = _dateStamp(DateTime.now());
     final dismissalKey = 'nearbyPinCueDismissed:$userId';
     final locallyDismissedKey = '$dismissalKey:$today';
-    final nearbyState = ref.watch(nearbyPinCandidatesProvider);
+    final nearbyState = isForegroundMap
+        ? ref.watch(nearbyPinCandidatesProvider)
+        : const AsyncData<List<NearbyPinDto>>([]);
     final candidates = nearbyState.hasError
         ? const <NearbyPinDto>[]
         : nearbyState.value ?? const <NearbyPinDto>[];
     final dismissedToday =
         preferences.getString(dismissalKey) == today ||
         _locallyDismissedKey == locallyDismissedKey;
-    final nearest = dismissedToday || candidates.isEmpty
-        ? null
-        : candidates.first;
+    NearbyPinDto? nearest;
+    if (!dismissedToday) {
+      for (final candidate in candidates) {
+        if (!_openedPinIds.contains(candidate.pin.id)) {
+          nearest = candidate;
+          break;
+        }
+      }
+    }
+    final nearestPin = nearest;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -67,12 +113,12 @@ class _NearbyPinCueOverlayState extends ConsumerState<NearbyPinCueOverlay> {
               ),
             );
           },
-          child: nearest == null
+          child: nearestPin == null
               ? const SizedBox.shrink(key: ValueKey('no-nearby-pin'))
               : NearbyPinCueCard(
-                  key: ValueKey(nearest.pin.id),
-                  nearbyPin: nearest,
-                  onTap: () => widget.onOpenPin(nearest.pin.id),
+                  key: ValueKey(nearestPin.pin.id),
+                  nearbyPin: nearestPin,
+                  onTap: () => _openPin(nearestPin.pin.id),
                   onDismiss: () => _dismissForToday(
                     preferences,
                     dismissalKey,
@@ -83,6 +129,11 @@ class _NearbyPinCueOverlayState extends ConsumerState<NearbyPinCueOverlay> {
         ),
       ),
     );
+  }
+
+  void _openPin(String pinId) {
+    setState(() => _openedPinIds.add(pinId));
+    widget.onOpenPin(pinId);
   }
 
   Future<void> _dismissForToday(
