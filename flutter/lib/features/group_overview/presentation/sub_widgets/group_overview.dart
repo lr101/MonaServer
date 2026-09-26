@@ -63,12 +63,25 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
       actions: widget.actions,
       bottom: TabBar(
         controller: _tabController,
-        isScrollable: true,
+        isScrollable: false,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         dividerColor: Colors.transparent,
         tabs: const [
-          Tab(icon: Icon(Icons.groups_outlined), text: 'Members'),
-          Tab(icon: Icon(Icons.image_outlined), text: 'Pins'),
-          Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Achievements'),
+          Tab(
+            icon: Icon(Icons.groups_outlined),
+            text: 'Members',
+            iconMargin: EdgeInsets.zero,
+          ),
+          Tab(
+            icon: Icon(Icons.image_outlined),
+            text: 'Pins',
+            iconMargin: EdgeInsets.zero,
+          ),
+          Tab(
+            icon: Icon(Icons.emoji_events_outlined),
+            text: 'Achievements',
+            iconMargin: EdgeInsets.zero,
+          ),
         ],
       ),
       boxes: [
