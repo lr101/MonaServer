@@ -68,7 +68,7 @@ void main() {
                 contributorUsername: List.filled(64, 'walker').join(' '),
                 image: 'https://example.test/update.png',
                 caption: 'Still here today',
-                observedAt: DateTime.utc(2026, 2, 1),
+                observedAt: DateTime.utc(2026, 2),
                 isOriginal: false,
               ),
             ]),
@@ -140,7 +140,7 @@ void main() {
     expect(find.text('2/2'), findsOneWidget);
     final updateDate = MaterialLocalizations.of(
       tester.element(find.text(longUsername)),
-    ).formatMediumDate(DateTime.utc(2026, 2, 1).toLocal());
+    ).formatMediumDate(DateTime.utc(2026, 2).toLocal());
     expect(find.text('· $updateDate'), findsOneWidget);
   });
 }
