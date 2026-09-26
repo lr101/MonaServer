@@ -63,7 +63,7 @@ type {{classname}} struct {
 	{{#deprecated}}
 	// Deprecated
 	{{/deprecated}}
-	{{name}} {{#isNullable}}*{{/isNullable}}{{{dataType}}} `json:"{{baseName}}{{^required}},omitempty{{/required}}"{{#vendorExtensions.x-go-custom-tag}} {{{.}}}{{/vendorExtensions.x-go-custom-tag}}`
+	{{name}} {{#vendorExtensions.x-go-required-pointer}}*{{/vendorExtensions.x-go-required-pointer}}{{#isNullable}}*{{/isNullable}}{{{dataType}}} `json:"{{baseName}}{{^required}},omitempty{{/required}}"{{#vendorExtensions.x-go-custom-tag}} {{{.}}}{{/vendorExtensions.x-go-custom-tag}}`
 {{/vars}}
 }{{/isEnum}}
 
@@ -156,12 +156,12 @@ func Assert{{classname}}Required(obj {{classname}}) error {
 func Assert{{classname}}Constraints(obj {{classname}}) error {
 {{#Vars}}
 {{#minimum}}
-	if {{#isNullable}}obj.{{name}} != nil && *{{/isNullable}}obj.{{name}} < {{minimum}} {
+	if {{#vendorExtensions.x-go-required-pointer}}obj.{{name}} != nil && *{{/vendorExtensions.x-go-required-pointer}}{{^vendorExtensions.x-go-required-pointer}}{{#isNullable}}obj.{{name}} != nil && *{{/isNullable}}{{/vendorExtensions.x-go-required-pointer}}obj.{{name}} < {{minimum}} {
 		return &ParsingError{Param: "{{name}}", Err: errors.New(errMsgMinValueConstraint)}
 	}
 {{/minimum}}
 {{#maximum}}
-	if {{#isNullable}}obj.{{name}} != nil && *{{/isNullable}}obj.{{name}} > {{maximum}} {
+	if {{#vendorExtensions.x-go-required-pointer}}obj.{{name}} != nil && *{{/vendorExtensions.x-go-required-pointer}}{{^vendorExtensions.x-go-required-pointer}}{{#isNullable}}obj.{{name}} != nil && *{{/isNullable}}{{/vendorExtensions.x-go-required-pointer}}obj.{{name}} > {{maximum}} {
 		return &ParsingError{Param: "{{name}}", Err: errors.New(errMsgMaxValueConstraint)}
 	}
 {{/maximum}}

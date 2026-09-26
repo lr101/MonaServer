@@ -82,6 +82,15 @@ String parameterToString(dynamic value) {
   if (value is AudienceResourceKind) {
     return AudienceResourceKindTypeTransformer().encode(value).toString();
   }
+  if (value is GroupPinDesignBadge) {
+    return GroupPinDesignBadgeTypeTransformer().encode(value).toString();
+  }
+  if (value is GroupPinDesignShape) {
+    return GroupPinDesignShapeTypeTransformer().encode(value).toString();
+  }
+  if (value is GroupPinDesignStyle) {
+    return GroupPinDesignStyleTypeTransformer().encode(value).toString();
+  }
   return value.toString();
 }
 

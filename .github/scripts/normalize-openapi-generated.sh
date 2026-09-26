@@ -16,7 +16,6 @@ while IFS= read -r -d '' generated_file; do
   fi
 
   if [ "$relative_file" = "lib/model/email_login_code_exchange_request_dto.dart" ]; then
-    dart format "$generated_file" >/dev/null
     # The email sign-in code is a short-lived secret and must not appear in
     # generated model logs.
     sed -i 's/EmailLoginCodeExchangeRequestDto\[code=\$code,/EmailLoginCodeExchangeRequestDto[code=[redacted],/' "$generated_file"
@@ -29,15 +28,12 @@ while IFS= read -r -d '' generated_file; do
     sed -i 's/[[:blank:]]\+$//' "$generated_file"
     perl -0pi -e 's/\n+\z/\n/' "$generated_file"
   fi
-done < <(find "$generated_root" -type f -print0)
 
-# Go's JSON encoder can serialize an integral float64 as an integer token (for
-# example, 0). OpenAPI Generator's Dart decoder expects a double token for a
-# `number` field, so normalize this DTO to accept either integer or double JSON
-# numbers while retaining the generated `double` property type.
-progression_model="$generated_root/lib/model/profile_progression_dto.dart"
-if [ -f "$progression_model" ]; then
-  python3 - "$progression_model" <<'PY'
+  if [ "$relative_file" = "lib/model/profile_progression_dto.dart" ]; then
+    # Go's JSON encoder can serialize an integral float64 as an integer token
+    # (for example, 0). OpenAPI Generator's Dart decoder expects a double token
+    # for a `number` field, so accept either JSON number type.
+    python3 - "$generated_file" <<'PY'
 from pathlib import Path
 import sys
 
@@ -55,4 +51,18 @@ elif compatible not in contents:
     raise SystemExit(f"cannot normalize generated progression decoder in {path}")
 path.write_text(contents)
 PY
-fi
+  fi
+
+  if [ -n "$reference_root" ] &&
+    [ -f "$reference_root/$relative_file" ] &&
+    cmp -s "$generated_file" "$reference_root/$relative_file"; then
+    continue
+  fi
+
+  if [[ "$generated_file" == *.dart ]] &&
+    { [ -z "$reference_root" ] ||
+      [ ! -f "$reference_root/$relative_file" ] ||
+      ! cmp -s "$generated_file" "$reference_root/$relative_file"; }; then
+    dart format "$generated_file" >/dev/null
+  fi
+done < <(find "$generated_root" -type f -print0)

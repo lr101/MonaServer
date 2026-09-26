@@ -1,0 +1,11 @@
+type: object
+required:
+  - expectedRevision
+  - design
+properties:
+  expectedRevision:
+    type: integer
+    format: int64
+    minimum: 1
+  design:
+    $ref: groupPinDesignDto.yaml

@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/features/progression/presentation/group_pin_customizer.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/api.dart';
 
@@ -6,6 +7,7 @@ class GroupAchievementsCard extends StatelessWidget {
   const GroupAchievementsCard({
     super.key,
     required this.achievements,
+    this.groupId = '',
     required this.group,
     required this.currentUserId,
     required this.onClaimAchievement,
@@ -16,6 +18,7 @@ class GroupAchievementsCard extends StatelessWidget {
   });
 
   final List<GroupAchievementsDtoInner> achievements;
+  final String groupId;
   final GroupEntity? group;
   final String currentUserId;
   final Future<void> Function(int achievementId) onClaimAchievement;
@@ -108,7 +111,7 @@ class GroupAchievementsCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose a frame shared by all group pins.',
+                  'Choose the style used by this group and customize its earned designs.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -137,6 +140,15 @@ class GroupAchievementsCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   const LinearProgressIndicator(minHeight: 2),
                 ],
+                const SizedBox(height: 16),
+                if (groupId.isNotEmpty)
+                  GroupPinCustomizer(
+                    groupId: groupId,
+                    unlockedStyles: _pinStyles
+                        .where(claimedStyles.contains)
+                        .toList(),
+                    activeStyle: group?.pinStyle ?? 'classic',
+                  ),
               ] else if (!isAdmin && group != null) ...[
                 const SizedBox(height: 12),
                 Row(

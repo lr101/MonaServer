@@ -161,6 +161,7 @@ type Querier interface {
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
 	// Group achievements count active pins that belong to the group.
 	GetGroupPinCount(ctx context.Context, groupID pgtype.UUID) (int32, error)
+	GetGroupPinDesignCatalog(ctx context.Context, groupID pgtype.UUID) (GetGroupPinDesignCatalogRow, error)
 	GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error)
 	GetGroupXP(ctx context.Context, id pgtype.UUID) (int32, error)
 	GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error)
@@ -328,6 +329,7 @@ type Querier interface {
 	UpdateCampaignIfRevision(ctx context.Context, arg UpdateCampaignIfRevisionParams) (Campaign, error)
 	UpdateDeliveryAttemptOutcome(ctx context.Context, arg UpdateDeliveryAttemptOutcomeParams) error
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) error
+	UpdateGroupPinDesignCatalog(ctx context.Context, arg UpdateGroupPinDesignCatalogParams) (UpdateGroupPinDesignCatalogRow, error)
 	UpdateReportIfRevision(ctx context.Context, arg UpdateReportIfRevisionParams) (Report, error)
 	UpdateUserDescription(ctx context.Context, arg UpdateUserDescriptionParams) error
 	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) error

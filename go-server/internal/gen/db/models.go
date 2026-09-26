@@ -296,6 +296,13 @@ type GroupAchievementClaim struct {
 	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
 }
 
+type GroupPinDesign struct {
+	GroupID   pgtype.UUID        `json:"group_id"`
+	Revision  int64              `json:"revision"`
+	Designs   []byte             `json:"designs"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type GroupPinStyleUnlock struct {
 	GroupID       pgtype.UUID        `json:"group_id"`
 	PinStyle      string             `json:"pin_style"`
