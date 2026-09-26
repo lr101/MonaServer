@@ -2,7 +2,6 @@ import 'package:buff_lisa/app/app_links.dart';
 import 'package:buff_lisa/app/routing/session_redirect.dart';
 import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/features/achievement/presentation/achievement_page.dart';
 import 'package:buff_lisa/features/auth/presentation/auth.dart';
 import 'package:buff_lisa/features/auth/presentation/logout_screen.dart';
 import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
@@ -19,6 +18,7 @@ import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/navigation/presentation/navigation.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/features/profile/presentation/other_user_profile.dart';
+import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/settings/presentation/settings.dart';
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/change_email.dart';
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/change_password.dart';
@@ -291,7 +291,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         name: 'achievements',
-        builder: (context, state) => const AchievementsPage(),
+        builder: (context, state) =>
+            const UserProfile(initialTabIndex: 1, hasBackButton: true),
       ),
       GoRoute(
         path: '/osm-copyright',
