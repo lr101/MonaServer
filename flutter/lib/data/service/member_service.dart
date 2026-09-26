@@ -3,6 +3,8 @@ import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/repository/member_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -30,6 +32,10 @@ class MemberService extends _$MemberService {
     final repository = _memberRepository;
     final members = await _membersApi.getGroupMembers(groupId);
     if (!isCurrentSession(ref, session) || members == null) return;
+    preloadUserProfileProgressions(
+      members.map((member) => member.userId),
+      (id) => ref.read(userAvatarProgressionProvider(id).future),
+    );
     for (final member in members) {
       registerUserImageSmallUrl(ref, member.userId, member.profileImageSmall);
     }

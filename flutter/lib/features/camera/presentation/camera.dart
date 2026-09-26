@@ -4,6 +4,8 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/camera_group_selector.dart';
 import 'package:buff_lisa/features/camera/presentation/camera_selector.dart';
+import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
+import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
@@ -156,6 +158,10 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final groupIds = widget.pinPhotoMode
         ? <String>[]
         : ref.watch(groupOrderServiceProvider);
+    preloadGroupProfileProgressions(
+      groupIds,
+      (id) => ref.read(groupAvatarProgressionProvider(id).future),
+    );
     if (cameras.isEmpty) {
       return Scaffold(
         appBar: widget.pinPhotoMode

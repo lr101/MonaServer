@@ -23,6 +23,7 @@ class SmallProfilePicture extends ConsumerWidget {
     this.imageCallback,
     this.cachedImageOnly = false,
     this.loadImage = true,
+    this.showProgressRing = false,
     this.child,
     this.placeholderAvatar,
   }) : groupId = null,
@@ -38,7 +39,8 @@ class SmallProfilePicture extends ConsumerWidget {
     this.child,
     this.placeholderAvatar,
     this.imageUrl,
-  }) : userId = null;
+  }) : userId = null,
+       showProgressRing = false;
 
   final String? userId;
   final String? groupId;
@@ -46,6 +48,7 @@ class SmallProfilePicture extends ConsumerWidget {
   final AsyncValue<Uint8List?>? imageCallback;
   final bool cachedImageOnly;
   final bool loadImage;
+  final bool showProgressRing;
   final Widget? child;
   final Widget? placeholderAvatar;
   final String? imageUrl;
@@ -54,10 +57,10 @@ class SmallProfilePicture extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final image = imageCallback ?? _watchImage(ref);
     final avatar = _buildAvatar(image);
-    if (!loadImage || (userId == null && groupId == null)) return avatar;
+    if (userId == null && groupId == null) return avatar;
 
     if (userId case final id?) {
-      if (ref.watch(userIdProvider) == id) {
+      if (showProgressRing && ref.watch(userIdProvider) == id) {
         return ref
             .watch(userXpProvider(id))
             .when(
@@ -77,11 +80,8 @@ class SmallProfilePicture extends ConsumerWidget {
           .when(
             data: (progression) => progression == null
                 ? avatar
-                : UserXpAvatarIndicator(
-                    avatarProgression: AvatarLevelProgress(
-                      level: progression.level,
-                      fraction: progression.fraction,
-                    ),
+                : AvatarLevelBadge(
+                    level: progression.level,
                     avatar: avatar,
                     radius: radius,
                   ),
@@ -97,11 +97,8 @@ class SmallProfilePicture extends ConsumerWidget {
           skipLoadingOnRefresh: false,
           data: (progression) => progression == null
               ? avatar
-              : UserXpAvatarIndicator(
-                  avatarProgression: AvatarLevelProgress(
-                    level: progression.level,
-                    fraction: progression.fraction,
-                  ),
+              : AvatarLevelBadge(
+                  level: progression.level,
                   avatar: avatar,
                   radius: radius,
                 ),
@@ -137,32 +134,61 @@ class SmallProfilePicture extends ConsumerWidget {
   }
 }
 
-/// Public, non-sensitive progression data used by small profile pictures.
-@immutable
-class AvatarLevelProgress {
-  const AvatarLevelProgress({required this.level, required this.fraction});
+/// A small level number over an avatar without an XP progress ring.
+class AvatarLevelBadge extends StatelessWidget {
+  const AvatarLevelBadge({
+    super.key,
+    required this.level,
+    required this.avatar,
+    this.radius = 17,
+  });
 
   final int level;
-  final double fraction;
-}
-
-/// The shared ring and level badge used around compact profile pictures.
-class UserXpAvatarIndicator extends StatelessWidget {
-  const UserXpAvatarIndicator({
-    super.key,
-    required this.avatar,
-    this.progress,
-    this.avatarProgression,
-    this.radius = 17,
-  }) : assert(progress != null || avatarProgression != null);
-
-  final XpLevelProgress? progress;
-  final AvatarLevelProgress? avatarProgression;
   final Widget avatar;
   final double radius;
 
-  int get _level => progress?.level ?? avatarProgression!.level;
-  double get _fraction => progress?.fraction ?? avatarProgression!.fraction;
+  @override
+  Widget build(BuildContext context) {
+    final avatarDiameter = radius * 2;
+    final dimension = avatarDiameter + 6;
+    return Tooltip(
+      excludeFromSemantics: true,
+      message: 'Level $level',
+      child: Semantics(
+        excludeSemantics: true,
+        label: 'Level $level',
+        child: SizedBox.square(
+          dimension: dimension,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              SizedBox.square(dimension: avatarDiameter, child: avatar),
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: _levelBadge(context, level: level, radius: radius),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The XP ring and level badge reserved for the signed-in user's top bar.
+class UserXpAvatarIndicator extends StatelessWidget {
+  const UserXpAvatarIndicator({
+    super.key,
+    required this.progress,
+    required this.avatar,
+    this.radius = 17,
+  });
+
+  final XpLevelProgress progress;
+  final Widget avatar;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -170,21 +196,15 @@ class UserXpAvatarIndicator extends StatelessWidget {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final avatarDiameter = radius * 2;
     final dimension = avatarDiameter + 6;
-    final badgeSize = (radius * 0.94).clamp(10.0, 20.0);
     final strokeWidth = (radius * 0.15).clamp(1.5, 3.5);
-    final levelProgressLabel = progress == null
-        ? 'Level $_level, ${(100 * _fraction).round()}% progress to next level'
-        : progress!.xpToNextLevel == 0
-        ? 'Level ${progress!.level}, maximum level'
-        : 'Level ${progress!.level}, ${progress!.xpIntoLevel} XP into this level, '
-              '${progress!.xpToNextLevel} XP to next level';
-    final tooltip = progress == null
-        ? 'Level $_level'
-        : 'Level ${progress!.level} · ${progress!.totalXp} XP';
+    final levelProgressLabel = progress.xpToNextLevel == 0
+        ? 'Level ${progress.level}, maximum level'
+        : 'Level ${progress.level}, ${progress.xpIntoLevel} XP into this level, '
+              '${progress.xpToNextLevel} XP to next level';
 
     return Tooltip(
       excludeFromSemantics: true,
-      message: tooltip,
+      message: 'Level ${progress.level} · ${progress.totalXp} XP',
       child: Semantics(
         excludeSemantics: true,
         label: levelProgressLabel,
@@ -195,7 +215,9 @@ class UserXpAvatarIndicator extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: _fraction.clamp(0, 1).toDouble()),
+                tween: Tween<double>(
+                  end: progress.fraction.clamp(0, 1).toDouble(),
+                ),
                 duration: reduceMotion
                     ? Duration.zero
                     : const Duration(milliseconds: 450),
@@ -216,34 +238,10 @@ class UserXpAvatarIndicator extends StatelessWidget {
               Positioned(
                 left: 0,
                 bottom: 0,
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: theme.colorScheme.primary,
-                    shape: CircleBorder(
-                      side: BorderSide(
-                        color: theme.colorScheme.surfaceContainer,
-                        width: (radius * 0.09).clamp(1.0, 1.75),
-                      ),
-                    ),
-                  ),
-                  child: SizedBox.square(
-                    dimension: badgeSize,
-                    child: Center(
-                      child: FittedBox(
-                        child: Padding(
-                          padding: const EdgeInsets.all(1),
-                          child: Text(
-                            '$_level',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onPrimary,
-                              fontSize: (badgeSize * 0.5).clamp(5.0, 10.0),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                child: _levelBadge(
+                  context,
+                  level: progress.level,
+                  radius: radius,
                 ),
               ),
             ],
@@ -252,4 +250,42 @@ class UserXpAvatarIndicator extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _levelBadge(
+  BuildContext context, {
+  required int level,
+  required double radius,
+}) {
+  final theme = Theme.of(context);
+  final badgeSize = (radius * 0.94).clamp(10.0, 20.0);
+  return DecoratedBox(
+    decoration: ShapeDecoration(
+      color: theme.colorScheme.primary,
+      shape: CircleBorder(
+        side: BorderSide(
+          color: theme.colorScheme.surfaceContainer,
+          width: (radius * 0.09).clamp(1.0, 1.75),
+        ),
+      ),
+    ),
+    child: SizedBox.square(
+      dimension: badgeSize,
+      child: Center(
+        child: FittedBox(
+          child: Padding(
+            padding: const EdgeInsets.all(1),
+            child: Text(
+              '$level',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onPrimary,
+                fontSize: (badgeSize * 0.5).clamp(5.0, 10.0),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
