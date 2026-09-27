@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
@@ -9,6 +10,7 @@ import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openapi/api.dart';
 
 class OtherUserProfile extends ConsumerWidget {
   const OtherUserProfile({super.key, required this.userId});
@@ -38,19 +40,8 @@ class OtherUserProfile extends ConsumerWidget {
         ],
       ),
       actions: [PopUpMenuOtherUser(userId: userId)],
+      profileQuickViewBoxes: _buildQuickStats(userPins, likes),
       boxes: [
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Sticks",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              userPins.whenOrNull(data: (data) => data.length.toString()) ??
-                  "---",
-            ),
-          ),
-        ),
         if (description.value != null)
           SliverToBoxAdapter(
             child: ListTile(
@@ -68,20 +59,37 @@ class OtherUserProfile extends ConsumerWidget {
           ),
         if (bestSeason.value != null)
           SliverToBoxAdapter(child: SeasonTile(bestSeason: bestSeason.value!)),
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Likes",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              likes.value?.likeCount.toString() ?? "",
-              style: const TextStyle(fontStyle: FontStyle.italic),
-            ),
-          ),
-        ),
       ],
       body: ImageGrid(pinProvider: pinUserServiceProvider(userId)),
+    );
+  }
+
+  Widget _buildQuickStats(
+    AsyncValue<List<PinEntity>> userPins,
+    AsyncValue<UserLikesDto> likes,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _statItem(
+          'Sticks',
+          userPins.whenOrNull(data: (pins) => pins.length.toString()) ?? '---',
+        ),
+        _statItem('Likes', likes.value?.likeCount.toString() ?? '-'),
+      ],
+    );
+  }
+
+  Widget _statItem(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 }

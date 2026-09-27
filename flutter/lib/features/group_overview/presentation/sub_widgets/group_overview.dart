@@ -1,6 +1,4 @@
-import 'package:buff_lisa/app/app_links.dart';
-import 'package:buff_lisa/data/config/api_host.dart';
-import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
@@ -11,8 +9,6 @@ import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/member_tile.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GroupOverview extends ConsumerStatefulWidget {
@@ -61,6 +57,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       actions: widget.actions,
+      profileQuickViewBoxes: _buildQuickStats(members),
       bottom: TabBar(
         controller: _tabController,
         isScrollable: false,
@@ -85,33 +82,6 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         ],
       ),
       boxes: [
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Members",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              members.whenOrNull(data: (data) => data.length.toString()) ??
-                  0.toString(),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Sticks",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              members.whenOrNull(
-                    data: (data) =>
-                        data.fold(0, (p, e) => p + e.points).toString(),
-                  ) ??
-                  0.toString(),
-            ),
-          ),
-        ),
         SliverToBoxAdapter(
           child: ListTile(
             title: const Text(
@@ -149,22 +119,6 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
               ),
             ),
           ),
-        if (group != null && group.visibility != 0)
-          SliverToBoxAdapter(
-            child: ListTile(
-              onTap: () => clickedOnInviteCode(group),
-              trailing: IconButton(
-                tooltip: 'Copy invite link',
-                onPressed: () => clickedOnInviteLink(group),
-                icon: const Icon(Icons.link),
-              ),
-              title: const Text(
-                "Invite code",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(group.inviteUrl ?? "Ups something went wrong"),
-            ),
-          ),
         if (group?.bestSeason != null)
           SliverToBoxAdapter(child: SeasonTile(bestSeason: group!.bestSeason!)),
       ],
@@ -197,24 +151,37 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
     );
   }
 
-  void clickedOnInviteCode(GroupEntity? group) {
-    if (group?.inviteUrl != null) {
-      Clipboard.setData(ClipboardData(text: group!.inviteUrl!));
-    }
+  Widget _buildQuickStats(AsyncValue<List<MemberEntity>> members) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _statItem(
+          'Members',
+          members.whenOrNull(data: (data) => data.length.toString()) ?? '0',
+        ),
+        _statItem(
+          'Sticks',
+          members.whenOrNull(
+                data: (data) => data
+                    .fold(0, (total, member) => total + member.points)
+                    .toString(),
+              ) ??
+              '0',
+        ),
+      ],
+    );
   }
 
-  Future<void> clickedOnInviteLink(GroupEntity? group) async {
-    final inviteCode = group?.inviteUrl;
-    if (group == null || inviteCode == null) return;
-
-    final link = groupInviteShareLink(
-      apiHost: resolveApiHost(configuredHost: dotenv.env['API_HOST']),
-      groupId: group.groupId,
-      inviteCode: inviteCode,
+  Widget _statItem(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
     );
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Invite link copied')));
   }
 }
