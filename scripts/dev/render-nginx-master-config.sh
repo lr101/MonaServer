@@ -53,6 +53,7 @@ events {
 }
 
 http {
+    server_names_hash_bucket_size 128;
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
