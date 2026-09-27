@@ -6,6 +6,58 @@ import (
 	"time"
 )
 
+func TestLoadAcceptsLegacyMinioObjectStorageVariables(t *testing.T) {
+	for _, name := range []string{
+		"RUSTFS_ENDPOINT",
+		"RUSTFS_EXTERNAL_ENDPOINT",
+		"RUSTFS_ACCESS_KEY",
+		"RUSTFS_SECRET_KEY",
+		"RUSTFS_BUCKET",
+		"RUSTFS_USE_SSL",
+		"RUSTFS_EXTERNAL_USE_SSL",
+	} {
+		t.Setenv(name, "")
+	}
+	t.Setenv("MINIO_ENDPOINT", "minio.internal:9000")
+	t.Setenv("MINIO_EXTERNAL_ENDPOINT", "objects.example.com")
+	t.Setenv("MINIO_ACCESS_KEY", "legacy-access")
+	t.Setenv("MINIO_SECRET_KEY", "legacy-secret")
+	t.Setenv("MINIO_BUCKET", "legacy-bucket")
+	t.Setenv("MINIO_USE_SSL", "true")
+	t.Setenv("MINIO_EXTERNAL_USE_SSL", "false")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.RustfsEndpoint != "minio.internal:9000" || cfg.RustfsExternalEndpoint != "objects.example.com" ||
+		cfg.RustfsAccessKey != "legacy-access" || cfg.RustfsSecretKey != "legacy-secret" || cfg.RustfsBucket != "legacy-bucket" {
+		t.Fatalf("legacy MINIO variables were not mapped: %+v", cfg)
+	}
+	if !cfg.RustfsUseSSL {
+		t.Fatal("legacy MINIO_USE_SSL was not mapped")
+	}
+	if cfg.RustfsExternalUseSSL {
+		t.Fatal("legacy MINIO_EXTERNAL_USE_SSL=false was not preserved")
+	}
+}
+
+func TestLoadUsesSeparateExternalObjectStorageTLS(t *testing.T) {
+	t.Setenv("RUSTFS_USE_SSL", "false")
+	t.Setenv("RUSTFS_EXTERNAL_USE_SSL", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.RustfsUseSSL {
+		t.Fatal("expected internal RustFS TLS to remain disabled")
+	}
+	if !cfg.RustfsExternalUseSSL {
+		t.Fatal("expected external RustFS TLS to be enabled independently")
+	}
+}
+
 func TestLoadReadsRustfsObjectStorageVariables(t *testing.T) {
 	t.Setenv("RUSTFS_ENDPOINT", "rustfs.internal:9000")
 	t.Setenv("RUSTFS_EXTERNAL_ENDPOINT", "objects.example.com")

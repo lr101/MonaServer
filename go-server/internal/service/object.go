@@ -43,6 +43,14 @@ type Object struct {
 // are both computed over the external address, so the signature remains valid
 // when the client actually fetches the URL.
 func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
+	return NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket, useSSL, useSSL, urlExpiry)
+}
+
+// NewObjectWithExternalSSL creates an Object service with independent TLS
+// settings for the internal S3 client and externally returned presigned URLs.
+// This supports TLS termination at a proxy while the server reaches local
+// RustFS over HTTP.
+func NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL, externalUseSSL bool, urlExpiry time.Duration) (*Object, error) {
 	client, err := newS3Client(endpoint, accessKey, secretKey, useSSL)
 	if err != nil {
 		return nil, err
@@ -51,7 +59,7 @@ func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, 
 	if extEndpoint == "" {
 		extEndpoint = endpoint
 	}
-	presignS3Client, err := newS3Client(extEndpoint, accessKey, secretKey, useSSL)
+	presignS3Client, err := newS3Client(extEndpoint, accessKey, secretKey, externalUseSSL)
 	if err != nil {
 		return nil, err
 	}
