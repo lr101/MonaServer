@@ -43,6 +43,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 cat > "$temporary_file" <<EOF
+user nobody nogroup;
 worker_processes 1;
 pid $runtime_dir/nginx.pid;
 error_log $log_dir/error.log warn;
@@ -67,7 +68,8 @@ http {
 
     sendfile on;
     client_max_body_size 25m;
-    access_log $log_dir/access.log;
+    log_format dev_safe '\$remote_addr [\$time_local] "\$request_method \$uri \$server_protocol" \$status \$body_bytes_sent';
+    access_log $log_dir/access.log dev_safe;
 
     server {
         listen $nginx_port default_server;

@@ -19,6 +19,10 @@ so multiple worktrees can stay active through the same gateway at the same
 time. A dynamic nginx config is still needed for the host-to-random-port
 registry; generating a small snippet is safer and simpler than embedding a
 custom Lua/OpenResty router or exposing every backend port to Traefik.
+The nginx master runs in a separate session, so interrupting one worktree
+launcher cannot terminate the gateway while other routes remain active. Access
+logs omit query strings and runtime logs are restricted to the local account,
+so presigned URL signatures are not written into broadly readable logs.
 
 ## Outer Traefik
 
@@ -123,6 +127,9 @@ the local PostgreSQL administrator before the app role runs migrations; the
 app role does not need superuser privileges. The native setup in
 [`AGENT_LOCAL_STACK.md`](AGENT_LOCAL_STACK.md) shows the role/database setup.
 RustFS, `.env.dev`, and the required local packages must also be ready.
+The launcher verifies that nginx's `nobody` worker can read the generated
+Flutter `index.html`; keep the worktree path traversable and build files
+readable by that account.
 
 For a fresh preview database, preinstall the extensions as `postgres` (replace
 `<database-name>` with the database from `DATABASE_URL`):
@@ -140,8 +147,9 @@ DEV_SLUG=feature-a \
   --repo-root /absolute/path/to/MonaServer
 ```
 
-The helper is foreground-oriented and stops at most 24 hours later. Set
-`DEV_STACK_MAX_SECONDS` to a shorter value when appropriate. The default shared
+The helper is foreground-oriented and has a hard 24-hour lifetime cap,
+including a reserved graceful-shutdown period. Set `DEV_STACK_MAX_SECONDS` to
+a shorter value when appropriate. The default shared
 nginx runtime is under `${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/nginx`;
 use `DEV_NGINX_RUNTIME_DIR` and `DEV_PORT_STATE_DIR` to choose another shared
 location when several dev containers do not share that runtime directory.

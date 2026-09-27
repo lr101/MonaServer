@@ -4,6 +4,7 @@ set -Eeuo pipefail
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd -- "$script_dir/../.." && pwd)
 dry_run=false
+timeout_child=false
 original_args=("$@")
 
 usage() {
@@ -29,6 +30,10 @@ while (($# > 0)); do
       ;;
     --dry-run)
       dry_run=true
+      shift
+      ;;
+    --internal-timeout-child)
+      timeout_child=true
       shift
       ;;
     -h|--help)
@@ -158,10 +163,20 @@ if [[ "$stack_max_seconds" == 0 || ${#stack_max_seconds} -gt 5 || ( ${#stack_max
   die 'DEV_STACK_MAX_SECONDS must be between 1 and 86400'
 fi
 
-if [[ "${DEV_STACK_TIMEOUT_ACTIVE:-false}" != true ]]; then
+timeout_cleanup_seconds=30
+if ((stack_max_seconds <= timeout_cleanup_seconds)); then
+  timeout_cleanup_seconds=$((stack_max_seconds - 1))
+fi
+timeout_run_seconds=$((stack_max_seconds - timeout_cleanup_seconds))
+
+if [[ "$timeout_child" == true ]]; then
+  parent_command=$(tr '\0' ' ' < "/proc/$PPID/cmdline" 2>/dev/null || true)
+  timeout_signature="timeout --signal=TERM --kill-after=${timeout_cleanup_seconds}s ${timeout_run_seconds}s "
+  [[ "$parent_command" == *"$timeout_signature"* ]] || die 'internal timeout mode requires the enforced timeout wrapper'
+elif [[ "$dry_run" != true ]]; then
   command -v timeout >/dev/null 2>&1 || die 'required command is missing: timeout'
-  DEV_STACK_TIMEOUT_ACTIVE=true exec timeout --foreground --signal=TERM --kill-after=30s \
-    "$stack_max_seconds" "$0" "${original_args[@]}"
+  exec timeout --signal=TERM --kill-after="${timeout_cleanup_seconds}s" \
+    "${timeout_run_seconds}s" "$0" --internal-timeout-child "${original_args[@]}"
 fi
 
 api_url="$public_scheme://$api_host"
@@ -205,6 +220,8 @@ storage_port=$storage_port
 storage_console_port=$storage_console_port
 nginx_runtime_dir=$runtime_dir
 stack_max_seconds=$stack_max_seconds
+timeout_run_seconds=$timeout_run_seconds
+timeout_cleanup_seconds=$timeout_cleanup_seconds
 EOF
   exit 0
 fi
@@ -213,7 +230,7 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "required command is missing: $1"
 }
 
-for command_name in curl flock mise nginx pg_isready python3 sha256sum setsid timeout; do
+for command_name in curl flock mise nginx pg_isready python3 runuser sha256sum setsid timeout; do
   require_command "$command_name"
 done
 env_file=${DEV_ENV_FILE:-$repo_root/.env.dev}
@@ -258,6 +275,9 @@ snippet_owner_file="$worktree_dir/$slug.owner"
 nginx_log_file="$log_dir/nginx.log"
 api_log_file="$log_dir/$slug-api.log"
 rustfs_log_file="$log_dir/$slug-rustfs.log"
+chmod 0700 "$log_dir"
+touch -- "$nginx_log_file" "$log_dir/access.log" "$log_dir/error.log" "$api_log_file" "$rustfs_log_file"
+chmod 0600 "$nginx_log_file" "$log_dir/access.log" "$log_dir/error.log" "$api_log_file" "$rustfs_log_file"
 web_root=${DEV_WEB_ROOT:-$repo_root/flutter/build/web}
 
 port_state_dir=${DEV_PORT_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/ports}
@@ -401,7 +421,7 @@ start_nginx_locked() {
   DEV_NGINX_RUNTIME_DIR="$runtime_dir" DEV_NGINX_PORT="$nginx_port" \
     "$master_renderer" "$nginx_config"
   nginx -t -p "$runtime_dir" -c "$nginx_config" >/dev/null
-  nginx -p "$runtime_dir" -c "$nginx_config" -g 'daemon off;' >>"$nginx_log_file" 2>&1 &
+  setsid nginx -p "$runtime_dir" -c "$nginx_config" -g 'daemon off;' >>"$nginx_log_file" 2>&1 &
   local launcher_pid=$!
   for _ in $(seq 1 50); do
     if nginx_process_alive; then
@@ -530,6 +550,11 @@ esac
 echo 'Building Flutter web app...' >&2
 (cd "$repo_root/flutter" && mise exec -- flutter pub get && mise exec -- flutter build web --wasm --release --no-pub --dart-define="API_HOST=$api_url")
 [[ -d "$web_root" ]] || die "Flutter build did not create $web_root"
+if ((EUID == 0)); then
+  runuser -u nobody -- test -r "$web_root/index.html" || die "nginx worker user nobody cannot read $web_root/index.html; make the worktree and Flutter build readable by nobody"
+elif [[ ! -r "$web_root/index.html" ]]; then
+  die "nginx worker cannot read $web_root/index.html"
+fi
 
 add_nginx_route
 

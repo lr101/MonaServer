@@ -32,6 +32,14 @@ grep -Fxq 'storage_port=23102' <<<"$output"
 grep -Fxq 'storage_console_port=23103' <<<"$output"
 grep -Fxq "nginx_runtime_dir=$runtime_dir" <<<"$output"
 
+full_lifetime_output=$(DEV_STACK_MAX_SECONDS=86400 "$launcher" --repo-root "$repo_root" --dry-run)
+grep -Fxq 'timeout_run_seconds=86370' <<<"$full_lifetime_output"
+grep -Fxq 'timeout_cleanup_seconds=30' <<<"$full_lifetime_output"
+
+short_lifetime_output=$(DEV_STACK_MAX_SECONDS=1 "$launcher" --repo-root "$repo_root" --dry-run)
+grep -Fxq 'timeout_run_seconds=1' <<<"$short_lifetime_output"
+grep -Fxq 'timeout_cleanup_seconds=0' <<<"$short_lifetime_output"
+
 if DEV_NGINX_PORT=18081 \
   "$launcher" --repo-root "$repo_root" --dry-run >/dev/null 2>&1; then
   echo 'launcher accepted an nginx port other than 18080' >&2

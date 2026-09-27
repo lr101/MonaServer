@@ -49,6 +49,10 @@ done
 
 curl --fail --silent --show-error \
   --header 'Host: web-feature-a.dev.dell.lr-projects.de' \
-  http://127.0.0.1:18080/ | grep -Fxq 'nginx worktree live route'
+  'http://127.0.0.1:18080/?signature=must-not-appear-in-logs' | grep -Fxq 'nginx worktree live route'
+if grep -Fq 'must-not-appear-in-logs' "$runtime_dir/logs/access.log"; then
+  echo 'nginx access log recorded a query string' >&2
+  exit 1
+fi
 
 echo 'nginx worktree live checks passed'

@@ -10,9 +10,10 @@ timeout_pid=
 
 stop_launcher() {
   local pid=${1:-}
+  local signal=${2:-TERM}
   [[ -n "$pid" ]] || return 0
   if kill -0 "$pid" >/dev/null 2>&1; then
-    kill -TERM "$pid" >/dev/null 2>&1 || true
+    kill -"$signal" -- "-$pid" >/dev/null 2>&1 || kill -"$signal" "$pid" >/dev/null 2>&1 || true
   fi
   wait "$pid" >/dev/null 2>&1 || true
 }
@@ -62,18 +63,14 @@ export DEV_PORT_STATE_DIR="$port_state_dir"
 export DEV_NGINX_PORT=18080
 export DEV_WEB_ROOT="$test_root/web"
 export DEV_STACK_MAX_SECONDS=120
-# The timeout wrapper is tested by the launcher validation below. Running the
-# concurrent lifecycle test directly keeps each PID equal to its launcher,
-# so stopping one worktree cannot accidentally target the other job.
-export DEV_STACK_TIMEOUT_ACTIVE=true
 mkdir -p -- "$DEV_WEB_ROOT"
 chmod 0755 "$test_root" "$DEV_WEB_ROOT"
 
-DEV_SLUG=worktree-a \
+DEV_SLUG=worktree-a setsid \
   "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
   >"$test_root/alpha.log" 2>&1 &
 alpha_pid=$!
-DEV_SLUG=worktree-b \
+DEV_SLUG=worktree-b setsid \
   "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
   >"$test_root/beta.log" 2>&1 &
 beta_pid=$!
@@ -97,8 +94,10 @@ check_web_route web-worktree-a.dev.dell.lr-projects.de
 check_web_route web-worktree-b.dev.dell.lr-projects.de
 test -f "$runtime_dir/worktrees/worktree-a.conf"
 test -f "$runtime_dir/worktrees/worktree-b.conf"
+test "$(stat -c '%a' "$runtime_dir/logs/access.log")" = 600
+test "$(stat -c '%a' "$runtime_dir/logs/nginx.log")" = 600
 
-stop_launcher "$alpha_pid"
+stop_launcher "$alpha_pid" INT
 alpha_pid=
 test ! -e "$runtime_dir/worktrees/worktree-a.conf"
 test -e "$runtime_dir/worktrees/worktree-b.conf"
@@ -117,8 +116,20 @@ if find "$port_state_dir" -maxdepth 1 -type f -name '[0-9]*' | grep -q .; then
   exit 1
 fi
 
+private_root="$test_root/private"
+private_web_root="$private_root/web"
+mkdir -p -- "$private_web_root"
+chmod 0700 "$private_root" "$private_web_root"
+if DEV_SLUG=private-web DEV_WEB_ROOT="$private_web_root" \
+  "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
+  >"$test_root/private-web.log" 2>&1; then
+  echo 'launcher accepted a Flutter build that nginx cannot read' >&2
+  exit 1
+fi
+grep -q 'nginx worker user nobody cannot read' "$test_root/private-web.log"
+
 set +e
-FAKE_MISE_DELAY=3 DEV_STACK_MAX_SECONDS=1 DEV_STACK_TIMEOUT_ACTIVE=false DEV_SLUG=timeout-check \
+FAKE_MISE_DELAY=5 DEV_STACK_MAX_SECONDS=3 DEV_STACK_TIMEOUT_ACTIVE=true DEV_SLUG=timeout-check \
   "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
   >"$test_root/timeout.log" 2>&1 &
 timeout_pid=$!
