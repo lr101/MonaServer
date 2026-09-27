@@ -1,8 +1,8 @@
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart';
+import 'package:buff_lisa/features/settings/presentation/settings_widgets.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
-import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,68 +17,148 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
   final TextEditingController _controller = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
+  bool _requestingCode = true;
+  String _codeMessage = 'Sending a confirmation code to your email…';
+  bool _codeRequestFailed = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      CustomErrorSnackBar.message(message: "Sending code to your email");
-      final result = await ref
-          .watch(authServiceProvider.notifier)
-          .getDeleteCode();
-      if (result != null) {
-        CustomErrorSnackBar.message(
-          message: "Error while sending code: $result",
-        );
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _requestDeleteCode());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _requestDeleteCode() async {
+    if (!mounted) return;
+    setState(() {
+      _requestingCode = true;
+      _codeMessage = 'Sending a confirmation code to your email…';
+      _codeRequestFailed = false;
+    });
+    String? result;
+    try {
+      result = await ref.read(authServiceProvider.notifier).getDeleteCode();
+    } catch (_) {
+      result = 'request failed';
+    }
+    if (!mounted) return;
+    setState(() {
+      _requestingCode = false;
+      _codeRequestFailed = result != null;
+      _codeMessage = result == null
+          ? 'A six-digit confirmation code was sent to your email.'
+          : 'We could not send the code. Please check your connection and try again.';
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return CustomCloseKeyboardScaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Delete Account",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              const Text(
-                "Are you sure you want to delete your account?",
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-              const Text(
-                "This action cannot be undone, all data will be lost!!",
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-              const SizedBox(height: 16),
-              const Text("Type the Code from your email here:"),
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: TextFormField(
-                  controller: _controller,
-                  maxLength: 6,
-                  textAlign: TextAlign.center,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 20),
-                  decoration: const InputDecoration(
-                    labelText: '6 Digit Code',
-                    border: OutlineInputBorder(),
+    final colors = Theme.of(context).colorScheme;
+    return SettingsPageScaffold(
+      title: 'Delete account',
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SettingsPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: colors.error),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'This permanently deletes your account.',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
                   ),
-                  validator: (v) => v != null && v.length == 6
-                      ? null
-                      : "Code must have 6 digits",
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your account and its data cannot be restored after deletion.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SettingsPanel(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_requestingCode)
+                    const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Icon(
+                      _codeRequestFailed
+                          ? Icons.error_outline
+                          : Icons.mark_email_read_outlined,
+                      color: _codeRequestFailed ? colors.error : colors.primary,
+                    ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(_codeMessage)),
+                ],
+              ),
+            ),
+            if (_codeRequestFailed) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.onSurface,
+                  ),
+                  onPressed: _requestDeleteCode,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
                 ),
               ),
-              const SizedBox(height: 50),
-              SubmitButton(onPressed: _submitDelete, text: "Delete Account"),
             ],
-          ),
+            const SizedBox(height: 12),
+            SettingsPanel(
+              child: TextFormField(
+                controller: _controller,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: Theme.of(context).textTheme.headlineSmall,
+                decoration: const InputDecoration(
+                  labelText: 'Confirmation code',
+                  hintText: '6 digits',
+                  counterText: '',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value != null && RegExp(r'^\d{6}$').hasMatch(value)
+                    ? null
+                    : 'Enter the six-digit code',
+              ),
+            ),
+            const SizedBox(height: 16),
+            SettingsActionButton(
+              label: 'Delete account',
+              icon: Icons.delete_forever_outlined,
+              destructive: true,
+              enabled: !_requestingCode && !_codeRequestFailed,
+              onPressed: _submitDelete,
+            ),
+          ],
         ),
       ),
     );
@@ -94,7 +174,7 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
         if (result != null) {
           CustomErrorSnackBar.message(message: result);
         } else {
-          context.goNamed("login");
+          context.goNamed('login');
         }
       } catch (_) {
         if (!mounted) return;
@@ -103,6 +183,7 @@ class _DeleteAccountState extends ConsumerState<DeleteAccount> {
         } else {
           CustomErrorSnackBar.message(
             message: 'Account deletion failed. Please retry.',
+            type: CustomErrorSnackBarType.error,
           );
         }
       }

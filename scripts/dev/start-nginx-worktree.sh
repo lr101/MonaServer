@@ -279,6 +279,26 @@ chmod 0700 "$log_dir"
 touch -- "$nginx_log_file" "$log_dir/access.log" "$log_dir/error.log" "$api_log_file" "$rustfs_log_file"
 chmod 0600 "$nginx_log_file" "$log_dir/access.log" "$log_dir/error.log" "$api_log_file" "$rustfs_log_file"
 web_root=${DEV_WEB_ROOT:-$repo_root/flutter/build/web}
+case "$web_root" in
+  /*) ;;
+  *) web_root="$repo_root/$web_root" ;;
+esac
+
+if ((EUID == 0)); then
+  # nginx serves files as nobody. Catch inaccessible worktree ancestors before
+  # the potentially slow Flutter compile, even when the web output is absent.
+  nginx_path_check=$web_root
+  while [[ ! -d "$nginx_path_check" ]]; do
+    parent_path=$(dirname -- "$nginx_path_check")
+    [[ "$parent_path" != "$nginx_path_check" ]] || die "could not find a parent directory for $web_root"
+    nginx_path_check=$parent_path
+  done
+  while [[ "$nginx_path_check" != / ]]; do
+    runuser -u nobody -- test -x "$nginx_path_check" || die \
+      "nginx worker user nobody cannot traverse $nginx_path_check; grant narrow directory traversal access before the Flutter build"
+    nginx_path_check=$(dirname -- "$nginx_path_check")
+  done
+fi
 
 port_state_dir=${DEV_PORT_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/ports}
 mkdir -p -- "$port_state_dir"
@@ -551,7 +571,7 @@ echo 'Building Flutter web app...' >&2
 (cd "$repo_root/flutter" && mise exec -- flutter pub get && mise exec -- flutter build web --wasm --release --no-pub --dart-define="API_HOST=$api_url")
 [[ -d "$web_root" ]] || die "Flutter build did not create $web_root"
 if ((EUID == 0)); then
-  runuser -u nobody -- test -r "$web_root/index.html" || die "nginx worker user nobody cannot read $web_root/index.html; make the worktree and Flutter build readable by nobody"
+  runuser -u nobody -- test -r "$web_root/index.html" || die "nginx worker user nobody cannot read $web_root/index.html; grant narrow read access to the Flutter build output"
 elif [[ ! -r "$web_root/index.html" ]]; then
   die "nginx worker cannot read $web_root/index.html"
 fi

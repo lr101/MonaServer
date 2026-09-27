@@ -66,6 +66,27 @@ export DEV_STACK_MAX_SECONDS=120
 mkdir -p -- "$DEV_WEB_ROOT"
 chmod 0755 "$test_root" "$DEV_WEB_ROOT"
 
+if ((EUID == 0)); then
+  deny_runuser_bin="$test_root/deny-runuser"
+  mkdir -p -- "$deny_runuser_bin"
+  cat > "$deny_runuser_bin/runuser" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+  chmod +x "$deny_runuser_bin/runuser"
+  if PATH="$deny_runuser_bin:$PATH" DEV_SLUG=permission-check \
+    "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
+    >"$test_root/preflight.log" 2>&1; then
+    echo 'launcher did not reject an inaccessible nginx worktree path' >&2
+    exit 1
+  fi
+  grep -q 'cannot traverse .*before the Flutter build' "$test_root/preflight.log"
+  if grep -q '^Building Flutter web app' "$test_root/preflight.log"; then
+    echo 'launcher started Flutter before checking nginx path access' >&2
+    exit 1
+  fi
+fi
+
 DEV_SLUG=worktree-a setsid \
   "$repo_root/scripts/dev/start-nginx-worktree.sh" --repo-root "$repo_root" \
   >"$test_root/alpha.log" 2>&1 &
