@@ -11,8 +11,8 @@ class CustomMarkerWidget extends Marker {
     : super(
         point: LatLng(pinDto.latitude, pinDto.longitude),
         child: CustomMarkerContent(pinDto: pinDto),
-        width: 48,
-        height: 56,
+        width: CustomMarkerContent.markerHitTargetWidth,
+        height: CustomMarkerContent.markerHitTargetHeight,
         alignment: Alignment.topCenter,
       );
 }
