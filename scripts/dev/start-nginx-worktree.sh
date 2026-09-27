@@ -138,6 +138,7 @@ case "$public_scheme" in
 esac
 
 nginx_port=$(normalize_port "${DEV_NGINX_PORT:-18080}" DEV_NGINX_PORT)
+[[ "$nginx_port" == 18080 ]] || die 'the shared nginx gateway must use port 18080'
 runtime_dir=${DEV_NGINX_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}/serve-dev-worktree/nginx}
 case "$runtime_dir" in
   /*) ;;

@@ -32,6 +32,12 @@ grep -Fxq 'storage_port=23102' <<<"$output"
 grep -Fxq 'storage_console_port=23103' <<<"$output"
 grep -Fxq "nginx_runtime_dir=$runtime_dir" <<<"$output"
 
+if DEV_NGINX_PORT=18081 \
+  "$launcher" --repo-root "$repo_root" --dry-run >/dev/null 2>&1; then
+  echo 'launcher accepted an nginx port other than 18080' >&2
+  exit 1
+fi
+
 if DEV_STACK_MAX_SECONDS=86401 \
   "$launcher" --repo-root "$repo_root" --dry-run >/dev/null 2>&1; then
   echo 'launcher accepted a duration longer than 24 hours' >&2
