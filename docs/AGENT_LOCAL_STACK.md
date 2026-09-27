@@ -91,7 +91,7 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'test_db_name') \ge
 SQL
 
 runuser -u postgres -- psql -d "$TEST_DB_NAME" -v ON_ERROR_STOP=1 \
-  -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+  -c 'CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 PGPASSWORD="$TEST_DB_PASSWORD" psql -h 127.0.0.1 -p 5432 \
   -U "$TEST_DB_USER" -d "$TEST_DB_NAME" -Atc 'SELECT PostGIS_Version();'
 ```

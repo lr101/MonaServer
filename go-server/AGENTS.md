@@ -33,6 +33,11 @@ foreground RustFS path used by agents, follow
 documents the Flutter Web and Playwright verification flow and the boundary
 between a database/API check and a full-stack check.
 
+For a public per-worktree preview through the shared nginx gateway and outer
+Traefik, follow [`../docs/development-traefik.md`](../docs/development-traefik.md).
+The launcher builds Flutter with the generated API hostname and keeps RustFS
+HTTP internally while configuring HTTPS for returned storage URLs.
+
 The production Compose deployment is described in
 [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md). For local agent tests, use
 the native PostGIS and RustFS setup in
@@ -40,7 +45,7 @@ the native PostGIS and RustFS setup in
 
 The config loader reads process environment variables. It does not load `.env` files itself. The root Compose deployment loads the ignored `.env` through `env_file`.
 
-Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL`, `JWT_SECRET`, and `TOKEN_ADMIN_USERNAME` are required for a useful server. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint.
+Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL`, `JWT_SECRET`, and `TOKEN_ADMIN_USERNAME` are required for a useful server. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint. `RUSTFS_EXTERNAL_USE_SSL` defaults to `RUSTFS_USE_SSL` and changes only the scheme used for presigned URLs.
 
 ## Database-backed tests
 

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/spf13/viper"
@@ -56,6 +58,7 @@ type Config struct {
 	RustfsSecretKey        string        `mapstructure:"RUSTFS_SECRET_KEY"`
 	RustfsBucket           string        `mapstructure:"RUSTFS_BUCKET"`
 	RustfsUseSSL           bool          `mapstructure:"RUSTFS_USE_SSL"`
+	RustfsExternalUseSSL   bool          `mapstructure:"RUSTFS_EXTERNAL_USE_SSL"`
 	RustfsURLExpiry        time.Duration `mapstructure:"RUSTFS_URL_EXPIRY"`
 
 	// Mail
@@ -94,7 +97,7 @@ func Load() (*Config, error) {
 		"ADMIN_LOGIN_IP_LIMIT", "ADMIN_LOGIN_GLOBAL_LIMIT",
 		"RUSTFS_ENDPOINT", "RUSTFS_EXTERNAL_ENDPOINT",
 		"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY",
-		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_URL_EXPIRY",
+		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_EXTERNAL_USE_SSL", "RUSTFS_URL_EXPIRY",
 		"MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
 		"FIREBASE_CONFIG_PATH",
 		"ACHIEVEMENT_MONA_GROUP_ID", "ACHIEVEMENT_CREATED_BEFORE",
@@ -129,5 +132,44 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	legacyString(&cfg.RustfsEndpoint, "RUSTFS_ENDPOINT", "MINIO_ENDPOINT")
+	legacyString(&cfg.RustfsExternalEndpoint, "RUSTFS_EXTERNAL_ENDPOINT", "MINIO_EXTERNAL_ENDPOINT")
+	legacyString(&cfg.RustfsAccessKey, "RUSTFS_ACCESS_KEY", "MINIO_ACCESS_KEY")
+	legacyString(&cfg.RustfsSecretKey, "RUSTFS_SECRET_KEY", "MINIO_SECRET_KEY")
+	legacyString(&cfg.RustfsBucket, "RUSTFS_BUCKET", "MINIO_BUCKET")
+	if os.Getenv("RUSTFS_USE_SSL") == "" {
+		if raw := os.Getenv("MINIO_USE_SSL"); raw != "" {
+			useSSL, err := strconv.ParseBool(raw)
+			if err != nil {
+				return nil, err
+			}
+			cfg.RustfsUseSSL = useSSL
+		}
+	}
+	cfg.RustfsExternalUseSSL = cfg.RustfsUseSSL
+	if raw := firstNonEmptyEnv("RUSTFS_EXTERNAL_USE_SSL", "MINIO_EXTERNAL_USE_SSL"); raw != "" {
+		externalUseSSL, err := strconv.ParseBool(raw)
+		if err != nil {
+			return nil, err
+		}
+		cfg.RustfsExternalUseSSL = externalUseSSL
+	}
 	return &cfg, nil
+}
+
+func legacyString(dst *string, current, legacy string) {
+	if os.Getenv(current) == "" {
+		if value := os.Getenv(legacy); value != "" {
+			*dst = value
+		}
+	}
+}
+
+func firstNonEmptyEnv(names ...string) string {
+	for _, name := range names {
+		if value := os.Getenv(name); value != "" {
+			return value
+		}
+	}
+	return ""
 }

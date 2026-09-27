@@ -76,7 +76,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
 | `RUSTFS_BUCKET` | `monaserver` | bucket name |
-| `RUSTFS_USE_SSL` | `false` | |
+| `RUSTFS_USE_SSL` | `false` | TLS for the internal S3 client |
+| `RUSTFS_EXTERNAL_USE_SSL` | same as `RUSTFS_USE_SSL` | TLS scheme for externally returned presigned URLs, e.g. when Traefik terminates HTTPS |
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
