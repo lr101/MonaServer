@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_cached_image.dart';
@@ -10,11 +9,7 @@ import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// A compact, consistently sized user or group avatar with its progression.
-///
-/// The progression providers use the shared batch-read coalescer, so lists of
-/// these widgets load their levels together instead of issuing one request per
-/// visible avatar.
+/// A compact, consistently sized user or group avatar.
 class SmallProfilePicture extends ConsumerWidget {
   const SmallProfilePicture.user({
     super.key,
@@ -75,36 +70,10 @@ class SmallProfilePicture extends ConsumerWidget {
               loading: () => avatar,
             );
       }
-      return ref
-          .watch(userAvatarProgressionProvider(id))
-          .when(
-            data: (progression) => progression == null
-                ? avatar
-                : AvatarLevelBadge(
-                    level: progression.level,
-                    avatar: avatar,
-                    radius: radius,
-                  ),
-            error: (_, _) => avatar,
-            loading: () => avatar,
-          );
+      return avatar;
     }
 
-    final id = groupId!;
-    return ref
-        .watch(groupAvatarProgressionProvider(id))
-        .when(
-          skipLoadingOnRefresh: false,
-          data: (progression) => progression == null
-              ? avatar
-              : AvatarLevelBadge(
-                  level: progression.level,
-                  avatar: avatar,
-                  radius: radius,
-                ),
-          error: (_, _) => avatar,
-          loading: () => avatar,
-        );
+    return avatar;
   }
 
   AsyncValue<Uint8List?> _watchImage(WidgetRef ref) {
@@ -123,57 +92,13 @@ class SmallProfilePicture extends ConsumerWidget {
 
   Widget _buildAvatar(AsyncValue<Uint8List?> image) {
     if (!loadImage && placeholderAvatar != null) return placeholderAvatar!;
-    // Progression adds a 3 px margin around the image. Keep the ordinary
-    // avatar at that outside size so the widget's footprint does not jump
-    // while a batch response is loading.
+    // Keep compact avatars at the same outside size as the top-bar progress
+    // indicator, which reserves a 3 px margin around its image.
     final imageRadius = radius + 3;
     if (cachedImageOnly) {
       return RoundCachedImage(image: image.value, size: imageRadius);
     }
     return RoundImage(imageCallback: image, size: imageRadius, child: child);
-  }
-}
-
-/// A small level number over an avatar without an XP progress ring.
-class AvatarLevelBadge extends StatelessWidget {
-  const AvatarLevelBadge({
-    super.key,
-    required this.level,
-    required this.avatar,
-    this.radius = 17,
-  });
-
-  final int level;
-  final Widget avatar;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final avatarDiameter = radius * 2;
-    final dimension = avatarDiameter + 6;
-    return Tooltip(
-      excludeFromSemantics: true,
-      message: 'Level $level',
-      child: Semantics(
-        excludeSemantics: true,
-        label: 'Level $level',
-        child: SizedBox.square(
-          dimension: dimension,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              SizedBox.square(dimension: avatarDiameter, child: avatar),
-              Positioned(
-                left: 0,
-                bottom: 0,
-                child: _levelBadge(context, level: level, radius: radius),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

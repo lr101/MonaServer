@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
-import 'package:buff_lisa/features/progression/data/profile_progression_prefetch.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card.dart';
@@ -116,7 +114,6 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       }
       final idList = _pins.getRange(pageKey, end).toList();
       final coalescer = ref.read(batchReadCoalescerProvider);
-      _preloadProfileLevels(idList);
       for (final pin in idList) {
         // Hydrate metadata while the page is assembled. Object bytes remain
         // lazy and are fetched only by the image widget that needs them.
@@ -141,7 +138,6 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final end = (start + pageSize).clamp(0, _pins.length);
     final coalescer = ref.read(batchReadCoalescerProvider);
     final pins = _pins.getRange(start, end).toList(growable: false);
-    _preloadProfileLevels(pins);
     for (final pin in pins) {
       // Metadata only: resolving a URL does not download object bytes.
       _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
@@ -149,17 +145,6 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       ref.read(userServiceProvider(pin.creator));
       ref.read(likeServiceProvider(pin.pinId));
     }
-  }
-
-  void _preloadProfileLevels(Iterable<PinEntity> pins) {
-    preloadUserProfileProgressions(
-      pins.map((pin) => pin.creator),
-      (id) => ref.read(userAvatarProgressionProvider(id).future),
-    );
-    preloadGroupProfileProgressions(
-      pins.map((pin) => pin.groupId),
-      (id) => ref.read(groupAvatarProgressionProvider(id).future),
-    );
   }
 
   void _ignorePrefetchError(Future<Object?> future) {

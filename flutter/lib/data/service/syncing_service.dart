@@ -11,7 +11,6 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
-import 'package:buff_lisa/features/progression/data/profile_picture_progression_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -150,10 +149,8 @@ class SyncingService extends _$SyncingService {
             .toSet();
         for (final creatorId in creatorIds) {
           ref.invalidate(userXpProvider(creatorId));
-          ref.invalidate(userAvatarProgressionProvider(creatorId));
         }
         ref.invalidate(groupProgressionProvider(groupDto.id));
-        ref.invalidate(groupAvatarProgressionProvider(groupDto.id));
         ref.invalidate(groupAchievementsProvider(groupDto.id));
       }
 
@@ -178,9 +175,7 @@ class SyncingService extends _$SyncingService {
         final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
         if (!isCurrent()) return;
         ref.invalidate(userXpProvider(ref.read(userIdProvider)));
-        ref.invalidate(userAvatarProgressionProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
-        ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
         await pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
@@ -192,9 +187,7 @@ class SyncingService extends _$SyncingService {
         if (e.code != 409) rethrow;
         // Preserve the legacy duplicate policy until server idempotency lands.
         ref.invalidate(userXpProvider(ref.read(userIdProvider)));
-        ref.invalidate(userAvatarProgressionProvider(ref.read(userIdProvider)));
         ref.invalidate(groupProgressionProvider(pin.groupId));
-        ref.invalidate(groupAvatarProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
         await pinRepository.delete(pin.pinId);
       } catch (_) {
