@@ -57,6 +57,31 @@ test('fixture outputs can be isolated outside the repository', () => {
   });
 });
 
+test('fixture output environment variable selects private output paths', () => {
+  const previous = process.env.TESTDATA_OUTPUT_DIR;
+  process.env.TESTDATA_OUTPUT_DIR = '/tmp/preview-fixture-from-env';
+  try {
+    assert.deepEqual(outputPaths(), {
+      statePath: '/tmp/preview-fixture-from-env/.seed-state.json',
+      envPath: '/tmp/preview-fixture-from-env/.env.test',
+    });
+  } finally {
+    if (previous === undefined) delete process.env.TESTDATA_OUTPUT_DIR;
+    else process.env.TESTDATA_OUTPUT_DIR = previous;
+  }
+});
+
+test('configured fixture output directories must be absolute', () => {
+  const previous = process.env.TESTDATA_OUTPUT_DIR;
+  process.env.TESTDATA_OUTPUT_DIR = 'relative-preview-fixtures';
+  try {
+    assert.throws(outputPaths, /TESTDATA_OUTPUT_DIR must be an absolute path/);
+  } finally {
+    if (previous === undefined) delete process.env.TESTDATA_OUTPUT_DIR;
+    else process.env.TESTDATA_OUTPUT_DIR = previous;
+  }
+});
+
 test('private member joins include the invite URL fetched for an existing group', () => {
   assert.equal(
     memberJoinPath('group-id', 'user-id', 'ABC123'),

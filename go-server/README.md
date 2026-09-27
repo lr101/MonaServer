@@ -91,8 +91,8 @@ database, stop application writes and make and verify an off-host PostgreSQL
 backup before starting the Go container.
 
 Confirm that Flyway versions `1.0.0` through `1.0.21` all succeeded, that no
-failed Flyway migration exists, and that `schema_migrations` does not already
-exist:
+failed Flyway migration exists, that there are no other Flyway versions, and
+that `schema_migrations` does not already exist:
 
 ```sql
 SELECT installed_rank, version, description, success
@@ -112,11 +112,28 @@ LEFT JOIN flyway_schema_history AS history
     ON history.version = expected.version AND history.success
 WHERE history.version IS NULL;
 
+WITH expected(version) AS (
+    SELECT '1.0.' || generate_series(0, 21)
+)
+SELECT history.version AS unexpected_version, history.description, history.success
+FROM flyway_schema_history AS history
+LEFT JOIN expected USING (version)
+WHERE expected.version IS NULL
+ORDER BY history.installed_rank;
+
+SELECT version, description
+FROM flyway_schema_history
+WHERE success
+ORDER BY installed_rank DESC
+LIMIT 1;
+
 SELECT to_regclass(current_schema() || '.schema_migrations');
 ```
 
-Only after verifying the complete Flyway history, hand ownership to
-`golang-migrate` in one transaction:
+The missing-version and unexpected-version queries must both return no rows,
+the failed-migration query above must return no rows, and the newest-successful
+query must return version `1.0.21` (the member primary-key migration). Only
+then, hand ownership to `golang-migrate` in one transaction:
 
 ```sql
 BEGIN;

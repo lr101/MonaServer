@@ -1,6 +1,6 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scenarioFile = new URL('./scenarios.json', import.meta.url);
@@ -294,9 +294,12 @@ function shellQuote(value) {
 }
 
 export function outputPaths(
-  outputDir = process.env.TESTDATA_OUTPUT_DIR ?? 'testdata',
+  outputDir = process.env.TESTDATA_OUTPUT_DIR,
 ) {
-  const directory = resolve(outputDir);
+  if (outputDir !== undefined && !isAbsolute(outputDir)) {
+    throw new Error('TESTDATA_OUTPUT_DIR must be an absolute path');
+  }
+  const directory = resolve(outputDir ?? 'testdata');
   return {
     statePath: resolve(directory, '.seed-state.json'),
     envPath: resolve(directory, '.env.test'),
