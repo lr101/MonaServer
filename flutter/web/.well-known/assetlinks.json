@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.TheGermanApps.buff_lisa",
+      "sha256_cert_fingerprints": [
+        "9D:21:77:25:E7:CB:AA:F6:C6:06:FF:6D:9B:9F:EC:F9:22:AF:11:1D:15:EC:4A:96:57:A2:3D:3B:65:A4:13:47",
+        "0D:EF:89:49:3A:54:B2:0E:2C:F7:CA:E2:6E:E1:5B:FB:BA:E7:3E:34:F1:73:28:62:11:EB:20:30:40:3A:EE:47"
+      ]
+    }
+  }
+]
