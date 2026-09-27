@@ -31,7 +31,7 @@ test.afterEach(async ({ page }) => {
   expect(uiErrors.get(page), 'browser UI errors').toEqual([]);
 });
 
-test('email-link sign-in remains the default and can switch to password', async ({ page }) => {
+test('email-code sign-in remains the default and can switch to password', async ({ page }) => {
   let emailLinkRequests = 0;
   await page.route('**/api/v3/public/auth/email-link/request', async (route) => {
     emailLinkRequests++;
@@ -50,21 +50,18 @@ test('email-link sign-in remains the default and can switch to password', async 
   const identifier = page.locator('input[aria-label="Email or username"]');
   await expect(identifier).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
-  await enterFlutterText(page, 'Email or username', 'person@example.com');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(
-    page.getByText(
-      'If an account is eligible, a sign-in link is on its way. Check your inbox.',
-    ),
-  ).toBeVisible();
-  expect(emailLinkRequests).toBe(1);
 
   await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
   await expect(page.locator('input[aria-label="Username"]')).toBeVisible();
   await expect(page.locator('input[aria-label="Password"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Use email link instead', exact: true }).click();
+  await page.getByRole('button', { name: 'Use email code instead', exact: true }).click();
   await expect(identifier).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+
+  await enterFlutterText(page, 'Email or username', 'person@example.com');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.locator('input[aria-label="Sign-in code"]')).toBeVisible();
+  expect(emailLinkRequests).toBe(1);
 });
 
 test('password sign-in publishes browser autofill metadata', async ({ page }) => {
