@@ -166,7 +166,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             admissionPort: ref.read(emailLoginAdmissionPortProvider),
             onRequestNewLink: () => context.goNamed('emailLogin'),
             onSignedIn: () => context.goNamed('home'),
-            onBack: () => context.goNamed('emailLogin'),
+            onBack: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goNamed('login');
+              }
+            },
           );
         },
       ),

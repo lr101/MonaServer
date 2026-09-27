@@ -62,6 +62,9 @@ test('email-code sign-in remains the default and can switch to password', async 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.locator('input[aria-label="Sign-in code"]')).toBeVisible();
   expect(emailLinkRequests).toBe(1);
+
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(identifier).toBeVisible();
 });
 
 test('password sign-in publishes browser autofill metadata', async ({ page }) => {
