@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
@@ -9,6 +10,7 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
+import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -22,9 +24,11 @@ void main() {
   testWidgets('shows achievements in a separate signed-in profile tab', (
     tester,
   ) async {
+    final usersApi = _RecordingUsersApi();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          userApiProvider.overrideWithValue(usersApi),
           userIdProvider.overrideWithValue('alice'),
           userXpProvider('alice').overrideWith((ref) => null),
           userByIdSelectedBatchProvider('alice').overrideWith((ref) => null),
@@ -46,7 +50,10 @@ void main() {
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
-        child: const MaterialApp(home: UserProfile()),
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const UserProfile(),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -57,11 +64,15 @@ void main() {
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sticks'), findsNWidgets(2));
-    expect(find.text('0/3 earned'), findsOneWidget);
+    expect(find.text('0/3 earned'), findsNothing);
     expect(find.text('First stick'), findsOneWidget);
-    expect(find.text('Easy · 20 XP'), findsNWidgets(2));
-    expect(find.text('Claim 20 XP'), findsOneWidget);
+    expect(find.text('Claim 20 XP'), findsNothing);
+    expect(find.text('1/1'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+
+    await tester.tap(find.text('First stick'));
+    await tester.pump();
+    expect(usersApi.claimedId, 3);
 
     final achievementScrollables = find.descendant(
       of: find.byType(UserAchievementsTab),
@@ -74,16 +85,24 @@ void main() {
     );
     expect(find.text('Stick collector'), findsOneWidget);
     expect(find.text('3/10'), findsOneWidget);
-    expect(find.text('Keep going to unlock this reward'), findsOneWidget);
+    expect(find.text('Keep going to unlock this reward'), findsNothing);
 
     await tester.scrollUntilVisible(
       find.text('Dedicated collector'),
       250,
       scrollable: achievementScrollables.first,
     );
-    expect(find.text('XP already earned'), findsOneWidget);
-    expect(find.text('Restore badge'), findsOneWidget);
+    expect(find.text('Restore badge'), findsNothing);
   });
+}
+
+class _RecordingUsersApi extends UsersApi {
+  int? claimedId;
+
+  @override
+  Future<void> claimUserAchievement(String userId, int achievementId) async {
+    claimedId = achievementId;
+  }
 }
 
 class _TestAchievements extends Achievements {

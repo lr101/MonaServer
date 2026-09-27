@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
@@ -33,12 +34,12 @@ void main() {
       ),
     );
 
-    expect(find.text('Group achievements'), findsOneWidget);
-    expect(find.text('10 / 10 active pins'), findsOneWidget);
-    expect(find.text('Moss pin design reward'), findsOneWidget);
-    expect(find.text('Claim'), findsOneWidget);
+    expect(find.text('Group achievements'), findsNothing);
+    expect(find.text('10/10'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Claim'), findsNothing);
 
-    await tester.tap(find.text('Claim'));
+    await tester.tap(find.text('Pins 1'));
     await tester.pump();
     expect(claimedId, 1);
   });
@@ -82,9 +83,32 @@ void main() {
     expect(selectedStyle, 'moss');
   });
 
+  testWidgets('a half-finished milestone fills half its card', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [_achievement(currentValue: 5, claimable: false)],
+            group: _group(),
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    final cardWidth = tester.getSize(find.byType(AchievementCard)).width;
+    final fillWidth = tester
+        .getSize(find.byKey(const ValueKey('achievement-progress-fill')))
+        .width;
+    expect(fillWidth, closeTo(cardWidth / 2, 2));
+  });
+
   testWidgets('public progress does not let a non-member claim a reward', (
     tester,
   ) async {
+    var claims = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -92,15 +116,17 @@ void main() {
             achievements: [_achievement()],
             group: _group(member: false),
             currentUserId: 'visitor',
-            onClaimAchievement: (_) async {},
+            onClaimAchievement: (_) async => claims++,
             onPinStyleSelected: (_) => Future<String?>.value(),
           ),
         ),
       ),
     );
 
-    expect(find.text('Join to claim'), findsOneWidget);
     expect(find.text('Claim'), findsNothing);
+    await tester.tap(find.text('Pins 1'));
+    await tester.pump();
+    expect(claims, 0);
   });
 
   testWidgets('unknown membership shows a pending state and disables claim', (
@@ -120,7 +146,6 @@ void main() {
       ),
     );
 
-    expect(find.text('Checking membership'), findsOneWidget);
     expect(find.text('Claim'), findsNothing);
   });
 
@@ -161,11 +186,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Claim'));
+    await tester.tap(find.text('Pins 1'));
     await tester.pumpAndSettle();
     expect(groupsApi.claimedAchievementId, 1);
     expect(fetches, 2);
-    expect(find.byKey(const ValueKey('claimed-achievement')), findsOneWidget);
+    expect(find.text('Pins 1'), findsOneWidget);
 
     await tester.tap(find.text('Moss'));
     await tester.pumpAndSettle();
