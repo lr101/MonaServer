@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildSeedPlan, loadScenario, memberJoinPath, signupPayload } from './seed.mjs';
+import { buildSeedPlan, loadScenario, memberJoinPath, outputPaths, signupPayload } from './seed.mjs';
 
 test('fixture includes a public unjoined group with visible pins', () => {
   const plan = buildSeedPlan(loadScenario());
@@ -47,6 +47,13 @@ test('signup payload uses a non-deliverable email when a fixture omits one', () 
     name: 'fixture-user',
     password: 'secret',
     email: 'fixture-user@example.invalid',
+  });
+});
+
+test('fixture outputs can be isolated outside the repository', () => {
+  assert.deepEqual(outputPaths('/tmp/preview-fixture-a'), {
+    statePath: '/tmp/preview-fixture-a/.seed-state.json',
+    envPath: '/tmp/preview-fixture-a/.env.test',
   });
 });
 

@@ -2,7 +2,7 @@
 
 Go backend for the **Stick-It** API. It preserves the established endpoints,
 PostgreSQL/PostGIS schema, password hashes, refresh tokens, and object-store key
-layout.
+layout. Existing Spring access tokens require refresh or login after cutover.
 
 ## Requirements
 
@@ -82,6 +82,58 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
 | `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
 | `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
+
+### One-time Spring/Flyway database handoff
+
+The application runs every pending embedded migration before listening for
+requests. A fresh database needs no manual setup. For an existing Spring
+database, stop application writes and make and verify an off-host PostgreSQL
+backup before starting the Go container.
+
+Confirm that Flyway versions `1.0.0` through `1.0.21` all succeeded, that no
+failed Flyway migration exists, and that `schema_migrations` does not already
+exist:
+
+```sql
+SELECT installed_rank, version, description, success
+FROM flyway_schema_history
+ORDER BY installed_rank;
+
+SELECT version, description
+FROM flyway_schema_history
+WHERE NOT success;
+
+WITH expected(version) AS (
+    SELECT '1.0.' || generate_series(0, 21)
+)
+SELECT expected.version AS missing_successful_version
+FROM expected
+LEFT JOIN flyway_schema_history AS history
+    ON history.version = expected.version AND history.success
+WHERE history.version IS NULL;
+
+SELECT to_regclass(current_schema() || '.schema_migrations');
+```
+
+Only after verifying the complete Flyway history, hand ownership to
+`golang-migrate` in one transaction:
+
+```sql
+BEGIN;
+CREATE TABLE schema_migrations (
+    version bigint NOT NULL PRIMARY KEY,
+    dirty boolean NOT NULL
+);
+INSERT INTO schema_migrations (version, dirty) VALUES (22, false);
+COMMIT;
+TABLE schema_migrations;
+```
+
+The result must contain exactly `(22, false)`. The Go server then applies
+migration 23 and later migrations normally. If `schema_migrations` already
+exists or the Flyway history is incomplete or dirty, stop and investigate
+rather than inserting or changing a version row. Never seed version 22 on a
+fresh database.
 
 For Compose deployment, see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
 The root `.env` supplies runtime settings to the app container. Set the admin
