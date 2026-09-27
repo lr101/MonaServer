@@ -28,32 +28,31 @@ void main() {
     expect(find.text('Signed in successfully.'), findsOneWidget);
   });
 
-  testWidgets(
-    'request screen keeps delivery result generic and supports resend',
-    (tester) async {
-      final request = _FakeRequestPort();
-      await tester.pumpWidget(
-        MaterialApp(home: EmailLinkRequestScreen(requestPort: request)),
-      );
-
-      await tester.enterText(
-        find.byKey(const Key('email-login-email')),
-        'person@example.com',
-      );
-      await tester.tap(find.byKey(const Key('email-login-request')));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text(
-          'If an account is eligible, an email with a sign-in code and link is on its way.',
+  testWidgets('request screen hands accepted identifier to code navigation', (
+    tester,
+  ) async {
+    final request = _FakeRequestPort();
+    EmailLoginIdentifier? requestedIdentifier;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EmailLinkRequestScreen(
+          requestPort: request,
+          onCodeEntry: (identifier) => requestedIdentifier = identifier,
         ),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const Key('email-login-resend')));
-      await tester.pumpAndSettle();
-      expect(request.calls, 2);
-    },
-  );
+      ),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('email-login-email')),
+      'person@example.com',
+    );
+    await tester.tap(find.byKey(const Key('email-login-request')));
+    await tester.pumpAndSettle();
+
+    expect(requestedIdentifier?.value, 'person@example.com');
+    expect(request.calls, 1);
+    expect(find.textContaining('If an account is eligible'), findsNothing);
+  });
 
   for (final status in [
     EmailLinkExchangeStatus.expired,

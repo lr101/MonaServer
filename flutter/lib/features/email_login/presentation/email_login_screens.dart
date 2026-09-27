@@ -11,14 +11,14 @@ typedef EmailLoginNavigation = void Function();
 class EmailLinkRequestScreen extends StatefulWidget {
   const EmailLinkRequestScreen({
     required this.requestPort,
+    required this.onCodeEntry,
     this.onBack,
-    this.onCodeEntry,
     super.key,
   });
 
   final EmailLinkRequestPort requestPort;
   final EmailLoginNavigation? onBack;
-  final void Function(EmailLoginIdentifier identifier)? onCodeEntry;
+  final void Function(EmailLoginIdentifier identifier) onCodeEntry;
 
   @override
   State<EmailLinkRequestScreen> createState() => _EmailLinkRequestScreenState();
@@ -51,7 +51,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
     final identifier = state.status == EmailLinkRequestViewStatus.sent
         ? state.identifier
         : null;
-    if (identifier != null) widget.onCodeEntry?.call(identifier);
+    if (identifier != null) widget.onCodeEntry(identifier);
   }
 
   void _submit() {
@@ -66,7 +66,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: widget.onBack),
-        title: const Text('Sign in with an email link'),
+        title: const Text('Sign in with an email code'),
       ),
       body: SafeArea(
         child: Center(
@@ -74,9 +74,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: state.status == EmailLinkRequestViewStatus.sent
-                  ? _sentBody(state)
-                  : _entryBody(state),
+              child: _entryBody(state),
             ),
           ),
         ),
@@ -103,7 +101,7 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Enter your email address or username. If your account is eligible, we will send a one-time sign-in link to its verified email address.',
+          'Enter your email address or username to request a sign-in code.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
@@ -130,45 +128,11 @@ class _EmailLinkRequestScreenState extends State<EmailLinkRequestScreen> {
         FilledButton(
           key: const Key('email-login-request'),
           onPressed: state.isBusy ? null : _submit,
-          child: const Text('Send sign-in link'),
+          child: const Text('Send sign-in code'),
         ),
       ],
     );
   }
-
-  Widget _sentBody(EmailLinkRequestViewState state) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const Icon(Icons.mark_email_read_outlined, size: 56),
-      const SizedBox(height: 16),
-      Text(
-        'Check your email',
-        style: Theme.of(context).textTheme.headlineSmall,
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 12),
-      const Text(
-        'If an account is eligible, an email with a sign-in code and link is on its way.',
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: 24),
-      FilledButton(
-        key: const Key('email-login-resend'),
-        onPressed: state.isBusy ? null : _submit,
-        child: const Text('Resend code and link'),
-      ),
-      TextButton(
-        key: const Key('email-login-use-another'),
-        onPressed: state.isBusy
-            ? null
-            : () {
-                _identifier.clear();
-                unawaited(_controller.cancel());
-              },
-        child: const Text('Use another email address'),
-      ),
-    ],
-  );
 }
 
 /// Verifies the one-time code from the email and admits the resulting session.

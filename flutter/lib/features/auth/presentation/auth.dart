@@ -33,7 +33,6 @@ class _AuthState extends ConsumerState<Auth> {
   bool _acceptedTerms = false;
   bool _acceptedPrivacy = false;
   bool _busy = false;
-  bool _linkSent = false;
   String? _error;
 
   @override
@@ -79,15 +78,19 @@ class _AuthState extends ConsumerState<Auth> {
       ref.read(emailLinkRequestPortProvider),
     )(_identifier.text);
     if (!mounted) return;
+    if (result.status == EmailLinkRequestStatus.accepted) {
+      setState(() => _busy = false);
+      context.pushNamed('emailLoginCode', extra: result.identifier!);
+      return;
+    }
     setState(() {
       _busy = false;
-      _linkSent = result.status == EmailLinkRequestStatus.accepted;
       _error = switch (result.status) {
         EmailLinkRequestStatus.accepted => null,
         EmailLinkRequestStatus.invalidEmail =>
           'Enter a valid email address or username.',
         EmailLinkRequestStatus.unavailable =>
-          'We could not send a sign-in link. Please try again.',
+          'We could not send a sign-in code. Please try again.',
         EmailLinkRequestStatus.featureUnavailable => 'Email sign-in is not enabled on this server yet. Try username and password instead.',
       };
     });
@@ -150,7 +153,6 @@ class _AuthState extends ConsumerState<Auth> {
   void _switchMode(_AuthMode mode) => setState(() {
     _mode = mode;
     _error = null;
-    _linkSent = false;
   });
 
   void _openLegal(String path, String title) {
@@ -313,60 +315,18 @@ class _AuthState extends ConsumerState<Auth> {
                   key: Key(
                     _showPassword ? 'auth-login-password' : 'auth-login-email',
                   ),
-                  onPressed: _busy || (!_showPassword && _linkSent)
+                  onPressed: _busy
                       ? null
                       : _showPassword
                       ? _loginWithPassword
                       : _requestEmailLink,
                   child: _busy
                       ? const _BusyLabel()
-                      : Text(
-                          _showPassword
-                              ? 'Sign in'
-                              : _linkSent
-                              ? 'Sign-in link sent'
-                              : 'Continue',
-                        ),
+                      : Text(_showPassword ? 'Sign in' : 'Continue'),
                 ),
               ),
             ],
           ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.topCenter,
-          child: _linkSent
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 14),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.mark_email_read_outlined,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'If an account is eligible, a sign-in link is on its way. Check your inbox.',
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              : const SizedBox.shrink(),
         ),
         AnimatedSize(
           duration: const Duration(milliseconds: 220),
@@ -391,7 +351,6 @@ class _AuthState extends ConsumerState<Auth> {
                 : () => setState(() {
                     _showPassword = !_showPassword;
                     _error = null;
-                    _linkSent = false;
                   }),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -400,7 +359,7 @@ class _AuthState extends ConsumerState<Auth> {
             ),
             child: Text(
               _showPassword
-                  ? 'Use email link instead'
+                  ? 'Use email code instead'
                   : 'Sign in with password',
             ),
           ),
