@@ -17,7 +17,11 @@ source testdata/.env.test
 set +a
 ```
 
-The password is written only to the ignored `testdata/.env.test` file.
+By default, the password is written only to the ignored
+`testdata/.env.test` file. Set `TESTDATA_OUTPUT_DIR` to an absolute private
+directory when the fixture belongs to an isolated preview database; both
+generated files are then written there with owner-only permissions instead of
+replacing the default test fixture state.
 
 ## Fixture scenarios
 
