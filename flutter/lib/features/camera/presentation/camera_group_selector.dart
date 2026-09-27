@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// A centered, bounded group carousel with a fixed shutter target.
@@ -19,6 +21,7 @@ class CameraGroupSelector extends StatelessWidget {
 
   static const double maxCarouselWidth = 420;
   static const double itemViewportFraction = 0.24;
+  static const double shutterBorderWidth = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +58,23 @@ class CameraGroupSelector extends StatelessWidget {
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: () => onCapture(index),
-                              child: children[index],
+                              child: LayoutBuilder(
+                                builder: (context, itemConstraints) {
+                                  final avatarSize = math.min(
+                                    shutterSize - 2 * shutterBorderWidth,
+                                    math.min(
+                                      itemConstraints.maxWidth,
+                                      itemConstraints.maxHeight,
+                                    ),
+                                  );
+                                  return Center(
+                                    child: SizedBox.square(
+                                      dimension: avatarSize,
+                                      child: children[index],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
                       ],
@@ -69,7 +88,7 @@ class CameraGroupSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          width: 5,
+                          width: shutterBorderWidth,
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
