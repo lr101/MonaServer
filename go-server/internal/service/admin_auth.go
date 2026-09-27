@@ -38,7 +38,6 @@ const (
 	adminDefaultChallengeTTL        = 5 * time.Minute
 	adminDefaultIdleTTL             = 30 * time.Minute
 	adminDefaultAbsoluteTTL         = 8 * time.Hour
-	adminDefaultRecentMFATTL        = 5 * time.Minute
 	adminDefaultPreAuthTTL          = 10 * time.Minute
 	adminDefaultQuotaLimit          = 5
 	adminDefaultIPQuotaLimit        = 100
@@ -72,7 +71,6 @@ type AdminAuthConfig struct {
 	SessionIdleTTL     time.Duration
 	SessionAbsoluteTTL time.Duration
 	ChallengeTTL       time.Duration
-	RecentMFATTL       time.Duration
 	PreAuthTTL         time.Duration
 	LoginFailureLimit  int64
 	LoginIPLimit       int64
@@ -88,9 +86,6 @@ func (c AdminAuthConfig) withDefaults() AdminAuthConfig {
 	}
 	if c.ChallengeTTL <= 0 {
 		c.ChallengeTTL = adminDefaultChallengeTTL
-	}
-	if c.RecentMFATTL <= 0 {
-		c.RecentMFATTL = adminDefaultRecentMFATTL
 	}
 	if c.PreAuthTTL <= 0 {
 		c.PreAuthTTL = adminDefaultPreAuthTTL

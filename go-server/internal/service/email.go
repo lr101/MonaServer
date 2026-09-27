@@ -79,24 +79,11 @@ func (e *Email) SendTemplated(ctx context.Context, to, subject, tmplName string,
 	return e.SendHTML(ctx, to, subject, buf.String())
 }
 
-// viewLink builds a direct link to a public view route from a bare token. The
-// deployed WEB_HOST is the canonical origin, with app URL settings as fallbacks
-// for standalone deployments.
+// viewLink builds a direct link to a public view route from a bare token.
 func (e *Email) viewLink(route, token string) string {
 	var baseURL string
 	if e.cfg != nil {
-		if strings.TrimSpace(e.cfg.WebHost) != "" {
-			baseURL = strings.TrimSpace(e.cfg.WebHost)
-			if !strings.Contains(baseURL, "://") {
-				baseURL = "https://" + strings.Trim(baseURL, "/")
-			}
-		}
-		if baseURL == "" {
-			baseURL = strings.TrimSpace(e.cfg.AppURL)
-		}
-		if baseURL == "" {
-			baseURL = strings.TrimSpace(e.cfg.RedirectURL)
-		}
+		baseURL = e.cfg.PublicWebURL()
 	}
 	return strings.TrimRight(baseURL, "/") + route + token
 }

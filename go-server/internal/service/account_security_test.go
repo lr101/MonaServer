@@ -401,11 +401,10 @@ func TestRecoveryFencesAccessTokenIssuedBeforeContainment(t *testing.T) {
 	}
 }
 
-func TestConfiguredAdminUsernameWithoutMembershipIsNotAdmin(t *testing.T) {
+func TestFormerAdminUsernameWithoutMembershipIsNotAdmin(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
 	uid := createTestUser(t, auth, "configured-admin-name")
-	auth.cfg.AdminUsername = "configured-admin-name"
 	isAdmin, err := auth.IsAdmin(ctx, uid)
 	if err != nil {
 		t.Fatalf("admin lookup: %v", err)

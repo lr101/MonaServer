@@ -180,11 +180,9 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	q := db.New(pool)
 	mailHost, mailPort := startTestSMTPServer(t)
 	cfg := &config.Config{
-		JWTSecret:          "test-secret",
 		AccessTokenExpiry:  time.Minute,
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
-		AdminUsername:      "admin",
 		WebAdminAPI:        true,
 		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
@@ -193,7 +191,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		MailPassword:       "password",
 		MailFrom:           "mail@test.example",
 	}
-	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
+	tok := token.NewHelper("test-secret", cfg.AccessTokenExpiry)
 	mailSvc := service.NewEmail(cfg, nil)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
@@ -204,7 +202,6 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
 	notifSvc := service.NewNotification(context.Background(), "")
-	achCfg := db.AchievementConfig{}
 
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
@@ -222,7 +219,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		HMACKeyID: "server-test-report-v1",
 	})
 	publicServicer := handler.NewPublicServicer()
-	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	authCtrl := genserver.NewAuthAPIController(authServicer)
@@ -247,9 +244,9 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
-	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
+		r.Use(middleware.JWT(tok, authSvc))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		r.Use(redirectImageResponses)
 		r.Use(requireCompatibilityJSONFields)
@@ -266,7 +263,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
+	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
 	return httptest.NewServer(r), q
 }

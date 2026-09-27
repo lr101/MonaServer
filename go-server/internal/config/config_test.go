@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestLoadAcceptsLegacyMinioObjectStorageVariables(t *testing.T) {
+func TestLoadIgnoresLegacyMinioObjectStorageVariables(t *testing.T) {
 	for _, name := range []string{
 		"RUSTFS_ENDPOINT",
 		"RUSTFS_EXTERNAL_ENDPOINT",
@@ -30,15 +30,30 @@ func TestLoadAcceptsLegacyMinioObjectStorageVariables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if cfg.RustfsEndpoint != "minio.internal:9000" || cfg.RustfsExternalEndpoint != "objects.example.com" ||
-		cfg.RustfsAccessKey != "legacy-access" || cfg.RustfsSecretKey != "legacy-secret" || cfg.RustfsBucket != "legacy-bucket" {
-		t.Fatalf("legacy MINIO variables were not mapped: %+v", cfg)
+	if cfg.RustfsEndpoint != "" || cfg.RustfsExternalEndpoint != "" ||
+		cfg.RustfsAccessKey != "" || cfg.RustfsSecretKey != "" || cfg.RustfsBucket != "monaserver" ||
+		cfg.RustfsUseSSL || cfg.RustfsExternalUseSSL {
+		t.Fatalf("legacy MINIO variables affected RustFS configuration: %+v", cfg)
 	}
-	if !cfg.RustfsUseSSL {
-		t.Fatal("legacy MINIO_USE_SSL was not mapped")
+}
+
+func TestPublicWebURLUsesWebHost(t *testing.T) {
+	cases := []struct {
+		name string
+		host string
+		want string
+	}{
+		{name: "hostname", host: " app.example.com/ ", want: "https://app.example.com"},
+		{name: "full URL", host: " http://app.example.com/ ", want: "http://app.example.com"},
+		{name: "unset", want: ""},
 	}
-	if cfg.RustfsExternalUseSSL {
-		t.Fatal("legacy MINIO_EXTERNAL_USE_SSL=false was not preserved")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{WebHost: tc.host}
+			if got := cfg.PublicWebURL(); got != tc.want {
+				t.Fatalf("PublicWebURL() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -138,7 +153,6 @@ func TestLoadReadsAdminAuthDurationsAndQuotaLimits(t *testing.T) {
 	t.Setenv("ADMIN_SESSION_IDLE_TTL", "11m")
 	t.Setenv("ADMIN_SESSION_ABSOLUTE_TTL", "12h")
 	t.Setenv("ADMIN_CHALLENGE_TTL", "13m")
-	t.Setenv("ADMIN_RECENT_MFA_TTL", "14m")
 	t.Setenv("ADMIN_PREAUTH_TTL", "15m")
 	t.Setenv("ADMIN_LOGIN_FAILURE_LIMIT", "7")
 	t.Setenv("ADMIN_LOGIN_IP_LIMIT", "8")
@@ -149,7 +163,7 @@ func TestLoadReadsAdminAuthDurationsAndQuotaLimits(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 	if cfg.AdminSessionIdleTTL != 11*time.Minute || cfg.AdminSessionAbsoluteTTL != 12*time.Hour ||
-		cfg.AdminChallengeTTL != 13*time.Minute || cfg.AdminRecentMFATTL != 14*time.Minute || cfg.AdminPreAuthTTL != 15*time.Minute {
+		cfg.AdminChallengeTTL != 13*time.Minute || cfg.AdminPreAuthTTL != 15*time.Minute {
 		t.Fatalf("admin auth durations were not loaded: %+v", cfg)
 	}
 	if cfg.AdminLoginFailureLimit != 7 || cfg.AdminLoginIPLimit != 8 || cfg.AdminLoginGlobalLimit != 9 {

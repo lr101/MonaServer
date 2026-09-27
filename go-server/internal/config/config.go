@@ -1,8 +1,7 @@
 package config
 
 import (
-	"os"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -10,19 +9,15 @@ import (
 
 type Config struct {
 	// Server
-	Port        string `mapstructure:"PORT"`
-	WebHost     string `mapstructure:"WEB_HOST"`
-	AppURL      string `mapstructure:"APP_URL"`
-	RedirectURL string `mapstructure:"APP_REDIRECT_URL"`
+	Port    string `mapstructure:"PORT"`
+	WebHost string `mapstructure:"WEB_HOST"`
 
 	// Database
 	DatabaseURL string `mapstructure:"DATABASE_URL"`
 
 	// JWT
-	JWTSecret             string        `mapstructure:"JWT_SECRET"`
 	AccessTokenExpiry     time.Duration `mapstructure:"TOKEN_ACCESS_EXPIRY"`
 	RefreshTokenExpiry    time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
-	AdminUsername         string        `mapstructure:"TOKEN_ADMIN_USERNAME"`
 	MaxLoginAttempts      int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
 	PublicEmailLogin      bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
 	EmailLoginHMACKey     string        `mapstructure:"EMAIL_LOGIN_HMAC_KEY"`
@@ -45,7 +40,6 @@ type Config struct {
 	AdminSessionIdleTTL      time.Duration `mapstructure:"ADMIN_SESSION_IDLE_TTL"`
 	AdminSessionAbsoluteTTL  time.Duration `mapstructure:"ADMIN_SESSION_ABSOLUTE_TTL"`
 	AdminChallengeTTL        time.Duration `mapstructure:"ADMIN_CHALLENGE_TTL"`
-	AdminRecentMFATTL        time.Duration `mapstructure:"ADMIN_RECENT_MFA_TTL"`
 	AdminPreAuthTTL          time.Duration `mapstructure:"ADMIN_PREAUTH_TTL"`
 	AdminLoginFailureLimit   int64         `mapstructure:"ADMIN_LOGIN_FAILURE_LIMIT"`
 	AdminLoginIPLimit        int64         `mapstructure:"ADMIN_LOGIN_IP_LIMIT"`
@@ -70,10 +64,6 @@ type Config struct {
 
 	// Firebase
 	FirebaseConfigPath string `mapstructure:"FIREBASE_CONFIG_PATH"`
-
-	// Achievements
-	AchievementMonaGroupID   string `mapstructure:"ACHIEVEMENT_MONA_GROUP_ID"`
-	AchievementCreatedBefore string `mapstructure:"ACHIEVEMENT_CREATED_BEFORE"`
 }
 
 func Load() (*Config, error) {
@@ -83,9 +73,9 @@ func Load() (*Config, error) {
 	// Viper's Unmarshal does not consult AutomaticEnv unless keys have been
 	// bound or seeded; explicitly bind every tag used below.
 	for _, k := range []string{
-		"PORT", "WEB_HOST", "APP_URL", "APP_REDIRECT_URL", "DATABASE_URL",
-		"JWT_SECRET", "TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
-		"TOKEN_ADMIN_USERNAME", "APP_MAX_LOGIN_ATTEMPTS",
+		"PORT", "WEB_HOST", "DATABASE_URL",
+		"TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
+		"APP_MAX_LOGIN_ATTEMPTS",
 		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",
 		"EMAIL_DELIVERY_KEY", "EMAIL_DELIVERY_KEY_ID", "EMAIL_LOGIN_CALLBACK_URL", "WEB_ADMIN_API",
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
@@ -93,14 +83,13 @@ func Load() (*Config, error) {
 		"ADMIN_BOOTSTRAP_USERNAME", "ADMIN_BOOTSTRAP_PASSWORD", "ADMIN_BOOTSTRAP_TOTP_SECRET",
 		"TRUSTED_PROXY_CIDRS",
 		"ADMIN_SESSION_IDLE_TTL", "ADMIN_SESSION_ABSOLUTE_TTL", "ADMIN_CHALLENGE_TTL",
-		"ADMIN_RECENT_MFA_TTL", "ADMIN_PREAUTH_TTL", "ADMIN_LOGIN_FAILURE_LIMIT",
+		"ADMIN_PREAUTH_TTL", "ADMIN_LOGIN_FAILURE_LIMIT",
 		"ADMIN_LOGIN_IP_LIMIT", "ADMIN_LOGIN_GLOBAL_LIMIT",
 		"RUSTFS_ENDPOINT", "RUSTFS_EXTERNAL_ENDPOINT",
 		"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY",
 		"RUSTFS_BUCKET", "RUSTFS_USE_SSL", "RUSTFS_EXTERNAL_USE_SSL", "RUSTFS_URL_EXPIRY",
 		"MAIL_HOST", "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM",
 		"FIREBASE_CONFIG_PATH",
-		"ACHIEVEMENT_MONA_GROUP_ID", "ACHIEVEMENT_CREATED_BEFORE",
 	} {
 		_ = v.BindEnv(k)
 	}
@@ -118,7 +107,6 @@ func Load() (*Config, error) {
 	v.SetDefault("ADMIN_SESSION_IDLE_TTL", 30*time.Minute)
 	v.SetDefault("ADMIN_SESSION_ABSOLUTE_TTL", 8*time.Hour)
 	v.SetDefault("ADMIN_CHALLENGE_TTL", 5*time.Minute)
-	v.SetDefault("ADMIN_RECENT_MFA_TTL", 5*time.Minute)
 	v.SetDefault("ADMIN_PREAUTH_TTL", 10*time.Minute)
 	v.SetDefault("ADMIN_LOGIN_FAILURE_LIMIT", int64(5))
 	v.SetDefault("ADMIN_LOGIN_IP_LIMIT", int64(100))
@@ -132,44 +120,23 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
-	legacyString(&cfg.RustfsEndpoint, "RUSTFS_ENDPOINT", "MINIO_ENDPOINT")
-	legacyString(&cfg.RustfsExternalEndpoint, "RUSTFS_EXTERNAL_ENDPOINT", "MINIO_EXTERNAL_ENDPOINT")
-	legacyString(&cfg.RustfsAccessKey, "RUSTFS_ACCESS_KEY", "MINIO_ACCESS_KEY")
-	legacyString(&cfg.RustfsSecretKey, "RUSTFS_SECRET_KEY", "MINIO_SECRET_KEY")
-	legacyString(&cfg.RustfsBucket, "RUSTFS_BUCKET", "MINIO_BUCKET")
-	if os.Getenv("RUSTFS_USE_SSL") == "" {
-		if raw := os.Getenv("MINIO_USE_SSL"); raw != "" {
-			useSSL, err := strconv.ParseBool(raw)
-			if err != nil {
-				return nil, err
-			}
-			cfg.RustfsUseSSL = useSSL
-		}
-	}
-	cfg.RustfsExternalUseSSL = cfg.RustfsUseSSL
-	if raw := firstNonEmptyEnv("RUSTFS_EXTERNAL_USE_SSL", "MINIO_EXTERNAL_USE_SSL"); raw != "" {
-		externalUseSSL, err := strconv.ParseBool(raw)
-		if err != nil {
-			return nil, err
-		}
-		cfg.RustfsExternalUseSSL = externalUseSSL
+	if !v.IsSet("RUSTFS_EXTERNAL_USE_SSL") {
+		cfg.RustfsExternalUseSSL = cfg.RustfsUseSSL
 	}
 	return &cfg, nil
 }
 
-func legacyString(dst *string, current, legacy string) {
-	if os.Getenv(current) == "" {
-		if value := os.Getenv(legacy); value != "" {
-			*dst = value
-		}
+// PublicWebURL returns WEB_HOST as a URL, defaulting bare hostnames to HTTPS.
+func (c *Config) PublicWebURL() string {
+	if c == nil {
+		return ""
 	}
-}
-
-func firstNonEmptyEnv(names ...string) string {
-	for _, name := range names {
-		if value := os.Getenv(name); value != "" {
-			return value
-		}
+	webURL := strings.TrimSpace(c.WebHost)
+	if webURL == "" {
+		return ""
 	}
-	return ""
+	if !strings.Contains(webURL, "://") {
+		webURL = "https://" + strings.Trim(webURL, "/")
+	}
+	return strings.TrimRight(strings.TrimSpace(webURL), "/")
 }

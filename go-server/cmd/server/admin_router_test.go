@@ -87,7 +87,7 @@ func TestRealAdminRouterUsesBrowserSessionBoundary(t *testing.T) {
 	r := chi.NewRouter()
 	r.Use(globalCORS())
 	registerAdminV2Routes(r, genserver.NewAdminAPIController(handler.NewAdminServicer(q, nil, nil)), admin)
-	registerV3Routes(r, cfg, tok, v3RouteLookup{}, "admin", admin, q, emailLogin)
+	registerV3Routes(r, cfg, tok, v3RouteLookup{}, admin, q, emailLogin)
 
 	origin := "https://admin.example"
 	newRequest := func(method, path, body string) *http.Request {

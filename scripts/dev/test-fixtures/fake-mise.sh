@@ -27,6 +27,9 @@ case "${1:-}" in
   go)
     shift
     [[ "${1:-}" == run ]] || exit 2
+    if [[ -n "${FAKE_MISE_CAPTURE_API_ENV:-}" ]]; then
+      printf 'PORT=%s WEB_HOST=%s\n' "$PORT" "${WEB_HOST:-}" >> "$FAKE_MISE_CAPTURE_API_ENV"
+    fi
     exec python3 - "${PORT:?PORT is required}" <<'PY'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import sys

@@ -14,14 +14,13 @@ import (
 
 // UsersServicer implements genserver.UsersAPIServicer.
 type UsersServicer struct {
-	user   *service.User
-	guard  *service.Guard
-	q      *db.Queries
-	achCfg db.AchievementConfig
+	user  *service.User
+	guard *service.Guard
+	q     *db.Queries
 }
 
-func NewUsersServicer(user *service.User, guard *service.Guard, q *db.Queries, achCfg db.AchievementConfig) *UsersServicer {
-	return &UsersServicer{user: user, guard: guard, q: q, achCfg: achCfg}
+func NewUsersServicer(user *service.User, guard *service.Guard, q *db.Queries) *UsersServicer {
+	return &UsersServicer{user: user, guard: guard, q: q}
 }
 
 func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.ImplResponse, error) {
@@ -195,7 +194,7 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	items, err := s.q.GetAchievementProgress(ctx, id, s.achCfg)
+	items, err := s.q.GetAchievementProgress(ctx, id)
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}
@@ -232,7 +231,7 @@ func (s *UsersServicer) ClaimUserAchievement(ctx context.Context, userID string,
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id, s.achCfg)
+	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id)
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}

@@ -21,8 +21,8 @@ DEV_NGINX_PORT=18080 \
 DEV_API_PORT=23100 \
 DEV_STORAGE_PORT=23102 \
 DEV_STORAGE_CONSOLE_PORT=23103 \
-  DEV_WEB_ROOT="$web_root" \
-  DEV_PUBLIC_SCHEME=https \
+DEV_WEB_ROOT="$web_root" \
+DEV_PUBLIC_SCHEME=http \
   "$script_dir/render-nginx-worktree-config.sh" \
     "$runtime_dir/worktrees/$slug.conf"
 
@@ -37,6 +37,6 @@ grep -Fq 'user nobody nogroup;' "$runtime_dir/nginx.conf"
 grep -Fq 'proxy_pass http://127.0.0.1:23100;' "$runtime_dir/worktrees/$slug.conf"
 grep -Fq 'proxy_pass http://127.0.0.1:23102;' "$runtime_dir/worktrees/$slug.conf"
 grep -Fq "root \"$web_root\";" "$runtime_dir/worktrees/$slug.conf"
-grep -Fq "Access-Control-Allow-Origin https://web-$slug.dev.dell.lr-projects.de" "$runtime_dir/worktrees/$slug.conf"
+grep -Fq "Access-Control-Allow-Origin http://web-$slug.dev.dell.lr-projects.de" "$runtime_dir/worktrees/$slug.conf"
 
 echo 'nginx worktree config checks passed'

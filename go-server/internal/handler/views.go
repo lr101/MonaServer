@@ -22,13 +22,13 @@ var faviconBytes []byte
 var templates = template.Must(template.ParseFS(tmplFS, "templates/*.html"))
 
 type Views struct {
-	q           *db.Queries
-	tok         *token.Helper
-	security    *service.AccountSecurity
-	redirectURL string
+	q            *db.Queries
+	tok          *token.Helper
+	security     *service.AccountSecurity
+	publicWebURL string
 }
 
-func NewViews(q *db.Queries, tok *token.Helper, redirectURL string, security ...*service.AccountSecurity) *Views {
+func NewViews(q *db.Queries, tok *token.Helper, publicWebURL string, security ...*service.AccountSecurity) *Views {
 	var coordinator *service.AccountSecurity
 	if len(security) > 0 {
 		coordinator = security[0]
@@ -36,7 +36,7 @@ func NewViews(q *db.Queries, tok *token.Helper, redirectURL string, security ...
 	if coordinator == nil {
 		coordinator = service.NewAccountSecurity(q)
 	}
-	return &Views{q: q, tok: tok, security: coordinator, redirectURL: redirectURL}
+	return &Views{q: q, tok: tok, security: coordinator, publicWebURL: publicWebURL}
 }
 
 func (v *Views) RecoverPassword(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +95,7 @@ func (v *Views) RequestDeleteCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (v *Views) Root(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, v.redirectURL, http.StatusPermanentRedirect)
+	http.Redirect(w, r, v.publicWebURL, http.StatusPermanentRedirect)
 }
 
 func (v *Views) Agb(w http.ResponseWriter, r *http.Request) {
