@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 const double _defaultExpandedHeight = 180;
 const double _avatarTopPadding = 60;
 const double _avatarDimension = 80;
-const double _bottomContentSpacing = 24;
+const double _bottomContentSpacing = 12;
 
 class CustomAvatarScaffold extends ConsumerStatefulWidget {
   const CustomAvatarScaffold({
