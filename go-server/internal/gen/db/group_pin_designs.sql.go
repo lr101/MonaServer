@@ -35,6 +35,11 @@ INSERT INTO group_pin_designs AS stored (
 )
 SELECT $1, 2, $2
 WHERE $3::bigint = 1
+   OR EXISTS (
+       SELECT 1
+       FROM group_pin_designs
+       WHERE group_id = $1
+   )
 ON CONFLICT (group_id) DO UPDATE
 SET revision = stored.revision + 1,
     designs = EXCLUDED.designs,

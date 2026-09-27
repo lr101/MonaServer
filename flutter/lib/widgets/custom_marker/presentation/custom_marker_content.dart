@@ -88,8 +88,6 @@ class PinMarkerImage extends StatelessWidget {
           final overlayDiameter = headDiameter * .64;
           final overlayLeft = (width - overlayDiameter) / 2;
           final overlayTop = headCenterY - overlayDiameter / 2;
-          final badgeIcon = _badgeIcon(resolvedDesign.badge);
-
           return SizedBox(
             width: width,
             height: height,
@@ -119,30 +117,6 @@ class PinMarkerImage extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (badgeIcon != null)
-                  Positioned(
-                    left: width - 17 * scale,
-                    top: headCenterY - 5.5 * scale,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: resolvedDesign.bodyColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: resolvedDesign.outlineColor),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(scale),
-                        child: Icon(
-                          badgeIcon,
-                          size: 9 * scale,
-                          color:
-                              resolvedDesign.outlineColor.computeLuminance() >
-                                  .5
-                              ? Colors.black87
-                              : Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
                 if (isGone)
                   Positioned(
                     left: overlayLeft + overlayDiameter - 10 * scale,
@@ -216,14 +190,6 @@ class CustomMarkerContent extends ConsumerWidget {
   }
 }
 
-IconData? _badgeIcon(String badge) => switch (badge) {
-  'star' => Icons.star,
-  'leaf' => Icons.eco,
-  'sun' => Icons.wb_sunny,
-  'spark' => Icons.auto_awesome,
-  _ => null,
-};
-
 class _MapPinShadowPainter extends CustomPainter {
   const _MapPinShadowPainter(this.design, {required this.strokeWidth});
 
@@ -238,14 +204,12 @@ class _MapPinShadowPainter extends CustomPainter {
       pathSize,
       design.shape,
     ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
-    if (design.shadow) {
-      canvas.drawShadow(
-        path,
-        Colors.black.withValues(alpha: .3),
-        3 * scale,
-        true,
-      );
-    }
+    canvas.drawShadow(
+      path,
+      Colors.black.withValues(alpha: .3),
+      3 * scale,
+      true,
+    );
   }
 
   @override

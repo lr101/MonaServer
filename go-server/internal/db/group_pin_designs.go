@@ -42,11 +42,14 @@ func DefaultGroupPinDesign(style string) GroupPinDesign {
 	}
 	switch style {
 	case "moss":
-		design.Name, design.BodyColor, design.Badge = "Moss", "#668465", "leaf"
+		design.Name, design.BodyColor = "Moss", "#668465"
+		design.Shape, design.OutlineColor = "teardrop", "#D6EACD"
 	case "sunset":
-		design.Name, design.BodyColor, design.Badge = "Sunset", "#D57B50", "sun"
+		design.Name, design.BodyColor = "Sunset", "#D57B50"
+		design.Shape, design.OutlineColor = "shield", "#5A2F54"
 	case "aurora":
-		design.Name, design.BodyColor, design.Badge = "Aurora", "#6D77BA", "spark"
+		design.Name, design.BodyColor = "Aurora", "#6D77BA"
+		design.Shape, design.OutlineColor = "circle", "#C4F4EF"
 	}
 	return design
 }
