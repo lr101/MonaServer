@@ -198,6 +198,22 @@ test('logs in and renders the seeded group', async ({ page }) => {
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
 });
 
+test('settings navigation exposes its sections and hidden-user empty state', async ({ page }) => {
+  await login(page, readE2eData());
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+
+  await expect(page.getByRole('switch', { name: /Dark appearance/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Privacy & data' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hidden users', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Hidden users' })).toBeVisible();
+  const accessibilityTree = await page.locator('body').ariaSnapshot();
+  expect(accessibilityTree).toContain('No hidden users');
+  expect(accessibilityTree).toContain(
+    'Users you hide from the map and feed will appear here.',
+  );
+});
+
 test('loads pins for a public group opened through group search', async ({ page }) => {
   const data = readE2eData();
   const groupName = data.publicUnjoinedGroupName;

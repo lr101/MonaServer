@@ -53,7 +53,7 @@ class _MapHomeState extends ConsumerState<MapHome>
       },
     );
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => moveToCurrentPosition(),
+      (_) => moveToCurrentPosition(showPermissionError: false),
     );
   }
 
@@ -125,7 +125,7 @@ class _MapHomeState extends ConsumerState<MapHome>
           right: 4, // ranking panel has 4px box shadow, so position 4px from bottom and right
           child: FloatingActionButton(
             heroTag: "moveToCurrentLocation",
-            onPressed: moveToCurrentPosition,
+            onPressed: () => moveToCurrentPosition(showPermissionError: true),
             child: const Icon(Icons.my_location),
           ),
         ),
@@ -166,12 +166,16 @@ class _MapHomeState extends ConsumerState<MapHome>
     context.pushNamed("viewImage", pathParameters: {"id": m.pinDto.pinId});
   }
 
-  Future<void> moveToCurrentPosition() async {
+  Future<void> moveToCurrentPosition({
+    required bool showPermissionError,
+  }) async {
     if (!await hasLocationPermission(GeolocatorLocationPermissionGateway())) {
-      CustomErrorSnackBar.message(
-        message: 'Some functions do not work without location permission',
-        type: CustomErrorSnackBarType.error,
-      );
+      if (showPermissionError) {
+        CustomErrorSnackBar.message(
+          message: 'Some functions do not work without location permission',
+          type: CustomErrorSnackBarType.error,
+        );
+      }
       return;
     }
     try {
