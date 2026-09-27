@@ -106,8 +106,8 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   late int _revision;
   late String _selectedStyle;
   late Map<String, MapPinDesign> _designs;
+  final Set<String> _dirtyStyles = <String>{};
   bool _saving = false;
-  bool _saved = false;
 
   @override
   void initState() {
@@ -128,7 +128,7 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   void _change(MapPinDesign design) {
     setState(() {
       _designs[_selectedStyle] = design;
-      _saved = false;
+      _dirtyStyles.add(_selectedStyle);
     });
   }
 
@@ -147,13 +147,12 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
       if (!mounted || updated == null) return;
       setState(() {
         _revision = updated.revision;
+        _dirtyStyles.remove(_selectedStyle);
         for (final design in updated.designs) {
-          _designs.putIfAbsent(
-            design.style.value,
-            () => MapPinDesign.fromDto(design),
-          );
+          if (!_dirtyStyles.contains(design.style.value)) {
+            _designs[design.style.value] = MapPinDesign.fromDto(design);
+          }
         }
-        _saved = true;
       });
       ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -201,11 +200,10 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
         setState(() {
           _revision = latest.revision;
           for (final design in latest.designs) {
-            if (design.style.value != _selectedStyle) {
+            if (!_dirtyStyles.contains(design.style.value)) {
               _designs[design.style.value] = MapPinDesign.fromDto(design);
             }
           }
-          _saved = false;
         });
         ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
       }
@@ -234,6 +232,7 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final design = _design;
+    final designIsDirty = _dirtyStyles.contains(_selectedStyle);
     final groupProfileImage =
         (ref
             .watch(groupProfilePictureSmallByIdProvider(widget.groupId))
@@ -326,14 +325,14 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: _saving || _saved ? null : _save,
+            onPressed: _saving || !designIsDirty ? null : _save,
             icon: _saving
                 ? const SizedBox.square(
                     dimension: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_outlined),
-            label: Text(_saved ? 'Saved' : 'Save design'),
+            label: Text(designIsDirty ? 'Save design' : 'Saved'),
           ),
         ),
         const SizedBox(height: 4),
