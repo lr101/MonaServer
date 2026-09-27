@@ -63,7 +63,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
       title: _buildTitle(currentUser),
       actions: _buildActions(context),
       hasBackButton: widget.hasBackButton,
-      profileQuickViewBoxes: _buildQuickStats(userPins, ref),
+      profileQuickViewBoxes: _buildQuickStats(userPins, likes, ref),
       bottom: TabBar(
         controller: _tabController,
         isScrollable: false,
@@ -82,7 +82,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
           ),
         ],
       ),
-      boxes: _buildDetailList(currentUser, likes),
+      boxes: _buildDetailList(currentUser),
       body: TabBarView(
         controller: _tabController,
         children: [
@@ -127,7 +127,11 @@ class _UserProfileState extends ConsumerState<UserProfile>
     ];
   }
 
-  Widget _buildQuickStats(AsyncValue<List<PinEntity>> userPins, WidgetRef ref) {
+  Widget _buildQuickStats(
+    AsyncValue<List<PinEntity>> userPins,
+    AsyncValue<UserLikesDto> likes,
+    WidgetRef ref,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -139,6 +143,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
           "Groups",
           ref.watch(userGroupServiceProvider).value?.length.toString() ?? "---",
         ),
+        _statItem("Likes", likes.value?.likeCount.toString() ?? "-"),
       ],
     );
   }
@@ -158,7 +163,6 @@ class _UserProfileState extends ConsumerState<UserProfile>
 
   List<SliverToBoxAdapter> _buildDetailList(
     AsyncValue<UserEntity?> currentUser,
-    AsyncValue<UserLikesDto> likes,
   ) {
     return [
       if (currentUser.value?.description != null)
@@ -180,18 +184,6 @@ class _UserProfileState extends ConsumerState<UserProfile>
         SliverToBoxAdapter(
           child: SeasonTile(bestSeason: currentUser.value!.bestSeason!),
         ),
-      SliverToBoxAdapter(
-        child: ListTile(
-          title: const Text(
-            "Likes",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(
-            likes.value?.likeCount.toString() ?? "-",
-            style: const TextStyle(fontStyle: FontStyle.italic),
-          ),
-        ),
-      ),
     ];
   }
 }
