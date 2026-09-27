@@ -1,10 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,7 +35,7 @@ void main() {
 
     expect(find.text('Group achievements'), findsOneWidget);
     expect(find.text('10 / 10 active pins'), findsOneWidget);
-    expect(find.text('Moss frame reward'), findsOneWidget);
+    expect(find.text('Moss pin design reward'), findsOneWidget);
     expect(find.text('Claim'), findsOneWidget);
 
     await tester.tap(find.text('Claim'));
@@ -39,7 +43,7 @@ void main() {
     expect(claimedId, 1);
   });
 
-  testWidgets('admins can choose only pin frames the group has unlocked', (
+  testWidgets('admins can choose only pin designs the group has unlocked', (
     tester,
   ) async {
     String? selectedStyle;
@@ -120,7 +124,7 @@ void main() {
     expect(find.text('Claim'), findsNothing);
   });
 
-  testWidgets('panel claims a reward and saves the shared pin frame', (
+  testWidgets('panel claims a reward and saves the shared pin design', (
     tester,
   ) async {
     final groupsApi = _RecordingGroupsApi();
@@ -132,6 +136,9 @@ void main() {
         overrides: [
           userIdProvider.overrideWithValue('member-1'),
           groupApiProvider.overrideWithValue(groupsApi),
+          groupProfilePictureSmallByIdProvider('group-1')
+              .overrideWith((ref) => const Stream<Uint8List?>.empty()),
+          groupPinDesignCatalogProvider('group-1').overrideWith((ref) => null),
           userGroupServiceProvider.overrideWith(
             () => _RecordingUserGroupService(groupServiceCalls),
           ),

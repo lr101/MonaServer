@@ -2,8 +2,10 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,13 +33,20 @@ class _GroupAchievementsPanelState
   @override
   Widget build(BuildContext context) {
     final achievements = ref.watch(groupAchievementsProvider(widget.groupId));
+    final designCatalog = ref
+        .watch(groupPinDesignCatalogProvider(widget.groupId))
+        .value;
+    final groupImage = ref
+        .watch(groupProfilePictureSmallByIdProvider(widget.groupId))
+        .value;
     return achievements.when(
       data: (items) => items == null || items.isEmpty
           ? const SizedBox.shrink()
           : GroupAchievementsCard(
               achievements: items,
-              groupId: widget.groupId,
               group: widget.group,
+              designCatalog: designCatalog,
+              groupImage: groupImage,
               currentUserId: ref.watch(userIdProvider),
               claimingAchievementId: _claimingAchievementId,
               celebratingAchievementId: _celebratingAchievementId,
@@ -61,6 +70,7 @@ class _GroupAchievementsPanelState
           .claimGroupAchievement(widget.groupId, achievementId);
       if (!mounted) return;
       ref.invalidate(groupAchievementsProvider(widget.groupId));
+      ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
       setState(() => _celebratingAchievementId = achievementId);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
@@ -96,7 +106,7 @@ class _GroupAchievementsPanelState
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('${_styleName(style)} frame selected for group pins'),
+            content: Text('${_styleName(style)} pin design selected'),
           ),
         );
       } else if (error != null && mounted) {

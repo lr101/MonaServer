@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:buff_lisa/data/entity/group_entity.dart';
-import 'package:buff_lisa/features/progression/presentation/group_pin_customizer.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
+import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/api.dart';
 
@@ -7,8 +10,9 @@ class GroupAchievementsCard extends StatelessWidget {
   const GroupAchievementsCard({
     super.key,
     required this.achievements,
-    this.groupId = '',
     required this.group,
+    this.designCatalog,
+    this.groupImage,
     required this.currentUserId,
     required this.onClaimAchievement,
     required this.onPinStyleSelected,
@@ -18,8 +22,9 @@ class GroupAchievementsCard extends StatelessWidget {
   });
 
   final List<GroupAchievementsDtoInner> achievements;
-  final String groupId;
   final GroupEntity? group;
+  final GroupPinDesignCatalogDto? designCatalog;
+  final Uint8List? groupImage;
   final String currentUserId;
   final Future<void> Function(int achievementId) onClaimAchievement;
   final Future<String?> Function(String style) onPinStyleSelected;
@@ -69,7 +74,7 @@ class GroupAchievementsCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Earn shared frames for your group pins.',
+                'Earn shared pin designs for your group.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -94,6 +99,8 @@ class GroupAchievementsCard extends StatelessWidget {
                   isCelebrating:
                       celebratingAchievementId ==
                       sortedAchievements[index].achievementId,
+                  designCatalog: designCatalog,
+                  groupImage: groupImage,
                   onClaim: () => onClaimAchievement(
                     sortedAchievements[index].achievementId,
                   ),
@@ -111,9 +118,19 @@ class GroupAchievementsCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Choose the style used by this group and customize its earned designs.',
+                  'Choose an earned shape and color combination for group pins.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: _PinDesignPreview(
+                    style: group?.pinStyle ?? 'classic',
+                    designCatalog: designCatalog,
+                    groupImage: groupImage,
+                    width: 58,
+                    height: 66,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -127,7 +144,13 @@ class GroupAchievementsCard extends StatelessWidget {
                       ].map((style) {
                         final selected = group?.pinStyle == style;
                         return ChoiceChip(
-                          avatar: _StyleSwatch(style: style, size: 14),
+                          avatar: _PinDesignPreview(
+                            style: style,
+                            designCatalog: designCatalog,
+                            groupImage: groupImage,
+                            width: 26,
+                            height: 32,
+                          ),
                           label: Text(_styleName(style)),
                           selected: selected,
                           onSelected: updatingPinStyle || selected
@@ -140,23 +163,20 @@ class GroupAchievementsCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   const LinearProgressIndicator(minHeight: 2),
                 ],
-                const SizedBox(height: 16),
-                if (groupId.isNotEmpty)
-                  GroupPinCustomizer(
-                    groupId: groupId,
-                    unlockedStyles: _pinStyles
-                        .where(claimedStyles.contains)
-                        .toList(),
-                    activeStyle: group?.pinStyle ?? 'classic',
-                  ),
               ] else if (!isAdmin && group != null) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _StyleSwatch(style: group!.pinStyle, size: 16),
+                    _PinDesignPreview(
+                      style: group!.pinStyle,
+                      designCatalog: designCatalog,
+                      groupImage: groupImage,
+                      width: 30,
+                      height: 36,
+                    ),
                     const SizedBox(width: 8),
                     Text(
-                      'Group pin frame: ${_styleName(group!.pinStyle)}',
+                      'Group pin appearance: ${_styleName(group!.pinStyle)}',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -180,6 +200,8 @@ class _AchievementRow extends StatelessWidget {
     required this.reduceMotion,
     required this.isClaiming,
     required this.isCelebrating,
+    required this.designCatalog,
+    required this.groupImage,
     required this.onClaim,
   });
 
@@ -189,6 +211,8 @@ class _AchievementRow extends StatelessWidget {
   final bool reduceMotion;
   final bool isClaiming;
   final bool isCelebrating;
+  final GroupPinDesignCatalogDto? designCatalog;
+  final Uint8List? groupImage;
   final Future<void> Function() onClaim;
 
   @override
@@ -215,7 +239,13 @@ class _AchievementRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _StyleSwatch(style: achievement.rewardPinStyle.value, size: 20),
+              _PinDesignPreview(
+                style: achievement.rewardPinStyle.value,
+                designCatalog: designCatalog,
+                groupImage: groupImage,
+                width: 26,
+                height: 32,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -236,7 +266,7 @@ class _AchievementRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${_styleName(achievement.rewardPinStyle.value)} frame reward',
+                      '${_styleName(achievement.rewardPinStyle.value)} pin design reward',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.secondary,
                         fontWeight: FontWeight.w600,
@@ -350,24 +380,50 @@ class _ClaimedBadge extends StatelessWidget {
   }
 }
 
-class _StyleSwatch extends StatelessWidget {
-  const _StyleSwatch({required this.style, required this.size});
+class _PinDesignPreview extends StatelessWidget {
+  const _PinDesignPreview({
+    required this.style,
+    required this.designCatalog,
+    required this.groupImage,
+    required this.width,
+    required this.height,
+  });
 
   final String style;
-  final double size;
+  final GroupPinDesignCatalogDto? designCatalog;
+  final Uint8List? groupImage;
+  final double width;
+  final double height;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    key: ValueKey('pin-style-frame-$style'),
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      border: Border.all(
-        color: _styleColor(Theme.of(context), style),
-        width: 2,
+  Widget build(BuildContext context) {
+    final design = MapPinDesign.forCatalog(designCatalog, style);
+    return SizedBox(
+      width: width,
+      height: height,
+      child: PinMarkerImage(
+        isGone: false,
+        style: style,
+        design: design,
+        image: groupImage == null
+            ? ColoredBox(
+                color: design.bodyColor,
+                child: Center(
+                  child: Icon(
+                    Icons.groups_rounded,
+                    color: Colors.white,
+                    size: width * .34,
+                  ),
+                ),
+              )
+            : Image.memory(
+                groupImage!,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
       ),
-    ),
-    child: SizedBox.square(dimension: size),
-  );
+    );
+  }
 }
 
 Color _styleColor(ThemeData theme, String style) => switch (style) {

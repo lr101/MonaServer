@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('pin marker shows the selected frame and gone state', (
+  testWidgets('pin marker shows the selected design and gone state', (
     tester,
   ) async {
     final markerKey = GlobalKey();
@@ -26,7 +26,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('pin-style-frame-moss')), findsOneWidget);
     expect(
-      find.bySemanticsLabel('Pin marked gone · Moss frame'),
+      find.bySemanticsLabel('Pin marked gone · Moss pin design'),
       findsOneWidget,
     );
 
