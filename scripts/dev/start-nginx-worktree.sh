@@ -248,14 +248,12 @@ source "$env_file"
 set +a
 
 [[ -n "${DATABASE_URL:-}" ]] || die 'DATABASE_URL is required in .env.dev'
-[[ -n "${JWT_SECRET:-}" ]] || die 'JWT_SECRET is required in .env.dev'
-[[ -n "${TOKEN_ADMIN_USERNAME:-}" ]] || die 'TOKEN_ADMIN_USERNAME is required in .env.dev'
 
-rustfs_access_key=${RUSTFS_ACCESS_KEY:-${MINIO_ACCESS_KEY:-}}
-rustfs_secret_key=${RUSTFS_SECRET_KEY:-${MINIO_SECRET_KEY:-}}
+rustfs_access_key=${RUSTFS_ACCESS_KEY:-}
+rustfs_secret_key=${RUSTFS_SECRET_KEY:-}
 [[ -n "$rustfs_access_key" ]] || die 'RUSTFS_ACCESS_KEY is required in .env.dev'
 [[ -n "$rustfs_secret_key" ]] || die 'RUSTFS_SECRET_KEY is required in .env.dev'
-rustfs_bucket=${RUSTFS_BUCKET:-${MINIO_BUCKET:-monaserver}}
+rustfs_bucket=${RUSTFS_BUCKET:-monaserver}
 
 native_database_url=$DATABASE_URL
 native_database_url=${native_database_url//@db:5432/@127.0.0.1:5432}
@@ -651,8 +649,7 @@ wait_for_storage
 echo "Starting Go API on 127.0.0.1:$api_port..." >&2
 (
   export PORT="$api_port"
-  export APP_URL="$api_url"
-  export APP_REDIRECT_URL="$web_url"
+  export WEB_HOST="$web_url"
   export DATABASE_URL="$native_database_url"
   export RUSTFS_ENDPOINT="127.0.0.1:$storage_port"
   export RUSTFS_EXTERNAL_ENDPOINT="$storage_host"

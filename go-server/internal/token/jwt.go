@@ -1,7 +1,9 @@
 package token
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -32,6 +34,16 @@ type accessClaims struct {
 
 func NewHelper(secret string, accessTTL time.Duration) *Helper {
 	return &Helper{secret: []byte(secret), accessTTL: accessTTL}
+}
+
+// NewEphemeralHelper uses a fresh signing key for this process. Access tokens
+// issued by a previous process cannot be verified after a restart.
+func NewEphemeralHelper(accessTTL time.Duration) (*Helper, error) {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, fmt.Errorf("generate JWT signing key: %w", err)
+	}
+	return &Helper{secret: secret, accessTTL: accessTTL}, nil
 }
 
 // GenerateAccessToken preserves the legacy no-generation shape when called

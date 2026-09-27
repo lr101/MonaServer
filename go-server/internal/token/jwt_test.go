@@ -40,6 +40,28 @@ func TestParseWrongSecret(t *testing.T) {
 	}
 }
 
+func TestEphemeralHelperInvalidatesAccessTokensAcrossStarts(t *testing.T) {
+	first, err := NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("first helper: %v", err)
+	}
+	second, err := NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("second helper: %v", err)
+	}
+	uid := uuid.New()
+	access, err := first.GenerateAccessToken(uid)
+	if err != nil {
+		t.Fatalf("generate access token: %v", err)
+	}
+	if _, err := first.ParseAccessToken(access); err != nil {
+		t.Fatalf("current process rejected its own access token: %v", err)
+	}
+	if _, err := second.ParseAccessToken(access); err == nil {
+		t.Fatal("new process accepted an access token from the previous process")
+	}
+}
+
 func TestGenerationClaimRoundTripAndLegacyCompatibility(t *testing.T) {
 	h := NewHelper("test-secret", time.Minute)
 	uid := uuid.New()

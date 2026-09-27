@@ -117,6 +117,44 @@ func TestAuthSignupLoginRefresh(t *testing.T) {
 	}
 }
 
+func TestRefreshTokenSurvivesEphemeralAccessKeyRotation(t *testing.T) {
+	_, q := setupPool(t)
+	oldKey, err := token.NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("generate initial signing key: %v", err)
+	}
+	newKey, err := token.NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("generate restarted signing key: %v", err)
+	}
+	cfg := &config.Config{MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour}
+	ctx := context.Background()
+
+	beforeRestart := NewAuth(q, oldKey, cfg)
+	pair, err := beforeRestart.Signup(ctx, "key_rotation_user", "pw12345", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if _, err := newKey.ParseAccessToken(pair.AccessToken); err == nil {
+		t.Fatal("new signing key accepted an access token from before restart")
+	}
+
+	afterRestart := NewAuth(q, newKey, cfg)
+	refreshed, err := afterRestart.Refresh(ctx, pair.RefreshToken, pair.UserID)
+	if err != nil {
+		t.Fatalf("refresh with rotated access key: %v", err)
+	}
+	if refreshed.RefreshToken != pair.RefreshToken {
+		t.Fatal("refresh unexpectedly rotated the stored refresh credential")
+	}
+	if userID, err := newKey.ParseAccessToken(refreshed.AccessToken); err != nil || userID != pair.UserID {
+		t.Fatalf("new access token = %v, %v; want user %s", userID, err, pair.UserID)
+	}
+	if _, err := q.FindRefreshToken(ctx, pair.RefreshToken); err != nil {
+		t.Fatalf("refresh token was not retained in the database: %v", err)
+	}
+}
+
 func TestRefreshRejectsAndDeletesExpiredToken(t *testing.T) {
 	q, auth, _, _, _, _, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -170,7 +208,7 @@ func TestSignupRollsBackWhenConfirmationMailFails(t *testing.T) {
 	ctx := context.Background()
 	failingMail := NewEmail(&config.Config{
 		MailHost: "127.0.0.1", MailPort: 1, MailUsername: "sender@example.com",
-		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
+		MailPassword: "password", MailFrom: "sender@example.com", WebHost: "app.example.com",
 	}, nil)
 	auth := NewAuth(q, token.NewHelper("test-secret", time.Minute), &config.Config{
 		MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour,

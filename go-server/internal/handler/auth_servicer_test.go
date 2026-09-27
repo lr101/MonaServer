@@ -99,7 +99,7 @@ func TestPasswordRecoveryUsesTenMinuteExpiryAndReportsMailFailure(t *testing.T) 
 	}
 	failingMail := service.NewEmail(&config.Config{
 		MailHost: "127.0.0.1", MailPort: 1, MailUsername: "sender@example.com",
-		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
+		MailPassword: "password", MailFrom: "sender@example.com", WebHost: "app.example.com",
 	}, nil)
 	servicer := NewAuthServicer(auth, baseServicer.q, failingMail)
 	resp, err := servicer.RequestPasswordRecovery(ctx, "recovery_user")
@@ -120,7 +120,7 @@ func TestPasswordRecoveryUsesTenMinuteExpiryAndReportsMailFailure(t *testing.T) 
 	host, port, received := startSMTPRecorder(t)
 	workingMail := service.NewEmail(&config.Config{
 		MailHost: host, MailPort: port, MailUsername: "sender@example.com",
-		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
+		MailPassword: "password", MailFrom: "sender@example.com", WebHost: "app.example.com",
 	}, nil)
 	servicer = NewAuthServicer(auth, baseServicer.q, workingMail)
 	before := time.Now()

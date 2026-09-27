@@ -10,8 +10,8 @@ import (
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
-// UserLookup returns the user's username for role determination. It is kept
-// as the base interface so older service/test doubles remain source
+// UserLookup confirms that the JWT subject still identifies an existing user.
+// It is kept as the base interface so older service/test doubles remain source
 // compatible.
 type UserLookup interface {
 	GetUsername(ctx context.Context, id uuid.UUID) (string, error)
@@ -32,7 +32,7 @@ type PrincipalLookup = SecurityLookup
 
 // JWT parses Bearer token, loads user, and injects UserID + Role into context.
 // Missing or invalid tokens return 401.
-func JWT(tok *token.Helper, lookup UserLookup, adminUsername string) func(http.Handler) http.Handler {
+func JWT(tok *token.Helper, lookup UserLookup) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := r.Header.Get("Authorization")

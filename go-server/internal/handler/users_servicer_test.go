@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lrprojects/monaserver/internal/db"
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -16,7 +15,7 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
-	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
 	ctx := context.Background()
 	user, err := auth.Signup(ctx, "complete_user_info", "password123", nil)
 	if err != nil {
@@ -91,7 +90,7 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
-	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
 	ctx := context.Background()
 	user, err := auth.Signup(ctx, "achievement_catalog_user", "password123", nil)
 	if err != nil {
@@ -133,7 +132,7 @@ func TestGetUserAchievementsIncludesFalseRewardAvailability(t *testing.T) {
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
 	groupSvc := service.NewGroup(q, nil, userSvc)
 	pinSvc := service.NewPin(q, nil)
-	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
 	ctx := context.Background()
 	user, err := auth.Signup(ctx, "reward_availability_user", "password123", nil)
 	if err != nil {
@@ -185,7 +184,7 @@ func TestGetUserXpIncludesLevelProgress(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
-	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
 	ctx := context.Background()
 	user, err := auth.Signup(ctx, "xp_progress_user", "password123", nil)
 	if err != nil {
@@ -214,7 +213,7 @@ func TestUpdateUserRejectsInvalidBase64Image(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
-	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q, db.AchievementConfig{})
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
 	ctx := context.Background()
 	user, err := auth.Signup(ctx, "invalid_user_image", "password123", nil)
 	if err != nil {

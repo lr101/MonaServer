@@ -27,8 +27,6 @@ podman run -d --name mona-db -e POSTGRES_USER=mona -e POSTGRES_PASSWORD=mona \
 # configure + run
 cd go-server
 export DATABASE_URL="postgres://mona:mona@localhost:5432/mona?sslmode=disable"
-export JWT_SECRET="change-me"
-export TOKEN_ADMIN_USERNAME="root"   # account whose username grants ADMIN role
 export PORT=8080
 go run ./cmd/server
 ```
@@ -46,16 +44,22 @@ foreground RustFS when Docker or Podman is unavailable, see
 
 ## Configuration (environment variables)
 
+The server generates a fresh access JWT signing key on every process start.
+Existing access tokens then fail verification; database-backed refresh tokens
+remain valid and can issue a new access token. Run a single API process per
+deployment when using this process-local key.
+Administrator access comes from database admin membership. The old
+`TOKEN_ADMIN_USERNAME` setting is unused and can be removed from existing env
+files.
+
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | `postgres://user:pw@host:5432/db?sslmode=disable` |
-| `JWT_SECRET` | — | HS256 signing key |
 | `TOKEN_ACCESS_EXPIRY` | `15m` | Go duration string |
 | `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
-| `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
-| `WEB_HOST` | — | Public HTTPS hostname; canonical domain for email links |
+| `WEB_HOST` | — | Public hostname; canonical domain for email links and the API root redirect |
 | `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and own-session revoke routes; restricted recovery completion remains unavailable |
 | `EMAIL_LOGIN_HMAC_KEY`, `EMAIL_LOGIN_HMAC_KEY_ID` | — | At least 32 bytes and stable ID for public request quotas; required when email login is enabled |
 | `EMAIL_DELIVERY_KEY`, `EMAIL_DELIVERY_KEY_ID` | — | 32-byte AES key and stable ID for durable email payloads; required when email login is enabled |
@@ -67,11 +71,8 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
 | `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
 | `ADMIN_CHALLENGE_TTL` | `5m` | Password challenge lifetime |
-| `ADMIN_RECENT_MFA_TTL` | `5m` | Legacy setting retained for configuration compatibility; login MFA now lasts for the authenticated session |
 | `ADMIN_PREAUTH_TTL` | `10m` | Pre-authentication browser envelope lifetime |
 | `ADMIN_LOGIN_FAILURE_LIMIT` / `ADMIN_LOGIN_IP_LIMIT` / `ADMIN_LOGIN_GLOBAL_LIMIT` | `5` / `100` / `1000` | Shared account, IP, and global admin proof-failure quotas |
-| `APP_URL` | — | Full public URL for email links when `WEB_HOST` is unset |
-| `APP_REDIRECT_URL` | — | Public URL used for the root redirect and as a final email-link fallback |
 | `RUSTFS_ENDPOINT` | — | Internal S3 endpoint, e.g. `rustfs:9000` |
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
@@ -81,8 +82,6 @@ foreground RustFS when Docker or Podman is unavailable, see
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
-| `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
-| `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
 
 ### One-time Spring/Flyway database handoff
 
