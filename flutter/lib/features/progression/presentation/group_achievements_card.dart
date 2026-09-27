@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +18,6 @@ class GroupAchievementsCard extends StatelessWidget {
     required this.onClaimAchievement,
     required this.onPinStyleSelected,
     this.claimingAchievementId,
-    this.celebratingAchievementId,
     this.updatingPinStyle = false,
   });
 
@@ -29,13 +29,11 @@ class GroupAchievementsCard extends StatelessWidget {
   final Future<void> Function(int achievementId) onClaimAchievement;
   final Future<String?> Function(String style) onPinStyleSelected;
   final int? claimingAchievementId;
-  final int? celebratingAchievementId;
   final bool updatingPinStyle;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
     final sortedAchievements = [...achievements]
       ..sort((a, b) {
         if (a.claimable != b.claimable) return a.claimable ? -1 : 1;
@@ -54,136 +52,100 @@ class GroupAchievementsCard extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Group achievements and shared pin appearance',
-      child: Card(
-        margin: EdgeInsets.zero,
-        color: theme.colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < sortedAchievements.length; index++) ...[
+              if (index > 0) const SizedBox(height: 8),
+              _AchievementRow(
+                achievement: sortedAchievements[index],
+                canClaim: group?.userIsMember == true,
+                isClaiming:
+                    claimingAchievementId ==
+                    sortedAchievements[index].achievementId,
+                onClaim: () =>
+                    onClaimAchievement(sortedAchievements[index].achievementId),
+              ),
+            ],
+            if (isAdmin && claimedStyles.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Divider(height: 1, color: theme.colorScheme.outlineVariant),
+              const SizedBox(height: 12),
               Text(
-                'Group achievements',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                'Pin appearance',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'Earn shared pin designs for your group.',
+                'Choose an earned shape and color combination for group pins.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 12),
-              for (
-                var index = 0;
-                index < sortedAchievements.length;
-                index++
-              ) ...[
-                if (index > 0) const SizedBox(height: 8),
-                _AchievementRow(
-                  achievement: sortedAchievements[index],
-                  canClaim: group?.userIsMember == true,
-                  claimUnavailableText: group == null
-                      ? 'Checking membership'
-                      : 'Join to claim',
-                  reduceMotion: reduceMotion,
-                  isClaiming:
-                      claimingAchievementId ==
-                      sortedAchievements[index].achievementId,
-                  isCelebrating:
-                      celebratingAchievementId ==
-                      sortedAchievements[index].achievementId,
+              const SizedBox(height: 8),
+              Center(
+                child: _PinDesignPreview(
+                  style: group?.pinStyle ?? 'classic',
                   designCatalog: designCatalog,
                   groupImage: groupImage,
-                  onClaim: () => onClaimAchievement(
-                    sortedAchievements[index].achievementId,
-                  ),
+                  width: 58,
+                  height: 66,
                 ),
-              ],
-              if (isAdmin && claimedStyles.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Divider(height: 1, color: theme.colorScheme.outlineVariant),
-                const SizedBox(height: 12),
-                Text(
-                  'Pin appearance',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Choose an earned shape and color combination for group pins.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children:
+                    [
+                      'classic',
+                      ..._pinStyles.where(claimedStyles.contains),
+                    ].map((style) {
+                      final selected = group?.pinStyle == style;
+                      return ChoiceChip(
+                        avatar: _PinDesignPreview(
+                          style: style,
+                          designCatalog: designCatalog,
+                          groupImage: groupImage,
+                          width: 26,
+                          height: 32,
+                        ),
+                        label: Text(_styleName(style)),
+                        selected: selected,
+                        onSelected: updatingPinStyle || selected
+                            ? null
+                            : (_) => onPinStyleSelected(style),
+                      );
+                    }).toList(),
+              ),
+              if (updatingPinStyle) ...[
                 const SizedBox(height: 8),
-                Center(
-                  child: _PinDesignPreview(
-                    style: group?.pinStyle ?? 'classic',
+                const LinearProgressIndicator(minHeight: 2),
+              ],
+            ] else if (!isAdmin && group != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _PinDesignPreview(
+                    style: group!.pinStyle,
                     designCatalog: designCatalog,
                     groupImage: groupImage,
-                    width: 58,
-                    height: 66,
+                    width: 30,
+                    height: 36,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children:
-                      [
-                        'classic',
-                        ..._pinStyles.where(claimedStyles.contains),
-                      ].map((style) {
-                        final selected = group?.pinStyle == style;
-                        return ChoiceChip(
-                          avatar: _PinDesignPreview(
-                            style: style,
-                            designCatalog: designCatalog,
-                            groupImage: groupImage,
-                            width: 26,
-                            height: 32,
-                          ),
-                          label: Text(_styleName(style)),
-                          selected: selected,
-                          onSelected: updatingPinStyle || selected
-                              ? null
-                              : (_) => onPinStyleSelected(style),
-                        );
-                      }).toList(),
-                ),
-                if (updatingPinStyle) ...[
-                  const SizedBox(height: 8),
-                  const LinearProgressIndicator(minHeight: 2),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Group pin appearance: ${_styleName(group!.pinStyle)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
-              ] else if (!isAdmin && group != null) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _PinDesignPreview(
-                      style: group!.pinStyle,
-                      designCatalog: designCatalog,
-                      groupImage: groupImage,
-                      width: 30,
-                      height: 36,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Group pin appearance: ${_styleName(group!.pinStyle)}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -196,186 +158,32 @@ class _AchievementRow extends StatelessWidget {
   const _AchievementRow({
     required this.achievement,
     required this.canClaim,
-    required this.claimUnavailableText,
-    required this.reduceMotion,
     required this.isClaiming,
-    required this.isCelebrating,
-    required this.designCatalog,
-    required this.groupImage,
     required this.onClaim,
   });
 
   final GroupAchievementsDtoInner achievement;
   final bool canClaim;
-  final String claimUnavailableText;
-  final bool reduceMotion;
   final bool isClaiming;
-  final bool isCelebrating;
-  final GroupPinDesignCatalogDto? designCatalog;
-  final Uint8List? groupImage;
   final Future<void> Function() onClaim;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final progress = achievement.thresholdValue <= 0
         ? 0.0
         : (achievement.currentValue / achievement.thresholdValue).clamp(
             0.0,
             1.0,
           );
-    final noun = achievement.track == 'active_pins' ? 'active pins' : 'pins';
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _PinDesignPreview(
-                style: achievement.rewardPinStyle.value,
-                designCatalog: designCatalog,
-                groupImage: groupImage,
-                width: 26,
-                height: 32,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      achievement.name ?? 'Group pin milestone',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      achievement.description ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${_styleName(achievement.rewardPinStyle.value)} pin design reward',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.secondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (achievement.claimed)
-                _ClaimedBadge(
-                  animate: isCelebrating,
-                  reduceMotion: reduceMotion,
-                )
-              else if (achievement.claimable)
-                if (!canClaim)
-                  Text(
-                    claimUnavailableText,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                else
-                  FilledButton.tonal(
-                    onPressed: isClaiming ? null : onClaim,
-                    child: isClaiming
-                        ? const SizedBox.square(
-                            dimension: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Claim'),
-                  )
-              else
-                Icon(
-                  Icons.lock_outline_rounded,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(end: progress),
-                  duration: reduceMotion
-                      ? Duration.zero
-                      : const Duration(milliseconds: 350),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, value, _) => LinearProgressIndicator(
-                    value: value,
-                    minHeight: 5,
-                    borderRadius: BorderRadius.circular(8),
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    valueColor: AlwaysStoppedAnimation(
-                      _styleColor(theme, achievement.rewardPinStyle.value),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${achievement.currentValue} / ${achievement.thresholdValue} $noun',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClaimedBadge extends StatelessWidget {
-  const _ClaimedBadge({required this.animate, required this.reduceMotion});
-
-  final bool animate;
-  final bool reduceMotion;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final icon = DecoratedBox(
-      key: const ValueKey('claimed-achievement'),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.tertiaryContainer,
-        shape: BoxShape.circle,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          Icons.check_rounded,
-          size: 18,
-          color: theme.colorScheme.onTertiaryContainer,
-        ),
-      ),
-    );
-
-    if (!animate || reduceMotion) return icon;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.65, end: 1),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.elasticOut,
-      builder: (context, scale, child) =>
-          Transform.scale(scale: scale, child: child),
-      child: icon,
+    return AchievementCard(
+      title: achievement.name ?? 'Group pin milestone',
+      description: achievement.description ?? '',
+      currentValue: achievement.currentValue,
+      thresholdValue: achievement.thresholdValue,
+      progress: progress,
+      claimed: achievement.claimed,
+      claimable: achievement.claimable && canClaim,
+      onTap: achievement.claimable && canClaim && !isClaiming ? onClaim : null,
     );
   }
 }
@@ -425,13 +233,6 @@ class _PinDesignPreview extends StatelessWidget {
     );
   }
 }
-
-Color _styleColor(ThemeData theme, String style) => switch (style) {
-  'moss' => const Color(0xff668465),
-  'sunset' => const Color(0xffd57b50),
-  'aurora' => const Color(0xff6d77ba),
-  _ => theme.colorScheme.outline,
-};
 
 String _styleName(String style) => switch (style) {
   'moss' => 'Moss',

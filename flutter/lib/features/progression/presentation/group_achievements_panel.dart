@@ -27,7 +27,6 @@ class GroupAchievementsPanel extends ConsumerStatefulWidget {
 class _GroupAchievementsPanelState
     extends ConsumerState<GroupAchievementsPanel> {
   int? _claimingAchievementId;
-  int? _celebratingAchievementId;
   bool _updatingPinStyle = false;
 
   @override
@@ -49,7 +48,6 @@ class _GroupAchievementsPanelState
               groupImage: groupImage,
               currentUserId: ref.watch(userIdProvider),
               claimingAchievementId: _claimingAchievementId,
-              celebratingAchievementId: _celebratingAchievementId,
               updatingPinStyle: _updatingPinStyle,
               onClaimAchievement: _claimAchievement,
               onPinStyleSelected: _selectPinStyle,
@@ -71,7 +69,6 @@ class _GroupAchievementsPanelState
       if (!mounted) return;
       ref.invalidate(groupAchievementsProvider(widget.groupId));
       ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
-      setState(() => _celebratingAchievementId = achievementId);
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,

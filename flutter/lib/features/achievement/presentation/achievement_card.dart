@@ -1,114 +1,127 @@
-
 import 'package:flutter/material.dart';
 
+/// The same compact milestone surface for personal and group achievements.
 class AchievementCard extends StatelessWidget {
-  final double progress; // Progress between 0.0 and 1.0
-  final Color progressColor; // Color for the progress border
-  final Widget child; // Content inside the card
-  final Color claimedBorderColor;
-  final bool isSelected;
-  final Color? color;
-  final double borderWidth;
-  final EdgeInsetsGeometry? margin;
-  
   const AchievementCard({
     super.key,
+    required this.title,
+    required this.description,
+    required this.currentValue,
+    required this.thresholdValue,
     required this.progress,
-    this.progressColor = Colors.blue,
-    required this.child,
-    required this.claimedBorderColor,
-    required this.isSelected,
-    this.color,
-    this.borderWidth = 2.0,
-    this.margin,
+    required this.claimed,
+    required this.claimable,
+    this.selected = false,
+    this.onTap,
   });
+
+  final String title;
+  final String description;
+  final int currentValue;
+  final int thresholdValue;
+  final double progress;
+  final bool claimed;
+  final bool claimable;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (isSelected || progress == 1.0) {
-      return Card(
-      color: color,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.0),
-          side: BorderSide(color: isSelected ? claimedBorderColor : progressColor, width: borderWidth),
-        ),
-        margin: margin,
-        child: child,
-      );
-    }
-    return Padding(
-        padding: margin ?? EdgeInsets.zero,
-      child: CustomPaint(
-        painter: ProgressBorderPainter(
-          progress: progress,
-          progressColor: progressColor,
-          borderWidth: borderWidth,
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(borderWidth), child:
-        Card(
-          color: color,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final fillColor = claimed ? colors.tertiary : colors.primary;
+    final value = progress.clamp(0.0, 1.0);
+    return Semantics(
+      button: onTap != null,
+      label:
+          '$title, $description, $currentValue of $thresholdValue${claimable
+              ? ', reward ready to claim'
+              : claimed
+              ? ', reward earned'
+              : ''}',
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 68),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: claimable || selected
+                    ? fillColor
+                    : colors.outlineVariant,
+                width: claimable || selected ? 1.5 : 1,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      key: const ValueKey('achievement-progress-fill'),
+                      widthFactor: value,
+                      heightFactor: 1,
+                      child: ColoredBox(
+                        color: fillColor.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              description,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '$currentValue/$thresholdValue',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: claimable
+                              ? colors.primary
+                              : colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: child,
         ),
-      ),),);
-  }
-}
-
-class ProgressBorderPainter extends CustomPainter {
-  final double progress;
-  final Color progressColor;
-  final double borderWidth;
-
-  ProgressBorderPainter({required this.progress, required this.progressColor, required this.borderWidth});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const radius = 12.0;
-
-    // Adjust the drawing rect to account for the stroke width
-    final rect = Rect.fromLTWH(
-      borderWidth / 2,
-      borderWidth / 2,
-      size.width - borderWidth,
-      size.height - borderWidth,
+      ),
     );
-
-    final paintBackground = Paint()
-      ..color = Colors.transparent
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-
-    final paintProgress = Paint()
-      ..color = progressColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth
-      ..strokeCap = StrokeCap.round;
-
-    // Draw full border as a transparent background
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
-      paintBackground,
-    );
-
-    // Draw the progress border
-    final progressPath = Path()
-      ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(radius)));
-
-    for (final metric in progressPath.computeMetrics()) {
-      final length = metric.length * progress; // Adjust length based on progress
-      canvas.drawPath(
-        metric.extractPath(0, length),
-        paintProgress,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true; // Redraw when progress changes
   }
 }
