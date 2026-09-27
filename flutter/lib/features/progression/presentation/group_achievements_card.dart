@@ -53,7 +53,7 @@ class GroupAchievementsCard extends StatelessWidget {
       container: true,
       label: 'Group achievements and shared pin appearance',
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
