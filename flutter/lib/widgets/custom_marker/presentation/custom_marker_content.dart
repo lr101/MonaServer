@@ -29,7 +29,7 @@ class PinMarkerImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedDesign = design ?? MapPinDesign.forStyle(style);
-    final hasFrame = resolvedDesign.style != 'classic';
+    final hasCustomDesign = resolvedDesign.style != 'classic';
     final pinImage = isGone
         ? ColorFiltered(
             colorFilter: const ColorFilter.matrix([
@@ -59,8 +59,8 @@ class PinMarkerImage extends StatelessWidget {
         : image;
     return Semantics(
       label: isGone
-          ? 'Pin marked gone${hasFrame ? ' · ${resolvedDesign.name} frame' : ''}'
-          : 'Pin${hasFrame ? ' · ${resolvedDesign.name} frame' : ''}',
+          ? 'Pin marked gone${hasCustomDesign ? ' · ${resolvedDesign.name} pin design' : ''}'
+          : 'Pin${hasCustomDesign ? ' · ${resolvedDesign.name} pin design' : ''}',
       image: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
