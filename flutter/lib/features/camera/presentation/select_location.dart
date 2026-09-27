@@ -110,7 +110,7 @@ class _SelectLocationState extends ConsumerState<SelectLocation> {
                         child: Align(
                           alignment: Alignment.topCenter,
                           child: Transform.translate(
-                            offset: const Offset(0, -7),
+                            offset: const Offset(0, 5),
                             child: SizedBox(
                               width: 30,
                               height: 30 * 56 / 48,

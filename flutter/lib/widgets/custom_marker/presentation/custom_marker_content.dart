@@ -205,7 +205,7 @@ class CustomMarkerContent extends ConsumerWidget {
       width: markerHitTargetWidth,
       height: markerHitTargetHeight,
       child: Align(
-        alignment: Alignment.topCenter,
+        alignment: Alignment.bottomCenter,
         child: SizedBox(
           width: markerWidth,
           height: markerHeight,
