@@ -112,8 +112,8 @@ class _SelectLocationState extends ConsumerState<SelectLocation> {
                           child: Transform.translate(
                             offset: const Offset(0, -7),
                             child: SizedBox(
-                              width: 40,
-                              height: 40 * 56 / 48,
+                              width: 30,
+                              height: 30 * 56 / 48,
                               child: PinMarkerImage(
                                 isGone: false,
                                 style: design.style,

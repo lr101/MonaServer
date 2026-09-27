@@ -174,6 +174,8 @@ class PinMarkerImage extends StatelessWidget {
 class CustomMarkerContent extends ConsumerWidget {
   static const double markerWidth = 36;
   static const double markerHeight = 42;
+  static const double markerHitTargetWidth = 48;
+  static const double markerHitTargetHeight = 56;
 
   final PinEntity pinDto;
 
@@ -200,9 +202,16 @@ class CustomMarkerContent extends ConsumerWidget {
     );
 
     return SizedBox(
-      width: markerWidth,
-      height: markerHeight,
-      child: markerImage,
+      width: markerHitTargetWidth,
+      height: markerHitTargetHeight,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: markerWidth,
+          height: markerHeight,
+          child: markerImage,
+        ),
+      ),
     );
   }
 }
