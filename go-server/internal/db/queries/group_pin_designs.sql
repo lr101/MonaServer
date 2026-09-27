@@ -9,6 +9,11 @@ INSERT INTO group_pin_designs AS stored (
 )
 SELECT sqlc.arg(group_id), 2, sqlc.arg(designs)
 WHERE sqlc.arg(expected_revision)::bigint = 1
+   OR EXISTS (
+       SELECT 1
+       FROM group_pin_designs
+       WHERE group_id = sqlc.arg(group_id)
+   )
 ON CONFLICT (group_id) DO UPDATE
 SET revision = stored.revision + 1,
     designs = EXCLUDED.designs,

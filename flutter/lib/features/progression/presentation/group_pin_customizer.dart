@@ -2,6 +2,7 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +45,7 @@ class _GroupPinCustomizerState extends ConsumerState<GroupPinCustomizer> {
     childrenPadding: EdgeInsets.zero,
     maintainState: true,
     title: const Text('Customize earned designs'),
-    subtitle: const Text('Shape, outline, image zoom, and achievement badges'),
+    subtitle: const Text('Shape, outline color, image zoom, and outline width'),
     children: [
       FutureBuilder<GroupPinDesignCatalogDto?>(
         future: _catalog,
@@ -105,8 +106,8 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   late int _revision;
   late String _selectedStyle;
   late Map<String, MapPinDesign> _designs;
+  final Set<String> _dirtyStyles = <String>{};
   bool _saving = false;
-  bool _saved = false;
 
   @override
   void initState() {
@@ -127,7 +128,7 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
   void _change(MapPinDesign design) {
     setState(() {
       _designs[_selectedStyle] = design;
-      _saved = false;
+      _dirtyStyles.add(_selectedStyle);
     });
   }
 
@@ -146,20 +147,36 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
       if (!mounted || updated == null) return;
       setState(() {
         _revision = updated.revision;
+        _dirtyStyles.remove(_selectedStyle);
         for (final design in updated.designs) {
-          _designs.putIfAbsent(
-            design.style.value,
-            () => MapPinDesign.fromDto(design),
-          );
+          if (!_dirtyStyles.contains(design.style.value)) {
+            _designs[design.style.value] = MapPinDesign.fromDto(design);
+          }
         }
-        _saved = true;
       });
+      ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text('Pin design saved. It will appear after app restart.'),
+          content: Text(
+            'Pin design saved. Pins using this style will update now.',
+          ),
         ),
       );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      if (error.code == 409) {
+        await _refreshAfterConflict();
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Could not save this pin design (server error ${error.code}). Your changes are still here.',
+            ),
+          ),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -173,10 +190,49 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
     }
   }
 
+  Future<void> _refreshAfterConflict() async {
+    try {
+      final latest = await ref
+          .read(groupPinDesignsApiProvider)
+          .getGroupPinDesignCatalog(widget.groupId);
+      if (!mounted) return;
+      if (latest != null) {
+        setState(() {
+          _revision = latest.revision;
+          for (final design in latest.designs) {
+            if (!_dirtyStyles.contains(design.style.value)) {
+              _designs[design.style.value] = MapPinDesign.fromDto(design);
+            }
+          }
+        });
+        ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
+      }
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'Another group admin saved a design first. Your draft is kept; save again to apply it.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'The design catalog changed. Your draft is kept, but could not refresh; try reopening designs.',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final design = _design;
+    final designIsDirty = _dirtyStyles.contains(_selectedStyle);
     final groupProfileImage =
         (ref
             .watch(groupProfilePictureSmallByIdProvider(widget.groupId))
@@ -265,48 +321,23 @@ class _GroupPinDesignEditorState extends ConsumerState<_GroupPinDesignEditor> {
               : (value) => _change(design.copyWith(outlineWidth: value)),
         ),
         const SizedBox(height: 8),
-        Text('Achievement badge', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            for (final badge in _badges)
-              ChoiceChip(
-                avatar: Icon(_badgeIcon(badge), size: 16),
-                label: Text(_badgeName(badge)),
-                selected: design.badge == badge,
-                onSelected: _saving
-                    ? null
-                    : (_) => _change(design.copyWith(badge: badge)),
-              ),
-          ],
-        ),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Pin shadow'),
-          value: design.shadow,
-          onChanged: _saving
-              ? null
-              : (value) => _change(design.copyWith(shadow: value)),
-        ),
         const SizedBox(height: 4),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: _saving || _saved ? null : _save,
+            onPressed: _saving || !designIsDirty ? null : _save,
             icon: _saving
                 ? const SizedBox.square(
                     dimension: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save_outlined),
-            label: Text(_saved ? 'Saved' : 'Save design'),
+            label: Text(designIsDirty ? 'Save design' : 'Saved'),
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Saved designs are loaded when the app restarts.',
+          'Changes apply to existing group pins using this style.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -412,7 +443,6 @@ class _SliderControl extends StatelessWidget {
 }
 
 const _shapes = ['circle', 'teardrop', 'shield'];
-const _badges = ['none', 'star', 'leaf', 'sun', 'spark'];
 const _colors = [
   Color(0xff2457d6),
   Color(0xff668465),
@@ -437,22 +467,6 @@ String _shapeName(String shape) => switch (shape) {
   'teardrop' => 'Teardrop',
   'shield' => 'Shield',
   _ => 'Circle',
-};
-
-IconData? _badgeIcon(String badge) => switch (badge) {
-  'star' => Icons.star,
-  'leaf' => Icons.eco,
-  'sun' => Icons.wb_sunny,
-  'spark' => Icons.auto_awesome,
-  _ => null,
-};
-
-String _badgeName(String badge) => switch (badge) {
-  'star' => 'Star',
-  'leaf' => 'Leaf',
-  'sun' => 'Sun',
-  'spark' => 'Spark',
-  _ => 'None',
 };
 
 String _colorName(Color color) =>

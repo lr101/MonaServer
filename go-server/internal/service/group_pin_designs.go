@@ -56,6 +56,7 @@ func mergeGroupPinDesignCatalog(stored db.GroupPinDesignCatalog, progress []db.G
 	}
 	overrides := make(map[string]db.GroupPinDesign, len(stored.Designs))
 	for _, design := range stored.Designs {
+		design = normalizeGroupPinDesign(design)
 		overrides[design.Style] = design
 	}
 
@@ -77,6 +78,7 @@ func (s *GroupPinDesignCatalogService) Update(ctx context.Context, groupID uuid.
 	if s == nil || s.store == nil {
 		return db.GroupPinDesignCatalog{}, ErrGroupPinDesignUnavailable
 	}
+	design = normalizeGroupPinDesign(design)
 	if expectedRevision < 1 || !validGroupPinDesign(design) {
 		return db.GroupPinDesignCatalog{}, ErrInvalidGroupPinDesign
 	}
@@ -121,6 +123,15 @@ func (s *GroupPinDesignCatalogService) Update(ctx context.Context, groupID uuid.
 		return db.GroupPinDesignCatalog{}, err
 	}
 	return mergeGroupPinDesignCatalog(updatedCatalog, progress), nil
+}
+
+// Keep legacy wire fields stable for older clients while removing their effect
+// from pin designs. Existing catalog rows are normalized when read, and older
+// clients can no longer restore badges or disable shadows by saving a design.
+func normalizeGroupPinDesign(design db.GroupPinDesign) db.GroupPinDesign {
+	design.Badge = "none"
+	design.Shadow = true
+	return design
 }
 
 var groupPinHexColor = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
