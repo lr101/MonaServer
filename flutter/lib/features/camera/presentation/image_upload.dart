@@ -190,7 +190,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
             (saveError) {
               if (saveError == null) {
                 CustomErrorSnackBar.message(
-                  message: "Image is stored successfully",
+                  message: "Image saved",
                 );
                 if (reviewState != null) {
                   unawaited(postUploadActions(reviewState));
