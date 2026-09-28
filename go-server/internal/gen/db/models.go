@@ -497,6 +497,7 @@ type User struct {
 	PasswordDisabled        bool               `json:"password_disabled"`
 	PasswordResetRequired   bool               `json:"password_reset_required"`
 	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
 }
 
 type UserAchievement struct {

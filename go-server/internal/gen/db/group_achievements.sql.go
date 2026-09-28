@@ -17,13 +17,30 @@ WITH claimed AS (
     SELECT $1::uuid,
            $2::integer,
            $3::uuid
-    WHERE (
-        SELECT COUNT(*)
-        FROM pins p
-        WHERE p.group_id = $1
-          AND p.is_deleted = FALSE
-          AND p.is_gone = FALSE
-    ) >= $4::integer
+    WHERE CASE $4::text
+        WHEN 'active_pins' THEN (
+            SELECT COUNT(*) FROM pins p
+            WHERE p.group_id = $1
+              AND p.is_deleted = FALSE AND p.is_gone = FALSE
+        )
+        WHEN 'contributors' THEN (
+            SELECT COUNT(*) FROM (
+                SELECT p.creator_id
+                FROM pins p
+                WHERE p.group_id = $1
+                  AND p.is_deleted = FALSE AND p.is_gone = FALSE
+                  AND p.creator_id IS NOT NULL
+                GROUP BY p.creator_id
+                HAVING COUNT(*) >= $5::integer
+            ) qualified_contributors
+        )
+        WHEN 'members' THEN (
+            SELECT COUNT(DISTINCT m.user_id) FROM members m
+            WHERE m.group_id = $1
+              AND m.is_deleted = FALSE AND m.user_id IS NOT NULL
+        )
+        ELSE 0
+    END >= $6::integer
     ON CONFLICT (group_id, achievement_id) DO NOTHING
     RETURNING group_id
 )
@@ -37,10 +54,12 @@ WHERE g.id = claimed.group_id
 `
 
 type ClaimGroupAchievementParams struct {
-	GroupID       pgtype.UUID `json:"group_id"`
-	AchievementID int32       `json:"achievement_id"`
-	ClaimedBy     pgtype.UUID `json:"claimed_by"`
-	Threshold     int32       `json:"threshold"`
+	GroupID                pgtype.UUID `json:"group_id"`
+	AchievementID          int32       `json:"achievement_id"`
+	ClaimedBy              pgtype.UUID `json:"claimed_by"`
+	Track                  string      `json:"track"`
+	ContributorMinimumPins int32       `json:"contributor_minimum_pins"`
+	Threshold              int32       `json:"threshold"`
 }
 
 func (q *Queries) ClaimGroupAchievement(ctx context.Context, arg ClaimGroupAchievementParams) (int64, error) {
@@ -48,12 +67,67 @@ func (q *Queries) ClaimGroupAchievement(ctx context.Context, arg ClaimGroupAchie
 		arg.GroupID,
 		arg.AchievementID,
 		arg.ClaimedBy,
+		arg.Track,
+		arg.ContributorMinimumPins,
 		arg.Threshold,
 	)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getGroupAchievementMetrics = `-- name: GetGroupAchievementMetrics :one
+SELECT
+    (SELECT COUNT(*)::int
+     FROM pins p
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE AND p.is_gone = FALSE) AS active_pins,
+    (SELECT COUNT(DISTINCT p.creator_id)::int
+     FROM pins p
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE AND p.is_gone = FALSE
+       AND p.creator_id IS NOT NULL) AS contributors,
+    (SELECT COUNT(*)::int
+     FROM (
+         SELECT p.creator_id
+         FROM pins p
+         WHERE p.group_id = $1 AND p.is_deleted = FALSE AND p.is_gone = FALSE
+           AND p.creator_id IS NOT NULL
+         GROUP BY p.creator_id
+         HAVING COUNT(*) >= 3
+     ) qualified_contributors) AS contributors_three_pins,
+    (SELECT COUNT(*)::int
+     FROM (
+         SELECT p.creator_id
+         FROM pins p
+         WHERE p.group_id = $1 AND p.is_deleted = FALSE AND p.is_gone = FALSE
+           AND p.creator_id IS NOT NULL
+         GROUP BY p.creator_id
+         HAVING COUNT(*) >= 5
+     ) qualified_contributors) AS contributors_five_pins,
+    (SELECT COUNT(DISTINCT m.user_id)::int
+     FROM members m
+     WHERE m.group_id = $1 AND m.is_deleted = FALSE AND m.user_id IS NOT NULL) AS members
+`
+
+type GetGroupAchievementMetricsRow struct {
+	ActivePins            int32 `json:"active_pins"`
+	Contributors          int32 `json:"contributors"`
+	ContributorsThreePins int32 `json:"contributors_three_pins"`
+	ContributorsFivePins  int32 `json:"contributors_five_pins"`
+	Members               int32 `json:"members"`
+}
+
+func (q *Queries) GetGroupAchievementMetrics(ctx context.Context, groupID pgtype.UUID) (GetGroupAchievementMetricsRow, error) {
+	row := q.db.QueryRow(ctx, getGroupAchievementMetrics, groupID)
+	var i GetGroupAchievementMetricsRow
+	err := row.Scan(
+		&i.ActivePins,
+		&i.Contributors,
+		&i.ContributorsThreePins,
+		&i.ContributorsFivePins,
+		&i.Members,
+	)
+	return i, err
 }
 
 const getGroupPinCount = `-- name: GetGroupPinCount :one

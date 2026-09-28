@@ -194,6 +194,15 @@ class UpdateGroupDtoPinStyleEnum {
   static const moss = UpdateGroupDtoPinStyleEnum._(r'moss');
   static const sunset = UpdateGroupDtoPinStyleEnum._(r'sunset');
   static const aurora = UpdateGroupDtoPinStyleEnum._(r'aurora');
+  static const seafoam = UpdateGroupDtoPinStyleEnum._(r'seafoam');
+  static const honey = UpdateGroupDtoPinStyleEnum._(r'honey');
+  static const orchid = UpdateGroupDtoPinStyleEnum._(r'orchid');
+  static const copper = UpdateGroupDtoPinStyleEnum._(r'copper');
+  static const jade = UpdateGroupDtoPinStyleEnum._(r'jade');
+  static const ember = UpdateGroupDtoPinStyleEnum._(r'ember');
+  static const glacier = UpdateGroupDtoPinStyleEnum._(r'glacier');
+  static const rose = UpdateGroupDtoPinStyleEnum._(r'rose');
+  static const midnight = UpdateGroupDtoPinStyleEnum._(r'midnight');
 
   /// List of all possible values in this [enum][UpdateGroupDtoPinStyleEnum].
   static const values = <UpdateGroupDtoPinStyleEnum>[
@@ -201,6 +210,15 @@ class UpdateGroupDtoPinStyleEnum {
     moss,
     sunset,
     aurora,
+    seafoam,
+    honey,
+    orchid,
+    copper,
+    jade,
+    ember,
+    glacier,
+    rose,
+    midnight,
   ];
 
   static UpdateGroupDtoPinStyleEnum? fromJson(dynamic value) => UpdateGroupDtoPinStyleEnumTypeTransformer().decode(value);
@@ -243,6 +261,15 @@ class UpdateGroupDtoPinStyleEnumTypeTransformer {
         case r'moss': return UpdateGroupDtoPinStyleEnum.moss;
         case r'sunset': return UpdateGroupDtoPinStyleEnum.sunset;
         case r'aurora': return UpdateGroupDtoPinStyleEnum.aurora;
+        case r'seafoam': return UpdateGroupDtoPinStyleEnum.seafoam;
+        case r'honey': return UpdateGroupDtoPinStyleEnum.honey;
+        case r'orchid': return UpdateGroupDtoPinStyleEnum.orchid;
+        case r'copper': return UpdateGroupDtoPinStyleEnum.copper;
+        case r'jade': return UpdateGroupDtoPinStyleEnum.jade;
+        case r'ember': return UpdateGroupDtoPinStyleEnum.ember;
+        case r'glacier': return UpdateGroupDtoPinStyleEnum.glacier;
+        case r'rose': return UpdateGroupDtoPinStyleEnum.rose;
+        case r'midnight': return UpdateGroupDtoPinStyleEnum.midnight;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

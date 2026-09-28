@@ -17,6 +17,8 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
     this.boxes,
     this.bottom,
     this.actions,
+    this.avatarEditAction,
+    this.avatarEditTooltip = 'Edit profile',
     this.floatingActionButton,
     this.profileQuickViewBoxes,
     this.hasBackButton = true,
@@ -30,6 +32,8 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
   final PreferredSizeWidget? bottom;
   final Widget? profileQuickViewBoxes;
   final List<Widget>? actions;
+  final VoidCallback? avatarEditAction;
+  final String avatarEditTooltip;
   final Widget? floatingActionButton;
   final bool hasBackButton;
 
@@ -88,12 +92,34 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: _avatarDimension,
-                        height: _avatarDimension,
-                        child: RoundImage(
-                          imageCallback: widget.avatar,
-                          size: 40, // size is half of dimension
+                      SizedBox.square(
+                        dimension: _avatarDimension,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(
+                              child: RoundImage(
+                                imageCallback: widget.avatar,
+                                size: 40, // size is half of dimension
+                              ),
+                            ),
+                            if (widget.avatarEditAction != null)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: IconButton.filledTonal(
+                                  tooltip: widget.avatarEditTooltip,
+                                  onPressed: widget.avatarEditAction,
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 18,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 34,
+                                    height: 34,
+                                  ),
+                                  icon: const Icon(Icons.edit),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 16),

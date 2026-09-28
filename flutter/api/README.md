@@ -108,7 +108,7 @@ Class | Method | HTTP request | Description
 *GroupPinDesignsApi* | [**getGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#getgrouppindesigncatalog) | **GET** /api/v2/groups/{groupId}/pin-designs | Get the pin designs available for a group
 *GroupPinDesignsApi* | [**updateGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#updategrouppindesigncatalog) | **PUT** /api/v2/groups/{groupId}/pin-designs | Update a group's earned pin design
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
-*GroupsApi* | [**claimGroupAchievement**](doc//GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and unlock its pin style reward
+*GroupsApi* | [**claimGroupAchievement**](doc//GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and receive its reward
 *GroupsApi* | [**deleteGroup**](doc//GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 *GroupsApi* | [**getGroup**](doc//GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
 *GroupsApi* | [**getGroupAchievements**](doc//GroupsApi.md#getgroupachievements) | **GET** /api/v2/groups/{groupId}/achievements | Get group achievement progress and pin style rewards

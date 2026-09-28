@@ -1,7 +1,7 @@
 -- Ranking and map queries (PostGIS).
 
 -- name: GetUserRanking :many
-SELECT p.creator_id, u.username, u.description,
+SELECT p.creator_id, u.username, u.description, u.selected_batch_color,
        COUNT(p.creator_id)::int AS points,
        ua.achievement_id
 FROM pins p
@@ -15,7 +15,7 @@ WHERE p.is_deleted = FALSE
   AND (sqlc.narg('gid1')::text IS NULL OR b.gid_1 = sqlc.narg('gid1')::text)
   AND (sqlc.narg('gid2')::text IS NULL OR b.gid_2 = sqlc.narg('gid2')::text)
   AND (sqlc.narg('since')::timestamptz IS NULL OR p.creation_date > sqlc.narg('since')::timestamptz)
-GROUP BY p.creator_id, u.username, u.description, ua.achievement_id
+GROUP BY p.creator_id, u.username, u.description, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, u.username
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 

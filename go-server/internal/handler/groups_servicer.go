@@ -192,10 +192,13 @@ func (s *GroupsServicer) GetGroupAchievements(ctx context.Context, groupID strin
 	for _, item := range items {
 		dtos = append(dtos, genserver.GroupAchievementsDtoInner{
 			AchievementId: item.ID,
-			Name:          item.Name, Description: item.Description, Track: "active_pins",
+			Name:          item.Name, Description: item.Description, Track: item.Track,
 			Difficulty: item.Difficulty, Claimed: item.Claimed,
 			Claimable: item.Claimable, ThresholdValue: item.Threshold,
 			CurrentValue: item.CurrentValue, ThresholdUp: true,
+			RewardType:     item.RewardType,
+			RewardColor:    item.RewardColor,
+			RewardXp:       item.RewardXP,
 			RewardPinStyle: item.RewardPinStyle,
 		})
 	}

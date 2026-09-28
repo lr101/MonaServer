@@ -126,6 +126,7 @@ type User struct {
 	EmailConfirmationUrl    *string
 	LastUsernameUpdate      *time.Time
 	SelectedBatch           *uuid.UUID
+	SelectedBatchColor      string
 	AuthGeneration          int64
 	SecurityState           string
 	PasswordDisabled        bool
@@ -190,6 +191,7 @@ func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
 		SelectedBatch:           sb,
+		SelectedBatchColor:      r.SelectedBatchColor,
 		AuthGeneration:          r.AuthGeneration,
 		SecurityState:           r.SecurityState,
 		PasswordDisabled:        r.PasswordDisabled,
@@ -225,6 +227,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 		DeletionUrl:             goText(row.DeletionUrl),
 		EmailConfirmationUrl:    goText(row.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(row.LastUsernameUpdate),
+		SelectedBatchColor:      row.SelectedBatchColor,
 		AuthGeneration:          row.AuthGeneration,
 		SecurityState:           row.SecurityState,
 		PasswordDisabled:        row.PasswordDisabled,
@@ -259,6 +262,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, erro
 		DeletionUrl:             goText(r.DeletionUrl),
 		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
+		SelectedBatchColor:      r.SelectedBatchColor,
 		AuthGeneration:          r.AuthGeneration,
 		SecurityState:           r.SecurityState,
 		PasswordDisabled:        r.PasswordDisabled,
@@ -792,10 +796,11 @@ func (q *Queries) CountGroupMembers(ctx context.Context, groupID uuid.UUID) (int
 }
 
 type GroupRanking struct {
-	UserID        uuid.UUID
-	Username      string
-	Points        int32
-	AchievementID *int32
+	UserID             uuid.UUID
+	Username           string
+	SelectedBatchColor string
+	Points             int32
+	AchievementID      *int32
 }
 
 func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]GroupRanking, error) {
@@ -812,7 +817,8 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]Gro
 		}
 		out = append(out, GroupRanking{
 			UserID: goUUID(r.UserID), Username: r.Username.String,
-			Points: r.Points, AchievementID: ach,
+			SelectedBatchColor: r.SelectedBatchColor,
+			Points:             r.Points, AchievementID: ach,
 		})
 	}
 	return out, nil
@@ -821,11 +827,12 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]Gro
 // ---- Ranking / Map ----
 
 type UserRankingRow struct {
-	UserID        uuid.UUID
-	Username      string
-	Description   *string
-	Points        int32
-	AchievementID *int32
+	UserID             uuid.UUID
+	Username           string
+	Description        *string
+	SelectedBatchColor string
+	Points             int32
+	AchievementID      *int32
 }
 
 type GroupRankingRow struct {
@@ -873,7 +880,8 @@ func (q *Queries) GetUserRanking(ctx context.Context, f RankingFilter) ([]UserRa
 		}
 		out = append(out, UserRankingRow{
 			UserID: goUUID(r.CreatorID), Username: r.Username.String,
-			Description: goText(r.Description), Points: r.Points, AchievementID: ach,
+			Description: goText(r.Description), SelectedBatchColor: r.SelectedBatchColor,
+			Points: r.Points, AchievementID: ach,
 		})
 	}
 	return out, nil
@@ -1623,6 +1631,12 @@ func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, ac
 func (q *Queries) SetUserSelectedBatch(ctx context.Context, userID, achievementRowID uuid.UUID) error {
 	return q.g.SetUserSelectedBatch(ctx, dbgen.SetUserSelectedBatchParams{
 		ID: pgUUID(userID), SelectedBatch: pgUUID(achievementRowID),
+	})
+}
+
+func (q *Queries) SetUserSelectedBatchColor(ctx context.Context, userID uuid.UUID, color string) error {
+	return q.g.SetUserSelectedBatchColor(ctx, dbgen.SetUserSelectedBatchColorParams{
+		ID: pgUUID(userID), SelectedBatchColor: color,
 	})
 }
 

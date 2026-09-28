@@ -11,11 +11,15 @@ import (
 
 type GroupAchievementProgress struct {
 	ID             int32
+	Track          string
 	Name           string
 	Description    string
 	Difficulty     string
 	CurrentValue   int32
 	Threshold      int32
+	RewardType     string
+	RewardXP       int32
+	RewardColor    string
 	Claimed        bool
 	Claimable      bool
 	RewardPinStyle string
@@ -32,10 +36,12 @@ func (s *Group) AchievementProgress(ctx context.Context, id uuid.UUID) ([]GroupA
 	progress := make([]GroupAchievementProgress, 0, len(items))
 	for _, item := range items {
 		progress = append(progress, GroupAchievementProgress{
-			ID: item.ID, Name: item.Name, Description: item.Description,
+			ID: item.ID, Track: item.Track, Name: item.Name, Description: item.Description,
 			Difficulty: item.Difficulty, CurrentValue: item.CurrentValue,
-			Threshold: item.Threshold, Claimed: item.Claimed,
-			Claimable: item.Claimable, RewardPinStyle: item.RewardPinStyle,
+			Threshold: item.Threshold, RewardType: item.RewardType,
+			RewardXP: item.RewardXP, RewardColor: item.RewardColor,
+			Claimed: item.Claimed, Claimable: item.Claimable,
+			RewardPinStyle: item.RewardPinStyle,
 		})
 	}
 	return progress, nil

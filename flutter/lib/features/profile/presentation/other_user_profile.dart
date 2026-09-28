@@ -24,6 +24,10 @@ class OtherUserProfile extends ConsumerWidget {
     final description = ref.watch(userByIdDescriptionProvider(userId));
     final bestSeason = ref.watch(userByIdBestSeasonProvider(userId));
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(userId));
+    final selectedBatchColor = ref.watch(
+      userServiceProvider(userId)
+          .select((user) => user.value?.selectedBatchColor),
+    );
     final profileImage = ref.watch(getUserProfileProvider(userId));
     final likes = ref.watch(userLikeServiceProvider(userId));
     return CustomAvatarScaffold(
@@ -36,7 +40,11 @@ class OtherUserProfile extends ConsumerWidget {
           ),
           const SizedBox(width: 10),
           if (selectedBatch.value != null)
-            Batch(batchId: selectedBatch.value!, fontSize: 10),
+            Batch(
+              batchId: selectedBatch.value!,
+              fontSize: 10,
+              colorOverride: selectedBatchColor,
+            ),
         ],
       ),
       actions: [PopUpMenuOtherUser(userId: userId)],

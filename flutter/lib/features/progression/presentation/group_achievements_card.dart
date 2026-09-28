@@ -2,12 +2,13 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
+import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/api.dart';
 
-class GroupAchievementsCard extends StatelessWidget {
+class GroupAchievementsCard extends StatefulWidget {
   const GroupAchievementsCard({
     super.key,
     required this.achievements,
@@ -32,22 +33,41 @@ class GroupAchievementsCard extends StatelessWidget {
   final bool updatingPinStyle;
 
   @override
+  State<GroupAchievementsCard> createState() => _GroupAchievementsCardState();
+}
+
+class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final sortedAchievements = [...achievements]
-      ..sort((a, b) {
-        if (a.claimable != b.claimable) return a.claimable ? -1 : 1;
-        if (a.claimed != b.claimed) return a.claimed ? 1 : -1;
-        final trackOrder = a.track?.compareTo(b.track ?? '') ?? 0;
-        return trackOrder == 0
-            ? a.thresholdValue.compareTo(b.thresholdValue)
-            : trackOrder;
-      });
-    final claimedStyles = achievements
+    final tracks = _groupAchievementTracks
+        .map(
+          (track) => _GroupAchievementTrack(
+            id: track.id,
+            title: track.title,
+            achievements:
+                widget.achievements
+                    .where((achievement) => achievement.track == track.id)
+                    .toList()
+                  ..sort((a, b) {
+                    final threshold = a.thresholdValue.compareTo(
+                      b.thresholdValue,
+                    );
+                    return threshold == 0
+                        ? a.achievementId.compareTo(b.achievementId)
+                        : threshold;
+                  }),
+          ),
+        )
+        .where((track) => track.achievements.isNotEmpty)
+        .toList();
+    final claimedStyles = widget.achievements
         .where((achievement) => achievement.claimed)
-        .map((achievement) => achievement.rewardPinStyle.value)
+        .map((achievement) => achievement.rewardPinStyle?.value)
+        .whereType<String>()
         .toSet();
-    final isAdmin = group?.groupAdmin == currentUserId;
+    final group = widget.group;
+    final isAdmin = group?.groupAdmin == widget.currentUserId;
 
     return Semantics(
       container: true,
@@ -57,18 +77,50 @@ class GroupAchievementsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var index = 0; index < sortedAchievements.length; index++) ...[
-              if (index > 0) const SizedBox(height: 8),
-              _AchievementRow(
-                achievement: sortedAchievements[index],
-                canClaim: group?.userIsMember == true,
-                isClaiming:
-                    claimingAchievementId ==
-                    sortedAchievements[index].achievementId,
-                onClaim: () =>
-                    onClaimAchievement(sortedAchievements[index].achievementId),
+            Text(
+              'Group achievements',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
               ),
-            ],
+            ),
+            const SizedBox(height: 8),
+            if (tracks.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text('No group achievements yet.'),
+              )
+            else
+              for (
+                var trackIndex = 0;
+                trackIndex < tracks.length;
+                trackIndex++
+              ) ...[
+                if (trackIndex > 0) const SizedBox(height: 12),
+                AchievementTierCarousel(
+                  key: ValueKey(tracks[trackIndex].id),
+                  title: tracks[trackIndex].title,
+                  tierCount: tracks[trackIndex].achievements.length,
+                  initialPage: activeAchievementTierIndex(
+                    tracks[trackIndex].achievements,
+                    (achievement) => achievement.claimed,
+                  ),
+                  itemBuilder: (context, tierIndex) {
+                    final achievement =
+                        tracks[trackIndex].achievements[tierIndex];
+                    return _AchievementRow(
+                      achievement: achievement,
+                      designCatalog: widget.designCatalog,
+                      groupImage: widget.groupImage,
+                      canClaim: group?.userIsMember == true,
+                      isClaiming:
+                          widget.claimingAchievementId ==
+                          achievement.achievementId,
+                      onClaim: () =>
+                          widget.onClaimAchievement(achievement.achievementId),
+                    );
+                  },
+                ),
+              ],
             if (isAdmin && claimedStyles.isNotEmpty) ...[
               const SizedBox(height: 16),
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
@@ -90,8 +142,8 @@ class GroupAchievementsCard extends StatelessWidget {
               Center(
                 child: _PinDesignPreview(
                   style: group?.pinStyle ?? 'classic',
-                  designCatalog: designCatalog,
-                  groupImage: groupImage,
+                  designCatalog: widget.designCatalog,
+                  groupImage: widget.groupImage,
                   width: 58,
                   height: 66,
                 ),
@@ -109,20 +161,20 @@ class GroupAchievementsCard extends StatelessWidget {
                       return ChoiceChip(
                         avatar: _PinDesignPreview(
                           style: style,
-                          designCatalog: designCatalog,
-                          groupImage: groupImage,
+                          designCatalog: widget.designCatalog,
+                          groupImage: widget.groupImage,
                           width: 26,
                           height: 32,
                         ),
                         label: Text(_styleName(style)),
                         selected: selected,
-                        onSelected: updatingPinStyle || selected
+                        onSelected: widget.updatingPinStyle || selected
                             ? null
-                            : (_) => onPinStyleSelected(style),
+                            : (_) => widget.onPinStyleSelected(style),
                       );
                     }).toList(),
               ),
-              if (updatingPinStyle) ...[
+              if (widget.updatingPinStyle) ...[
                 const SizedBox(height: 8),
                 const LinearProgressIndicator(minHeight: 2),
               ],
@@ -131,15 +183,15 @@ class GroupAchievementsCard extends StatelessWidget {
               Row(
                 children: [
                   _PinDesignPreview(
-                    style: group!.pinStyle,
-                    designCatalog: designCatalog,
-                    groupImage: groupImage,
+                    style: group.pinStyle,
+                    designCatalog: widget.designCatalog,
+                    groupImage: widget.groupImage,
                     width: 30,
                     height: 36,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Group pin appearance: ${_styleName(group!.pinStyle)}',
+                    'Group pin appearance: ${_styleName(group.pinStyle)}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -152,29 +204,147 @@ class GroupAchievementsCard extends StatelessWidget {
   }
 }
 
-const _pinStyles = ['moss', 'sunset', 'aurora'];
+const _groupAchievementTracks = <_GroupAchievementTrackDefinition>[
+  _GroupAchievementTrackDefinition('active_pins', 'Pins'),
+  _GroupAchievementTrackDefinition('contributors', 'Contributors'),
+  _GroupAchievementTrackDefinition('members', 'Members'),
+];
+
+class _GroupAchievementTrackDefinition {
+  const _GroupAchievementTrackDefinition(this.id, this.title);
+
+  final String id;
+  final String title;
+}
+
+class _GroupAchievementTrack {
+  const _GroupAchievementTrack({
+    required this.id,
+    required this.title,
+    required this.achievements,
+  });
+
+  final String id;
+  final String title;
+  final List<GroupAchievementsDtoInner> achievements;
+}
+
+const _pinStyles = [
+  'moss',
+  'sunset',
+  'aurora',
+  'seafoam',
+  'honey',
+  'orchid',
+  'copper',
+  'jade',
+  'ember',
+  'glacier',
+  'rose',
+  'midnight',
+];
 
 class _AchievementRow extends StatelessWidget {
   const _AchievementRow({
     required this.achievement,
+    required this.designCatalog,
+    required this.groupImage,
     required this.canClaim,
     required this.isClaiming,
     required this.onClaim,
   });
 
   final GroupAchievementsDtoInner achievement;
+  final GroupPinDesignCatalogDto? designCatalog;
+  final Uint8List? groupImage;
   final bool canClaim;
   final bool isClaiming;
   final Future<void> Function() onClaim;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final progress = achievement.thresholdValue <= 0
         ? 0.0
         : (achievement.currentValue / achievement.thresholdValue).clamp(
             0.0,
             1.0,
           );
+    final style = achievement.rewardPinStyle?.value;
+    final rewardType =
+        achievement.rewardType?.value ??
+        _groupRewardType(achievement.difficulty?.value);
+    final rewardDescription = switch (rewardType) {
+      'xp' => '${achievement.rewardXp ?? 50} group XP',
+      'color' => '${style == null ? 'Group pin' : _styleName(style)} color',
+      _ =>
+        '${_groupRewardRarity(achievement.difficulty?.value)} ${style == null ? 'pin' : _styleName(style)} badge design',
+    };
+    final reward = switch (rewardType) {
+      'xp' => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt, size: 15, color: theme.colorScheme.primary),
+          const SizedBox(width: 4),
+          Text('${achievement.rewardXp ?? 50} Group XP'),
+        ],
+      ),
+      'color' => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (achievement.rewardColor != null)
+            Container(
+              width: 13,
+              height: 13,
+              decoration: BoxDecoration(
+                color: Color(
+                  0xFF000000 |
+                      int.parse(
+                        achievement.rewardColor!.substring(1),
+                        radix: 16,
+                      ),
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              '${style == null ? 'Group pin' : _styleName(style)} color',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+      _ => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PinDesignPreview(
+            style: style ?? 'classic',
+            designCatalog: designCatalog,
+            groupImage: groupImage,
+            width: 19,
+            height: 23,
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              rewardDescription,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    };
     return AchievementCard(
       title: achievement.name ?? 'Group pin milestone',
       description: achievement.description ?? '',
@@ -183,10 +353,24 @@ class _AchievementRow extends StatelessWidget {
       progress: progress,
       claimed: achievement.claimed,
       claimable: achievement.claimable && canClaim,
+      rewardDescription: rewardDescription,
+      reward: reward,
       onTap: achievement.claimable && canClaim && !isClaiming ? onClaim : null,
     );
   }
 }
+
+String _groupRewardType(String? difficulty) => switch (difficulty) {
+  'hard' => 'badge',
+  'medium' => 'color',
+  _ => 'xp',
+};
+
+String _groupRewardRarity(String? difficulty) => switch (difficulty) {
+  'hard' => 'Mythic',
+  'medium' => 'Rare',
+  _ => 'Signature',
+};
 
 class _PinDesignPreview extends StatelessWidget {
   const _PinDesignPreview({
@@ -238,5 +422,14 @@ String _styleName(String style) => switch (style) {
   'moss' => 'Moss',
   'sunset' => 'Sunset',
   'aurora' => 'Aurora',
+  'seafoam' => 'Seafoam',
+  'honey' => 'Honey',
+  'orchid' => 'Orchid',
+  'copper' => 'Copper',
+  'jade' => 'Jade',
+  'ember' => 'Ember',
+  'glacier' => 'Glacier',
+  'rose' => 'Rose',
+  'midnight' => 'Midnight',
   _ => 'Classic',
 };

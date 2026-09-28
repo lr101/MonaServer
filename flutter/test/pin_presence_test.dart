@@ -26,6 +26,9 @@ void main() {
             'CREATE TABLE group_entities (group_id TEXT NOT NULL)',
           );
           database.execute('CREATE TABLE pin_entities (pin_id TEXT NOT NULL)');
+          database.execute(
+            'CREATE TABLE user_entities (user_id TEXT NOT NULL)',
+          );
           database.userVersion = 2;
         },
       ),
@@ -38,7 +41,7 @@ void main() {
 
     expect(
       columns.map((column) => column.read<String>('name')),
-      contains('is_gone'),
+      containsAll(['is_gone', 'title']),
     );
   });
 

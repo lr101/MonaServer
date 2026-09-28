@@ -2,33 +2,84 @@ package db
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
 )
 
 type GroupAchievementDef struct {
-	ID             int32
-	Name           string
-	Description    string
-	Difficulty     string
-	Threshold      int32
-	RewardPinStyle string
+	ID                     int32
+	Track                  string
+	Name                   string
+	Description            string
+	Difficulty             string
+	Threshold              int32
+	ContributorMinimumPins int32
+	RewardType             string
+	RewardXP               int32
+	RewardColor            string
+	RewardPinStyle         string
 }
 
 var groupAchievementDefs = []GroupAchievementDef{
 	{
-		ID: 1, Name: "First gathering", Description: "Add 10 active sticks to this group.",
-		Difficulty: "easy", Threshold: 10, RewardPinStyle: "moss",
+		ID: 1, Track: "active_pins", Name: "First gathering", Description: "Add 40 active sticks to this group.",
+		Difficulty: "easy", Threshold: 40, RewardType: "xp", RewardXP: 50,
 	},
 	{
-		ID: 2, Name: "Local landmark", Description: "Add 25 active sticks to this group.",
-		Difficulty: "medium", Threshold: 25, RewardPinStyle: "sunset",
+		ID: 2, Track: "active_pins", Name: "Local landmark", Description: "Add 100 active sticks to this group.",
+		Difficulty: "medium", Threshold: 100, RewardType: "color", RewardColor: "#D57B50", RewardPinStyle: "sunset",
 	},
 	{
-		ID: 3, Name: "Mapmaker crew", Description: "Add 50 active sticks to this group.",
-		Difficulty: "hard", Threshold: 50, RewardPinStyle: "aurora",
+		ID: 3, Track: "active_pins", Name: "Mapmaker crew", Description: "Add 200 active sticks to this group.",
+		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "aurora",
 	},
+	{
+		ID: 4, Track: "active_pins", Name: "First pin", Description: "Add 2 active sticks to this group.",
+		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 50,
+	},
+	{
+		ID: 5, Track: "active_pins", Name: "Four hundred pins", Description: "Add 400 active sticks to this group.",
+		Difficulty: "hard", Threshold: 400, RewardType: "badge", RewardPinStyle: "honey",
+	},
+	{
+		ID: 6, Track: "active_pins", Name: "Pin legend", Description: "Add 1,000 active sticks to this group.",
+		Difficulty: "hard", Threshold: 1000, RewardType: "badge", RewardPinStyle: "orchid",
+	},
+	{
+		ID: 7, Track: "contributors", Name: "Shared start", Description: "Have 2 people each add at least 1 stick.",
+		Difficulty: "easy", Threshold: 2, ContributorMinimumPins: 1, RewardType: "xp", RewardXP: 50,
+	},
+	{
+		ID: 8, Track: "contributors", Name: "Many hands", Description: "Have 20 people each add at least 3 sticks.",
+		Difficulty: "medium", Threshold: 20, ContributorMinimumPins: 3, RewardType: "color", RewardColor: "#388E67", RewardPinStyle: "jade",
+	},
+	{
+		ID: 9, Track: "contributors", Name: "Community mosaic", Description: "Have 60 people each add at least 5 sticks.",
+		Difficulty: "hard", Threshold: 60, ContributorMinimumPins: 5, RewardType: "badge", RewardPinStyle: "ember",
+	},
+	{
+		ID: 10, Track: "members", Name: "Welcoming crew", Description: "Grow this group to 10 active members.",
+		Difficulty: "easy", Threshold: 10, RewardType: "xp", RewardXP: 50,
+	},
+	{
+		ID: 11, Track: "members", Name: "Growing circle", Description: "Grow this group to 60 active members.",
+		Difficulty: "medium", Threshold: 60, RewardType: "color", RewardColor: "#C35C84", RewardPinStyle: "rose",
+	},
+	{
+		ID: 12, Track: "members", Name: "Big table", Description: "Grow this group to 200 active members.",
+		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "midnight",
+	},
+}
+
+var groupPinStyleOrder = []string{
+	"classic", "moss", "sunset", "aurora", "seafoam", "honey", "orchid",
+	"copper", "jade", "ember", "glacier", "rose", "midnight",
+}
+
+func GroupPinStyles() []string {
+	return append([]string(nil), groupPinStyleOrder...)
 }
 
 func GroupAchievementDefinition(id int32) (GroupAchievementDef, bool) {
@@ -41,28 +92,32 @@ func GroupAchievementDefinition(id int32) (GroupAchievementDef, bool) {
 }
 
 func ValidGroupPinStyle(style string) bool {
-	switch style {
-	case "classic", "moss", "sunset", "aurora":
-		return true
-	default:
-		return false
+	for _, candidate := range groupPinStyleOrder {
+		if candidate == style {
+			return true
+		}
 	}
+	return false
 }
 
 type GroupAchievementProgress struct {
 	ID             int32
+	Track          string
 	Name           string
 	Description    string
 	Difficulty     string
 	CurrentValue   int32
 	Threshold      int32
+	RewardType     string
+	RewardXP       int32
+	RewardColor    string
 	Claimed        bool
 	Claimable      bool
 	RewardPinStyle string
 }
 
 func (q *Queries) GetGroupAchievementProgress(ctx context.Context, groupID uuid.UUID) ([]GroupAchievementProgress, error) {
-	current, err := q.g.GetGroupPinCount(ctx, pgUUID(groupID))
+	metrics, err := q.g.GetGroupAchievementMetrics(ctx, pgUUID(groupID))
 	if err != nil {
 		return nil, err
 	}
@@ -78,19 +133,44 @@ func (q *Queries) GetGroupAchievementProgress(ctx context.Context, groupID uuid.
 	progress := make([]GroupAchievementProgress, 0, len(groupAchievementDefs))
 	for _, def := range groupAchievementDefs {
 		isClaimed := claimedSet[def.ID]
+		current := groupMetricValue(metrics, def)
 		progress = append(progress, GroupAchievementProgress{
 			ID:             def.ID,
+			Track:          def.Track,
 			Name:           def.Name,
 			Description:    def.Description,
 			Difficulty:     def.Difficulty,
 			CurrentValue:   current,
 			Threshold:      def.Threshold,
+			RewardType:     def.RewardType,
+			RewardXP:       def.RewardXP,
+			RewardColor:    def.RewardColor,
 			Claimed:        isClaimed,
 			Claimable:      !isClaimed && current >= def.Threshold,
 			RewardPinStyle: def.RewardPinStyle,
 		})
 	}
 	return progress, nil
+}
+
+func groupMetricValue(metrics dbgen.GetGroupAchievementMetricsRow, def GroupAchievementDef) int32 {
+	switch def.Track {
+	case "active_pins":
+		return metrics.ActivePins
+	case "contributors":
+		switch def.ContributorMinimumPins {
+		case 3:
+			return metrics.ContributorsThreePins
+		case 5:
+			return metrics.ContributorsFivePins
+		default:
+			return metrics.Contributors
+		}
+	case "members":
+		return metrics.Members
+	default:
+		return 0
+	}
 }
 
 func (q *Queries) ClaimGroupAchievementReward(ctx context.Context, groupID, memberID uuid.UUID, achievementID int32) (bool, error) {
@@ -102,10 +182,12 @@ func (q *Queries) ClaimGroupAchievementReward(ctx context.Context, groupID, memb
 	claimed := false
 	err := q.InTx(ctx, func(tx *Queries) error {
 		rows, err := tx.g.ClaimGroupAchievement(ctx, dbgen.ClaimGroupAchievementParams{
-			GroupID:       pgUUID(groupID),
-			AchievementID: achievementID,
-			ClaimedBy:     pgUUID(memberID),
-			Threshold:     def.Threshold,
+			GroupID:                pgUUID(groupID),
+			AchievementID:          achievementID,
+			ClaimedBy:              pgUUID(memberID),
+			Track:                  def.Track,
+			Threshold:              def.Threshold,
+			ContributorMinimumPins: def.ContributorMinimumPins,
 		})
 		if err != nil {
 			return err
@@ -113,12 +195,19 @@ func (q *Queries) ClaimGroupAchievementReward(ctx context.Context, groupID, memb
 		if rows == 0 {
 			return nil
 		}
-		if err := tx.g.UnlockGroupPinStyle(ctx, dbgen.UnlockGroupPinStyleParams{
-			GroupID:       pgUUID(groupID),
-			PinStyle:      def.RewardPinStyle,
-			AchievementID: achievementID,
-		}); err != nil {
-			return err
+		if def.RewardType == "color" || def.RewardType == "badge" {
+			if err := tx.g.UnlockGroupPinStyle(ctx, dbgen.UnlockGroupPinStyleParams{
+				GroupID:       pgUUID(groupID),
+				PinStyle:      def.RewardPinStyle,
+				AchievementID: achievementID,
+			}); err != nil {
+				return err
+			}
+		}
+		if def.RewardType == "xp" {
+			if err := tx.AwardGroupXP(ctx, groupID, fmt.Sprintf("achievement:%d", def.ID), def.RewardXP); err != nil {
+				return err
+			}
 		}
 		claimed = true
 		return nil

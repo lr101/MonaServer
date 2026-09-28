@@ -27,6 +27,15 @@ class GroupPinDesignStyle {
   static const moss = GroupPinDesignStyle._(r'moss');
   static const sunset = GroupPinDesignStyle._(r'sunset');
   static const aurora = GroupPinDesignStyle._(r'aurora');
+  static const seafoam = GroupPinDesignStyle._(r'seafoam');
+  static const honey = GroupPinDesignStyle._(r'honey');
+  static const orchid = GroupPinDesignStyle._(r'orchid');
+  static const copper = GroupPinDesignStyle._(r'copper');
+  static const jade = GroupPinDesignStyle._(r'jade');
+  static const ember = GroupPinDesignStyle._(r'ember');
+  static const glacier = GroupPinDesignStyle._(r'glacier');
+  static const rose = GroupPinDesignStyle._(r'rose');
+  static const midnight = GroupPinDesignStyle._(r'midnight');
 
   /// List of all possible values in this [enum][GroupPinDesignStyle].
   static const values = <GroupPinDesignStyle>[
@@ -34,6 +43,15 @@ class GroupPinDesignStyle {
     moss,
     sunset,
     aurora,
+    seafoam,
+    honey,
+    orchid,
+    copper,
+    jade,
+    ember,
+    glacier,
+    rose,
+    midnight,
   ];
 
   static GroupPinDesignStyle? fromJson(dynamic value) => GroupPinDesignStyleTypeTransformer().decode(value);
@@ -76,6 +94,15 @@ class GroupPinDesignStyleTypeTransformer {
         case r'moss': return GroupPinDesignStyle.moss;
         case r'sunset': return GroupPinDesignStyle.sunset;
         case r'aurora': return GroupPinDesignStyle.aurora;
+        case r'seafoam': return GroupPinDesignStyle.seafoam;
+        case r'honey': return GroupPinDesignStyle.honey;
+        case r'orchid': return GroupPinDesignStyle.orchid;
+        case r'copper': return GroupPinDesignStyle.copper;
+        case r'jade': return GroupPinDesignStyle.jade;
+        case r'ember': return GroupPinDesignStyle.ember;
+        case r'glacier': return GroupPinDesignStyle.glacier;
+        case r'rose': return GroupPinDesignStyle.rose;
+        case r'midnight': return GroupPinDesignStyle.midnight;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

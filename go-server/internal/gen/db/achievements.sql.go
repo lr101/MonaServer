@@ -43,6 +43,7 @@ WITH claim AS (
     )
     SELECT user_id, achievement_id, $4, $5, NOW()
     FROM claim
+    WHERE $4 > 0
     ON CONFLICT (user_id, achievement_id) DO NOTHING
     RETURNING user_id, xp_awarded
 ), award AS (
@@ -121,6 +122,35 @@ func (q *Queries) GetUserAchievement(ctx context.Context, arg GetUserAchievement
 	return i, err
 }
 
+const listCurrentClaimedUserAchievementIDs = `-- name: ListCurrentClaimedUserAchievementIDs :many
+SELECT achievement_id
+FROM user_achievement
+WHERE user_id = $1
+  AND claimed = TRUE
+  AND user_achievement_is_current(user_id, achievement_id)
+ORDER BY achievement_id
+`
+
+func (q *Queries) ListCurrentClaimedUserAchievementIDs(ctx context.Context, userID pgtype.UUID) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listCurrentClaimedUserAchievementIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var achievement_id int32
+		if err := rows.Scan(&achievement_id); err != nil {
+			return nil, err
+		}
+		items = append(items, achievement_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserAchievementRewardAwards = `-- name: ListUserAchievementRewardAwards :many
 SELECT achievement_id
 FROM user_achievement_reward_ledger
@@ -129,6 +159,37 @@ WHERE user_id = $1
 
 func (q *Queries) ListUserAchievementRewardAwards(ctx context.Context, userID pgtype.UUID) ([]int32, error) {
 	rows, err := q.db.Query(ctx, listUserAchievementRewardAwards, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int32
+	for rows.Next() {
+		var achievement_id int32
+		if err := rows.Scan(&achievement_id); err != nil {
+			return nil, err
+		}
+		items = append(items, achievement_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserAchievementRewardAwardsBeforeVersion = `-- name: ListUserAchievementRewardAwardsBeforeVersion :many
+SELECT achievement_id
+FROM user_achievement_reward_ledger
+WHERE user_id = $1 AND definition_version < $2
+`
+
+type ListUserAchievementRewardAwardsBeforeVersionParams struct {
+	UserID            pgtype.UUID `json:"user_id"`
+	DefinitionVersion int32       `json:"definition_version"`
+}
+
+func (q *Queries) ListUserAchievementRewardAwardsBeforeVersion(ctx context.Context, arg ListUserAchievementRewardAwardsBeforeVersionParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listUserAchievementRewardAwardsBeforeVersion, arg.UserID, arg.DefinitionVersion)
 	if err != nil {
 		return nil, err
 	}

@@ -70,6 +70,7 @@ class TopStatusBar extends ConsumerWidget {
                         child: Batch(
                           batchId: user!.selectedBatch!,
                           fontSize: 7,
+                          colorOverride: user.selectedBatchColor,
                         ),
                       ),
                   ],

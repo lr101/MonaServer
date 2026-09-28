@@ -50,7 +50,7 @@ func (s *GroupPinDesignCatalogService) Get(ctx context.Context, groupID uuid.UUI
 func mergeGroupPinDesignCatalog(stored db.GroupPinDesignCatalog, progress []db.GroupAchievementProgress) db.GroupPinDesignCatalog {
 	unlocked := map[string]bool{"classic": true}
 	for _, achievement := range progress {
-		if achievement.Claimed {
+		if achievement.Claimed && achievement.RewardPinStyle != "" {
 			unlocked[achievement.RewardPinStyle] = true
 		}
 	}
@@ -61,7 +61,7 @@ func mergeGroupPinDesignCatalog(stored db.GroupPinDesignCatalog, progress []db.G
 	}
 
 	designs := make([]db.GroupPinDesign, 0, len(unlocked))
-	for _, style := range []string{"classic", "moss", "sunset", "aurora"} {
+	for _, style := range db.GroupPinStyles() {
 		if !unlocked[style] {
 			continue
 		}

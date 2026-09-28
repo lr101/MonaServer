@@ -32,6 +32,7 @@ class MemberRepository extends CacheImpl<MembersEntity>
                 'points': e.points,
                 'username': e.username,
                 'selectedBatch': e.selectedBatch,
+                'selectedBatchColor': e.selectedBatchColor,
               },
             )
             .toList(),
@@ -54,6 +55,7 @@ class MemberRepository extends CacheImpl<MembersEntity>
               points: e['points'] as int? ?? 0,
               username: e['username'] as String? ?? '',
               selectedBatch: e['selectedBatch'] as int?,
+              selectedBatchColor: e['selectedBatchColor'] as String?,
             ),
           )
           .toList(),

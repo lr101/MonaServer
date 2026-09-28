@@ -4,10 +4,23 @@ FROM user_achievement
 WHERE user_id = $1
 ORDER BY achievement_id;
 
+-- name: ListCurrentClaimedUserAchievementIDs :many
+SELECT achievement_id
+FROM user_achievement
+WHERE user_id = $1
+  AND claimed = TRUE
+  AND user_achievement_is_current(user_id, achievement_id)
+ORDER BY achievement_id;
+
 -- name: ListUserAchievementRewardAwards :many
 SELECT achievement_id
 FROM user_achievement_reward_ledger
 WHERE user_id = $1;
+
+-- name: ListUserAchievementRewardAwardsBeforeVersion :many
+SELECT achievement_id
+FROM user_achievement_reward_ledger
+WHERE user_id = $1 AND definition_version < $2;
 
 -- name: GetUserAchievement :one
 SELECT id, user_id, achievement_id, claimed
@@ -59,6 +72,7 @@ WITH claim AS (
     )
     SELECT user_id, achievement_id, $4, $5, NOW()
     FROM claim
+    WHERE $4 > 0
     ON CONFLICT (user_id, achievement_id) DO NOTHING
     RETURNING user_id, xp_awarded
 ), award AS (

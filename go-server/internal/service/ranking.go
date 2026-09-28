@@ -17,22 +17,23 @@ func NewRanking(q *db.Queries) *Ranking { return &Ranking{q: q} }
 
 // UserRankingItem mirrors UserRankingDtoInner.
 type UserRankingItem struct {
-	RankNr      int        `json:"rankNr"`
-	Points      int32      `json:"points"`
-	UserID      uuid.UUID  `json:"userId"`
-	Username    string     `json:"username"`
-	Description *string    `json:"description,omitempty"`
-	SelectedBatch *int32   `json:"selectedBatch,omitempty"`
+	RankNr             int       `json:"rankNr"`
+	Points             int32     `json:"points"`
+	UserID             uuid.UUID `json:"userId"`
+	Username           string    `json:"username"`
+	Description        *string   `json:"description,omitempty"`
+	SelectedBatch      *int32    `json:"selectedBatch,omitempty"`
+	SelectedBatchColor *string   `json:"selectedBatchColor,omitempty"`
 }
 
 // GroupRankingItem mirrors GroupRankingDtoInner.
 type GroupRankingItem struct {
-	RankNr      int        `json:"rankNr"`
-	Points      int32      `json:"points"`
-	GroupID     uuid.UUID  `json:"groupId"`
-	Name        string     `json:"name"`
-	Visibility  int        `json:"visibility"`
-	Description *string    `json:"description,omitempty"`
+	RankNr      int       `json:"rankNr"`
+	Points      int32     `json:"points"`
+	GroupID     uuid.UUID `json:"groupId"`
+	Name        string    `json:"name"`
+	Visibility  int       `json:"visibility"`
+	Description *string   `json:"description,omitempty"`
 }
 
 // BoundaryItem mirrors RankingSearchDtoInner.
@@ -44,7 +45,7 @@ type BoundaryItem struct {
 
 // MapInfoItem mirrors MapInfoDto.
 type MapInfoItem struct {
-	Gid0, Gid1, Gid2   *string `json:"-"`
+	Gid0, Gid1, Gid2    *string `json:"-"`
 	Name0, Name1, Name2 *string `json:"-"`
 	// Flattened for JSON
 	Gid  *string `json:"gid,omitempty"`
@@ -65,7 +66,7 @@ func (s *Ranking) UserRanking(ctx context.Context, gid0, gid1, gid2 *string, sin
 		out = append(out, UserRankingItem{
 			RankNr: int(f.Offset) + i + 1, Points: r.Points,
 			UserID: r.UserID, Username: r.Username, Description: r.Description,
-			SelectedBatch: r.AchievementID,
+			SelectedBatch: r.AchievementID, SelectedBatchColor: &r.SelectedBatchColor,
 		})
 	}
 	return out, nil

@@ -144,6 +144,8 @@ class UserEntities extends Table with CacheTable {
   TextColumn get userId => text()();
   TextColumn get username => text()();
   IntColumn get selectedBatch => integer().nullable()();
+  TextColumn get selectedBatchColor =>
+      text().withDefault(const Constant('default'))();
   TextColumn get description => text().nullable()();
   TextColumn get bestSeason => text().map(const SeasonConverter()).nullable()();
 }
@@ -181,7 +183,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -241,6 +243,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 5) {
         await m.addColumn(pinEntities, pinEntities.title);
+      }
+      if (from < 6) {
+        await m.addColumn(userEntities, userEntities.selectedBatchColor);
       }
     },
   );

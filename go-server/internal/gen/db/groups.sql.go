@@ -197,7 +197,7 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByI
 }
 
 const getGroupRanking = `-- name: GetGroupRanking :many
-SELECT m.user_id, u.username,
+SELECT m.user_id, u.username, u.selected_batch_color,
        COUNT(pg.creator_id)::int AS points,
        ua.achievement_id
 FROM members m
@@ -209,15 +209,16 @@ LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
     AND ua.claimed = TRUE
     AND user_achievement_is_current(u.id, ua.achievement_id)
 WHERE m.group_id = $1
-GROUP BY m.user_id, u.username, ua.achievement_id
+GROUP BY m.user_id, u.username, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, m.user_id
 `
 
 type GetGroupRankingRow struct {
-	UserID        pgtype.UUID `json:"user_id"`
-	Username      pgtype.Text `json:"username"`
-	Points        int32       `json:"points"`
-	AchievementID pgtype.Int4 `json:"achievement_id"`
+	UserID             pgtype.UUID `json:"user_id"`
+	Username           pgtype.Text `json:"username"`
+	SelectedBatchColor string      `json:"selected_batch_color"`
+	Points             int32       `json:"points"`
+	AchievementID      pgtype.Int4 `json:"achievement_id"`
 }
 
 func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error) {
@@ -232,6 +233,7 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]G
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Username,
+			&i.SelectedBatchColor,
 			&i.Points,
 			&i.AchievementID,
 		); err != nil {

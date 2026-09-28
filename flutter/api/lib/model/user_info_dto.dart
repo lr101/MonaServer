@@ -17,6 +17,7 @@ class UserInfoDto {
     required this.userId,
     this.description,
     this.selectedBatch,
+    this.selectedBatchColor,
     this.bestSeason,
     this.isMessagingRegistered,
   });
@@ -35,6 +36,8 @@ class UserInfoDto {
 
   int? selectedBatch;
 
+  String? selectedBatchColor;
+
   SeasonItemDto? bestSeason;
 
   /// Flag for whether the user registered to receive push messages. Only set for the current user.
@@ -46,6 +49,7 @@ class UserInfoDto {
     other.userId == userId &&
     other.description == description &&
     other.selectedBatch == selectedBatch &&
+    other.selectedBatchColor == selectedBatchColor &&
     other.bestSeason == bestSeason &&
     other.isMessagingRegistered == isMessagingRegistered;
 
@@ -56,11 +60,12 @@ class UserInfoDto {
     (userId.hashCode) +
     (description == null ? 0 : description!.hashCode) +
     (selectedBatch == null ? 0 : selectedBatch!.hashCode) +
+    (selectedBatchColor == null ? 0 : selectedBatchColor!.hashCode) +
     (bestSeason == null ? 0 : bestSeason!.hashCode) +
     (isMessagingRegistered == null ? 0 : isMessagingRegistered!.hashCode);
 
   @override
-  String toString() => 'UserInfoDto[username=$username, userId=$userId, description=$description, selectedBatch=$selectedBatch, bestSeason=$bestSeason, isMessagingRegistered=$isMessagingRegistered]';
+  String toString() => 'UserInfoDto[username=$username, userId=$userId, description=$description, selectedBatch=$selectedBatch, selectedBatchColor=$selectedBatchColor, bestSeason=$bestSeason, isMessagingRegistered=$isMessagingRegistered]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -75,6 +80,11 @@ class UserInfoDto {
       json[r'selectedBatch'] = this.selectedBatch;
     } else {
       json[r'selectedBatch'] = null;
+    }
+    if (this.selectedBatchColor != null) {
+      json[r'selectedBatchColor'] = this.selectedBatchColor;
+    } else {
+      json[r'selectedBatchColor'] = null;
     }
     if (this.bestSeason != null) {
       json[r'bestSeason'] = this.bestSeason;
@@ -112,6 +122,7 @@ class UserInfoDto {
         userId: mapValueOfType<String>(json, r'userId')!,
         description: mapValueOfType<String>(json, r'description'),
         selectedBatch: mapValueOfType<int>(json, r'selectedBatch'),
+        selectedBatchColor: mapValueOfType<String>(json, r'selectedBatchColor'),
         bestSeason: SeasonItemDto.fromJson(json[r'bestSeason']),
         isMessagingRegistered: mapValueOfType<bool>(json, r'isMessagingRegistered'),
       );
@@ -165,4 +176,3 @@ class UserInfoDto {
     'userId',
   };
 }
-

@@ -265,13 +265,13 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if groupDto.PinStyle != "classic" {
 		t.Fatalf("new group pin style = %q, want classic", groupDto.PinStyle)
 	}
-	lockedStyle := "moss"
+	lockedStyle := "aurora"
 	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle}); err != apperrors.ErrForbidden {
 		t.Fatalf("select locked group pin style error = %v, want forbidden", err)
 	}
 
 	lastPinID := uuid.Nil
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 200; i++ {
 		created, err := pin.Create(ctx, CreatePinInput{
 			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
 			UserID: memberID, GroupID: groupID,
@@ -288,8 +288,8 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get progress with a gone pin: %v", err)
 	}
-	if progress[0].CurrentValue != 9 || progress[0].Claimable {
-		t.Fatalf("gone pin counted as active: %+v", progress[0])
+	if progress[2].CurrentValue != 199 || progress[2].Claimable {
+		t.Fatalf("gone pin counted toward the aurora badge: %+v", progress[2])
 	}
 	if err := pin.SetGone(ctx, lastPinID, false); err != nil {
 		t.Fatalf("mark a group pin active: %v", err)
@@ -299,13 +299,13 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get group achievement progress: %v", err)
 	}
-	if len(progress) != 3 || progress[0].CurrentValue != 10 || !progress[0].Claimable {
-		t.Fatalf("first group achievement progress = %+v, want 10 pins and claimable", progress)
+	if len(progress) != 12 || progress[2].CurrentValue != 200 || !progress[2].Claimable {
+		t.Fatalf("aurora badge progress = %+v, want 200 pins and claimable", progress[2])
 	}
-	if err := group.ClaimAchievement(ctx, groupID, memberID, 1); err != nil {
-		t.Fatalf("claim first group achievement: %v", err)
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 3); err != nil {
+		t.Fatalf("claim aurora group achievement: %v", err)
 	}
-	if err := group.ClaimAchievement(ctx, groupID, memberID, 1); err != nil {
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 3); err != nil {
 		t.Fatalf("repeat group achievement claim: %v", err)
 	}
 	updated, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle})
@@ -315,7 +315,7 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if updated.PinStyle != lockedStyle {
 		t.Fatalf("selected group pin style = %q, want %q", updated.PinStyle, lockedStyle)
 	}
-	stillLocked := "aurora"
+	stillLocked := "honey"
 	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &stillLocked}); err != apperrors.ErrForbidden {
 		t.Fatalf("select unearned group pin style error = %v, want forbidden", err)
 	}
@@ -324,8 +324,8 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read claimed group achievement: %v", err)
 	}
-	if !progress[0].Claimed || progress[0].Claimable {
-		t.Fatalf("claimed achievement state = %+v, want claimed and no longer claimable", progress[0])
+	if !progress[2].Claimed || progress[2].Claimable {
+		t.Fatalf("claimed achievement state = %+v, want claimed and no longer claimable", progress[2])
 	}
 }
 

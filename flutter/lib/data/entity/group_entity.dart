@@ -97,6 +97,15 @@ class GroupEntity extends CacheEntity {
         'moss' => UpdateGroupDtoPinStyleEnum.moss,
         'sunset' => UpdateGroupDtoPinStyleEnum.sunset,
         'aurora' => UpdateGroupDtoPinStyleEnum.aurora,
+        'seafoam' => UpdateGroupDtoPinStyleEnum.seafoam,
+        'honey' => UpdateGroupDtoPinStyleEnum.honey,
+        'orchid' => UpdateGroupDtoPinStyleEnum.orchid,
+        'copper' => UpdateGroupDtoPinStyleEnum.copper,
+        'jade' => UpdateGroupDtoPinStyleEnum.jade,
+        'ember' => UpdateGroupDtoPinStyleEnum.ember,
+        'glacier' => UpdateGroupDtoPinStyleEnum.glacier,
+        'rose' => UpdateGroupDtoPinStyleEnum.rose,
+        'midnight' => UpdateGroupDtoPinStyleEnum.midnight,
         _ => UpdateGroupDtoPinStyleEnum.classic,
       };
 

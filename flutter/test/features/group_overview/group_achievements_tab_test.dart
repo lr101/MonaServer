@@ -38,14 +38,17 @@ void main() {
             (ref) => [
               GroupAchievementsDtoInner(
                 achievementId: 1,
-                name: 'First group milestone',
+                name: 'First gathering',
                 description: 'Add group pins.',
-                track: 'pins',
+                track: 'active_pins',
                 claimed: false,
                 claimable: false,
-                thresholdValue: 5,
+                thresholdValue: 40,
                 currentValue: 2,
                 thresholdUp: true,
+                difficulty: GroupAchievementsDtoInnerDifficultyEnum.easy,
+                rewardType: GroupAchievementsDtoInnerRewardTypeEnum.xp,
+                rewardXp: 50,
                 rewardPinStyle:
                     GroupAchievementsDtoInnerRewardPinStyleEnum.moss,
               ),
@@ -78,14 +81,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('First group milestone'), findsNothing);
+    expect(find.text('First gathering'), findsNothing);
     expect(find.text('Group level 2'), findsNothing);
     expect(find.text('Achievements'), findsOneWidget);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
-    expect(find.text('First group milestone'), findsOneWidget);
+    expect(find.text('First gathering'), findsOneWidget);
     expect(find.text('Group level 2'), findsOneWidget);
   });
 }

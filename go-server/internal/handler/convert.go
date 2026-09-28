@@ -79,6 +79,7 @@ func toUserInfoDto(u *service.UserInfo) genserver.UserInfoDto {
 		Username:              u.Username,
 		Description:           desc,
 		SelectedBatch:         u.SelectedBatch,
+		SelectedBatchColor:    u.SelectedBatchColor,
 		BestSeason:            toSeasonItemDto(u.BestSeason),
 		IsMessagingRegistered: u.IsMessagingRegistered,
 	}

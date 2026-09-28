@@ -18,10 +18,19 @@ type GroupPinDesignStyle string
 
 // List of GroupPinDesignStyle
 const (
-	CLASSIC GroupPinDesignStyle = "classic"
-	MOSS    GroupPinDesignStyle = "moss"
-	SUNSET  GroupPinDesignStyle = "sunset"
-	AURORA  GroupPinDesignStyle = "aurora"
+	CLASSIC  GroupPinDesignStyle = "classic"
+	MOSS     GroupPinDesignStyle = "moss"
+	SUNSET   GroupPinDesignStyle = "sunset"
+	AURORA   GroupPinDesignStyle = "aurora"
+	SEAFOAM  GroupPinDesignStyle = "seafoam"
+	HONEY    GroupPinDesignStyle = "honey"
+	ORCHID   GroupPinDesignStyle = "orchid"
+	COPPER   GroupPinDesignStyle = "copper"
+	JADE     GroupPinDesignStyle = "jade"
+	EMBER    GroupPinDesignStyle = "ember"
+	GLACIER  GroupPinDesignStyle = "glacier"
+	ROSE     GroupPinDesignStyle = "rose"
+	MIDNIGHT GroupPinDesignStyle = "midnight"
 )
 
 // AllowedGroupPinDesignStyleEnumValues is all the allowed values of GroupPinDesignStyle enum
@@ -30,14 +39,32 @@ var AllowedGroupPinDesignStyleEnumValues = []GroupPinDesignStyle{
 	"moss",
 	"sunset",
 	"aurora",
+	"seafoam",
+	"honey",
+	"orchid",
+	"copper",
+	"jade",
+	"ember",
+	"glacier",
+	"rose",
+	"midnight",
 }
 
 // validGroupPinDesignStyleEnumValue provides a map of GroupPinDesignStyles for fast verification of use input
 var validGroupPinDesignStyleEnumValues = map[GroupPinDesignStyle]struct{}{
-	"classic": {},
-	"moss":    {},
-	"sunset":  {},
-	"aurora":  {},
+	"classic":  {},
+	"moss":     {},
+	"sunset":   {},
+	"aurora":   {},
+	"seafoam":  {},
+	"honey":    {},
+	"orchid":   {},
+	"copper":   {},
+	"jade":     {},
+	"ember":    {},
+	"glacier":  {},
+	"rose":     {},
+	"midnight": {},
 }
 
 // IsValid return true if the value is valid for the enum, false otherwise

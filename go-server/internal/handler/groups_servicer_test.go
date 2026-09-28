@@ -108,9 +108,10 @@ func TestGroupAchievementVisibilityAndClaimRequireMembership(t *testing.T) {
 	if publicProgress.Code != http.StatusOK {
 		t.Fatalf("public group achievements status = %d, want %d", publicProgress.Code, http.StatusOK)
 	}
-	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 3 ||
-		got[0].RewardPinStyle != "moss" || got[0].Track != "active_pins" {
-		t.Fatalf("public group achievements = %+v, want three pin style rewards", got)
+	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 12 ||
+		got[0].AchievementId != 1 || got[0].RewardType != "xp" ||
+		got[2].AchievementId != 3 || got[2].RewardType != "badge" {
+		t.Fatalf("public group achievements = %+v, want all twelve pin, contributor, and member rewards", got)
 	}
 	nonMemberClaim, err := servicer.ClaimGroupAchievement(outsiderCtx, publicGroup.ID.String(), 1)
 	if err != nil {
@@ -164,7 +165,7 @@ func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
 		t.Fatalf("add claimant: %v", err)
 	}
 	createdAt := time.Now()
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 40; i++ {
 		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
 			Latitude: 1 + float64(i)/1000, Longitude: 1 + float64(i)/1000,
 			CreationDate: createdAt,
@@ -225,11 +226,18 @@ func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
 		t.Fatalf("get achievements for admin: %v", err)
 	}
 	items, ok := progress.Body.([]genserver.GroupAchievementsDtoInner)
-	if !ok || len(items) != 3 {
-		t.Fatalf("admin achievement body = %#v, want three rewards", progress.Body)
+	if !ok || len(items) != 12 {
+		t.Fatalf("admin achievement body = %#v, want twelve rewards", progress.Body)
 	}
-	if !items[0].Claimed || items[0].RewardPinStyle != "moss" {
-		t.Fatalf("admin achievement = %+v, want claimant's moss reward", items[0])
+	var firstGathering *genserver.GroupAchievementsDtoInner
+	for i := range items {
+		if items[i].AchievementId == 1 {
+			firstGathering = &items[i]
+			break
+		}
+	}
+	if firstGathering == nil || !firstGathering.Claimed || firstGathering.RewardType != "xp" || firstGathering.RewardXp != 50 {
+		t.Fatalf("admin achievement = %+v, want claimed First gathering XP reward", firstGathering)
 	}
 }
 

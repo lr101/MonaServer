@@ -8,12 +8,11 @@ import 'package:openapi/api.dart';
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**userId** | **String** |  | 
-**username** | **String** |  | 
-**ranking** | **int** |  | 
-**profileImageSmall** | **String** |  | [optional] 
-**selectedBatch** | **int** |  | [optional] 
+**userId** | **String** |  |
+**username** | **String** |  |
+**ranking** | **int** |  |
+**profileImageSmall** | **String** |  | [optional]
+**selectedBatch** | **int** |  | [optional]
+**selectedBatchColor** | **String** |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-
