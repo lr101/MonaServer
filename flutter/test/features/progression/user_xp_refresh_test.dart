@@ -90,7 +90,18 @@ void main() {
       addTearDown(fixture.dispose);
       await fixture.prepare();
 
-      expect(await fixture.performAction(), isNotNull);
+      final result = await fixture.performAction();
+      if (action == _Mutation.pin) {
+        expect(result, isNull);
+        expect(
+          await fixture.database
+              .select(fixture.database.pendingPinCreates)
+              .get(),
+          hasLength(1),
+        );
+      } else {
+        expect(result, isNotNull);
+      }
       await fixture.container.pump();
 
       expect(fixture.xpRequests, 1);

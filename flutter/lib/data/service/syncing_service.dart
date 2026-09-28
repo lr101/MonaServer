@@ -5,10 +5,12 @@ import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
@@ -161,39 +163,23 @@ class SyncingService extends _$SyncingService {
 
   Future<void> _syncOfflinePins(bool Function() isCurrent) async {
     if (!isCurrent()) return;
-    final pinRepository = _pinRepository;
-    final pinsApi = _pinsApi;
+    final pending = ref.read(pendingPinRepositoryProvider);
+    final owner = ref.read(userIdProvider);
+    final queuedIds = (await pending.forOwner(owner))
+        .map((row) => row.pinId)
+        .toSet();
     final images = ref.read(pinImageRepositoryProvider);
-    final offlinePins = (await pinRepository.getAll()).where(
-      (e) => e.lastSynced == null,
-    );
-    for (final pin in offlinePins) {
+    // Upgrade Android drafts made by earlier versions into the shared outbox.
+    for (final pin in (await _pinRepository.getAll()).where(
+      (item) => item.lastSynced == null && item.creator == owner,
+    )) {
       if (!isCurrent()) return;
+      if (queuedIds.contains(pin.pinId)) continue;
       final image = await images.fetchImage(pin.pinId, true);
       if (!isCurrent()) return;
-      try {
-        final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
-        if (!isCurrent()) return;
-        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
-        ref.invalidate(groupProgressionProvider(pin.groupId));
-        ref.invalidate(groupAchievementsProvider(pin.groupId));
-        await pinRepository.put(
-          PinEntity.fromDto(newPin!, false, keepAlive: true),
-        );
-        if (!isCurrent()) return;
-        await pinRepository.delete(pin.pinId);
-      } on ApiException catch (e) {
-        if (!isCurrent()) return;
-        if (e.code != 409) rethrow;
-        // Preserve the legacy duplicate policy until server idempotency lands.
-        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
-        ref.invalidate(groupProgressionProvider(pin.groupId));
-        ref.invalidate(groupAchievementsProvider(pin.groupId));
-        await pinRepository.delete(pin.pinId);
-      } catch (_) {
-        if (!isCurrent()) return;
-        rethrow;
-      }
+      if (image != null) await pending.enqueue(pin, image);
     }
+    if (!isCurrent()) return;
+    await ref.read(pendingPinUploaderProvider).uploadAll(isActive: isCurrent);
   }
 }

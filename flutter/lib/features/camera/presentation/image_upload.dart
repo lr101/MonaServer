@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -164,10 +166,11 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       keepAlive: true,
       ttl: DateTime.now(),
     );
-    ref
+    final saveError = await ref
         .read(pinServiceProvider)
-        .addPinToGroup(pin, widget.image, showPrompt: true)
-        .then(postUploadActions); // async adding pin
+        .addPinToGroup(pin, widget.image, showPrompt: true);
+    if (saveError != null || !mounted) return;
+    unawaited(postUploadActions(null));
     ref
         .read(cameraGroupIndexProvider.notifier)
         .updateIndex(_groupIndexWhenOpened);
@@ -177,8 +180,9 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
 
   Future<void> postUploadActions(String? _) async {
     if (!kIsWeb && mounted && ref.read(appReviewStateProvider)) {
-      if (mounted)
+      if (mounted) {
         ref.read(appReviewStateProvider.notifier).updateLastReviewDate();
+      }
       final InAppReview inAppReview = InAppReview.instance;
       if (await inAppReview.isAvailable()) {
         await inAppReview.requestReview();
