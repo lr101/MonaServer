@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -11,8 +12,16 @@ import 'package:camera_web/src/types/camera_metadata.dart';
 import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
+const _cameraPermissionTimeout = Duration(seconds: 30);
+
 String? _setting(web.MediaStreamTrack track, String name) =>
     (track.getSettings().getProperty<JSAny?>(name.toJS) as JSString?)?.toDart;
+
+void _stopStream(web.MediaStream stream) {
+  for (final track in stream.getTracks().toDart) {
+    track.stop();
+  }
+}
 
 Future<List<CameraDescription>> discoverCameras() async {
   final plugin = CameraPlatform.instance;
@@ -26,7 +35,7 @@ Future<List<CameraDescription>> discoverCameras() async {
     final devices = web.window.navigator.mediaDevices;
     // Request video permission directly: Permissions API camera queries are
     // not supported consistently in Safari/Firefox. Prefer the main rear lens.
-    stream = await devices
+    final cameraRequest = devices
         .getUserMedia(
           web.MediaStreamConstraints(
             audio: false.toJS,
@@ -36,6 +45,22 @@ Future<List<CameraDescription>> discoverCameras() async {
           ),
         )
         .toDart;
+    try {
+      stream = await cameraRequest.timeout(_cameraPermissionTimeout);
+    } on TimeoutException {
+      // getUserMedia cannot be cancelled. Stop a stream if the browser grants
+      // permission after the visible request has timed out.
+      unawaited(
+        cameraRequest.then<void>(
+          _stopStream,
+          onError: (Object _, StackTrace _) {},
+        ),
+      );
+      throw CameraException(
+        'CameraAccessTimeout',
+        'Camera permission request timed out.',
+      );
+    }
     final tracks = stream.getVideoTracks().toDart;
     final selectedId = tracks.isEmpty
         ? null
@@ -90,17 +115,16 @@ Future<List<CameraDescription>> discoverCameras() async {
       ..clear()
       ..addAll(metadata);
     return descriptions;
+  } on CameraException {
+    rethrow;
   } catch (error) {
-    if ((error as JSAny).isA<web.DOMException>()) {
+    if (error.isA<web.DOMException>()) {
       final exception = error as web.DOMException;
       throw CameraException(exception.name, exception.message);
     }
     rethrow;
   } finally {
-    for (final track
-        in stream?.getTracks().toDart ?? <web.MediaStreamTrack>[]) {
-      track.stop();
-    }
+    if (stream != null) _stopStream(stream);
   }
 }
 

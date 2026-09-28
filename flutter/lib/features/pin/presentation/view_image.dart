@@ -52,14 +52,14 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           final creatorName = ref.watch(
             userByIdUsernameProvider(currentPin.creator),
           );
-          final image = ref
-              .watch(pinImageBytesProvider(currentPin.pinId))
-              .value;
-          final photos =
-              ref
-                  .watch(pinPhotoHistoryProvider(currentPin.pinId))
-                  .whenOrNull(data: (value) => value) ??
-              const <PinPhotoDto>[];
+          final imageState = ref.watch(
+            pinImageForDetailsProvider(currentPin.pinId),
+          );
+          final photoHistoryState = ref.watch(
+            pinPhotoHistoryProvider(currentPin.pinId),
+          );
+          final image = imageState.value;
+          final photos = photoHistoryState.value ?? const <PinPhotoDto>[];
           final updates = photos.where((photo) => !photo.isOriginal).toList();
           final selectedUpdate =
               _selectedPhotoIndex > 0 && _selectedPhotoIndex <= updates.length
@@ -96,6 +96,8 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                         key: ValueKey(currentPin.pinId),
                         originalImage: image,
                         photos: photos,
+                        isOriginalLoading:
+                            imageState.isLoading || photoHistoryState.isLoading,
                         onPageChanged: (index) {
                           if (_selectedPhotoIndex != index) {
                             setState(() => _selectedPhotoIndex = index);

@@ -19,33 +19,32 @@ class Navigation extends ConsumerStatefulWidget {
 class _NavigationState extends ConsumerState<Navigation> {
   late PageController _pageController;
 
-  late final List<Widget> widgetOptions;
   final Logger _logger = Logger();
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: ref.read(navigationStateProvider));
-    widgetOptions = <Widget>[
-      const UserGroups(),
-      const Camera(),
-      const MapHome(),
-      const ActiveGroupFeed(),
-      const UserProfile(),
-    ];
+    _pageController = PageController(
+      initialPage: ref.read(navigationStateProvider),
+    );
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _logger.d('Got a message whilst in the foreground!');
       _logger.d('Message data: ${message.data}');
 
       if (message.notification != null) {
-        _logger.d('Message also contained a notification: ${message.notification}');
+        _logger.d(
+          'Message also contained a notification: ${message.notification}',
+        );
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(navigationStateProvider, (prev, next) => _pageController.jumpToPage(next));
+    ref.listen(
+      navigationStateProvider,
+      (prev, next) => _pageController.jumpToPage(next),
+    );
     final state = ref.watch(navigationStateProvider);
 
     return Scaffold(
@@ -53,7 +52,13 @@ class _NavigationState extends ConsumerState<Navigation> {
       body: PageView(
         controller: _pageController,
         physics: const NeverScrollableScrollPhysics(),
-        children: widgetOptions,
+        children: [
+          const UserGroups(),
+          Camera(isActive: state == 1),
+          const MapHome(),
+          const ActiveGroupFeed(),
+          const UserProfile(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: state,
