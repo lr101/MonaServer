@@ -10,7 +10,6 @@
 
 part of openapi.api;
 
-
 class GroupsApi {
   GroupsApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
 
@@ -23,7 +22,9 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [CreateGroupDto] createGroupDto (required):
-  Future<Response> addGroupWithHttpInfo(CreateGroupDto createGroupDto,) async {
+  Future<Response> addGroupWithHttpInfo(
+    CreateGroupDto createGroupDto,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups';
 
@@ -35,7 +36,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>['application/json'];
-
 
     return apiClient.invokeAPI(
       path,
@@ -53,22 +53,29 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [CreateGroupDto] createGroupDto (required):
-  Future<GroupDto?> addGroup(CreateGroupDto createGroupDto,) async {
-    final response = await addGroupWithHttpInfo(createGroupDto,);
+  Future<GroupDto?> addGroup(
+    CreateGroupDto createGroupDto,
+  ) async {
+    final response = await addGroupWithHttpInfo(
+      createGroupDto,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupDto',) as GroupDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'GroupDto',
+      ) as GroupDto;
     }
     return null;
   }
 
-  /// Claim a group achievement and unlock its pin style reward
+  /// Claim a group achievement and receive its reward
   ///
   /// Note: This method returns the HTTP [Response].
   ///
@@ -77,11 +84,14 @@ class GroupsApi {
   /// * [String] groupId (required):
   ///
   /// * [int] achievementId (required):
-  Future<Response> claimGroupAchievementWithHttpInfo(String groupId, int achievementId,) async {
+  Future<Response> claimGroupAchievementWithHttpInfo(
+    String groupId,
+    int achievementId,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/achievements/{achievementId}'
-      .replaceAll('{groupId}', groupId)
-      .replaceAll('{achievementId}', achievementId.toString());
+        .replaceAll('{groupId}', groupId)
+        .replaceAll('{achievementId}', achievementId.toString());
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -91,7 +101,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -104,15 +113,21 @@ class GroupsApi {
     );
   }
 
-  /// Claim a group achievement and unlock its pin style reward
+  /// Claim a group achievement and receive its reward
   ///
   /// Parameters:
   ///
   /// * [String] groupId (required):
   ///
   /// * [int] achievementId (required):
-  Future<void> claimGroupAchievement(String groupId, int achievementId,) async {
-    final response = await claimGroupAchievementWithHttpInfo(groupId, achievementId,);
+  Future<void> claimGroupAchievement(
+    String groupId,
+    int achievementId,
+  ) async {
+    final response = await claimGroupAchievementWithHttpInfo(
+      groupId,
+      achievementId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -125,10 +140,11 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<Response> deleteGroupWithHttpInfo(String groupId,) async {
+  Future<Response> deleteGroupWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}'
-      .replaceAll('{groupId}', groupId);
+    final path = r'/api/v2/groups/{groupId}'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -138,7 +154,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -156,8 +171,12 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<void> deleteGroup(String groupId,) async {
-    final response = await deleteGroupWithHttpInfo(groupId,);
+  Future<void> deleteGroup(
+    String groupId,
+  ) async {
+    final response = await deleteGroupWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -170,10 +189,11 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<Response> getGroupWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}'
-      .replaceAll('{groupId}', groupId);
+    final path = r'/api/v2/groups/{groupId}'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -183,7 +203,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -201,17 +220,24 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<GroupDto?> getGroup(String groupId,) async {
-    final response = await getGroupWithHttpInfo(groupId,);
+  Future<GroupDto?> getGroup(
+    String groupId,
+  ) async {
+    final response = await getGroupWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupDto',) as GroupDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'GroupDto',
+      ) as GroupDto;
     }
     return null;
   }
@@ -223,10 +249,12 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<Response> getGroupAchievementsWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupAchievementsWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/achievements'
-      .replaceAll('{groupId}', groupId);
+        .replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -236,7 +264,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -254,20 +281,25 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<List<GroupAchievementsDtoInner>?> getGroupAchievements(String groupId,) async {
-    final response = await getGroupAchievementsWithHttpInfo(groupId,);
+  Future<List<GroupAchievementsDtoInner>?> getGroupAchievements(
+    String groupId,
+  ) async {
+    final response = await getGroupAchievementsWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
       final responseBody = await _decodeBodyBytes(response);
-      return (await apiClient.deserializeAsync(responseBody, 'List<GroupAchievementsDtoInner>') as List)
-        .cast<GroupAchievementsDtoInner>()
-        .toList(growable: false);
-
+      return (await apiClient.deserializeAsync(
+              responseBody, 'List<GroupAchievementsDtoInner>') as List)
+          .cast<GroupAchievementsDtoInner>()
+          .toList(growable: false);
     }
     return null;
   }
@@ -280,10 +312,12 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<Response> getGroupAdminWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupAdminWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}/admin'
-      .replaceAll('{groupId}', groupId);
+    final path =
+        r'/api/v2/groups/{groupId}/admin'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -293,7 +327,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -312,17 +345,24 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<String?> getGroupAdmin(String groupId,) async {
-    final response = await getGroupAdminWithHttpInfo(groupId,);
+  Future<String?> getGroupAdmin(
+    String groupId,
+  ) async {
+    final response = await getGroupAdminWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -335,10 +375,12 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<Response> getGroupDescriptionWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupDescriptionWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/description'
-      .replaceAll('{groupId}', groupId);
+        .replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -348,7 +390,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -367,17 +408,24 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<String?> getGroupDescription(String groupId,) async {
-    final response = await getGroupDescriptionWithHttpInfo(groupId,);
+  Future<String?> getGroupDescription(
+    String groupId,
+  ) async {
+    final response = await getGroupDescriptionWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -390,10 +438,12 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<Response> getGroupInviteUrlWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupInviteUrlWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}/invite_url'
-      .replaceAll('{groupId}', groupId);
+    final path =
+        r'/api/v2/groups/{groupId}/invite_url'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -403,7 +453,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -422,17 +471,24 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<String?> getGroupInviteUrl(String groupId,) async {
-    final response = await getGroupInviteUrlWithHttpInfo(groupId,);
+  Future<String?> getGroupInviteUrl(
+    String groupId,
+  ) async {
+    final response = await getGroupInviteUrlWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -445,10 +501,12 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<Response> getGroupLinkWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupLinkWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}/link'
-      .replaceAll('{groupId}', groupId);
+    final path =
+        r'/api/v2/groups/{groupId}/link'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -458,7 +516,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -477,17 +534,24 @@ class GroupsApi {
   ///
   /// * [String] groupId (required):
   ///   group id
-  Future<String?> getGroupLink(String groupId,) async {
-    final response = await getGroupLinkWithHttpInfo(groupId,);
+  Future<String?> getGroupLink(
+    String groupId,
+  ) async {
+    final response = await getGroupLinkWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -503,10 +567,13 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<Response> getGroupPinImageWithHttpInfo(String groupId, { bool? redirect, }) async {
+  Future<Response> getGroupPinImageWithHttpInfo(
+    String groupId, {
+    bool? redirect,
+  }) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}/pin_image'
-      .replaceAll('{groupId}', groupId);
+    final path =
+        r'/api/v2/groups/{groupId}/pin_image'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -521,7 +588,6 @@ class GroupsApi {
 
     const contentTypes = <String>[];
 
-
     return apiClient.invokeAPI(
       path,
       'GET',
@@ -542,17 +608,26 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<String?> getGroupPinImage(String groupId, { bool? redirect, }) async {
-    final response = await getGroupPinImageWithHttpInfo(groupId,  redirect: redirect, );
+  Future<String?> getGroupPinImage(
+    String groupId, {
+    bool? redirect,
+  }) async {
+    final response = await getGroupPinImageWithHttpInfo(
+      groupId,
+      redirect: redirect,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -568,10 +643,13 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<Response> getGroupProfileImageWithHttpInfo(String groupId, { bool? redirect, }) async {
+  Future<Response> getGroupProfileImageWithHttpInfo(
+    String groupId, {
+    bool? redirect,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/profile_image'
-      .replaceAll('{groupId}', groupId);
+        .replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -585,7 +663,6 @@ class GroupsApi {
     }
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -607,17 +684,26 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<String?> getGroupProfileImage(String groupId, { bool? redirect, }) async {
-    final response = await getGroupProfileImageWithHttpInfo(groupId,  redirect: redirect, );
+  Future<String?> getGroupProfileImage(
+    String groupId, {
+    bool? redirect,
+  }) async {
+    final response = await getGroupProfileImageWithHttpInfo(
+      groupId,
+      redirect: redirect,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -633,10 +719,13 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<Response> getGroupProfileImageSmallWithHttpInfo(String groupId, { bool? redirect, }) async {
+  Future<Response> getGroupProfileImageSmallWithHttpInfo(
+    String groupId, {
+    bool? redirect,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/profile_image_small'
-      .replaceAll('{groupId}', groupId);
+        .replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -651,7 +740,6 @@ class GroupsApi {
 
     const contentTypes = <String>[];
 
-
     return apiClient.invokeAPI(
       path,
       'GET',
@@ -672,17 +760,26 @@ class GroupsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<String?> getGroupProfileImageSmall(String groupId, { bool? redirect, }) async {
-    final response = await getGroupProfileImageSmallWithHttpInfo(groupId,  redirect: redirect, );
+  Future<String?> getGroupProfileImageSmall(
+    String groupId, {
+    bool? redirect,
+  }) async {
+    final response = await getGroupProfileImageSmallWithHttpInfo(
+      groupId,
+      redirect: redirect,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -694,10 +791,12 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<Response> getGroupProgressionWithHttpInfo(String groupId,) async {
+  Future<Response> getGroupProgressionWithHttpInfo(
+    String groupId,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups/{groupId}/progression'
-      .replaceAll('{groupId}', groupId);
+        .replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -707,7 +806,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -725,17 +823,24 @@ class GroupsApi {
   /// Parameters:
   ///
   /// * [String] groupId (required):
-  Future<GroupProgressionDto?> getGroupProgression(String groupId,) async {
-    final response = await getGroupProgressionWithHttpInfo(groupId,);
+  Future<GroupProgressionDto?> getGroupProgression(
+    String groupId,
+  ) async {
+    final response = await getGroupProgressionWithHttpInfo(
+      groupId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupProgressionDto',) as GroupProgressionDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'GroupProgressionDto',
+      ) as GroupProgressionDto;
     }
     return null;
   }
@@ -769,7 +874,16 @@ class GroupsApi {
   ///
   /// * [DateTime] updatedAfter:
   ///   only include groups that have been updated after this date. If set all deleted groups after this time are returned.
-  Future<Response> getGroupsByIdsWithHttpInfo({ List<String>? ids, String? search, String? userId, bool? withUser, bool? withImages, int? page, int? size, DateTime? updatedAfter, }) async {
+  Future<Response> getGroupsByIdsWithHttpInfo({
+    List<String>? ids,
+    String? search,
+    String? userId,
+    bool? withUser,
+    bool? withImages,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/groups';
 
@@ -807,7 +921,6 @@ class GroupsApi {
 
     const contentTypes = <String>[];
 
-
     return apiClient.invokeAPI(
       path,
       'GET',
@@ -846,17 +959,38 @@ class GroupsApi {
   ///
   /// * [DateTime] updatedAfter:
   ///   only include groups that have been updated after this date. If set all deleted groups after this time are returned.
-  Future<GroupsSyncDto?> getGroupsByIds({ List<String>? ids, String? search, String? userId, bool? withUser, bool? withImages, int? page, int? size, DateTime? updatedAfter, }) async {
-    final response = await getGroupsByIdsWithHttpInfo( ids: ids, search: search, userId: userId, withUser: withUser, withImages: withImages, page: page, size: size, updatedAfter: updatedAfter, );
+  Future<GroupsSyncDto?> getGroupsByIds({
+    List<String>? ids,
+    String? search,
+    String? userId,
+    bool? withUser,
+    bool? withImages,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+  }) async {
+    final response = await getGroupsByIdsWithHttpInfo(
+      ids: ids,
+      search: search,
+      userId: userId,
+      withUser: withUser,
+      withImages: withImages,
+      page: page,
+      size: size,
+      updatedAfter: updatedAfter,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupsSyncDto',) as GroupsSyncDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'GroupsSyncDto',
+      ) as GroupsSyncDto;
     }
     return null;
   }
@@ -870,10 +1004,12 @@ class GroupsApi {
   /// * [String] groupId (required):
   ///
   /// * [UpdateGroupDto] updateGroupDto (required):
-  Future<Response> updateGroupWithHttpInfo(String groupId, UpdateGroupDto updateGroupDto,) async {
+  Future<Response> updateGroupWithHttpInfo(
+    String groupId,
+    UpdateGroupDto updateGroupDto,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/groups/{groupId}'
-      .replaceAll('{groupId}', groupId);
+    final path = r'/api/v2/groups/{groupId}'.replaceAll('{groupId}', groupId);
 
     // ignore: prefer_final_locals
     Object? postBody = updateGroupDto;
@@ -883,7 +1019,6 @@ class GroupsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>['application/json'];
-
 
     return apiClient.invokeAPI(
       path,
@@ -903,17 +1038,26 @@ class GroupsApi {
   /// * [String] groupId (required):
   ///
   /// * [UpdateGroupDto] updateGroupDto (required):
-  Future<GroupDto?> updateGroup(String groupId, UpdateGroupDto updateGroupDto,) async {
-    final response = await updateGroupWithHttpInfo(groupId, updateGroupDto,);
+  Future<GroupDto?> updateGroup(
+    String groupId,
+    UpdateGroupDto updateGroupDto,
+  ) async {
+    final response = await updateGroupWithHttpInfo(
+      groupId,
+      updateGroupDto,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'GroupDto',) as GroupDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'GroupDto',
+      ) as GroupDto;
     }
     return null;
   }

@@ -10,7 +10,7 @@ All URIs are relative to *https://stick-it.lr-projects.de*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**addGroup**](GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
-[**claimGroupAchievement**](GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and unlock its pin style reward
+[**claimGroupAchievement**](GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and receive its reward
 [**deleteGroup**](GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 [**getGroup**](GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
 [**getGroupAchievements**](GroupsApi.md#getgroupachievements) | **GET** /api/v2/groups/{groupId}/achievements | Get group achievement progress and pin style rewards
@@ -76,7 +76,7 @@ Name | Type | Description  | Notes
 # **claimGroupAchievement**
 > claimGroupAchievement(groupId, achievementId)
 
-Claim a group achievement and unlock its pin style reward
+Claim a group achievement and receive its reward
 
 ### Example
 ```dart
