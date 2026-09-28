@@ -27,6 +27,40 @@ type Queries struct {
 	inTx bool
 }
 
+// ClaimPinCreate serializes retries for one caller and key in the caller's
+// transaction. A committed row always has a pin ID.
+func (q *Queries) ClaimPinCreate(ctx context.Context, callerID, key uuid.UUID, hash []byte) (*uuid.UUID, []byte, error) {
+	inserted, err := q.g.ClaimPinCreateIdempotency(ctx, dbgen.ClaimPinCreateIdempotencyParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key), RequestHash: hash,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if inserted == 1 {
+		return nil, nil, nil
+	}
+	row, err := q.g.GetPinCreateIdempotencyForUpdate(ctx, dbgen.GetPinCreateIdempotencyForUpdateParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return goUUIDPtr(row.PinID), row.RequestHash, nil
+}
+
+func (q *Queries) FinishPinCreate(ctx context.Context, callerID, key, pinID uuid.UUID) error {
+	updated, err := q.g.FinishPinCreateIdempotency(ctx, dbgen.FinishPinCreateIdempotencyParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key), PinID: pgUUID(pinID),
+	})
+	if err != nil {
+		return err
+	}
+	if updated != 1 {
+		return apperrors.ErrConflict
+	}
+	return nil
+}
+
 func New(pool *pgxpool.Pool) *Queries {
 	return &Queries{pool: pool, runner: pool, g: dbgen.New(pool)}
 }

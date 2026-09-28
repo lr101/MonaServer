@@ -10,7 +10,6 @@
 
 part of openapi.api;
 
-
 class PinsApi {
   PinsApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
 
@@ -25,10 +24,12 @@ class PinsApi {
   /// * [String] pinId (required):
   ///
   /// * [PinPhotoRequestDto] pinPhotoRequestDto (required):
-  Future<Response> addPinPhotoWithHttpInfo(String pinId, PinPhotoRequestDto pinPhotoRequestDto,) async {
+  Future<Response> addPinPhotoWithHttpInfo(
+    String pinId,
+    PinPhotoRequestDto pinPhotoRequestDto,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/photos'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/photos'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody = pinPhotoRequestDto;
@@ -38,7 +39,6 @@ class PinsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>['application/json'];
-
 
     return apiClient.invokeAPI(
       path,
@@ -58,17 +58,26 @@ class PinsApi {
   /// * [String] pinId (required):
   ///
   /// * [PinPhotoRequestDto] pinPhotoRequestDto (required):
-  Future<PinPhotoDto?> addPinPhoto(String pinId, PinPhotoRequestDto pinPhotoRequestDto,) async {
-    final response = await addPinPhotoWithHttpInfo(pinId, pinPhotoRequestDto,);
+  Future<PinPhotoDto?> addPinPhoto(
+    String pinId,
+    PinPhotoRequestDto pinPhotoRequestDto,
+  ) async {
+    final response = await addPinPhotoWithHttpInfo(
+      pinId,
+      pinPhotoRequestDto,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinPhotoDto',) as PinPhotoDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinPhotoDto',
+      ) as PinPhotoDto;
     }
     return null;
   }
@@ -81,7 +90,9 @@ class PinsApi {
   ///
   /// * [DateTime] lastSeen:
   ///   Syncs created and deleted pins after this date
-  Future<Response> callSyncWithHttpInfo({ DateTime? lastSeen, }) async {
+  Future<Response> callSyncWithHttpInfo({
+    DateTime? lastSeen,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v3/sync';
 
@@ -97,7 +108,6 @@ class PinsApi {
     }
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -116,17 +126,24 @@ class PinsApi {
   ///
   /// * [DateTime] lastSeen:
   ///   Syncs created and deleted pins after this date
-  Future<SyncDto?> callSync({ DateTime? lastSeen, }) async {
-    final response = await callSyncWithHttpInfo( lastSeen: lastSeen, );
+  Future<SyncDto?> callSync({
+    DateTime? lastSeen,
+  }) async {
+    final response = await callSyncWithHttpInfo(
+      lastSeen: lastSeen,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'SyncDto',) as SyncDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'SyncDto',
+      ) as SyncDto;
     }
     return null;
   }
@@ -138,7 +155,13 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [PinRequestDto] pinRequestDto (required):
-  Future<Response> createPinWithHttpInfo(PinRequestDto pinRequestDto,) async {
+  ///
+  /// * [String] idempotencyKey:
+  ///   Optional client-generated UUID for safely retrying pin creation.
+  Future<Response> createPinWithHttpInfo(
+    PinRequestDto pinRequestDto, {
+    String? idempotencyKey,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/pins';
 
@@ -149,8 +172,11 @@ class PinsApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-    const contentTypes = <String>['application/json'];
+    if (idempotencyKey != null) {
+      headerParams[r'Idempotency-Key'] = parameterToString(idempotencyKey);
+    }
 
+    const contentTypes = <String>['application/json'];
 
     return apiClient.invokeAPI(
       path,
@@ -168,17 +194,29 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [PinRequestDto] pinRequestDto (required):
-  Future<PinWithOptionalImageDto?> createPin(PinRequestDto pinRequestDto,) async {
-    final response = await createPinWithHttpInfo(pinRequestDto,);
+  ///
+  /// * [String] idempotencyKey:
+  ///   Optional client-generated UUID for safely retrying pin creation.
+  Future<PinWithOptionalImageDto?> createPin(
+    PinRequestDto pinRequestDto, {
+    String? idempotencyKey,
+  }) async {
+    final response = await createPinWithHttpInfo(
+      pinRequestDto,
+      idempotencyKey: idempotencyKey,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinWithOptionalImageDto',) as PinWithOptionalImageDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinWithOptionalImageDto',
+      ) as PinWithOptionalImageDto;
     }
     return null;
   }
@@ -190,10 +228,11 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<Response> deletePinWithHttpInfo(String pinId,) async {
+  Future<Response> deletePinWithHttpInfo(
+    String pinId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -203,7 +242,6 @@ class PinsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -221,8 +259,12 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<void> deletePin(String pinId,) async {
-    final response = await deletePinWithHttpInfo(pinId,);
+  Future<void> deletePin(
+    String pinId,
+  ) async {
+    final response = await deletePinWithHttpInfo(
+      pinId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
@@ -244,7 +286,11 @@ class PinsApi {
   ///
   /// * [int] radiusMeters (required):
   ///   Search radius, limited to 1000 meters
-  Future<Response> getNearbyPinsWithHttpInfo(num latitude, num longitude, int radiusMeters,) async {
+  Future<Response> getNearbyPinsWithHttpInfo(
+    num latitude,
+    num longitude,
+    int radiusMeters,
+  ) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/pins/nearby';
 
@@ -255,12 +301,11 @@ class PinsApi {
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
 
-      queryParams.addAll(_queryParams('', 'latitude', latitude));
-      queryParams.addAll(_queryParams('', 'longitude', longitude));
-      queryParams.addAll(_queryParams('', 'radiusMeters', radiusMeters));
+    queryParams.addAll(_queryParams('', 'latitude', latitude));
+    queryParams.addAll(_queryParams('', 'longitude', longitude));
+    queryParams.addAll(_queryParams('', 'radiusMeters', radiusMeters));
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -287,17 +332,28 @@ class PinsApi {
   ///
   /// * [int] radiusMeters (required):
   ///   Search radius, limited to 1000 meters
-  Future<NearbyPinsDto?> getNearbyPins(num latitude, num longitude, int radiusMeters,) async {
-    final response = await getNearbyPinsWithHttpInfo(latitude, longitude, radiusMeters,);
+  Future<NearbyPinsDto?> getNearbyPins(
+    num latitude,
+    num longitude,
+    int radiusMeters,
+  ) async {
+    final response = await getNearbyPinsWithHttpInfo(
+      latitude,
+      longitude,
+      radiusMeters,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'NearbyPinsDto',) as NearbyPinsDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'NearbyPinsDto',
+      ) as NearbyPinsDto;
     }
     return null;
   }
@@ -312,10 +368,12 @@ class PinsApi {
   ///
   /// * [bool] withImage:
   ///   Describes if the image of the pin should be returned too
-  Future<Response> getPinWithHttpInfo(String pinId, { bool? withImage, }) async {
+  Future<Response> getPinWithHttpInfo(
+    String pinId, {
+    bool? withImage,
+  }) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -330,7 +388,6 @@ class PinsApi {
 
     const contentTypes = <String>[];
 
-
     return apiClient.invokeAPI(
       path,
       'GET',
@@ -350,17 +407,26 @@ class PinsApi {
   ///
   /// * [bool] withImage:
   ///   Describes if the image of the pin should be returned too
-  Future<PinWithOptionalImageDto?> getPin(String pinId, { bool? withImage, }) async {
-    final response = await getPinWithHttpInfo(pinId,  withImage: withImage, );
+  Future<PinWithOptionalImageDto?> getPin(
+    String pinId, {
+    bool? withImage,
+  }) async {
+    final response = await getPinWithHttpInfo(
+      pinId,
+      withImage: withImage,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinWithOptionalImageDto',) as PinWithOptionalImageDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinWithOptionalImageDto',
+      ) as PinWithOptionalImageDto;
     }
     return null;
   }
@@ -375,10 +441,12 @@ class PinsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<Response> getPinImageWithHttpInfo(String pinId, { bool? redirect, }) async {
+  Future<Response> getPinImageWithHttpInfo(
+    String pinId, {
+    bool? redirect,
+  }) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/image'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/image'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -392,7 +460,6 @@ class PinsApi {
     }
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -413,17 +480,26 @@ class PinsApi {
   ///
   /// * [bool] redirect:
   ///   When true, this endpoint redirects directly to the target image otherwise the image URL is returned
-  Future<String?> getPinImage(String pinId, { bool? redirect, }) async {
-    final response = await getPinImageWithHttpInfo(pinId,  redirect: redirect, );
+  Future<String?> getPinImage(
+    String pinId, {
+    bool? redirect,
+  }) async {
+    final response = await getPinImageWithHttpInfo(
+      pinId,
+      redirect: redirect,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'String',) as String;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'String',
+      ) as String;
     }
     return null;
   }
@@ -466,7 +542,19 @@ class PinsApi {
   ///
   /// * [String] beforeId:
   ///   stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together
-  Future<Response> getPinImagesByIdsWithHttpInfo({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, DateTime? beforeCreationDate, String? beforeId, }) async {
+  Future<Response> getPinImagesByIdsWithHttpInfo({
+    List<String>? ids,
+    String? groupId,
+    String? userId,
+    bool? withImage,
+    int? compression,
+    int? height,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
+  }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/pins';
 
@@ -505,14 +593,14 @@ class PinsApi {
       queryParams.addAll(_queryParams('', 'updatedAfter', updatedAfter));
     }
     if (beforeCreationDate != null) {
-      queryParams.addAll(_queryParams('', 'beforeCreationDate', beforeCreationDate));
+      queryParams
+          .addAll(_queryParams('', 'beforeCreationDate', beforeCreationDate));
     }
     if (beforeId != null) {
       queryParams.addAll(_queryParams('', 'beforeId', beforeId));
     }
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -561,17 +649,44 @@ class PinsApi {
   ///
   /// * [String] beforeId:
   ///   stable pagination cursor tie-breaker for beforeCreationDate; provide both cursor parameters together
-  Future<PinsSyncDto?> getPinImagesByIds({ List<String>? ids, String? groupId, String? userId, bool? withImage, int? compression, int? height, int? page, int? size, DateTime? updatedAfter, DateTime? beforeCreationDate, String? beforeId, }) async {
-    final response = await getPinImagesByIdsWithHttpInfo( ids: ids, groupId: groupId, userId: userId, withImage: withImage, compression: compression, height: height, page: page, size: size, updatedAfter: updatedAfter, beforeCreationDate: beforeCreationDate, beforeId: beforeId, );
+  Future<PinsSyncDto?> getPinImagesByIds({
+    List<String>? ids,
+    String? groupId,
+    String? userId,
+    bool? withImage,
+    int? compression,
+    int? height,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
+  }) async {
+    final response = await getPinImagesByIdsWithHttpInfo(
+      ids: ids,
+      groupId: groupId,
+      userId: userId,
+      withImage: withImage,
+      compression: compression,
+      height: height,
+      page: page,
+      size: size,
+      updatedAfter: updatedAfter,
+      beforeCreationDate: beforeCreationDate,
+      beforeId: beforeId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinsSyncDto',) as PinsSyncDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinsSyncDto',
+      ) as PinsSyncDto;
     }
     return null;
   }
@@ -583,10 +698,11 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<Response> getPinPhotosWithHttpInfo(String pinId,) async {
+  Future<Response> getPinPhotosWithHttpInfo(
+    String pinId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/photos'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/photos'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -596,7 +712,6 @@ class PinsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -614,20 +729,25 @@ class PinsApi {
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<List<PinPhotoDto>?> getPinPhotos(String pinId,) async {
-    final response = await getPinPhotosWithHttpInfo(pinId,);
+  Future<List<PinPhotoDto>?> getPinPhotos(
+    String pinId,
+  ) async {
+    final response = await getPinPhotosWithHttpInfo(
+      pinId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
       final responseBody = await _decodeBodyBytes(response);
-      return (await apiClient.deserializeAsync(responseBody, 'List<PinPhotoDto>') as List)
-        .cast<PinPhotoDto>()
-        .toList(growable: false);
-
+      return (await apiClient.deserializeAsync(
+              responseBody, 'List<PinPhotoDto>') as List)
+          .cast<PinPhotoDto>()
+          .toList(growable: false);
     }
     return null;
   }
@@ -641,10 +761,12 @@ class PinsApi {
   /// * [String] pinId (required):
   ///
   /// * [PinPresenceRequestDto] pinPresenceRequestDto (required):
-  Future<Response> setPinPresenceWithHttpInfo(String pinId, PinPresenceRequestDto pinPresenceRequestDto,) async {
+  Future<Response> setPinPresenceWithHttpInfo(
+    String pinId,
+    PinPresenceRequestDto pinPresenceRequestDto,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/presence'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/presence'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody = pinPresenceRequestDto;
@@ -654,7 +776,6 @@ class PinsApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>['application/json'];
-
 
     return apiClient.invokeAPI(
       path,
@@ -674,17 +795,26 @@ class PinsApi {
   /// * [String] pinId (required):
   ///
   /// * [PinPresenceRequestDto] pinPresenceRequestDto (required):
-  Future<PinWithOptionalImageDto?> setPinPresence(String pinId, PinPresenceRequestDto pinPresenceRequestDto,) async {
-    final response = await setPinPresenceWithHttpInfo(pinId, pinPresenceRequestDto,);
+  Future<PinWithOptionalImageDto?> setPinPresence(
+    String pinId,
+    PinPresenceRequestDto pinPresenceRequestDto,
+  ) async {
+    final response = await setPinPresenceWithHttpInfo(
+      pinId,
+      pinPresenceRequestDto,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinWithOptionalImageDto',) as PinWithOptionalImageDto;
-
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinWithOptionalImageDto',
+      ) as PinWithOptionalImageDto;
     }
     return null;
   }

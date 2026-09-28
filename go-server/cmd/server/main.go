@@ -223,7 +223,7 @@ func main() {
 
 		registerRoutes(r, groupsCtrl, alwaysTrue)
 		registerRoutes(r, groupPinDesignsCtrl, alwaysTrue)
-		registerRoutes(r, pinsCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CapturePinCreateIdempotency), pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)

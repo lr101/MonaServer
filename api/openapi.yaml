@@ -970,6 +970,8 @@ paths:
       - pins
     post:
       operationId: createPin
+      parameters:
+      - $ref: "#/components/parameters/pinCreateIdempotencyKey"
       requestBody:
         content:
           application/json:
@@ -977,12 +979,14 @@ paths:
               $ref: "#/components/schemas/pinRequestDto"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/pinWithOptionalImageDto"
-          description: Successful response
+          description: Created pin, or the original pin for a matching retry
+        "409":
+          description: Key reused for a different request, or pin already exists
       security:
       - token: []
       summary: Create a new pin
@@ -3184,6 +3188,14 @@ components:
       required: false
       schema:
         maxLength: 255
+        type: string
+    pinCreateIdempotencyKey:
+      description: Optional client-generated UUID for safely retrying pin creation.
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        maxLength: 36
         type: string
   responses:
     badRequest:

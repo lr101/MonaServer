@@ -52,6 +52,7 @@ type Querier interface {
 	ClaimJobItem(ctx context.Context, arg ClaimJobItemParams) (ClaimJobItemRow, error)
 	ClaimOutboxEvents(ctx context.Context, arg ClaimOutboxEventsParams) ([]ClaimOutboxEventsRow, error)
 	ClaimPendingObjectCleanup(ctx context.Context) (string, error)
+	ClaimPinCreateIdempotency(ctx context.Context, arg ClaimPinCreateIdempotencyParams) (int64, error)
 	ClaimUserAchievement(ctx context.Context, arg ClaimUserAchievementParams) error
 	ClaimUserAchievementAndAwardXP(ctx context.Context, arg ClaimUserAchievementAndAwardXPParams) (pgtype.UUID, error)
 	// Clear the short-lived delivery secret only once the attempt is terminal or
@@ -134,6 +135,7 @@ type Querier interface {
 	// current owner.
 	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
+	FinishPinCreateIdempotency(ctx context.Context, arg FinishPinCreateIdempotencyParams) (int64, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
 	GetAccountActionTokenByID(ctx context.Context, id pgtype.UUID) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)
@@ -171,6 +173,7 @@ type Querier interface {
 	GetMaxSeasonNumber(ctx context.Context) (int32, error)
 	GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
+	GetPinCreateIdempotencyForUpdate(ctx context.Context, arg GetPinCreateIdempotencyForUpdateParams) (GetPinCreateIdempotencyForUpdateRow, error)
 	GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPhotoByIdempotencyKeyParams) (GetPinPhotoByIdempotencyKeyRow, error)
 	GetReport(ctx context.Context, id pgtype.UUID) (Report, error)
 	GetReportByRequestID(ctx context.Context, requestID pgtype.Text) (Report, error)
