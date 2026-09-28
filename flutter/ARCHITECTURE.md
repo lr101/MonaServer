@@ -203,10 +203,10 @@ follow-up writes. Revocation does not cancel an already-started network request
 or make already-started writes atomic with session changes.
 
 New posts use a shared Drift outbox on Android and Web. Its row contains the
-complete request and image bytes and is committed before navigation or upload.
-After the durable save, the camera flow returns without waiting for cache
-updates or upload. Cache projection and one foreground upload attempt continue
-in the background. The local pin UUID is also the
+complete request and image bytes. The camera flow starts the durable save and
+returns without waiting for its commit, cache updates, or upload. Upload starts
+only after the outbox transaction commits. Cache projection and one foreground
+upload attempt then continue in the background. The local pin UUID is also the
 stable `Idempotency-Key`. Startup and resume sync pull remote changes before
 retrying outbox rows, and still attempt those rows if the pull fails. Older
 Android drafts are migrated into the outbox when their retained image is

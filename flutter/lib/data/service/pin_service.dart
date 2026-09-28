@@ -444,37 +444,18 @@ class PinService {
     ref.listen(userGroupServiceProvider, (_, _) => ());
   }
 
-  Future<String?> addPinToGroup(
-    PinEntity pin,
-    Uint8List image, {
-    bool showPrompt = false,
-  }) async {
+  Future<String?> addPinToGroup(PinEntity pin, Uint8List image) async {
     final session = captureSession(ref);
     try {
-      if (showPrompt) {
-        CustomErrorSnackBar.loadingMessage(message: "Saving post");
-      }
       // The outbox row owns the complete request and image across process exits.
       await ref.read(pendingPinRepositoryProvider).enqueue(pin, image);
     } catch (error) {
-      if (showPrompt) {
-        CustomErrorSnackBar.message(
-          message: "Could not save post on this device.",
-          type: CustomErrorSnackBarType.error,
-        );
-      }
       return error.toString();
     }
 
     // The durable outbox is the save boundary. Cache projections and upload
     // continue after the approval screen can navigate away.
     unawaited(_uploadSavedPinInBackground(pin, session));
-    if (showPrompt) {
-      CustomErrorSnackBar.message(
-        message: "Post saved. Uploading in background; unfinished uploads retry on next open.",
-        type: CustomErrorSnackBarType.info,
-      );
-    }
     return null;
   }
 
