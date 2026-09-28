@@ -72,7 +72,7 @@ class PinMarkerImage extends StatelessWidget {
               : 56.0;
           final scale = math
               .min(availableWidth / 48, availableHeight / 56)
-              .clamp(.55, 1.0);
+              .clamp(0.0, 1.0);
           final width = 48 * scale;
           final height = 56 * scale;
           final strokeWidth = resolvedDesign.outlineWidth * scale;
@@ -103,81 +103,87 @@ class PinMarkerImage extends StatelessWidget {
                 )
               : Transform.scale(
                   scale: resolvedDesign.imageZoom,
-                  alignment: Alignment.center,
                   child: pinImage,
                 );
-          return SizedBox(
-            width: width,
-            height: height,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
-                    painter: _MapPinShadowPainter(
-                      resolvedDesign,
-                      strokeWidth: strokeWidth,
-                    ),
-                    foregroundPainter: _MapPinOutlinePainter(
-                      resolvedDesign,
-                      strokeWidth: strokeWidth,
-                    ),
-                    child: ClipPath(
-                      clipper: _MapPinClipper(
-                        resolvedDesign.shape,
+          // Keep preview bounds from stretching the canvas beyond this geometry.
+          return Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
+                      painter: _MapPinShadowPainter(
+                        resolvedDesign,
                         strokeWidth: strokeWidth,
                       ),
-                      child: markerImage,
+                      foregroundPainter: _MapPinOutlinePainter(
+                        resolvedDesign,
+                        strokeWidth: strokeWidth,
+                      ),
+                      child: ClipPath(
+                        clipper: _MapPinClipper(
+                          resolvedDesign.shape,
+                          strokeWidth: strokeWidth,
+                        ),
+                        child: markerImage,
+                      ),
                     ),
                   ),
-                ),
-                if (resolvedDesign.badge != 'none')
-                  Positioned(
-                    top: 3 * scale,
-                    right: 1 * scale,
-                    child: DecoratedBox(
-                      key: ValueKey('pin-style-emblem-${resolvedDesign.style}'),
-                      decoration: BoxDecoration(
-                        color: resolvedDesign.outlineColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: resolvedDesign.bodyColor),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(2 * scale),
-                        child: Icon(
-                          switch (resolvedDesign.badge) {
-                            'star' => Icons.star,
-                            'sun' => Icons.wb_sunny,
-                            'leaf' => Icons.eco,
-                            _ => Icons.auto_awesome,
-                          },
-                          color: resolvedDesign.bodyColor,
-                          size: 10 * scale,
+                  if (resolvedDesign.badge != 'none')
+                    Positioned(
+                      top: 3 * scale,
+                      right: 1 * scale,
+                      child: DecoratedBox(
+                        key: ValueKey(
+                          'pin-style-emblem-${resolvedDesign.style}',
+                        ),
+                        decoration: BoxDecoration(
+                          color: resolvedDesign.outlineColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: resolvedDesign.bodyColor),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(2 * scale),
+                          child: Icon(
+                            switch (resolvedDesign.badge) {
+                              'star' => Icons.star,
+                              'sun' => Icons.wb_sunny,
+                              'leaf' => Icons.eco,
+                              _ => Icons.auto_awesome,
+                            },
+                            color: resolvedDesign.bodyColor,
+                            size: 10 * scale,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (isGone)
-                  Positioned(
-                    left: overlayLeft + overlayDiameter - 10 * scale,
-                    top: overlayTop + overlayDiameter - 10 * scale,
-                    child: DecoratedBox(
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(scale),
-                        child: Icon(
-                          Icons.remove_circle_outline,
-                          color: Colors.white,
-                          size: 11 * scale,
+                  if (isGone)
+                    Positioned(
+                      left: overlayLeft + overlayDiameter - 10 * scale,
+                      top: overlayTop + overlayDiameter - 10 * scale,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(scale),
+                          child: Icon(
+                            Icons.remove_circle_outline,
+                            color: Colors.white,
+                            size: 11 * scale,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           );
         },

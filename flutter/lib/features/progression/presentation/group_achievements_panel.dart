@@ -99,14 +99,7 @@ class _GroupAchievementsPanelState
             group.copyWith(pinStyle: style).toUpdateGroupDto(null),
             widget.groupId,
           );
-      if (error == null && mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text('${_styleName(style)} pin design selected'),
-          ),
-        );
-      } else if (error != null && mounted) {
+      if (error != null && mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
@@ -162,19 +155,3 @@ class _GroupAchievementsErrorCard extends StatelessWidget {
     ),
   );
 }
-
-String _styleName(String style) => switch (style) {
-  'moss' => 'Moss',
-  'sunset' => 'Sunset',
-  'aurora' => 'Aurora',
-  'seafoam' => 'Seafoam',
-  'honey' => 'Honey',
-  'orchid' => 'Orchid',
-  'copper' => 'Copper',
-  'jade' => 'Jade',
-  'ember' => 'Ember',
-  'glacier' => 'Glacier',
-  'rose' => 'Rose',
-  'midnight' => 'Midnight',
-  _ => 'Classic',
-};
