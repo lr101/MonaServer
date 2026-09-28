@@ -298,6 +298,9 @@ void main() {
     nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN title');
     nativeDatabase.execute('ALTER TABLE pin_entities DROP COLUMN is_gone');
     nativeDatabase.execute('ALTER TABLE group_entities DROP COLUMN pin_style');
+    nativeDatabase.execute(
+      'ALTER TABLE user_entities DROP COLUMN selected_batch_color',
+    );
     nativeDatabase.execute('PRAGMA user_version = 1');
 
     final migratedDatabase = AppDatabase(

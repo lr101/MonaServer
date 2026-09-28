@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
@@ -27,17 +28,18 @@ func TestGroupMembersIncludeSelectedAchievement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	for _, name := range []string{"member_badge_group_2", "member_badge_group_3"} {
+	for i := 2; i <= 25; i++ {
 		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
-			Name: name, Visibility: 0, GroupAdmin: user.UserID,
+			Name:       fmt.Sprintf("member_badge_group_%d", i),
+			Visibility: 0, GroupAdmin: user.UserID,
 		}); err != nil {
-			t.Fatalf("create qualifying group %q: %v", name, err)
+			t.Fatalf("create qualifying group %d: %v", i, err)
 		}
 	}
-	if err := userSvc.ClaimAchievement(ctx, user.UserID, 4); err != nil {
+	if err := userSvc.ClaimAchievement(ctx, user.UserID, 21); err != nil {
 		t.Fatalf("claim achievement: %v", err)
 	}
-	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 4)
+	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 21)
 	if err != nil || rowID == nil {
 		t.Fatalf("get achievement row: %v", err)
 	}
@@ -54,7 +56,7 @@ func TestGroupMembersIncludeSelectedAchievement(t *testing.T) {
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if len(members) != 1 || members[0].SelectedBatch == nil || *members[0].SelectedBatch != 4 {
-		t.Fatalf("members response = %+v, want selectedBatch 4", members)
+	if len(members) != 1 || members[0].SelectedBatch == nil || *members[0].SelectedBatch != 21 {
+		t.Fatalf("members response = %+v, want selectedBatch 21", members)
 	}
 }

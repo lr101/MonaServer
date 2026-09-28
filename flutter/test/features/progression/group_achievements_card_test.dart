@@ -88,7 +88,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: GroupAchievementsCard(
-            achievements: [_achievement(currentValue: 5, claimable: false)],
+            achievements: [_achievement(currentValue: 20, claimable: false)],
             group: _group(),
             currentUserId: 'member-1',
             onClaimAchievement: (_) async {},

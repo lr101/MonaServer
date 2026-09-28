@@ -66,7 +66,7 @@ void main() {
     expect(find.text('0/3 earned'), findsNothing);
     expect(find.text('Two sticks'), findsOneWidget);
     expect(find.text('Claim 20 XP'), findsNothing);
-    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('1/1'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
 
     await tester.tap(find.text('Two sticks'));
@@ -76,7 +76,7 @@ void main() {
     // Claiming the first milestone advances this track to its next unclaimed
     // tier without moving through other achievement categories.
     expect(find.text('Stick collector'), findsOneWidget);
-    expect(find.text('3/20'), findsOneWidget);
+    expect(find.text('3/40'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
@@ -104,9 +104,10 @@ class _TestAchievements extends Achievements {
       description: 'Add two sticks.',
       track: 'sticks',
       difficulty: 'easy',
+      rewardType: UserAchievementsDtoInnerRewardTypeEnum.xp,
       rewardXp: 20,
       claimable: true,
-      definitionVersion: 4,
+      definitionVersion: 6,
       claimed: false,
       thresholdValue: 2,
       currentValue: 2,
@@ -114,8 +115,13 @@ class _TestAchievements extends Achievements {
     ),
     UserAchievementsDtoInner(
       achievementId: 9,
+      name: 'Stick collector',
+      description: 'Add forty sticks.',
       claimed: false,
       track: 'sticks',
+      difficulty: 'medium',
+      rewardType: UserAchievementsDtoInnerRewardTypeEnum.color,
+      rewardColor: '#FF26A69A',
       thresholdValue: 40,
       currentValue: 3,
       thresholdUp: true,
@@ -126,10 +132,10 @@ class _TestAchievements extends Achievements {
       description: 'Add two hundred sticks.',
       track: 'sticks',
       difficulty: 'hard',
-      rewardXp: 100,
+      rewardType: UserAchievementsDtoInnerRewardTypeEnum.badge,
       claimable: true,
       rewardAvailable: false,
-      definitionVersion: 4,
+      definitionVersion: 6,
       claimed: false,
       thresholdValue: 200,
       currentValue: 200,

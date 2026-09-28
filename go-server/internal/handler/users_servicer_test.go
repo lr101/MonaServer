@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,15 +23,18 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 		t.Fatalf("signup: %v", err)
 	}
 	groupSvc := service.NewGroup(q, nil, userSvc)
-	if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
-		Name: "achievement_profile_group", Visibility: 0, GroupAdmin: user.UserID,
-	}); err != nil {
-		t.Fatalf("create group for achievement eligibility: %v", err)
+	for i := 0; i < 25; i++ {
+		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+			Name:       fmt.Sprintf("achievement_profile_group_%d", i),
+			Visibility: 0, GroupAdmin: user.UserID,
+		}); err != nil {
+			t.Fatalf("create group %d for achievement eligibility: %v", i+1, err)
+		}
 	}
-	if err := q.ClaimUserAchievement(ctx, user.UserID, 2); err != nil {
+	if err := q.ClaimUserAchievement(ctx, user.UserID, 21); err != nil {
 		t.Fatalf("claim achievement: %v", err)
 	}
-	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 2)
+	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 21)
 	if err != nil || rowID == nil {
 		t.Fatalf("get achievement row: id=%v err=%v", rowID, err)
 	}
@@ -58,8 +62,8 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if got.SelectedBatch == nil || *got.SelectedBatch != 2 {
-		t.Fatalf("selectedBatch = %v, want 2", got.SelectedBatch)
+	if got.SelectedBatch == nil || *got.SelectedBatch != 21 {
+		t.Fatalf("selectedBatch = %v, want 21", got.SelectedBatch)
 	}
 	if got.IsMessagingRegistered == nil || !*got.IsMessagingRegistered {
 		t.Fatalf("isMessagingRegistered = %v, want true", got.IsMessagingRegistered)
@@ -106,8 +110,8 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if len(items) != 15 {
-		t.Fatalf("achievement count = %d, want 15", len(items))
+	if len(items) != 23 {
+		t.Fatalf("achievement count = %d, want 23", len(items))
 	}
 	firstStickFound := false
 	for _, item := range items {

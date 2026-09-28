@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -206,8 +207,9 @@ func TestAchievementClaimAwardsTieredXPExactlyOnce(t *testing.T) {
 		id       int32
 		wantXP   int64
 	}{
-		{username: "medium_achievement", id: 4, wantXP: 50},
-		{username: "hard_achievement", id: 12, wantXP: 100},
+		{username: "easy_xp_achievement", id: 3, wantXP: 20},
+		{username: "medium_color_achievement", id: 4, wantXP: 0},
+		{username: "hard_badge_achievement", id: 12, wantXP: 0},
 	} {
 		t.Run(tc.username, func(t *testing.T) {
 			uid := createTestUser(t, auth, tc.username)
@@ -248,14 +250,6 @@ func TestAchievementClaimsAreReevaluatedWithoutReversingOrRepayingXP(t *testing.
 	if err := q.ClaimUserAchievement(ctx, uid, 3); err != nil {
 		t.Fatalf("seed previously awarded first-stick achievement: %v", err)
 	}
-	rowID, err := q.GetUserAchievementRow(ctx, uid, 3)
-	if err != nil || rowID == nil {
-		t.Fatalf("get achievement row: id=%v err=%v", rowID, err)
-	}
-	if err := q.SetUserSelectedBatch(ctx, uid, *rowID); err != nil {
-		t.Fatalf("select achievement: %v", err)
-	}
-
 	before, err := user.Get(ctx, uid)
 	if err != nil {
 		t.Fatalf("get user before reevaluation: %v", err)
@@ -264,37 +258,33 @@ func TestAchievementClaimsAreReevaluatedWithoutReversingOrRepayingXP(t *testing.
 	if err != nil {
 		t.Fatalf("get achievement progress: %v", err)
 	}
-	firstStick := achievementByID(t, progress, 3)
-	if firstStick.Claimed || firstStick.Claimable || firstStick.RewardAvailable {
-		t.Fatalf("first-stick progress without a pin = %+v, want revoked and not claimable", firstStick)
+	twoSticks := achievementByID(t, progress, 3)
+	if twoSticks.Claimed || twoSticks.Claimable || twoSticks.RewardAvailable {
+		t.Fatalf("two-stick progress without a pin = %+v, want revoked and not claimable", twoSticks)
 	}
-	selected, err := q.GetSelectedUserAchievementID(ctx, uid)
-	if err != nil {
-		t.Fatalf("read selected achievement after reevaluation: %v", err)
-	}
-	if selected != nil {
-		t.Fatalf("selected achievement after revocation = %v, want nil", *selected)
-	}
-	afterRevoke, err := user.Get(ctx, uid)
+	progressAfterRevoke, err := user.Get(ctx, uid)
 	if err != nil {
 		t.Fatalf("get user after revocation: %v", err)
 	}
-	if afterRevoke.XP != before.XP {
-		t.Fatalf("revoking badge changed XP from %d to %d", before.XP, afterRevoke.XP)
+	if progressAfterRevoke.XP != before.XP {
+		t.Fatalf("revoking achievement changed XP from %d to %d", before.XP, progressAfterRevoke.XP)
 	}
 
-	if _, err := pin.Create(ctx, CreatePinInput{
-		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: uid, GroupID: groupID,
-	}); err != nil {
-		t.Fatalf("create qualifying pin: %v", err)
+	for i := 0; i < 2; i++ {
+		if _, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1 + float64(i)/1000, Longitude: 11.6,
+			CreationDate: time.Now(), UserID: uid, GroupID: groupID,
+		}); err != nil {
+			t.Fatalf("create qualifying pin %d: %v", i+1, err)
+		}
 	}
 	progress, err = q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get progress after qualifying action: %v", err)
 	}
-	firstStick = achievementByID(t, progress, 3)
-	if !firstStick.Claimable || firstStick.Claimed || firstStick.RewardAvailable {
-		t.Fatalf("first-stick progress after pin = %+v, want claimable", firstStick)
+	twoSticks = achievementByID(t, progress, 3)
+	if !twoSticks.Claimable || twoSticks.Claimed || twoSticks.RewardAvailable {
+		t.Fatalf("two-stick progress after qualifying pins = %+v, want claimable", twoSticks)
 	}
 	beforeReclaim, err := user.Get(ctx, uid)
 	if err != nil {
@@ -324,10 +314,13 @@ func TestAchievementProgressReportsOneTimeRewardAvailability(t *testing.T) {
 	ctx := context.Background()
 	uid := createTestUser(t, auth, "achievement_reward_state")
 	groupID := createTestGroup(t, group, uid, "achievement_reward_state_group")
-	if _, err := pin.Create(ctx, CreatePinInput{
-		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: uid, GroupID: groupID,
-	}); err != nil {
-		t.Fatalf("create qualifying pin: %v", err)
+	for i := 0; i < 2; i++ {
+		if _, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1 + float64(i)/1000, Longitude: 11.6,
+			CreationDate: time.Now(), UserID: uid, GroupID: groupID,
+		}); err != nil {
+			t.Fatalf("create qualifying pin %d: %v", i+1, err)
+		}
 	}
 
 	progress, err := q.GetAchievementProgress(ctx, uid)
@@ -355,7 +348,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	ownerID := createTestUser(t, auth, "milestone_pin_owner")
 	likerID := createTestUser(t, auth, "milestone_pin_liker")
 	groupID := createTestGroup(t, group, ownerID, "milestone_likes_group")
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		created, err := pin.Create(ctx, CreatePinInput{
 			Latitude: 48.1 + float64(i)/1000, Longitude: 11.6, CreationDate: time.Now(), UserID: ownerID, GroupID: groupID,
 		})
@@ -384,8 +377,8 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get liker progress: %v", err)
 	}
-	if got := achievementByID(t, likerProgress, 5); !got.Claimable || got.CurrentValue != 10 {
-		t.Fatalf("likes-given milestone = %+v, want ten likes given", got)
+	if got := achievementByID(t, likerProgress, 5); !got.Claimable || got.CurrentValue != 20 {
+		t.Fatalf("likes-given milestone = %+v, want twenty likes given", got)
 	}
 	if got := achievementByID(t, likerProgress, 6); got.CurrentValue != 0 || got.Claimable {
 		t.Fatalf("likes-received milestone for liker = %+v, want zero", got)
@@ -395,8 +388,8 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get owner progress: %v", err)
 	}
-	if got := achievementByID(t, ownerProgress, 6); !got.Claimable || got.CurrentValue != 10 {
-		t.Fatalf("likes-received milestone = %+v, want ten likes received", got)
+	if got := achievementByID(t, ownerProgress, 6); !got.Claimable || got.CurrentValue != 20 {
+		t.Fatalf("likes-received milestone = %+v, want twenty likes received", got)
 	}
 	if got := achievementByID(t, ownerProgress, 5); got.CurrentValue != 0 || got.Claimable {
 		t.Fatalf("likes-given milestone for pin owner = %+v, want zero", got)
@@ -404,7 +397,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 }
 
 func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing.T) {
-	q, auth, user, like, pin, group, member, ranking, _ := setupServices(t)
+	q, auth, user, _, pin, group, member, ranking, _ := setupServices(t)
 	ctx := context.Background()
 	boundaryID := uuid.New()
 	if _, err := q.Pool().Exec(ctx, `
@@ -419,37 +412,29 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 	})
 
 	likerID := createTestUser(t, auth, "selected_badge_liker")
-	creatorID := createTestUser(t, auth, "selected_badge_creator")
 	groupID := createTestGroup(t, group, likerID, "selected_badge_group")
-	if _, err := member.Join(ctx, groupID, creatorID, nil); err != nil {
-		t.Fatalf("join selected badge group: %v", err)
+	for i := 2; i <= 25; i++ {
+		if _, err := group.Create(ctx, CreateGroupInput{
+			Name:       fmt.Sprintf("selected_badge_group_%d", i),
+			Visibility: 0, GroupAdmin: likerID,
+		}); err != nil {
+			t.Fatalf("create group %d for badge eligibility: %v", i, err)
+		}
 	}
 	if _, err := pin.Create(ctx, CreatePinInput{
 		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: likerID, GroupID: groupID,
 	}); err != nil {
 		t.Fatalf("create ranking pin: %v", err)
 	}
-	for i := 0; i < 10; i++ {
-		created, err := pin.Create(ctx, CreatePinInput{
-			Latitude: 48.2 + float64(i)/1000, Longitude: 11.6, CreationDate: time.Now(), UserID: creatorID, GroupID: groupID,
-		})
-		if err != nil {
-			t.Fatalf("create liked pin %d: %v", i, err)
-		}
-		liked := true
-		if _, err := like.CreateOrUpdate(ctx, created.ID, CreateLikeInput{UserID: likerID, Like: &liked}); err != nil {
-			t.Fatalf("like pin %d: %v", i, err)
-		}
+	if err := user.ClaimAchievement(ctx, likerID, 21); err != nil {
+		t.Fatalf("claim group-joining achievement: %v", err)
 	}
-	if err := user.ClaimAchievement(ctx, likerID, 5); err != nil {
-		t.Fatalf("claim likes-given achievement: %v", err)
-	}
-	rowID, err := q.GetUserAchievementRow(ctx, likerID, 5)
+	rowID, err := q.GetUserAchievementRow(ctx, likerID, 21)
 	if err != nil || rowID == nil {
 		t.Fatalf("get claimed achievement row: id=%v err=%v", rowID, err)
 	}
 	if err := q.SetUserSelectedBatch(ctx, likerID, *rowID); err != nil {
-		t.Fatalf("select likes-given achievement: %v", err)
+		t.Fatalf("select group-joining achievement: %v", err)
 	}
 
 	assertSelected := func(want bool) {
@@ -464,7 +449,7 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 				continue
 			}
 			foundUser = true
-			if hasSelected := row.SelectedBatch != nil && *row.SelectedBatch == 5; hasSelected != want {
+			if hasSelected := row.SelectedBatch != nil && *row.SelectedBatch == 21; hasSelected != want {
 				t.Errorf("user ranking selected badge present = %t, want %t", hasSelected, want)
 			}
 		}
@@ -482,7 +467,7 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 				continue
 			}
 			foundMember = true
-			if hasSelected := row.SelectedBatch != nil && *row.SelectedBatch == 5; hasSelected != want {
+			if hasSelected := row.SelectedBatch != nil && *row.SelectedBatch == 21; hasSelected != want {
 				t.Errorf("group ranking selected badge present = %t, want %t", hasSelected, want)
 			}
 		}
@@ -492,11 +477,14 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 	}
 	assertSelected(true)
 
-	if _, err := q.Pool().Exec(ctx, `DELETE FROM likes WHERE user_id = $1`, likerID); err != nil {
-		t.Fatalf("remove likes: %v", err)
+	if _, err := q.Pool().Exec(ctx, `
+		UPDATE members
+		SET is_deleted = TRUE
+		WHERE user_id = $1 AND group_id <> $2`, likerID, groupID); err != nil {
+		t.Fatalf("remove group memberships: %v", err)
 	}
-	// Do not fetch the achievements or profile endpoint here. Public ranking
-	// results must validate the selected badge against live progress themselves.
+	// Keep the user in this group while revoking the selected badge's separate
+	// 25-group requirement. Public ranking results validate badge progress live.
 	assertSelected(false)
 }
 
