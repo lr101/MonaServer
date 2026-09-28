@@ -83,6 +83,12 @@ Use explicit language for these states:
 | Group style | Locked/earned, previewed or edited, saved as a preset, and active on the group's map are separate states. |
 | Pin presence | Here/gone is factual status, not an achievement or decorative emblem. |
 
+Final personal achievement tiers use a highlighted name chip and a small mark
+to distinguish them from earlier hard tiers. Hard group pin presets carry a
+small earned emblem; the emblem is tied to the preset, while its shape and
+colors remain editable. These marks express rarity and must not be used as a
+pin's presence indicator.
+
 Before an action, show the reward or design in the form users will actually
 see. Say what is counted and what remains; keep detailed rules available on
 demand. Prefer one primary noun for a pin/artwork within a flow and define

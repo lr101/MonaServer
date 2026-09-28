@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
@@ -15,6 +16,7 @@ func TestGroupMembersIncludeSelectedAchievement(t *testing.T) {
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
 	groupSvc := service.NewGroup(q, nil, userSvc)
+	pinSvc := service.NewPin(q, nil)
 	memberSvc := service.NewMember(q, nil, groupSvc)
 	servicer := NewMembersServicer(memberSvc, service.NewGuard(q))
 	ctx := context.Background()
@@ -28,12 +30,23 @@ func TestGroupMembersIncludeSelectedAchievement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	for i := 2; i <= 25; i++ {
-		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+	if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: user.UserID, GroupID: group.ID,
+	}); err != nil {
+		t.Fatalf("create contribution: %v", err)
+	}
+	for i := 2; i <= 10; i++ {
+		created, err := groupSvc.Create(ctx, service.CreateGroupInput{
 			Name:       fmt.Sprintf("member_badge_group_%d", i),
 			Visibility: 0, GroupAdmin: user.UserID,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("create qualifying group %d: %v", i, err)
+		}
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: user.UserID, GroupID: created.ID,
+		}); err != nil {
+			t.Fatalf("create contribution %d: %v", i, err)
 		}
 	}
 	if err := userSvc.ClaimAchievement(ctx, user.UserID, 21); err != nil {

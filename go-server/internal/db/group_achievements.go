@@ -36,8 +36,8 @@ var groupAchievementDefs = []GroupAchievementDef{
 		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "aurora",
 	},
 	{
-		ID: 4, Track: "active_pins", Name: "First pin", Description: "Add 2 active sticks to this group.",
-		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 50,
+		ID: 4, Track: "active_pins", Name: "First pair", Description: "Add 2 active sticks to this group.",
+		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 10,
 	},
 	{
 		ID: 5, Track: "active_pins", Name: "Four hundred pins", Description: "Add 400 active sticks to this group.",

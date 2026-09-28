@@ -56,3 +56,17 @@ func TestGroupPinDesignCatalogAdvancesRevisionAndRejectsStaleWrite(t *testing.T)
 		t.Fatalf("catalog after stale save = %#v, want unchanged revision 3 with two designs", latest)
 	}
 }
+
+func TestHardGroupPinDesignsKeepTheirEmblems(t *testing.T) {
+	for _, style := range []string{"aurora", "honey", "orchid", "ember", "midnight"} {
+		def := DefaultGroupPinDesign(style)
+		if def.Badge == "none" {
+			t.Errorf("hard style %s has no emblem", style)
+		}
+	}
+	for _, style := range []string{"classic", "sunset", "jade", "rose"} {
+		if got := DefaultGroupPinDesign(style); got.Badge != "none" {
+			t.Errorf("starter or medium style %s has emblem %q", style, got.Badge)
+		}
+	}
+}
