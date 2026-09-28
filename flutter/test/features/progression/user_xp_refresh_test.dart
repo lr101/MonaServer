@@ -128,6 +128,61 @@ void main() {
     },
   );
 
+  test('deleting a failed upload waits for its pending cache write', () async {
+    final fixture = await _Fixture.create(
+      _Mutation.pin,
+      pauseMutation: true,
+      pausePinCacheWrite: true,
+    );
+    addTearDown(fixture.dispose);
+
+    final save = fixture.performAction();
+    await fixture.pinCacheWriteStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    await fixture.mutationRequestStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    expect(await save, isNull);
+
+    final deleting = fixture.container
+        .read(pinServiceProvider)
+        .deletePinFromGroup('draft-pin');
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final row = await fixture.database
+          .select(fixture.database.pendingPinCreates)
+          .getSingleOrNull();
+      if (row?.cancelRequested == true) break;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(
+      (await fixture.database
+              .select(fixture.database.pendingPinCreates)
+              .getSingleOrNull())
+          ?.cancelRequested,
+      isTrue,
+    );
+
+    fixture.mutationResponse.complete(http.Response('Unavailable', 503));
+    final deleteReturnedBeforeCacheWrite = await Future.any([
+      deleting.then((_) => true),
+      Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+    ]);
+    expect(
+      deleteReturnedBeforeCacheWrite,
+      isFalse,
+      reason: 'delete must wait for the in-flight cache projection',
+    );
+
+    fixture.releasePinCacheWrite.complete();
+    expect(await deleting, isNull);
+    expect(
+      await fixture.container.read(pinRepositoryProvider).get('draft-pin'),
+      isNull,
+    );
+  });
+
   for (final action in _Mutation.values) {
     test('${action.label} refreshes XP', () async {
       final fixture = await _Fixture.create(action);
@@ -475,6 +530,7 @@ class _Fixture {
       mutationResponse.complete(_mutationResponse(200));
 
   Future<void> dispose() async {
+    if (!releasePinCacheWrite.isCompleted) releasePinCacheWrite.complete();
     for (final subscription in _subscriptions) {
       subscription.close();
     }

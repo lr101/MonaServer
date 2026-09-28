@@ -166,6 +166,10 @@ class PendingPinUploader {
         await pending.recordError(row.pinId, 'HTTP ${error.code}');
       }
       rethrow;
+    } finally {
+      // Discard waits for this upload future before deleting the local draft.
+      // Do not let an earlier best-effort cache write recreate it afterward.
+      await cacheRestore;
     }
   }
 
