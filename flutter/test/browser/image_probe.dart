@@ -64,6 +64,12 @@ Future<void> main() async {
           ],
         );
       }
+      await database.customStatement(
+        'ALTER TABLE pin_entities DROP COLUMN is_gone',
+      );
+      await database.customStatement(
+        'ALTER TABLE group_entities DROP COLUMN pin_style',
+      );
       await database.customStatement('PRAGMA user_version = 1');
       await database.close();
       database = AppDatabase();

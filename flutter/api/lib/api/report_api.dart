@@ -23,7 +23,10 @@ class ReportApi {
   /// Parameters:
   ///
   /// * [ReportDto] reportDto (required):
-  Future<Response> createReportWithHttpInfo(ReportDto reportDto,) async {
+  ///
+  /// * [String] idempotencyKey:
+  ///   Optional client-generated key; replaying it with a different report returns 409.
+  Future<Response> createReportWithHttpInfo(ReportDto reportDto, { String? idempotencyKey, }) async {
     // ignore: prefer_const_declarations
     final path = r'/api/v2/report';
 
@@ -33,6 +36,10 @@ class ReportApi {
     final queryParams = <QueryParam>[];
     final headerParams = <String, String>{};
     final formParams = <String, String>{};
+
+    if (idempotencyKey != null) {
+      headerParams[r'Idempotency-Key'] = parameterToString(idempotencyKey);
+    }
 
     const contentTypes = <String>['application/json'];
 
@@ -53,8 +60,11 @@ class ReportApi {
   /// Parameters:
   ///
   /// * [ReportDto] reportDto (required):
-  Future<void> createReport(ReportDto reportDto,) async {
-    final response = await createReportWithHttpInfo(reportDto,);
+  ///
+  /// * [String] idempotencyKey:
+  ///   Optional client-generated key; replaying it with a different report returns 409.
+  Future<void> createReport(ReportDto reportDto, { String? idempotencyKey, }) async {
+    final response = await createReportWithHttpInfo(reportDto,  idempotencyKey: idempotencyKey, );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }

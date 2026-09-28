@@ -56,10 +56,11 @@ func (s *RankingServicer) UserRanking(ctx context.Context, gid0, gid1, gid2 stri
 	for _, r := range out {
 		items = append(items, genserver.UserRankingDtoInner{
 			UserInfoDto: genserver.UserInfoDto{
-				UserId:        r.UserID.String(),
-				Username:      r.Username,
-				Description:   strDeref(r.Description),
-				SelectedBatch: r.SelectedBatch,
+				UserId:             r.UserID.String(),
+				Username:           r.Username,
+				Description:        strDeref(r.Description),
+				SelectedBatch:      r.SelectedBatch,
+				SelectedBatchColor: r.SelectedBatchColor,
 			},
 			RankNr: int32(r.RankNr),
 			Points: r.Points,

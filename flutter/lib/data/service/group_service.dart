@@ -7,9 +7,11 @@ import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
+import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -341,6 +343,7 @@ class UserGroupService extends _$UserGroupService {
           keepAlive: true,
         );
         await groupRepository.put(entity);
+        ref.invalidate(userXpProvider(_userId));
         return null;
       } else {
         return "Failed to create group remotely unexpectedly";
@@ -369,6 +372,9 @@ class UserGroupService extends _$UserGroupService {
         await groupRepository.put(entity);
 
         if (!isCurrent()) return "Session ended";
+        if (data.profileImage != null) {
+          _refreshGroupImagesInBackground(ref, result);
+        }
         prefetchGroupMediaInBackground(ref, result, keepAlive: true);
       } else {
         return "Failed to update group remotely";
@@ -377,6 +383,23 @@ class UserGroupService extends _$UserGroupService {
       return e.toString();
     }
     return null;
+  }
+}
+
+void _refreshGroupImagesInBackground(Ref ref, GroupDto groupDto) {
+  final imageSources = <(IImageRepository, String?)>[
+    (ref.read(groupProfileRepoProvider), groupDto.profileImage),
+    (ref.read(groupProfileSmallRepoProvider), groupDto.profileImageSmall),
+    (ref.read(groupPinImageRepoProvider), groupDto.pinImage),
+  ];
+
+  for (final (repository, url) in imageSources) {
+    if (url == null || url.isEmpty) continue;
+    unawaited(
+      repository
+          .overrideUrl(groupDto.id, url, true)
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
   }
 }
 

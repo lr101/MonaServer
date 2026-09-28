@@ -9,6 +9,9 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -92,7 +95,17 @@ class SyncingService extends _$SyncingService {
 
     if (!isCurrent()) return;
     if (response.deletedPins.isNotEmpty) {
+      final affectedGroups = <String>{};
+      for (final pinId in response.deletedPins) {
+        if (!isCurrent()) return;
+        final deletedPin = await pinRepository.get(pinId);
+        if (!isCurrent()) return;
+        if (deletedPin != null) affectedGroups.add(deletedPin.groupId);
+      }
       await pinRepository.deleteMultiple(response.deletedPins);
+      for (final groupId in affectedGroups) {
+        ref.invalidate(groupAchievementsProvider(groupId));
+      }
     }
 
     for (final groupUpdate in response.groupUpdates) {
@@ -101,6 +114,12 @@ class SyncingService extends _$SyncingService {
       registerGroupImageUrls(ref, groupDto);
       final existingGroup = await groupRepository.get(groupDto.id);
       if (!isCurrent()) return;
+      final syncedPinStyle = groupDto.pinStyle?.value ?? 'classic';
+      final achievementStateChanged =
+          existingGroup == null ||
+          existingGroup.pinStyle != syncedPinStyle ||
+          (groupDto.lastUpdated != null &&
+              groupDto.lastUpdated != existingGroup.lastUpdated);
       await groupRepository.put(
         GroupEntity.fromGroupDto(
           groupDto,
@@ -110,6 +129,10 @@ class SyncingService extends _$SyncingService {
           isActivated: existingGroup?.isActivated ?? true,
         ),
       );
+
+      if (achievementStateChanged) {
+        ref.invalidate(groupAchievementsProvider(groupDto.id));
+      }
 
       if (!isCurrent()) return;
       if (groupUpdate.pinsAdded.isNotEmpty) {
@@ -121,6 +144,14 @@ class SyncingService extends _$SyncingService {
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
+        final creatorIds = groupUpdate.pinsAdded
+            .map((pin) => pin.creationUser)
+            .toSet();
+        for (final creatorId in creatorIds) {
+          ref.invalidate(userXpProvider(creatorId));
+        }
+        ref.invalidate(groupProgressionProvider(groupDto.id));
+        ref.invalidate(groupAchievementsProvider(groupDto.id));
       }
 
       if (!isCurrent()) return;
@@ -143,6 +174,9 @@ class SyncingService extends _$SyncingService {
       try {
         final newPin = await pinsApi.createPin(pin.toRequestDto(image!));
         if (!isCurrent()) return;
+        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
+        ref.invalidate(groupProgressionProvider(pin.groupId));
+        ref.invalidate(groupAchievementsProvider(pin.groupId));
         await pinRepository.put(
           PinEntity.fromDto(newPin!, false, keepAlive: true),
         );
@@ -152,6 +186,9 @@ class SyncingService extends _$SyncingService {
         if (!isCurrent()) return;
         if (e.code != 409) rethrow;
         // Preserve the legacy duplicate policy until server idempotency lands.
+        ref.invalidate(userXpProvider(ref.read(userIdProvider)));
+        ref.invalidate(groupProgressionProvider(pin.groupId));
+        ref.invalidate(groupAchievementsProvider(pin.groupId));
         await pinRepository.delete(pin.pinId);
       } catch (_) {
         if (!isCurrent()) return;

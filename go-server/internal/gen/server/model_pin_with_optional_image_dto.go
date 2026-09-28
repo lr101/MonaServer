@@ -30,7 +30,11 @@ type PinWithOptionalImageDto struct {
 
 	GroupId string `json:"groupId"`
 
+	Title *string `json:"title,omitempty"`
+
 	Description *string `json:"description,omitempty"`
+
+	IsGone *bool `json:"isGone,omitempty"`
 }
 
 // AssertPinWithOptionalImageDtoRequired checks if the required fields are not zero-ed

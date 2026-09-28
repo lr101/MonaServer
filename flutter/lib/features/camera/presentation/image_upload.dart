@@ -27,7 +27,8 @@ class ImageUpload extends ConsumerStatefulWidget {
 }
 
 class _ImageUploadState extends ConsumerState<ImageUpload> {
-  final _controller = TextEditingController();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
 
   late int _groupIndexWhenOpened;
 
@@ -39,7 +40,8 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -93,16 +95,36 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
                     else
                       const Card(),
                     Card(
-                      child: TextFormField(
-                        controller: _controller,
-                        minLines: 1,
-                        maxLines: 10,
-                        textInputAction: TextInputAction.newline,
-                        decoration: const InputDecoration(
-                          hintText: 'Add a description ...',
-                          border: OutlineInputBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _titleController,
+                              maxLength: 120,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Title',
+                                hintText: 'Give this pin a short title',
+                                counterText: '',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _descriptionController,
+                              minLines: 1,
+                              maxLines: 10,
+                              textInputAction: TextInputAction.newline,
+                              decoration: const InputDecoration(
+                                labelText: 'Description',
+                                hintText: 'Add a note about this place',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.multiline,
+                            ),
+                          ],
                         ),
-                        keyboardType: TextInputType.multiline,
                       ),
                     ),
                   ],
@@ -130,7 +152,12 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       latitude: widget.position.latitude,
       longitude: widget.position.longitude,
       creationDate: DateTime.now(),
-      description: _controller.text.isEmpty ? null : _controller.text,
+      title: _titleController.text.trim().isEmpty
+          ? null
+          : _titleController.text.trim(),
+      description: _descriptionController.text.isEmpty
+          ? null
+          : _descriptionController.text,
       creator: ref.watch(globalDataServiceProvider).userId!,
       groupId: group.groupId,
       onlySession: false,

@@ -10,6 +10,9 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
+import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -447,16 +450,24 @@ class PinService {
     Uint8List image, {
     bool showPrompt = false,
   }) async {
+    final session = captureSession(ref);
     try {
-      if (showPrompt)
+      if (showPrompt) {
         CustomErrorSnackBar.loadingMessage(message: "Uploading image");
+      }
       // await ref.read(userGroupServiceProvider.notifier).setIsActive(pin.groupId, true);
       await _addPinToRemote(pin, image);
-      if (showPrompt)
+      if (session.userId != null && isCurrentSession(ref, session)) {
+        ref.invalidate(userXpProvider(session.userId!));
+        ref.invalidate(groupProgressionProvider(pin.groupId));
+        ref.invalidate(groupAchievementsProvider(pin.groupId));
+      }
+      if (showPrompt) {
         CustomErrorSnackBar.message(
           message: "Succesfully uploaded",
           type: CustomErrorSnackBarType.success,
         );
+      }
     } on ApiException catch (e) {
       if (showPrompt && kIsWeb) {
         CustomErrorSnackBar.message(
@@ -468,6 +479,9 @@ class PinService {
           message: "Uploading failed. Stored offline.",
           type: CustomErrorSnackBarType.warning,
         );
+      }
+      if (session.userId != null && isCurrentSession(ref, session)) {
+        ref.invalidate(groupAchievementsProvider(pin.groupId));
       }
       return e.message;
     }
@@ -484,18 +498,51 @@ class PinService {
     await _pinImageRepository.addImage(newPin.pinId, image, false);
   }
 
+  Future<String?> setPinGone(String pinId, bool isGone) async {
+    final session = captureSession(ref);
+    try {
+      final pin = await _pinRepository.get(pinId);
+      if (pin == null || pin.lastSynced == null) {
+        return 'This pin is not synced yet.';
+      }
+
+      final updatedPin = await _pinsApi.setPinPresence(
+        pinId,
+        PinPresenceRequestDto(
+          state: isGone
+              ? PinPresenceRequestDtoStateEnum.gone
+              : PinPresenceRequestDtoStateEnum.here,
+        ),
+      );
+      if (!isCurrentSession(ref, session)) return null;
+
+      await _pinRepository.put(
+        pin.copyWith(isGone: updatedPin?.isGone ?? isGone) as PinEntity,
+      );
+      ref.invalidate(groupAchievementsProvider(pin.groupId));
+    } on ApiException catch (e) {
+      return e.message;
+    }
+    return null;
+  }
+
   Future<String?> deletePinFromGroup(
     String pinId, {
     bool showPrompt = false,
   }) async {
+    PinEntity? pin;
     try {
       if (showPrompt)
         CustomErrorSnackBar.loadingMessage(message: "Deleting image");
-      final pin = await _pinRepository.get(pinId);
-      if (pin != null && pin.keepAlive == false) {
+      pin = await _pinRepository.get(pinId);
+      // Retention is a cache policy; only unsynced drafts are local-only.
+      if (pin != null && pin.lastSynced != null) {
         await _pinsApi.deletePin(pinId);
       }
       await _pinRepository.delete(pinId);
+      if (pin != null) {
+        ref.invalidate(groupAchievementsProvider(pin.groupId));
+      }
       if (showPrompt)
         CustomErrorSnackBar.message(
           message: "Succesfully deleted",

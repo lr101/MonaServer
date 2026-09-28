@@ -22,7 +22,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.8.1
 	golang.org/x/crypto v0.57.0
-	google.golang.org/api v0.297.0
+	google.golang.org/api v0.298.0
 )
 
 require (

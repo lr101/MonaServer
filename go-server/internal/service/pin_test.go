@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/lrprojects/monaserver/internal/db"
 )
 
 func TestPinUsesNearestBoundaryWhenPointIsOutsideAllPolygons(t *testing.T) {
@@ -52,6 +54,7 @@ func TestPinCreateGetDelete(t *testing.T) {
 	gid := createTestGroup(t, group, uid, "pingroup")
 
 	t.Run("create pin", func(t *testing.T) {
+		title := "Riverside lookout"
 		before, err := q.GetUserByID(ctx, uid)
 		if err != nil {
 			t.Fatalf("get user before pin: %v", err)
@@ -60,6 +63,7 @@ func TestPinCreateGetDelete(t *testing.T) {
 			Latitude:     52.5,
 			Longitude:    13.4,
 			CreationDate: time.Now(),
+			Title:        &title,
 			UserID:       uid,
 			GroupID:      gid,
 		})
@@ -71,6 +75,16 @@ func TestPinCreateGetDelete(t *testing.T) {
 		}
 		if dto.UserID != uid {
 			t.Fatalf("creator mismatch")
+		}
+		if dto.Title == nil || *dto.Title != title {
+			t.Fatalf("created title = %v, want %q", dto.Title, title)
+		}
+		stored, err := q.GetPinByID(ctx, dto.ID)
+		if err != nil {
+			t.Fatalf("get created pin: %v", err)
+		}
+		if stored.Title == nil || *stored.Title != title {
+			t.Fatalf("stored title = %v, want %q", stored.Title, title)
 		}
 		after, err := q.GetUserByID(ctx, uid)
 		if err != nil {
@@ -135,4 +149,61 @@ func TestPinCreateGetDelete(t *testing.T) {
 			t.Fatal("expected nil url without object store")
 		}
 	})
+}
+
+func TestPinPresenceCanBeMarkedHereOrGoneWithoutDeletingPin(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userID := createTestUser(t, auth, "pin_presence_user")
+	groupID := createTestGroup(t, group, userID, "pin_presence_group")
+	pinID := createTestPin(t, pin, userID, groupID)
+
+	before, err := pin.Get(ctx, pinID)
+	if err != nil {
+		t.Fatalf("get new pin: %v", err)
+	}
+	if before.IsGone {
+		t.Fatal("new pin should be active")
+	}
+
+	if err := pin.SetGone(ctx, pinID, true); err != nil {
+		t.Fatalf("mark pin gone: %v", err)
+	}
+	afterGone, err := pin.Get(ctx, pinID)
+	if err != nil {
+		t.Fatalf("get gone pin: %v", err)
+	}
+	if !afterGone.IsGone {
+		t.Fatal("pin should retain its gone state")
+	}
+
+	updated, err := q.SearchPins(ctx, db.PinSearch{
+		CallerID: userID,
+		GroupID:  &groupID,
+		Limit:    10,
+	})
+	if err != nil {
+		t.Fatalf("search pins for sync: %v", err)
+	}
+	if len(updated) != 1 || !updated[0].IsGone {
+		t.Fatalf("synced pins = %+v, want one gone pin", updated)
+	}
+
+	if err := pin.SetGone(ctx, pinID, false); err != nil {
+		t.Fatalf("mark pin here: %v", err)
+	}
+	backHere, err := pin.Get(ctx, pinID)
+	if err != nil {
+		t.Fatalf("get restored pin: %v", err)
+	}
+	if backHere.IsGone {
+		t.Fatal("pin should be restored to active state")
+	}
+}
+
+func TestPinSetGoneRejectsMissingPin(t *testing.T) {
+	_, _, _, _, pin, _, _, _, _ := setupServices(t)
+	if err := pin.SetGone(context.Background(), uuid.New(), true); err == nil {
+		t.Fatal("marking a missing pin gone should fail")
+	}
 }

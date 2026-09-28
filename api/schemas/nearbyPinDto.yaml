@@ -1,0 +1,13 @@
+type: object
+required:
+  - pin
+  - distanceMeters
+  - groupName
+properties:
+  pin:
+    $ref: 'pinWithOptionalImageDto.yaml'
+  distanceMeters:
+    type: integer
+    minimum: 0
+  groupName:
+    type: string

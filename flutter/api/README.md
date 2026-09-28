@@ -48,7 +48,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = AdminApi();
-final adminMailDto = AdminMailDto(); // AdminMailDto | 
+final adminMailDto = AdminMailDto(); // AdminMailDto |
 
 try {
     api_instance.sendAdminMail(adminMailDto);
@@ -66,6 +66,38 @@ Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *AdminApi* | [**sendAdminMail**](doc//AdminApi.md#sendadminmail) | **POST** /api/v2/admin/mail | Send an admin mail
 *AdminApi* | [**sendNotification**](doc//AdminApi.md#sendnotification) | **POST** /api/v2/admin/notification | Post a notification to a specific topic
+*AdminAudiencesApi* | [**getAdminAudience**](doc//AdminAudiencesApi.md#getadminaudience) | **GET** /api/v3/admin/audiences/{audienceId} | Read an administrative audience snapshot
+*AdminAudiencesApi* | [**previewAdminAudience**](doc//AdminAudiencesApi.md#previewadminaudience) | **POST** /api/v3/admin/audiences/preview | Preview an explicit administrative audience
+*AdminAuditApi* | [**listAdminAudit**](doc//AdminAuditApi.md#listadminaudit) | **GET** /api/v3/admin/audit | List administrative audit events
+*AdminCampaignsApi* | [**archiveAdminCampaign**](doc//AdminCampaignsApi.md#archiveadmincampaign) | **POST** /api/v3/admin/campaigns/{campaignId}/archive | Archive a campaign
+*AdminCampaignsApi* | [**createAdminCampaign**](doc//AdminCampaignsApi.md#createadmincampaign) | **POST** /api/v3/admin/campaigns | Create a content-only campaign
+*AdminCampaignsApi* | [**deleteAdminCampaign**](doc//AdminCampaignsApi.md#deleteadmincampaign) | **DELETE** /api/v3/admin/campaigns/{campaignId} | Delete a draft campaign
+*AdminCampaignsApi* | [**getAdminCampaign**](doc//AdminCampaignsApi.md#getadmincampaign) | **GET** /api/v3/admin/campaigns/{campaignId} | Get a content-only campaign
+*AdminCampaignsApi* | [**listAdminCampaigns**](doc//AdminCampaignsApi.md#listadmincampaigns) | **GET** /api/v3/admin/campaigns | List content-only campaigns
+*AdminCampaignsApi* | [**updateAdminCampaign**](doc//AdminCampaignsApi.md#updateadmincampaign) | **PATCH** /api/v3/admin/campaigns/{campaignId} | Update a content-only campaign
+*AdminJobsApi* | [**cancelAdminJob**](doc//AdminJobsApi.md#canceladminjob) | **POST** /api/v3/admin/jobs/{jobId}/cancel | Cancel pending job work
+*AdminJobsApi* | [**createAdminJob**](doc//AdminJobsApi.md#createadminjob) | **POST** /api/v3/admin/jobs | Commit an administrative action job
+*AdminJobsApi* | [**getAdminJob**](doc//AdminJobsApi.md#getadminjob) | **GET** /api/v3/admin/jobs/{jobId} | Read an administrative job
+*AdminJobsApi* | [**listAdminJobRecipients**](doc//AdminJobsApi.md#listadminjobrecipients) | **GET** /api/v3/admin/jobs/{jobId}/recipients | List job recipient outcomes
+*AdminJobsApi* | [**listAdminJobs**](doc//AdminJobsApi.md#listadminjobs) | **GET** /api/v3/admin/jobs | List administrative action jobs
+*AdminJobsApi* | [**retryAdminJob**](doc//AdminJobsApi.md#retryadminjob) | **POST** /api/v3/admin/jobs/{jobId}/retry | Retry eligible failed job work
+*AdminMessagesApi* | [**sendAdminTestMessage**](doc//AdminMessagesApi.md#sendadmintestmessage) | **POST** /api/v3/admin/messages/test | Send an administrative test message
+*AdminReportsApi* | [**addAdminReportNote**](doc//AdminReportsApi.md#addadminreportnote) | **POST** /api/v3/admin/reports/{reportId}/notes | Add an administrative report note
+*AdminReportsApi* | [**getAdminReport**](doc//AdminReportsApi.md#getadminreport) | **GET** /api/v3/admin/reports/{reportId} | Read one report and its notes
+*AdminReportsApi* | [**listAdminReportNotes**](doc//AdminReportsApi.md#listadminreportnotes) | **GET** /api/v3/admin/reports/{reportId}/notes | List all administrative report notes
+*AdminReportsApi* | [**listAdminReports**](doc//AdminReportsApi.md#listadminreports) | **GET** /api/v3/admin/reports | List reports for administrative review
+*AdminReportsApi* | [**updateAdminReport**](doc//AdminReportsApi.md#updateadminreport) | **PATCH** /api/v3/admin/reports/{reportId} | Apply a revision-checked report transition
+*AdminSessionApi* | [**adminSessionLogin**](doc//AdminSessionApi.md#adminsessionlogin) | **POST** /api/v3/admin/session/login | Begin an admin password and MFA login
+*AdminSessionApi* | [**bootstrapAdminSession**](doc//AdminSessionApi.md#bootstrapadminsession) | **POST** /api/v3/admin/session/bootstrap | Bootstrap an admin browser session
+*AdminSessionApi* | [**completeAdminSessionMfa**](doc//AdminSessionApi.md#completeadminsessionmfa) | **POST** /api/v3/admin/session/mfa | Complete admin MFA
+*AdminSessionApi* | [**getAdminSession**](doc//AdminSessionApi.md#getadminsession) | **GET** /api/v3/admin/session | Restore the current admin session
+*AdminSessionApi* | [**logoutAdminSession**](doc//AdminSessionApi.md#logoutadminsession) | **POST** /api/v3/admin/session/logout | Log out of the admin session
+*AdminSessionApi* | [**reauthenticateAdminSession**](doc//AdminSessionApi.md#reauthenticateadminsession) | **POST** /api/v3/admin/session/reauthenticate | Reauthenticate an admin session for a sensitive action
+*AdminUsersApi* | [**getAdminUser**](doc//AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
+*AdminUsersApi* | [**listAdminUsers**](doc//AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
+*AdminUsersApi* | [**sendAdminUserLoginLink**](doc//AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+*AdminUsersApi* | [**sendAdminUserPasswordResetLink**](doc//AdminUsersApi.md#sendadminuserpasswordresetlink) | **POST** /api/v3/admin/users/{userId}/password-reset | Send one user's password recovery email as an administrator
+*AdminUsersApi* | [**verifyAdminUserEmail**](doc//AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 *AuthApi* | [**createUser**](doc//AuthApi.md#createuser) | **POST** /api/v2/public/signup | User registration
 *AuthApi* | [**generateDeleteCode**](doc//AuthApi.md#generatedeletecode) | **GET** /api/v2/public/delete-code/{username} | Generate delete code
 *AuthApi* | [**getStatus**](doc//AuthApi.md#getstatus) | **GET** /api/v2/status | Gets the status of the server and user specific information
@@ -73,9 +105,13 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**requestPasswordRecovery**](doc//AuthApi.md#requestpasswordrecovery) | **GET** /api/v2/public/recover | Request password recovery
 *AuthApi* | [**userLogin**](doc//AuthApi.md#userlogin) | **POST** /api/v2/public/login | User login
 *BatchApi* | [**batchRead**](doc//BatchApi.md#batchread) | **POST** /api/v3/batch | Read several authenticated resources in one request
+*GroupPinDesignsApi* | [**getGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#getgrouppindesigncatalog) | **GET** /api/v2/groups/{groupId}/pin-designs | Get the pin designs available for a group
+*GroupPinDesignsApi* | [**updateGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#updategrouppindesigncatalog) | **PUT** /api/v2/groups/{groupId}/pin-designs | Update a group's earned pin design
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
+*GroupsApi* | [**claimGroupAchievement**](doc//GroupsApi.md#claimgroupachievement) | **POST** /api/v2/groups/{groupId}/achievements/{achievementId} | Claim a group achievement and receive its reward
 *GroupsApi* | [**deleteGroup**](doc//GroupsApi.md#deletegroup) | **DELETE** /api/v2/groups/{groupId} | Delete a group by ID
 *GroupsApi* | [**getGroup**](doc//GroupsApi.md#getgroup) | **GET** /api/v2/groups/{groupId} | Get a group by ID
+*GroupsApi* | [**getGroupAchievements**](doc//GroupsApi.md#getgroupachievements) | **GET** /api/v2/groups/{groupId}/achievements | Get group achievement progress and pin style rewards
 *GroupsApi* | [**getGroupAdmin**](doc//GroupsApi.md#getgroupadmin) | **GET** /api/v2/groups/{groupId}/admin | Get admin of group
 *GroupsApi* | [**getGroupDescription**](doc//GroupsApi.md#getgroupdescription) | **GET** /api/v2/groups/{groupId}/description | Get description of group
 *GroupsApi* | [**getGroupInviteUrl**](doc//GroupsApi.md#getgroupinviteurl) | **GET** /api/v2/groups/{groupId}/invite_url | Get invite url of group
@@ -83,6 +119,7 @@ Class | Method | HTTP request | Description
 *GroupsApi* | [**getGroupPinImage**](doc//GroupsApi.md#getgrouppinimage) | **GET** /api/v2/groups/{groupId}/pin_image | Get pin image of group
 *GroupsApi* | [**getGroupProfileImage**](doc//GroupsApi.md#getgroupprofileimage) | **GET** /api/v2/groups/{groupId}/profile_image | Get profile of group
 *GroupsApi* | [**getGroupProfileImageSmall**](doc//GroupsApi.md#getgroupprofileimagesmall) | **GET** /api/v2/groups/{groupId}/profile_image_small | Get small profile image url of group
+*GroupsApi* | [**getGroupProgression**](doc//GroupsApi.md#getgroupprogression) | **GET** /api/v2/groups/{groupId}/progression | Get a group's XP and level progress
 *GroupsApi* | [**getGroupsByIds**](doc//GroupsApi.md#getgroupsbyids) | **GET** /api/v2/groups | Get groups by IDs
 *GroupsApi* | [**updateGroup**](doc//GroupsApi.md#updategroup) | **PUT** /api/v2/groups/{groupId} | Update a group by ID
 *LikesApi* | [**createOrUpdateLike**](doc//LikesApi.md#createorupdatelike) | **POST** /api/v2/pins/{pinId}/likes | Create or update a like
@@ -91,19 +128,28 @@ Class | Method | HTTP request | Description
 *MembersApi* | [**deleteMemberFromGroup**](doc//MembersApi.md#deletememberfromgroup) | **DELETE** /api/v2/groups/{groupId}/members | leave group or delete group when the user is the last group member
 *MembersApi* | [**getGroupMembers**](doc//MembersApi.md#getgroupmembers) | **GET** /api/v2/groups/{groupId}/members | Get members of a group by ID
 *MembersApi* | [**joinGroup**](doc//MembersApi.md#joingroup) | **POST** /api/v2/groups/{groupId}/members | Add a member to a group by ID
+*PinsApi* | [**addPinPhoto**](doc//PinsApi.md#addpinphoto) | **POST** /api/v2/pins/{pinId}/photos | Add a photo update to an existing pin
 *PinsApi* | [**callSync**](doc//PinsApi.md#callsync) | **GET** /api/v3/sync | Sync all pins and groups based on last seen date
 *PinsApi* | [**createPin**](doc//PinsApi.md#createpin) | **POST** /api/v2/pins | Create a new pin
 *PinsApi* | [**deletePin**](doc//PinsApi.md#deletepin) | **DELETE** /api/v2/pins/{pinId} | Delete a pin by ID
+*PinsApi* | [**getNearbyPins**](doc//PinsApi.md#getnearbypins) | **GET** /api/v2/pins/nearby | Find nearby visible pins
 *PinsApi* | [**getPin**](doc//PinsApi.md#getpin) | **GET** /api/v2/pins/{pinId} | Get pin information by ID
 *PinsApi* | [**getPinImage**](doc//PinsApi.md#getpinimage) | **GET** /api/v2/pins/{pinId}/image | Get the image associated with a pin by ID
 *PinsApi* | [**getPinImagesByIds**](doc//PinsApi.md#getpinimagesbyids) | **GET** /api/v2/pins | Get images by IDs
+*PinsApi* | [**getPinPhotos**](doc//PinsApi.md#getpinphotos) | **GET** /api/v2/pins/{pinId}/photos | Get the photo history for a pin
+*PinsApi* | [**setPinPresence**](doc//PinsApi.md#setpinpresence) | **POST** /api/v2/pins/{pinId}/presence | Set whether the pin is still present
 *PublicApi* | [**getServerInfo**](doc//PublicApi.md#getserverinfo) | **GET** /api/v2/public/infos | Get public server statistics
-*RankingApi* | [**getGeoJson**](doc//RankingApi.md#getgeojson) | **GET** /api/v2/map/geojson | 
-*RankingApi* | [**getMapInfo**](doc//RankingApi.md#getmapinfo) | **GET** /api/v2/map | 
-*RankingApi* | [**groupRanking**](doc//RankingApi.md#groupranking) | **GET** /api/v2/ranking/group | 
+*PublicAuthApi* | [**completeRecovery**](doc//PublicAuthApi.md#completerecovery) | **POST** /api/v3/public/auth/recovery/complete | Complete restricted account recovery
+*PublicAuthApi* | [**exchangeEmailLink**](doc//PublicAuthApi.md#exchangeemaillink) | **POST** /api/v3/public/auth/email-link/exchange | Exchange a one-time email sign-in link
+*PublicAuthApi* | [**exchangeEmailLoginCode**](doc//PublicAuthApi.md#exchangeemaillogincode) | **POST** /api/v3/public/auth/email-code/exchange | Exchange a one-time email sign-in code
+*PublicAuthApi* | [**requestEmailLink**](doc//PublicAuthApi.md#requestemaillink) | **POST** /api/v3/public/auth/email-link/request | Request a one-time email sign-in link
+*RankingApi* | [**getGeoJson**](doc//RankingApi.md#getgeojson) | **GET** /api/v2/map/geojson |
+*RankingApi* | [**getMapInfo**](doc//RankingApi.md#getmapinfo) | **GET** /api/v2/map |
+*RankingApi* | [**groupRanking**](doc//RankingApi.md#groupranking) | **GET** /api/v2/ranking/group |
 *RankingApi* | [**searchRanking**](doc//RankingApi.md#searchranking) | **GET** /api/v2/ranking/search | Search for a location
-*RankingApi* | [**userRanking**](doc//RankingApi.md#userranking) | **GET** /api/v2/ranking/user | 
+*RankingApi* | [**userRanking**](doc//RankingApi.md#userranking) | **GET** /api/v2/ranking/user |
 *ReportApi* | [**createReport**](doc//ReportApi.md#createreport) | **POST** /api/v2/report | Report content
+*SessionAuthApi* | [**revokeOwnSession**](doc//SessionAuthApi.md#revokeownsession) | **POST** /api/v3/auth/session/revoke | Revoke the caller's submitted refresh credential
 *UsersApi* | [**claimUserAchievement**](doc//UsersApi.md#claimuserachievement) | **POST** /api/v2/users/{userId}/achievements/{achievementId} | Claim an achievement
 *UsersApi* | [**deleteUser**](doc//UsersApi.md#deleteuser) | **DELETE** /api/v2/users/{userId} | Delete a user by userId
 *UsersApi* | [**getUser**](doc//UsersApi.md#getuser) | **GET** /api/v2/users/{userId} | Get a user by userId
@@ -116,34 +162,123 @@ Class | Method | HTTP request | Description
 
 ## Documentation For Models
 
+ - [AdminAction](doc//AdminAction.md)
+ - [AdminActionKind](doc//AdminActionKind.md)
+ - [AdminAudience](doc//AdminAudience.md)
+ - [AdminAudienceCountsDto](doc//AdminAudienceCountsDto.md)
+ - [AdminAudienceExclusionDto](doc//AdminAudienceExclusionDto.md)
+ - [AdminAudienceFilter](doc//AdminAudienceFilter.md)
+ - [AdminAudienceMemberDto](doc//AdminAudienceMemberDto.md)
+ - [AdminAudiencePageDto](doc//AdminAudiencePageDto.md)
+ - [AdminAudiencePreviewAcceptedDto](doc//AdminAudiencePreviewAcceptedDto.md)
+ - [AdminAudiencePreviewDto](doc//AdminAudiencePreviewDto.md)
+ - [AdminAudiencePreviewRequestDto](doc//AdminAudiencePreviewRequestDto.md)
+ - [AdminAudiencePreviewResponseDto](doc//AdminAudiencePreviewResponseDto.md)
+ - [AdminAuditEventDto](doc//AdminAuditEventDto.md)
+ - [AdminAuditPageDto](doc//AdminAuditPageDto.md)
+ - [AdminCampaignChannel](doc//AdminCampaignChannel.md)
+ - [AdminCampaignContentDto](doc//AdminCampaignContentDto.md)
+ - [AdminCampaignCreateRequestDto](doc//AdminCampaignCreateRequestDto.md)
+ - [AdminCampaignDto](doc//AdminCampaignDto.md)
+ - [AdminCampaignPageDto](doc//AdminCampaignPageDto.md)
+ - [AdminCampaignRevisionRequestDto](doc//AdminCampaignRevisionRequestDto.md)
+ - [AdminCampaignStatus](doc//AdminCampaignStatus.md)
+ - [AdminCampaignUpdateRequestDto](doc//AdminCampaignUpdateRequestDto.md)
+ - [AdminJobAcceptedDto](doc//AdminJobAcceptedDto.md)
+ - [AdminJobCommandRequestDto](doc//AdminJobCommandRequestDto.md)
+ - [AdminJobCreateRequestDto](doc//AdminJobCreateRequestDto.md)
+ - [AdminJobDto](doc//AdminJobDto.md)
+ - [AdminJobPageDto](doc//AdminJobPageDto.md)
+ - [AdminJobRecipientDto](doc//AdminJobRecipientDto.md)
+ - [AdminJobRecipientPageDto](doc//AdminJobRecipientPageDto.md)
+ - [AdminJobStatus](doc//AdminJobStatus.md)
+ - [AdminLoginLinkCampaignRequestDto](doc//AdminLoginLinkCampaignRequestDto.md)
  - [AdminMailDto](doc//AdminMailDto.md)
+ - [AdminMfaRequestDto](doc//AdminMfaRequestDto.md)
+ - [AdminReauthenticateRequestDto](doc//AdminReauthenticateRequestDto.md)
+ - [AdminReportDto](doc//AdminReportDto.md)
+ - [AdminReportFilterDto](doc//AdminReportFilterDto.md)
+ - [AdminReportNoteDto](doc//AdminReportNoteDto.md)
+ - [AdminReportNotePageDto](doc//AdminReportNotePageDto.md)
+ - [AdminReportNoteRequestDto](doc//AdminReportNoteRequestDto.md)
+ - [AdminReportPageDto](doc//AdminReportPageDto.md)
+ - [AdminReportStatus](doc//AdminReportStatus.md)
+ - [AdminReportTargetDto](doc//AdminReportTargetDto.md)
+ - [AdminReportUpdateRequestDto](doc//AdminReportUpdateRequestDto.md)
+ - [AdminSecurityState](doc//AdminSecurityState.md)
+ - [AdminSessionBootstrapDto](doc//AdminSessionBootstrapDto.md)
+ - [AdminSessionDto](doc//AdminSessionDto.md)
+ - [AdminSessionLoginRequestDto](doc//AdminSessionLoginRequestDto.md)
+ - [AdminSessionLoginResponseDto](doc//AdminSessionLoginResponseDto.md)
+ - [AdminSessionState](doc//AdminSessionState.md)
+ - [AdminTestMessageAcceptedDto](doc//AdminTestMessageAcceptedDto.md)
+ - [AdminTestMessageRequestDto](doc//AdminTestMessageRequestDto.md)
+ - [AdminUserDetailsDto](doc//AdminUserDetailsDto.md)
+ - [AdminUserDto](doc//AdminUserDto.md)
+ - [AdminUserFilterDto](doc//AdminUserFilterDto.md)
+ - [AdminUserPageDto](doc//AdminUserPageDto.md)
+ - [AllAudience](doc//AllAudience.md)
+ - [ApiErrorDto](doc//ApiErrorDto.md)
+ - [AudienceKind](doc//AudienceKind.md)
+ - [AudienceResourceKind](doc//AudienceResourceKind.md)
  - [BatchReadItem](doc//BatchReadItem.md)
  - [BatchReadRequest](doc//BatchReadRequest.md)
  - [BatchReadResponse](doc//BatchReadResponse.md)
  - [BatchReadResult](doc//BatchReadResult.md)
  - [CreateGroupDto](doc//CreateGroupDto.md)
  - [CreateLikeDto](doc//CreateLikeDto.md)
+ - [EmailActionDto](doc//EmailActionDto.md)
+ - [EmailLinkExchangeRequestDto](doc//EmailLinkExchangeRequestDto.md)
+ - [EmailLinkExchangeResponseDto](doc//EmailLinkExchangeResponseDto.md)
+ - [EmailLinkRequestAcceptedDto](doc//EmailLinkRequestAcceptedDto.md)
+ - [EmailLinkRequestDto](doc//EmailLinkRequestDto.md)
+ - [EmailLoginCodeExchangeRequestDto](doc//EmailLoginCodeExchangeRequestDto.md)
+ - [FilterAudience](doc//FilterAudience.md)
+ - [GroupAchievementsDtoInner](doc//GroupAchievementsDtoInner.md)
  - [GroupDto](doc//GroupDto.md)
+ - [GroupPinDesignBadge](doc//GroupPinDesignBadge.md)
+ - [GroupPinDesignCatalogDto](doc//GroupPinDesignCatalogDto.md)
+ - [GroupPinDesignDto](doc//GroupPinDesignDto.md)
+ - [GroupPinDesignShape](doc//GroupPinDesignShape.md)
+ - [GroupPinDesignStyle](doc//GroupPinDesignStyle.md)
+ - [GroupProgressionDto](doc//GroupProgressionDto.md)
  - [GroupRankingDtoInner](doc//GroupRankingDtoInner.md)
  - [GroupsSyncDto](doc//GroupsSyncDto.md)
  - [InfoDto](doc//InfoDto.md)
+ - [LoginLinkActionDto](doc//LoginLinkActionDto.md)
  - [MapInfoDto](doc//MapInfoDto.md)
+ - [MarkCompromisedActionDto](doc//MarkCompromisedActionDto.md)
  - [MemberResponseDto](doc//MemberResponseDto.md)
+ - [NearbyPinDto](doc//NearbyPinDto.md)
+ - [NearbyPinsDto](doc//NearbyPinsDto.md)
  - [NotificationDto](doc//NotificationDto.md)
  - [PinLikeDto](doc//PinLikeDto.md)
+ - [PinPhotoDto](doc//PinPhotoDto.md)
+ - [PinPhotoRequestDto](doc//PinPhotoRequestDto.md)
+ - [PinPresenceRequestDto](doc//PinPresenceRequestDto.md)
  - [PinRequestDto](doc//PinRequestDto.md)
  - [PinWithOptionalImageDto](doc//PinWithOptionalImageDto.md)
  - [PinsSyncDto](doc//PinsSyncDto.md)
+ - [ProfileProgressionDto](doc//ProfileProgressionDto.md)
+ - [PushActionDto](doc//PushActionDto.md)
  - [RankingSearchDtoInner](doc//RankingSearchDtoInner.md)
+ - [RecoveryCompleteRequestDto](doc//RecoveryCompleteRequestDto.md)
+ - [RecoveryResendActionDto](doc//RecoveryResendActionDto.md)
  - [RefreshTokenRequestDto](doc//RefreshTokenRequestDto.md)
+ - [ReportDismissActionDto](doc//ReportDismissActionDto.md)
  - [ReportDto](doc//ReportDto.md)
+ - [ReportResolveActionDto](doc//ReportResolveActionDto.md)
+ - [RevokeSessionsActionDto](doc//RevokeSessionsActionDto.md)
  - [SeasonDto](doc//SeasonDto.md)
  - [SeasonItemDto](doc//SeasonItemDto.md)
+ - [SelectedAudience](doc//SelectedAudience.md)
+ - [SessionRevokeRequestDto](doc//SessionRevokeRequestDto.md)
  - [Status](doc//Status.md)
  - [SyncDto](doc//SyncDto.md)
  - [SyncDtoGroupUpdatesInner](doc//SyncDtoGroupUpdatesInner.md)
  - [TokenResponseDto](doc//TokenResponseDto.md)
  - [UpdateGroupDto](doc//UpdateGroupDto.md)
+ - [UpdateGroupPinDesignCatalogDto](doc//UpdateGroupPinDesignCatalogDto.md)
  - [UserAchievementsDtoInner](doc//UserAchievementsDtoInner.md)
  - [UserInfoDto](doc//UserInfoDto.md)
  - [UserLikesDto](doc//UserLikesDto.md)
@@ -159,12 +294,15 @@ Class | Method | HTTP request | Description
 
 
 Authentication schemes defined for the API:
+### adminSession
+
+- **Type**: API key
+- **API key parameter name**: admin_session
+- **Location**:
+
 ### token
 
 - **Type**: HTTP Bearer authentication
 
 
 ## Author
-
-
-

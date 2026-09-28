@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -40,15 +41,23 @@ func TestUserRankingIncludesSelectedAchievement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
+	for i := 2; i <= 25; i++ {
+		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+			Name:       fmt.Sprintf("ranking_badge_group_%d", i),
+			Visibility: 0, GroupAdmin: user.UserID,
+		}); err != nil {
+			t.Fatalf("create qualifying group %d: %v", i, err)
+		}
+	}
 	if _, err := pinSvc.Create(ctx, service.CreatePinInput{
 		Latitude: 1, Longitude: 1, CreationDate: time.Now(), UserID: user.UserID, GroupID: group.ID,
 	}); err != nil {
 		t.Fatalf("create pin: %v", err)
 	}
-	if err := userSvc.ClaimAchievement(ctx, user.UserID, 4); err != nil {
+	if err := userSvc.ClaimAchievement(ctx, user.UserID, 21); err != nil {
 		t.Fatalf("claim achievement: %v", err)
 	}
-	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 4)
+	rowID, err := q.GetUserAchievementRow(ctx, user.UserID, 21)
 	if err != nil || rowID == nil {
 		t.Fatalf("get achievement row: %v", err)
 	}
@@ -64,7 +73,7 @@ func TestUserRankingIncludesSelectedAchievement(t *testing.T) {
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if len(items) != 1 || items[0].UserInfoDto.SelectedBatch == nil || *items[0].UserInfoDto.SelectedBatch != 4 {
-		t.Fatalf("ranking response = %+v, want selectedBatch 4", items)
+	if len(items) != 1 || items[0].UserInfoDto.SelectedBatch == nil || *items[0].UserInfoDto.SelectedBatch != 21 {
+		t.Fatalf("ranking response = %+v, want selectedBatch 21", items)
 	}
 }

@@ -1,0 +1,64 @@
+get:
+  operationId: getGroupPinDesignCatalog
+  tags:
+    - groupPinDesigns
+  security:
+    - token: []
+  summary: Get the pin designs available for a group
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Current group pin designs, including defaults for unlocked styles
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupPinDesignCatalogDto.yaml'
+    '400':
+      description: Invalid group ID
+    '401':
+      description: Unauthenticated
+    '403':
+      description: Private group requires membership or group admin
+    '404':
+      description: Group not found
+put:
+  operationId: updateGroupPinDesignCatalog
+  tags:
+    - groupPinDesigns
+  security:
+    - token: []
+  summary: Update a group's earned pin design
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../schemas/updateGroupPinDesignCatalogDto.yaml'
+  responses:
+    '200':
+      description: Updated group pin designs
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupPinDesignCatalogDto.yaml'
+    '400':
+      description: Invalid group pin design
+    '401':
+      description: Unauthenticated
+    '403':
+      description: Group administrator required or style is not unlocked
+    '404':
+      description: Group not found
+    '409':
+      description: Pin design catalog changed

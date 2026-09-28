@@ -13,7 +13,7 @@ Method | HTTP request | Description
 
 
 # **createReport**
-> createReport(reportDto)
+> createReport(reportDto, idempotencyKey)
 
 Report content
 
@@ -28,10 +28,11 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = ReportApi();
-final reportDto = ReportDto(); // ReportDto | 
+final reportDto = ReportDto(); // ReportDto |
+final idempotencyKey = idempotencyKey_example; // String | Optional client-generated key; replaying it with a different report returns 409.
 
 try {
-    api_instance.createReport(reportDto);
+    api_instance.createReport(reportDto, idempotencyKey);
 } catch (e) {
     print('Exception when calling ReportApi->createReport: $e\n');
 }
@@ -41,7 +42,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **reportDto** | [**ReportDto**](ReportDto.md)|  | 
+ **reportDto** | [**ReportDto**](ReportDto.md)|  |
+ **idempotencyKey** | **String**| Optional client-generated key; replaying it with a different report returns 409. | [optional]
 
 ### Return type
 
@@ -54,7 +56,6 @@ void (empty response body)
 ### HTTP request headers
 
  - **Content-Type**: application/json
- - **Accept**: Not defined
+ - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-

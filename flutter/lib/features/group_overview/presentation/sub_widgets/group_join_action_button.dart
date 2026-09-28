@@ -8,8 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GroupJoinActionButton extends ConsumerWidget {
   final GroupEntity groupDto;
+  final String? inviteUrl;
 
-  GroupJoinActionButton({super.key, required this.groupDto});
+  GroupJoinActionButton({super.key, required this.groupDto, this.inviteUrl});
 
   final _textController = TextEditingController();
 
@@ -18,32 +19,35 @@ class GroupJoinActionButton extends ConsumerWidget {
     return SubmitButton(
       text: "Join",
       onPressed: () async {
-        if (groupDto.visibility == 0) {
+        if (groupDto.visibility == 0 || inviteUrl != null) {
           final result = await ref
               .read(userGroupServiceProvider.notifier)
-              .joinGroup(groupDto.groupId);
+              .joinGroup(groupDto.groupId, inviteUrl: inviteUrl);
           if (result != null) {
             CustomErrorSnackBar.message(message: result);
-          } else if (context.mounted){
+          } else if (context.mounted && inviteUrl == null) {
             Navigator.of(context).pop();
           }
         } else {
-          await CustomDialog.show(context,
-              acceptText: "Join",
-              title: "Join Group",
-              child: TextFormField(
-                decoration: const InputDecoration(hintText: "Invite code"),
-                controller: _textController,
-              ), onPressed: () async {
-            final result = await ref
-                .read(userGroupServiceProvider.notifier)
-                .joinGroup(groupDto.groupId, inviteUrl: _textController.text);
-            if (result != null) {
-              CustomErrorSnackBar.message(message: result);
-            } else if (context.mounted) {
-              Navigator.of(context).pop();
-            }
-          },);
+          await CustomDialog.show(
+            context,
+            acceptText: "Join",
+            title: "Join Group",
+            child: TextFormField(
+              decoration: const InputDecoration(hintText: "Invite code"),
+              controller: _textController,
+            ),
+            onPressed: () async {
+              final result = await ref
+                  .read(userGroupServiceProvider.notifier)
+                  .joinGroup(groupDto.groupId, inviteUrl: _textController.text);
+              if (result != null) {
+                CustomErrorSnackBar.message(message: result);
+              } else if (context.mounted) {
+                Navigator.of(context).pop();
+              }
+            },
+          );
         }
       },
     );

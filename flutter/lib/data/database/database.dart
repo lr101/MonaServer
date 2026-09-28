@@ -89,6 +89,7 @@ class GroupEntities extends Table with CacheTable {
   BoolColumn get isActivated => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastUpdated => dateTime().nullable()();
   TextColumn get link => text().nullable()();
+  TextColumn get pinStyle => text().withDefault(const Constant('classic'))();
   TextColumn get bestSeason => text().map(const SeasonConverter()).nullable()();
 }
 
@@ -116,10 +117,12 @@ class PinEntities extends Table with CacheTable {
   RealColumn get latitude => real()();
   RealColumn get longitude => real()();
   DateTimeColumn get creationDate => dateTime()();
+  TextColumn get title => text().nullable()();
   TextColumn get description => text().nullable()();
   TextColumn get creator => text()();
   TextColumn get groupId => text()();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
+  BoolColumn get isGone => boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastSynced => dateTime().nullable()();
 }
 
@@ -141,6 +144,8 @@ class UserEntities extends Table with CacheTable {
   TextColumn get userId => text()();
   TextColumn get username => text()();
   IntColumn get selectedBatch => integer().nullable()();
+  TextColumn get selectedBatchColor =>
+      text().withDefault(const Constant('default'))();
   TextColumn get description => text().nullable()();
   TextColumn get bestSeason => text().map(const SeasonConverter()).nullable()();
 }
@@ -178,7 +183,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -227,6 +232,20 @@ class AppDatabase extends _$AppDatabase {
         await m.database.customStatement(
           'ALTER TABLE image_entities_new RENAME TO image_entities',
         );
+      }
+      if (from < 3) {
+        await m.database.customStatement(
+          'ALTER TABLE pin_entities ADD COLUMN is_gone INTEGER NOT NULL DEFAULT 0',
+        );
+      }
+      if (from < 4) {
+        await m.addColumn(groupEntities, groupEntities.pinStyle);
+      }
+      if (from < 5) {
+        await m.addColumn(pinEntities, pinEntities.title);
+      }
+      if (from < 6) {
+        await m.addColumn(userEntities, userEntities.selectedBatchColor);
       }
     },
   );

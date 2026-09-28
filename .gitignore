@@ -40,6 +40,7 @@ privateKey
 /~$REST_Routes.xlsx
 /.env
 /.env.dev
+/.env.admin
 /.env.test
 /logs/
 /DB_Backup/
@@ -53,3 +54,5 @@ buildDocker.bat
 /secrets/
 /go-server/bin/
 .worktrees/
+# Local agent task briefs, reports, and review artifacts.
+/.superpowers/sdd/

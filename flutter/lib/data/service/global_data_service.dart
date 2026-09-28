@@ -7,7 +7,7 @@ import 'package:buff_lisa/data/service/account_cleanup_service.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:camera/camera.dart';
+import 'package:buff_lisa/features/camera/platform/camera_access.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
@@ -194,7 +194,7 @@ class GlobalDataService extends _$GlobalDataService {
 
   Future<void> refreshCameraList() async {
     // Explicit camera-page discovery also requests video permission on web.
-    final cameras = await availableCameras();
+    final cameras = await discoverCameras();
     if (!ref.mounted) return;
     state = state.copyWith(cameras: cameras);
   }
@@ -277,15 +277,23 @@ class AuthService extends _$AuthService {
   Future<String?> report(
     String reportedReferences,
     String reportMessage,
-  ) async {
-    final reportApi = ref.watch(reportApiProvider);
+  ) {
     final userId = ref.read(userIdProvider);
-    try {
-      final request = ReportDto(
+    return reportDto(
+      ReportDto(
         report: reportedReferences,
         userId: userId,
         message: reportMessage,
-      );
+      ),
+    );
+  }
+
+  /// Sends a fully adapted report request. The server derives the
+  /// authenticated reporter; [request.userId] remains only for legacy wire
+  /// compatibility.
+  Future<String?> reportDto(ReportDto request) async {
+    final reportApi = ref.watch(reportApiProvider);
+    try {
       await reportApi.createReport(request);
       return null;
     } on ApiException catch (e) {

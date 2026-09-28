@@ -2,10 +2,15 @@ import 'dart:io';
 
 import 'package:buff_lisa/app/app.dart';
 import 'package:buff_lisa/app/app_configuration.dart';
+import 'package:buff_lisa/app/app_links.dart';
+import 'package:buff_lisa/app/email_link_launch.dart';
+import 'package:buff_lisa/app/native_app_link_source.dart';
+import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
+import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
 import 'package:buff_lisa/firebase_options.dart';
 import 'package:buff_lisa/util/core/cache_migrator.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -26,11 +31,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<Map<String, String>> loadAppEnvironment() async {
   const isProduction = bool.fromEnvironment('dart.vm.product');
   await dotenv.load(fileName: isProduction ? 'config' : 'config.dev');
-  return Map<String, String>.of(dotenv.env);
+  final environment = Map<String, String>.of(dotenv.env);
+  // The combined deployment serves the API and web UI on one origin. Keep
+  // standalone Flutter builds configurable via API_HOST as before.
+  const apiHostFromPage = bool.fromEnvironment('API_HOST_FROM_PAGE');
+  if (kIsWeb && apiHostFromPage) {
+    environment['API_HOST'] = resolveApiHost(
+      configuredHost: environment['API_HOST'],
+      pageOrigin: Uri.base.origin,
+    );
+  }
+  return environment;
+}
+
+Future<EmailLinkLaunchData?> captureProductionEmailLinkLaunch() =>
+    captureInitialEmailLink();
+
+/// Captures a browser email callback or a native Android App Link before the
+/// router is created. The native source begins buffering events immediately.
+Future<AppLaunchData?> captureProductionAppLaunch() async {
+  if (kIsWeb) {
+    final emailLink = await captureProductionEmailLinkLaunch();
+    return emailLink == null ? null : AppLaunchData(emailLink: emailLink);
+  }
+
+  final uri = await NativeAppLinkSource.instance.getInitialLink();
+  final launch = AppLaunchData.fromUri(uri);
+  return launch.emailLink == null && launch.groupInviteLocation == null
+      ? null
+      : launch;
 }
 
 /// Owns platform initialization and the legacy provider composition root.
-Future<Widget> initializeApplication(AppConfiguration configuration) async {
+Future<Widget> initializeApplication(
+  AppConfiguration configuration, {
+  AppLaunchData? launchData,
+}) async {
   // Legacy consumers still read dotenv until their feature migration.
   dotenv.env['API_HOST'] = configuration.apiHost;
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -109,6 +145,13 @@ Future<Widget> initializeApplication(AppConfiguration configuration) async {
         defaultGroupPinImageProvider.overrideWithValue(defaultGroupImage),
         defaultErrorImageProvider.overrideWithValue(defaultErrorImage),
         driftRepoProvider.overrideWithValue(database),
+        emailLinkLaunchDataProvider.overrideWithValue(launchData?.emailLink),
+        appLaunchDataProvider.overrideWithValue(launchData),
+        appLinkEventsProvider.overrideWithValue(
+          kIsWeb
+              ? const Stream<Uri>.empty()
+              : NativeAppLinkSource.instance.events,
+        ),
       ],
       child: const MyApp(),
     );

@@ -4,18 +4,26 @@ import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+const double _defaultExpandedHeight = 180;
+const double _avatarTopPadding = 60;
+const double _avatarDimension = 80;
+const double _bottomContentSpacing = 12;
+
 class CustomAvatarScaffold extends ConsumerStatefulWidget {
-  const CustomAvatarScaffold(
-      {super.key,
-      required this.avatar,
-      required this.title,
-      this.boxes,
-      this.bottom,
-      this.actions,
-      this.floatingActionButton,
-      this.profileQuickViewBoxes,
-      this.hasBackButton = true,
-      required this.body,});
+  const CustomAvatarScaffold({
+    super.key,
+    required this.avatar,
+    required this.title,
+    this.boxes,
+    this.bottom,
+    this.actions,
+    this.avatarEditAction,
+    this.avatarEditTooltip = 'Edit profile',
+    this.floatingActionButton,
+    this.profileQuickViewBoxes,
+    this.hasBackButton = true,
+    required this.body,
+  });
 
   final AsyncValue<Uint8List?> avatar;
   final Widget title;
@@ -24,6 +32,8 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
   final PreferredSizeWidget? bottom;
   final Widget? profileQuickViewBoxes;
   final List<Widget>? actions;
+  final VoidCallback? avatarEditAction;
+  final String avatarEditTooltip;
   final Widget? floatingActionButton;
   final bool hasBackButton;
 
@@ -50,6 +60,14 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
   @override
   Widget build(BuildContext context) {
     final double leftPadding = widget.hasBackButton ? 66.0 : 16.0;
+    // SliverAppBar's expanded height includes its bottom widget.
+    final bottomHeight = widget.bottom?.preferredSize.height ?? 0;
+    final expandedHeight = widget.bottom == null
+        ? _defaultExpandedHeight
+        : _avatarTopPadding +
+              _avatarDimension +
+              bottomHeight +
+              _bottomContentSpacing;
 
     return Scaffold(
       body: NestedScrollView(
@@ -58,7 +76,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
           SliverAppBar(
             floating: true,
             actions: widget.actions,
-            expandedHeight: 180,
+            expandedHeight: expandedHeight,
             centerTitle: false,
             title: widget.title,
             backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
@@ -66,21 +84,49 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
             flexibleSpace: FlexibleSpaceBar(
               background: SafeArea(
                 child: Padding(
-                  padding: EdgeInsets.only(left: leftPadding, top: 60, right: 16),
+                  padding: EdgeInsets.only(
+                    left: leftPadding,
+                    top: _avatarTopPadding,
+                    right: 16,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 80,
-                        height: 80,
-                        child: RoundImage(
-                          imageCallback: widget.avatar,
-                          size: 40, // size is half of dimension
+                      SizedBox.square(
+                        dimension: _avatarDimension,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(
+                              child: RoundImage(
+                                imageCallback: widget.avatar,
+                                size: 40, // size is half of dimension
+                              ),
+                            ),
+                            if (widget.avatarEditAction != null)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: IconButton.filledTonal(
+                                  tooltip: widget.avatarEditTooltip,
+                                  onPressed: widget.avatarEditAction,
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 18,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 34,
+                                    height: 34,
+                                  ),
+                                  icon: const Icon(Icons.edit),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: widget.profileQuickViewBoxes ?? const SizedBox.shrink(),
+                        child:
+                            widget.profileQuickViewBoxes ??
+                            const SizedBox.shrink(),
                       ),
                     ],
                   ),

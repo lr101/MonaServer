@@ -164,6 +164,30 @@ func TestPresignedGetDoesNotCallExternalEndpoint(t *testing.T) {
 	}
 }
 
+func TestPresignedGetUsesExternalTLSWithoutChangingInternalClient(t *testing.T) {
+	obj, err := NewObjectWithExternalSSL(
+		"localhost:9999",
+		"storage.example.com",
+		"testkey",
+		"testsecret",
+		"testbucket",
+		false,
+		true,
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("NewObjectWithExternalSSL: %v", err)
+	}
+
+	url, err := obj.PresignedGet(context.Background(), "pins/test-id.png")
+	if err != nil {
+		t.Fatalf("PresignedGet returned error: %v", err)
+	}
+	if !strings.HasPrefix(url, "https://storage.example.com/") {
+		t.Fatalf("expected an HTTPS external URL, got %q", url)
+	}
+}
+
 type fakeObjectStore struct {
 	mu      sync.Mutex
 	bucket  bool

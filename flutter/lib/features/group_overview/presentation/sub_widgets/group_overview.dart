@@ -1,13 +1,14 @@
-import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
+import 'package:buff_lisa/features/progression/presentation/group_xp_panel.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/member_tile.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GroupOverview extends ConsumerStatefulWidget {
@@ -35,7 +36,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -56,42 +57,31 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       actions: widget.actions,
+      profileQuickViewBoxes: _buildQuickStats(members),
       bottom: TabBar(
         controller: _tabController,
+        isScrollable: false,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         dividerColor: Colors.transparent,
         tabs: const [
-          Tab(icon: Icon(Icons.groups)),
-          Tab(icon: Icon(Icons.image)),
+          Tab(
+            icon: Icon(Icons.groups_outlined),
+            text: 'Members',
+            iconMargin: EdgeInsets.zero,
+          ),
+          Tab(
+            icon: Icon(Icons.image_outlined),
+            text: 'Pins',
+            iconMargin: EdgeInsets.zero,
+          ),
+          Tab(
+            icon: Icon(Icons.emoji_events_outlined),
+            text: 'Achievements',
+            iconMargin: EdgeInsets.zero,
+          ),
         ],
       ),
       boxes: [
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Members",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              members.whenOrNull(data: (data) => data.length.toString()) ??
-                  0.toString(),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Sticks",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              members.whenOrNull(
-                    data: (data) =>
-                        data.fold(0, (p, e) => p + e.points).toString(),
-                  ) ??
-                  0.toString(),
-            ),
-          ),
-        ),
         SliverToBoxAdapter(
           child: ListTile(
             title: const Text(
@@ -129,17 +119,6 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
               ),
             ),
           ),
-        if (group != null && group.visibility != 0)
-          SliverToBoxAdapter(
-            child: ListTile(
-              onTap: () => clickedOnInviteCode(group),
-              title: const Text(
-                "Invite code",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(group.inviteUrl ?? "Ups something went wrong"),
-            ),
-          ),
         if (group?.bestSeason != null)
           SliverToBoxAdapter(child: SeasonTile(bestSeason: group!.bestSeason!)),
       ],
@@ -159,14 +138,50 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
             loading: () => const Center(child: CircularProgressIndicator()),
           ),
           ImageGrid(pinProvider: groupDetailsPinsProvider(widget.groupId)),
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            children: [
+              GroupXpPanel(groupId: widget.groupId),
+              const SizedBox(height: 12),
+              GroupAchievementsPanel(groupId: widget.groupId, group: group),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  void clickedOnInviteCode(GroupEntity? group) {
-    if (group?.inviteUrl != null) {
-      Clipboard.setData(ClipboardData(text: group!.inviteUrl!));
-    }
+  Widget _buildQuickStats(AsyncValue<List<MemberEntity>> members) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _statItem(
+          'Members',
+          members.whenOrNull(data: (data) => data.length.toString()) ?? '0',
+        ),
+        _statItem(
+          'Sticks',
+          members.whenOrNull(
+                data: (data) => data
+                    .fold(0, (total, member) => total + member.points)
+                    .toString(),
+              ) ??
+              '0',
+        ),
+      ],
+    );
+  }
+
+  Widget _statItem(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
   }
 }

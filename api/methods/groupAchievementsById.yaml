@@ -1,0 +1,28 @@
+post:
+  operationId: claimGroupAchievement
+  security:
+    - token: []
+  summary: Claim a group achievement and unlock its pin style reward
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+    - name: achievementId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    '200':
+      description: Group achievement claimed
+    '400':
+      description: Bad request parameter format
+    '403':
+      description: Group membership is required or the achievement is not claimable
+    '404':
+      description: Group not found

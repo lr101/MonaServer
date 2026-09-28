@@ -1,128 +1,329 @@
+import 'dart:math' as math;
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 
-AnimationController? createMarkerAnimationController({
-  required bool withAnimation,
-  required TickerProvider vsync,
-}) {
-  if (!withAnimation) {
-    return null;
-  }
-  return AnimationController(vsync: vsync, duration: const Duration(seconds: 2))
-    ..repeat();
-}
-
-class CustomMarkerContent extends ConsumerStatefulWidget {
-  final PinEntity pinDto;
-  final bool withAnimation;
-
-  const CustomMarkerContent({
+class PinMarkerImage extends StatelessWidget {
+  const PinMarkerImage({
     super.key,
-    required this.pinDto,
-    required this.withAnimation,
+    required this.isGone,
+    required this.image,
+    this.style = 'classic',
+    this.design,
   });
 
-  @override
-  _CustomMarkerContentState createState() => _CustomMarkerContentState();
-}
-
-class _CustomMarkerContentState extends ConsumerState<CustomMarkerContent>
-    with TickerProviderStateMixin {
-  AnimationController? _controller;
-  final Distance _distance = const Distance();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = createMarkerAnimationController(
-      withAnimation: widget.withAnimation,
-      vsync: this,
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant CustomMarkerContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.withAnimation == widget.withAnimation) {
-      return;
-    }
-    _controller?.dispose();
-    _controller = createMarkerAnimationController(
-      withAnimation: widget.withAnimation,
-      vsync: this,
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  bool _isWithinDistance(Position userPosition) {
-    return _distance.as(
-          LengthUnit.Meter,
-          LatLng(userPosition.latitude, userPosition.longitude),
-          LatLng(widget.pinDto.latitude, widget.pinDto.longitude),
-        ) <=
-        50.0;
-  }
+  final bool isGone;
+  final Widget image;
+  final String style;
+  final MapPinDesign? design;
 
   @override
   Widget build(BuildContext context) {
-    final isInRange = ref.watch(
-      currentLocationProvider.select(
-        (e) => e.whenOrNull(data: (data) => _isWithinDistance(data)),
+    final resolvedDesign = design ?? MapPinDesign.forStyle(style);
+    final hasCustomDesign = resolvedDesign.style != 'classic';
+    final pinImage = isGone
+        ? ColorFiltered(
+            colorFilter: const ColorFilter.matrix([
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+            ]),
+            child: image,
+          )
+        : image;
+    return Semantics(
+      label: isGone
+          ? 'Pin marked gone${hasCustomDesign ? ' · ${resolvedDesign.name} pin design' : ''}'
+          : 'Pin${hasCustomDesign ? ' · ${resolvedDesign.name} pin design' : ''}',
+      image: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : 48.0;
+          final availableHeight = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : 56.0;
+          final scale = math
+              .min(availableWidth / 48, availableHeight / 56)
+              .clamp(.55, 1.0);
+          final width = 48 * scale;
+          final height = 56 * scale;
+          final strokeWidth = resolvedDesign.outlineWidth * scale;
+          final headDiameter = math.min(
+            width * (resolvedDesign.shape == 'circle' ? .9 : .88),
+            height * (resolvedDesign.shape == 'circle' ? .82 : .72),
+          );
+          final headCenterY = switch (resolvedDesign.shape) {
+            'circle' => height - headDiameter / 2 - scale,
+            'shield' => height * .36,
+            _ => height * .34,
+          };
+          final overlayDiameter = headDiameter * .64;
+          final overlayLeft = (width - overlayDiameter) / 2;
+          final overlayTop = headCenterY - overlayDiameter / 2;
+          return SizedBox(
+            width: width,
+            height: height,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
+                    painter: _MapPinShadowPainter(
+                      resolvedDesign,
+                      strokeWidth: strokeWidth,
+                    ),
+                    foregroundPainter: _MapPinOutlinePainter(
+                      resolvedDesign,
+                      strokeWidth: strokeWidth,
+                    ),
+                    child: ClipPath(
+                      clipper: _MapPinClipper(
+                        resolvedDesign.shape,
+                        strokeWidth: strokeWidth,
+                      ),
+                      child: Transform.scale(
+                        scale: resolvedDesign.imageZoom,
+                        child: pinImage,
+                      ),
+                    ),
+                  ),
+                ),
+                if (isGone)
+                  Positioned(
+                    left: overlayLeft + overlayDiameter - 10 * scale,
+                    top: overlayTop + overlayDiameter - 10 * scale,
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(scale),
+                        child: Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.white,
+                          size: 11 * scale,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
-    final markerImage = Image.memory(
-      ref.watch(groupPinImageByIdProvider(widget.pinDto.groupId)).value ??
-          ref.read(defaultGroupPinImageProvider),
-      gaplessPlayback: true,
-    );
-    final controller = _controller;
-    if (controller == null || isInRange == null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(height: 30, width: 30, child: markerImage),
-          const SizedBox.square(dimension: 30),
-        ],
-      );
-    }
+  }
+}
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        if (isInRange)
-          AnimatedBuilder(
-            animation: controller,
-            builder: (context, child) {
-              final scale = controller.value;
-              return Container(
-                width: 50 + scale * 50,
-                height: 50 + scale * 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.tertiary
-                      .withValues(alpha: 0.8 - (scale - 0.2)),
-                ),
-              );
-            },
-          ),
-        SizedBox(height: 30, width: 30, child: markerImage),
-      ],
+class CustomMarkerContent extends ConsumerWidget {
+  static const double markerWidth = 36;
+  static const double markerHeight = 42;
+  static const double markerHitTargetWidth = 48;
+  static const double markerHitTargetHeight = 56;
+
+  final PinEntity pinDto;
+
+  const CustomMarkerContent({super.key, required this.pinDto});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final group = ref.watch(groupMetadataProvider(pinDto.groupId)).value;
+    final catalog = ref
+        .watch(groupPinDesignCatalogProvider(pinDto.groupId))
+        .value;
+    final style = group?.pinStyle ?? 'classic';
+    final design = MapPinDesign.forCatalog(catalog, style);
+    final markerImage = PinMarkerImage(
+      isGone: pinDto.isGone,
+      style: style,
+      design: design,
+      image: Image.memory(
+        ref.watch(groupProfilePictureSmallByIdProvider(pinDto.groupId)).value ??
+            ref.read(defaultErrorImageProvider),
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
+    );
+
+    return SizedBox(
+      width: markerHitTargetWidth,
+      height: markerHitTargetHeight,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: SizedBox(
+          width: markerWidth,
+          height: markerHeight,
+          child: markerImage,
+        ),
+      ),
     );
   }
+}
+
+class _MapPinShadowPainter extends CustomPainter {
+  const _MapPinShadowPainter(this.design, {required this.strokeWidth});
+
+  final MapPinDesign design;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scale = size.width / 48;
+    final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
+    final path = _mapPinPath(
+      pathSize,
+      design.shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
+    canvas.drawShadow(
+      path,
+      Colors.black.withValues(alpha: .3),
+      3 * scale,
+      true,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MapPinShadowPainter oldDelegate) =>
+      oldDelegate.design != design || oldDelegate.strokeWidth != strokeWidth;
+}
+
+class _MapPinOutlinePainter extends CustomPainter {
+  const _MapPinOutlinePainter(this.design, {required this.strokeWidth});
+
+  final MapPinDesign design;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (design.outlineWidth <= 0) return;
+    final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
+    final path = _mapPinPath(
+      pathSize,
+      design.shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = design.outlineColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MapPinOutlinePainter oldDelegate) =>
+      oldDelegate.design != design || oldDelegate.strokeWidth != strokeWidth;
+}
+
+class _MapPinClipper extends CustomClipper<Path> {
+  const _MapPinClipper(this.shape, {required this.strokeWidth});
+
+  final String shape;
+  final double strokeWidth;
+
+  @override
+  Path getClip(Size size) {
+    final pathSize = Size(size.width - strokeWidth, size.height - strokeWidth);
+    return _mapPinPath(
+      pathSize,
+      shape,
+    ).shift(Offset(strokeWidth / 2, strokeWidth / 2));
+  }
+
+  @override
+  bool shouldReclip(_MapPinClipper oldClipper) =>
+      oldClipper.shape != shape || oldClipper.strokeWidth != strokeWidth;
+}
+
+Path _mapPinPath(Size size, String shape) {
+  final width = size.width;
+  final height = size.height;
+  final center = width / 2;
+  if (shape == 'shield') {
+    return Path()
+      ..moveTo(width * .17, height * .07)
+      ..quadraticBezierTo(width * .08, height * .07, width * .08, height * .16)
+      ..lineTo(width * .08, height * .38)
+      ..quadraticBezierTo(width * .08, height * .55, center, height)
+      ..quadraticBezierTo(width * .92, height * .55, width * .92, height * .38)
+      ..lineTo(width * .92, height * .16)
+      ..quadraticBezierTo(width * .92, height * .07, width * .83, height * .07)
+      ..close();
+  }
+
+  if (shape == 'circle') {
+    final radius = math.min(width * .46, height * .42);
+    final centerY = height - radius;
+    return Path()..addOval(
+      Rect.fromCircle(center: Offset(center, centerY), radius: radius),
+    );
+  }
+
+  return Path()
+    ..moveTo(center, height)
+    ..cubicTo(
+      center - width * .1,
+      height * .72,
+      width * .04,
+      height * .54,
+      width * .04,
+      height * .34,
+    )
+    ..cubicTo(
+      width * .04,
+      height * .15,
+      width * .24,
+      height * .05,
+      center,
+      height * .05,
+    )
+    ..cubicTo(
+      width * .76,
+      height * .05,
+      width * .96,
+      height * .15,
+      width * .96,
+      height * .34,
+    )
+    ..cubicTo(
+      width * .96,
+      height * .54,
+      center + width * .1,
+      height * .72,
+      center,
+      height,
+    )
+    ..close();
 }
 
 class RankedClusterMarker extends ConsumerWidget {
@@ -211,13 +412,11 @@ class RankedClusterMarker extends ConsumerWidget {
                         // Group Image
                         if (group != null)
                           SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: RoundImage(
-                              size: 16,
-                              imageCallback: ref.watch(
-                                groupProfilePictureByIdProvider(group.id),
-                              ),
+                            width: 22,
+                            height: 22,
+                            child: SmallProfilePicture.group(
+                              groupId: group.id,
+                              radius: 8,
                               child: Container(color: Colors.grey[800]),
                             ),
                           ),

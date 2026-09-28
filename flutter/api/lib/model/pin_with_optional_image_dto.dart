@@ -20,7 +20,9 @@ class PinWithOptionalImageDto {
     required this.creationUser,
     this.image,
     required this.groupId,
+    this.title,
     this.description,
+    this.isGone = false,
   });
 
   String id;
@@ -47,7 +49,11 @@ class PinWithOptionalImageDto {
 
   String groupId;
 
+  String? title;
+
   String? description;
+
+  bool? isGone;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is PinWithOptionalImageDto &&
@@ -58,7 +64,9 @@ class PinWithOptionalImageDto {
     other.creationUser == creationUser &&
     other.image == image &&
     other.groupId == groupId &&
-    other.description == description;
+    other.title == title &&
+    other.description == description &&
+    other.isGone == isGone;
 
   @override
   int get hashCode =>
@@ -70,10 +78,12 @@ class PinWithOptionalImageDto {
     (creationUser.hashCode) +
     (image == null ? 0 : image!.hashCode) +
     (groupId.hashCode) +
-    (description == null ? 0 : description!.hashCode);
+    (title == null ? 0 : title!.hashCode) +
+    (description == null ? 0 : description!.hashCode) +
+    (isGone == null ? 0 : isGone!.hashCode);
 
   @override
-  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, description=$description]';
+  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, title=$title, description=$description, isGone=$isGone]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -88,10 +98,20 @@ class PinWithOptionalImageDto {
       json[r'image'] = null;
     }
       json[r'groupId'] = this.groupId;
+    if (this.title != null) {
+      json[r'title'] = this.title;
+    } else {
+      json[r'title'] = null;
+    }
     if (this.description != null) {
       json[r'description'] = this.description;
     } else {
       json[r'description'] = null;
+    }
+    if (this.isGone != null) {
+      json[r'isGone'] = this.isGone;
+    } else {
+      json[r'isGone'] = null;
     }
     return json;
   }
@@ -122,7 +142,9 @@ class PinWithOptionalImageDto {
         creationUser: mapValueOfType<String>(json, r'creationUser')!,
         image: mapValueOfType<String>(json, r'image'),
         groupId: mapValueOfType<String>(json, r'groupId')!,
+        title: mapValueOfType<String>(json, r'title'),
         description: mapValueOfType<String>(json, r'description'),
+        isGone: mapValueOfType<bool>(json, r'isGone') ?? false,
       );
     }
     return null;
@@ -178,4 +200,3 @@ class PinWithOptionalImageDto {
     'groupId',
   };
 }
-

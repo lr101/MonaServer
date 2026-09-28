@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,13 +20,14 @@ const UsernameChangeTimeout = 14 * 24 * time.Hour
 
 // UserUpdateInput captures the writable fields of UserUpdateDto.
 type UserUpdateInput struct {
-	Description    *string
-	Email          *string
-	Image          []byte
-	MessagingToken *string
-	Password       *string
-	SelectedBatch  *int32
-	Username       *string
+	Description        *string
+	Email              *string
+	Image              []byte
+	MessagingToken     *string
+	Password           *string
+	SelectedBatch      *int32
+	SelectedBatchColor *string
+	Username           *string
 }
 
 // UserUpdateResult mirrors UserUpdateResponseDto.
@@ -46,6 +48,7 @@ type UserInfo struct {
 	ProfilePictureExists  bool           `json:"profilePictureExists"`
 	EmailConfirmed        bool           `json:"emailConfirmed"`
 	SelectedBatch         *int32         `json:"selectedBatch,omitempty"`
+	SelectedBatchColor    *string        `json:"selectedBatchColor,omitempty"`
 	BestSeason            *db.SeasonItem `json:"bestSeason,omitempty"`
 	IsMessagingRegistered *bool          `json:"isMessagingRegistered,omitempty"`
 }
@@ -58,6 +61,7 @@ func ToPublicUserInfo(u *db.User) *UserInfo {
 		Description:          u.Description,
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
+		SelectedBatchColor:   &u.SelectedBatchColor,
 	}
 }
 
@@ -70,20 +74,36 @@ func toUserInfo(u *db.User) *UserInfo {
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
 		EmailConfirmed:       u.EmailConfirmed,
+		SelectedBatchColor:   &u.SelectedBatchColor,
 	}
 }
 
 // User service — ports UserServiceImpl.
 type User struct {
-	q    *db.Queries
-	obj  *Object
-	tok  *token.Helper
-	auth *Auth
-	mail *Email
+	q        *db.Queries
+	obj      userObjectStore
+	tok      *token.Helper
+	auth     *Auth
+	mail     *Email
+	security *AccountSecurity
+}
+
+type userObjectStore interface {
+	Put(context.Context, string, []byte, string) error
+	Remove(context.Context, string) error
+	PresignedGet(context.Context, string) (string, error)
 }
 
 func NewUser(q *db.Queries, obj *Object, tok *token.Helper, auth *Auth, mail *Email) *User {
-	return &User{q: q, obj: obj, tok: tok, auth: auth, mail: mail}
+	security := NewAccountSecurity(q)
+	if auth != nil {
+		security = auth.Security()
+	}
+	var objectStore userObjectStore
+	if obj != nil {
+		objectStore = obj
+	}
+	return &User{q: q, obj: objectStore, tok: tok, auth: auth, mail: mail, security: security}
 }
 
 func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
@@ -97,59 +117,103 @@ func (s *User) Get(ctx context.Context, id uuid.UUID) (*db.User, error) {
 	return u, nil
 }
 
+func (s *User) AvatarProgressions(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]AvatarLevelProgression, error) {
+	records, err := s.q.GetUserXPByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	progressions := make(map[uuid.UUID]AvatarLevelProgression, len(records))
+	for _, record := range records {
+		progressions[record.UserID] = AvatarProgressionForXP(record.TotalXP)
+	}
+	return progressions, nil
+}
+
 // Delete mirrors UserServiceImpl.deleteUser: verifies code + expiration and physically deletes the account.
 func (s *User) Delete(ctx context.Context, id uuid.UUID, code int) error {
-	u, err := s.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	if u.Code == nil || u.CodeExpiration == nil {
-		return apperrors.ErrNotFound
-	}
-	if *u.Code != itoaCode(code) {
-		return apperrors.ErrNotFound
-	}
-	if time.Now().After(*u.CodeExpiration) {
-		return apperrors.New(400, "code expired")
-	}
-	groupIDs, err := s.q.ListAdminGroupIDs(ctx, id)
-	if err != nil {
-		return err
-	}
-	pinIDs, err := s.q.ListPinIDsRemovedWithUser(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+	var groupIDs, pinIDs []uuid.UUID
+	var objectKeys []string
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		objectKeys = nil
+		state, err := q.LockUserSecurity(ctx, id)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted || state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired {
+			return apperrors.ErrNotFound
+		}
+		u, err := q.GetUserByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if u == nil || u.Code == nil || u.CodeExpiration == nil {
+			return apperrors.ErrNotFound
+		}
+		if *u.Code != itoaCode(code) {
+			return apperrors.ErrNotFound
+		}
+		if time.Now().After(*u.CodeExpiration) {
+			return apperrors.New(400, "code expired")
+		}
+		groupIDs, err = q.ListAdminGroupIDs(ctx, id)
+		if err != nil {
+			return err
+		}
+		lockedGroupIDs := make([]uuid.UUID, 0, len(groupIDs))
+		for _, groupID := range groupIDs {
+			locked, err := q.LockGroupForDelete(ctx, groupID)
+			if err != nil {
+				return err
+			}
+			if locked {
+				lockedGroupIDs = append(lockedGroupIDs, groupID)
+			}
+		}
+		pinIDs, err = q.ListPinIDsRemovedWithUser(ctx, id)
+		if err != nil {
+			return err
+		}
 		for _, pinID := range pinIDs {
+			locked, err := q.LockPinForDelete(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			if !locked {
+				continue
+			}
+			keys, err := q.ListPinPhotoKeys(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			objectKeys = append(objectKeys, PinKey(pinID))
+			objectKeys = append(objectKeys, keys...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
 		}
-		for _, groupID := range groupIDs {
+		for _, groupID := range lockedGroupIDs {
+			objectKeys = append(objectKeys,
+				GroupPinKey(groupID),
+				GroupProfileKey(groupID, false),
+				GroupProfileKey(groupID, true),
+			)
 			if err := q.LogDeletion(ctx, db.DeletedEntityGroup, groupID); err != nil {
 				return err
 			}
+		}
+		objectKeys = append(objectKeys, UserProfileKey(id, false), UserProfileKey(id, true))
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
 		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityUser, id); err != nil {
 			return err
 		}
 		return q.HardDeleteUser(ctx, id)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	if s.obj != nil {
-		for _, pinID := range pinIDs {
-			_ = s.obj.Remove(ctx, PinKey(pinID))
-		}
-		for _, groupID := range groupIDs {
-			_ = s.obj.Remove(ctx, GroupPinKey(groupID))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, false))
-			_ = s.obj.Remove(ctx, GroupProfileKey(groupID, true))
-		}
-		_ = s.obj.Remove(ctx, UserProfileKey(id, false))
-		_ = s.obj.Remove(ctx, UserProfileKey(id, true))
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 
@@ -178,9 +242,10 @@ func (s *User) ProfileImageURL(ctx context.Context, id uuid.UUID, small bool) (*
 // Update mirrors UserServiceImpl.updateUser.
 func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
 	var result *UserUpdateResult
-	err := s.q.InTx(ctx, func(q *db.Queries) error {
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
 		txService := *s
 		txService.q = q
+		txService.security = s.security
 		if s.auth != nil {
 			txAuth := *s.auth
 			txAuth.q = q
@@ -194,6 +259,17 @@ func (s *User) Update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 }
 
 func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*UserUpdateResult, error) {
+	var lockedState *db.UserSecurityState
+	if in.Email != nil || in.Password != nil {
+		var err error
+		lockedState, err = s.q.LockUserSecurity(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if lockedState == nil || lockedState.IsDeleted || lockedState.SecurityState != db.SecurityStateNormal || lockedState.PasswordDisabled || lockedState.PasswordResetRequired {
+			return nil, apperrors.ErrForbidden
+		}
+	}
 	u, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -201,6 +277,13 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 
 	var tokenResp *TokenPair
 	var profileImg, profileImgSmall *string
+	var newGeneration bool
+	if lockedState != nil {
+		if _, err := s.security.AdvanceGenerationForMutation(ctx, s.q, id); err != nil {
+			return nil, err
+		}
+		newGeneration = true
+	}
 
 	if len(in.Image) > 0 {
 		if s.obj == nil {
@@ -235,7 +318,10 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 			return nil, apperrors.New(403, "email is not confirmed")
 		}
 		confirmUrl := randomURL()
-		if err := s.q.UpdateUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
+		// Keep the claim-aware mutation inside the caller-owned transaction.
+		// This also revokes capabilities bound to the previous address before
+		// the new confirmation URL is delivered.
+		if err := s.q.ChangeUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
 			return nil, err
 		}
 		if s.mail != nil {
@@ -255,10 +341,12 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if err := s.q.UpdateUserPassword(ctx, id, hash); err != nil {
 			return nil, err
 		}
-		if err := s.q.InvalidateUserTokens(ctx, id); err != nil {
-			return nil, err
+		if !newGeneration {
+			if _, err := s.security.AdvanceGenerationForMutation(ctx, s.q, id); err != nil {
+				return nil, err
+			}
 		}
-		pair, err := s.auth.issueTokens(ctx, id)
+		pair, err := s.auth.issueTokensWithQueries(ctx, s.q, id)
 		if err != nil {
 			return nil, err
 		}
@@ -273,6 +361,9 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 	}
 
 	if in.Username != nil {
+		if strings.Contains(*in.Username, "@") {
+			return nil, apperrors.New(400, "username cannot contain @")
+		}
 		if u.LastUsernameUpdate != nil && time.Since(*u.LastUsernameUpdate) < UsernameChangeTimeout {
 			return nil, apperrors.New(400, "username can only be changed once every 14 days")
 		}
@@ -297,6 +388,9 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 	}
 
 	if in.SelectedBatch != nil {
+		if db.AchievementRewardForID(*in.SelectedBatch).Type != "badge" {
+			return nil, apperrors.ErrBadRequest
+		}
 		rowID, claimed, err := s.q.GetUserAchievementSelection(ctx, id, *in.SelectedBatch)
 		if err != nil {
 			return nil, err
@@ -310,6 +404,22 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 			}
 			u.SelectedBatch = rowID
 		}
+	}
+	if in.SelectedBatchColor != nil {
+		color := *in.SelectedBatchColor
+		if color != "default" {
+			available, err := s.q.HasUserAchievementRewardColor(ctx, id, color)
+			if err != nil {
+				return nil, err
+			}
+			if !available {
+				return nil, apperrors.ErrBadRequest
+			}
+		}
+		if err := s.q.SetUserSelectedBatchColor(ctx, id, color); err != nil {
+			return nil, err
+		}
+		u.SelectedBatchColor = color
 	}
 	selectedBatch, err := s.q.GetSelectedUserAchievementID(ctx, id)
 	if err != nil {

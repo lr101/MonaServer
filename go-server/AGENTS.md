@@ -33,43 +33,19 @@ foreground RustFS path used by agents, follow
 documents the Flutter Web and Playwright verification flow and the boundary
 between a database/API check and a full-stack check.
 
-For the full development stack, create an ignored `.env.dev` in the repository root. This is the minimum useful starting point:
+For a public per-worktree preview through the shared nginx gateway and outer
+Traefik, follow [`../docs/development-traefik.md`](../docs/development-traefik.md).
+The launcher builds Flutter with the generated API hostname and keeps RustFS
+HTTP internally while configuring HTTPS for returned storage URLs.
 
-```dotenv
-POSTGRES_USER=monaserver
-POSTGRES_PASSWORD=monaserver
-DATABASE_URL=postgres://monaserver:monaserver@db:5432/monaserver?sslmode=disable
-JWT_SECRET=local-only-secret
-TOKEN_ADMIN_USERNAME=admin
-RUSTFS_ACCESS_KEY=localadmin
-RUSTFS_SECRET_KEY=local-secret-change-me
-RUSTFS_ENDPOINT=rustfs:9000
-RUSTFS_EXTERNAL_ENDPOINT=localhost:9000
-RUSTFS_USE_SSL=false
-```
+The production Compose deployment is described in
+[`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md). For local agent tests, use
+the native PostGIS and RustFS setup in
+[`../docs/AGENT_LOCAL_STACK.md`](../docs/AGENT_LOCAL_STACK.md).
 
-Then run this from the repository root:
+The config loader reads process environment variables. It does not load `.env` files itself. The root Compose deployment loads the ignored `.env` through `env_file`.
 
-```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-
-The API listens on `http://localhost:8080`, Postgres is published on port `5433`, and the RustFS console is published on port `9001`.
-
-To run the Go process directly while using only the Compose database:
-
-```bash
-docker compose -f docker-compose.dev.yml up -d db
-cd go-server
-DATABASE_URL='postgres://monaserver:monaserver@localhost:5433/monaserver?sslmode=disable' \
-JWT_SECRET='local-only-secret' \
-TOKEN_ADMIN_USERNAME='admin' \
-mise exec -- go run ./cmd/server
-```
-
-The config loader reads process environment variables. It does not load `.env` files itself. Compose loads `.env.dev` through `env_file`.
-
-Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL`, `JWT_SECRET`, and `TOKEN_ADMIN_USERNAME` are required for a useful server. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint.
+Runtime defaults and all supported variables live in `internal/config/config.go`. `DATABASE_URL` is required for a useful server. Access JWT signing keys are generated at process startup; database refresh tokens remain valid across restarts. Set `RUSTFS_ENDPOINT` as `host:port`, without an `http://` or `https://` prefix. Use `RUSTFS_EXTERNAL_ENDPOINT` when presigned URLs need a host that differs from the server's internal endpoint. `RUSTFS_EXTERNAL_USE_SSL` defaults to `RUSTFS_USE_SSL` and changes only the scheme used for presigned URLs.
 
 ## Database-backed tests
 

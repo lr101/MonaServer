@@ -22,6 +22,8 @@ type BatchReadResult struct {
 	User *UserInfoDto `json:"user,omitempty"`
 
 	Likes *PinLikeDto `json:"likes,omitempty"`
+
+	Progression *ProfileProgressionDto `json:"progression,omitempty"`
 }
 
 // AssertBatchReadResultRequired checks if the required fields are not zero-ed
@@ -47,6 +49,11 @@ func AssertBatchReadResultRequired(obj BatchReadResult) error {
 			return err
 		}
 	}
+	if obj.Progression != nil {
+		if err := AssertProfileProgressionDtoRequired(*obj.Progression); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -59,6 +66,11 @@ func AssertBatchReadResultConstraints(obj BatchReadResult) error {
 	}
 	if obj.Likes != nil {
 		if err := AssertPinLikeDtoConstraints(*obj.Likes); err != nil {
+			return err
+		}
+	}
+	if obj.Progression != nil {
+		if err := AssertProfileProgressionDtoConstraints(*obj.Progression); err != nil {
 			return err
 		}
 	}

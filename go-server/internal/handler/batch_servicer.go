@@ -14,14 +14,16 @@ import (
 const maxBatchReadRequests = 100
 
 var batchReadKinds = map[string]struct{}{
-	"pinImage":        {},
-	"userImageSmall":  {},
-	"userImage":       {},
-	"groupImageSmall": {},
-	"groupImage":      {},
-	"groupPinImage":   {},
-	"user":            {},
-	"pinLikes":        {},
+	"pinImage":         {},
+	"userImageSmall":   {},
+	"userImage":        {},
+	"groupImageSmall":  {},
+	"groupImage":       {},
+	"groupPinImage":    {},
+	"user":             {},
+	"pinLikes":         {},
+	"userProgression":  {},
+	"groupProgression": {},
 }
 
 // BatchServicer composes existing read servicers without making loopback HTTP calls.
@@ -48,7 +50,8 @@ func BatchAPIErrorHandler(w http.ResponseWriter, r *http.Request, err error, res
 }
 
 func (s *BatchServicer) BatchRead(ctx context.Context, request genserver.BatchReadRequest) (genserver.ImplResponse, error) {
-	if _, ok := ctxUserID(ctx); !ok {
+	viewerID, ok := ctxUserID(ctx)
+	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
 	if len(request.Requests) < 1 || len(request.Requests) > maxBatchReadRequests {
@@ -63,6 +66,25 @@ func (s *BatchServicer) BatchRead(ctx context.Context, request genserver.BatchRe
 		}
 	}
 
+	userIDs := batchItemIDs(request.Requests, "userProgression")
+	userProgressions := make(map[uuid.UUID]service.AvatarLevelProgression, len(userIDs))
+	if len(userIDs) > 0 {
+		loaded, err := s.users.user.AvatarProgressions(ctx, userIDs)
+		if err != nil {
+			return serviceErrResp(ctx, err), nil
+		}
+		userProgressions = loaded
+	}
+	groupIDs := batchItemIDs(request.Requests, "groupProgression")
+	groupProgressions := make(map[uuid.UUID]service.GroupAvatarProgression, len(groupIDs))
+	if len(groupIDs) > 0 {
+		loaded, err := s.groups.group.AvatarProgressions(ctx, viewerID, groupIDs)
+		if err != nil {
+			return serviceErrResp(ctx, err), nil
+		}
+		groupProgressions = loaded
+	}
+
 	results := make([]genserver.BatchReadResult, 0, len(request.Requests))
 	cache := make(map[string]genserver.BatchReadResult, len(request.Requests))
 	for _, item := range request.Requests {
@@ -72,12 +94,73 @@ func (s *BatchServicer) BatchRead(ctx context.Context, request genserver.BatchRe
 		key := item.Kind + "\x00" + item.Id
 		result, ok := cache[key]
 		if !ok {
-			result = s.readOne(ctx, item)
+			switch item.Kind {
+			case "userProgression":
+				result = readUserProgression(item, userProgressions)
+			case "groupProgression":
+				result = readGroupProgression(item, groupProgressions)
+			default:
+				result = s.readOne(ctx, item)
+			}
 			cache[key] = result
 		}
 		results = append(results, result)
 	}
 	return genserver.Response(http.StatusOK, genserver.BatchReadResponse{Results: results}), nil
+}
+
+func batchItemIDs(items []genserver.BatchReadItem, kind string) []uuid.UUID {
+	ids := make([]uuid.UUID, 0)
+	seen := make(map[uuid.UUID]struct{})
+	for _, item := range items {
+		if item.Kind != kind {
+			continue
+		}
+		id, _ := uuid.Parse(item.Id)
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func readUserProgression(item genserver.BatchReadItem, progressions map[uuid.UUID]service.AvatarLevelProgression) genserver.BatchReadResult {
+	result := genserver.BatchReadResult{Kind: item.Kind, Id: item.Id}
+	id, _ := uuid.Parse(item.Id)
+	progression, ok := progressions[id]
+	if !ok {
+		result.Status = http.StatusNotFound
+		return result
+	}
+	result.Status = http.StatusOK
+	result.Progression = progressionDto(progression)
+	return result
+}
+
+func readGroupProgression(item genserver.BatchReadItem, progressions map[uuid.UUID]service.GroupAvatarProgression) genserver.BatchReadResult {
+	result := genserver.BatchReadResult{Kind: item.Kind, Id: item.Id}
+	id, _ := uuid.Parse(item.Id)
+	groupProgression, ok := progressions[id]
+	if !ok {
+		result.Status = http.StatusNotFound
+		return result
+	}
+	if !groupProgression.Visible {
+		result.Status = http.StatusForbidden
+		return result
+	}
+	result.Status = http.StatusOK
+	result.Progression = progressionDto(groupProgression.Progression)
+	return result
+}
+
+func progressionDto(progression service.AvatarLevelProgression) *genserver.ProfileProgressionDto {
+	return &genserver.ProfileProgressionDto{
+		Level:    progression.Level,
+		Fraction: progression.Fraction,
+	}
 }
 
 func (s *BatchServicer) readOne(ctx context.Context, item genserver.BatchReadItem) genserver.BatchReadResult {

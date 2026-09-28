@@ -1,0 +1,26 @@
+get:
+  operationId: getGroupAchievements
+  security:
+    - token: []
+  summary: Get group achievement progress and pin style rewards
+  tags:
+    - groups
+  parameters:
+    - name: groupId
+      in: path
+      required: true
+      schema:
+        $ref: '../parameters/id.yaml'
+  responses:
+    '200':
+      description: Successfully returned group achievements
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/groupAchievementsDto.yaml'
+    '400':
+      description: Bad request parameter format
+    '403':
+      description: Private group requires membership
+    '404':
+      description: Group not found

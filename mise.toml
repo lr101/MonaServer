@@ -94,3 +94,7 @@ description = "Run the Flutter app (pass Flutter options after --)"
 depends = ["flutter-setup"]
 dir = "flutter"
 run = "flutter run --no-pub"
+
+[tasks.admin-web-check]
+description = "Syntax-check and contract-test the standalone admin web app"
+run = "node --check admin-web/src/api.js && node --check admin-web/src/state.js && node --check admin-web/src/permissions.js && node --check admin-web/src/main.js && node --test admin-web/test/*.test.mjs"

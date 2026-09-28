@@ -1,29 +1,30 @@
 # Flutter architecture
 
-Status: incremental migration in progress. Reviewed against repository code on
-2026-09-14, including composition-root, session-expiry and owned-sync slices. This is the current
-architecture and remaining plan; implemented reliability work does not mean the target layers exist yet.
+Status: incremental migration in progress. This page records the current
+architecture and remaining migration work; implemented reliability work does
+not mean the target feature layers exist yet.
 
 Start here for ownership and design decisions. Use [README.md](README.md) for
 setup, [AGENTS.md](AGENTS.md) for change and verification rules, and
 [the local stack guide](../docs/AGENT_LOCAL_STACK.md) for services.
 
-## Current state after the first three slices
+## Current implementation
 
-The initial behavior-hardening work and architecture quick wins are implemented
-in the existing structure. Later changes strengthen those paths. Auth and groups
-are still the **planned first feature-layer migrations**, not completed
-`domain`/`data`/`presentation` slices.
+The behavior-hardening work and architecture quick wins below are implemented
+in the existing structure. Auth and groups remain the **planned first
+feature-layer migrations**, not completed `domain`/`data`/`presentation` slices.
 
 | Area | Implemented behavior and source | Regression coverage in `test/` |
 | --- | --- | --- |
 | Session HTTP | [`openapi_config.dart`](lib/data/config/openapi_config.dart) owns a client and in-memory token manager per host/user/refresh credential. Refresh is serialized; a request gets one refresh/replay on 401, not on 403. Disposal fences queued work and response streams and closes the refresh transport. | `openapi_config_test.dart` |
 | Account cleanup | [`global_data_service.dart`](lib/data/service/global_data_service.dart) coordinates logout, account switching, and successful account deletion. [`AccountCleanup`](lib/data/service/account_cleanup_service.dart) clears all Drift tables, including likes and offline pictures, plus platform caches. Cleanup failure blocks login until cleanup succeeds. | `account_cleanup_test.dart`, `global_data_repository_test.dart` |
+| Sign in and signup | [`auth.dart`](lib/features/auth/presentation/auth.dart) provides an animated sign-in card with email-link and username/password options, plus signup with username, password, matching email confirmation, and required Terms and Privacy acknowledgements. Username/email requests navigate to a six-character code screen; a rate-limited code or the secondary email link uses the same one-time account admission. Usernames cannot contain `@`, so the email-link field infers identifier type. The app shows a specific unavailable message when the server's email-login flag is off. Signup and password sign-in retain the v2 API contract; link delivery and callback admission retain the public email-login flow. Android App Links capture email callbacks before bootstrap and handle incoming links while the app is running. | `email_login_domain_test.dart`, `email_login_screen_test.dart`, `email_login_data_test.dart`, `email_login_code_test.dart`, `email_login_code_screen_test.dart` |
+| Android group invites | Public and private group invite links open the group route with the invite code held in memory through sign-in. The group screen submits the code only after the user taps Join; group invite controls copy a shareable link for either visibility. Android link verification also requires the production domain to serve `.well-known/assetlinks.json` containing the release signing certificate fingerprint. | `features/group_overview/pop_up_menu_leave_test.dart` |
 | Local session isolation | [`AccountSession`](lib/data/database/account_session.dart) revokes old database access; [`accountDatabaseProvider`](lib/data/repository/drift_repo.dart) supplies disposable facades over the bootstrap connection. Services capture `accountOperation(ref)` before async work to suppress stale follow-up actions. | `account_cleanup_test.dart` |
 | Sync lifecycle | [`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart) owns session/resume subscriptions; the pure Dart [`SyncCoordinator`](lib/core/sync/sync_coordinator.dart) serializes triggers and revokes superseded runs. Sync provider construction is idle. | `app/sync_coordinator_test.dart`, `app/sync_lifecycle_test.dart`, `syncing_service_test.dart` |
 | Groups and sync | Group updates are awaited and preserve local activation. [`group_details_service.dart`](lib/data/service/group_details_service.dart) shares metadata, pins, and image state across entry points. Public unjoined groups load from search; media loading/failure does not block metadata or membership actions. | `group_service_test.dart`, `syncing_service_test.dart`, `group_search_test.dart`, `user_group_overview_test.dart` |
 | Feed and images | Profile pin reads use the requested user. Feed slivers and grid loading are corrected. Image streams subscribe before refresh; metadata-only updates preserve byte identity, and retained image refresh keeps downloaded bytes. | `pin_user_service_test.dart`, `feed_layout_test.dart`, `image_grid_test.dart`, `image_service_test.dart`, `image_repository_test.dart`, image widget tests |
-| Map and camera | Animation/zoom callbacks have lifecycle guards. Camera flows handle permission, empty device/group lists, device selection, browser capture, and preview orientation, framing, and mirroring. | `map_camera_lifecycle_test.dart`, `camera_permissions_test.dart`, `camera_selector_test.dart`, `camera_web_capture_test.dart` |
+| Map and camera | Animation/zoom callbacks have lifecycle guards. Camera flows handle permission, empty device/group lists and device selection. Native and web previews use a centered 3:4 frame with a cover crop, matching the normalized pin image. The group carousel has bounded width and a centered shutter target across phone and tablet layouts. Web stream resize remains supported and zoom is optional. A conditional camera platform adapter requests video permission once and enumerates devices without opening every lens. | `map_camera_lifecycle_test.dart`, `camera_layout_test.dart`, `camera_permissions_test.dart`, `camera_selector_test.dart`, `camera_web_capture_test.dart`, `camera_values_test.dart`, `browser/camera_preview_test.dart` |
 | Web and diagnostics | Web ships Wasm plus JavaScript fallback, with artifact/serving checks and safe-area handling. Local Playwright verifies login/group flows. PostHog integration was removed. | `web_shell_test.dart`, `docker/test_web_build.sh`, `e2e/` |
 
 These are coverage locations, not a claim that tests ran for this documentation
@@ -57,12 +58,16 @@ renders a generic startup failure screen without exposing exception details.
 `app/app_configuration.dart` accepts HTTP(S) origins, including local ports, and
 rejects missing/invalid hosts, user info, paths, queries and fragments. The
 `API_HOST` build override takes precedence over the bundled configuration.
+The combined deployment enables `API_HOST_FROM_PAGE` so its browser client
+uses the current page origin; standalone Flutter web builds retain the
+configured API host.
 
 `app/production_bootstrap.dart` loads configuration, opens Drift, runs legacy
 cache cleanup, selects secure storage, initializes native map tiles/Firebase,
 and wires Riverpod. It closes Drift if a later startup step fails. It bridges the
 validated host into dotenv for existing consumers. `app/app.dart` owns `MyApp`,
-the existing theme/router wiring, web shell and `AppSyncLifecycle`. Fake startup tests live in
+the existing theme/router wiring, web shell, `AppLinkLifecycle` and
+`AppSyncLifecycle`. Fake startup tests live in
 `test/app/bootstrap_test.dart`; native plugin initialization still needs device
 verification. `GlobalDataService` still combines session and platform concerns.
 Screens still import repositories and generated DTOs; map state still contains
@@ -74,15 +79,11 @@ features to `migratedFeatures` as their migration completes. Rule fixtures cover
 the future domain/data/presentation boundaries; repository ports must use the
 `*_repository.dart` naming convention for the presentation import check.
 `core/session/session_status.dart` defines post-bootstrap session status.
-The router is now owned in `app/routing/`; the previous `util/routing/` entry
+The router is owned in `app/routing/`; the previous `util/routing/` entry
 point re-exports it for existing callers. It listens to session status and
-disposes both its router and refresh notifier with its provider. See the
-[startup slice verification](../docs/reports/flutter-startup-2026-09-11.md) for
-checks, browser evidence and platform limits. The
-[session-expiry verification](../docs/reports/flutter-session-expiry-2026-09-12.md)
-records the subsequent routing, persistence and reauthentication checks.
-[Sync lifecycle verification](../docs/reports/flutter-sync-lifecycle-2026-09-14.md)
-covers the third slice.
+disposes both its router and refresh notifier with its provider. Cross-component
+session, cache, media, and sync behavior is summarized in the repository
+[knowledgebase](../docs/KNOWLEDGEBASE.md).
 
 Drift remains the local cache, using hashed IDs, TTL/hit counts and keep-alive
 flags. The bootstrap database owns migrations and the physical connection;
@@ -305,7 +306,7 @@ Android target and record its installed build/One UI patch. Also test the resolv
 Android lower bound and supported browser lower/current versions.
 
 Use pinned build configuration: `mise.toml`, GitHub Actions, Codemagic, and the
-standalone web Dockerfile use Flutter 3.47.3. Web production release remains
+standalone web Dockerfile use Flutter 3.47.4. Web production release remains
 independent of Android testing/promotion; staging is optional.
 Existing German privacy and retention requirements remain in force.
 

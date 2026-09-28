@@ -4,10 +4,8 @@ import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/camera.dart'
     as camera_page;
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
-import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -96,95 +94,24 @@ void main() {
   });
 
   test(
-    'web camera preview rotation follows the stream and display orientations',
+    'camera preview frame keeps 3:4 inside portrait and landscape bounds',
     () {
-      const landscapePreview = Size(1280, 720);
-      const portraitPreview = Size(720, 1280);
-
       expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.portraitUp,
-        ),
-        1,
+        cameraPreviewFrameSize(const Size(390, 760)),
+        const Size(390, 520),
       );
       expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.landscapeRight,
-        ),
-        0,
+        cameraPreviewFrameSize(const Size(1200, 600)),
+        const Size(450, 600),
       );
       expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.landscapeLeft,
-        ),
-        2,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: landscapePreview,
-          orientation: DeviceOrientation.portraitDown,
-        ),
-        3,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.portraitUp,
-        ),
-        0,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.landscapeRight,
-        ),
-        1,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.portraitDown,
-        ),
-        2,
-      );
-      expect(
-        cameraPreviewQuarterTurns(
-          previewSize: portraitPreview,
-          orientation: DeviceOrientation.landscapeLeft,
-        ),
-        3,
+        cameraPreviewFrameSize(const Size(390, 140)),
+        const Size(105, 140),
       );
     },
   );
 
-  test('web camera preview ratio follows the rotated stream dimensions', () {
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(1280, 720),
-        orientation: DeviceOrientation.portraitUp,
-      ),
-      closeTo(9 / 16, 0.001),
-    );
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(720, 1280),
-        orientation: DeviceOrientation.portraitUp,
-      ),
-      closeTo(9 / 16, 0.001),
-    );
-    expect(
-      cameraPreviewDisplayAspectRatio(
-        previewSize: const Size(720, 1280),
-        orientation: DeviceOrientation.landscapeRight,
-      ),
-      closeTo(16 / 9, 0.001),
-    );
-  });
-
-  testWidgets('camera preview viewport follows orientation changes', (
+  testWidgets('native camera preview frame stays 3:4 across orientations', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -199,29 +126,31 @@ void main() {
           child: SizedBox(
             width: 320,
             height: 480,
-            child: camera_page.cameraPreviewViewport(controller),
+            child: camera_page.cameraPreviewViewport(controller, isWeb: false),
           ),
         ),
       ),
     );
 
-    var previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, 320);
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+    var frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, 320);
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
 
     controller.value = controller.value.copyWith(
       deviceOrientation: DeviceOrientation.landscapeRight,
     );
     await tester.pump();
 
-    previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, 320);
-    expect(previewChildSize.height, closeTo(320 * 9 / 16, 0.001));
+    frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, 320);
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
   });
 
-  testWidgets('web camera preview preserves the stream ratio before rotating', (
-    tester,
-  ) async {
+  testWidgets('web platform view fills its stable 3:4 frame', (tester) async {
     final controller = _FakeCameraController(
       orientation: DeviceOrientation.portraitUp,
     );
@@ -241,17 +170,20 @@ void main() {
     );
 
     expect(find.byType(CameraPreview), findsNothing);
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
-    expect(
-      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
-      closeTo(16 / 9, 0.001),
+    expect(find.byType(RotatedBox), findsNothing);
+    expect(find.byType(FittedBox), findsNothing);
+    final frame = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
     );
-    final previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, closeTo(320, 0.001));
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+    expect(frame.width, closeTo(320, 0.001));
+    expect(frame.height, closeTo(320 * 4 / 3, 0.001));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('camera-platform-preview'))),
+      frame,
+    );
   });
 
-  testWidgets('web front camera keeps its mirror horizontal after rotating', (
+  testWidgets('web front camera leaves browser mirroring upright', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -273,10 +205,10 @@ void main() {
       ),
     );
 
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 3);
+    expect(find.byType(RotatedBox), findsNothing);
   });
 
-  testWidgets('web camera preview frames a portrait stream as portrait', (
+  testWidgets('web camera preview crops a portrait stream to the 3:4 frame', (
     tester,
   ) async {
     final controller = _FakeCameraController(
@@ -298,10 +230,12 @@ void main() {
       ),
     );
 
-    expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 0);
-    final previewChildSize = _fittedPreviewChildSize(tester);
-    expect(previewChildSize.width, closeTo(320, 0.001));
-    expect(previewChildSize.height, closeTo(320 * 16 / 9, 0.001));
+    expect(find.byType(RotatedBox), findsNothing);
+    final frameSize = tester.getSize(
+      find.byKey(const ValueKey('camera-preview-frame')),
+    );
+    expect(frameSize.width, closeTo(320, 0.001));
+    expect(frameSize.height, closeTo(320 * 4 / 3, 0.001));
   });
 
   testWidgets('camera preview ignores invalid preview dimensions safely', (
@@ -324,16 +258,6 @@ void main() {
     expect(find.byType(CameraPreview), findsNothing);
   });
 
-  test('static markers do not create an animation controller', () {
-    expect(
-      createMarkerAnimationController(
-        withAnimation: false,
-        vsync: _TestVsync(),
-      ),
-      isNull,
-    );
-  });
-
   test('zoom updates coalesce while a platform update is pending', () async {
     final firstUpdate = Completer<void>();
     final calls = <double>[];
@@ -353,13 +277,6 @@ void main() {
 
     expect(calls, [1.2, 2.0]);
   });
-}
-
-Size _fittedPreviewChildSize(WidgetTester tester) {
-  final fittedBox = tester.renderObject<RenderFittedBox>(
-    find.byType(FittedBox),
-  );
-  return fittedBox.child!.size;
 }
 
 class _FakeCameraController extends CameraController {
@@ -423,5 +340,3 @@ class _FakeLocationPermissionGateway implements LocationPermissionGateway {
     return requestedPermission;
   }
 }
-
-class _TestVsync extends TestVSync {}

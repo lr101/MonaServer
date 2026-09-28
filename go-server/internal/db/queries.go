@@ -21,6 +21,10 @@ type Queries struct {
 	pool   *pgxpool.Pool
 	runner dbgen.DBTX
 	g      *dbgen.Queries
+	// inTx is true for a facade backed by a caller-owned transaction.  Methods
+	// that need an atomic claim/security update can start a transaction only at
+	// the outer edge and never accidentally nest one.
+	inTx bool
 }
 
 func New(pool *pgxpool.Pool) *Queries {
@@ -30,15 +34,26 @@ func New(pool *pgxpool.Pool) *Queries {
 // Gen returns the underlying sqlc-generated Queries for callers that want to
 // work with pgtype directly (e.g. PostGIS queries).
 func (q *Queries) Gen() *dbgen.Queries { return q.g }
-func (q *Queries) Pool() *pgxpool.Pool { return q.pool }
+
+// Pool returns the root connection pool.  A transaction facade deliberately
+// has no pool so callbacks cannot escape their caller-owned transaction.
+func (q *Queries) Pool() *pgxpool.Pool {
+	if q.inTx {
+		return nil
+	}
+	return q.pool
+}
 
 func (q *Queries) InTx(ctx context.Context, fn func(*Queries) error) error {
+	if q.inTx {
+		return fn(q)
+	}
 	tx, err := q.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	txQueries := &Queries{pool: q.pool, runner: tx, g: q.g.WithTx(tx)}
+	txQueries := &Queries{runner: tx, g: q.g.WithTx(tx), inTx: true}
 	if err := fn(txQueries); err != nil {
 		return err
 	}
@@ -55,6 +70,13 @@ func pgUUIDPtr(id *uuid.UUID) pgtype.UUID {
 	return pgUUID(*id)
 }
 func goUUID(p pgtype.UUID) uuid.UUID { return uuid.UUID(p.Bytes) }
+func goUUIDPtr(p pgtype.UUID) *uuid.UUID {
+	if !p.Valid {
+		return nil
+	}
+	id := goUUID(p)
+	return &id
+}
 func pgText(s *string) pgtype.Text {
 	if s == nil {
 		return pgtype.Text{}
@@ -104,6 +126,12 @@ type User struct {
 	EmailConfirmationUrl    *string
 	LastUsernameUpdate      *time.Time
 	SelectedBatch           *uuid.UUID
+	SelectedBatchColor      string
+	AuthGeneration          int64
+	SecurityState           string
+	PasswordDisabled        bool
+	PasswordResetRequired   bool
+	CompromisedAt           *time.Time
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) {
@@ -115,6 +143,27 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (*User, error) 
 		return nil, err
 	}
 	return userFromIDRow(row), nil
+}
+
+type UserXPRecord struct {
+	UserID  uuid.UUID
+	TotalXP int64
+}
+
+func (q *Queries) GetUserXPByIDs(ctx context.Context, ids []uuid.UUID) ([]UserXPRecord, error) {
+	pgIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		pgIDs[i] = pgUUID(id)
+	}
+	rows, err := q.g.GetUserXPByIDs(ctx, pgIDs)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]UserXPRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, UserXPRecord{UserID: goUUID(row.ID), TotalXP: int64(row.Xp)})
+	}
+	return records, nil
 }
 
 func userFromIDRow(r dbgen.GetUserByIDRow) *User {
@@ -142,6 +191,12 @@ func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
 		SelectedBatch:           sb,
+		SelectedBatchColor:      r.SelectedBatchColor,
+		AuthGeneration:          r.AuthGeneration,
+		SecurityState:           r.SecurityState,
+		PasswordDisabled:        r.PasswordDisabled,
+		PasswordResetRequired:   r.PasswordResetRequired,
+		CompromisedAt:           goTZ(r.CompromisedAt),
 	}
 }
 
@@ -172,29 +227,48 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 		DeletionUrl:             goText(row.DeletionUrl),
 		EmailConfirmationUrl:    goText(row.EmailConfirmationUrl),
 		LastUsernameUpdate:      goTZ(row.LastUsernameUpdate),
+		SelectedBatchColor:      row.SelectedBatchColor,
+		AuthGeneration:          row.AuthGeneration,
+		SecurityState:           row.SecurityState,
+		PasswordDisabled:        row.PasswordDisabled,
+		PasswordResetRequired:   row.PasswordResetRequired,
+		CompromisedAt:           goTZ(row.CompromisedAt),
 	}, nil
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	const getUserByEmail = `SELECT id, username, email, password, xp, description, profile_picture_exists,
-	       email_confirmed, failed_login_attempts, firebase_token,
-	       code, code_expiration, reset_password_url, reset_password_expiration,
-	       deletion_url, email_confirmation_url, last_username_update, selected_batch
-	FROM users WHERE email = $1 AND is_deleted = FALSE LIMIT 1`
-	row := q.runner.QueryRow(ctx, getUserByEmail, email)
-	var r dbgen.GetUserByIDRow
-	if err := row.Scan(
-		&r.ID, &r.Username, &r.Email, &r.Password, &r.Xp, &r.Description, &r.ProfilePictureExists,
-		&r.EmailConfirmed, &r.FailedLoginAttempts, &r.FirebaseToken, &r.Code, &r.CodeExpiration,
-		&r.ResetPasswordUrl, &r.ResetPasswordExpiration,
-		&r.DeletionUrl, &r.EmailConfirmationUrl, &r.LastUsernameUpdate, &r.SelectedBatch,
-	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
+	r, err := q.g.GetUserByEmail(ctx, email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
-	return userFromIDRow(r), nil
+	return &User{
+		ID:                      goUUID(r.ID),
+		Username:                r.Username.String,
+		Email:                   goText(r.Email),
+		Password:                r.Password.String,
+		XP:                      int64(r.Xp),
+		Description:             goText(r.Description),
+		ProfilePictureExists:    r.ProfilePictureExists,
+		EmailConfirmed:          r.EmailConfirmed,
+		FailedLoginAttempts:     int(r.FailedLoginAttempts),
+		FirebaseToken:           goText(r.FirebaseToken),
+		Code:                    goText(r.Code),
+		CodeExpiration:          goTZ(r.CodeExpiration),
+		ResetPasswordUrl:        goText(r.ResetPasswordUrl),
+		ResetPasswordExpiration: goTZ(r.ResetPasswordExpiration),
+		DeletionUrl:             goText(r.DeletionUrl),
+		EmailConfirmationUrl:    goText(r.EmailConfirmationUrl),
+		LastUsernameUpdate:      goTZ(r.LastUsernameUpdate),
+		SelectedBatchColor:      r.SelectedBatchColor,
+		AuthGeneration:          r.AuthGeneration,
+		SecurityState:           r.SecurityState,
+		PasswordDisabled:        r.PasswordDisabled,
+		PasswordResetRequired:   r.PasswordResetRequired,
+		CompromisedAt:           goTZ(r.CompromisedAt),
+	}, nil
 }
 
 func (q *Queries) GetUsernameByID(ctx context.Context, id uuid.UUID) (string, error) {
@@ -223,14 +297,6 @@ func (q *Queries) IncrementFailedLogin(ctx context.Context, id uuid.UUID) error 
 
 func (q *Queries) ResetFailedLogin(ctx context.Context, id uuid.UUID) error {
 	return q.g.ResetFailedLogin(ctx, pgUUID(id))
-}
-
-func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
-	return q.g.SoftDeleteUser(ctx, pgUUID(id))
-}
-
-func (q *Queries) HardDeleteUser(ctx context.Context, id uuid.UUID) error {
-	return q.g.HardDeleteUser(ctx, pgUUID(id))
 }
 
 func (q *Queries) ListAdminGroupIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
@@ -270,11 +336,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash str
 	return q.g.UpdateUserPassword(ctx, dbgen.UpdateUserPasswordParams{ID: pgUUID(id), Password: pgTextS(hash)})
 }
 func (q *Queries) UpdateUserEmail(ctx context.Context, id uuid.UUID, email, confirmationUrl *string) error {
-	return q.g.UpdateUserEmail(ctx, dbgen.UpdateUserEmailParams{
-		ID:                   pgUUID(id),
-		Email:                pgText(email),
-		EmailConfirmationUrl: pgText(confirmationUrl),
-	})
+	return q.ChangeUserEmail(ctx, id, email, confirmationUrl)
 }
 func (q *Queries) SetUserProfilePictureExists(ctx context.Context, id uuid.UUID, exists bool) error {
 	return q.g.SetUserProfilePictureExists(ctx, dbgen.SetUserProfilePictureExistsParams{ID: pgUUID(id), ProfilePictureExists: exists})
@@ -288,6 +350,11 @@ func (q *Queries) GetUserByIDAndCode(ctx context.Context, id uuid.UUID, code str
 }
 func (q *Queries) AddUserXp(ctx context.Context, id uuid.UUID, delta int32) error {
 	return q.g.AddUserXp(ctx, dbgen.AddUserXpParams{ID: pgUUID(id), Xp: delta})
+}
+func (q *Queries) AwardGroupXP(ctx context.Context, groupID uuid.UUID, awardKey string, amount int32) error {
+	return q.g.AwardGroupXP(ctx, dbgen.AwardGroupXPParams{
+		GroupID: pgUUID(groupID), AwardKey: awardKey, XpAwarded: amount,
+	})
 }
 func (q *Queries) SetUserRecoveryCode(ctx context.Context, id uuid.UUID, code string, exp time.Time) error {
 	return q.g.SetUserRecoveryCode(ctx, dbgen.SetUserRecoveryCodeParams{
@@ -345,7 +412,14 @@ func (q *Queries) GetUserByEmailConfirmationUrl(ctx context.Context, url string)
 }
 
 func (q *Queries) ConfirmUserEmail(ctx context.Context, id uuid.UUID) error {
-	return q.g.ConfirmUserEmail(ctx, pgUUID(id))
+	confirmed, err := q.ConfirmUserEmailWithClaim(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return ErrEmailClaimUnavailable
+	}
+	return nil
 }
 
 func (q *Queries) ListAllUserEmails(ctx context.Context) ([]string, error) {
@@ -411,6 +485,7 @@ type Group struct {
 	InviteUrl    *string
 	CreationDate *time.Time
 	UpdateDate   *time.Time
+	PinStyle     string
 }
 
 func (q *Queries) CreateGroup(ctx context.Context, g Group) (uuid.UUID, error) {
@@ -451,7 +526,51 @@ func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (*Group, error
 		InviteUrl:    goText(row.InviteUrl),
 		CreationDate: goTZ(row.CreationDate),
 		UpdateDate:   goTZ(row.UpdateDate),
+		PinStyle:     row.PinStyle,
 	}, nil
+}
+
+func (q *Queries) GetGroupXP(ctx context.Context, id uuid.UUID) (int32, error) {
+	return q.g.GetGroupXP(ctx, pgUUID(id))
+}
+
+type GroupAvatarProgressionRecord struct {
+	GroupID    uuid.UUID
+	TotalXP    int64
+	Visibility int
+	IsMember   bool
+}
+
+func (q *Queries) GetGroupAvatarProgressionsByIDs(ctx context.Context, viewerID uuid.UUID, ids []uuid.UUID) ([]GroupAvatarProgressionRecord, error) {
+	pgIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		pgIDs[i] = pgUUID(id)
+	}
+	rows, err := q.g.GetGroupAvatarProgressionsByIDs(ctx, dbgen.GetGroupAvatarProgressionsByIDsParams{
+		ViewerID: pgUUID(viewerID),
+		Ids:      pgIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	records := make([]GroupAvatarProgressionRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, GroupAvatarProgressionRecord{
+			GroupID:    goUUID(row.ID),
+			TotalXP:    int64(row.GroupXp),
+			Visibility: int(row.Visibility.Int32),
+			IsMember:   row.IsMember,
+		})
+	}
+	return records, nil
+}
+
+func (q *Queries) LockGroupForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockGroupForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (q *Queries) GroupExistsByName(ctx context.Context, name string) (bool, error) {
@@ -474,6 +593,7 @@ type GroupUpdate struct {
 	AdminID        *uuid.UUID
 	InviteUrl      *string
 	ClearInviteURL bool
+	PinStyle       *string
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) error {
@@ -495,6 +615,9 @@ func (q *Queries) UpdateGroup(ctx context.Context, id uuid.UUID, u GroupUpdate) 
 	}
 	if u.InviteUrl != nil {
 		p.InviteUrl = pgTextS(*u.InviteUrl)
+	}
+	if u.PinStyle != nil {
+		p.PinStyle = pgTextS(*u.PinStyle)
 	}
 	return q.g.UpdateGroup(ctx, p)
 }
@@ -539,7 +662,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	} else if *s.WithUser {
 		if s.UserID == nil {
@@ -552,7 +679,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	} else {
 		if s.UserID == nil {
@@ -565,7 +696,11 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			return nil, err
 		}
 		for _, r := range rs {
-			rows = append(rows, groupRow(r))
+			rows = append(rows, groupRow{
+				ID: r.ID, Name: r.Name, Description: r.Description, Link: r.Link,
+				Visibility: r.Visibility, AdminID: r.AdminID, InviteUrl: r.InviteUrl,
+				CreationDate: r.CreationDate, UpdateDate: r.UpdateDate, PinStyle: pgtype.Text{String: r.PinStyle, Valid: true},
+			})
 		}
 	}
 	out := make([]Group, 0, len(rows))
@@ -579,6 +714,7 @@ func (q *Queries) SearchGroups(ctx context.Context, s GroupSearch) ([]Group, err
 			Link: goText(r.Link), Visibility: vis, AdminID: goUUID(r.AdminID),
 			InviteUrl:    goText(r.InviteUrl),
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+			PinStyle: r.PinStyle.String,
 		})
 	}
 	return out, nil
@@ -594,6 +730,7 @@ type groupRow struct {
 	InviteUrl    pgtype.Text
 	CreationDate pgtype.Timestamptz
 	UpdateDate   pgtype.Timestamptz
+	PinStyle     pgtype.Text
 }
 
 func (q *Queries) ListDeletedGroupsAfter(ctx context.Context, after time.Time) ([]uuid.UUID, error) {
@@ -659,10 +796,11 @@ func (q *Queries) CountGroupMembers(ctx context.Context, groupID uuid.UUID) (int
 }
 
 type GroupRanking struct {
-	UserID        uuid.UUID
-	Username      string
-	Points        int32
-	AchievementID *int32
+	UserID             uuid.UUID
+	Username           string
+	SelectedBatchColor string
+	Points             int32
+	AchievementID      *int32
 }
 
 func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]GroupRanking, error) {
@@ -679,7 +817,8 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]Gro
 		}
 		out = append(out, GroupRanking{
 			UserID: goUUID(r.UserID), Username: r.Username.String,
-			Points: r.Points, AchievementID: ach,
+			SelectedBatchColor: r.SelectedBatchColor,
+			Points:             r.Points, AchievementID: ach,
 		})
 	}
 	return out, nil
@@ -688,11 +827,12 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID uuid.UUID) ([]Gro
 // ---- Ranking / Map ----
 
 type UserRankingRow struct {
-	UserID        uuid.UUID
-	Username      string
-	Description   *string
-	Points        int32
-	AchievementID *int32
+	UserID             uuid.UUID
+	Username           string
+	Description        *string
+	SelectedBatchColor string
+	Points             int32
+	AchievementID      *int32
 }
 
 type GroupRankingRow struct {
@@ -740,7 +880,8 @@ func (q *Queries) GetUserRanking(ctx context.Context, f RankingFilter) ([]UserRa
 		}
 		out = append(out, UserRankingRow{
 			UserID: goUUID(r.CreatorID), Username: r.Username.String,
-			Description: goText(r.Description), Points: r.Points, AchievementID: ach,
+			Description: goText(r.Description), SelectedBatchColor: r.SelectedBatchColor,
+			Points: r.Points, AchievementID: ach,
 		})
 	}
 	return out, nil
@@ -856,10 +997,12 @@ type Pin struct {
 	Longitude       float64
 	CreationDate    *time.Time
 	UpdateDate      *time.Time
+	Title           *string
 	Description     *string
 	CreatorID       uuid.UUID
 	GroupID         uuid.UUID
 	StateProvinceID *uuid.UUID
+	IsGone          bool
 }
 
 func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
@@ -874,11 +1017,28 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 		Longitude:       r.Longitude.Float64,
 		CreationDate:    goTZ(r.CreationDate),
 		UpdateDate:      goTZ(r.UpdateDate),
+		Title:           goText(r.Title),
 		Description:     goText(r.Description),
 		CreatorID:       goUUID(r.CreatorID),
 		GroupID:         goUUID(r.GroupID),
 		StateProvinceID: sp,
+		IsGone:          r.IsGone,
 	}
+}
+
+func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bool, error) {
+	rows, err := q.g.SetPinGone(ctx, dbgen.SetPinGoneParams{
+		ID: pgUUID(id), IsGone: isGone,
+	})
+	return rows > 0, err
+}
+
+func (q *Queries) LockPinForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
+	_, err := q.g.LockPinForDelete(ctx, pgUUID(id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
@@ -894,12 +1054,141 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		Latitude:        pgtype.Float8{Float64: p.Latitude, Valid: true},
 		Longitude:       pgtype.Float8{Float64: p.Longitude, Valid: true},
 		CreationDate:    pgTZ(p.CreationDate),
+		Title:           pgText(p.Title),
 		Description:     pgText(p.Description),
 		CreatorID:       pgUUID(p.CreatorID),
 		GroupID:         pgUUID(p.GroupID),
 		StateProvinceID: sp,
 	})
 	return p.ID, err
+}
+
+type PinPhoto struct {
+	ID                  uuid.UUID
+	PinID               uuid.UUID
+	ContributorID       *uuid.UUID
+	ContributorUsername string
+	ImageKey            string
+	IdempotencyKey      *uuid.UUID
+	RequestHash         []byte
+	Caption             *string
+	ObservedAt          time.Time
+	IsOriginal          bool
+}
+
+func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
+	return q.g.CreatePinPhoto(ctx, dbgen.CreatePinPhotoParams{
+		ID: pgUUID(photo.ID), PinID: pgUUID(photo.PinID),
+		ContributorID:       pgUUIDPtr(photo.ContributorID),
+		ContributorUsername: photo.ContributorUsername,
+		ImageKey:            photo.ImageKey, IdempotencyKey: pgUUIDPtr(photo.IdempotencyKey),
+		RequestHash: photo.RequestHash,
+		Caption:     pgText(photo.Caption),
+		ObservedAt:  pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+	})
+}
+
+func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhoto, error) {
+	rows, err := q.g.ListPinPhotos(ctx, pgUUID(pinID))
+	if err != nil {
+		return nil, err
+	}
+	photos := make([]PinPhoto, 0, len(rows))
+	for _, row := range rows {
+		var contributorID *uuid.UUID
+		if row.ContributorID.Valid {
+			id := goUUID(row.ContributorID)
+			contributorID = &id
+		}
+		photos = append(photos, PinPhoto{
+			ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+			ContributorID:       contributorID,
+			ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+			RequestHash:    row.RequestHash,
+			Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+			IsOriginal: row.IsOriginal,
+		})
+	}
+	return photos, nil
+}
+
+func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID, key uuid.UUID) (*PinPhoto, error) {
+	row, err := q.g.GetPinPhotoByIdempotencyKey(ctx, dbgen.GetPinPhotoByIdempotencyKeyParams{
+		ContributorID: pgUUID(contributorID), IdempotencyKey: pgUUID(key),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var photoContributorID *uuid.UUID
+	if row.ContributorID.Valid {
+		id := goUUID(row.ContributorID)
+		photoContributorID = &id
+	}
+	photo := PinPhoto{
+		ID: goUUID(row.ID), PinID: goUUID(row.PinID),
+		ContributorID:       photoContributorID,
+		ContributorUsername: row.ContributorUsername, ImageKey: row.ImageKey,
+		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
+		RequestHash:    row.RequestHash,
+		Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
+		IsOriginal: row.IsOriginal,
+	}
+	return &photo, nil
+}
+
+func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
+	return q.g.ListPinPhotoKeys(ctx, pgUUID(pinID))
+}
+
+func (q *Queries) EnqueueObjectCleanup(ctx context.Context, objectKeys []string) error {
+	if len(objectKeys) == 0 {
+		return nil
+	}
+	return q.g.EnqueueObjectCleanup(ctx, objectKeys)
+}
+
+func (q *Queries) StageObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.StageObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) MarkObjectCleanupReady(ctx context.Context, objectKey string) error {
+	return q.g.MarkObjectCleanupReady(ctx, objectKey)
+}
+
+func (q *Queries) RescheduleObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.RescheduleObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) LockStagedObjectCleanup(ctx context.Context, objectKey string) (bool, error) {
+	_, err := q.g.LockStagedObjectCleanup(ctx, objectKey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (q *Queries) ClaimPendingObjectCleanup(ctx context.Context) (string, bool, error) {
+	key, err := q.g.ClaimPendingObjectCleanup(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return key, true, nil
+}
+
+func (q *Queries) DeletePendingObjectCleanup(ctx context.Context, objectKey string) error {
+	return q.g.DeletePendingObjectCleanup(ctx, objectKey)
+}
+
+func (q *Queries) TouchPinForPhoto(ctx context.Context, pinID uuid.UUID) (bool, error) {
+	rows, err := q.g.TouchPinForPhoto(ctx, pgUUID(pinID))
+	return rows > 0, err
 }
 
 func (q *Queries) GetPinByID(ctx context.Context, id uuid.UUID) (*Pin, error) {
@@ -975,8 +1264,9 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 		out = append(out, Pin{
 			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
-			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
+			IsGone: r.IsGone,
 		})
 	}
 	return out, nil
@@ -992,6 +1282,12 @@ type PinSearch struct {
 	BeforeID           *uuid.UUID
 	Limit              int32
 	Offset             int32
+}
+
+type NearbyPin struct {
+	Pin            Pin
+	GroupName      string
+	DistanceMeters int32
 }
 
 func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
@@ -1027,8 +1323,40 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 		out = append(out, Pin{
 			ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
-			Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
+			IsGone: r.IsGone,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) FindNearbyPins(ctx context.Context, callerID uuid.UUID, latitude, longitude float64, radiusMeters int32, limit int32) ([]NearbyPin, error) {
+	if limit <= 0 || limit > 10 {
+		limit = 10
+	}
+	rows, err := q.g.FindNearbyPins(ctx, dbgen.FindNearbyPinsParams{
+		Longitude: longitude, Latitude: latitude, RadiusMeters: float64(radiusMeters),
+		CallerID: pgUUID(callerID), Lim: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]NearbyPin, 0, len(rows))
+	for _, r := range rows {
+		var boundary *uuid.UUID
+		if r.StateProvinceID.Valid {
+			id := goUUID(r.StateProvinceID)
+			boundary = &id
+		}
+		out = append(out, NearbyPin{
+			Pin: Pin{
+				ID: goUUID(r.ID), Latitude: r.Latitude.Float64, Longitude: r.Longitude.Float64,
+				CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
+				Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
+				GroupID: goUUID(r.GroupID), StateProvinceID: boundary, IsGone: r.IsGone,
+			},
+			GroupName: r.GroupName, DistanceMeters: r.DistanceMeters,
 		})
 	}
 	return out, nil
@@ -1246,6 +1574,27 @@ func (q *Queries) GetSelectedUserAchievementID(ctx context.Context, userID uuid.
 	if err != nil {
 		return nil, err
 	}
+	def, ok := achievementDefinition(id)
+	if !ok {
+		if err := q.g.ReconcileUserAchievementClaim(ctx, dbgen.ReconcileUserAchievementClaimParams{
+			ID: pgUUID(userID), AchievementID: id,
+		}); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+	current, err := q.runAchievementQuery(ctx, def, userID)
+	if err != nil {
+		return nil, err
+	}
+	if current < int(def.Threshold) {
+		if err := q.g.ReconcileUserAchievementClaim(ctx, dbgen.ReconcileUserAchievementClaimParams{
+			ID: pgUUID(userID), AchievementID: id,
+		}); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
 	return &id, nil
 }
 
@@ -1262,11 +1611,16 @@ func (q *Queries) ListUserAchievements(ctx context.Context, userID uuid.UUID) ([
 }
 
 func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, achievementID int32) error {
+	def, ok := achievementDefinition(achievementID)
+	if !ok {
+		return apperrors.ErrNotFound
+	}
 	_, err := q.g.ClaimUserAchievementAndAwardXP(ctx, dbgen.ClaimUserAchievementAndAwardXPParams{
-		ID:            pgUUID(uuid.New()),
-		UserID:        pgUUID(userID),
-		AchievementID: achievementID,
-		Xp:            20,
+		ID:                pgUUID(uuid.New()),
+		UserID:            pgUUID(userID),
+		AchievementID:     achievementID,
+		XpAwarded:         def.RewardXP,
+		DefinitionVersion: def.DefinitionVersion,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperrors.ErrConflict
@@ -1277,6 +1631,12 @@ func (q *Queries) ClaimUserAchievement(ctx context.Context, userID uuid.UUID, ac
 func (q *Queries) SetUserSelectedBatch(ctx context.Context, userID, achievementRowID uuid.UUID) error {
 	return q.g.SetUserSelectedBatch(ctx, dbgen.SetUserSelectedBatchParams{
 		ID: pgUUID(userID), SelectedBatch: pgUUID(achievementRowID),
+	})
+}
+
+func (q *Queries) SetUserSelectedBatchColor(ctx context.Context, userID uuid.UUID, color string) error {
+	return q.g.SetUserSelectedBatchColor(ctx, dbgen.SetUserSelectedBatchColorParams{
+		ID: pgUUID(userID), SelectedBatchColor: color,
 	})
 }
 

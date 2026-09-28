@@ -18,6 +18,7 @@ class MemberResponseDto {
     required this.ranking,
     this.profileImageSmall,
     this.selectedBatch,
+    this.selectedBatchColor,
   });
 
   String userId;
@@ -36,13 +37,16 @@ class MemberResponseDto {
 
   int? selectedBatch;
 
+  String? selectedBatchColor;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is MemberResponseDto &&
     other.userId == userId &&
     other.username == username &&
     other.ranking == ranking &&
     other.profileImageSmall == profileImageSmall &&
-    other.selectedBatch == selectedBatch;
+    other.selectedBatch == selectedBatch &&
+    other.selectedBatchColor == selectedBatchColor;
 
   @override
   int get hashCode =>
@@ -51,10 +55,11 @@ class MemberResponseDto {
     (username.hashCode) +
     (ranking.hashCode) +
     (profileImageSmall == null ? 0 : profileImageSmall!.hashCode) +
-    (selectedBatch == null ? 0 : selectedBatch!.hashCode);
+    (selectedBatch == null ? 0 : selectedBatch!.hashCode) +
+    (selectedBatchColor == null ? 0 : selectedBatchColor!.hashCode);
 
   @override
-  String toString() => 'MemberResponseDto[userId=$userId, username=$username, ranking=$ranking, profileImageSmall=$profileImageSmall, selectedBatch=$selectedBatch]';
+  String toString() => 'MemberResponseDto[userId=$userId, username=$username, ranking=$ranking, profileImageSmall=$profileImageSmall, selectedBatch=$selectedBatch, selectedBatchColor=$selectedBatchColor]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -70,6 +75,11 @@ class MemberResponseDto {
       json[r'selectedBatch'] = this.selectedBatch;
     } else {
       json[r'selectedBatch'] = null;
+    }
+    if (this.selectedBatchColor != null) {
+      json[r'selectedBatchColor'] = this.selectedBatchColor;
+    } else {
+      json[r'selectedBatchColor'] = null;
     }
     return json;
   }
@@ -98,6 +108,7 @@ class MemberResponseDto {
         ranking: mapValueOfType<int>(json, r'ranking')!,
         profileImageSmall: mapValueOfType<String>(json, r'profile_image_small'),
         selectedBatch: mapValueOfType<int>(json, r'selectedBatch'),
+        selectedBatchColor: mapValueOfType<String>(json, r'selectedBatchColor'),
       );
     }
     return null;
@@ -150,4 +161,3 @@ class MemberResponseDto {
     'ranking',
   };
 }
-

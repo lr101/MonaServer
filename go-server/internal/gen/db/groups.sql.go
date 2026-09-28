@@ -29,6 +29,30 @@ func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) error {
 	return err
 }
 
+const awardGroupXP = `-- name: AwardGroupXP :exec
+WITH award AS (
+    INSERT INTO group_xp_ledger (group_id, award_key, xp_awarded)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (group_id, award_key) DO NOTHING
+    RETURNING group_id, xp_awarded
+)
+UPDATE groups g
+SET group_xp = g.group_xp + award.xp_awarded
+FROM award
+WHERE g.id = award.group_id
+`
+
+type AwardGroupXPParams struct {
+	GroupID   pgtype.UUID `json:"group_id"`
+	AwardKey  string      `json:"award_key"`
+	XpAwarded int32       `json:"xp_awarded"`
+}
+
+func (q *Queries) AwardGroupXP(ctx context.Context, arg AwardGroupXPParams) error {
+	_, err := q.db.Exec(ctx, awardGroupXP, arg.GroupID, arg.AwardKey, arg.XpAwarded)
+	return err
+}
+
 const countGroupMembers = `-- name: CountGroupMembers :one
 SELECT COUNT(*)::bigint FROM members WHERE group_id = $1
 `
@@ -83,9 +107,60 @@ func (q *Queries) GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pg
 	return username, err
 }
 
+const getGroupAvatarProgressionsByIDs = `-- name: GetGroupAvatarProgressionsByIDs :many
+SELECT g.id, g.group_xp, g.visibility,
+       EXISTS (
+           SELECT 1
+           FROM members m
+           WHERE m.group_id = g.id
+             AND m.user_id = $1
+             AND m.is_deleted = FALSE
+       ) AS is_member
+FROM groups g
+WHERE g.is_deleted = FALSE
+  AND g.id = ANY($2::uuid[])
+`
+
+type GetGroupAvatarProgressionsByIDsParams struct {
+	ViewerID pgtype.UUID   `json:"viewer_id"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+type GetGroupAvatarProgressionsByIDsRow struct {
+	ID         pgtype.UUID `json:"id"`
+	GroupXp    int32       `json:"group_xp"`
+	Visibility pgtype.Int4 `json:"visibility"`
+	IsMember   bool        `json:"is_member"`
+}
+
+func (q *Queries) GetGroupAvatarProgressionsByIDs(ctx context.Context, arg GetGroupAvatarProgressionsByIDsParams) ([]GetGroupAvatarProgressionsByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getGroupAvatarProgressionsByIDs, arg.ViewerID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupAvatarProgressionsByIDsRow
+	for rows.Next() {
+		var i GetGroupAvatarProgressionsByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupXp,
+			&i.Visibility,
+			&i.IsMember,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -100,6 +175,7 @@ type GetGroupByIDRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error) {
@@ -115,12 +191,13 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByI
 		&i.InviteUrl,
 		&i.CreationDate,
 		&i.UpdateDate,
+		&i.PinStyle,
 	)
 	return i, err
 }
 
 const getGroupRanking = `-- name: GetGroupRanking :many
-SELECT m.user_id, u.username,
+SELECT m.user_id, u.username, u.selected_batch_color,
        COUNT(pg.creator_id)::int AS points,
        ua.achievement_id
 FROM members m
@@ -129,16 +206,19 @@ LEFT JOIN (
 ) AS pg ON pg.creator_id = m.user_id
 JOIN users u ON u.id = m.user_id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+    AND ua.claimed = TRUE
+    AND user_achievement_is_current(u.id, ua.achievement_id)
 WHERE m.group_id = $1
-GROUP BY m.user_id, u.username, ua.achievement_id
+GROUP BY m.user_id, u.username, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, m.user_id
 `
 
 type GetGroupRankingRow struct {
-	UserID        pgtype.UUID `json:"user_id"`
-	Username      pgtype.Text `json:"username"`
-	Points        int32       `json:"points"`
-	AchievementID pgtype.Int4 `json:"achievement_id"`
+	UserID             pgtype.UUID `json:"user_id"`
+	Username           pgtype.Text `json:"username"`
+	SelectedBatchColor string      `json:"selected_batch_color"`
+	Points             int32       `json:"points"`
+	AchievementID      pgtype.Int4 `json:"achievement_id"`
 }
 
 func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]GetGroupRankingRow, error) {
@@ -153,6 +233,7 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]G
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Username,
+			&i.SelectedBatchColor,
 			&i.Points,
 			&i.AchievementID,
 		); err != nil {
@@ -164,6 +245,17 @@ func (q *Queries) GetGroupRanking(ctx context.Context, groupID pgtype.UUID) ([]G
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupXP = `-- name: GetGroupXP :one
+SELECT group_xp FROM groups WHERE id = $1 AND is_deleted = FALSE
+`
+
+func (q *Queries) GetGroupXP(ctx context.Context, id pgtype.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getGroupXP, id)
+	var group_xp int32
+	err := row.Scan(&group_xp)
+	return group_xp, err
 }
 
 const groupExistsByName = `-- name: GroupExistsByName :one
@@ -265,6 +357,17 @@ func (q *Queries) ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]
 	return items, nil
 }
 
+const lockGroupForDelete = `-- name: LockGroupForDelete :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockGroupForDelete(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockGroupForDelete, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const logDeletion = `-- name: LogDeletion :exec
 INSERT INTO delete_log (deleted_entity_type, deleted_entity_id, creation_date)
 VALUES ($1, $2, NOW())
@@ -297,7 +400,7 @@ func (q *Queries) RemoveMember(ctx context.Context, arg RemoveMemberParams) erro
 
 const searchGroups = `-- name: SearchGroups :many
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE is_deleted = FALSE
   AND (cardinality($1::uuid[]) = 0 OR id = ANY($1::uuid[]))
@@ -327,6 +430,7 @@ type SearchGroupsRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]SearchGroupsRow, error) {
@@ -354,6 +458,7 @@ func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]S
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -367,7 +472,7 @@ func (q *Queries) SearchGroups(ctx context.Context, arg SearchGroupsParams) ([]S
 
 const searchGroupsInUser = `-- name: SearchGroupsInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = $1
@@ -399,6 +504,7 @@ type SearchGroupsInUserRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUserParams) ([]SearchGroupsInUserRow, error) {
@@ -427,6 +533,7 @@ func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUser
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -440,7 +547,7 @@ func (q *Queries) SearchGroupsInUser(ctx context.Context, arg SearchGroupsInUser
 
 const searchGroupsNotInUser = `-- name: SearchGroupsNotInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = $1)
@@ -472,6 +579,7 @@ type SearchGroupsNotInUserRow struct {
 	InviteUrl    pgtype.Text        `json:"invite_url"`
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	PinStyle     string             `json:"pin_style"`
 }
 
 func (q *Queries) SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNotInUserParams) ([]SearchGroupsNotInUserRow, error) {
@@ -500,6 +608,7 @@ func (q *Queries) SearchGroupsNotInUser(ctx context.Context, arg SearchGroupsNot
 			&i.InviteUrl,
 			&i.CreationDate,
 			&i.UpdateDate,
+			&i.PinStyle,
 		); err != nil {
 			return nil, err
 		}
@@ -541,12 +650,13 @@ SET name       = COALESCE($1,       name),
     link       = COALESCE($3,       link),
     visibility = COALESCE($4, visibility),
     admin_id   = COALESCE($5,   admin_id),
+    pin_style  = COALESCE($6,  pin_style),
     invite_url = CASE
-                   WHEN $6::boolean THEN NULL
-                   ELSE COALESCE($7, invite_url)
+                   WHEN $7::boolean THEN NULL
+                   ELSE COALESCE($8, invite_url)
                  END,
     update_date= NOW()
-WHERE id = $8
+WHERE id = $9
 `
 
 type UpdateGroupParams struct {
@@ -555,6 +665,7 @@ type UpdateGroupParams struct {
 	Link           pgtype.Text `json:"link"`
 	Visibility     pgtype.Int4 `json:"visibility"`
 	AdminID        pgtype.UUID `json:"admin_id"`
+	PinStyle       pgtype.Text `json:"pin_style"`
 	ClearInviteUrl bool        `json:"clear_invite_url"`
 	InviteUrl      pgtype.Text `json:"invite_url"`
 	ID             pgtype.UUID `json:"id"`
@@ -567,6 +678,7 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) error 
 		arg.Link,
 		arg.Visibility,
 		arg.AdminID,
+		arg.PinStyle,
 		arg.ClearInviteUrl,
 		arg.InviteUrl,
 		arg.ID,

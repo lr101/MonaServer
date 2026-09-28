@@ -287,8 +287,10 @@ func TestGetPinOmitsImageWhenWithImageIsFalse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
+	title := "Pin without a photo"
 	pin, err := pinSvc.Create(ctx, service.CreatePinInput{
 		Latitude: 1, Longitude: 1, CreationDate: time.Now(), UserID: user.UserID, GroupID: group.ID,
+		Title: &title,
 	})
 	if err != nil {
 		t.Fatalf("create pin: %v", err)
@@ -305,6 +307,9 @@ func TestGetPinOmitsImageWhenWithImageIsFalse(t *testing.T) {
 	}
 	if got.Image != "" {
 		t.Fatalf("withImage=false returned image URL %q", got.Image)
+	}
+	if got.Title == nil || *got.Title != title {
+		t.Fatalf("pin title = %v, want %q", got.Title, title)
 	}
 }
 

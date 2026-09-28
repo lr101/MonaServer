@@ -1,7 +1,6 @@
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -61,14 +60,9 @@ class GroupFilterWidget extends ConsumerWidget {
                               color: theme.colorScheme.surfaceContainer,
                             ),
                           ),
-                          child: RoundImage(
-                            size: 14,
-                            imageCallback: ref.watch(
-                              groupProfilePictureSmallByIdProvider(
-                                orderedIds[i],
-                              ),
-                            ),
-                            child: Container(),
+                          child: SmallProfilePicture.group(
+                            groupId: orderedIds[i],
+                            radius: 11,
                           ),
                         ),
                       ),
@@ -246,12 +240,9 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
                       child: Stack(
                         alignment: Alignment.bottomRight,
                         children: [
-                          RoundImage(
-                            size: 20,
-                            imageCallback: ref.watch(
-                              groupProfilePictureSmallByIdProvider(groupId),
-                            ),
-                            child: Container(),
+                          SmallProfilePicture.group(
+                            groupId: groupId,
+                            radius: 17,
                           ),
                           if (isActive)
                             Container(

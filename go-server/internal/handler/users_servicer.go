@@ -14,14 +14,13 @@ import (
 
 // UsersServicer implements genserver.UsersAPIServicer.
 type UsersServicer struct {
-	user   *service.User
-	guard  *service.Guard
-	q      *db.Queries
-	achCfg db.AchievementConfig
+	user  *service.User
+	guard *service.Guard
+	q     *db.Queries
 }
 
-func NewUsersServicer(user *service.User, guard *service.Guard, q *db.Queries, achCfg db.AchievementConfig) *UsersServicer {
-	return &UsersServicer{user: user, guard: guard, q: q, achCfg: achCfg}
+func NewUsersServicer(user *service.User, guard *service.Guard, q *db.Queries) *UsersServicer {
+	return &UsersServicer{user: user, guard: guard, q: q}
 }
 
 func (s *UsersServicer) GetUser(ctx context.Context, userID string) (genserver.ImplResponse, error) {
@@ -74,13 +73,14 @@ func (s *UsersServicer) UpdateUser(ctx context.Context, userID string, dto gense
 		imgBytes = b
 	}
 	in := service.UserUpdateInput{
-		Description:    strNilable(dto.Description),
-		Email:          strNilable(dto.Email),
-		Image:          imgBytes,
-		MessagingToken: strNilable(dto.MessagingToken),
-		Password:       strNilable(dto.Password),
-		Username:       strNilable(dto.Username),
-		SelectedBatch:  dto.SelectedBatch,
+		Description:        strNilable(dto.Description),
+		Email:              strNilable(dto.Email),
+		Image:              imgBytes,
+		MessagingToken:     strNilable(dto.MessagingToken),
+		Password:           strNilable(dto.Password),
+		Username:           strNilable(dto.Username),
+		SelectedBatch:      dto.SelectedBatch,
+		SelectedBatchColor: dto.SelectedBatchColor,
 	}
 	result, err := s.user.Update(ctx, id, in)
 	if err != nil {
@@ -195,18 +195,29 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	items, err := s.q.GetAchievementProgress(ctx, id, s.achCfg)
+	items, err := s.q.GetAchievementProgress(ctx, id)
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
+		rewardType := a.RewardType
 		dtos = append(dtos, genserver.UserAchievementsDtoInner{
-			AchievementId:  a.ID,
-			Claimed:        a.Claimed,
-			CurrentValue:   a.CurrentValue,
-			ThresholdValue: a.Threshold,
-			ThresholdUp:    a.ThresholdUp,
+			AchievementId:     a.ID,
+			Name:              a.Name,
+			Description:       a.Description,
+			Track:             a.Track,
+			Difficulty:        a.Difficulty,
+			RewardType:        &rewardType,
+			RewardColor:       a.RewardColor,
+			RewardXp:          a.RewardXP,
+			Claimable:         a.Claimable,
+			RewardAvailable:   &a.RewardAvailable,
+			DefinitionVersion: a.DefinitionVersion,
+			Claimed:           a.Claimed,
+			CurrentValue:      a.CurrentValue,
+			ThresholdValue:    a.Threshold,
+			ThresholdUp:       a.ThresholdUp,
 		})
 	}
 	return genserver.Response(http.StatusOK, dtos), nil
@@ -224,7 +235,7 @@ func (s *UsersServicer) ClaimUserAchievement(ctx context.Context, userID string,
 	if caller != id {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id, s.achCfg)
+	claimable, err := s.q.CheckAchievementClaimable(ctx, achievementID, id)
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}

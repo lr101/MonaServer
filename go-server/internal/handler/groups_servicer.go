@@ -131,6 +131,102 @@ func (s *GroupsServicer) GetGroup(ctx context.Context, groupID string) (genserve
 	return genserver.Response(http.StatusOK, toGroupDto(dto, includePrivate)), nil
 }
 
+func (s *GroupsServicer) GetGroupProgression(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(groupID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	progress, err := s.group.Progression(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if progress.Visibility != 0 {
+		uid, ok := ctxUserID(ctx)
+		if !ok {
+			return genserver.Response(http.StatusUnauthorized, nil), nil
+		}
+		isMember, err := s.guard.IsGroupMember(ctx, id, uid)
+		if err != nil {
+			return serviceErrResp(ctx, err), nil
+		}
+		if !isMember {
+			return genserver.Response(http.StatusForbidden, nil), nil
+		}
+	}
+	return genserver.Response(http.StatusOK, genserver.GroupProgressionDto{
+		GroupId:        progress.GroupID.String(),
+		TotalXp:        progress.TotalXP,
+		CurrentLevel:   progress.CurrentLevel,
+		CurrentLevelXp: progress.CurrentLevelXP,
+		NextLevelXp:    progress.NextLevelXP,
+	}), nil
+}
+
+func (s *GroupsServicer) GetGroupAchievements(ctx context.Context, groupID string) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(groupID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	group, err := s.group.Progression(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if group.Visibility != 0 {
+		uid, ok := ctxUserID(ctx)
+		if !ok {
+			return genserver.Response(http.StatusUnauthorized, nil), nil
+		}
+		isMember, err := s.guard.IsGroupMember(ctx, id, uid)
+		if err != nil {
+			return serviceErrResp(ctx, err), nil
+		}
+		if !isMember {
+			return genserver.Response(http.StatusForbidden, nil), nil
+		}
+	}
+	items, err := s.group.AchievementProgress(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	dtos := make([]genserver.GroupAchievementsDtoInner, 0, len(items))
+	for _, item := range items {
+		dtos = append(dtos, genserver.GroupAchievementsDtoInner{
+			AchievementId: item.ID,
+			Name:          item.Name, Description: item.Description, Track: item.Track,
+			Difficulty: item.Difficulty, Claimed: item.Claimed,
+			Claimable: item.Claimable, ThresholdValue: item.Threshold,
+			CurrentValue: item.CurrentValue, ThresholdUp: true,
+			RewardType:     item.RewardType,
+			RewardColor:    item.RewardColor,
+			RewardXp:       item.RewardXP,
+			RewardPinStyle: item.RewardPinStyle,
+		})
+	}
+	return genserver.Response(http.StatusOK, dtos), nil
+}
+
+func (s *GroupsServicer) ClaimGroupAchievement(ctx context.Context, groupID string, achievementID int32) (genserver.ImplResponse, error) {
+	id, err := uuid.Parse(groupID)
+	if err != nil {
+		return genserver.Response(http.StatusBadRequest, nil), nil
+	}
+	uid, ok := ctxUserID(ctx)
+	if !ok {
+		return genserver.Response(http.StatusUnauthorized, nil), nil
+	}
+	isMember, err := s.guard.IsGroupMember(ctx, id, uid)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if !isMember {
+		return genserver.Response(http.StatusForbidden, nil), nil
+	}
+	if err := s.group.ClaimAchievement(ctx, id, uid, achievementID); err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	return genserver.Response(http.StatusOK, nil), nil
+}
+
 func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto genserver.UpdateGroupDto) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(groupID)
 	if err != nil {
@@ -169,6 +265,7 @@ func (s *GroupsServicer) UpdateGroup(ctx context.Context, groupID string, dto ge
 		Visibility:   int32PtrToInt(dto.Visibility),
 		GroupAdmin:   adminID,
 		ProfileImage: imgBytes,
+		PinStyle:     dto.PinStyle,
 	})
 	if err != nil {
 		return serviceErrResp(ctx, err), nil

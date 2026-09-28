@@ -2,7 +2,6 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_login/flutter_login.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:string_validator/string_validator.dart';
@@ -86,7 +85,7 @@ class LoginService {
   /// Validator Method for validating password
   /// returns null on success or an error message for an incorrect input
   static String? userValidator(String? s) {
-    final alphanumeric = RegExp(r'^[a-zA-Z0-9!@#$%^&*]*$');
+    final alphanumeric = RegExp(r'^[a-zA-Z0-9!#$%^&*]*$');
     if (s == null) {
       return "input is not valid";
     } else if (s.length < 2) {

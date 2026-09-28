@@ -16,6 +16,10 @@ type ReportDto struct {
 	Report string `json:"report"`
 
 	Message string `json:"message"`
+
+	TargetId *string `json:"targetId,omitempty"`
+
+	TargetKind *string `json:"targetKind,omitempty"`
 }
 
 // AssertReportDtoRequired checks if the required fields are not zero-ed

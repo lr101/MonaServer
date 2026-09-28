@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
@@ -24,10 +23,14 @@ class _ImageWriteQueue {
 }
 
 class _ActiveImageRequest {
-  _ActiveImageRequest(this.initialKeepAlive, {this.retainedImage})
-    : keepAlive = initialKeepAlive;
+  _ActiveImageRequest(
+    this.initialKeepAlive, {
+    required this.contentVersion,
+    this.retainedImage,
+  }) : keepAlive = initialKeepAlive;
 
   final bool initialKeepAlive;
+  final int contentVersion;
   final ImageEntity? retainedImage;
   bool keepAlive;
   late final Future<Uint8List?> future;
@@ -65,10 +68,20 @@ class ImageRepository extends CacheImpl<ImageEntity>
     db.session?.removeListener(dispose);
     _bytesCache.clear();
     _activeRequests.clear();
+    _imageContentVersions.clear();
+    _nextReplacementVersions.clear();
+    _committedReplacementVersions.clear();
+    _pendingImageRequests.clear();
+    _pendingReplacementOperations.clear();
   }
 
   final Map<String, _ActiveImageRequest> _activeRequests = {};
   final Map<String, _ImageWriteQueue> _writeQueues = {};
+  final Map<String, int> _imageContentVersions = {};
+  final Map<String, int> _nextReplacementVersions = {};
+  final Map<String, int> _committedReplacementVersions = {};
+  final Map<String, int> _pendingImageRequests = {};
+  final Map<String, int> _pendingReplacementOperations = {};
   final Map<String, int> _activeWatchers = {};
   final LinkedHashMap<String, Uint8List> _bytesCache =
       LinkedHashMap<String, Uint8List>();
@@ -89,6 +102,52 @@ class ImageRepository extends CacheImpl<ImageEntity>
   }
 
   String _cacheKey(String id) => '${type.name}:$id';
+
+  int _contentVersion(String cacheKey) => _imageContentVersions[cacheKey] ?? 0;
+
+  int _issueReplacementVersion(String cacheKey) {
+    _pendingReplacementOperations.update(
+      cacheKey,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    return _nextReplacementVersions.update(
+      cacheKey,
+      (version) => version + 1,
+      ifAbsent: () => 1,
+    );
+  }
+
+  void _finishReplacementOperation(String cacheKey) {
+    final pending = _pendingReplacementOperations[cacheKey];
+    if (pending == null || pending <= 1) {
+      _pendingReplacementOperations.remove(cacheKey);
+    } else {
+      _pendingReplacementOperations[cacheKey] = pending - 1;
+    }
+    _cleanupGenerationState(cacheKey);
+  }
+
+  void _finishImageRequest(String cacheKey) {
+    final pending = _pendingImageRequests[cacheKey];
+    if (pending == null || pending <= 1) {
+      _pendingImageRequests.remove(cacheKey);
+    } else {
+      _pendingImageRequests[cacheKey] = pending - 1;
+    }
+    _cleanupGenerationState(cacheKey);
+  }
+
+  void _cleanupGenerationState(String cacheKey) {
+    if (_pendingImageRequests.containsKey(cacheKey) ||
+        _pendingReplacementOperations.containsKey(cacheKey) ||
+        _writeQueues.containsKey(cacheKey)) {
+      return;
+    }
+    _imageContentVersions.remove(cacheKey);
+    _nextReplacementVersions.remove(cacheKey);
+    _committedReplacementVersions.remove(cacheKey);
+  }
 
   @override
   int cacheIdFor(String id) => fastHash(_cacheKey(id));
@@ -448,8 +507,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
     await ready;
     if (_disposed) return null;
     final cacheKey = _cacheKey(id);
+    final contentVersion = _contentVersion(cacheKey);
     final activeRequest = _activeRequests[cacheKey];
-    if (activeRequest != null) {
+    if (activeRequest != null &&
+        activeRequest.contentVersion == contentVersion) {
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
@@ -473,6 +534,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           fallback: bytes,
           imageUrl: getSuppliedImageUrl?.call(id),
           retainedImage: retainedImage,
+          contentVersion: contentVersion,
         );
       }
 
@@ -485,6 +547,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           keepAlive,
           imageUrl: suppliedUrl,
           retainedImage: retainedImage,
+          contentVersion: contentVersion,
         );
       }
     }
@@ -494,6 +557,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       keepAlive,
       imageUrl: getSuppliedImageUrl?.call(id),
       retainedImage: retainedImage,
+      contentVersion: contentVersion,
     );
   }
 
@@ -506,8 +570,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
     await ready;
     if (_disposed) return null;
     final cacheKey = _cacheKey(id);
+    final contentVersion = _contentVersion(cacheKey);
     final activeRequest = _activeRequests[cacheKey];
-    if (activeRequest != null) {
+    if (activeRequest != null &&
+        activeRequest.contentVersion == contentVersion) {
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
@@ -539,6 +605,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       effectiveKeepAlive,
       fallback: fallback,
       imageUrl: url,
+      contentVersion: contentVersion,
     );
   }
 
@@ -548,10 +615,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
     Uint8List? fallback,
     String? imageUrl,
     ImageEntity? retainedImage,
+    required int contentVersion,
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
-    if (activeRequest != null) {
+    if (activeRequest != null &&
+        activeRequest.contentVersion == contentVersion) {
       activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
       final image = await activeRequest.future;
       if (activeRequest.keepAlive) await _promoteKeepAlive(id);
@@ -560,6 +629,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
     final requestState = _ActiveImageRequest(
       keepAlive,
+      contentVersion: contentVersion,
       retainedImage: retainedImage,
     );
     final request = _fetchAndCacheImage(
@@ -567,6 +637,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
       requestState,
       fallback: fallback,
       imageUrl: imageUrl,
+    );
+    _pendingImageRequests.update(
+      cacheKey,
+      (count) => count + 1,
+      ifAbsent: () => 1,
     );
     requestState.future = request;
     _activeRequests[cacheKey] = requestState;
@@ -577,6 +652,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       if (identical(_activeRequests[cacheKey], requestState)) {
         _activeRequests.remove(cacheKey);
       }
+      _finishImageRequest(cacheKey);
     }
   }
 
@@ -591,6 +667,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
         id,
         imageUrl,
         requestState.initialKeepAlive,
+        requestState.contentVersion,
       );
       if (_disposed) return null;
       if (image != null) return image;
@@ -603,21 +680,25 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String id,
     String imageUrl,
     bool keepAlive,
+    int contentVersion,
   ) async {
     try {
       final response = await _httpGet(Uri.parse(imageUrl))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) return null;
-        return await _saveAndPrecacheImage(id, response.bodyBytes, keepAlive);
+        return await _saveAndPrecacheImage(
+          id,
+          response.bodyBytes,
+          keepAlive,
+          contentVersion: contentVersion,
+        );
       }
       debugPrint(
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
       );
-    } catch (error) {
-      debugPrint(
-        'Network exception fetching image $id from supplied URL: $error',
-      );
+    } catch (_) {
+      debugPrint('Network exception fetching image $id from supplied URL.');
     }
     return null;
   }
@@ -635,6 +716,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
             id,
             Uint8List(0),
             requestState.initialKeepAlive,
+            contentVersion: requestState.contentVersion,
             retainedImage: requestState.retainedImage,
           );
         }
@@ -650,6 +732,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
               id,
               Uint8List(0),
               requestState.initialKeepAlive,
+              contentVersion: requestState.contentVersion,
               retainedImage: requestState.retainedImage,
             );
           }
@@ -659,6 +742,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           id,
           response.bodyBytes,
           requestState.initialKeepAlive,
+          contentVersion: requestState.contentVersion,
           retainedImage: requestState.retainedImage,
         );
       }
@@ -668,13 +752,14 @@ class ImageRepository extends CacheImpl<ImageEntity>
           id,
           Uint8List(0),
           requestState.initialKeepAlive,
+          contentVersion: requestState.contentVersion,
           retainedImage: requestState.retainedImage,
         );
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return _disposed ? null : fallback;
-    } catch (error) {
-      debugPrint('Network exception fetching image $id: $error');
+    } catch (_) {
+      debugPrint('Network exception fetching image $id.');
       return _disposed ? null : fallback;
     }
   }
@@ -688,19 +773,52 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
-    final response = await _httpGet(Uri.parse(url))
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'Failed to override image. Status: ${response.statusCode}',
+    await ready;
+    if (_disposed) return Uint8List(0);
+    final cacheKey = _cacheKey(id);
+    final replacementVersion = _issueReplacementVersion(cacheKey);
+    try {
+      final http.Response response;
+      try {
+        response = await _httpGet(Uri.parse(url))
+            .timeout(const Duration(seconds: 15));
+      } catch (_) {
+        // The exception can include the full presigned URI. Some callers do
+        // not await this cache refresh, so only propagate a sanitized error.
+        throw Exception('Failed to override image.');
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'Failed to override image. Status: ${response.statusCode}',
+        );
+      }
+      return await _saveAndPrecacheImage(
+        id,
+        response.bodyBytes,
+        keepAlive,
+        replacementVersion: replacementVersion,
       );
+    } finally {
+      _finishReplacementOperation(cacheKey);
     }
-    return _saveAndPrecacheImage(id, response.bodyBytes, keepAlive);
   }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {
-    await _saveAndPrecacheImage(id, image, keepAlive);
+    await ready;
+    if (_disposed) return;
+    final cacheKey = _cacheKey(id);
+    final replacementVersion = _issueReplacementVersion(cacheKey);
+    try {
+      await _saveAndPrecacheImage(
+        id,
+        image,
+        keepAlive,
+        replacementVersion: replacementVersion,
+      );
+    } finally {
+      _finishReplacementOperation(cacheKey);
+    }
   }
 
   // --- ACCESS TRACKING AND PRUNING ---
@@ -725,14 +843,25 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String id,
     Uint8List bytes,
     bool keepAlive, {
+    int? contentVersion,
+    int? replacementVersion,
     ImageEntity? retainedImage,
   }) {
     final cacheKey = _cacheKey(id);
+    assert((contentVersion == null) != (replacementVersion == null));
     return _enqueueWrite(cacheKey, () async {
       // A request can outlive logout or an account switch. Return the
       // downloaded bytes to its caller, but never let an old session repopulate
       // the shared byte/database cache after the session has changed.
       if (_disposed || (isSessionCurrent != null && !isSessionCurrent!())) {
+        return;
+      }
+      if (contentVersion != null &&
+          contentVersion != _contentVersion(cacheKey)) {
+        return;
+      }
+      if (replacementVersion != null &&
+          replacementVersion < (_committedReplacementVersions[cacheKey] ?? 0)) {
         return;
       }
       var effectiveKeepAlive = keepAlive;
@@ -764,6 +893,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
           lastAccessedAt: DateTime.now(),
         ),
       );
+      if (replacementVersion != null) {
+        _committedReplacementVersions[cacheKey] = replacementVersion;
+        _imageContentVersions[cacheKey] = _contentVersion(cacheKey) + 1;
+      }
     }).then((_) => _disposed ? Uint8List(0) : bytes);
   }
 

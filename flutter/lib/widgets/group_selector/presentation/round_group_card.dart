@@ -1,10 +1,8 @@
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:transparent_image/transparent_image.dart';
 
 class RoundGroupCard extends ConsumerStatefulWidget {
   const RoundGroupCard({super.key});
@@ -38,10 +36,9 @@ class _RoundGroupCardState extends ConsumerState<RoundGroupCard> {
                             color: isActive ? color : Colors.transparent,),
                       ),
                     ),
-                    RoundImage(
-                      size: baseHeight / 2,
-                      defaultPlaceholderImage: kTransparentImage,
-                      imageCallback: AsyncData(ref.watch(groupProfilePictureByIdProvider(groupId)).value),
+                    SmallProfilePicture.group(
+                      groupId: groupId,
+                      radius: baseHeight / 2 - 3,
                       child: ClipOval(
                         child: Container(
                           height: baseHeight,

@@ -2,21 +2,26 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
+import 'package:buff_lisa/widgets/report_issue/report_issue_submission.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ReportIssuePage extends ConsumerStatefulWidget {
-
   final String? userId;
   final String? groupId;
   final String? pinId;
   final List<String> issueTypes;
 
-  const ReportIssuePage({super.key, this.userId, this.groupId, this.pinId, required this.issueTypes});
+  const ReportIssuePage({
+    super.key,
+    this.userId,
+    this.groupId,
+    this.pinId,
+    required this.issueTypes,
+  });
 
   @override
   ConsumerState<ReportIssuePage> createState() => _ReportIssuePageState();
-
 }
 
 class _ReportIssuePageState extends ConsumerState<ReportIssuePage> {
@@ -30,7 +35,6 @@ class _ReportIssuePageState extends ConsumerState<ReportIssuePage> {
     _selectedIssueType = widget.issueTypes.first;
     super.initState();
   }
-
 
   String? _validateMessage(String? value) {
     if (value == null || value.isEmpty) {
@@ -47,7 +51,17 @@ class _ReportIssuePageState extends ConsumerState<ReportIssuePage> {
       setState(() {
         sending = true;
       });
-      final result = await ref.read(authServiceProvider.notifier).report("userId: ${widget.userId}, groupId: ${widget.groupId}, pinId: ${widget.pinId}, issueType: $_selectedIssueType", _messageController.text);
+      final submission = ReportIssueSubmission(
+        reporterUserId: ref.read(userIdProvider),
+        userId: widget.userId,
+        groupId: widget.groupId,
+        pinId: widget.pinId,
+        issueType: _selectedIssueType ?? '',
+        message: _messageController.text,
+      );
+      final result = await ref
+          .read(authServiceProvider.notifier)
+          .reportDto(submission.toReportDto());
       if (result != null) {
         CustomErrorSnackBar.message(message: result);
       } else if (mounted) {
@@ -62,9 +76,7 @@ class _ReportIssuePageState extends ConsumerState<ReportIssuePage> {
   @override
   Widget build(BuildContext context) {
     return CustomCloseKeyboardScaffold(
-      appBar: AppBar(
-        title: const Text('Report Issue'),
-      ),
+      appBar: AppBar(title: const Text('Report Issue')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -110,7 +122,6 @@ class _ReportIssuePageState extends ConsumerState<ReportIssuePage> {
 
                 // Submit Button
                 SubmitButton(onPressed: _submitReport, icon: Icons.send),
-
               ],
             ),
           ),

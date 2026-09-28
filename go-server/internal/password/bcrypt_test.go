@@ -22,6 +22,20 @@ func TestHashAndVerify(t *testing.T) {
 	}
 }
 
+func TestHashAndVerifySupportsContractMaximumPassword(t *testing.T) {
+	plain := strings.Repeat("L", 256)
+	h, err := Hash(plain)
+	if err != nil {
+		t.Fatalf("hash maximum password: %v", err)
+	}
+	if !Verify(h, plain) {
+		t.Fatal("maximum contract password should verify")
+	}
+	if Verify(h, plain+"!") {
+		t.Fatal("different maximum password should not verify")
+	}
+}
+
 func TestHashUsesTaggedBcryptFormat(t *testing.T) {
 	h, err := Hash("secret123")
 	if err != nil {

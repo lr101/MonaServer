@@ -23,6 +23,8 @@ type UpdateGroupDto struct {
 	GroupAdmin *string `json:"groupAdmin,omitempty"`
 
 	Link *string `json:"link,omitempty"`
+
+	PinStyle *string `json:"pinStyle,omitempty"`
 }
 
 // AssertUpdateGroupDtoRequired checks if the required fields are not zero-ed

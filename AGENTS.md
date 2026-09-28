@@ -8,7 +8,7 @@ The main repository areas are:
 
 - `go-server/`: Go module, server source, tests, generators, and container image.
 - `api/`: API contract. `api/openapi.yaml` is the bundled specification consumed by the Go generators.
-- `docker-compose.dev.yml`: local Go server, PostGIS, and RustFS stack.
+- `compose.yaml`: Traefik-ready deployment of the combined app image, PostGIS, and RustFS.
 - `mise.toml`: pinned local Go version and common build tasks.
 
 Nested guides are conditional references: consult `api/AGENTS.md` when a

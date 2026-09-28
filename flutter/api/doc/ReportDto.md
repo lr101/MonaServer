@@ -8,10 +8,10 @@ import 'package:openapi/api.dart';
 ## Properties
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**userId** | **String** |  | 
-**report** | **String** |  | 
-**message** | **String** |  | 
+**userId** | **String** |  |
+**report** | **String** |  |
+**message** | **String** |  |
+**targetId** | **String** |  | [optional]
+**targetKind** | **String** |  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
-
-

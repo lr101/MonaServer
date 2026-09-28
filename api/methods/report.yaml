@@ -5,6 +5,14 @@ post:
   security:
     - token: [ ]
   summary: Report content
+  parameters:
+    - description: Optional client-generated key; replaying it with a different report returns 409.
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema:
+        maxLength: 255
+        type: string
   requestBody:
     required: true
     content:
@@ -12,8 +20,12 @@ post:
         schema:
           $ref: '../schemas/reportDto.yaml'
   responses:
-    '201':
+    '200':
       description: Report submitted successfully
+    '409':
+      description: The idempotency key conflicts with a previously submitted report.
+    '429':
+      description: Shared report submission rate limit exceeded.
     '400':
       description: User not found
     '503':

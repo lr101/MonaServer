@@ -14,5 +14,7 @@ properties:
       - groupPinImage
       - user
       - pinLikes
+      - userProgression
+      - groupProgression
   id:
     $ref: '../parameters/id.yaml'

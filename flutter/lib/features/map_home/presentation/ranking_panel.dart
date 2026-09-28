@@ -1,9 +1,8 @@
 import 'package:buff_lisa/data/repository/geo_json_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_ranking_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/user_ranking_tile.dart';
 import 'package:flutter/material.dart';
@@ -264,11 +263,10 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        RoundImage(imageCallback: item is GroupRankingDtoInner 
-            ? ref.watch(groupProfilePictureSmallByIdProvider(id))
-            : ref.watch(getUserProfileSmallProvider(id)),
-          size: 12,
-        ),
+        if (item is GroupRankingDtoInner)
+          SmallProfilePicture.group(groupId: id, radius: 9)
+        else
+          SmallProfilePicture.user(userId: id, radius: 9),
         const SizedBox(width: 6),
         Text(
           "#$rank of ${length ?? 0}",

@@ -4,20 +4,42 @@
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetUserXPByIDs :many
+SELECT id, xp
+FROM users
+WHERE is_deleted = FALSE
+  AND id = ANY(sqlc.arg('ids')::uuid[]);
 
 -- name: GetUserByUsername :one
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE username = $1 AND is_deleted = FALSE;
 
 -- name: GetUsernameByID :one
 SELECT username FROM users WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetUserByEmail :one
+SELECT id, username, email, password, xp, description, profile_picture_exists,
+       email_confirmed, failed_login_attempts, firebase_token,
+       code, code_expiration, reset_password_url, reset_password_expiration,
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
+FROM users
+WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
+ORDER BY id
+LIMIT 1;
 
 -- name: CreateUser :one
 INSERT INTO users (
@@ -37,13 +59,14 @@ UPDATE users SET failed_login_attempts = 0 WHERE id = $1;
 UPDATE users SET is_deleted = TRUE WHERE id = $1;
 
 -- name: ListAdminGroupIDs :many
-SELECT id FROM groups WHERE admin_id = $1;
+SELECT id FROM groups WHERE admin_id = $1 ORDER BY id;
 
 -- name: ListPinIDsRemovedWithUser :many
 SELECT p.id
 FROM pins p
 JOIN groups g ON g.id = p.group_id
-WHERE p.creator_id = $1 OR g.admin_id = $1;
+WHERE p.creator_id = $1 OR g.admin_id = $1
+ORDER BY p.id;
 
 -- name: HardDeleteUser :exec
 WITH cleared AS (
@@ -86,6 +109,9 @@ UPDATE users SET profile_picture_exists = $2, update_date = NOW() WHERE id = $1;
 
 -- name: SetUserSelectedBatch :exec
 UPDATE users SET selected_batch = $2, update_date = NOW() WHERE id = $1;
+
+-- name: SetUserSelectedBatchColor :exec
+UPDATE users SET selected_batch_color = $2, update_date = NOW() WHERE id = $1;
 
 -- name: GetUserByIDAndCode :one
 SELECT id FROM users

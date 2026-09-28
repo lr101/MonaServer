@@ -2,7 +2,7 @@
 
 Go backend for the **Stick-It** API. It preserves the established endpoints,
 PostgreSQL/PostGIS schema, password hashes, refresh tokens, and object-store key
-layout.
+layout. Existing Spring access tokens require refresh or login after cutover.
 
 ## Requirements
 
@@ -27,8 +27,6 @@ podman run -d --name mona-db -e POSTGRES_USER=mona -e POSTGRES_PASSWORD=mona \
 # configure + run
 cd go-server
 export DATABASE_URL="postgres://mona:mona@localhost:5432/mona?sslmode=disable"
-export JWT_SECRET="change-me"
-export TOKEN_ADMIN_USERNAME="root"   # account whose username grants ADMIN role
 export PORT=8080
 go run ./cmd/server
 ```
@@ -46,69 +44,119 @@ foreground RustFS when Docker or Podman is unavailable, see
 
 ## Configuration (environment variables)
 
+The server generates a fresh access JWT signing key on every process start.
+Existing access tokens then fail verification; database-backed refresh tokens
+remain valid and can issue a new access token. Run a single API process per
+deployment when using this process-local key.
+Administrator access comes from database admin membership. The old
+`TOKEN_ADMIN_USERNAME` setting is unused and can be removed from existing env
+files.
+
 | Variable | Default | Notes |
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | `postgres://user:pw@host:5432/db?sslmode=disable` |
-| `JWT_SECRET` | — | HS256 signing key |
 | `TOKEN_ACCESS_EXPIRY` | `15m` | Go duration string |
 | `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
-| `TOKEN_ADMIN_USERNAME` | — | Username whose JWTs are granted the `ADMIN` role |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
-| `APP_URL` / `APP_REDIRECT_URL` | — | Public URL; used in email links |
+| `WEB_HOST` | — | Public hostname; canonical domain for email links and the API root redirect |
+| `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and own-session revoke routes; restricted recovery completion remains unavailable |
+| `EMAIL_LOGIN_HMAC_KEY`, `EMAIL_LOGIN_HMAC_KEY_ID` | — | At least 32 bytes and stable ID for public request quotas; required when email login is enabled |
+| `EMAIL_DELIVERY_KEY`, `EMAIL_DELIVERY_KEY_ID` | — | 32-byte AES key and stable ID for durable email payloads; required when email login is enabled |
+| `EMAIL_LOGIN_CALLBACK_URL` | — | Flutter web callback URL such as `https://app.example/#/email-login/callback`; required when email login is enabled. The root Compose deployment derives it from `WEB_HOST`; standalone deployments must set it explicitly. |
+| `WEB_ADMIN_API` | `true` | Enables the browser-admin session and migrated v2/v3 admin routes; `false` returns the unavailable response for the complete admin surface |
+| `ADMIN_TOTP_ENCRYPTION_KEY`, `ADMIN_TOTP_ENCRYPTION_KEY_ID` | — / `admin-totp-v1` | Key material and key ID for encrypted admin TOTP enrollment secrets |
+| `ADMIN_SESSION_HMAC_KEY`, `ADMIN_SESSION_HMAC_KEY_ID` | — / `admin-quota-v1` | Required key material and key ID for admin login-failure and report submission quotas |
+| `ADMIN_BOOTSTRAP_USERNAME`, `ADMIN_BOOTSTRAP_PASSWORD`, `ADMIN_BOOTSTRAP_TOTP_SECRET` | — | Optional first-launch admin account. Set all three together; startup creates the account and MFA membership only if no admin has ever been enrolled |
+| `TRUSTED_PROXY_CIDRS` | — | Proxies allowed to supply `X-Forwarded-For` or `X-Real-IP`; direct peers remain authoritative |
+| `ADMIN_SESSION_IDLE_TTL` / `ADMIN_SESSION_ABSOLUTE_TTL` | `30m` / `8h` | Browser session idle and absolute expiry |
+| `ADMIN_CHALLENGE_TTL` | `5m` | Password challenge lifetime |
+| `ADMIN_PREAUTH_TTL` | `10m` | Pre-authentication browser envelope lifetime |
+| `ADMIN_LOGIN_FAILURE_LIMIT` / `ADMIN_LOGIN_IP_LIMIT` / `ADMIN_LOGIN_GLOBAL_LIMIT` | `5` / `100` / `1000` | Shared account, IP, and global admin proof-failure quotas |
 | `RUSTFS_ENDPOINT` | — | Internal S3 endpoint, e.g. `rustfs:9000` |
 | `RUSTFS_EXTERNAL_ENDPOINT` | same as `RUSTFS_ENDPOINT` | Host rewritten into presigned URLs returned to clients |
 | `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | — | credentials |
 | `RUSTFS_BUCKET` | `monaserver` | bucket name |
-| `RUSTFS_USE_SSL` | `false` | |
+| `RUSTFS_USE_SSL` | `false` | TLS for the internal S3 client |
+| `RUSTFS_EXTERNAL_USE_SSL` | same as `RUSTFS_USE_SSL` | TLS scheme for externally returned presigned URLs, e.g. when Traefik terminates HTTPS |
 | `RUSTFS_URL_EXPIRY` | `60m` | presigned URL TTL |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | — | STARTTLS on port 587, SSL on 465, plain otherwise |
 | `FIREBASE_CONFIG_PATH` | — | Path to service-account JSON; if missing, FCM sends are no-ops |
-| `ACHIEVEMENT_MONA_GROUP_ID` | — | Group used by the legacy Mona achievement |
-| `ACHIEVEMENT_CREATED_BEFORE` | — | RFC3339 cutoff used by the legacy Mona achievement |
 
-### Docker Compose configuration
+### One-time Spring/Flyway database handoff
 
-Create an ignored `.env.dev` file for `docker-compose.dev.yml`. A current
-configuration looks like this:
+The application runs every pending embedded migration before listening for
+requests. A fresh database needs no manual setup. For an existing Spring
+database, stop application writes and make and verify an off-host PostgreSQL
+backup before starting the Go container.
 
-```dotenv
-POSTGRES_USER=monaserver
-POSTGRES_PASSWORD=<database-password>
-POSTGRES_DB=monaserver
-DATABASE_URL=postgres://monaserver:URL_ENCODED_PASSWORD@db:5432/monaserver?sslmode=disable
+Confirm that Flyway versions `1.0.0` through `1.0.21` all succeeded, that no
+failed Flyway migration exists, that there are no other Flyway versions, and
+that `schema_migrations` does not already exist:
 
-JWT_SECRET=<strong-random-secret>
-TOKEN_ACCESS_EXPIRY=15m
-TOKEN_REFRESH_EXPIRY=8760h
-TOKEN_ADMIN_USERNAME=admin
-APP_MAX_LOGIN_ATTEMPTS=10
+```sql
+SELECT installed_rank, version, description, success
+FROM flyway_schema_history
+ORDER BY installed_rank;
 
-APP_URL=https://api.example.com
-APP_REDIRECT_URL=https://example.com
+SELECT version, description
+FROM flyway_schema_history
+WHERE NOT success;
 
-RUSTFS_ENDPOINT=rustfs:9000
-RUSTFS_EXTERNAL_ENDPOINT=storage.example.com:9000
-RUSTFS_ACCESS_KEY=<application-access-key>
-RUSTFS_SECRET_KEY=<application-secret-key>
-RUSTFS_BUCKET=<bucket-name>
-RUSTFS_USE_SSL=false
-RUSTFS_URL_EXPIRY=60m
+WITH expected(version) AS (
+    SELECT '1.0.' || generate_series(0, 21)
+)
+SELECT expected.version AS missing_successful_version
+FROM expected
+LEFT JOIN flyway_schema_history AS history
+    ON history.version = expected.version AND history.success
+WHERE history.version IS NULL;
 
-MAIL_HOST=
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM=
-FIREBASE_CONFIG_PATH=
+WITH expected(version) AS (
+    SELECT '1.0.' || generate_series(0, 21)
+)
+SELECT history.version AS unexpected_version, history.description, history.success
+FROM flyway_schema_history AS history
+LEFT JOIN expected USING (version)
+WHERE expected.version IS NULL
+ORDER BY history.installed_rank;
 
-ACHIEVEMENT_MONA_GROUP_ID=d9631336-5c32-4f64-83a7-7a4fcdae4dd6
-ACHIEVEMENT_CREATED_BEFORE=2023-12-10T02:43:44.402768+00:00
+SELECT version, description
+FROM flyway_schema_history
+WHERE success
+ORDER BY installed_rank DESC
+LIMIT 1;
+
+SELECT to_regclass(current_schema() || '.schema_migrations');
 ```
 
-`RUSTFS_ENDPOINT` is the address used by the server. The external endpoint is
-written into presigned URLs returned to clients. Both use `host:port` without
-a URL scheme. Set `RUSTFS_USE_SSL=true` only when both endpoints use TLS.
+The missing-version and unexpected-version queries must both return no rows,
+the failed-migration query above must return no rows, and the newest-successful
+query must return version `1.0.21` (the member primary-key migration). Only
+then, hand ownership to `golang-migrate` in one transaction:
+
+```sql
+BEGIN;
+CREATE TABLE schema_migrations (
+    version bigint NOT NULL PRIMARY KEY,
+    dirty boolean NOT NULL
+);
+INSERT INTO schema_migrations (version, dirty) VALUES (22, false);
+COMMIT;
+TABLE schema_migrations;
+```
+
+The result must contain exactly `(22, false)`. The Go server then applies
+migration 23 and later migrations normally. If `schema_migrations` already
+exists or the Flyway history is incomplete or dirty, stop and investigate
+rather than inserting or changing a version row. Never seed version 22 on a
+fresh database.
+
+For Compose deployment, see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md).
+The root `.env` supplies runtime settings to the app container. Set the admin
+keys there and keep them stable. Set all three `ADMIN_BOOTSTRAP_*` values
+together for first enrollment, then remove them after the admin account is
+created.
 
 ## API
 
@@ -136,8 +184,13 @@ Endpoint authentication and role requirements are:
 |---|---|
 | `/api/v2/public/*` | none (signup, login, refresh) |
 | `/api/v2/*` | JWT + `USER` role |
-| `/api/v2/admin/*` | JWT + `ADMIN` role (username == `TOKEN_ADMIN_USERNAME`) |
+| `/api/v2/admin/*` | Browser-admin session cookie + CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
+| `/api/v3/admin/*` | Browser-admin session cookie + CSRF, capability, and MFA at login; unavailable when `WEB_ADMIN_API=false` |
 | `/api/v3/sync` | JWT + `USER` role |
+
+Admin endpoints reflect any request origin and allow credentialed CORS. Their
+Secure session cookie uses `SameSite=None` so browsers send it cross-site. Keep
+the admin listener restricted to a trusted network or private ingress.
 
 Fine-grained guards cover group administrators, group members, and pin creators.
 

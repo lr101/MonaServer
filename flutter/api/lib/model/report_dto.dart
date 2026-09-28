@@ -16,6 +16,8 @@ class ReportDto {
     required this.userId,
     required this.report,
     required this.message,
+    this.targetId,
+    this.targetKind,
   });
 
   String userId;
@@ -24,27 +26,45 @@ class ReportDto {
 
   String message;
 
+  String? targetId;
+
+  String? targetKind;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is ReportDto &&
     other.userId == userId &&
     other.report == report &&
-    other.message == message;
+    other.message == message &&
+    other.targetId == targetId &&
+    other.targetKind == targetKind;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (userId.hashCode) +
     (report.hashCode) +
-    (message.hashCode);
+    (message.hashCode) +
+    (targetId == null ? 0 : targetId!.hashCode) +
+    (targetKind == null ? 0 : targetKind!.hashCode);
 
   @override
-  String toString() => 'ReportDto[userId=$userId, report=$report, message=$message]';
+  String toString() => 'ReportDto[userId=$userId, report=$report, message=$message, targetId=$targetId, targetKind=$targetKind]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'userId'] = this.userId;
       json[r'report'] = this.report;
       json[r'message'] = this.message;
+    if (this.targetId != null) {
+      json[r'targetId'] = this.targetId;
+    } else {
+      json[r'targetId'] = null;
+    }
+    if (this.targetKind != null) {
+      json[r'targetKind'] = this.targetKind;
+    } else {
+      json[r'targetKind'] = null;
+    }
     return json;
   }
 
@@ -70,6 +90,8 @@ class ReportDto {
         userId: mapValueOfType<String>(json, r'userId')!,
         report: mapValueOfType<String>(json, r'report')!,
         message: mapValueOfType<String>(json, r'message')!,
+        targetId: mapValueOfType<String>(json, r'targetId'),
+        targetKind: mapValueOfType<String>(json, r'targetKind'),
       );
     }
     return null;

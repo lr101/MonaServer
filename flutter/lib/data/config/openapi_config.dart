@@ -99,7 +99,11 @@ class AccessTokenManager {
           _lastRefreshAt = _now();
         } on ApiException catch (error, stackTrace) {
           _lifetime.checkOpen();
-          if (error.code == 401 || error.code == 403) {
+          // The v2 refresh endpoint uses 400 for missing, expired, revoked,
+          // and mismatched refresh credentials.
+          if ((error.code == 400 && error.innerException == null) ||
+              error.code == 401 ||
+              error.code == 403) {
             await _rejectCredentials();
           }
           Error.throwWithStackTrace(error, stackTrace);
@@ -241,6 +245,21 @@ class OpenApiClientResources {
     apiClient.client.close();
   }
 }
+
+/// Public auth uses a distinct unauthenticated client so requesting a link
+/// cannot refresh or otherwise alter an existing consumer session.
+final publicAuthApiProvider = Provider<PublicAuthApi>((ref) {
+  final client = ApiClient(
+    basePath: ref.watch(globalDataServiceProvider.select((data) => data.host)),
+  );
+  ref.onDispose(client.client.close);
+  return PublicAuthApi(client);
+});
+
+/// Session-auth calls use the established authenticated OpenAPI stack.
+final sessionAuthApiProvider = Provider<SessionAuthApi>(
+  (ref) => SessionAuthApi(ref.watch(openApiConfigProvider)),
+);
 
 http.Client createRetryingAuthClient({
   required http.Client inner,
@@ -484,6 +503,10 @@ PinsApi pinApi(Ref ref) => PinsApi(ref.watch(openApiConfigProvider));
 
 @Riverpod(keepAlive: true)
 GroupsApi groupApi(Ref ref) => GroupsApi(ref.watch(openApiConfigProvider));
+
+final groupPinDesignsApiProvider = Provider<GroupPinDesignsApi>(
+  (ref) => GroupPinDesignsApi(ref.watch(openApiConfigProvider)),
+);
 
 @Riverpod(keepAlive: true)
 UsersApi userApi(Ref ref) => UsersApi(ref.watch(openApiConfigProvider));

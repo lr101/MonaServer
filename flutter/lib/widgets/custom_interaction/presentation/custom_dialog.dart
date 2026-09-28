@@ -24,20 +24,18 @@ class CustomDialog extends StatelessWidget {
     return dialog(
       platform,
       Text(title),
-      child == null
-          ? null
-          : Material(
-              color: Colors.transparent,
-              child: child,
-            ),
+      child == null ? null : Material(color: Colors.transparent, child: child),
       <Widget>[
         TextButton(
           onPressed: () => context.pop(),
           child: text1 != null ? Text(text1!) : const SizedBox.shrink(),
         ),
         TextButton(
-          onPressed: () {
+          onPressed: () async {
+            final dialogRoute = ModalRoute.of(context);
             context.pop();
+            // Let the dialog finish closing before the action changes routes.
+            if (dialogRoute != null) await dialogRoute.completed;
             onPressed();
           },
           child: Text(text2),
@@ -46,7 +44,12 @@ class CustomDialog extends StatelessWidget {
     );
   }
 
-  Widget dialog(TargetPlatform platform, Widget title, Widget? content, List<Widget> actions) {
+  Widget dialog(
+    TargetPlatform platform,
+    Widget title,
+    Widget? content,
+    List<Widget> actions,
+  ) {
     if (platform == TargetPlatform.iOS) {
       return CupertinoAlertDialog(
         title: title,
@@ -54,23 +57,27 @@ class CustomDialog extends StatelessWidget {
         actions: actions,
       );
     } else {
-      return AlertDialog(
-        title: title,
-        content: content,
-        actions: actions,
-      );
+      return AlertDialog(title: title, content: content, actions: actions);
     }
   }
 
-  static Future<void> show(BuildContext context, {String? cancelText, required String acceptText,
-      required String title, required VoidCallback onPressed, Widget? child,}) async {
+  static Future<void> show(
+    BuildContext context, {
+    String? cancelText,
+    required String acceptText,
+    required String title,
+    required VoidCallback onPressed,
+    Widget? child,
+  }) async {
     await showDialog(
-        context: context,
-        builder: (context) => CustomDialog(
-            title: title,
-            text1: cancelText,
-            text2: acceptText,
-            onPressed: onPressed,
-            child: child,),);
+      context: context,
+      builder: (context) => CustomDialog(
+        title: title,
+        text1: cancelText,
+        text2: acceptText,
+        onPressed: onPressed,
+        child: child,
+      ),
+    );
   }
 }

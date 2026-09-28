@@ -627,58 +627,82 @@ void main() {
   test(
     'a user refresh started before logout cannot use rebuilt repositories',
     () async {
-      final started = Completer<void>();
-      final oldResponse = Completer<http.Response>();
-      var first = true;
-      final f = await Fixture.create(
-        userClient: MockClient((_) async {
-          if (first) {
-            first = false;
-            started.complete();
-            return oldResponse.future;
+      await http.runWithClient(
+        () async {
+          final started = Completer<void>();
+          final oldResponse = Completer<http.Response>();
+          var first = true;
+          final f = await Fixture.create(
+            userClient: MockClient((_) async {
+              if (first) {
+                first = false;
+                started.complete();
+                return oldResponse.future;
+              }
+              return http.Response(
+                jsonEncode(
+                  UserInfoDto(userId: 'alice', username: 'Current').toJson(),
+                ),
+                200,
+              );
+            }),
+          );
+          final subscription = f.container.listen(
+            userServiceProvider('alice'),
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          await started.future;
+          await f.global.logout();
+          await f.global.updateData(
+            TokenResponseDto(
+              accessToken: 'access',
+              userId: 'bob',
+              refreshToken: 'bob-token',
+            ),
+            'Bob',
+          );
+          f.container.read(userServiceProvider('alice'));
+          final repo = f.container.read(userRepositoryProvider);
+          await repo
+              .watchById('alice')
+              .firstWhere((user) => user?.username == 'Current');
+          oldResponse.complete(
+            http.Response(
+              jsonEncode(
+                UserInfoDto(
+                  userId: 'alice',
+                  username: 'Old private profile',
+                ).toJson(),
+              ),
+              200,
+            ),
+          );
+          // Drain the response and its local database continuation.
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          expect((await repo.get('alice'))?.username, 'Current');
+        },
+        () => MockClient((request) async {
+          if (request.url.path.endsWith('/public/refresh')) {
+            return http.Response(
+              jsonEncode(
+                TokenResponseDto(
+                  accessToken: 'refreshed-access',
+                  userId: 'alice',
+                  refreshToken: 'alice-token',
+                ).toJson(),
+              ),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
           }
           return http.Response(
-            jsonEncode(
-              UserInfoDto(userId: 'alice', username: 'Current').toJson(),
-            ),
+            jsonEncode({'results': <Object>[]}),
             200,
+            headers: {'content-type': 'application/json'},
           );
         }),
       );
-      final subscription = f.container.listen(
-        userServiceProvider('alice'),
-        (_, _) {},
-      );
-      addTearDown(subscription.close);
-      await started.future;
-      await f.global.logout();
-      await f.global.updateData(
-        TokenResponseDto(
-          accessToken: 'access',
-          userId: 'bob',
-          refreshToken: 'bob-token',
-        ),
-        'Bob',
-      );
-      f.container.read(userServiceProvider('alice'));
-      final repo = f.container.read(userRepositoryProvider);
-      await repo
-          .watchById('alice')
-          .firstWhere((user) => user?.username == 'Current');
-      oldResponse.complete(
-        http.Response(
-          jsonEncode(
-            UserInfoDto(
-              userId: 'alice',
-              username: 'Old private profile',
-            ).toJson(),
-          ),
-          200,
-        ),
-      );
-      // Drain the response and its local database continuation.
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect((await repo.get('alice'))?.username, 'Current');
     },
   );
 

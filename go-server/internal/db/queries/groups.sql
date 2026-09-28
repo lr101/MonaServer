@@ -4,11 +4,42 @@
 INSERT INTO groups (id, name, description, link, visibility, admin_id, invite_url, creation_date, update_date)
 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW());
 
+-- name: AwardGroupXP :exec
+WITH award AS (
+    INSERT INTO group_xp_ledger (group_id, award_key, xp_awarded)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (group_id, award_key) DO NOTHING
+    RETURNING group_id, xp_awarded
+)
+UPDATE groups g
+SET group_xp = g.group_xp + award.xp_awarded
+FROM award
+WHERE g.id = award.group_id;
+
 -- name: GetGroupByID :one
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetGroupXP :one
+SELECT group_xp FROM groups WHERE id = $1 AND is_deleted = FALSE;
+
+-- name: GetGroupAvatarProgressionsByIDs :many
+SELECT g.id, g.group_xp, g.visibility,
+       EXISTS (
+           SELECT 1
+           FROM members m
+           WHERE m.group_id = g.id
+             AND m.user_id = sqlc.arg('viewer_id')
+             AND m.is_deleted = FALSE
+       ) AS is_member
+FROM groups g
+WHERE g.is_deleted = FALSE
+  AND g.id = ANY(sqlc.arg('ids')::uuid[]);
+
+-- name: LockGroupForDelete :one
+SELECT id FROM groups WHERE id = $1 FOR UPDATE;
 
 -- name: GroupExistsByName :one
 SELECT EXISTS (SELECT 1 FROM groups WHERE name = $1 AND is_deleted = FALSE);
@@ -25,6 +56,7 @@ SET name       = COALESCE(sqlc.narg('name'),       name),
     link       = COALESCE(sqlc.narg('link'),       link),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),
     admin_id   = COALESCE(sqlc.narg('admin_id'),   admin_id),
+    pin_style  = COALESCE(sqlc.narg('pin_style'),  pin_style),
     invite_url = CASE
                    WHEN sqlc.arg('clear_invite_url')::boolean THEN NULL
                    ELSE COALESCE(sqlc.narg('invite_url'), invite_url)
@@ -43,7 +75,7 @@ DELETE FROM groups WHERE id = $1;
 
 -- name: SearchGroups :many
 SELECT id, name, description, link, visibility, admin_id, invite_url,
-       creation_date, update_date
+       creation_date, update_date, pin_style
 FROM groups
 WHERE is_deleted = FALSE
   AND (cardinality(sqlc.arg('ids')::uuid[]) = 0 OR id = ANY(sqlc.arg('ids')::uuid[]))
@@ -56,7 +88,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: SearchGroupsInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 JOIN members m ON m.group_id = g.id
 WHERE g.is_deleted = FALSE AND m.user_id = sqlc.arg('user_id')
@@ -70,7 +102,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 
 -- name: SearchGroupsNotInUser :many
 SELECT g.id, g.name, g.description, g.link, g.visibility, g.admin_id, g.invite_url,
-       g.creation_date, g.update_date
+       g.creation_date, g.update_date, g.pin_style
 FROM groups g
 WHERE g.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = sqlc.arg('user_id'))
@@ -104,7 +136,7 @@ ORDER BY u.username;
 SELECT COUNT(*)::bigint FROM members WHERE group_id = $1;
 
 -- name: GetGroupRanking :many
-SELECT m.user_id, u.username,
+SELECT m.user_id, u.username, u.selected_batch_color,
        COUNT(pg.creator_id)::int AS points,
        ua.achievement_id
 FROM members m
@@ -113,8 +145,10 @@ LEFT JOIN (
 ) AS pg ON pg.creator_id = m.user_id
 JOIN users u ON u.id = m.user_id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
+    AND ua.claimed = TRUE
+    AND user_achievement_is_current(u.id, ua.achievement_id)
 WHERE m.group_id = $1
-GROUP BY m.user_id, u.username, ua.achievement_id
+GROUP BY m.user_id, u.username, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, m.user_id;
 
 -- name: IsMember :one

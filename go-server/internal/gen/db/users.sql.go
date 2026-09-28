@@ -136,6 +136,78 @@ func (q *Queries) GetUserByDeletionUrl(ctx context.Context, deletionUrl pgtype.T
 	return i, err
 }
 
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, username, email, password, xp, description, profile_picture_exists,
+       email_confirmed, failed_login_attempts, firebase_token,
+       code, code_expiration, reset_password_url, reset_password_expiration,
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
+FROM users
+WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
+ORDER BY id
+LIMIT 1
+`
+
+type GetUserByEmailRow struct {
+	ID                      pgtype.UUID        `json:"id"`
+	Username                pgtype.Text        `json:"username"`
+	Email                   pgtype.Text        `json:"email"`
+	Password                pgtype.Text        `json:"password"`
+	Xp                      int32              `json:"xp"`
+	Description             pgtype.Text        `json:"description"`
+	ProfilePictureExists    bool               `json:"profile_picture_exists"`
+	EmailConfirmed          bool               `json:"email_confirmed"`
+	FailedLoginAttempts     int32              `json:"failed_login_attempts"`
+	FirebaseToken           pgtype.Text        `json:"firebase_token"`
+	Code                    pgtype.Text        `json:"code"`
+	CodeExpiration          pgtype.Timestamptz `json:"code_expiration"`
+	ResetPasswordUrl        pgtype.Text        `json:"reset_password_url"`
+	ResetPasswordExpiration pgtype.Timestamptz `json:"reset_password_expiration"`
+	DeletionUrl             pgtype.Text        `json:"deletion_url"`
+	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
+	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
+	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
+	AuthGeneration          int64              `json:"auth_generation"`
+	SecurityState           string             `json:"security_state"`
+	PasswordDisabled        bool               `json:"password_disabled"`
+	PasswordResetRequired   bool               `json:"password_reset_required"`
+	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, btrim string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, btrim)
+	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+		&i.Xp,
+		&i.Description,
+		&i.ProfilePictureExists,
+		&i.EmailConfirmed,
+		&i.FailedLoginAttempts,
+		&i.FirebaseToken,
+		&i.Code,
+		&i.CodeExpiration,
+		&i.ResetPasswordUrl,
+		&i.ResetPasswordExpiration,
+		&i.DeletionUrl,
+		&i.EmailConfirmationUrl,
+		&i.LastUsernameUpdate,
+		&i.SelectedBatch,
+		&i.SelectedBatchColor,
+		&i.AuthGeneration,
+		&i.SecurityState,
+		&i.PasswordDisabled,
+		&i.PasswordResetRequired,
+		&i.CompromisedAt,
+	)
+	return i, err
+}
+
 const getUserByEmailConfirmationUrl = `-- name: GetUserByEmailConfirmationUrl :one
 SELECT id, username, email
 FROM users
@@ -160,7 +232,9 @@ const getUserByID = `-- name: GetUserByID :one
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -184,6 +258,12 @@ type GetUserByIDRow struct {
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
 	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
+	AuthGeneration          int64              `json:"auth_generation"`
+	SecurityState           string             `json:"security_state"`
+	PasswordDisabled        bool               `json:"password_disabled"`
+	PasswordResetRequired   bool               `json:"password_reset_required"`
+	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
 }
 
 // User and refresh-token queries.
@@ -209,6 +289,12 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 		&i.EmailConfirmationUrl,
 		&i.LastUsernameUpdate,
 		&i.SelectedBatch,
+		&i.SelectedBatchColor,
+		&i.AuthGeneration,
+		&i.SecurityState,
+		&i.PasswordDisabled,
+		&i.PasswordResetRequired,
+		&i.CompromisedAt,
 	)
 	return i, err
 }
@@ -259,7 +345,9 @@ const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
-       deletion_url, email_confirmation_url, last_username_update, selected_batch
+       deletion_url, email_confirmation_url, last_username_update, selected_batch,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
+       compromised_at
 FROM users
 WHERE username = $1 AND is_deleted = FALSE
 `
@@ -283,6 +371,12 @@ type GetUserByUsernameRow struct {
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
 	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
+	AuthGeneration          int64              `json:"auth_generation"`
+	SecurityState           string             `json:"security_state"`
+	PasswordDisabled        bool               `json:"password_disabled"`
+	PasswordResetRequired   bool               `json:"password_reset_required"`
+	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
 }
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (GetUserByUsernameRow, error) {
@@ -307,8 +401,46 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 		&i.EmailConfirmationUrl,
 		&i.LastUsernameUpdate,
 		&i.SelectedBatch,
+		&i.SelectedBatchColor,
+		&i.AuthGeneration,
+		&i.SecurityState,
+		&i.PasswordDisabled,
+		&i.PasswordResetRequired,
+		&i.CompromisedAt,
 	)
 	return i, err
+}
+
+const getUserXPByIDs = `-- name: GetUserXPByIDs :many
+SELECT id, xp
+FROM users
+WHERE is_deleted = FALSE
+  AND id = ANY($1::uuid[])
+`
+
+type GetUserXPByIDsRow struct {
+	ID pgtype.UUID `json:"id"`
+	Xp int32       `json:"xp"`
+}
+
+func (q *Queries) GetUserXPByIDs(ctx context.Context, ids []pgtype.UUID) ([]GetUserXPByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getUserXPByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserXPByIDsRow
+	for rows.Next() {
+		var i GetUserXPByIDsRow
+		if err := rows.Scan(&i.ID, &i.Xp); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUsernameByID = `-- name: GetUsernameByID :one
@@ -353,7 +485,7 @@ func (q *Queries) InvalidateUserTokens(ctx context.Context, userID pgtype.UUID) 
 }
 
 const listAdminGroupIDs = `-- name: ListAdminGroupIDs :many
-SELECT id FROM groups WHERE admin_id = $1
+SELECT id FROM groups WHERE admin_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListAdminGroupIDs(ctx context.Context, adminID pgtype.UUID) ([]pgtype.UUID, error) {
@@ -405,6 +537,7 @@ SELECT p.id
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.creator_id = $1 OR g.admin_id = $1
+ORDER BY p.id
 `
 
 func (q *Queries) ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error) {
@@ -512,6 +645,20 @@ type SetUserSelectedBatchParams struct {
 
 func (q *Queries) SetUserSelectedBatch(ctx context.Context, arg SetUserSelectedBatchParams) error {
 	_, err := q.db.Exec(ctx, setUserSelectedBatch, arg.ID, arg.SelectedBatch)
+	return err
+}
+
+const setUserSelectedBatchColor = `-- name: SetUserSelectedBatchColor :exec
+UPDATE users SET selected_batch_color = $2, update_date = NOW() WHERE id = $1
+`
+
+type SetUserSelectedBatchColorParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	SelectedBatchColor string      `json:"selected_batch_color"`
+}
+
+func (q *Queries) SetUserSelectedBatchColor(ctx context.Context, arg SetUserSelectedBatchColorParams) error {
+	_, err := q.db.Exec(ctx, setUserSelectedBatchColor, arg.ID, arg.SelectedBatchColor)
 	return err
 }
 

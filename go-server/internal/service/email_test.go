@@ -7,12 +7,11 @@ import (
 	"github.com/lrprojects/monaserver/internal/config"
 )
 
-// TestViewLinkNoDoubleDomain guards against the regression where the email link
-// was wrapped as "RedirectURL/recover?c=RedirectURL/public/recover/token",
-// duplicating the domain. The link must be a single, direct URL.
+// TestViewLinkNoDoubleDomain verifies email links are built directly from the
+// canonical public web host, without a wrapper or duplicate domain.
 func TestViewLinkNoDoubleDomain(t *testing.T) {
 	cases := []struct {
-		redirect, route, token, want string
+		host, route, token, want string
 	}{
 		{"https://app.example.com", "/public/recover/", "abc123",
 			"https://app.example.com/public/recover/abc123"},
@@ -22,10 +21,10 @@ func TestViewLinkNoDoubleDomain(t *testing.T) {
 			"https://app.example.com/public/email-confirmation/xyz"},
 	}
 	for _, c := range cases {
-		e := NewEmail(&config.Config{RedirectURL: c.redirect}, nil)
+		e := NewEmail(&config.Config{WebHost: c.host}, nil)
 		got := e.viewLink(c.route, c.token)
 		if got != c.want {
-			t.Errorf("viewLink(%q, %q) = %q, want %q", c.redirect, c.token, got, c.want)
+			t.Errorf("viewLink(%q, %q) = %q, want %q", c.host, c.token, got, c.want)
 		}
 		if strings.Contains(got, "?c=") {
 			t.Errorf("link must not contain the ?c= wrapper: %q", got)
@@ -36,13 +35,26 @@ func TestViewLinkNoDoubleDomain(t *testing.T) {
 	}
 }
 
-func TestViewLinkUsesPublicAppURL(t *testing.T) {
-	e := NewEmail(&config.Config{
-		AppURL:      "https://api.example.com",
-		RedirectURL: "stickit://app",
-	}, nil)
+func TestViewLinkIgnoresLegacyAppURLs(t *testing.T) {
+	t.Setenv("WEB_HOST", "")
+	t.Setenv("APP_URL", "https://legacy-api.example.com")
+	t.Setenv("APP_REDIRECT_URL", "https://legacy-redirect.example.com")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	e := NewEmail(cfg, nil)
 	got := e.viewLink("/public/recover/", "abc123")
-	want := "https://api.example.com/public/recover/abc123"
+	want := "/public/recover/abc123"
+	if got != want {
+		t.Fatalf("view link = %q, want %q", got, want)
+	}
+}
+
+func TestViewLinkAddsHTTPSForBareWebHost(t *testing.T) {
+	e := NewEmail(&config.Config{WebHost: "app.example.com/"}, nil)
+	got := e.viewLink("/public/recover/", "abc123")
+	want := "https://app.example.com/public/recover/abc123"
 	if got != want {
 		t.Fatalf("view link = %q, want %q", got, want)
 	}
@@ -70,17 +82,17 @@ func TestActionEmailRendersDirectLink(t *testing.T) {
 	}
 }
 
-// TestActionEmailDangerAccent checks destructive emails use the red accent and
-// can surface an optional code.
-func TestActionEmailDangerAccent(t *testing.T) {
+// TestActionEmailUsesAppOrange checks destructive emails use the shared app
+// accent and can surface an optional code.
+func TestActionEmailUsesAppOrange(t *testing.T) {
 	html := actionEmail(actionEmailData{
 		Title: "Delete", Heading: "Delete your account", Name: "bob",
 		Intro: "intro", Button: "Delete account",
 		URL:  "https://app.example.com/public/delete-account/tok",
-		Code: "123456", Danger: true, Note: "note",
+		Code: "123456", Note: "note",
 	})
-	if !strings.Contains(html, "#dc2626") {
-		t.Fatal("destructive email should use the red accent colour")
+	if !strings.Contains(html, brandOrange) {
+		t.Fatal("destructive email should use the app orange accent colour")
 	}
 	if !strings.Contains(html, "123456") {
 		t.Fatal("email should display the provided code")

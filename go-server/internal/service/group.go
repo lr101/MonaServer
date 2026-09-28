@@ -55,7 +55,17 @@ type GroupDTO struct {
 	ProfileImage *string        `json:"profileImage,omitempty"`
 	ProfileSmall *string        `json:"profileImageSmall,omitempty"`
 	PinImage     *string        `json:"pinImage,omitempty"`
+	PinStyle     string         `json:"pinStyle"`
 	BestSeason   *db.SeasonItem `json:"bestSeason,omitempty"`
+}
+
+type GroupProgression struct {
+	GroupID        uuid.UUID
+	TotalXP        int32
+	CurrentLevel   int32
+	CurrentLevelXP int32
+	NextLevelXP    int32
+	Visibility     int
 }
 
 func (s *Group) toDTO(ctx context.Context, g *db.Group, withImages bool) (*GroupDTO, error) {
@@ -66,6 +76,7 @@ func (s *Group) toDTO(ctx context.Context, g *db.Group, withImages bool) (*Group
 	out := &GroupDTO{
 		ID: g.ID, Name: g.Name, Description: g.Description, Link: g.Link,
 		Visibility: g.Visibility, AdminID: g.AdminID, InviteUrl: g.InviteUrl,
+		PinStyle:     g.PinStyle,
 		CreationDate: g.CreationDate, UpdateDate: g.UpdateDate, Members: count,
 	}
 	out.BestSeason, err = s.q.GetBestGroupSeason(ctx, g.ID)
@@ -116,15 +127,11 @@ func (s *Group) Create(ctx context.Context, in CreateGroupInput) (*GroupDTO, err
 		return nil, err
 	}
 	gid := uuid.New()
-	var invite *string
-	if in.Visibility == 1 {
-		code := randomAlpha(6)
-		invite = &code
-	}
+	code := randomAlpha(6)
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
 		if _, err := q.CreateGroup(ctx, db.Group{
 			ID: gid, Name: in.Name, Description: in.Description, Link: in.Link,
-			Visibility: in.Visibility, AdminID: in.GroupAdmin, InviteUrl: invite,
+			Visibility: in.Visibility, AdminID: in.GroupAdmin, InviteUrl: &code,
 		}); err != nil {
 			return err
 		}
@@ -239,6 +246,43 @@ func (s *Group) GetDTO(ctx context.Context, id uuid.UUID) (*GroupDTO, error) {
 	return s.toDTO(ctx, g, true)
 }
 
+func (s *Group) Progression(ctx context.Context, id uuid.UUID) (*GroupProgression, error) {
+	g, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	totalXP, err := s.q.GetGroupXP(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	level := ProgressForGroupXP(int64(totalXP))
+	return &GroupProgression{
+		GroupID: id, TotalXP: totalXP, CurrentLevel: level.Level,
+		CurrentLevelXP: level.CurrentLevel, NextLevelXP: level.NextLevel,
+		Visibility: g.Visibility,
+	}, nil
+}
+
+type GroupAvatarProgression struct {
+	Progression AvatarLevelProgression
+	Visible     bool
+}
+
+func (s *Group) AvatarProgressions(ctx context.Context, viewerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]GroupAvatarProgression, error) {
+	records, err := s.q.GetGroupAvatarProgressionsByIDs(ctx, viewerID, ids)
+	if err != nil {
+		return nil, err
+	}
+	progressions := make(map[uuid.UUID]GroupAvatarProgression, len(records))
+	for _, record := range records {
+		progressions[record.GroupID] = GroupAvatarProgression{
+			Progression: AvatarProgressionForGroupXP(record.TotalXP),
+			Visible:     record.Visibility == 0 || record.IsMember,
+		}
+	}
+	return progressions, nil
+}
+
 func (s *Group) GetAdminUsername(ctx context.Context, id uuid.UUID) (string, error) {
 	return s.q.GetGroupAdminUsername(ctx, id)
 }
@@ -251,6 +295,7 @@ type UpdateGroupInput struct {
 	Visibility   *int       `json:"visibility,omitempty"`
 	GroupAdmin   *uuid.UUID `json:"groupAdmin,omitempty"`
 	ProfileImage []byte     `json:"profileImage,omitempty"`
+	PinStyle     *string    `json:"pinStyle,omitempty"`
 }
 
 func (s *Group) Update(ctx context.Context, id uuid.UUID, in UpdateGroupInput) (*GroupDTO, error) {
@@ -267,18 +312,31 @@ func (s *Group) Update(ctx context.Context, id uuid.UUID, in UpdateGroupInput) (
 			return nil, apperrors.ErrNotFound
 		}
 	}
+	if in.PinStyle != nil {
+		if !db.ValidGroupPinStyle(*in.PinStyle) {
+			return nil, apperrors.ErrBadRequest
+		}
+		unlocked, err := s.q.IsGroupPinStyleUnlocked(ctx, id, *in.PinStyle)
+		if err != nil {
+			return nil, err
+		}
+		if !unlocked {
+			return nil, apperrors.ErrForbidden
+		}
+	}
 	images, err := prepareGroupImages(in.ProfileImage)
 	if err != nil {
 		return nil, err
 	}
-	u := db.GroupUpdate{Name: in.Name, Description: in.Description, Link: in.Link, AdminID: in.GroupAdmin}
+	u := db.GroupUpdate{
+		Name: in.Name, Description: in.Description, Link: in.Link,
+		AdminID: in.GroupAdmin, PinStyle: in.PinStyle,
+	}
 	if in.Visibility != nil {
 		u.Visibility = in.Visibility
 		if *in.Visibility == 1 {
 			code := randomAlpha(6)
 			u.InviteUrl = &code
-		} else {
-			u.ClearInviteURL = true
 		}
 	}
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
@@ -301,15 +359,45 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	pinIDs, err := s.q.ListGroupPinIDs(ctx, id)
-	if err != nil {
-		return err
-	}
+	var objectKeys []string
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
+		locked, err := q.LockGroupForDelete(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return apperrors.ErrNotFound
+		}
+		pinIDs, err := q.ListGroupPinIDs(ctx, id)
+		if err != nil {
+			return err
+		}
+		objectKeys = make([]string, 0, len(pinIDs)*2+3)
 		for _, pinID := range pinIDs {
+			pinLocked, err := q.LockPinForDelete(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			if !pinLocked {
+				continue
+			}
+			keys, err := q.ListPinPhotoKeys(ctx, pinID)
+			if err != nil {
+				return err
+			}
+			objectKeys = append(objectKeys, PinKey(pinID))
+			objectKeys = append(objectKeys, keys...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}
+		}
+		objectKeys = append(objectKeys,
+			GroupPinKey(id),
+			GroupProfileKey(id, false),
+			GroupProfileKey(id, true),
+		)
+		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
+			return err
 		}
 		if err := q.LogDeletion(ctx, db.DeletedEntityGroup, id); err != nil {
 			return err
@@ -318,14 +406,7 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 	}); err != nil {
 		return err
 	}
-	if s.obj != nil {
-		for _, pinID := range pinIDs {
-			_ = s.obj.Remove(ctx, PinKey(pinID))
-		}
-		_ = s.obj.Remove(ctx, GroupPinKey(id))
-		_ = s.obj.Remove(ctx, GroupProfileKey(id, false))
-		_ = s.obj.Remove(ctx, GroupProfileKey(id, true))
-	}
+	tryObjectCleanup(ctx, s.q, s.obj)
 	return nil
 }
 

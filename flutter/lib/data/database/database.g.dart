@@ -180,6 +180,18 @@ class $GroupEntitiesTable extends GroupEntities
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pinStyleMeta = const VerificationMeta(
+    'pinStyle',
+  );
+  @override
+  late final GeneratedColumn<String> pinStyle = GeneratedColumn<String>(
+    'pin_style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('classic'),
+  );
   @override
   late final GeneratedColumnWithTypeConverter<SeasonEntity?, String>
   bestSeason = GeneratedColumn<String>(
@@ -206,6 +218,7 @@ class $GroupEntitiesTable extends GroupEntities
     isActivated,
     lastUpdated,
     link,
+    pinStyle,
     bestSeason,
   ];
   @override
@@ -335,6 +348,12 @@ class $GroupEntitiesTable extends GroupEntities
         link.isAcceptableOrUnknown(data['link']!, _linkMeta),
       );
     }
+    if (data.containsKey('pin_style')) {
+      context.handle(
+        _pinStyleMeta,
+        pinStyle.isAcceptableOrUnknown(data['pin_style']!, _pinStyleMeta),
+      );
+    }
     return context;
   }
 
@@ -404,6 +423,10 @@ class $GroupEntitiesTable extends GroupEntities
         DriftSqlType.string,
         data['${effectivePrefix}link'],
       ),
+      pinStyle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pin_style'],
+      )!,
       bestSeason: $GroupEntitiesTable.$converterbestSeasonn.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.string,
@@ -440,6 +463,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
   final bool isActivated;
   final DateTime? lastUpdated;
   final String? link;
+  final String pinStyle;
   final SeasonEntity? bestSeason;
   const GroupDb({
     required this.isarId,
@@ -457,6 +481,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     required this.isActivated,
     this.lastUpdated,
     this.link,
+    required this.pinStyle,
     this.bestSeason,
   });
   @override
@@ -487,6 +512,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     if (!nullToAbsent || link != null) {
       map['link'] = Variable<String>(link);
     }
+    map['pin_style'] = Variable<String>(pinStyle);
     if (!nullToAbsent || bestSeason != null) {
       map['best_season'] = Variable<String>(
         $GroupEntitiesTable.$converterbestSeasonn.toSql(bestSeason),
@@ -520,6 +546,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ? const Value.absent()
           : Value(lastUpdated),
       link: link == null && nullToAbsent ? const Value.absent() : Value(link),
+      pinStyle: Value(pinStyle),
       bestSeason: bestSeason == null && nullToAbsent
           ? const Value.absent()
           : Value(bestSeason),
@@ -547,6 +574,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
       isActivated: serializer.fromJson<bool>(json['isActivated']),
       lastUpdated: serializer.fromJson<DateTime?>(json['lastUpdated']),
       link: serializer.fromJson<String?>(json['link']),
+      pinStyle: serializer.fromJson<String>(json['pinStyle']),
       bestSeason: serializer.fromJson<SeasonEntity?>(json['bestSeason']),
     );
   }
@@ -569,6 +597,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
       'isActivated': serializer.toJson<bool>(isActivated),
       'lastUpdated': serializer.toJson<DateTime?>(lastUpdated),
       'link': serializer.toJson<String?>(link),
+      'pinStyle': serializer.toJson<String>(pinStyle),
       'bestSeason': serializer.toJson<SeasonEntity?>(bestSeason),
     };
   }
@@ -589,6 +618,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     bool? isActivated,
     Value<DateTime?> lastUpdated = const Value.absent(),
     Value<String?> link = const Value.absent(),
+    String? pinStyle,
     Value<SeasonEntity?> bestSeason = const Value.absent(),
   }) => GroupDb(
     isarId: isarId ?? this.isarId,
@@ -606,6 +636,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     isActivated: isActivated ?? this.isActivated,
     lastUpdated: lastUpdated.present ? lastUpdated.value : this.lastUpdated,
     link: link.present ? link.value : this.link,
+    pinStyle: pinStyle ?? this.pinStyle,
     bestSeason: bestSeason.present ? bestSeason.value : this.bestSeason,
   );
   GroupDb copyWithCompanion(GroupEntitiesCompanion data) {
@@ -639,6 +670,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ? data.lastUpdated.value
           : this.lastUpdated,
       link: data.link.present ? data.link.value : this.link,
+      pinStyle: data.pinStyle.present ? data.pinStyle.value : this.pinStyle,
       bestSeason: data.bestSeason.present
           ? data.bestSeason.value
           : this.bestSeason,
@@ -663,6 +695,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           ..write('isActivated: $isActivated, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('link: $link, ')
+          ..write('pinStyle: $pinStyle, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
         .toString();
@@ -685,6 +718,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
     isActivated,
     lastUpdated,
     link,
+    pinStyle,
     bestSeason,
   );
   @override
@@ -706,6 +740,7 @@ class GroupDb extends DataClass implements Insertable<GroupDb> {
           other.isActivated == this.isActivated &&
           other.lastUpdated == this.lastUpdated &&
           other.link == this.link &&
+          other.pinStyle == this.pinStyle &&
           other.bestSeason == this.bestSeason);
 }
 
@@ -725,6 +760,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
   final Value<bool> isActivated;
   final Value<DateTime?> lastUpdated;
   final Value<String?> link;
+  final Value<String> pinStyle;
   final Value<SeasonEntity?> bestSeason;
   const GroupEntitiesCompanion({
     this.isarId = const Value.absent(),
@@ -742,6 +778,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     this.isActivated = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.link = const Value.absent(),
+    this.pinStyle = const Value.absent(),
     this.bestSeason = const Value.absent(),
   });
   GroupEntitiesCompanion.insert({
@@ -760,6 +797,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     this.isActivated = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.link = const Value.absent(),
+    this.pinStyle = const Value.absent(),
     this.bestSeason = const Value.absent(),
   }) : ttl = Value(ttl),
        groupId = Value(groupId),
@@ -782,6 +820,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     Expression<bool>? isActivated,
     Expression<DateTime>? lastUpdated,
     Expression<String>? link,
+    Expression<String>? pinStyle,
     Expression<String>? bestSeason,
   }) {
     return RawValuesInsertable({
@@ -800,6 +839,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
       if (isActivated != null) 'is_activated': isActivated,
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (link != null) 'link': link,
+      if (pinStyle != null) 'pin_style': pinStyle,
       if (bestSeason != null) 'best_season': bestSeason,
     });
   }
@@ -820,6 +860,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     Value<bool>? isActivated,
     Value<DateTime?>? lastUpdated,
     Value<String?>? link,
+    Value<String>? pinStyle,
     Value<SeasonEntity?>? bestSeason,
   }) {
     return GroupEntitiesCompanion(
@@ -838,6 +879,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
       isActivated: isActivated ?? this.isActivated,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       link: link ?? this.link,
+      pinStyle: pinStyle ?? this.pinStyle,
       bestSeason: bestSeason ?? this.bestSeason,
     );
   }
@@ -890,6 +932,9 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
     if (link.present) {
       map['link'] = Variable<String>(link.value);
     }
+    if (pinStyle.present) {
+      map['pin_style'] = Variable<String>(pinStyle.value);
+    }
     if (bestSeason.present) {
       map['best_season'] = Variable<String>(
         $GroupEntitiesTable.$converterbestSeasonn.toSql(bestSeason.value),
@@ -916,6 +961,7 @@ class GroupEntitiesCompanion extends UpdateCompanion<GroupDb> {
           ..write('isActivated: $isActivated, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('link: $link, ')
+          ..write('pinStyle: $pinStyle, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
         .toString();
@@ -2102,6 +2148,15 @@ class $PinEntitiesTable extends PinEntities
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -2150,6 +2205,19 @@ class $PinEntitiesTable extends PinEntities
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isGoneMeta = const VerificationMeta('isGone');
+  @override
+  late final GeneratedColumn<bool> isGone = GeneratedColumn<bool>(
+    'is_gone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_gone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _lastSyncedMeta = const VerificationMeta(
     'lastSynced',
   );
@@ -2172,10 +2240,12 @@ class $PinEntitiesTable extends PinEntities
     latitude,
     longitude,
     creationDate,
+    title,
     description,
     creator,
     groupId,
     isHidden,
+    isGone,
     lastSynced,
   ];
   @override
@@ -2260,6 +2330,12 @@ class $PinEntitiesTable extends PinEntities
     } else if (isInserting) {
       context.missing(_creationDateMeta);
     }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
     if (data.containsKey('description')) {
       context.handle(
         _descriptionMeta,
@@ -2289,6 +2365,12 @@ class $PinEntitiesTable extends PinEntities
       context.handle(
         _isHiddenMeta,
         isHidden.isAcceptableOrUnknown(data['is_hidden']!, _isHiddenMeta),
+      );
+    }
+    if (data.containsKey('is_gone')) {
+      context.handle(
+        _isGoneMeta,
+        isGone.isAcceptableOrUnknown(data['is_gone']!, _isGoneMeta),
       );
     }
     if (data.containsKey('last_synced')) {
@@ -2342,6 +2424,10 @@ class $PinEntitiesTable extends PinEntities
         DriftSqlType.dateTime,
         data['${effectivePrefix}creation_date'],
       )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -2357,6 +2443,10 @@ class $PinEntitiesTable extends PinEntities
       isHidden: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_hidden'],
+      )!,
+      isGone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_gone'],
       )!,
       lastSynced: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -2381,10 +2471,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
   final double latitude;
   final double longitude;
   final DateTime creationDate;
+  final String? title;
   final String? description;
   final String creator;
   final String groupId;
   final bool isHidden;
+  final bool isGone;
   final DateTime? lastSynced;
   const PinDb({
     required this.isarId,
@@ -2396,10 +2488,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     required this.latitude,
     required this.longitude,
     required this.creationDate,
+    this.title,
     this.description,
     required this.creator,
     required this.groupId,
     required this.isHidden,
+    required this.isGone,
     this.lastSynced,
   });
   @override
@@ -2414,12 +2508,16 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
     map['creation_date'] = Variable<DateTime>(creationDate);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
     map['creator'] = Variable<String>(creator);
     map['group_id'] = Variable<String>(groupId);
     map['is_hidden'] = Variable<bool>(isHidden);
+    map['is_gone'] = Variable<bool>(isGone);
     if (!nullToAbsent || lastSynced != null) {
       map['last_synced'] = Variable<DateTime>(lastSynced);
     }
@@ -2437,12 +2535,16 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       latitude: Value(latitude),
       longitude: Value(longitude),
       creationDate: Value(creationDate),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
       creator: Value(creator),
       groupId: Value(groupId),
       isHidden: Value(isHidden),
+      isGone: Value(isGone),
       lastSynced: lastSynced == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSynced),
@@ -2464,10 +2566,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
       creationDate: serializer.fromJson<DateTime>(json['creationDate']),
+      title: serializer.fromJson<String?>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
       creator: serializer.fromJson<String>(json['creator']),
       groupId: serializer.fromJson<String>(json['groupId']),
       isHidden: serializer.fromJson<bool>(json['isHidden']),
+      isGone: serializer.fromJson<bool>(json['isGone']),
       lastSynced: serializer.fromJson<DateTime?>(json['lastSynced']),
     );
   }
@@ -2484,10 +2588,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
       'creationDate': serializer.toJson<DateTime>(creationDate),
+      'title': serializer.toJson<String?>(title),
       'description': serializer.toJson<String?>(description),
       'creator': serializer.toJson<String>(creator),
       'groupId': serializer.toJson<String>(groupId),
       'isHidden': serializer.toJson<bool>(isHidden),
+      'isGone': serializer.toJson<bool>(isGone),
       'lastSynced': serializer.toJson<DateTime?>(lastSynced),
     };
   }
@@ -2502,10 +2608,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     double? latitude,
     double? longitude,
     DateTime? creationDate,
+    Value<String?> title = const Value.absent(),
     Value<String?> description = const Value.absent(),
     String? creator,
     String? groupId,
     bool? isHidden,
+    bool? isGone,
     Value<DateTime?> lastSynced = const Value.absent(),
   }) => PinDb(
     isarId: isarId ?? this.isarId,
@@ -2517,10 +2625,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
     creationDate: creationDate ?? this.creationDate,
+    title: title.present ? title.value : this.title,
     description: description.present ? description.value : this.description,
     creator: creator ?? this.creator,
     groupId: groupId ?? this.groupId,
     isHidden: isHidden ?? this.isHidden,
+    isGone: isGone ?? this.isGone,
     lastSynced: lastSynced.present ? lastSynced.value : this.lastSynced,
   );
   PinDb copyWithCompanion(PinEntitiesCompanion data) {
@@ -2538,12 +2648,14 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creationDate: data.creationDate.present
           ? data.creationDate.value
           : this.creationDate,
+      title: data.title.present ? data.title.value : this.title,
       description: data.description.present
           ? data.description.value
           : this.description,
       creator: data.creator.present ? data.creator.value : this.creator,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
+      isGone: data.isGone.present ? data.isGone.value : this.isGone,
       lastSynced: data.lastSynced.present
           ? data.lastSynced.value
           : this.lastSynced,
@@ -2562,10 +2674,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
+          ..write('isGone: $isGone, ')
           ..write('lastSynced: $lastSynced')
           ..write(')'))
         .toString();
@@ -2582,10 +2696,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     latitude,
     longitude,
     creationDate,
+    title,
     description,
     creator,
     groupId,
     isHidden,
+    isGone,
     lastSynced,
   );
   @override
@@ -2601,10 +2717,12 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
           other.creationDate == this.creationDate &&
+          other.title == this.title &&
           other.description == this.description &&
           other.creator == this.creator &&
           other.groupId == this.groupId &&
           other.isHidden == this.isHidden &&
+          other.isGone == this.isGone &&
           other.lastSynced == this.lastSynced);
 }
 
@@ -2618,10 +2736,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
   final Value<double> latitude;
   final Value<double> longitude;
   final Value<DateTime> creationDate;
+  final Value<String?> title;
   final Value<String?> description;
   final Value<String> creator;
   final Value<String> groupId;
   final Value<bool> isHidden;
+  final Value<bool> isGone;
   final Value<DateTime?> lastSynced;
   const PinEntitiesCompanion({
     this.isarId = const Value.absent(),
@@ -2633,10 +2753,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.creationDate = const Value.absent(),
+    this.title = const Value.absent(),
     this.description = const Value.absent(),
     this.creator = const Value.absent(),
     this.groupId = const Value.absent(),
     this.isHidden = const Value.absent(),
+    this.isGone = const Value.absent(),
     this.lastSynced = const Value.absent(),
   });
   PinEntitiesCompanion.insert({
@@ -2649,10 +2771,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     required double latitude,
     required double longitude,
     required DateTime creationDate,
+    this.title = const Value.absent(),
     this.description = const Value.absent(),
     required String creator,
     required String groupId,
     this.isHidden = const Value.absent(),
+    this.isGone = const Value.absent(),
     this.lastSynced = const Value.absent(),
   }) : ttl = Value(ttl),
        pinId = Value(pinId),
@@ -2671,10 +2795,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Expression<double>? latitude,
     Expression<double>? longitude,
     Expression<DateTime>? creationDate,
+    Expression<String>? title,
     Expression<String>? description,
     Expression<String>? creator,
     Expression<String>? groupId,
     Expression<bool>? isHidden,
+    Expression<bool>? isGone,
     Expression<DateTime>? lastSynced,
   }) {
     return RawValuesInsertable({
@@ -2687,10 +2813,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (creationDate != null) 'creation_date': creationDate,
+      if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (creator != null) 'creator': creator,
       if (groupId != null) 'group_id': groupId,
       if (isHidden != null) 'is_hidden': isHidden,
+      if (isGone != null) 'is_gone': isGone,
       if (lastSynced != null) 'last_synced': lastSynced,
     });
   }
@@ -2705,10 +2833,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Value<double>? latitude,
     Value<double>? longitude,
     Value<DateTime>? creationDate,
+    Value<String?>? title,
     Value<String?>? description,
     Value<String>? creator,
     Value<String>? groupId,
     Value<bool>? isHidden,
+    Value<bool>? isGone,
     Value<DateTime?>? lastSynced,
   }) {
     return PinEntitiesCompanion(
@@ -2721,10 +2851,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       creationDate: creationDate ?? this.creationDate,
+      title: title ?? this.title,
       description: description ?? this.description,
       creator: creator ?? this.creator,
       groupId: groupId ?? this.groupId,
       isHidden: isHidden ?? this.isHidden,
+      isGone: isGone ?? this.isGone,
       lastSynced: lastSynced ?? this.lastSynced,
     );
   }
@@ -2759,6 +2891,9 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     if (creationDate.present) {
       map['creation_date'] = Variable<DateTime>(creationDate.value);
     }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -2770,6 +2905,9 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     }
     if (isHidden.present) {
       map['is_hidden'] = Variable<bool>(isHidden.value);
+    }
+    if (isGone.present) {
+      map['is_gone'] = Variable<bool>(isGone.value);
     }
     if (lastSynced.present) {
       map['last_synced'] = Variable<DateTime>(lastSynced.value);
@@ -2789,10 +2927,12 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
           ..write('description: $description, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
+          ..write('isGone: $isGone, ')
           ..write('lastSynced: $lastSynced')
           ..write(')'))
         .toString();
@@ -3723,6 +3863,18 @@ class $UserEntitiesTable extends UserEntities
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _selectedBatchColorMeta =
+      const VerificationMeta('selectedBatchColor');
+  @override
+  late final GeneratedColumn<String> selectedBatchColor =
+      GeneratedColumn<String>(
+        'selected_batch_color',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('default'),
+      );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -3753,6 +3905,7 @@ class $UserEntitiesTable extends UserEntities
     userId,
     username,
     selectedBatch,
+    selectedBatchColor,
     description,
     bestSeason,
   ];
@@ -3828,6 +3981,15 @@ class $UserEntitiesTable extends UserEntities
         ),
       );
     }
+    if (data.containsKey('selected_batch_color')) {
+      context.handle(
+        _selectedBatchColorMeta,
+        selectedBatchColor.isAcceptableOrUnknown(
+          data['selected_batch_color']!,
+          _selectedBatchColorMeta,
+        ),
+      );
+    }
     if (data.containsKey('description')) {
       context.handle(
         _descriptionMeta,
@@ -3878,6 +4040,10 @@ class $UserEntitiesTable extends UserEntities
         DriftSqlType.int,
         data['${effectivePrefix}selected_batch'],
       ),
+      selectedBatchColor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_batch_color'],
+      )!,
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -3911,6 +4077,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
   final String userId;
   final String username;
   final int? selectedBatch;
+  final String selectedBatchColor;
   final String? description;
   final SeasonEntity? bestSeason;
   const UserDb({
@@ -3922,6 +4089,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     required this.userId,
     required this.username,
     this.selectedBatch,
+    required this.selectedBatchColor,
     this.description,
     this.bestSeason,
   });
@@ -3938,6 +4106,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     if (!nullToAbsent || selectedBatch != null) {
       map['selected_batch'] = Variable<int>(selectedBatch);
     }
+    map['selected_batch_color'] = Variable<String>(selectedBatchColor);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
@@ -3961,6 +4130,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       selectedBatch: selectedBatch == null && nullToAbsent
           ? const Value.absent()
           : Value(selectedBatch),
+      selectedBatchColor: Value(selectedBatchColor),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
@@ -3984,6 +4154,9 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       userId: serializer.fromJson<String>(json['userId']),
       username: serializer.fromJson<String>(json['username']),
       selectedBatch: serializer.fromJson<int?>(json['selectedBatch']),
+      selectedBatchColor: serializer.fromJson<String>(
+        json['selectedBatchColor'],
+      ),
       description: serializer.fromJson<String?>(json['description']),
       bestSeason: serializer.fromJson<SeasonEntity?>(json['bestSeason']),
     );
@@ -4000,6 +4173,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       'userId': serializer.toJson<String>(userId),
       'username': serializer.toJson<String>(username),
       'selectedBatch': serializer.toJson<int?>(selectedBatch),
+      'selectedBatchColor': serializer.toJson<String>(selectedBatchColor),
       'description': serializer.toJson<String?>(description),
       'bestSeason': serializer.toJson<SeasonEntity?>(bestSeason),
     };
@@ -4014,6 +4188,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     String? userId,
     String? username,
     Value<int?> selectedBatch = const Value.absent(),
+    String? selectedBatchColor,
     Value<String?> description = const Value.absent(),
     Value<SeasonEntity?> bestSeason = const Value.absent(),
   }) => UserDb(
@@ -4027,6 +4202,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     selectedBatch: selectedBatch.present
         ? selectedBatch.value
         : this.selectedBatch,
+    selectedBatchColor: selectedBatchColor ?? this.selectedBatchColor,
     description: description.present ? description.value : this.description,
     bestSeason: bestSeason.present ? bestSeason.value : this.bestSeason,
   );
@@ -4044,6 +4220,9 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       selectedBatch: data.selectedBatch.present
           ? data.selectedBatch.value
           : this.selectedBatch,
+      selectedBatchColor: data.selectedBatchColor.present
+          ? data.selectedBatchColor.value
+          : this.selectedBatchColor,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -4064,6 +4243,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
           ..write('userId: $userId, ')
           ..write('username: $username, ')
           ..write('selectedBatch: $selectedBatch, ')
+          ..write('selectedBatchColor: $selectedBatchColor, ')
           ..write('description: $description, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
@@ -4080,6 +4260,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     userId,
     username,
     selectedBatch,
+    selectedBatchColor,
     description,
     bestSeason,
   );
@@ -4095,6 +4276,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
           other.userId == this.userId &&
           other.username == this.username &&
           other.selectedBatch == this.selectedBatch &&
+          other.selectedBatchColor == this.selectedBatchColor &&
           other.description == this.description &&
           other.bestSeason == this.bestSeason);
 }
@@ -4108,6 +4290,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
   final Value<String> userId;
   final Value<String> username;
   final Value<int?> selectedBatch;
+  final Value<String> selectedBatchColor;
   final Value<String?> description;
   final Value<SeasonEntity?> bestSeason;
   const UserEntitiesCompanion({
@@ -4119,6 +4302,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     this.userId = const Value.absent(),
     this.username = const Value.absent(),
     this.selectedBatch = const Value.absent(),
+    this.selectedBatchColor = const Value.absent(),
     this.description = const Value.absent(),
     this.bestSeason = const Value.absent(),
   });
@@ -4131,6 +4315,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     required String userId,
     required String username,
     this.selectedBatch = const Value.absent(),
+    this.selectedBatchColor = const Value.absent(),
     this.description = const Value.absent(),
     this.bestSeason = const Value.absent(),
   }) : ttl = Value(ttl),
@@ -4145,6 +4330,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     Expression<String>? userId,
     Expression<String>? username,
     Expression<int>? selectedBatch,
+    Expression<String>? selectedBatchColor,
     Expression<String>? description,
     Expression<String>? bestSeason,
   }) {
@@ -4157,6 +4343,8 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
       if (userId != null) 'user_id': userId,
       if (username != null) 'username': username,
       if (selectedBatch != null) 'selected_batch': selectedBatch,
+      if (selectedBatchColor != null)
+        'selected_batch_color': selectedBatchColor,
       if (description != null) 'description': description,
       if (bestSeason != null) 'best_season': bestSeason,
     });
@@ -4171,6 +4359,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     Value<String>? userId,
     Value<String>? username,
     Value<int?>? selectedBatch,
+    Value<String>? selectedBatchColor,
     Value<String?>? description,
     Value<SeasonEntity?>? bestSeason,
   }) {
@@ -4183,6 +4372,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
       userId: userId ?? this.userId,
       username: username ?? this.username,
       selectedBatch: selectedBatch ?? this.selectedBatch,
+      selectedBatchColor: selectedBatchColor ?? this.selectedBatchColor,
       description: description ?? this.description,
       bestSeason: bestSeason ?? this.bestSeason,
     );
@@ -4215,6 +4405,9 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     if (selectedBatch.present) {
       map['selected_batch'] = Variable<int>(selectedBatch.value);
     }
+    if (selectedBatchColor.present) {
+      map['selected_batch_color'] = Variable<String>(selectedBatchColor.value);
+    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -4237,6 +4430,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
           ..write('userId: $userId, ')
           ..write('username: $username, ')
           ..write('selectedBatch: $selectedBatch, ')
+          ..write('selectedBatchColor: $selectedBatchColor, ')
           ..write('description: $description, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
@@ -5353,6 +5547,7 @@ typedef $$GroupEntitiesTableCreateCompanionBuilder =
       Value<bool> isActivated,
       Value<DateTime?> lastUpdated,
       Value<String?> link,
+      Value<String> pinStyle,
       Value<SeasonEntity?> bestSeason,
     });
 typedef $$GroupEntitiesTableUpdateCompanionBuilder =
@@ -5372,6 +5567,7 @@ typedef $$GroupEntitiesTableUpdateCompanionBuilder =
       Value<bool> isActivated,
       Value<DateTime?> lastUpdated,
       Value<String?> link,
+      Value<String> pinStyle,
       Value<SeasonEntity?> bestSeason,
     });
 
@@ -5456,6 +5652,11 @@ class $$GroupEntitiesTableFilterComposer
 
   ColumnFilters<String> get link => $composableBuilder(
     column: $table.link,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pinStyle => $composableBuilder(
+    column: $table.pinStyle,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5550,6 +5751,11 @@ class $$GroupEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get pinStyle => $composableBuilder(
+    column: $table.pinStyle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get bestSeason => $composableBuilder(
     column: $table.bestSeason,
     builder: (column) => ColumnOrderings(column),
@@ -5624,6 +5830,9 @@ class $$GroupEntitiesTableAnnotationComposer
   GeneratedColumn<String> get link =>
       $composableBuilder(column: $table.link, builder: (column) => column);
 
+  GeneratedColumn<String> get pinStyle =>
+      $composableBuilder(column: $table.pinStyle, builder: (column) => column);
+
   GeneratedColumnWithTypeConverter<SeasonEntity?, String> get bestSeason =>
       $composableBuilder(
         column: $table.bestSeason,
@@ -5677,6 +5886,7 @@ class $$GroupEntitiesTableTableManager
                 Value<bool> isActivated = const Value.absent(),
                 Value<DateTime?> lastUpdated = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String> pinStyle = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => GroupEntitiesCompanion(
                 isarId: isarId,
@@ -5694,6 +5904,7 @@ class $$GroupEntitiesTableTableManager
                 isActivated: isActivated,
                 lastUpdated: lastUpdated,
                 link: link,
+                pinStyle: pinStyle,
                 bestSeason: bestSeason,
               ),
           createCompanionCallback:
@@ -5713,6 +5924,7 @@ class $$GroupEntitiesTableTableManager
                 Value<bool> isActivated = const Value.absent(),
                 Value<DateTime?> lastUpdated = const Value.absent(),
                 Value<String?> link = const Value.absent(),
+                Value<String> pinStyle = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => GroupEntitiesCompanion.insert(
                 isarId: isarId,
@@ -5730,6 +5942,7 @@ class $$GroupEntitiesTableTableManager
                 isActivated: isActivated,
                 lastUpdated: lastUpdated,
                 link: link,
+                pinStyle: pinStyle,
                 bestSeason: bestSeason,
               ),
           withReferenceMapper: (p0) => p0
@@ -6302,10 +6515,12 @@ typedef $$PinEntitiesTableCreateCompanionBuilder =
       required double latitude,
       required double longitude,
       required DateTime creationDate,
+      Value<String?> title,
       Value<String?> description,
       required String creator,
       required String groupId,
       Value<bool> isHidden,
+      Value<bool> isGone,
       Value<DateTime?> lastSynced,
     });
 typedef $$PinEntitiesTableUpdateCompanionBuilder =
@@ -6319,10 +6534,12 @@ typedef $$PinEntitiesTableUpdateCompanionBuilder =
       Value<double> latitude,
       Value<double> longitude,
       Value<DateTime> creationDate,
+      Value<String?> title,
       Value<String?> description,
       Value<String> creator,
       Value<String> groupId,
       Value<bool> isHidden,
+      Value<bool> isGone,
       Value<DateTime?> lastSynced,
     });
 
@@ -6380,6 +6597,11 @@ class $$PinEntitiesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnFilters(column),
@@ -6397,6 +6619,11 @@ class $$PinEntitiesTableFilterComposer
 
   ColumnFilters<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isGone => $composableBuilder(
+    column: $table.isGone,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6460,6 +6687,11 @@ class $$PinEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -6477,6 +6709,11 @@ class $$PinEntitiesTableOrderingComposer
 
   ColumnOrderings<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isGone => $composableBuilder(
+    column: $table.isGone,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -6526,6 +6763,9 @@ class $$PinEntitiesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
   GeneratedColumn<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => column,
@@ -6539,6 +6779,9 @@ class $$PinEntitiesTableAnnotationComposer
 
   GeneratedColumn<bool> get isHidden =>
       $composableBuilder(column: $table.isHidden, builder: (column) => column);
+
+  GeneratedColumn<bool> get isGone =>
+      $composableBuilder(column: $table.isGone, builder: (column) => column);
 
   GeneratedColumn<DateTime> get lastSynced => $composableBuilder(
     column: $table.lastSynced,
@@ -6583,10 +6826,12 @@ class $$PinEntitiesTableTableManager
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
                 Value<DateTime> creationDate = const Value.absent(),
+                Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<String> creator = const Value.absent(),
                 Value<String> groupId = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
+                Value<bool> isGone = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
               }) => PinEntitiesCompanion(
                 isarId: isarId,
@@ -6598,10 +6843,12 @@ class $$PinEntitiesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 creationDate: creationDate,
+                title: title,
                 description: description,
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,
+                isGone: isGone,
                 lastSynced: lastSynced,
               ),
           createCompanionCallback:
@@ -6615,10 +6862,12 @@ class $$PinEntitiesTableTableManager
                 required double latitude,
                 required double longitude,
                 required DateTime creationDate,
+                Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 required String creator,
                 required String groupId,
                 Value<bool> isHidden = const Value.absent(),
+                Value<bool> isGone = const Value.absent(),
                 Value<DateTime?> lastSynced = const Value.absent(),
               }) => PinEntitiesCompanion.insert(
                 isarId: isarId,
@@ -6630,10 +6879,12 @@ class $$PinEntitiesTableTableManager
                 latitude: latitude,
                 longitude: longitude,
                 creationDate: creationDate,
+                title: title,
                 description: description,
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,
+                isGone: isGone,
                 lastSynced: lastSynced,
               ),
           withReferenceMapper: (p0) => p0
@@ -7049,6 +7300,7 @@ typedef $$UserEntitiesTableCreateCompanionBuilder =
       required String userId,
       required String username,
       Value<int?> selectedBatch,
+      Value<String> selectedBatchColor,
       Value<String?> description,
       Value<SeasonEntity?> bestSeason,
     });
@@ -7062,6 +7314,7 @@ typedef $$UserEntitiesTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> username,
       Value<int?> selectedBatch,
+      Value<String> selectedBatchColor,
       Value<String?> description,
       Value<SeasonEntity?> bestSeason,
     });
@@ -7112,6 +7365,11 @@ class $$UserEntitiesTableFilterComposer
 
   ColumnFilters<int> get selectedBatch => $composableBuilder(
     column: $table.selectedBatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7176,6 +7434,11 @@ class $$UserEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -7221,6 +7484,11 @@ class $$UserEntitiesTableAnnotationComposer
 
   GeneratedColumn<int> get selectedBatch => $composableBuilder(
     column: $table.selectedBatch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
     builder: (column) => column,
   );
 
@@ -7272,6 +7540,7 @@ class $$UserEntitiesTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> username = const Value.absent(),
                 Value<int?> selectedBatch = const Value.absent(),
+                Value<String> selectedBatchColor = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => UserEntitiesCompanion(
@@ -7283,6 +7552,7 @@ class $$UserEntitiesTableTableManager
                 userId: userId,
                 username: username,
                 selectedBatch: selectedBatch,
+                selectedBatchColor: selectedBatchColor,
                 description: description,
                 bestSeason: bestSeason,
               ),
@@ -7296,6 +7566,7 @@ class $$UserEntitiesTableTableManager
                 required String userId,
                 required String username,
                 Value<int?> selectedBatch = const Value.absent(),
+                Value<String> selectedBatchColor = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => UserEntitiesCompanion.insert(
@@ -7307,6 +7578,7 @@ class $$UserEntitiesTableTableManager
                 userId: userId,
                 username: username,
                 selectedBatch: selectedBatch,
+                selectedBatchColor: selectedBatchColor,
                 description: description,
                 bestSeason: bestSeason,
               ),

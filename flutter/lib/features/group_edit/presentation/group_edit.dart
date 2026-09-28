@@ -26,8 +26,9 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
     final groupDto = ref.watch(groupMetadataProvider(widget.groupid)).value;
     final global = ref.watch(globalDataServiceProvider);
     final adminId = ref.watch(groupEditServiceProvider);
-    if (groupDto == null)
+    if (groupDto == null) {
       return const Center(child: CircularProgressIndicator());
+    }
     return GroupEditTemplate(
       groupDto: groupDto,
       title: "Edit group ${groupDto.name}",
@@ -52,24 +53,26 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
         }
       },
       rowItems: [
-        const SizedBox(height: 5),
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.85,
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  "Group admin:",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.normal,
-                  ),
+                Text(
+                  'Administration',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
-                DropdownButton<String>(
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: adminId,
                   isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Group admin',
+                    border: OutlineInputBorder(),
+                  ),
                   items:
                       ref
                           .watch(memberServiceProvider(groupDto.groupId))
@@ -96,7 +99,6 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
                           .updateAdminId(value);
                     }
                   },
-                  value: adminId,
                 ),
               ],
             ),

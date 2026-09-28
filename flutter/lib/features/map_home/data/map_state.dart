@@ -1,7 +1,6 @@
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
-import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -121,10 +120,9 @@ class MapStates extends _$MapStates {
   @override
   MapState build() {
     return MapState(
-      markers: ref
-          .watch(activatedPinsWithoutLoadingProvider)
-          .map((e) => CustomMarkerWidget(pinDto: e))
-          .toList(),
+      markers: ref.watch(activatedPinsWithoutLoadingProvider).map((pin) {
+        return CustomMarkerWidget(pinDto: pin);
+      }).toList(),
     );
   }
 }
@@ -135,11 +133,6 @@ Stream<Position> currentLocation(Ref ref) async* {
   if (!session.isActive) return;
   final sharedPrefs = ref.watch(sharedPreferencesProvider);
   if (!await hasLocationPermission(GeolocatorLocationPermissionGateway())) {
-    if (!session.isActive) return;
-    CustomErrorSnackBar.message(
-      message: 'Some functions do not work without location permission',
-      type: CustomErrorSnackBarType.error,
-    );
     return;
   }
 
@@ -147,7 +140,7 @@ Stream<Position> currentLocation(Ref ref) async* {
   final positionStream = Geolocator.getPositionStream(
     locationSettings: const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 100,
+      distanceFilter: 25,
     ),
   );
   var first = true;

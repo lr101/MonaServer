@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,6 +32,45 @@ import (
 )
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+type memoryPinObjectStore struct {
+	objects map[string][]byte
+}
+
+func newMemoryPinObjectStore() *memoryPinObjectStore {
+	return &memoryPinObjectStore{objects: make(map[string][]byte)}
+}
+
+func (s *memoryPinObjectStore) Put(_ context.Context, key string, data []byte, _ string) error {
+	s.objects[key] = bytes.Clone(data)
+	return nil
+}
+
+func (s *memoryPinObjectStore) Remove(_ context.Context, key string) error {
+	delete(s.objects, key)
+	return nil
+}
+
+func (s *memoryPinObjectStore) PresignedGet(_ context.Context, key string) (string, error) {
+	if _, ok := s.objects[key]; !ok {
+		return "", nil
+	}
+	return "https://objects.test/" + key, nil
+}
+
+func TestNewReportServiceConfigRequiresHMACSecret(t *testing.T) {
+	if _, err := newReportServiceConfig(&config.Config{}); err == nil {
+		t.Fatal("report config accepted an empty HMAC secret")
+	}
+
+	reportConfig, err := newReportServiceConfig(&config.Config{AdminSessionHMACKey: "report-secret"})
+	if err != nil {
+		t.Fatalf("valid report config: %v", err)
+	}
+	if string(reportConfig.HMACKey) != "report-secret" {
+		t.Fatalf("report HMAC key = %q, want report-secret", reportConfig.HMACKey)
+	}
+}
 
 func testDSN(t *testing.T) string {
 	t.Helper()
@@ -110,6 +151,15 @@ func serveTestSMTPConnection(conn net.Conn) {
 }
 
 func buildTestServer(t *testing.T) *httptest.Server {
+	server, _ := buildTestServerWithQuery(t)
+	return server
+}
+
+func buildTestServerWithQuery(t *testing.T) (*httptest.Server, *db.Queries) {
+	return buildTestServerWithPinStore(t, nil)
+}
+
+func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) (*httptest.Server, *db.Queries) {
 	t.Helper()
 	dsn := testDSN(t)
 
@@ -130,29 +180,28 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	q := db.New(pool)
 	mailHost, mailPort := startTestSMTPServer(t)
 	cfg := &config.Config{
-		JWTSecret:          "test-secret",
 		AccessTokenExpiry:  time.Minute,
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
-		AdminUsername:      "admin",
+		WebAdminAPI:        true,
+		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
 		MailPort:           mailPort,
 		MailUsername:       "mail@test.example",
 		MailPassword:       "password",
 		MailFrom:           "mail@test.example",
 	}
-	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
+	tok := token.NewHelper("test-secret", cfg.AccessTokenExpiry)
 	mailSvc := service.NewEmail(cfg, nil)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
 	userSvc := service.NewUser(q, nil, tok, authSvc, mailSvc)
 	groupSvc := service.NewGroup(q, nil, userSvc)
-	pinSvc := service.NewPin(q, nil)
+	pinSvc := service.NewPin(q, pinStore)
 	memberSvc := service.NewMember(q, nil, groupSvc)
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
 	notifSvc := service.NewNotification(context.Background(), "")
-	achCfg := db.AchievementConfig{}
 
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
@@ -161,9 +210,16 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	reportServicer := handler.NewReportServicer(mailSvc, q)
+	adminAuth := service.NewAdminAuth(q, service.AdminAuthConfig{
+		EncryptionKey: []byte("0123456789abcdef0123456789abcdef"),
+		HMACKey:       []byte("server-test-admin-quota-key"),
+	})
+	reportServicer := handler.NewReportServicer(mailSvc, q, service.ReportServiceConfig{
+		HMACKey:   []byte("server-test-report-quota-key"),
+		HMACKeyID: "server-test-report-v1",
+	})
 	publicServicer := handler.NewPublicServicer()
-	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	authCtrl := genserver.NewAuthAPIController(authServicer)
@@ -179,6 +235,7 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
 	r := chi.NewRouter()
+	r.Use(middleware.TrustedRealIP(cfg.TrustedProxyCIDRs))
 	r.Use(chimw.Recoverer)
 
 	// Mirror the route wiring in main.go.
@@ -187,9 +244,9 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
-	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
+		r.Use(middleware.JWT(tok, authSvc))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		r.Use(redirectImageResponses)
 		r.Use(requireCompatibilityJSONFields)
@@ -201,17 +258,14 @@ func buildTestServer(t *testing.T) *httptest.Server {
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
-		registerRoutes(r, reportCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CaptureReportRequest), reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		registerRoutes(r, adminCtrl, alwaysTrue)
-	})
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
+	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
-	return httptest.NewServer(r)
+	return httptest.NewServer(r), q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -311,6 +365,10 @@ func TestFailedWeeklyNotificationClearsInvalidToken(t *testing.T) {
 }
 
 func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Response {
+	return c.doWithHeaders(t, method, path, body, nil)
+}
+
+func (c *apiClient) doWithHeaders(t *testing.T, method, path string, body any, headers map[string]string) *http.Response {
 	t.Helper()
 	var r io.Reader
 	if body != nil {
@@ -320,6 +378,9 @@ func (c *apiClient) do(t *testing.T, method, path string, body any) *http.Respon
 	req, _ := http.NewRequest(method, c.base+path, r)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	if c.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+c.bearer)
@@ -895,6 +956,31 @@ func TestEndpointGroups(t *testing.T) {
 		if g["name"] != "testgroup" {
 			t.Fatalf("name mismatch: %v", g["name"])
 		}
+		if inviteURL, ok := g["invite_url"].(string); !ok || inviteURL == "" {
+			t.Fatalf("public group invite_url = %v, want a non-empty code", g["invite_url"])
+		}
+	})
+
+	t.Run("GET /api/v2/groups/{id}/progression requires auth and reports group level", func(t *testing.T) {
+		path := "/api/v2/groups/" + gid + "/progression"
+		unauthorized := anon.do(t, "GET", path, nil)
+		unauthorized.Body.Close()
+		if unauthorized.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated progression status = %d, want %d", unauthorized.StatusCode, http.StatusUnauthorized)
+		}
+
+		resp := c.do(t, "GET", path, nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("progression status = %d, want %d", resp.StatusCode, http.StatusOK)
+		}
+		var progress map[string]any
+		decode(t, resp, &progress)
+		if progress["groupId"] != gid || progress["totalXp"] != float64(0) ||
+			progress["currentLevel"] != float64(1) || progress["currentLevelXp"] != float64(0) ||
+			progress["nextLevelXp"] != float64(50) {
+			t.Fatalf("group progression = %+v, want level 1 at 0/50 XP", progress)
+		}
 	})
 
 	t.Run("GET /api/v2/groups — search", func(t *testing.T) {
@@ -954,12 +1040,17 @@ func TestEndpointGroups(t *testing.T) {
 	})
 
 	t.Run("GET /api/v2/groups/{id}/invite_url", func(t *testing.T) {
-		// Make group private first so an invite URL is generated.
-		c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{"visibility": 1}).Body.Close()
 		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/invite_url", nil)
-		resp.Body.Close()
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read public group invite URL: %v", err)
+		}
+		if got := string(body); len(got) != 6 {
+			t.Fatalf("public group invite URL = %q, want a six-character code", got)
 		}
 	})
 }
@@ -1040,7 +1131,7 @@ func TestEndpointMembers(t *testing.T) {
 }
 
 func TestEndpointPins(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, _ := buildTestServerWithQuery(t)
 	defer srv.Close()
 
 	anon := &apiClient{base: srv.URL}
@@ -1050,6 +1141,7 @@ func TestEndpointPins(t *testing.T) {
 	gid := c.createGroup(t, ar.UserID, "pintest_group", 0)
 
 	var pid string
+	var syncWatermark time.Time
 
 	t.Run("GET /api/v2/pins — list group pins (sync)", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/pins?groupId="+gid+"&withImage=false", nil)
@@ -1073,6 +1165,7 @@ func TestEndpointPins(t *testing.T) {
 			"latitude":     48.137,
 			"longitude":    11.576,
 			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"title":        "Munich square",
 			"userId":       ar.UserID,
 			"groupId":      gid,
 		})
@@ -1083,8 +1176,96 @@ func TestEndpointPins(t *testing.T) {
 		var p map[string]any
 		decode(t, resp, &p)
 		pid = fmt.Sprintf("%v", p["id"])
+		if p["title"] != "Munich square" {
+			t.Fatalf("created title = %v, want Munich square", p["title"])
+		}
 		if pid == "" || pid == "<nil>" {
 			t.Fatalf("empty pin id: %v", p)
+		}
+		syncWatermark = time.Now().UTC()
+	})
+
+	t.Run("POST /api/v2/pins/{id}/presence — mark gone and restore", func(t *testing.T) {
+		resp := c.do(t, "GET", "/api/v3/sync?lastSeen="+syncWatermark.Format(time.RFC3339Nano), nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("sync before presence update: expected 200, got %d", resp.StatusCode)
+		}
+		var initialSync struct {
+			GroupUpdates []struct {
+				PinsAdded []map[string]any `json:"pinsAdded"`
+			} `json:"groupUpdates"`
+		}
+		decode(t, resp, &initialSync)
+		resp.Body.Close()
+		for _, groupUpdate := range initialSync.GroupUpdates {
+			for _, syncedPin := range groupUpdate.PinsAdded {
+				if syncedPin["id"] == pid {
+					t.Fatalf("pin %s appeared in sync before presence update", pid)
+				}
+			}
+		}
+
+		resp = c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
+			"state": "gone",
+		})
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("mark gone: expected 200, got %d", resp.StatusCode)
+		}
+		var gone map[string]any
+		decode(t, resp, &gone)
+		if gone["isGone"] != true {
+			t.Fatalf("presence response isGone = %v, want true", gone["isGone"])
+		}
+
+		resp = c.do(t, "GET", "/api/v2/pins?groupId="+gid+"&withImage=false", nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("list after gone report: expected 200, got %d", resp.StatusCode)
+		}
+		var pins struct {
+			Items []map[string]any `json:"items"`
+		}
+		decode(t, resp, &pins)
+		if len(pins.Items) != 1 || pins.Items[0]["id"] != pid || pins.Items[0]["isGone"] != true {
+			t.Fatalf("listed pins = %+v, want the same pin retained and marked gone", pins.Items)
+		}
+
+		resp = c.do(t, "GET", "/api/v3/sync?lastSeen="+syncWatermark.Format(time.RFC3339Nano), nil)
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("sync after gone report: expected 200, got %d", resp.StatusCode)
+		}
+		var syncState struct {
+			GroupUpdates []struct {
+				PinsAdded []map[string]any `json:"pinsAdded"`
+			} `json:"groupUpdates"`
+		}
+		decode(t, resp, &syncState)
+		foundGonePin := false
+		for _, groupUpdate := range syncState.GroupUpdates {
+			for _, syncedPin := range groupUpdate.PinsAdded {
+				if syncedPin["id"] == pid && syncedPin["isGone"] == true {
+					foundGonePin = true
+				}
+			}
+		}
+		if !foundGonePin {
+			t.Fatalf("sync updates = %+v, want pin %s marked gone", syncState.GroupUpdates, pid)
+		}
+
+		resp = c.do(t, "POST", "/api/v2/pins/"+pid+"/presence", map[string]any{
+			"state": "here",
+		})
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("mark here: expected 200, got %d", resp.StatusCode)
+		}
+		var restored map[string]any
+		decode(t, resp, &restored)
+		if restored["isGone"] != false {
+			t.Fatalf("restored response isGone = %v, want false", restored["isGone"])
 		}
 	})
 
@@ -1103,6 +1284,333 @@ func TestEndpointPins(t *testing.T) {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestEndpointNearbyPinsReturnsNearestVisiblePins(t *testing.T) {
+	pinStore := newMemoryPinObjectStore()
+	srv, q := buildTestServerWithPinStore(t, pinStore)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	ownerAuth := anon.signup(t, "nearby_pin_owner", "pw123")
+	viewerAuth := anon.signup(t, "nearby_pin_viewer", "pw123")
+	owner := &apiClient{base: srv.URL, bearer: ownerAuth.AccessToken}
+	viewer := &apiClient{base: srv.URL, bearer: viewerAuth.AccessToken}
+
+	publicGroupID := owner.createGroup(t, ownerAuth.UserID, "nearby_public_group", 0)
+	privateGroupID := owner.createGroup(t, ownerAuth.UserID, "nearby_private_group", 1)
+	createPin := func(groupID, latitude string) string {
+		t.Helper()
+		lat, err := strconv.ParseFloat(latitude, 64)
+		if err != nil {
+			t.Fatalf("parse fixture latitude: %v", err)
+		}
+		resp := owner.do(t, http.MethodPost, "/api/v2/pins", map[string]any{
+			"image": testImageBase64, "latitude": lat, "longitude": 11.576,
+			"creationDate": time.Now().UTC().Format(time.RFC3339),
+			"userId":       ownerAuth.UserID, "groupId": groupID,
+		})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create pin in group %s: status = %d, want 201", groupID, resp.StatusCode)
+		}
+		var created map[string]any
+		decode(t, resp, &created)
+		return fmt.Sprint(created["id"])
+	}
+
+	publicNearID := createPin(publicGroupID, "48.1371")
+	createPin(publicGroupID, "48.138")
+	privatePinID := createPin(privateGroupID, "48.13701")
+	for i := 2; i < 11; i++ {
+		createPin(publicGroupID, strconv.FormatFloat(48.137+float64(i)*0.00008, 'f', 6, 64))
+	}
+	ownerID, err := uuid.Parse(ownerAuth.UserID)
+	if err != nil {
+		t.Fatalf("parse owner ID: %v", err)
+	}
+	publicNearUUID, err := uuid.Parse(publicNearID)
+	if err != nil {
+		t.Fatalf("parse public pin ID: %v", err)
+	}
+	latestPhotoKey := "pins/nearby-latest-photo.png"
+	pinStore.objects[latestPhotoKey] = []byte("latest-photo")
+	if _, err := q.Pool().Exec(context.Background(), `
+		INSERT INTO pin_photos (
+			id, pin_id, contributor_id, contributor_username, image_key,
+			observed_at, is_original
+		) VALUES ($1, $2, $3, 'nearby_pin_owner', $4, $5, FALSE)
+	`, uuid.New(), publicNearUUID, ownerID, latestPhotoKey, time.Now().UTC()); err != nil {
+		t.Fatalf("insert latest photo fixture: %v", err)
+	}
+	resp := owner.do(t, http.MethodPost, "/api/v2/pins/"+publicNearID+"/presence", map[string]any{
+		"state": "gone",
+	})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("mark nearby pin gone: status = %d, want 200", resp.StatusCode)
+	}
+	resp = anon.do(t, http.MethodGet, "/api/v2/pins/nearby?latitude=48.137&longitude=11.576&radiusMeters=500", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated nearby search status = %d, want 401", resp.StatusCode)
+	}
+
+	resp = viewer.do(t, http.MethodGet, "/api/v2/pins/nearby?latitude=48.137&longitude=11.576&radiusMeters=500", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("nearby search status = %d, want 200", resp.StatusCode)
+	}
+	var nearby struct {
+		Items []struct {
+			Pin struct {
+				ID     string `json:"id"`
+				IsGone bool   `json:"isGone"`
+				Image  string `json:"image"`
+			} `json:"pin"`
+			DistanceMeters int    `json:"distanceMeters"`
+			GroupName      string `json:"groupName"`
+		} `json:"items"`
+	}
+	decode(t, resp, &nearby)
+	resp.Body.Close()
+	if len(nearby.Items) != 10 {
+		t.Fatalf("nearby items = %d, want the bounded ten public pins", len(nearby.Items))
+	}
+	if nearby.Items[0].Pin.ID != publicNearID {
+		t.Fatalf("nearest pin id = %q, want %q", nearby.Items[0].Pin.ID, publicNearID)
+	}
+	if nearby.Items[0].DistanceMeters < 10 || nearby.Items[0].DistanceMeters > 12 {
+		t.Fatalf("nearest distance = %d m, want about 11 m", nearby.Items[0].DistanceMeters)
+	}
+	if !nearby.Items[0].Pin.IsGone {
+		t.Fatal("nearby results omitted the nearest pin's gone state")
+	}
+	if nearby.Items[0].Pin.Image != "https://objects.test/"+latestPhotoKey {
+		t.Fatalf("nearby thumbnail = %q, want latest photo URL", nearby.Items[0].Pin.Image)
+	}
+	if nearby.Items[0].GroupName != "nearby_public_group" {
+		t.Fatalf("nearest group name = %q, want public group", nearby.Items[0].GroupName)
+	}
+	for i, item := range nearby.Items {
+		if item.Pin.ID == privatePinID {
+			t.Fatal("nearby results exposed a private-group pin to a nonmember")
+		}
+		if i > 0 && item.DistanceMeters < nearby.Items[i-1].DistanceMeters {
+			t.Fatalf("nearby results are not ordered by distance: %+v", nearby.Items)
+		}
+	}
+
+	for _, invalidQuery := range []string{
+		"latitude=91&longitude=0&radiusMeters=500",
+		"latitude=48&longitude=11&radiusMeters=5001",
+	} {
+		resp := viewer.do(t, http.MethodGet, "/api/v2/pins/nearby?"+invalidQuery, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("nearby search query %q status = %d, want 400", invalidQuery, resp.StatusCode)
+		}
+	}
+}
+
+func TestEndpointPinPhotosIncludesOriginalImage(t *testing.T) {
+	srv, _ := buildTestServerWithPinStore(t, newMemoryPinObjectStore())
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	auth := anon.signup(t, "pin_photo_api_user", "pw123")
+	client := &apiClient{base: srv.URL, bearer: auth.AccessToken}
+	groupID := client.createGroup(t, auth.UserID, "pin_photo_api_group", 0)
+
+	resp := client.do(t, "POST", "/api/v2/pins", map[string]any{
+		"image":        testImageBase64,
+		"latitude":     48.137,
+		"longitude":    11.576,
+		"creationDate": time.Now().UTC().Format(time.RFC3339),
+		"userId":       auth.UserID,
+		"groupId":      groupID,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("create pin: expected 201, got %d", resp.StatusCode)
+	}
+	var pin map[string]any
+	decode(t, resp, &pin)
+	resp.Body.Close()
+	pinID := fmt.Sprintf("%v", pin["id"])
+
+	resp = anon.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated photo history: expected 401, got %d", resp.StatusCode)
+	}
+
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/presence", map[string]string{"state": "gone"})
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("mark pin gone: expected 200, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get pin photo history: expected 200, got %d", resp.StatusCode)
+	}
+	var photos []map[string]any
+	decode(t, resp, &photos)
+	resp.Body.Close()
+	if len(photos) != 1 || photos[0]["isOriginal"] != true {
+		t.Fatalf("pin photo history = %+v, want its original photo", photos)
+	}
+	if photos[0]["contributorUsername"] != "pin_photo_api_user" {
+		t.Fatalf("original contributor = %v, want pin_photo_api_user", photos[0]["contributorUsername"])
+	}
+
+	photoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.137,
+		"longitude":      11.576,
+		"accuracyMeters": 0,
+		"caption":        "Still here after the rain",
+	}
+	incompletePhotoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.137,
+		"accuracyMeters": 5,
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", incompletePhotoRequest)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("photo upload without longitude: expected 422, got %d", resp.StatusCode)
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", photoRequest)
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("add pin photo: expected 201, got %d", resp.StatusCode)
+	}
+	var added map[string]any
+	decode(t, resp, &added)
+	resp.Body.Close()
+	if added["isOriginal"] != false || added["caption"] != "Still here after the rain" {
+		t.Fatalf("added photo = %+v, want a later captioned photo", added)
+	}
+	firstPhotoID := added["id"]
+
+	farPhotoRequest := map[string]any{
+		"image":          testImageBase64,
+		"idempotencyKey": uuid.NewString(),
+		"latitude":       48.138,
+		"longitude":      11.576,
+		"accuracyMeters": 5,
+	}
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", farPhotoRequest)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("photo upload from farther than 50 m: expected 403, got %d", resp.StatusCode)
+	}
+
+	resp = client.do(t, "POST", "/api/v2/pins/"+pinID+"/photos", photoRequest)
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("retry photo upload: expected 201, got %d", resp.StatusCode)
+	}
+	var retried map[string]any
+	decode(t, resp, &retried)
+	resp.Body.Close()
+	if retried["id"] != firstPhotoID {
+		t.Fatalf("idempotent retry returned photo %v, want %v", retried["id"], firstPhotoID)
+	}
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID, nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get pin after photo update: expected 200, got %d", resp.StatusCode)
+	}
+	var pinAfterUpdate map[string]any
+	decode(t, resp, &pinAfterUpdate)
+	resp.Body.Close()
+	if pinAfterUpdate["isGone"] != true {
+		t.Fatalf("photo update changed pin presence: isGone = %v, want true", pinAfterUpdate["isGone"])
+	}
+
+	resp = client.do(t, "GET", "/api/v2/pins/"+pinID+"/photos", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("get updated pin photo history: expected 200, got %d", resp.StatusCode)
+	}
+	photos = nil
+	decode(t, resp, &photos)
+	resp.Body.Close()
+	if len(photos) != 2 || photos[0]["isOriginal"] != true || photos[1]["isOriginal"] != false {
+		t.Fatalf("updated pin photo history = %+v, want original then new photo", photos)
+	}
+}
+
+func TestPinPresenceRejectsFormerPrivateGroupMember(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+
+	anon := &apiClient{base: srv.URL}
+	owner := anon.signup(t, "presence_private_owner", "pw123")
+	formerMember := anon.signup(t, "presence_former_member", "pw123")
+	ownerClient := &apiClient{base: srv.URL, bearer: owner.AccessToken}
+	memberClient := &apiClient{base: srv.URL, bearer: formerMember.AccessToken}
+
+	groupID := ownerClient.createGroup(t, owner.UserID, "presence_private_group", 1)
+	groupUUID, err := uuid.Parse(groupID)
+	if err != nil {
+		t.Fatalf("parse group id: %v", err)
+	}
+	ownerUUID, err := uuid.Parse(owner.UserID)
+	if err != nil {
+		t.Fatalf("parse owner id: %v", err)
+	}
+	memberUUID, err := uuid.Parse(formerMember.UserID)
+	if err != nil {
+		t.Fatalf("parse former member id: %v", err)
+	}
+	ctx := context.Background()
+	if err := q.AddMember(ctx, groupUUID, ownerUUID); err != nil {
+		t.Fatalf("ensure group owner membership: %v", err)
+	}
+	if err := q.AddMember(ctx, groupUUID, memberUUID); err != nil {
+		t.Fatalf("add private group member: %v", err)
+	}
+
+	resp := ownerClient.do(t, "POST", "/api/v2/pins", map[string]any{
+		"image":        testImageBase64,
+		"latitude":     48.137,
+		"longitude":    11.576,
+		"creationDate": time.Now().UTC().Format(time.RFC3339),
+		"userId":       owner.UserID,
+		"groupId":      groupID,
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("create private pin: expected 201, got %d", resp.StatusCode)
+	}
+	var pin map[string]any
+	decode(t, resp, &pin)
+	resp.Body.Close()
+	pinID := fmt.Sprintf("%v", pin["id"])
+
+	if _, err := q.Pool().Exec(ctx,
+		`UPDATE members SET is_deleted = TRUE WHERE group_id = $1 AND user_id = $2`,
+		groupUUID, memberUUID,
+	); err != nil {
+		t.Fatalf("soft-delete former membership: %v", err)
+	}
+
+	resp = memberClient.do(t, "POST", "/api/v2/pins/"+pinID+"/presence", map[string]any{
+		"state": "gone",
+	})
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("former private group member could update pin presence: expected 403, got %d", resp.StatusCode)
+	}
 }
 
 // TestPinCreateAuthorization verifies the CreatePin authorization fix:
@@ -1254,23 +1762,198 @@ func TestEndpointRanking(t *testing.T) {
 }
 
 func TestEndpointReport(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, q := buildTestServerWithQuery(t)
 	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
 
 	anon := &apiClient{base: srv.URL}
 	ar := anon.signup(t, "reporter", "pw123")
 	c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
 
 	t.Run("POST /api/v2/report", func(t *testing.T) {
-		resp := c.do(t, "POST", "/api/v2/report", map[string]any{
-			"userId":  uuid.New().String(),
+		const reportQuotaKey = "server-test-report-quota-key"
+		const reportQuotaKeyID = "server-test-report-v1"
+		const forwardedIP = "198.51.100.7"
+		body := map[string]any{
+			"userId":  ar.UserID,
 			"report":  "spam",
 			"message": "test report",
-		})
+		}
+		headers := map[string]string{
+			"Idempotency-Key": "routed-report-key",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		}
+		resp := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
 		resp.Body.Close()
-		// 200 if mail is not configured, still expect non-5xx.
-		if resp.StatusCode >= 500 {
-			t.Fatalf("unexpected server error: %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("report status = %d, want 200", resp.StatusCode)
+		}
+		replay := c.doWithHeaders(t, "POST", "/api/v2/report", body, headers)
+		replay.Body.Close()
+		if replay.StatusCode != http.StatusOK {
+			t.Fatalf("report replay status = %d, want 200", replay.StatusCode)
+		}
+		var count int
+		if err := q.Pool().QueryRow(context.Background(), `SELECT count(*) FROM reports WHERE reporter_user_id = $1`, ar.UserID).Scan(&count); err != nil {
+			t.Fatalf("count routed reports: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("routed reports = %d, want exactly one idempotent row", count)
+		}
+		accountHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-account", ar.UserID)
+		ipHMAC := reportQuotaIdentifierHMAC([]byte(reportQuotaKey), "report-submit-ip", forwardedIP)
+		var accountHits, ipHits int64
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-account' AND identifier_hmac = $1 AND key_id = $2`, accountHMAC, reportQuotaKeyID).Scan(&accountHits); err != nil {
+			t.Fatalf("read routed account quota bucket: %v", err)
+		}
+		if err := q.Pool().QueryRow(context.Background(), `
+			SELECT hit_count FROM rate_limit_buckets
+			WHERE scope = 'report-submit-ip' AND identifier_hmac = $1 AND key_id = $2`, ipHMAC, reportQuotaKeyID).Scan(&ipHits); err != nil {
+			t.Fatalf("read routed IP quota bucket: %v", err)
+		}
+		if accountHits != 1 || ipHits != 1 {
+			t.Fatalf("routed quota hits account=%d ip=%d, want one keyed hit each", accountHits, ipHits)
 		}
 	})
+
+	t.Run("POST /api/v2/report quota response", func(t *testing.T) {
+		ar := anon.signup(t, "report-quota", "pw123")
+		c := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+		const forwardedIP = "203.0.113.42"
+		for i := 0; i < 10; i++ {
+			resp := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+				"userId": ar.UserID, "report": "spam", "message": fmt.Sprintf("quota report %d", i),
+			}, map[string]string{
+				"Idempotency-Key": fmt.Sprintf("quota-report-%d", i),
+				"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+			})
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("quota fill request %d status = %d, want 200", i, resp.StatusCode)
+			}
+		}
+
+		limited := c.doWithHeaders(t, "POST", "/api/v2/report", map[string]any{
+			"userId": ar.UserID, "report": "spam", "message": "quota exhausted",
+		}, map[string]string{
+			"Idempotency-Key": "quota-report-limited",
+			"X-Forwarded-For": forwardedIP + ", 127.0.0.1",
+		})
+		defer limited.Body.Close()
+		if limited.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("quota exhausted status = %d, want 429", limited.StatusCode)
+		}
+		var body genserver.ApiErrorDto
+		if err := json.NewDecoder(limited.Body).Decode(&body); err != nil {
+			t.Fatalf("decode quota error: %v", err)
+		}
+		if body.Code != "rate_limited" || body.RetryAfterSeconds == nil || *body.RetryAfterSeconds <= 0 {
+			t.Fatalf("quota error body = %#v, want rate_limited with retry seconds", body)
+		}
+		retryAfter, err := strconv.Atoi(limited.Header.Get("Retry-After"))
+		if err != nil || retryAfter <= 0 {
+			t.Fatalf("Retry-After = %q, want positive integer", limited.Header.Get("Retry-After"))
+		}
+		if retryAfter != int(*body.RetryAfterSeconds) {
+			t.Fatalf("Retry-After = %d, body retry seconds = %d", retryAfter, *body.RetryAfterSeconds)
+		}
+	})
+}
+
+func TestEndpointReportTargetFieldsRoute(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+	if _, err := q.Pool().Exec(context.Background(), `TRUNCATE TABLE rate_limit_buckets`); err != nil {
+		t.Fatalf("truncate report quota buckets: %v", err)
+	}
+
+	anon := &apiClient{base: srv.URL}
+	ar := anon.signup(t, "report-target-route", "pw123")
+	reporterID := uuid.MustParse(ar.UserID)
+	client := &apiClient{base: srv.URL, bearer: ar.AccessToken}
+	targetID := reporterID
+	explicitKind := "user"
+
+	tests := []struct {
+		name           string
+		targetFields   map[string]any
+		bodyUserID     string
+		wantStatus     int
+		wantStored     bool
+		wantTargetID   *uuid.UUID
+		wantTargetKind *string
+	}{
+		{name: "omitted", wantStatus: http.StatusOK, wantStored: true},
+		{name: "explicit null", targetFields: map[string]any{"targetId": nil, "targetKind": nil}, wantStatus: http.StatusOK, wantStored: true},
+		{name: "target id uses user default", targetFields: map[string]any{"targetId": ar.UserID}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID},
+		{name: "target id and kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, wantStatus: http.StatusOK, wantStored: true, wantTargetID: &targetID, wantTargetKind: &explicitKind},
+		{name: "malformed target id", targetFields: map[string]any{"targetId": "not-a-uuid"}, wantStatus: http.StatusBadRequest},
+		{name: "kind without target id", targetFields: map[string]any{"targetKind": explicitKind}, wantStatus: http.StatusBadRequest},
+		{name: "control character target kind", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": "pin\t"}, wantStatus: http.StatusBadRequest},
+		{name: "forged body reporter", targetFields: map[string]any{"targetId": ar.UserID, "targetKind": explicitKind}, bodyUserID: uuid.NewString(), wantStatus: http.StatusForbidden},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requestID := "route-target-" + strings.ReplaceAll(test.name, " ", "-")
+			body := map[string]any{
+				"userId":  ar.UserID,
+				"report":  "route target report",
+				"message": "route target details",
+			}
+			if test.bodyUserID != "" {
+				body["userId"] = test.bodyUserID
+			}
+			for key, value := range test.targetFields {
+				body[key] = value
+			}
+
+			resp := client.doWithHeaders(t, http.MethodPost, "/api/v2/report", body, map[string]string{"Idempotency-Key": requestID})
+			resp.Body.Close()
+			if resp.StatusCode != test.wantStatus {
+				t.Fatalf("report status = %d, want %d", resp.StatusCode, test.wantStatus)
+			}
+
+			stored, err := q.GetReportByRequestID(context.Background(), requestID)
+			if err != nil {
+				t.Fatalf("get routed report: %v", err)
+			}
+			if !test.wantStored {
+				if stored != nil {
+					t.Fatalf("stored report = %#v, want no row", stored)
+				}
+				return
+			}
+			if stored == nil {
+				t.Fatal("stored report is nil")
+			}
+			if stored.ReporterUserID == nil || *stored.ReporterUserID != reporterID {
+				t.Fatalf("stored reporter = %#v, want authenticated user %s", stored.ReporterUserID, reporterID)
+			}
+			if test.wantTargetID == nil {
+				if stored.TargetID != nil {
+					t.Fatalf("stored target id = %v, want nil", stored.TargetID)
+				}
+			} else if stored.TargetID == nil || *stored.TargetID != *test.wantTargetID {
+				t.Fatalf("stored target id = %v, want %s", stored.TargetID, *test.wantTargetID)
+			}
+			if test.wantTargetKind == nil {
+				if stored.TargetKind != nil {
+					t.Fatalf("stored target kind = %v, want nil", stored.TargetKind)
+				}
+			} else if stored.TargetKind == nil || *stored.TargetKind != *test.wantTargetKind {
+				t.Fatalf("stored target kind = %v, want %q", stored.TargetKind, *test.wantTargetKind)
+			}
+		})
+	}
+}
+
+func reportQuotaIdentifierHMAC(key []byte, scope, value string) []byte {
+	h := hmac.New(sha256.New, key)
+	_, _ = h.Write([]byte(scope + "\x00" + value))
+	return h.Sum(nil)
 }

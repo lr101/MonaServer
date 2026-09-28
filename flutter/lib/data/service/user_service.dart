@@ -73,6 +73,7 @@ class UserService extends _$UserService {
     String? description,
     String? username,
     int? selectedBatch,
+    String? selectedBatchColor,
   }) async {
     final repo = _repo;
     final operationRef = ref;
@@ -89,6 +90,7 @@ class UserService extends _$UserService {
           description: description,
           username: username,
           selectedBatch: selectedBatch,
+          selectedBatchColor: selectedBatchColor,
           image: profilePicture == null ? null : base64Encode(profilePicture),
         ),
       );
@@ -96,7 +98,11 @@ class UserService extends _$UserService {
       if (!operationRef.mounted || !isCurrent()) return "Session ended";
       final userEntity = state.value;
       if (result != null && userEntity != null) {
-        final userDto = userEntity.copyUserWith(result, selectedBatch);
+        final userDto = userEntity.copyUserWith(
+          result,
+          selectedBatch,
+          selectedBatchColor,
+        );
         await repo.put(userDto);
         if (!isCurrent()) return null;
         if (profilePicture != null) {

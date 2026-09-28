@@ -137,7 +137,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   void _prefetchNextPageMetadata(int start, int pageSize) {
     final end = (start + pageSize).clamp(0, _pins.length);
     final coalescer = ref.read(batchReadCoalescerProvider);
-    for (final pin in _pins.getRange(start, end)) {
+    final pins = _pins.getRange(start, end).toList(growable: false);
+    for (final pin in pins) {
       // Metadata only: resolving a URL does not download object bytes.
       _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);

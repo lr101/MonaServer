@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -44,6 +47,8 @@ func main() {
 
 	cfg, err := config.Load()
 	must(err, "load config")
+	reportConfig, err := newReportServiceConfig(cfg)
+	must(err, "report config")
 
 	ctx := context.Background()
 	if err := db.RunMigrations(cfg.DatabaseURL); err != nil {
@@ -56,30 +61,29 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
+	tok, err := token.NewEphemeralHelper(cfg.AccessTokenExpiry)
+	must(err, "generate JWT signing key")
 	mailSvc := newMailService(cfg)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
+	emailLogin, emailWorker, err := newEmailLoginRuntime(cfg, q, authSvc.Security(), tok, mailSvc)
+	must(err, "email login runtime")
+	if emailWorker != nil {
+		emailWorker.Start(ctx)
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := emailWorker.Shutdown(shutdownCtx); err != nil {
+				log.Error("email delivery worker shutdown", "err", err)
+			}
+		}()
+	}
 	guardSvc := service.NewGuard(q)
 
-	var objSvc *service.Object
-	if cfg.RustfsEndpoint != "" {
-		o, err := service.NewObject(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
-			cfg.RustfsAccessKey, cfg.RustfsSecretKey,
-			cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsURLExpiry)
-		if err != nil {
-			log.Error("rustfs init", "err", err)
-		} else if err := o.EnsureBucket(ctx); err != nil {
-			log.Warn("rustfs ensure bucket", "err", err)
-		} else {
-			log.Info("rustfs ready", "bucket", cfg.RustfsBucket)
-			objSvc = o
-		}
+	objSvc := initObjectService(ctx, cfg, log, 30*time.Second)
+	if objSvc != nil {
+		go service.NewObjectCleanup(q, objSvc).Run(ctx, time.Minute)
 	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
-
-	achMonaGroupID, _ := uuid.Parse(cfg.AchievementMonaGroupID)
-	achCreatedBefore, _ := time.Parse(time.RFC3339, cfg.AchievementCreatedBefore)
-	achCfg := db.AchievementConfig{MonaGroupID: achMonaGroupID, CreatedBefore: achCreatedBefore}
 
 	userSvc := service.NewUser(q, objSvc, tok, authSvc, mailSvc)
 	groupSvc := service.NewGroup(q, objSvc, userSvc)
@@ -92,19 +96,41 @@ func main() {
 	// Servicers wrapping business logic and implementing genserver interfaces.
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
+	groupPinDesignCatalog := service.NewGroupPinDesignCatalogService(q)
+	groupPinDesignsServicer := handler.NewGroupPinDesignsServicer(groupPinDesignCatalog, groupSvc, guardSvc)
 	pinsServicer := handler.NewPinsServicer(pinSvc, groupSvc, guardSvc, q)
 	membersServicer := handler.NewMembersServicer(memberSvc, guardSvc)
 	likesServicer := handler.NewLikesServicer(likeSvc, guardSvc)
 	rankingServicer := handler.NewRankingServicer(rankSvc)
 	adminServicer := handler.NewAdminServicer(q, mailSvc, notifSvc)
-	reportServicer := handler.NewReportServicer(mailSvc, q)
+	adminAuthConfig := service.AdminAuthConfig{
+		EncryptionKey:      decodeAdminKey(cfg.AdminTOTPEncryptionKey),
+		EncryptionKeyID:    cfg.AdminTOTPEncryptionKeyID,
+		HMACKey:            decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID:          cfg.AdminSessionHMACKeyID,
+		SessionIdleTTL:     cfg.AdminSessionIdleTTL,
+		SessionAbsoluteTTL: cfg.AdminSessionAbsoluteTTL,
+		ChallengeTTL:       cfg.AdminChallengeTTL,
+		PreAuthTTL:         cfg.AdminPreAuthTTL,
+		LoginFailureLimit:  cfg.AdminLoginFailureLimit,
+		LoginIPLimit:       cfg.AdminLoginIPLimit,
+		LoginGlobalLimit:   cfg.AdminLoginGlobalLimit,
+	}
+	adminAuth := service.NewAdminAuth(q, adminAuthConfig)
+	createdAdmin, err := bootstrapConfiguredAdmin(ctx, adminAuth, cfg)
+	must(err, "admin bootstrap")
+	if createdAdmin {
+		log.Info("initial administrator created")
+	}
+	reportServicer := handler.NewReportServicer(mailSvc, q, reportConfig)
 	publicServicer := handler.NewPublicServicer()
-	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	// Generated controllers (handle HTTP param parsing).
 	authCtrl := genserver.NewAuthAPIController(authServicer)
 	groupsCtrl := genserver.NewGroupsAPIController(groupsServicer)
+	groupPinDesignsCtrl := genserver.NewGroupPinDesignsAPIController(groupPinDesignsServicer, genserver.WithGroupPinDesignsAPIErrorHandler(handler.V3ErrorHandler))
 	pinsCtrl := genserver.NewPinsAPIController(pinsServicer)
 	membersCtrl := genserver.NewMembersAPIController(membersServicer)
 	likesCtrl := genserver.NewLikesAPIController(likesServicer)
@@ -115,7 +141,7 @@ func main() {
 	usersCtrl := genserver.NewUsersAPIController(usersServicer)
 	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
-	viewsH := handler.NewViews(q, tok, cfg.RedirectURL)
+	viewsH := handler.NewViews(q, tok, cfg.PublicWebURL())
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) {
@@ -148,16 +174,15 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
+	r.Use(middleware.TrustedRealIP(cfg.TrustedProxyCIDRs))
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
 	r.Use(requestLogger(log))
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		AllowCredentials: false,
-	}))
+	// Consumer CORS remains permissive, while admin paths are dispatched to
+	// the credentialed policy that reflects the requested origin. The admin
+	// dispatch is the passthrough boundary; the consumer handler retains its
+	// existing standalone preflight behavior.
+	r.Use(globalCORS())
 
 	// OpenAPI spec + Swagger UI.
 	r.Get("/public/api-docs", serveOpenAPISpec)
@@ -184,11 +209,11 @@ func main() {
 	})
 
 	// Status endpoint — requires valid JWT to confirm token validity.
-	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc)
 
 	// Authenticated routes: require JWT + USER role.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
+		r.Use(middleware.JWT(tok, authSvc))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		r.Use(redirectImageResponses)
 		r.Use(requireCompatibilityJSONFields)
@@ -197,21 +222,27 @@ func main() {
 		r.Use(validateBatchReadJSON)
 
 		registerRoutes(r, groupsCtrl, alwaysTrue)
+		registerRoutes(r, groupPinDesignsCtrl, alwaysTrue)
 		registerRoutes(r, pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
-		registerRoutes(r, reportCtrl, alwaysTrue)
+		// CaptureReportRequest runs after TrustedRealIP (installed on the root
+		// router), so the service receives the bounded idempotency key and the
+		// trusted client address used by the shared report quota.
+		registerRoutes(r.With(handler.CaptureReportRequest), reportCtrl, alwaysTrue)
 		registerRoutes(r, usersCtrl, alwaysTrue)
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 
 	// Admin-only routes.
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
-		r.Use(middleware.RequireRole(middleware.RoleAdmin))
-		registerRoutes(r, adminCtrl, alwaysTrue)
-	})
+	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
+
+	// New v3 routes are always present in the router so their feature and
+	// authentication behavior is observable. With the production database and
+	// browser-admin authentication service, the admin operation surfaces use
+	// the reviewed bounded runtime adapter.
+	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q, emailLogin, authSvc.Security(), mailSvc)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -220,6 +251,53 @@ func main() {
 		log.Error("server", "err", err)
 		os.Exit(1)
 	}
+}
+
+func initObjectService(ctx context.Context, cfg *config.Config, log *slog.Logger, retryInterval time.Duration) *service.Object {
+	if cfg.RustfsEndpoint == "" {
+		return nil
+	}
+	o, err := service.NewObjectWithExternalSSL(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
+		cfg.RustfsAccessKey, cfg.RustfsSecretKey,
+		cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsExternalUseSSL, cfg.RustfsURLExpiry)
+	if err != nil {
+		log.Error("rustfs init", "err", err)
+		return nil
+	}
+	if retryInterval <= 0 {
+		retryInterval = 30 * time.Second
+	}
+	go ensureObjectBucket(ctx, o, cfg.RustfsBucket, log, retryInterval)
+	return o
+}
+
+func ensureObjectBucket(ctx context.Context, obj *service.Object, bucket string, log *slog.Logger, retryInterval time.Duration) {
+	for {
+		if err := obj.EnsureBucket(ctx); err == nil {
+			log.Info("rustfs ready", "bucket", bucket)
+			return
+		} else {
+			log.Warn("rustfs ensure bucket", "err", err)
+		}
+
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func bootstrapConfiguredAdmin(ctx context.Context, admin *service.AdminAuth, cfg *config.Config) (bool, error) {
+	return admin.BootstrapInitialAdmin(ctx, service.AdminBootstrapCredentials{
+		Username:   cfg.AdminBootstrapUsername,
+		Password:   cfg.AdminBootstrapPassword,
+		TOTPSecret: cfg.AdminBootstrapTOTPSecret,
+	})
 }
 
 func runHealthcheck() error {
@@ -249,12 +327,349 @@ func newMailService(cfg *config.Config) *service.Email {
 	return service.NewEmail(cfg, nil)
 }
 
+// decodeAdminKey accepts the deployment formats used by existing secrets
+// managers while keeping malformed values unavailable at request time. The
+// service still validates the encryption key length before decrypting.
+func decodeAdminKey(raw string) []byte {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if decoded, err := hex.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	if decoded, err := base64.RawStdEncoding.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	if decoded, err := base64.StdEncoding.DecodeString(raw); err == nil && len(decoded) > 0 {
+		return decoded
+	}
+	return []byte(raw)
+}
+
+func newReportServiceConfig(cfg *config.Config) (service.ReportServiceConfig, error) {
+	if cfg == nil {
+		return service.ReportServiceConfig{}, errors.New("config is nil")
+	}
+	reportConfig := service.ReportServiceConfig{
+		HMACKey:   decodeAdminKey(cfg.AdminSessionHMACKey),
+		HMACKeyID: cfg.AdminSessionHMACKeyID,
+	}
+	if err := reportConfig.Validate(); err != nil {
+		return service.ReportServiceConfig{}, err
+	}
+	return reportConfig, nil
+}
+
 // registerRoutes registers controller routes into r, filtered by predicate on the pattern.
 func registerRoutes(r chi.Router, ctrl genserver.Router, pred func(string) bool) {
 	for _, route := range ctrl.OrderedRoutes() {
 		if pred(route.Pattern) {
 			r.Method(route.Method, route.Pattern, route.HandlerFunc)
 		}
+	}
+}
+
+// globalCORS keeps the process-wide consumer policy from answering admin
+// preflights with non-credentialed wildcard headers. Admin requests use a
+// credentialed CORS policy that reflects the requesting origin.
+func globalCORS() func(http.Handler) http.Handler {
+	consumer := cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: false,
+	})
+	admin := middleware.AdminCORS()
+	return func(next http.Handler) http.Handler {
+		consumerHandler := consumer(next)
+		adminHandler := admin(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isAdminRequestPath(r.URL.Path) {
+				adminHandler.ServeHTTP(w, r)
+				return
+			}
+			consumerHandler.ServeHTTP(w, r)
+		})
+	}
+}
+
+func isAdminRequestPath(path string) bool {
+	return path == "/api/v2/admin" || strings.HasPrefix(path, "/api/v2/admin/") ||
+		path == "/api/v3/admin" || strings.HasPrefix(path, "/api/v3/admin/")
+}
+
+// registerAdminV2Routes retires the legacy username/JWT admin boundary. The
+// v2 payloads remain wire-compatible, but an opaque browser session and the
+// same CSRF/capability policy as v3 are now required.
+// The optional flag preserves compatibility with older in-package test
+// fixtures; the production call always supplies cfg.WebAdminAPI.
+func registerAdminV2Routes(r chi.Router, ctrl genserver.Router, auth *service.AdminAuth, enabled ...bool) {
+	adminEnabled := true
+	if len(enabled) > 0 {
+		adminEnabled = enabled[0]
+	}
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(adminEnabled))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS())
+		r.Use(middleware.AdminSessionGuard(auth))
+		r.Use(middleware.AdminCSRFGuard)
+		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(auth)))
+		r.Use(middleware.AdminCapabilityGuard)
+		registerRoutes(r, ctrl, alwaysTrue)
+	})
+}
+
+func adminRecentMFATTL(auth *service.AdminAuth) time.Duration {
+	return auth.RecentMFATTL()
+}
+
+type v3AdminServicers struct {
+	users     genserver.AdminUsersAPIServicer
+	campaigns genserver.AdminCampaignsAPIServicer
+	audiences genserver.AdminAudiencesAPIServicer
+	jobs      genserver.AdminJobsAPIServicer
+	messages  genserver.AdminMessagesAPIServicer
+	reports   genserver.AdminReportsAPIServicer
+	audit     genserver.AdminAuditAPIServicer
+}
+
+// newV3AdminServicers keeps the production assembly separate from route
+// middleware. The unavailable set is deliberately retained for the no-DB
+// compatibility seam; a supplied database and browser-admin auth service get
+// the concrete, bounded adapters together.
+func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, options ...interface{}) v3AdminServicers {
+	unavailable := handler.NewUnavailableV3Servicer()
+	servicers := v3AdminServicers{
+		users: unavailable, campaigns: unavailable, audiences: unavailable, jobs: unavailable,
+		messages: unavailable, reports: unavailable, audit: unavailable,
+	}
+	if queries == nil || auth == nil {
+		return servicers
+	}
+	var emailLogin *service.EmailLogin
+	var mail *service.Email
+	for _, option := range options {
+		switch value := option.(type) {
+		case *service.EmailLogin:
+			emailLogin = value
+		case *service.Email:
+			mail = value
+		}
+	}
+	store := service.NewProductionAdminStore(queries)
+	audiences := service.NewAdminAudienceService(store)
+	audiences.SetRecentMFATTL(auth.RecentMFATTL())
+	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
+	// The database-backed read/snapshot/job projections are live, but no
+	// concrete provider, eligibility, fenced lease, and audit execution bundle
+	// is deployed yet. Keep all action mutations fail-closed before they can
+	// persist a pending job; list/detail reads remain available.
+	jobs.SetExecutionReady(false)
+	passwordRecovery := service.NewAdminPasswordRecovery(queries, mail)
+	servicers.users = handler.NewAdminUsersServicerWithPasswordRecovery(service.NewAdminUserService(store), emailLogin, passwordRecovery)
+	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
+	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
+	servicers.jobs = handler.NewAdminJobsServicer(jobs)
+	servicers.messages = handler.NewAdminMessagesServicer(jobs)
+	servicers.reports = handler.NewAdminReportsServicer(queries)
+	servicers.audit = handler.NewAdminAuditServicer(service.NewAdminAuditService(store))
+	return servicers
+}
+
+// registerV3Routes installs the additive v3 surfaces behind their independent
+// feature flags. Options may include the browser-admin service and the shared
+// report repository. Keeping the options variadic preserves the compatibility
+// test seam that exercises the unavailable scaffold without a database.
+func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, options ...interface{}) {
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	var adminAuth *service.AdminAuth
+	var reportQueries *db.Queries
+	var emailLogin *service.EmailLogin
+	var emailSecurity *service.AccountSecurity
+	var mail *service.Email
+	for _, option := range options {
+		switch value := option.(type) {
+		case *service.AdminAuth:
+			adminAuth = value
+		case *db.Queries:
+			reportQueries = value
+		case *service.EmailLogin:
+			emailLogin = value
+		case *service.AccountSecurity:
+			emailSecurity = value
+		case *service.Email:
+			mail = value
+		}
+	}
+
+	servicer := handler.NewUnavailableV3Servicer()
+	publicAuthCtrl := genserver.NewPublicAuthAPIController(handler.NewPublicAuthServicer(emailLogin, nil), genserver.WithPublicAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
+	sessionAuthCtrl := genserver.NewSessionAuthAPIController(handler.NewSessionAuthServicer(emailSecurity), genserver.WithSessionAuthAPIErrorHandler(handler.PublicAuthV3ErrorHandler))
+	adminServicers := newV3AdminServicers(reportQueries, adminAuth, emailLogin, mail)
+	adminUsersCtrl := genserver.NewAdminUsersAPIController(adminServicers.users, genserver.WithAdminUsersAPIErrorHandler(handler.V3ErrorHandler))
+	adminCampaignsCtrl := genserver.NewAdminCampaignsAPIController(adminServicers.campaigns, genserver.WithAdminCampaignsAPIErrorHandler(handler.V3ErrorHandler))
+	adminAudiencesCtrl := genserver.NewAdminAudiencesAPIController(adminServicers.audiences, genserver.WithAdminAudiencesAPIErrorHandler(handler.V3ErrorHandler))
+	adminJobsCtrl := genserver.NewAdminJobsAPIController(adminServicers.jobs, genserver.WithAdminJobsAPIErrorHandler(handler.V3ErrorHandler))
+	adminMessagesCtrl := genserver.NewAdminMessagesAPIController(adminServicers.messages, genserver.WithAdminMessagesAPIErrorHandler(handler.V3ErrorHandler))
+	adminReportsCtrl := genserver.NewAdminReportsAPIController(adminServicers.reports, genserver.WithAdminReportsAPIErrorHandler(handler.V3ErrorHandler))
+	adminAuditCtrl := genserver.NewAdminAuditAPIController(adminServicers.audit, genserver.WithAdminAuditAPIErrorHandler(handler.V3ErrorHandler))
+
+	// Public email-link and recovery endpoints are intentionally public, but
+	// remain unavailable while PUBLIC_EMAIL_LOGIN is false.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				clientIP := request.RemoteAddr
+				if host, _, err := net.SplitHostPort(clientIP); err == nil {
+					clientIP = host
+				}
+				next.ServeHTTP(w, request.WithContext(service.WithEmailLoginClientIP(request.Context(), clientIP)))
+			})
+		})
+		registerRoutes(r, publicAuthCtrl, alwaysTrue)
+	})
+
+	// Own-session revoke is the one new endpoint that uses a consumer Bearer
+	// credential. It is independent from the browser-admin session transport.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
+		r.Use(middleware.JWT(tok, lookup))
+		r.Use(middleware.RequireRole(middleware.RoleUser))
+		registerRoutes(r, sessionAuthCtrl, alwaysTrue)
+	})
+
+	// Bootstrap is the only public admin-session endpoint. It still receives
+	// origin/CORS protection because it sets a credentialed browser cookie.
+	var adminSessionCtrl *genserver.AdminSessionAPIController
+	if adminAuth != nil {
+		adminSessionServicer := handler.NewAdminSessionServicer(adminAuth)
+		adminSessionCtrl = genserver.NewAdminSessionAPIController(adminSessionServicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
+	} else {
+		adminSessionCtrl = genserver.NewAdminSessionAPIController(servicer, genserver.WithAdminSessionAPIErrorHandler(handler.V3ErrorHandler))
+	}
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		if adminAuth != nil {
+			r.Use(middleware.CaptureAdminRequest)
+			r.Use(middleware.AdminCORS())
+		}
+		registerRoutes(r, adminSessionCtrl, isAdminBootstrapRoute)
+	})
+
+	if adminAuth == nil {
+		// Compatibility scaffold: reject every bearer-only request and only let a
+		// request carrying a cookie reach the unavailable adapter.
+		r.Group(func(r chi.Router) {
+			r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+			r.Use(requireAdminBrowserSession)
+			registerRoutes(r, adminSessionCtrl, isNonBootstrapAdminRoute)
+			registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
+			registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
+			registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
+			registerRoutes(r, adminJobsCtrl, alwaysTrue)
+			registerRoutes(r, adminMessagesCtrl, alwaysTrue)
+			registerRoutes(r, adminReportsCtrl, alwaysTrue)
+			registerRoutes(r, adminAuditCtrl, alwaysTrue)
+		})
+		return
+	}
+
+	// Password and MFA challenges use only a pre-auth envelope. They do
+	// not pass through the authenticated CSRF/recent-MFA guards below; the
+	// generated service receives and verifies their explicit CSRF header.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS())
+		r.Use(middleware.AdminPreAuthGuard)
+		registerRoutes(r, adminSessionCtrl, isAdminPreAuthSessionRoute)
+	})
+
+	// Session restoration and reauthentication/logout use the authenticated
+	// cookie; reauthentication performs the action-bound TOTP proof in the
+	// service and rotates CSRF before returning.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS())
+		r.Use(middleware.AdminSessionGuard(adminAuth))
+		r.Use(middleware.AdminCSRFGuard)
+		registerRoutes(r, adminSessionCtrl, isAdminAuthenticatedSessionRoute)
+	})
+
+	// Every implemented admin surface is request-time authenticated and
+	// capability checked. Mutations also require the current CSRF token and a
+	// recent MFA proof, including v2 payloads mounted above.
+	r.Group(func(r chi.Router) {
+		r.Use(v3FeatureFlag(cfg.WebAdminAPI))
+		r.Use(middleware.CaptureAdminRequest)
+		r.Use(middleware.AdminCORS())
+		r.Use(middleware.AdminSessionGuard(adminAuth))
+		r.Use(middleware.AdminCSRFGuard)
+		r.Use(middleware.AdminRecentMFAGuard(adminRecentMFATTL(adminAuth)))
+		r.Use(middleware.AdminCapabilityGuard)
+		registerRoutes(r.With(handler.CaptureAdminUsersQuery), adminUsersCtrl, alwaysTrue)
+		registerRoutes(r, adminCampaignsCtrl, alwaysTrue)
+		registerRoutes(r, adminAudiencesCtrl, alwaysTrue)
+		registerRoutes(r, adminJobsCtrl, alwaysTrue)
+		registerRoutes(r, adminMessagesCtrl, alwaysTrue)
+		registerRoutes(r, adminReportsCtrl, alwaysTrue)
+		registerRoutes(r, adminAuditCtrl, alwaysTrue)
+	})
+}
+
+func v3FeatureFlag(enabled bool) func(http.Handler) http.Handler {
+	if enabled {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return handler.UnavailableV3Middleware
+}
+
+const adminSessionCookieName = "admin_session"
+
+func requireAdminBrowserSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(adminSessionCookieName)
+		if err != nil || strings.TrimSpace(cookie.Value) == "" {
+			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+				handler.WriteV3Error(w, http.StatusForbidden, "forbidden", "admin browser session required")
+				return
+			}
+			handler.WriteV3Error(w, http.StatusUnauthorized, "unauthorized", "admin browser session required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isAdminBootstrapRoute(pattern string) bool {
+	return pattern == "/api/v3/admin/session/bootstrap"
+}
+
+func isNonBootstrapAdminRoute(pattern string) bool {
+	return !isAdminBootstrapRoute(pattern)
+}
+
+func isAdminPreAuthSessionRoute(pattern string) bool {
+	switch pattern {
+	case "/api/v3/admin/session/login", "/api/v3/admin/session/mfa":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAdminAuthenticatedSessionRoute(pattern string) bool {
+	switch pattern {
+	case "/api/v3/admin/session/reauthenticate", "/api/v3/admin/session/logout", "/api/v3/admin/session":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -273,9 +688,9 @@ func isStatusRoute(pattern string) bool {
 	return pattern == "/api/v2/status"
 }
 
-func registerProtectedStatusRoutes(r chi.Router, ctrl genserver.Router, tok *token.Helper, auth *service.Auth, adminUsername string) {
+func registerProtectedStatusRoutes(r chi.Router, ctrl genserver.Router, tok *token.Helper, auth *service.Auth) {
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, auth, adminUsername))
+		r.Use(middleware.JWT(tok, auth))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		registerRoutes(r, ctrl, isStatusRoute)
 	})
@@ -491,6 +906,11 @@ func must(err error, context string) {
 }
 
 // requestLogger logs method, path, status code, and duration for every request.
+// Legacy action links carry their bearer-equivalent secret in the path. Keep
+// the public route shape while replacing that segment before structured logs
+// are emitted. Reverse proxies should apply the same rules to
+// /public/recover/*, /public/delete-account/* (except /code), and
+// /public/email-confirmation/* before forwarding access logs.
 func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -499,12 +919,25 @@ func requestLogger(log *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(ww, r)
 			log.Info("request",
 				"method", r.Method,
-				"path", r.URL.Path,
+				"path", redactLegacyActionPath(r.URL.Path),
 				"status", ww.status,
 				"duration_ms", time.Since(start).Milliseconds(),
 				"request_id", chimw.GetReqID(r.Context()),
 			)
 		})
+	}
+}
+
+func redactLegacyActionPath(path string) string {
+	switch {
+	case strings.HasPrefix(path, "/public/recover/"):
+		return "/public/recover/[redacted]"
+	case strings.HasPrefix(path, "/public/delete-account/") && path != "/public/delete-account/code":
+		return "/public/delete-account/[redacted]"
+	case strings.HasPrefix(path, "/public/email-confirmation/"):
+		return "/public/email-confirmation/[redacted]"
+	default:
+		return path
 	}
 }
 

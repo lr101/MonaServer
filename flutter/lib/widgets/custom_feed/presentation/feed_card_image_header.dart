@@ -1,9 +1,8 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -18,15 +17,15 @@ class FeedCardImageHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Fetch images
-    final userImage = ref.watch(getUserProfileSmallProvider(pin.creator));
-    final groupImage = ref.watch(groupProfilePictureSmallByIdProvider(pin.groupId));
-    
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(pin.creator));
+    final selectedBatchColor = ref.watch(
+      userServiceProvider(pin.creator)
+          .select((user) => user.value?.selectedBatchColor),
+    );
     final username = ref.watch(userByIdUsernameProvider(pin.creator));
 
     // Common size for both avatars
-    const double avatarSize = 14.0; // Radius (so diameter is 36)
+    const double avatarSize = 11.0;
 
     return Padding(
       padding: const EdgeInsets.all(10),
@@ -38,18 +37,18 @@ class FeedCardImageHeader extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           children: [
-            // 2. STACKED IMAGES
+            // 2. PAIRED PROFILE PICTURES
             SizedBox(
-              width: avatarSize * 4, // Width to hold both overlapped images
+              width: (avatarSize * 2 + 6) * 2,
               height: 40,
               child: Stack(
                 alignment: Alignment.centerLeft,
                 children: [
                   Positioned(
-                    left: avatarSize, 
-                    child:  RoundImage(
-                          imageCallback: groupImage,
-                          size: avatarSize, 
+                    left: avatarSize * 2.5,
+                    child: SmallProfilePicture.group(
+                      groupId: pin.groupId,
+                      radius: avatarSize,
                     ),
                   ),
 
@@ -57,17 +56,16 @@ class FeedCardImageHeader extends ConsumerWidget {
                     left: 0,
                     child: ClickableUser(
                       userId: pin.creator,
-                      child:RoundImage(
-                          imageCallback: userImage, 
-                          size: avatarSize, 
-                        ),
+                      child: SmallProfilePicture.user(
+                        userId: pin.creator,
+                        radius: avatarSize,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
-            
-            
+
             // 3. TEXT INFO
             Expanded(
               child: Column(
@@ -92,7 +90,11 @@ class FeedCardImageHeader extends ConsumerWidget {
                       ),
                       const SizedBox(width: 5),
                       if (selectedBatch.value != null)
-                        Batch(batchId: selectedBatch.value!, fontSize: 7),
+                        Batch(
+                          batchId: selectedBatch.value!,
+                          fontSize: 7,
+                          colorOverride: selectedBatchColor,
+                        ),
                     ],
                   ),
                   if (distance != null) getDistance(),
@@ -113,7 +115,8 @@ class FeedCardImageHeader extends ConsumerWidget {
   }
 
   Widget getDistance() {
-    final text = "~ ${distance! >= 1000 ? "${distance! ~/ 1000}km near you" : "${distance!.toInt()}m near you"}";
+    final text =
+        "~ ${distance! >= 1000 ? "${distance! ~/ 1000}km near you" : "${distance!.toInt()}m near you"}";
     return Text(
       text,
       style: const TextStyle(
@@ -126,12 +129,13 @@ class FeedCardImageHeader extends ConsumerWidget {
 
   Widget getPinLocation() {
     return FutureBuilder<List<Placemark>>(
-      future: placemarkFromCoordinates(
-        pin.latitude,
-        pin.longitude,
+      future: Future.sync(
+        () => placemarkFromCoordinates(pin.latitude, pin.longitude),
       ),
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+        if (snapshot.hasData &&
+            snapshot.data != null &&
+            snapshot.data!.isNotEmpty) {
           final Placemark first = snapshot.data!.first;
           String near = "";
           if (first.locality != null) {
@@ -151,7 +155,9 @@ class FeedCardImageHeader extends ConsumerWidget {
             ),
           );
         } else {
-          return const Text("", style: TextStyle(
+          return const Text(
+            "",
+            style: TextStyle(
               fontStyle: FontStyle.italic,
               color: Colors.white,
               fontSize: 10,

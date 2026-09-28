@@ -1,0 +1,13 @@
+type: object
+required:
+  - revision
+  - designs
+properties:
+  revision:
+    type: integer
+    format: int64
+    minimum: 1
+  designs:
+    type: array
+    items:
+      $ref: groupPinDesignDto.yaml

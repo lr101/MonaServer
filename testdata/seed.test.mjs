@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildSeedPlan, loadScenario, memberJoinPath, signupPayload } from './seed.mjs';
+import { buildSeedPlan, loadScenario, memberJoinPath, outputPaths, signupPayload } from './seed.mjs';
 
 test('fixture includes a public unjoined group with visible pins', () => {
   const plan = buildSeedPlan(loadScenario());
@@ -48,6 +48,38 @@ test('signup payload uses a non-deliverable email when a fixture omits one', () 
     password: 'secret',
     email: 'fixture-user@example.invalid',
   });
+});
+
+test('fixture outputs can be isolated outside the repository', () => {
+  assert.deepEqual(outputPaths('/tmp/preview-fixture-a'), {
+    statePath: '/tmp/preview-fixture-a/.seed-state.json',
+    envPath: '/tmp/preview-fixture-a/.env.test',
+  });
+});
+
+test('fixture output environment variable selects private output paths', () => {
+  const previous = process.env.TESTDATA_OUTPUT_DIR;
+  process.env.TESTDATA_OUTPUT_DIR = '/tmp/preview-fixture-from-env';
+  try {
+    assert.deepEqual(outputPaths(), {
+      statePath: '/tmp/preview-fixture-from-env/.seed-state.json',
+      envPath: '/tmp/preview-fixture-from-env/.env.test',
+    });
+  } finally {
+    if (previous === undefined) delete process.env.TESTDATA_OUTPUT_DIR;
+    else process.env.TESTDATA_OUTPUT_DIR = previous;
+  }
+});
+
+test('configured fixture output directories must be absolute', () => {
+  const previous = process.env.TESTDATA_OUTPUT_DIR;
+  process.env.TESTDATA_OUTPUT_DIR = 'relative-preview-fixtures';
+  try {
+    assert.throws(outputPaths, /TESTDATA_OUTPUT_DIR must be an absolute path/);
+  } finally {
+    if (previous === undefined) delete process.env.TESTDATA_OUTPUT_DIR;
+    else process.env.TESTDATA_OUTPUT_DIR = previous;
+  }
 });
 
 test('private member joins include the invite URL fetched for an existing group', () => {

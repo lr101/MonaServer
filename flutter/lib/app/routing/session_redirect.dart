@@ -8,7 +8,14 @@ String? sessionRedirect({
 }) {
   if (cleanupRequired && location != '/logout') return '/logout';
   if (status != SessionStatus.signedIn &&
-      !{'/login', '/web', '/logout'}.contains(location)) {
+      !{
+        '/login',
+        '/web',
+        '/logout',
+        '/email-login',
+        '/email-login/callback',
+        '/email-login/code',
+      }.contains(location)) {
     return '/login';
   }
   if (status == SessionStatus.signedIn && location == '/login') return '/home';

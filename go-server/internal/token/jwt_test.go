@@ -39,3 +39,53 @@ func TestParseWrongSecret(t *testing.T) {
 		t.Fatal("expected signature mismatch error")
 	}
 }
+
+func TestEphemeralHelperInvalidatesAccessTokensAcrossStarts(t *testing.T) {
+	first, err := NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("first helper: %v", err)
+	}
+	second, err := NewEphemeralHelper(time.Minute)
+	if err != nil {
+		t.Fatalf("second helper: %v", err)
+	}
+	uid := uuid.New()
+	access, err := first.GenerateAccessToken(uid)
+	if err != nil {
+		t.Fatalf("generate access token: %v", err)
+	}
+	if _, err := first.ParseAccessToken(access); err != nil {
+		t.Fatalf("current process rejected its own access token: %v", err)
+	}
+	if _, err := second.ParseAccessToken(access); err == nil {
+		t.Fatal("new process accepted an access token from the previous process")
+	}
+}
+
+func TestGenerationClaimRoundTripAndLegacyCompatibility(t *testing.T) {
+	h := NewHelper("test-secret", time.Minute)
+	uid := uuid.New()
+	raw, err := h.GenerateAccessTokenWithGeneration(uid, 7)
+	if err != nil {
+		t.Fatalf("generate generation token: %v", err)
+	}
+	claims, err := h.ParseAccessTokenClaims(raw)
+	if err != nil {
+		t.Fatalf("parse generation token: %v", err)
+	}
+	if claims.UserID != uid || claims.AuthGeneration != 7 || !claims.GenerationPresent {
+		t.Fatalf("claims = %#v, want user=%s generation=7 present", claims, uid)
+	}
+
+	legacy, err := h.GenerateAccessToken(uid)
+	if err != nil {
+		t.Fatalf("generate legacy-shaped token: %v", err)
+	}
+	legacyClaims, err := h.ParseAccessTokenClaims(legacy)
+	if err != nil {
+		t.Fatalf("parse legacy-shaped token: %v", err)
+	}
+	if legacyClaims.UserID != uid || legacyClaims.AuthGeneration != 0 || legacyClaims.GenerationPresent {
+		t.Fatalf("legacy claims = %#v, want zero generation absent", legacyClaims)
+	}
+}

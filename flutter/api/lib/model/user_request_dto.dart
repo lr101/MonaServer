@@ -18,6 +18,7 @@ class UserRequestDto {
     required this.password,
   });
 
+  /// Username. The @ character is reserved for email addresses.
   String name;
 
   String email;
@@ -122,4 +123,3 @@ class UserRequestDto {
     'password',
   };
 }
-

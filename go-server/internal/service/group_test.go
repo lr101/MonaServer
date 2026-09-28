@@ -211,6 +211,124 @@ func TestGroupCreateGetUpdate(t *testing.T) {
 	})
 }
 
+func TestCreatingPinAwardsGroupXPOnce(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userID := createTestUser(t, auth, "group_pin_xp_user")
+	groupID := createTestGroup(t, group, userID, "group_pin_xp_group")
+	input := CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
+		UserID: userID, GroupID: groupID,
+	}
+	createdPin, err := pin.Create(ctx, input)
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+	if err := q.AwardGroupXP(ctx, groupID, "pin:"+createdPin.ID.String(), 5); err != nil {
+		t.Fatalf("repeat the same group XP award: %v", err)
+	}
+	var totalXP int32
+	if err := q.Pool().QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, groupID).Scan(&totalXP); err != nil {
+		t.Fatalf("read group XP after pin creation: %v", err)
+	}
+	if totalXP != 5 {
+		t.Fatalf("group XP = %d after creating one pin, want 5", totalXP)
+	}
+	var awardCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT COUNT(*) FROM group_xp_ledger WHERE group_id = $1`, groupID).Scan(&awardCount); err != nil {
+		t.Fatalf("read group XP ledger: %v", err)
+	}
+	if awardCount != 1 {
+		t.Fatalf("group XP ledger rows = %d, want one idempotent pin award", awardCount)
+	}
+	if _, err := pin.Create(ctx, input); err == nil {
+		t.Fatal("retrying the same pin creation should be rejected")
+	}
+	if err := q.Pool().QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, groupID).Scan(&totalXP); err != nil {
+		t.Fatalf("read group XP after retry: %v", err)
+	}
+	if totalXP != 5 {
+		t.Fatalf("group XP = %d after retry, want 5", totalXP)
+	}
+}
+
+func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
+	_, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	memberID := createTestUser(t, auth, "group_achievement_member")
+	groupID := createTestGroup(t, group, memberID, "group_achievement_styles")
+
+	groupDto, err := group.GetDTO(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get new group: %v", err)
+	}
+	if groupDto.PinStyle != "classic" {
+		t.Fatalf("new group pin style = %q, want classic", groupDto.PinStyle)
+	}
+	lockedStyle := "aurora"
+	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle}); err != apperrors.ErrForbidden {
+		t.Fatalf("select locked group pin style error = %v, want forbidden", err)
+	}
+
+	lastPinID := uuid.Nil
+	for i := 0; i < 200; i++ {
+		created, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
+			UserID: memberID, GroupID: groupID,
+		})
+		if err != nil {
+			t.Fatalf("create group pin %d: %v", i+1, err)
+		}
+		lastPinID = created.ID
+	}
+	if err := pin.SetGone(ctx, lastPinID, true); err != nil {
+		t.Fatalf("mark a group pin gone: %v", err)
+	}
+	progress, err := group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get progress with a gone pin: %v", err)
+	}
+	if progress[2].CurrentValue != 199 || progress[2].Claimable {
+		t.Fatalf("gone pin counted toward the aurora badge: %+v", progress[2])
+	}
+	if err := pin.SetGone(ctx, lastPinID, false); err != nil {
+		t.Fatalf("mark a group pin active: %v", err)
+	}
+
+	progress, err = group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get group achievement progress: %v", err)
+	}
+	if len(progress) != 12 || progress[2].CurrentValue != 200 || !progress[2].Claimable {
+		t.Fatalf("aurora badge progress = %+v, want 200 pins and claimable", progress[2])
+	}
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 3); err != nil {
+		t.Fatalf("claim aurora group achievement: %v", err)
+	}
+	if err := group.ClaimAchievement(ctx, groupID, memberID, 3); err != nil {
+		t.Fatalf("repeat group achievement claim: %v", err)
+	}
+	updated, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &lockedStyle})
+	if err != nil {
+		t.Fatalf("select unlocked group pin style: %v", err)
+	}
+	if updated.PinStyle != lockedStyle {
+		t.Fatalf("selected group pin style = %q, want %q", updated.PinStyle, lockedStyle)
+	}
+	stillLocked := "honey"
+	if _, err := group.Update(ctx, groupID, UpdateGroupInput{PinStyle: &stillLocked}); err != apperrors.ErrForbidden {
+		t.Fatalf("select unearned group pin style error = %v, want forbidden", err)
+	}
+
+	progress, err = group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("read claimed group achievement: %v", err)
+	}
+	if !progress[2].Claimed || progress[2].Claimable {
+		t.Fatalf("claimed achievement state = %+v, want claimed and no longer claimable", progress[2])
+	}
+}
+
 func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 	_, auth, _, _, _, group, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -232,7 +350,7 @@ func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 }
 
 // TestGroupCreateSideEffects verifies automatic side-effects of group creation:
-// admin is enrolled as a member, XP is awarded, and visibility controls invite URL.
+// admin is enrolled as a member, XP is awarded, and every group gets an invite URL.
 func TestGroupCreateSideEffects(t *testing.T) {
 	q, auth, _, _, _, group, _, _, guard := setupServices(t)
 	ctx := context.Background()
@@ -276,17 +394,17 @@ func TestGroupCreateSideEffects(t *testing.T) {
 		}
 	})
 
-	t.Run("public group has no invite url", func(t *testing.T) {
+	t.Run("public group gets invite url", func(t *testing.T) {
 		g, err := group.Create(ctx, CreateGroupInput{
-			Name:       "publicnourl",
+			Name:       "publichasurl",
 			Visibility: 0,
 			GroupAdmin: adminID,
 		})
 		if err != nil {
 			t.Fatalf("create: %v", err)
 		}
-		if g.InviteUrl != nil {
-			t.Fatalf("public group should have no invite url, got %q", *g.InviteUrl)
+		if g.InviteUrl == nil || *g.InviteUrl == "" {
+			t.Fatal("public group should have a non-empty invite url")
 		}
 	})
 
@@ -395,8 +513,9 @@ func TestGroupUpdateFields(t *testing.T) {
 		}
 	})
 
-	t.Run("visibility 1 to 0 clears invite url", func(t *testing.T) {
-		// Create private, then flip to public.
+	t.Run("visibility changes preserve public links and rotate when private", func(t *testing.T) {
+		// A code shared while public must not remain valid after the group is
+		// switched to private.
 		g, err := group.Create(ctx, CreateGroupInput{
 			Name:       "vis_10",
 			Visibility: 1,
@@ -408,13 +527,22 @@ func TestGroupUpdateFields(t *testing.T) {
 		if g.InviteUrl == nil || *g.InviteUrl == "" {
 			t.Fatal("expected invite url on private group")
 		}
+		privateInvite := *g.InviteUrl
 		vis := 0
 		dto, err := group.Update(ctx, g.ID, UpdateGroupInput{Visibility: &vis})
 		if err != nil {
 			t.Fatalf("update: %v", err)
 		}
-		if dto.InviteUrl != nil && *dto.InviteUrl != "" {
-			t.Fatalf("invite url should be cleared after switching to public, got %q", *dto.InviteUrl)
+		if dto.InviteUrl == nil || *dto.InviteUrl != privateInvite {
+			t.Fatalf("invite url after switching to public = %v, want preserved code %q", dto.InviteUrl, privateInvite)
+		}
+		vis = 1
+		dto, err = group.Update(ctx, g.ID, UpdateGroupInput{Visibility: &vis})
+		if err != nil {
+			t.Fatalf("switch back to private: %v", err)
+		}
+		if dto.InviteUrl == nil || *dto.InviteUrl == "" || *dto.InviteUrl == privateInvite {
+			t.Fatalf("invite url after switching back to private = %v, want a rotated non-empty code", dto.InviteUrl)
 		}
 	})
 

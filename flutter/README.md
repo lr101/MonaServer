@@ -58,11 +58,11 @@ Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
 
-The web container serves only static files. Its API origin is compiled into
-the Flutter build; pass `--build-arg API_HOST=https://api.example.test` when
-building the image for a backend other than the default production origin.
-That backend and the object-storage origin must allow the web app's origin
-through CORS.
+The standalone Flutter web container serves only static files. Its API origin
+comes from `API_HOST` in the bundled runtime configuration, so that backend
+and the object-storage origin must allow the web app's origin through CORS. The
+combined deployment instead enables `API_HOST_FROM_PAGE` and serves API
+requests through the same origin as the web UI.
 
 ### Faster local iteration
 
@@ -90,23 +90,8 @@ repository root:
 ```bash
 test -f .env.test || cp .env.test.example .env.test
 # Replace the placeholder values in .env.test with local-only values.
-docker compose --env-file .env.test -f docker-compose.test.yml up --build -d --wait
-for attempt in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8081/public/api-docs >/dev/null; then
-    break
-  fi
-  if [ "$attempt" -eq 60 ]; then
-    docker compose --env-file .env.test -f docker-compose.test.yml logs go-server
-    exit 1
-  fi
-  sleep 1
-done
-export TESTDATA_PASSWORD="$(openssl rand -hex 12)"
-mise run testdata-seed
-set -a
-source testdata/.env.test
-set +a
-E2E_API_URL=http://127.0.0.1:8081 mise run flutter-verify-web
+# Follow docs/AGENT_LOCAL_STACK.md to start the native test services.
+TEST_API_URL=http://127.0.0.1:8081 mise run testdata-seed
 ```
 
 The check builds `flutter/build/web`, starts a static file server on port 4173,

@@ -37,7 +37,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Detect API generator changes
@@ -49,7 +49,7 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             git fetch --no-tags --depth=1 origin "$BASE_SHA"
-            if git diff --quiet "$BASE_SHA" HEAD -- api/ flutter/api/ .github/workflows/build-flutter.yml; then
+            if git diff --quiet "$BASE_SHA" HEAD -- api/ flutter/api/ flutter/generator-templates/ .github/scripts/normalize-openapi-generated.sh .github/workflows/build-flutter.yml; then
               echo "changed=false" >> "$GITHUB_OUTPUT"
             else
               echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -88,12 +88,18 @@ jobs:
             -i ../api/openapi.yaml \
             -g dart \
             -o "$generated_api" \
+            -t generator-templates \
+            --global-property modelTests=false,apiTests=false \
             --skip-validate-spec
+          bash ../.github/scripts/normalize-openapi-generated.sh "$generated_api" api
+          # Generated TODO tests are disabled. The retained v2 fixtures and
+          # focused contract tests are source-controlled separately.
           diff -ru \
             --exclude=pubspec.yaml \
             --exclude=pubspec.lock \
             --exclude=.dart_tool \
             --exclude=build \
+            --exclude=test \
             api "$generated_api"
 
       - name: Install dependencies
@@ -125,7 +131,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Build web release
@@ -196,7 +202,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Set up Java
@@ -318,7 +324,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.3
+          flutter-version: 3.47.4
           cache: true
 
       - name: Select Xcode 16.4

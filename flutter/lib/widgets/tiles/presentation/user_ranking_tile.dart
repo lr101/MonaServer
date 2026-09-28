@@ -1,7 +1,6 @@
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,64 +18,92 @@ class UserRankingTile extends ConsumerWidget {
     final userId = ref.watch(globalDataServiceProvider).userId!;
     final isCurrentUser = userId == user.userInfoDto!.userId;
     final int? batch;
+    final String? batchColor;
     if (isCurrentUser) {
-      batch = ref.watch(currentUserProvider.select((e) => e.value?.selectedBatch));
+      batch = ref.watch(
+        currentUserProvider.select((e) => e.value?.selectedBatch),
+      );
+      batchColor = ref.watch(
+        currentUserProvider.select((e) => e.value?.selectedBatchColor),
+      );
     } else {
       batch = user.userInfoDto!.selectedBatch;
+      batchColor = user.userInfoDto!.selectedBatchColor;
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Container(
-          decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10.0),
-            color: _tileColor(user.rankNr),
-            border: Border.all(color: isCurrentUser ? Theme.of(context).highlightColor : Colors.transparent),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10.0),
+          color: _tileColor(user.rankNr),
+          border: Border.all(
+            color: isCurrentUser
+                ? Theme.of(context).highlightColor
+                : Colors.transparent,
           ),
-          child: ListTile(
-            onTap: () => isCurrentUser ? null : context.pushNamed("userProfile", pathParameters: {"id": user.userInfoDto!.userId}),
-            minTileHeight: height,
-            title: Text(
-              user.userInfoDto!.username,
-              style: TextStyle(fontSize: (height / 10) + 8),
-            ),
-            subtitle: batch != null ? Row(children: [Batch(batchId: batch, fontSize: (height / 10) + 2)],) : null,
-            leading: SizedBox(
-              width: 80,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (user.rankNr! <= 3)
-                    Icon(
-                      Icons.emoji_events,
-                      color: user.rankNr == 1 ? Colors.yellow
-                          : user.rankNr == 2 ? Colors.grey : Colors.brown,
-                    )
-                  else
-                    Text(
-                      "${user.rankNr}.",
+        ),
+        child: ListTile(
+          onTap: () => isCurrentUser
+              ? null
+              : context.pushNamed(
+                  "userProfile",
+                  pathParameters: {"id": user.userInfoDto!.userId},
+                ),
+          minTileHeight: height,
+          title: Text(
+            user.userInfoDto!.username,
+            style: TextStyle(fontSize: (height / 10) + 8),
+          ),
+          subtitle: batch != null
+              ? Row(
+                  children: [
+                    Batch(
+                      batchId: batch,
+                      fontSize: (height / 10) + 2,
+                      colorOverride: batchColor,
                     ),
-                  RoundImage(
-                      imageCallback: ref.watch(
-                          getUserProfileSmallProvider(user.userInfoDto!.userId),),
-                      size: (height - 10) / 2,),
-                ],
-              ),
+                  ],
+                )
+              : null,
+          leading: SizedBox(
+            width: 80,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (user.rankNr! <= 3)
+                  Icon(
+                    Icons.emoji_events,
+                    color: user.rankNr == 1
+                        ? Colors.yellow
+                        : user.rankNr == 2
+                        ? Colors.grey
+                        : Colors.brown,
+                  )
+                else
+                  Text("${user.rankNr}."),
+                SmallProfilePicture.user(
+                  userId: user.userInfoDto!.userId,
+                  radius: (height - 10) / 2 - 3,
+                ),
+              ],
             ),
-            trailing: Text("${user.points}p"),
-          ),),
+          ),
+          trailing: Text("${user.points}p"),
+        ),
+      ),
     );
   }
 
   Color? _tileColor(int? rank) {
-      switch (rank) {
-        case 1:
-          return Colors.yellow.withValues(alpha: 0.5);
-        case 2:
-          return Colors.grey.withValues(alpha: 0.5);
-        case 3:
-          return Colors.brown.withValues(alpha: 0.5);
-        default:
-          return null;
-      }
+    switch (rank) {
+      case 1:
+        return Colors.yellow.withValues(alpha: 0.5);
+      case 2:
+        return Colors.grey.withValues(alpha: 0.5);
+      case 3:
+        return Colors.brown.withValues(alpha: 0.5);
+      default:
+        return null;
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { dataPath } from '../test-data-path.js';
 
@@ -31,6 +32,74 @@ test.afterEach(async ({ page }) => {
   expect(uiErrors.get(page), 'browser UI errors').toEqual([]);
 });
 
+test('email-code sign-in remains the default and can switch to password', async ({ page }) => {
+  let emailLinkRequests = 0;
+  await page.route('**/api/v3/public/auth/email-link/request', async (route) => {
+    emailLinkRequests++;
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: '{"accepted":true}',
+    });
+  });
+
+  await page.goto('/');
+  await enableAccessibility(page);
+  await expect(page.locator('body')).not.toContainText(/Buff\s+Lisa/i);
+  await expect(page.locator('body')).not.toContainText('to continue to');
+  await expect(page.getByText('Need an account?', { exact: true })).toBeVisible();
+  const identifier = page.locator('input[aria-label="Email or username"]');
+  await expect(identifier).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
+  await expect(page.locator('input[aria-label="Username"]')).toBeVisible();
+  await expect(page.locator('input[aria-label="Password"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Use email code instead', exact: true }).click();
+  await expect(identifier).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+
+  await enterFlutterText(page, 'Email or username', 'person@example.com');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.locator('input[aria-label="Sign-in code"]')).toBeVisible();
+  expect(emailLinkRequests).toBe(1);
+
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(identifier).toBeVisible();
+});
+
+test('password sign-in publishes browser autofill metadata', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(
+    () => document.querySelector('#splash-screen') === null,
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  // Use the normal Flutter text input bridge. Enabling accessibility switches
+  // to proxy inputs whose autocomplete attributes are intentionally disabled.
+  await page.mouse.click(130, 532);
+  await page.waitForTimeout(400);
+  await page.mouse.click(200, 365);
+
+  const username = page.locator('flt-text-editing-host input[name="username"]');
+  const password = page.locator(
+    'flt-text-editing-host input[name="current-password"]',
+  );
+  await expect(username).toHaveAttribute('autocomplete', 'username');
+  await expect(password).toHaveAttribute('autocomplete', 'current-password');
+});
+
+test('secondary auth actions retain 48-pixel hit areas', async ({ page }) => {
+  await page.goto('/');
+  await enableAccessibility(page);
+
+  for (const name of ['Sign in with password', 'Create account']) {
+    const bounds = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(bounds?.height, `${name} hit area`).toBeGreaterThanOrEqual(48);
+  }
+});
+
 test('logout clears the session and allows a clean login again', async ({ page }) => {
   test.setTimeout(90_000);
   const data = readE2eData();
@@ -57,7 +126,7 @@ async function logout(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Logout', exact: true }).click();
   await page.waitForURL(/#\/login/, { timeout: 30_000 });
-  await expect(page.locator('input[aria-label="Name"]')).toBeVisible();
+  await expect(page.locator('input[aria-label="Email or username"]')).toBeVisible();
 }
 
 test('rejected refresh returns to login, survives reload, and permits reauthentication', async ({ page }) => {
@@ -67,13 +136,13 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
   let rejections = 0;
   await page.route('**/api/v2/public/refresh', async (route) => {
     rejections++;
-    await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
   });
   // The only expected browser error is the refresh response injected above.
   page.on('console', (message) => {
     if (message.type() === 'error' &&
         message.location().url.endsWith('/api/v2/public/refresh') &&
-        message.text() === 'Failed to load resource: the server responded with a status of 403 (Forbidden)') {
+        message.text() === 'Failed to load resource: the server responded with a status of 400 (Bad Request)') {
       const errors = uiErrors.get(page)!;
       const index = errors.lastIndexOf(message.text());
       if (index >= 0) errors.splice(index, 1);
@@ -93,6 +162,67 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
   await submitLogin(page, data);
   await page.getByRole('tab', { name: 'Groups', exact: true }).click();
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+test('expired refresh during group creation returns to sign-in without a network error', async ({ page }) => {
+  test.setTimeout(90_000);
+  const data = readE2eData();
+  await login(page, data);
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await page.getByRole('button', { name: 'Show menu' }).click();
+  await page.getByRole('menuitem', { name: 'Create a new group', exact: true }).click();
+
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Change image' }).click();
+  await (await chooser).setFiles(resolve(process.cwd(), '../assets/achievements/art.jpeg'));
+  await page.locator('.cropper-container').waitFor({ state: 'visible' });
+  await page.waitForTimeout(400);
+  await page.mouse.click(await page.evaluate(() => window.innerWidth - 24), 28);
+
+  await page.getByRole('textbox', { name: 'Group name' }).click();
+  await page.keyboard.type('Invalid refresh create regression');
+  await page.getByRole('textbox', { name: 'Description' }).click();
+  await page.keyboard.type('This intercepted request must not create a group.');
+
+  let createRequests = 0;
+  let refreshRequests = 0;
+  await page.route('**/api/v2/groups', async (route) => {
+    if (route.request().method() === 'POST') {
+      createRequests++;
+      await route.fulfill({ status: 401, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route('**/api/v2/public/refresh', async (route) => {
+    refreshRequests++;
+    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+  });
+  for (const [pathname, status, reason] of [
+    ['/api/v2/groups', 401, 'Unauthorized'],
+    ['/api/v2/public/refresh', 400, 'Bad Request'],
+  ] as const) {
+    const expected = `Failed to load resource: the server responded with a status of ${status} (${reason})`;
+    page.on('console', (message) => {
+      if (
+        message.type() === 'error' &&
+        message.location().url.endsWith(pathname) &&
+        message.text() === expected
+      ) {
+        const errors = uiErrors.get(page)!;
+        const index = errors.lastIndexOf(message.text());
+        if (index >= 0) errors.splice(index, 1);
+      }
+    });
+  }
+
+  await page.getByRole('button', { name: 'Create group', exact: true }).click();
+  await page.waitForURL(/#\/login/, { timeout: 30_000 });
+  await expect(page.getByText('Your session expired. Sign in again to continue.')).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(page.locator('body')).not.toContainText(/HTTP connection failed|Exception occurred.*\/api\/v2\/groups/i);
+  expect(createRequests).toBe(1);
+  expect(refreshRequests).toBe(1);
 });
 
 test('login and restored sessions each sync once without navigation retriggers', async ({ page }) => {
@@ -128,6 +258,22 @@ test('logs in and renders the seeded group', async ({ page }) => {
   await page.locator('[role="tab"][aria-label="Groups"]').click();
   await expect(page.locator('body')).toContainText('Your groups', { timeout: 30_000 });
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+test('settings navigation exposes its sections and hidden-user empty state', async ({ page }) => {
+  await login(page, readE2eData());
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+
+  await expect(page.getByRole('switch', { name: /Dark appearance/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Privacy & data' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hidden users', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Hidden users' })).toBeVisible();
+  const accessibilityTree = await page.locator('body').ariaSnapshot();
+  expect(accessibilityTree).toContain('No hidden users');
+  expect(accessibilityTree).toContain(
+    'Users you hide from the map and feed will appear here.',
+  );
 });
 
 test('loads pins for a public group opened through group search', async ({ page }) => {
@@ -236,11 +382,11 @@ async function enableAccessibility(page: Page): Promise<void> {
 }
 
 async function submitLogin(page: Page, data: E2eData): Promise<void> {
-  await enterFlutterText(page, 'Name', data.username);
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
+  await enterFlutterText(page, 'Username', data.username);
   await enterFlutterText(page, 'Password', data.password);
   await page
-    .locator('flt-semantics[role="button"]')
-    .filter({ hasText: /^LOGIN$/ })
+    .getByRole('button', { name: 'Sign in', exact: true })
     .click();
 
   await page.waitForURL(/#\/home/, { timeout: 30_000 });
@@ -262,42 +408,90 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Keep the camera flow covered in a full Chromium browser. The web app uses
-// the browser's user-initiated image capture input instead of camera_web's
-// repeated getUserMedia device probing.
+
 test.use({
   channel: 'chromium',
+  launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
 });
 
 test.describe('web camera access', () => {
-  test('does not probe every camera when the camera page opens', async ({ page }) => {
+  test.use({
+    permissions: ['camera'],
+  });
+
+  test('opens a full-frame preview without probing every camera', async ({ page }) => {
+    test.setTimeout(60_000);
     await page.addInitScript(() => {
-      const mediaDevices = navigator.mediaDevices;
-      if (!mediaDevices) return;
-      mediaDevices.getUserMedia = async () => {
-        document.documentElement.dataset.cameraRequested = 'true';
-        throw new Error('The camera page should use image capture input');
+      const devices = navigator.mediaDevices;
+      const original = devices.getUserMedia.bind(devices);
+      let requests = 0;
+      Object.defineProperty(window, '__cameraRequests', { get: () => requests });
+      devices.getUserMedia = async (constraints) => {
+        requests++;
+        return original(constraints);
       };
     });
     await login(page, readE2eData());
-    await expect(page.locator('html')).not.toHaveAttribute(
-      'data-camera-requested',
-      'true',
-    );
+    expect(await page.evaluate(() => (window as Window & { __cameraRequests: number }).__cameraRequests)).toBe(0);
     await page.getByRole('tab', { name: 'Camera', exact: true }).click();
-    const takePhoto = page.getByRole('button', { name: 'Take photo' });
-    await expect(takePhoto).toBeVisible();
-    const fileChooserPromise = page.waitForEvent('filechooser');
-    await takePhoto.click();
-    const fileChooser = await fileChooserPromise;
-    expect(await fileChooser.element().getAttribute('accept')).toBe(
-      'image/*',
-    );
-    expect(await fileChooser.element().getAttribute('capture')).toBe(
-      'environment',
-    );
-    await expect(page.locator('body')).not.toContainText(
-      'Could not access the camera',
-    );
+    const video = page.locator('video');
+    await expect(video).toBeVisible({ timeout: 30_000 });
+    await expect(video).toHaveCSS('object-fit', 'contain');
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState)).toBe(4);
+    expect(await page.evaluate(() => (window as Window & { __cameraRequests: number }).__cameraRequests)).toBe(2);
+    await expect(page.getByRole('button', { name: 'Select camera' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'test-results/camera-portrait.png' });
+    await page.setViewportSize({ width: 900, height: 450 });
+    await expect(video).toBeVisible();
+    await page.screenshot({ path: 'test-results/camera-landscape.png' });
+    // Mobile browsers may renegotiate stream dimensions after rotation.
+    await video.evaluate(async (element: HTMLVideoElement) => {
+      const track = (element.srcObject as MediaStream).getVideoTracks()[0];
+      await track.applyConstraints({ width: { exact: 640 }, height: { exact: 480 } });
+    });
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) =>
+      [element.videoWidth, element.videoHeight])).toEqual([640, 480]);
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.width / bounds.height;
+    })).toBeCloseTo(4 / 3, 2);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
+    await page.goBack();
+    await expect(video).toBeVisible();
+    await expect(page.getByText('Hold steady capturing ...', { exact: true })).toHaveCount(0);
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Approve' })).toBeVisible();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
+    await expect(page.getByText('Hold steady capturing ...', { exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
   });
+  test('camera permission denial is actionable and retry restores preview', async ({ page }) => {
+    await page.addInitScript(() => {
+      const devices = navigator.mediaDevices;
+      const original = devices.getUserMedia.bind(devices);
+      let deny = true;
+      devices.getUserMedia = async (constraints) => {
+        if (deny) {
+          deny = false;
+          throw new DOMException('Permission denied', 'NotAllowedError');
+        }
+        return original(constraints);
+      };
+    });
+    await login(page, readE2eData());
+    await page.getByRole('tab', { name: 'Camera', exact: true }).click();
+    await expect(page.getByRole('group', { name: /Allow camera access/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.locator('video')).toBeVisible({ timeout: 30_000 });
+  });
+
 });

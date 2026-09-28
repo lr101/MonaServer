@@ -19,6 +19,7 @@ class BatchReadResult {
     this.imageUrl,
     this.user,
     this.likes,
+    this.progression,
   });
 
   BatchReadResultKindEnum kind;
@@ -39,6 +40,8 @@ class BatchReadResult {
 
   PinLikeDto? likes;
 
+  ProfileProgressionDto? progression;
+
   @override
   bool operator ==(Object other) => identical(this, other) || other is BatchReadResult &&
     other.kind == kind &&
@@ -46,7 +49,8 @@ class BatchReadResult {
     other.status == status &&
     other.imageUrl == imageUrl &&
     other.user == user &&
-    other.likes == likes;
+    other.likes == likes &&
+    other.progression == progression;
 
   @override
   int get hashCode =>
@@ -56,10 +60,11 @@ class BatchReadResult {
     (status.hashCode) +
     (imageUrl == null ? 0 : imageUrl!.hashCode) +
     (user == null ? 0 : user!.hashCode) +
-    (likes == null ? 0 : likes!.hashCode);
+    (likes == null ? 0 : likes!.hashCode) +
+    (progression == null ? 0 : progression!.hashCode);
 
   @override
-  String toString() => 'BatchReadResult[kind=$kind, id=$id, status=$status, imageUrl=$imageUrl, user=$user, likes=$likes]';
+  String toString() => 'BatchReadResult[kind=$kind, id=$id, status=$status, imageUrl=$imageUrl, user=$user, likes=$likes, progression=$progression]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -80,6 +85,11 @@ class BatchReadResult {
       json[r'likes'] = this.likes;
     } else {
       json[r'likes'] = null;
+    }
+    if (this.progression != null) {
+      json[r'progression'] = this.progression;
+    } else {
+      json[r'progression'] = null;
     }
     return json;
   }
@@ -109,6 +119,7 @@ class BatchReadResult {
         imageUrl: mapValueOfType<String>(json, r'imageUrl'),
         user: UserInfoDto.fromJson(json[r'user']),
         likes: PinLikeDto.fromJson(json[r'likes']),
+        progression: ProfileProgressionDto.fromJson(json[r'progression']),
       );
     }
     return null;
@@ -183,6 +194,8 @@ class BatchReadResultKindEnum {
   static const groupPinImage = BatchReadResultKindEnum._(r'groupPinImage');
   static const user = BatchReadResultKindEnum._(r'user');
   static const pinLikes = BatchReadResultKindEnum._(r'pinLikes');
+  static const userProgression = BatchReadResultKindEnum._(r'userProgression');
+  static const groupProgression = BatchReadResultKindEnum._(r'groupProgression');
 
   /// List of all possible values in this [enum][BatchReadResultKindEnum].
   static const values = <BatchReadResultKindEnum>[
@@ -194,6 +207,8 @@ class BatchReadResultKindEnum {
     groupPinImage,
     user,
     pinLikes,
+    userProgression,
+    groupProgression,
   ];
 
   static BatchReadResultKindEnum? fromJson(dynamic value) => BatchReadResultKindEnumTypeTransformer().decode(value);
@@ -240,6 +255,8 @@ class BatchReadResultKindEnumTypeTransformer {
         case r'groupPinImage': return BatchReadResultKindEnum.groupPinImage;
         case r'user': return BatchReadResultKindEnum.user;
         case r'pinLikes': return BatchReadResultKindEnum.pinLikes;
+        case r'userProgression': return BatchReadResultKindEnum.userProgression;
+        case r'groupProgression': return BatchReadResultKindEnum.groupProgression;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

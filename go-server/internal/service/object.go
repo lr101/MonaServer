@@ -43,6 +43,14 @@ type Object struct {
 // are both computed over the external address, so the signature remains valid
 // when the client actually fetches the URL.
 func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL bool, urlExpiry time.Duration) (*Object, error) {
+	return NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket, useSSL, useSSL, urlExpiry)
+}
+
+// NewObjectWithExternalSSL creates an Object service with independent TLS
+// settings for the internal S3 client and externally returned presigned URLs.
+// This supports TLS termination at a proxy while the server reaches local
+// RustFS over HTTP.
+func NewObjectWithExternalSSL(endpoint, externalEndpoint, accessKey, secretKey, bucket string, useSSL, externalUseSSL bool, urlExpiry time.Duration) (*Object, error) {
 	client, err := newS3Client(endpoint, accessKey, secretKey, useSSL)
 	if err != nil {
 		return nil, err
@@ -51,7 +59,7 @@ func NewObject(endpoint, externalEndpoint, accessKey, secretKey, bucket string, 
 	if extEndpoint == "" {
 		extEndpoint = endpoint
 	}
-	presignS3Client, err := newS3Client(extEndpoint, accessKey, secretKey, useSSL)
+	presignS3Client, err := newS3Client(extEndpoint, accessKey, secretKey, externalUseSSL)
 	if err != nil {
 		return nil, err
 	}
@@ -186,6 +194,11 @@ func isNotFound(err error) bool {
 
 // PinKey returns pins/{id}.png.
 func PinKey(id uuid.UUID) string { return fmt.Sprintf("pins/%s.png", id) }
+
+// PinPhotoKey returns an immutable key for a later pin photo update.
+func PinPhotoKey(pinID, photoID uuid.UUID) string {
+	return fmt.Sprintf("pins/%s/photos/%s.jpg", pinID, photoID)
+}
 
 // GroupPinKey returns groups/{id}/group_pin.png.
 func GroupPinKey(id uuid.UUID) string { return fmt.Sprintf("groups/%s/group_pin.png", id) }
