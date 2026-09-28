@@ -21,6 +21,12 @@ type UserAchievementsDtoInner struct {
 
 	Difficulty string `json:"difficulty,omitempty"`
 
+	// Each achievement grants exactly one reward category. Easy achievements grant XP, medium achievements grant a color, and hard achievements grant a badge.
+	RewardType *string `json:"rewardType,omitempty"`
+
+	RewardColor *string `json:"rewardColor,omitempty" validate:"regexp=^#[0-9A-Fa-f]{8}$"`
+
+	// XP amount for XP rewards; omitted for color and badge rewards.
 	RewardXp int32 `json:"rewardXp,omitempty"`
 
 	Claimable bool `json:"claimable,omitempty"`

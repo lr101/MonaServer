@@ -42,6 +42,8 @@ class Achievements extends _$Achievements {
                   description: previous.description,
                   track: previous.track,
                   difficulty: previous.difficulty,
+                  rewardType: previous.rewardType,
+                  rewardColor: previous.rewardColor,
                   rewardXp: previous.rewardXp,
                   claimable: false,
                   rewardAvailable: false,

@@ -9,7 +9,6 @@ import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
-import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
@@ -59,39 +58,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Achievements'), findsOneWidget);
-    expect(find.text('First stick'), findsNothing);
+    expect(find.text('Two sticks'), findsNothing);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
     expect(find.text('0/3 earned'), findsNothing);
-    expect(find.text('First stick'), findsOneWidget);
+    expect(find.text('Two sticks'), findsOneWidget);
     expect(find.text('Claim 20 XP'), findsNothing);
     expect(find.text('1/1'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
 
-    await tester.tap(find.text('First stick'));
-    await tester.pump();
+    await tester.tap(find.text('Two sticks'));
+    await tester.pumpAndSettle();
     expect(usersApi.claimedId, 3);
 
-    final achievementScrollables = find.descendant(
-      of: find.byType(UserAchievementsTab),
-      matching: find.byType(Scrollable),
-    );
-    await tester.scrollUntilVisible(
-      find.text('Stick collector'),
-      250,
-      scrollable: achievementScrollables.first,
-    );
+    // Claiming the first milestone advances this track to its next unclaimed
+    // tier without moving through other achievement categories.
     expect(find.text('Stick collector'), findsOneWidget);
-    expect(find.text('3/10'), findsOneWidget);
+    expect(find.text('3/20'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
-    await tester.scrollUntilVisible(
-      find.text('Dedicated collector'),
-      250,
-      scrollable: achievementScrollables.first,
-    );
+    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Dedicated collector'), findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);
   });
 }
@@ -110,38 +100,39 @@ class _TestAchievements extends Achievements {
   Future<List<UserAchievementsDtoInner>> build() => Future.value([
     UserAchievementsDtoInner(
       achievementId: 3,
-      name: 'First stick',
-      description: 'Add your first stick.',
+      name: 'Two sticks',
+      description: 'Add two sticks.',
       track: 'sticks',
       difficulty: 'easy',
       rewardXp: 20,
       claimable: true,
-      definitionVersion: 2,
+      definitionVersion: 4,
       claimed: false,
-      thresholdValue: 1,
-      currentValue: 1,
+      thresholdValue: 2,
+      currentValue: 2,
       thresholdUp: true,
     ),
     UserAchievementsDtoInner(
       achievementId: 9,
       claimed: false,
-      thresholdValue: 10,
+      track: 'sticks',
+      thresholdValue: 40,
       currentValue: 3,
       thresholdUp: true,
     ),
     UserAchievementsDtoInner(
       achievementId: 12,
       name: 'Dedicated collector',
-      description: 'Add fifty sticks.',
+      description: 'Add two hundred sticks.',
       track: 'sticks',
       difficulty: 'hard',
       rewardXp: 100,
       claimable: true,
       rewardAvailable: false,
-      definitionVersion: 2,
+      definitionVersion: 4,
       claimed: false,
-      thresholdValue: 50,
-      currentValue: 50,
+      thresholdValue: 200,
+      currentValue: 200,
       thresholdUp: true,
     ),
   ]);

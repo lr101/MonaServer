@@ -3863,6 +3863,18 @@ class $UserEntitiesTable extends UserEntities
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _selectedBatchColorMeta =
+      const VerificationMeta('selectedBatchColor');
+  @override
+  late final GeneratedColumn<String> selectedBatchColor =
+      GeneratedColumn<String>(
+        'selected_batch_color',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('default'),
+      );
   static const VerificationMeta _descriptionMeta = const VerificationMeta(
     'description',
   );
@@ -3893,6 +3905,7 @@ class $UserEntitiesTable extends UserEntities
     userId,
     username,
     selectedBatch,
+    selectedBatchColor,
     description,
     bestSeason,
   ];
@@ -3968,6 +3981,15 @@ class $UserEntitiesTable extends UserEntities
         ),
       );
     }
+    if (data.containsKey('selected_batch_color')) {
+      context.handle(
+        _selectedBatchColorMeta,
+        selectedBatchColor.isAcceptableOrUnknown(
+          data['selected_batch_color']!,
+          _selectedBatchColorMeta,
+        ),
+      );
+    }
     if (data.containsKey('description')) {
       context.handle(
         _descriptionMeta,
@@ -4018,6 +4040,10 @@ class $UserEntitiesTable extends UserEntities
         DriftSqlType.int,
         data['${effectivePrefix}selected_batch'],
       ),
+      selectedBatchColor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_batch_color'],
+      )!,
       description: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}description'],
@@ -4051,6 +4077,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
   final String userId;
   final String username;
   final int? selectedBatch;
+  final String selectedBatchColor;
   final String? description;
   final SeasonEntity? bestSeason;
   const UserDb({
@@ -4062,6 +4089,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     required this.userId,
     required this.username,
     this.selectedBatch,
+    required this.selectedBatchColor,
     this.description,
     this.bestSeason,
   });
@@ -4078,6 +4106,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     if (!nullToAbsent || selectedBatch != null) {
       map['selected_batch'] = Variable<int>(selectedBatch);
     }
+    map['selected_batch_color'] = Variable<String>(selectedBatchColor);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
     }
@@ -4101,6 +4130,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       selectedBatch: selectedBatch == null && nullToAbsent
           ? const Value.absent()
           : Value(selectedBatch),
+      selectedBatchColor: Value(selectedBatchColor),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
@@ -4124,6 +4154,9 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       userId: serializer.fromJson<String>(json['userId']),
       username: serializer.fromJson<String>(json['username']),
       selectedBatch: serializer.fromJson<int?>(json['selectedBatch']),
+      selectedBatchColor: serializer.fromJson<String>(
+        json['selectedBatchColor'],
+      ),
       description: serializer.fromJson<String?>(json['description']),
       bestSeason: serializer.fromJson<SeasonEntity?>(json['bestSeason']),
     );
@@ -4140,6 +4173,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       'userId': serializer.toJson<String>(userId),
       'username': serializer.toJson<String>(username),
       'selectedBatch': serializer.toJson<int?>(selectedBatch),
+      'selectedBatchColor': serializer.toJson<String>(selectedBatchColor),
       'description': serializer.toJson<String?>(description),
       'bestSeason': serializer.toJson<SeasonEntity?>(bestSeason),
     };
@@ -4154,6 +4188,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     String? userId,
     String? username,
     Value<int?> selectedBatch = const Value.absent(),
+    String? selectedBatchColor,
     Value<String?> description = const Value.absent(),
     Value<SeasonEntity?> bestSeason = const Value.absent(),
   }) => UserDb(
@@ -4167,6 +4202,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     selectedBatch: selectedBatch.present
         ? selectedBatch.value
         : this.selectedBatch,
+    selectedBatchColor: selectedBatchColor ?? this.selectedBatchColor,
     description: description.present ? description.value : this.description,
     bestSeason: bestSeason.present ? bestSeason.value : this.bestSeason,
   );
@@ -4184,6 +4220,9 @@ class UserDb extends DataClass implements Insertable<UserDb> {
       selectedBatch: data.selectedBatch.present
           ? data.selectedBatch.value
           : this.selectedBatch,
+      selectedBatchColor: data.selectedBatchColor.present
+          ? data.selectedBatchColor.value
+          : this.selectedBatchColor,
       description: data.description.present
           ? data.description.value
           : this.description,
@@ -4204,6 +4243,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
           ..write('userId: $userId, ')
           ..write('username: $username, ')
           ..write('selectedBatch: $selectedBatch, ')
+          ..write('selectedBatchColor: $selectedBatchColor, ')
           ..write('description: $description, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
@@ -4220,6 +4260,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
     userId,
     username,
     selectedBatch,
+    selectedBatchColor,
     description,
     bestSeason,
   );
@@ -4235,6 +4276,7 @@ class UserDb extends DataClass implements Insertable<UserDb> {
           other.userId == this.userId &&
           other.username == this.username &&
           other.selectedBatch == this.selectedBatch &&
+          other.selectedBatchColor == this.selectedBatchColor &&
           other.description == this.description &&
           other.bestSeason == this.bestSeason);
 }
@@ -4248,6 +4290,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
   final Value<String> userId;
   final Value<String> username;
   final Value<int?> selectedBatch;
+  final Value<String> selectedBatchColor;
   final Value<String?> description;
   final Value<SeasonEntity?> bestSeason;
   const UserEntitiesCompanion({
@@ -4259,6 +4302,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     this.userId = const Value.absent(),
     this.username = const Value.absent(),
     this.selectedBatch = const Value.absent(),
+    this.selectedBatchColor = const Value.absent(),
     this.description = const Value.absent(),
     this.bestSeason = const Value.absent(),
   });
@@ -4271,6 +4315,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     required String userId,
     required String username,
     this.selectedBatch = const Value.absent(),
+    this.selectedBatchColor = const Value.absent(),
     this.description = const Value.absent(),
     this.bestSeason = const Value.absent(),
   }) : ttl = Value(ttl),
@@ -4285,6 +4330,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     Expression<String>? userId,
     Expression<String>? username,
     Expression<int>? selectedBatch,
+    Expression<String>? selectedBatchColor,
     Expression<String>? description,
     Expression<String>? bestSeason,
   }) {
@@ -4297,6 +4343,8 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
       if (userId != null) 'user_id': userId,
       if (username != null) 'username': username,
       if (selectedBatch != null) 'selected_batch': selectedBatch,
+      if (selectedBatchColor != null)
+        'selected_batch_color': selectedBatchColor,
       if (description != null) 'description': description,
       if (bestSeason != null) 'best_season': bestSeason,
     });
@@ -4311,6 +4359,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     Value<String>? userId,
     Value<String>? username,
     Value<int?>? selectedBatch,
+    Value<String>? selectedBatchColor,
     Value<String?>? description,
     Value<SeasonEntity?>? bestSeason,
   }) {
@@ -4323,6 +4372,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
       userId: userId ?? this.userId,
       username: username ?? this.username,
       selectedBatch: selectedBatch ?? this.selectedBatch,
+      selectedBatchColor: selectedBatchColor ?? this.selectedBatchColor,
       description: description ?? this.description,
       bestSeason: bestSeason ?? this.bestSeason,
     );
@@ -4355,6 +4405,9 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
     if (selectedBatch.present) {
       map['selected_batch'] = Variable<int>(selectedBatch.value);
     }
+    if (selectedBatchColor.present) {
+      map['selected_batch_color'] = Variable<String>(selectedBatchColor.value);
+    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -4377,6 +4430,7 @@ class UserEntitiesCompanion extends UpdateCompanion<UserDb> {
           ..write('userId: $userId, ')
           ..write('username: $username, ')
           ..write('selectedBatch: $selectedBatch, ')
+          ..write('selectedBatchColor: $selectedBatchColor, ')
           ..write('description: $description, ')
           ..write('bestSeason: $bestSeason')
           ..write(')'))
@@ -7246,6 +7300,7 @@ typedef $$UserEntitiesTableCreateCompanionBuilder =
       required String userId,
       required String username,
       Value<int?> selectedBatch,
+      Value<String> selectedBatchColor,
       Value<String?> description,
       Value<SeasonEntity?> bestSeason,
     });
@@ -7259,6 +7314,7 @@ typedef $$UserEntitiesTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> username,
       Value<int?> selectedBatch,
+      Value<String> selectedBatchColor,
       Value<String?> description,
       Value<SeasonEntity?> bestSeason,
     });
@@ -7309,6 +7365,11 @@ class $$UserEntitiesTableFilterComposer
 
   ColumnFilters<int> get selectedBatch => $composableBuilder(
     column: $table.selectedBatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7373,6 +7434,11 @@ class $$UserEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get description => $composableBuilder(
     column: $table.description,
     builder: (column) => ColumnOrderings(column),
@@ -7418,6 +7484,11 @@ class $$UserEntitiesTableAnnotationComposer
 
   GeneratedColumn<int> get selectedBatch => $composableBuilder(
     column: $table.selectedBatch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get selectedBatchColor => $composableBuilder(
+    column: $table.selectedBatchColor,
     builder: (column) => column,
   );
 
@@ -7469,6 +7540,7 @@ class $$UserEntitiesTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> username = const Value.absent(),
                 Value<int?> selectedBatch = const Value.absent(),
+                Value<String> selectedBatchColor = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => UserEntitiesCompanion(
@@ -7480,6 +7552,7 @@ class $$UserEntitiesTableTableManager
                 userId: userId,
                 username: username,
                 selectedBatch: selectedBatch,
+                selectedBatchColor: selectedBatchColor,
                 description: description,
                 bestSeason: bestSeason,
               ),
@@ -7493,6 +7566,7 @@ class $$UserEntitiesTableTableManager
                 required String userId,
                 required String username,
                 Value<int?> selectedBatch = const Value.absent(),
+                Value<String> selectedBatchColor = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<SeasonEntity?> bestSeason = const Value.absent(),
               }) => UserEntitiesCompanion.insert(
@@ -7504,6 +7578,7 @@ class $$UserEntitiesTableTableManager
                 userId: userId,
                 username: username,
                 selectedBatch: selectedBatch,
+                selectedBatchColor: selectedBatchColor,
                 description: description,
                 bestSeason: bestSeason,
               ),

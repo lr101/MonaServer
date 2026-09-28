@@ -34,8 +34,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Group achievements'), findsNothing);
-    expect(find.text('10/10'), findsOneWidget);
+    expect(find.text('Group achievements'), findsOneWidget);
+    expect(find.text('10/40'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('Claim'), findsNothing);
 
@@ -214,7 +214,21 @@ GroupAchievementsDtoInner _achievement({
   difficulty: GroupAchievementsDtoInnerDifficultyEnum.easy,
   claimed: claimed,
   claimable: claimable,
-  thresholdValue: achievementId == 1 ? 10 : 25,
+  thresholdValue: switch (achievementId) {
+    1 => 40,
+    2 => 100,
+    3 => 200,
+    4 => 2,
+    5 => 400,
+    6 => 1000,
+    7 => 2,
+    8 => 20,
+    9 => 60,
+    10 => 10,
+    11 => 60,
+    12 => 200,
+    _ => 2,
+  },
   currentValue: currentValue,
   thresholdUp: true,
   rewardPinStyle: rewardPinStyle,

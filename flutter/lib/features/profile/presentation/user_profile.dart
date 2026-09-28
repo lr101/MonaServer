@@ -60,6 +60,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
 
     return CustomAvatarScaffold(
       avatar: profileImage,
+      avatarEditAction: () => context.pushNamed("profileSettings"),
       title: _buildTitle(currentUser),
       actions: _buildActions(context),
       hasBackButton: widget.hasBackButton,
@@ -110,6 +111,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
             child: Batch(
               batchId: currentUser.value!.selectedBatch!,
               fontSize: 10,
+              colorOverride: currentUser.value!.selectedBatchColor,
             ),
             onTap: () => _tabController.animateTo(1),
           ),

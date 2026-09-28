@@ -156,6 +156,7 @@ type Querier interface {
 	GetEmailLoginClaim(ctx context.Context, canonicalEmail string) (EmailLoginClaim, error)
 	GetGeoJson(ctx context.Context, arg GetGeoJsonParams) ([]interface{}, error)
 	GetGlobalGroupRanking(ctx context.Context, arg GetGlobalGroupRankingParams) ([]GetGlobalGroupRankingRow, error)
+	GetGroupAchievementMetrics(ctx context.Context, groupID pgtype.UUID) (GetGroupAchievementMetricsRow, error)
 	GetGroupAdminUsername(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	GetGroupAvatarProgressionsByIDs(ctx context.Context, arg GetGroupAvatarProgressionsByIDsParams) ([]GetGroupAvatarProgressionsByIDsRow, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (GetGroupByIDRow, error)
@@ -226,6 +227,7 @@ type Querier interface {
 	ListAudienceSnapshotMembers(ctx context.Context, arg ListAudienceSnapshotMembersParams) ([]AudienceSnapshotMember, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
 	ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]Campaign, error)
+	ListCurrentClaimedUserAchievementIDs(ctx context.Context, userID pgtype.UUID) ([]int32, error)
 	// Delete log --
 	ListDeletedGroupsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
 	ListDeletedPinsAfter(ctx context.Context, creationDate pgtype.Timestamptz) ([]pgtype.UUID, error)
@@ -244,6 +246,7 @@ type Querier interface {
 	ListSecurityIncidentsForAccount(ctx context.Context, arg ListSecurityIncidentsForAccountParams) ([]SecurityIncident, error)
 	ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error)
 	ListUserAchievementRewardAwards(ctx context.Context, userID pgtype.UUID) ([]int32, error)
+	ListUserAchievementRewardAwardsBeforeVersion(ctx context.Context, arg ListUserAchievementRewardAwardsBeforeVersionParams) ([]int32, error)
 	ListUserAchievements(ctx context.Context, userID pgtype.UUID) ([]ListUserAchievementsRow, error)
 	ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]ListUserLikedPinsRow, error)
 	ListUserPinIDs(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
@@ -315,6 +318,7 @@ type Querier interface {
 	SetUserResetPasswordUrl(ctx context.Context, arg SetUserResetPasswordUrlParams) error
 	SetUserSecurityState(ctx context.Context, arg SetUserSecurityStateParams) error
 	SetUserSelectedBatch(ctx context.Context, arg SetUserSelectedBatchParams) error
+	SetUserSelectedBatchColor(ctx context.Context, arg SetUserSelectedBatchColorParams) error
 	SoftDeleteGroup(ctx context.Context, id pgtype.UUID) error
 	SoftDeletePin(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteUser(ctx context.Context, id pgtype.UUID) error

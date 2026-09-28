@@ -39,10 +39,11 @@ func (s *MembersServicer) GetGroupMembers(ctx context.Context, groupID string) (
 	dtos := make([]genserver.MemberResponseDto, 0, len(members))
 	for _, m := range members {
 		dto := genserver.MemberResponseDto{
-			UserId:        m.UserID.String(),
-			Username:      m.Username,
-			Ranking:       int32(m.Ranking),
-			SelectedBatch: m.SelectedBatch,
+			UserId:             m.UserID.String(),
+			Username:           m.Username,
+			Ranking:            int32(m.Ranking),
+			SelectedBatch:      m.SelectedBatch,
+			SelectedBatchColor: m.SelectedBatchColor,
 		}
 		if m.ProfileImageSmall != nil {
 			dto.ProfileImageSmall = *m.ProfileImageSmall

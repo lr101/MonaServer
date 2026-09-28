@@ -299,6 +299,15 @@ class GroupDtoPinStyleEnum {
   static const moss = GroupDtoPinStyleEnum._(r'moss');
   static const sunset = GroupDtoPinStyleEnum._(r'sunset');
   static const aurora = GroupDtoPinStyleEnum._(r'aurora');
+  static const seafoam = GroupDtoPinStyleEnum._(r'seafoam');
+  static const honey = GroupDtoPinStyleEnum._(r'honey');
+  static const orchid = GroupDtoPinStyleEnum._(r'orchid');
+  static const copper = GroupDtoPinStyleEnum._(r'copper');
+  static const jade = GroupDtoPinStyleEnum._(r'jade');
+  static const ember = GroupDtoPinStyleEnum._(r'ember');
+  static const glacier = GroupDtoPinStyleEnum._(r'glacier');
+  static const rose = GroupDtoPinStyleEnum._(r'rose');
+  static const midnight = GroupDtoPinStyleEnum._(r'midnight');
 
   /// List of all possible values in this [enum][GroupDtoPinStyleEnum].
   static const values = <GroupDtoPinStyleEnum>[
@@ -306,6 +315,15 @@ class GroupDtoPinStyleEnum {
     moss,
     sunset,
     aurora,
+    seafoam,
+    honey,
+    orchid,
+    copper,
+    jade,
+    ember,
+    glacier,
+    rose,
+    midnight,
   ];
 
   static GroupDtoPinStyleEnum? fromJson(dynamic value) => GroupDtoPinStyleEnumTypeTransformer().decode(value);
@@ -348,6 +366,15 @@ class GroupDtoPinStyleEnumTypeTransformer {
         case r'moss': return GroupDtoPinStyleEnum.moss;
         case r'sunset': return GroupDtoPinStyleEnum.sunset;
         case r'aurora': return GroupDtoPinStyleEnum.aurora;
+        case r'seafoam': return GroupDtoPinStyleEnum.seafoam;
+        case r'honey': return GroupDtoPinStyleEnum.honey;
+        case r'orchid': return GroupDtoPinStyleEnum.orchid;
+        case r'copper': return GroupDtoPinStyleEnum.copper;
+        case r'jade': return GroupDtoPinStyleEnum.jade;
+        case r'ember': return GroupDtoPinStyleEnum.ember;
+        case r'glacier': return GroupDtoPinStyleEnum.glacier;
+        case r'rose': return GroupDtoPinStyleEnum.rose;
+        case r'midnight': return GroupDtoPinStyleEnum.midnight;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

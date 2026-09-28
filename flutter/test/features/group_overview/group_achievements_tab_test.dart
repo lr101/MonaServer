@@ -43,7 +43,7 @@ void main() {
                 track: 'pins',
                 claimed: false,
                 claimable: false,
-                thresholdValue: 5,
+                thresholdValue: 40,
                 currentValue: 2,
                 thresholdUp: true,
                 rewardPinStyle:

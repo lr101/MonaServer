@@ -35,7 +35,17 @@ type GroupAchievementsDtoInner struct {
 
 	ThresholdUp bool `json:"thresholdUp"`
 
-	RewardPinStyle string `json:"rewardPinStyle"`
+	// Each group achievement grants exactly one reward category based on its difficulty.
+	RewardType string `json:"rewardType,omitempty"`
+
+	// Color granted by medium difficulty achievements.
+	RewardColor string `json:"rewardColor,omitempty" validate:"regexp=^#[0-9A-Fa-f]{6}$"`
+
+	// Color preset for color rewards or badge design for badge rewards.
+	RewardPinStyle string `json:"rewardPinStyle,omitempty"`
+
+	// Group XP amount for XP rewards; omitted for color and badge rewards.
+	RewardXp int32 `json:"rewardXp,omitempty"`
 }
 
 // AssertGroupAchievementsDtoInnerRequired checks if the required fields are not zero-ed
@@ -47,7 +57,6 @@ func AssertGroupAchievementsDtoInnerRequired(obj GroupAchievementsDtoInner) erro
 		"thresholdValue": obj.ThresholdValue,
 		"currentValue":   obj.CurrentValue,
 		"thresholdUp":    obj.ThresholdUp,
-		"rewardPinStyle": obj.RewardPinStyle,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

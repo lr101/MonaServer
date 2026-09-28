@@ -62,6 +62,60 @@ class MapPinDesign {
         'circle',
         const Color(0xffc4f4ef),
       ),
+      'seafoam' => (
+        'Seafoam',
+        const Color(0xff4f9a91),
+        'circle',
+        const Color(0xffd6f3e9),
+      ),
+      'honey' => (
+        'Honey',
+        const Color(0xffd69b2d),
+        'teardrop',
+        const Color(0xfffff1c2),
+      ),
+      'orchid' => (
+        'Orchid',
+        const Color(0xff8855a5),
+        'shield',
+        const Color(0xffeddaf7),
+      ),
+      'copper' => (
+        'Copper',
+        const Color(0xffa85b3b),
+        'teardrop',
+        const Color(0xffffdcc5),
+      ),
+      'jade' => (
+        'Jade',
+        const Color(0xff388e67),
+        'shield',
+        const Color(0xffd4f0dc),
+      ),
+      'ember' => (
+        'Ember',
+        const Color(0xffc74c3d),
+        'teardrop',
+        const Color(0xffffd6c8),
+      ),
+      'glacier' => (
+        'Glacier',
+        const Color(0xff4895b3),
+        'circle',
+        const Color(0xffd6f4ff),
+      ),
+      'rose' => (
+        'Rose',
+        const Color(0xffc35c84),
+        'shield',
+        const Color(0xfffde0eb),
+      ),
+      'midnight' => (
+        'Midnight',
+        const Color(0xff4d568e),
+        'circle',
+        const Color(0xffdde3ff),
+      ),
       _ => ('Classic', const Color(0xff2457d6), 'circle', Colors.white),
     };
     return MapPinDesign(

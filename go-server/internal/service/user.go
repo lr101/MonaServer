@@ -20,13 +20,14 @@ const UsernameChangeTimeout = 14 * 24 * time.Hour
 
 // UserUpdateInput captures the writable fields of UserUpdateDto.
 type UserUpdateInput struct {
-	Description    *string
-	Email          *string
-	Image          []byte
-	MessagingToken *string
-	Password       *string
-	SelectedBatch  *int32
-	Username       *string
+	Description        *string
+	Email              *string
+	Image              []byte
+	MessagingToken     *string
+	Password           *string
+	SelectedBatch      *int32
+	SelectedBatchColor *string
+	Username           *string
 }
 
 // UserUpdateResult mirrors UserUpdateResponseDto.
@@ -47,6 +48,7 @@ type UserInfo struct {
 	ProfilePictureExists  bool           `json:"profilePictureExists"`
 	EmailConfirmed        bool           `json:"emailConfirmed"`
 	SelectedBatch         *int32         `json:"selectedBatch,omitempty"`
+	SelectedBatchColor    *string        `json:"selectedBatchColor,omitempty"`
 	BestSeason            *db.SeasonItem `json:"bestSeason,omitempty"`
 	IsMessagingRegistered *bool          `json:"isMessagingRegistered,omitempty"`
 }
@@ -59,6 +61,7 @@ func ToPublicUserInfo(u *db.User) *UserInfo {
 		Description:          u.Description,
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
+		SelectedBatchColor:   &u.SelectedBatchColor,
 	}
 }
 
@@ -71,6 +74,7 @@ func toUserInfo(u *db.User) *UserInfo {
 		Xp:                   u.XP,
 		ProfilePictureExists: u.ProfilePictureExists,
 		EmailConfirmed:       u.EmailConfirmed,
+		SelectedBatchColor:   &u.SelectedBatchColor,
 	}
 }
 
@@ -384,6 +388,9 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 	}
 
 	if in.SelectedBatch != nil {
+		if db.AchievementRewardForID(*in.SelectedBatch).Type != "badge" {
+			return nil, apperrors.ErrBadRequest
+		}
 		rowID, claimed, err := s.q.GetUserAchievementSelection(ctx, id, *in.SelectedBatch)
 		if err != nil {
 			return nil, err
@@ -397,6 +404,22 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 			}
 			u.SelectedBatch = rowID
 		}
+	}
+	if in.SelectedBatchColor != nil {
+		color := *in.SelectedBatchColor
+		if color != "default" {
+			available, err := s.q.HasUserAchievementRewardColor(ctx, id, color)
+			if err != nil {
+				return nil, err
+			}
+			if !available {
+				return nil, apperrors.ErrBadRequest
+			}
+		}
+		if err := s.q.SetUserSelectedBatchColor(ctx, id, color); err != nil {
+			return nil, err
+		}
+		u.SelectedBatchColor = color
 	}
 	selectedBatch, err := s.q.GetSelectedUserAchievementID(ctx, id)
 	if err != nil {

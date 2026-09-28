@@ -19,6 +19,7 @@ class UserUpdateDto {
     this.username,
     this.description,
     this.selectedBatch,
+    this.selectedBatchColor,
     this.messagingToken,
   });
 
@@ -64,6 +65,8 @@ class UserUpdateDto {
 
   int? selectedBatch;
 
+  String? selectedBatchColor;
+
   ///
   /// Please note: This property should have been non-nullable! Since the specification file
   /// does not include a default value (using the "default:" property), however, the generated
@@ -80,6 +83,7 @@ class UserUpdateDto {
     other.username == username &&
     other.description == description &&
     other.selectedBatch == selectedBatch &&
+    other.selectedBatchColor == selectedBatchColor &&
     other.messagingToken == messagingToken;
 
   @override
@@ -91,10 +95,11 @@ class UserUpdateDto {
     (username == null ? 0 : username!.hashCode) +
     (description == null ? 0 : description!.hashCode) +
     (selectedBatch == null ? 0 : selectedBatch!.hashCode) +
+    (selectedBatchColor == null ? 0 : selectedBatchColor!.hashCode) +
     (messagingToken == null ? 0 : messagingToken!.hashCode);
 
   @override
-  String toString() => 'UserUpdateDto[email=$email, password=$password, image=$image, username=$username, description=$description, selectedBatch=$selectedBatch, messagingToken=$messagingToken]';
+  String toString() => 'UserUpdateDto[email=$email, password=$password, image=$image, username=$username, description=$description, selectedBatch=$selectedBatch, selectedBatchColor=$selectedBatchColor, messagingToken=$messagingToken]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -127,6 +132,11 @@ class UserUpdateDto {
       json[r'selectedBatch'] = this.selectedBatch;
     } else {
       json[r'selectedBatch'] = null;
+    }
+    if (this.selectedBatchColor != null) {
+      json[r'selectedBatchColor'] = this.selectedBatchColor;
+    } else {
+      json[r'selectedBatchColor'] = null;
     }
     if (this.messagingToken != null) {
       json[r'messagingToken'] = this.messagingToken;
@@ -161,6 +171,7 @@ class UserUpdateDto {
         username: mapValueOfType<String>(json, r'username'),
         description: mapValueOfType<String>(json, r'description'),
         selectedBatch: mapValueOfType<int>(json, r'selectedBatch'),
+        selectedBatchColor: mapValueOfType<String>(json, r'selectedBatchColor'),
         messagingToken: mapValueOfType<String>(json, r'messagingToken'),
       );
     }
@@ -211,4 +222,3 @@ class UserUpdateDto {
   static const requiredKeys = <String>{
   };
 }
-

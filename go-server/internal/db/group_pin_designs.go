@@ -46,10 +46,37 @@ func DefaultGroupPinDesign(style string) GroupPinDesign {
 		design.Shape, design.OutlineColor = "teardrop", "#D6EACD"
 	case "sunset":
 		design.Name, design.BodyColor = "Sunset", "#D57B50"
-		design.Shape, design.OutlineColor = "shield", "#5A2F54"
+		design.Shape, design.OutlineColor = "circle", "#5A2F54"
 	case "aurora":
 		design.Name, design.BodyColor = "Aurora", "#6D77BA"
-		design.Shape, design.OutlineColor = "circle", "#C4F4EF"
+		design.Shape, design.OutlineColor = "shield", "#C4F4EF"
+	case "seafoam":
+		design.Name, design.BodyColor = "Seafoam", "#4F9A91"
+		design.Shape, design.OutlineColor = "circle", "#D6F3E9"
+	case "honey":
+		design.Name, design.BodyColor = "Honey", "#D69B2D"
+		design.Shape, design.OutlineColor = "teardrop", "#FFF1C2"
+	case "orchid":
+		design.Name, design.BodyColor = "Orchid", "#8855A5"
+		design.Shape, design.OutlineColor = "shield", "#EDDAF7"
+	case "copper":
+		design.Name, design.BodyColor = "Copper", "#A85B3B"
+		design.Shape, design.OutlineColor = "teardrop", "#FFDCC5"
+	case "jade":
+		design.Name, design.BodyColor = "Jade", "#388E67"
+		design.Shape, design.OutlineColor = "circle", "#D4F0DC"
+	case "ember":
+		design.Name, design.BodyColor = "Ember", "#C74C3D"
+		design.Shape, design.OutlineColor = "teardrop", "#FFD6C8"
+	case "glacier":
+		design.Name, design.BodyColor = "Glacier", "#4895B3"
+		design.Shape, design.OutlineColor = "circle", "#D6F4FF"
+	case "rose":
+		design.Name, design.BodyColor = "Rose", "#C35C84"
+		design.Shape, design.OutlineColor = "circle", "#FDE0EB"
+	case "midnight":
+		design.Name, design.BodyColor = "Midnight", "#4D568E"
+		design.Shape, design.OutlineColor = "shield", "#DDE3FF"
 	}
 	return design
 }

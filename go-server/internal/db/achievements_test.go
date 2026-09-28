@@ -9,29 +9,39 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 	}
 	want := map[string]map[int32]milestone{
 		"sticks": {
-			1:  {difficulty: "easy", rewardXP: 20},
-			10: {difficulty: "medium", rewardXP: 50},
-			50: {difficulty: "hard", rewardXP: 100},
+			2:   {difficulty: "easy", rewardXP: 20},
+			40:  {difficulty: "medium", rewardXP: 0},
+			200: {difficulty: "hard", rewardXP: 0},
+			400: {difficulty: "hard", rewardXP: 0},
 		},
 		"places": {
-			1:  {difficulty: "easy", rewardXP: 20},
-			3:  {difficulty: "medium", rewardXP: 50},
-			10: {difficulty: "hard", rewardXP: 100},
+			2:  {difficulty: "easy", rewardXP: 20},
+			10: {difficulty: "medium", rewardXP: 0},
+			25: {difficulty: "hard", rewardXP: 0},
+			50: {difficulty: "hard", rewardXP: 0},
 		},
 		"groups": {
-			1:  {difficulty: "easy", rewardXP: 20},
-			3:  {difficulty: "medium", rewardXP: 50},
-			10: {difficulty: "hard", rewardXP: 100},
+			2:  {difficulty: "easy", rewardXP: 20},
+			5:  {difficulty: "medium", rewardXP: 0},
+			10: {difficulty: "medium", rewardXP: 0},
+			25: {difficulty: "hard", rewardXP: 0},
 		},
 		"likes_given": {
-			10:  {difficulty: "easy", rewardXP: 20},
-			50:  {difficulty: "medium", rewardXP: 50},
-			100: {difficulty: "hard", rewardXP: 100},
+			20:   {difficulty: "easy", rewardXP: 20},
+			200:  {difficulty: "medium", rewardXP: 0},
+			400:  {difficulty: "hard", rewardXP: 0},
+			1000: {difficulty: "hard", rewardXP: 0},
 		},
 		"likes_received": {
-			10:  {difficulty: "easy", rewardXP: 20},
-			50:  {difficulty: "medium", rewardXP: 50},
-			100: {difficulty: "hard", rewardXP: 100},
+			20:   {difficulty: "easy", rewardXP: 20},
+			200:  {difficulty: "medium", rewardXP: 0},
+			400:  {difficulty: "hard", rewardXP: 0},
+			1000: {difficulty: "hard", rewardXP: 0},
+		},
+		"photos": {
+			2:   {difficulty: "easy", rewardXP: 20},
+			40:  {difficulty: "medium", rewardXP: 0},
+			200: {difficulty: "hard", rewardXP: 0},
 		},
 	}
 	got := make(map[string]map[int32]milestone)
@@ -41,7 +51,7 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 			t.Errorf("duplicate achievement ID %d", def.ID)
 		}
 		ids[def.ID] = true
-		if def.Name == "" || def.Description == "" || def.DefinitionVersion < 2 {
+		if def.Name == "" || def.Description == "" || def.DefinitionVersion != userAchievementDefinitionVersion {
 			t.Errorf("achievement %d is missing versioned display metadata: %+v", def.ID, def)
 		}
 		if !def.ThresholdUp {
@@ -52,8 +62,8 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 		}
 		got[def.Track][def.Threshold] = milestone{difficulty: def.Difficulty, rewardXP: def.RewardXP}
 	}
-	if len(achievementDefs) != 15 {
-		t.Errorf("active achievement count = %d, want 15", len(achievementDefs))
+	if len(achievementDefs) != 23 {
+		t.Errorf("active achievement count = %d, want 23", len(achievementDefs))
 	}
 	if len(got) != len(want) {
 		t.Fatalf("track count = %d, want %d (%v)", len(got), len(want), got)

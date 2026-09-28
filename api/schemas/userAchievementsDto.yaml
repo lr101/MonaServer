@@ -18,8 +18,21 @@ items:
       type: string
     difficulty:
       type: string
+    rewardType:
+      type: string
+      nullable: true
+      description: Each achievement grants exactly one reward category. Easy achievements grant XP, medium achievements grant a color, and hard achievements grant a badge.
+      enum:
+        - xp
+        - color
+        - badge
+    rewardColor:
+      type: string
+      nullable: true
+      pattern: '^#[0-9A-Fa-f]{8}$'
     rewardXp:
       type: integer
+      description: XP amount for XP rewards; omitted for color and badge rewards.
     claimable:
       type: boolean
     rewardAvailable:

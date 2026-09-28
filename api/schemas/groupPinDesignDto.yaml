@@ -16,7 +16,7 @@ required:
 properties:
   style:
     type: string
-    enum: [classic, moss, sunset, aurora]
+    enum: [classic, moss, sunset, aurora, seafoam, honey, orchid, copper, jade, ember, glacier, rose, midnight]
   name:
     type: string
     minLength: 1

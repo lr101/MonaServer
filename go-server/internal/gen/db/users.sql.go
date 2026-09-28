@@ -141,7 +141,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
@@ -168,6 +168,7 @@ type GetUserByEmailRow struct {
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
 	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
 	AuthGeneration          int64              `json:"auth_generation"`
 	SecurityState           string             `json:"security_state"`
 	PasswordDisabled        bool               `json:"password_disabled"`
@@ -197,6 +198,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, btrim string) (GetUserByEm
 		&i.EmailConfirmationUrl,
 		&i.LastUsernameUpdate,
 		&i.SelectedBatch,
+		&i.SelectedBatchColor,
 		&i.AuthGeneration,
 		&i.SecurityState,
 		&i.PasswordDisabled,
@@ -231,7 +233,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE id = $1 AND is_deleted = FALSE
@@ -256,6 +258,7 @@ type GetUserByIDRow struct {
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
 	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
 	AuthGeneration          int64              `json:"auth_generation"`
 	SecurityState           string             `json:"security_state"`
 	PasswordDisabled        bool               `json:"password_disabled"`
@@ -286,6 +289,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 		&i.EmailConfirmationUrl,
 		&i.LastUsernameUpdate,
 		&i.SelectedBatch,
+		&i.SelectedBatchColor,
 		&i.AuthGeneration,
 		&i.SecurityState,
 		&i.PasswordDisabled,
@@ -342,7 +346,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE username = $1 AND is_deleted = FALSE
@@ -367,6 +371,7 @@ type GetUserByUsernameRow struct {
 	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
 	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
 	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
+	SelectedBatchColor      string             `json:"selected_batch_color"`
 	AuthGeneration          int64              `json:"auth_generation"`
 	SecurityState           string             `json:"security_state"`
 	PasswordDisabled        bool               `json:"password_disabled"`
@@ -396,6 +401,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 		&i.EmailConfirmationUrl,
 		&i.LastUsernameUpdate,
 		&i.SelectedBatch,
+		&i.SelectedBatchColor,
 		&i.AuthGeneration,
 		&i.SecurityState,
 		&i.PasswordDisabled,
@@ -639,6 +645,20 @@ type SetUserSelectedBatchParams struct {
 
 func (q *Queries) SetUserSelectedBatch(ctx context.Context, arg SetUserSelectedBatchParams) error {
 	_, err := q.db.Exec(ctx, setUserSelectedBatch, arg.ID, arg.SelectedBatch)
+	return err
+}
+
+const setUserSelectedBatchColor = `-- name: SetUserSelectedBatchColor :exec
+UPDATE users SET selected_batch_color = $2, update_date = NOW() WHERE id = $1
+`
+
+type SetUserSelectedBatchColorParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	SelectedBatchColor string      `json:"selected_batch_color"`
+}
+
+func (q *Queries) SetUserSelectedBatchColor(ctx context.Context, arg SetUserSelectedBatchColorParams) error {
+	_, err := q.db.Exec(ctx, setUserSelectedBatchColor, arg.ID, arg.SelectedBatchColor)
 	return err
 }
 

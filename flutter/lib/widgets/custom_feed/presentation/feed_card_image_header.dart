@@ -18,6 +18,10 @@ class FeedCardImageHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedBatch = ref.watch(userByIdSelectedBatchProvider(pin.creator));
+    final selectedBatchColor = ref.watch(
+      userServiceProvider(pin.creator)
+          .select((user) => user.value?.selectedBatchColor),
+    );
     final username = ref.watch(userByIdUsernameProvider(pin.creator));
 
     // Common size for both avatars
@@ -86,7 +90,11 @@ class FeedCardImageHeader extends ConsumerWidget {
                       ),
                       const SizedBox(width: 5),
                       if (selectedBatch.value != null)
-                        Batch(batchId: selectedBatch.value!, fontSize: 7),
+                        Batch(
+                          batchId: selectedBatch.value!,
+                          fontSize: 7,
+                          colorOverride: selectedBatchColor,
+                        ),
                     ],
                   ),
                   if (distance != null) getDistance(),

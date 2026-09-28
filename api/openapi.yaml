@@ -397,7 +397,7 @@ paths:
           description: Group not found
       security:
       - token: []
-      summary: Claim a group achievement and unlock its pin style reward
+      summary: Claim a group achievement and receive its reward
       tags:
       - groups
   /api/v2/groups/{groupId}/profile_image:
@@ -5076,6 +5076,15 @@ components:
           - moss
           - sunset
           - aurora
+          - seafoam
+          - honey
+          - orchid
+          - copper
+          - jade
+          - ember
+          - glacier
+          - rose
+          - midnight
           type: string
         bestSeason:
           nullable: true
@@ -5122,6 +5131,15 @@ components:
           - moss
           - sunset
           - aurora
+          - seafoam
+          - honey
+          - orchid
+          - copper
+          - jade
+          - ember
+          - glacier
+          - rose
+          - midnight
           nullable: true
           type: string
       type: object
@@ -5152,6 +5170,10 @@ components:
         selectedBatch:
           nullable: true
           type: integer
+        selectedBatchColor:
+          nullable: true
+          pattern: '^(default|#FF8BC34A|#FFFF5252|#FF64FFDA|#FFE91E63|#FFFF9800|#FF2196F3|#FFFF7043|#FF673AB7|#FF00ACC1|#FF9C27B0|#FFFFC107|#FF3F51B5|#FF7CB342|#FFE53935|#FFC62828|#FF26A69A|#FFD81B60|#FFC2185B|#FFEF6C00|#FFFF5722|#FFD4E157|#FF7B1FA2|#FF795548)$'
+          type: string
       required:
       - ranking
       - userId
@@ -5577,6 +5599,10 @@ components:
         selectedBatch:
           nullable: true
           type: integer
+        selectedBatchColor:
+          nullable: true
+          pattern: '^(default|#FF8BC34A|#FFFF5252|#FF64FFDA|#FFE91E63|#FFFF9800|#FF2196F3|#FFFF7043|#FF673AB7|#FF00ACC1|#FF9C27B0|#FFFFC107|#FF3F51B5|#FF7CB342|#FFE53935|#FFC62828|#FF26A69A|#FFD81B60|#FFC2185B|#FFEF6C00|#FFFF5722|#FFD4E157|#FF7B1FA2|#FF795548)$'
+          type: string
         bestSeason:
           nullable: true
           allOf:
@@ -5612,6 +5638,10 @@ components:
         selectedBatch:
           nullable: true
           type: integer
+        selectedBatchColor:
+          nullable: true
+          pattern: '^(default|#FF8BC34A|#FFFF5252|#FF64FFDA|#FFE91E63|#FFFF9800|#FF2196F3|#FFFF7043|#FF673AB7|#FF00ACC1|#FF9C27B0|#FFFFC107|#FF3F51B5|#FF7CB342|#FFE53935|#FFC62828|#FF26A69A|#FFD81B60|#FFC2185B|#FFEF6C00|#FFFF5722|#FFD4E157|#FF7B1FA2|#FF795548)$'
+          type: string
         messagingToken:
           maxLength: 256
           type: string
@@ -5762,12 +5792,36 @@ components:
             type: integer
           thresholdUp:
             type: boolean
+          rewardType:
+            description: Each group achievement grants exactly one reward category based on its difficulty.
+            enum:
+            - xp
+            - color
+            - badge
+            type: string
+          rewardColor:
+            description: Color granted by medium difficulty achievements.
+            pattern: '^#[0-9A-Fa-f]{6}$'
+            type: string
           rewardPinStyle:
+            description: Color preset for color rewards or badge design for badge rewards.
             enum:
             - moss
             - sunset
             - aurora
+            - seafoam
+            - honey
+            - orchid
+            - copper
+            - jade
+            - ember
+            - glacier
+            - rose
+            - midnight
             type: string
+          rewardXp:
+            description: Group XP amount for XP rewards; omitted for color and badge rewards.
+            type: integer
         required:
         - achievementId
         - claimed
@@ -5775,7 +5829,6 @@ components:
         - thresholdValue
         - currentValue
         - thresholdUp
-        - rewardPinStyle
         type: object
       type: array
     groupPinDesignStyle:
@@ -5784,6 +5837,15 @@ components:
       - moss
       - sunset
       - aurora
+      - seafoam
+      - honey
+      - orchid
+      - copper
+      - jade
+      - ember
+      - glacier
+      - rose
+      - midnight
       type: string
     groupPinDesignShape:
       enum:
@@ -6222,7 +6284,20 @@ components:
           type: string
         difficulty:
           type: string
+        rewardType:
+          description: Each achievement grants exactly one reward category. Easy achievements grant XP, medium achievements grant a color, and hard achievements grant a badge.
+          enum:
+          - xp
+          - color
+          - badge
+          nullable: true
+          type: string
+        rewardColor:
+          nullable: true
+          pattern: '^#[0-9A-Fa-f]{8}$'
+          type: string
         rewardXp:
+          description: XP amount for XP rewards; omitted for color and badge rewards.
           type: integer
         claimable:
           type: boolean

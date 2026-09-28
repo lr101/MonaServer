@@ -28,7 +28,7 @@ properties:
     $ref: '../parameters/imageUrl.yaml'
   pinStyle:
     type: string
-    enum: [classic, moss, sunset, aurora]
+    enum: [classic, moss, sunset, aurora, seafoam, honey, orchid, copper, jade, ember, glacier, rose, midnight]
   bestSeason:
     nullable: true
     allOf:

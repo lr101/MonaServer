@@ -74,13 +74,14 @@ func (s *UsersServicer) UpdateUser(ctx context.Context, userID string, dto gense
 		imgBytes = b
 	}
 	in := service.UserUpdateInput{
-		Description:    strNilable(dto.Description),
-		Email:          strNilable(dto.Email),
-		Image:          imgBytes,
-		MessagingToken: strNilable(dto.MessagingToken),
-		Password:       strNilable(dto.Password),
-		Username:       strNilable(dto.Username),
-		SelectedBatch:  dto.SelectedBatch,
+		Description:        strNilable(dto.Description),
+		Email:              strNilable(dto.Email),
+		Image:              imgBytes,
+		MessagingToken:     strNilable(dto.MessagingToken),
+		Password:           strNilable(dto.Password),
+		Username:           strNilable(dto.Username),
+		SelectedBatch:      dto.SelectedBatch,
+		SelectedBatchColor: dto.SelectedBatchColor,
 	}
 	result, err := s.user.Update(ctx, id, in)
 	if err != nil {
@@ -201,12 +202,15 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	}
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
+		rewardType := a.RewardType
 		dtos = append(dtos, genserver.UserAchievementsDtoInner{
 			AchievementId:     a.ID,
 			Name:              a.Name,
 			Description:       a.Description,
 			Track:             a.Track,
 			Difficulty:        a.Difficulty,
+			RewardType:        &rewardType,
+			RewardColor:       a.RewardColor,
 			RewardXp:          a.RewardXP,
 			Claimable:         a.Claimable,
 			RewardAvailable:   &a.RewardAvailable,

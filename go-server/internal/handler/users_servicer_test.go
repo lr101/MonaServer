@@ -112,9 +112,9 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	}
 	firstStickFound := false
 	for _, item := range items {
-		if item.Name == "First stick" {
+		if item.Name == "Two sticks" {
 			firstStickFound = true
-			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 2 {
+			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 6 {
 				t.Fatalf("first-stick metadata = %+v", item)
 			}
 			if item.Claimed || item.Claimable || item.RewardAvailable == nil || !*item.RewardAvailable || item.CurrentValue != 0 {
@@ -123,7 +123,7 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 		}
 	}
 	if !firstStickFound {
-		t.Fatal("first-stick milestone missing from response")
+		t.Fatal("two-stick milestone missing from response")
 	}
 }
 

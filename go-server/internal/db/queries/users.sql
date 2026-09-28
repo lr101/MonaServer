@@ -5,7 +5,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE id = $1 AND is_deleted = FALSE;
@@ -21,7 +21,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE username = $1 AND is_deleted = FALSE;
@@ -34,7 +34,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        email_confirmed, failed_login_attempts, firebase_token,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
-       auth_generation, security_state, password_disabled, password_reset_required,
+       selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
        compromised_at
 FROM users
 WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
@@ -109,6 +109,9 @@ UPDATE users SET profile_picture_exists = $2, update_date = NOW() WHERE id = $1;
 
 -- name: SetUserSelectedBatch :exec
 UPDATE users SET selected_batch = $2, update_date = NOW() WHERE id = $1;
+
+-- name: SetUserSelectedBatchColor :exec
+UPDATE users SET selected_batch_color = $2, update_date = NOW() WHERE id = $1;
 
 -- name: GetUserByIDAndCode :one
 SELECT id FROM users

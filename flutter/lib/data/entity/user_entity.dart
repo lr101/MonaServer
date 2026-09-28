@@ -3,14 +3,13 @@ import 'package:buff_lisa/data/entity/season_entity.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:openapi/api.dart';
 
-
 class UserEntity extends CacheEntity {
-
   @override
   int get isarId => fastHash(userId);
   final String userId;
   final String username;
   final int? selectedBatch;
+  final String? selectedBatchColor;
   final String? description;
   final SeasonEntity? bestSeason;
 
@@ -18,54 +17,77 @@ class UserEntity extends CacheEntity {
     required this.userId,
     required this.username,
     this.selectedBatch,
+    this.selectedBatchColor,
     this.description,
     this.bestSeason,
     super.keepAlive,
     super.hits,
     required super.ttl,
-    required super.onlySession
+    required super.onlySession,
   });
 
-  factory UserEntity.fromDto(UserInfoDto user, bool onlySession, {bool keepAlive = false}) {
+  factory UserEntity.fromDto(
+    UserInfoDto user,
+    bool onlySession, {
+    bool keepAlive = false,
+  }) {
     return UserEntity(
       userId: user.userId,
       username: user.username,
       selectedBatch: user.selectedBatch,
+      selectedBatchColor: user.selectedBatchColor,
       description: user.description,
-      bestSeason: user.bestSeason == null ? null : SeasonEntity.fromDto(user.bestSeason!),
+      bestSeason: user.bestSeason == null
+          ? null
+          : SeasonEntity.fromDto(user.bestSeason!),
       keepAlive: keepAlive,
       ttl: DateTime.now(),
-      onlySession: onlySession
+      onlySession: onlySession,
     );
   }
 
-  UserEntity copyUserWith(UserUpdateResponseDto userDto, int? selectedBatch) {
+  UserEntity copyUserWith(
+    UserUpdateResponseDto userDto,
+    int? selectedBatch,
+    String? selectedBatchColor,
+  ) {
     return UserEntity(
       userId: userId,
       username: userDto.userInfoDto!.username,
       selectedBatch: selectedBatch ?? this.selectedBatch,
+      selectedBatchColor:
+          selectedBatchColor ??
+          userDto.userInfoDto!.selectedBatchColor ??
+          this.selectedBatchColor,
       description: userDto.userInfoDto!.description ?? description,
-      bestSeason: userDto.userInfoDto!.bestSeason == null ? bestSeason : SeasonEntity.fromDto(userDto.userInfoDto!.bestSeason!),
+      bestSeason: userDto.userInfoDto!.bestSeason == null
+          ? bestSeason
+          : SeasonEntity.fromDto(userDto.userInfoDto!.bestSeason!),
       keepAlive: keepAlive,
       ttl: ttl,
       hits: hits,
-      onlySession: onlySession
+      onlySession: onlySession,
     );
   }
 
   @override
-  CacheEntity copyWith({DateTime? ttl, int? hits, bool?keepAlive, bool? onlySession}) {
+  CacheEntity copyWith({
+    DateTime? ttl,
+    int? hits,
+    bool? keepAlive,
+    bool? onlySession,
+  }) {
     return UserEntity(
       userId: userId,
       username: username,
       selectedBatch: selectedBatch,
+      selectedBatchColor: selectedBatchColor,
       description: description,
       bestSeason: bestSeason,
       keepAlive: keepAlive ?? this.keepAlive,
       ttl: ttl ?? this.ttl,
       hits: hits ?? this.hits,
-      onlySession: onlySession ?? this.onlySession
+      onlySession: onlySession ?? this.onlySession,
     );
   }
-
 }

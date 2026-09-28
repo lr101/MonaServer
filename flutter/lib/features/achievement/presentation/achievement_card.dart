@@ -11,7 +11,8 @@ class AchievementCard extends StatelessWidget {
     required this.progress,
     required this.claimed,
     required this.claimable,
-    this.selected = false,
+    this.reward,
+    this.rewardDescription,
     this.onTap,
   });
 
@@ -22,7 +23,8 @@ class AchievementCard extends StatelessWidget {
   final double progress;
   final bool claimed;
   final bool claimable;
-  final bool selected;
+  final Widget? reward;
+  final String? rewardDescription;
   final VoidCallback? onTap;
 
   @override
@@ -38,7 +40,7 @@ class AchievementCard extends StatelessWidget {
               ? ', reward ready to claim'
               : claimed
               ? ', reward earned'
-              : ''}',
+              : ''}${rewardDescription == null ? '' : ', unlocks $rewardDescription'}',
       child: Material(
         color: colors.surface,
         borderRadius: BorderRadius.circular(12),
@@ -46,14 +48,12 @@ class AchievementCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 68),
+            constraints: const BoxConstraints(minHeight: 64),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: claimable || selected
-                    ? fillColor
-                    : colors.outlineVariant,
-                width: claimable || selected ? 1.5 : 1,
+                color: claimable ? fillColor : colors.outlineVariant,
+                width: claimable ? 1.5 : 1,
               ),
             ),
             clipBehavior: Clip.antiAlias,
@@ -75,7 +75,7 @@ class AchievementCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 11,
+                    vertical: 8,
                   ),
                   child: Row(
                     children: [
@@ -101,6 +101,10 @@ class AchievementCard extends StatelessWidget {
                                 color: colors.onSurfaceVariant,
                               ),
                             ),
+                            if (reward != null) ...[
+                              const SizedBox(height: 5),
+                              reward!,
+                            ],
                           ],
                         ),
                       ),

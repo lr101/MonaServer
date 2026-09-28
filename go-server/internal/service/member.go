@@ -22,11 +22,12 @@ func NewMember(q *db.Queries, obj *Object, group *Group) *Member {
 
 // MemberResponse mirrors MemberResponseDto.
 type MemberResponse struct {
-	UserID            uuid.UUID `json:"userId"`
-	Username          string    `json:"username"`
-	Ranking           int32     `json:"ranking"`
-	ProfileImageSmall *string   `json:"profileImageSmall,omitempty"`
-	SelectedBatch     *int32    `json:"selectedBatch,omitempty"`
+	UserID             uuid.UUID `json:"userId"`
+	Username           string    `json:"username"`
+	Ranking            int32     `json:"ranking"`
+	ProfileImageSmall  *string   `json:"profileImageSmall,omitempty"`
+	SelectedBatch      *int32    `json:"selectedBatch,omitempty"`
+	SelectedBatchColor *string   `json:"selectedBatchColor,omitempty"`
 }
 
 // Join adds a user to a group. Returns the group DTO on success.
@@ -95,7 +96,7 @@ func (s *Member) Ranking(ctx context.Context, groupID uuid.UUID) ([]MemberRespon
 	for _, r := range rows {
 		m := MemberResponse{
 			UserID: r.UserID, Username: r.Username, Ranking: r.Points,
-			SelectedBatch: r.AchievementID,
+			SelectedBatch: r.AchievementID, SelectedBatchColor: &r.SelectedBatchColor,
 		}
 		if s.obj != nil {
 			if u, _ := s.obj.PresignedGet(ctx, UserProfileKey(r.UserID, true)); u != "" {

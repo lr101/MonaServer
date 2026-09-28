@@ -271,7 +271,7 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	}
 
 	lastPinID := uuid.Nil
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 40; i++ {
 		created, err := pin.Create(ctx, CreatePinInput{
 			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
 			UserID: memberID, GroupID: groupID,
@@ -288,7 +288,7 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get progress with a gone pin: %v", err)
 	}
-	if progress[0].CurrentValue != 9 || progress[0].Claimable {
+	if progress[0].CurrentValue != 39 || progress[0].Claimable {
 		t.Fatalf("gone pin counted as active: %+v", progress[0])
 	}
 	if err := pin.SetGone(ctx, lastPinID, false); err != nil {
@@ -299,8 +299,8 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get group achievement progress: %v", err)
 	}
-	if len(progress) != 3 || progress[0].CurrentValue != 10 || !progress[0].Claimable {
-		t.Fatalf("first group achievement progress = %+v, want 10 pins and claimable", progress)
+	if len(progress) != 12 || progress[0].CurrentValue != 40 || !progress[0].Claimable {
+		t.Fatalf("first group achievement progress = %+v, want 40 pins and claimable", progress)
 	}
 	if err := group.ClaimAchievement(ctx, groupID, memberID, 1); err != nil {
 		t.Fatalf("claim first group achievement: %v", err)

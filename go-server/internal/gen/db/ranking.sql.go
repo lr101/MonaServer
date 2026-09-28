@@ -155,7 +155,7 @@ func (q *Queries) GetMapInfo(ctx context.Context, arg GetMapInfoParams) (GetMapI
 
 const getUserRanking = `-- name: GetUserRanking :many
 
-SELECT p.creator_id, u.username, u.description,
+SELECT p.creator_id, u.username, u.description, u.selected_batch_color,
        COUNT(p.creator_id)::int AS points,
        ua.achievement_id
 FROM pins p
@@ -169,7 +169,7 @@ WHERE p.is_deleted = FALSE
   AND ($2::text IS NULL OR b.gid_1 = $2::text)
   AND ($3::text IS NULL OR b.gid_2 = $3::text)
   AND ($4::timestamptz IS NULL OR p.creation_date > $4::timestamptz)
-GROUP BY p.creator_id, u.username, u.description, ua.achievement_id
+GROUP BY p.creator_id, u.username, u.description, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, u.username
 LIMIT $6 OFFSET $5
 `
@@ -184,11 +184,12 @@ type GetUserRankingParams struct {
 }
 
 type GetUserRankingRow struct {
-	CreatorID     pgtype.UUID `json:"creator_id"`
-	Username      pgtype.Text `json:"username"`
-	Description   pgtype.Text `json:"description"`
-	Points        int32       `json:"points"`
-	AchievementID pgtype.Int4 `json:"achievement_id"`
+	CreatorID          pgtype.UUID `json:"creator_id"`
+	Username           pgtype.Text `json:"username"`
+	Description        pgtype.Text `json:"description"`
+	SelectedBatchColor string      `json:"selected_batch_color"`
+	Points             int32       `json:"points"`
+	AchievementID      pgtype.Int4 `json:"achievement_id"`
 }
 
 // Ranking and map queries (PostGIS).
@@ -212,6 +213,7 @@ func (q *Queries) GetUserRanking(ctx context.Context, arg GetUserRankingParams) 
 			&i.CreatorID,
 			&i.Username,
 			&i.Description,
+			&i.SelectedBatchColor,
 			&i.Points,
 			&i.AchievementID,
 		); err != nil {

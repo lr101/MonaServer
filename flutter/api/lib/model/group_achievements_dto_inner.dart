@@ -23,7 +23,10 @@ class GroupAchievementsDtoInner {
     required this.thresholdValue,
     required this.currentValue,
     required this.thresholdUp,
-    required this.rewardPinStyle,
+    this.rewardType,
+    this.rewardColor,
+    this.rewardPinStyle,
+    this.rewardXp,
   });
 
   /// Minimum value: 1
@@ -67,7 +70,29 @@ class GroupAchievementsDtoInner {
 
   bool thresholdUp;
 
-  GroupAchievementsDtoInnerRewardPinStyleEnum rewardPinStyle;
+  /// Each group achievement grants exactly one reward category based on its difficulty.
+  GroupAchievementsDtoInnerRewardTypeEnum? rewardType;
+
+  /// Color granted by medium difficulty achievements.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? rewardColor;
+
+  /// Color preset for color rewards or badge design for badge rewards.
+  GroupAchievementsDtoInnerRewardPinStyleEnum? rewardPinStyle;
+
+  /// Group XP amount for XP rewards; omitted for color and badge rewards.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  int? rewardXp;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is GroupAchievementsDtoInner &&
@@ -81,7 +106,10 @@ class GroupAchievementsDtoInner {
     other.thresholdValue == thresholdValue &&
     other.currentValue == currentValue &&
     other.thresholdUp == thresholdUp &&
-    other.rewardPinStyle == rewardPinStyle;
+    other.rewardType == rewardType &&
+    other.rewardColor == rewardColor &&
+    other.rewardPinStyle == rewardPinStyle &&
+    other.rewardXp == rewardXp;
 
   @override
   int get hashCode =>
@@ -96,10 +124,13 @@ class GroupAchievementsDtoInner {
     (thresholdValue.hashCode) +
     (currentValue.hashCode) +
     (thresholdUp.hashCode) +
-    (rewardPinStyle.hashCode);
+    (rewardType == null ? 0 : rewardType!.hashCode) +
+    (rewardColor == null ? 0 : rewardColor!.hashCode) +
+    (rewardPinStyle == null ? 0 : rewardPinStyle!.hashCode) +
+    (rewardXp == null ? 0 : rewardXp!.hashCode);
 
   @override
-  String toString() => 'GroupAchievementsDtoInner[achievementId=$achievementId, name=$name, description=$description, track=$track, difficulty=$difficulty, claimed=$claimed, claimable=$claimable, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp, rewardPinStyle=$rewardPinStyle]';
+  String toString() => 'GroupAchievementsDtoInner[achievementId=$achievementId, name=$name, description=$description, track=$track, difficulty=$difficulty, claimed=$claimed, claimable=$claimable, thresholdValue=$thresholdValue, currentValue=$currentValue, thresholdUp=$thresholdUp, rewardType=$rewardType, rewardColor=$rewardColor, rewardPinStyle=$rewardPinStyle, rewardXp=$rewardXp]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -129,7 +160,26 @@ class GroupAchievementsDtoInner {
       json[r'thresholdValue'] = this.thresholdValue;
       json[r'currentValue'] = this.currentValue;
       json[r'thresholdUp'] = this.thresholdUp;
+    if (this.rewardType != null) {
+      json[r'rewardType'] = this.rewardType;
+    } else {
+      json[r'rewardType'] = null;
+    }
+    if (this.rewardColor != null) {
+      json[r'rewardColor'] = this.rewardColor;
+    } else {
+      json[r'rewardColor'] = null;
+    }
+    if (this.rewardPinStyle != null) {
       json[r'rewardPinStyle'] = this.rewardPinStyle;
+    } else {
+      json[r'rewardPinStyle'] = null;
+    }
+    if (this.rewardXp != null) {
+      json[r'rewardXp'] = this.rewardXp;
+    } else {
+      json[r'rewardXp'] = null;
+    }
     return json;
   }
 
@@ -162,7 +212,10 @@ class GroupAchievementsDtoInner {
         thresholdValue: mapValueOfType<int>(json, r'thresholdValue')!,
         currentValue: mapValueOfType<int>(json, r'currentValue')!,
         thresholdUp: mapValueOfType<bool>(json, r'thresholdUp')!,
-        rewardPinStyle: GroupAchievementsDtoInnerRewardPinStyleEnum.fromJson(json[r'rewardPinStyle'])!,
+        rewardType: GroupAchievementsDtoInnerRewardTypeEnum.fromJson(json[r'rewardType']),
+        rewardColor: mapValueOfType<String>(json, r'rewardColor'),
+        rewardPinStyle: GroupAchievementsDtoInnerRewardPinStyleEnum.fromJson(json[r'rewardPinStyle']),
+        rewardXp: mapValueOfType<int>(json, r'rewardXp'),
       );
     }
     return null;
@@ -216,7 +269,6 @@ class GroupAchievementsDtoInner {
     'thresholdValue',
     'currentValue',
     'thresholdUp',
-    'rewardPinStyle',
   };
 }
 
@@ -297,7 +349,84 @@ class GroupAchievementsDtoInnerDifficultyEnumTypeTransformer {
 }
 
 
+/// Each group achievement grants exactly one reward category based on its difficulty.
+class GroupAchievementsDtoInnerRewardTypeEnum {
+  /// Instantiate a new enum with the provided [value].
+  const GroupAchievementsDtoInnerRewardTypeEnum._(this.value);
 
+  /// The underlying value of this enum member.
+  final String value;
+
+  @override
+  String toString() => value;
+
+  String toJson() => value;
+
+  static const xp = GroupAchievementsDtoInnerRewardTypeEnum._(r'xp');
+  static const color = GroupAchievementsDtoInnerRewardTypeEnum._(r'color');
+  static const badge = GroupAchievementsDtoInnerRewardTypeEnum._(r'badge');
+
+  /// List of all possible values in this [enum][GroupAchievementsDtoInnerRewardTypeEnum].
+  static const values = <GroupAchievementsDtoInnerRewardTypeEnum>[
+    xp,
+    color,
+    badge,
+  ];
+
+  static GroupAchievementsDtoInnerRewardTypeEnum? fromJson(dynamic value) => GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer().decode(value);
+
+  static List<GroupAchievementsDtoInnerRewardTypeEnum> listFromJson(dynamic json, {bool growable = false,}) {
+    final result = <GroupAchievementsDtoInnerRewardTypeEnum>[];
+    if (json is List && json.isNotEmpty) {
+      for (final row in json) {
+        final value = GroupAchievementsDtoInnerRewardTypeEnum.fromJson(row);
+        if (value != null) {
+          result.add(value);
+        }
+      }
+    }
+    return result.toList(growable: growable);
+  }
+}
+
+/// Transformation class that can [encode] an instance of [GroupAchievementsDtoInnerRewardTypeEnum] to String,
+/// and [decode] dynamic data back to [GroupAchievementsDtoInnerRewardTypeEnum].
+class GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer {
+  factory GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer() => _instance ??= const GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer._();
+
+  const GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer._();
+
+  String encode(GroupAchievementsDtoInnerRewardTypeEnum data) => data.value;
+
+  /// Decodes a [dynamic value][data] to a GroupAchievementsDtoInnerRewardTypeEnum.
+  ///
+  /// If [allowNull] is true and the [dynamic value][data] cannot be decoded successfully,
+  /// then null is returned. However, if [allowNull] is false and the [dynamic value][data]
+  /// cannot be decoded successfully, then an [UnimplementedError] is thrown.
+  ///
+  /// The [allowNull] is very handy when an API changes and a new enum value is added or removed,
+  /// and users are still using an old app with the old code.
+  GroupAchievementsDtoInnerRewardTypeEnum? decode(dynamic data, {bool allowNull = true}) {
+    if (data != null) {
+      switch (data) {
+        case r'xp': return GroupAchievementsDtoInnerRewardTypeEnum.xp;
+        case r'color': return GroupAchievementsDtoInnerRewardTypeEnum.color;
+        case r'badge': return GroupAchievementsDtoInnerRewardTypeEnum.badge;
+        default:
+          if (!allowNull) {
+            throw ArgumentError('Unknown enum value to decode: $data');
+          }
+      }
+    }
+    return null;
+  }
+
+  /// Singleton [GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer] instance.
+  static GroupAchievementsDtoInnerRewardTypeEnumTypeTransformer? _instance;
+}
+
+
+/// Color preset for color rewards or badge design for badge rewards.
 class GroupAchievementsDtoInnerRewardPinStyleEnum {
   /// Instantiate a new enum with the provided [value].
   const GroupAchievementsDtoInnerRewardPinStyleEnum._(this.value);
@@ -313,12 +442,30 @@ class GroupAchievementsDtoInnerRewardPinStyleEnum {
   static const moss = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'moss');
   static const sunset = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'sunset');
   static const aurora = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'aurora');
+  static const seafoam = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'seafoam');
+  static const honey = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'honey');
+  static const orchid = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'orchid');
+  static const copper = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'copper');
+  static const jade = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'jade');
+  static const ember = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'ember');
+  static const glacier = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'glacier');
+  static const rose = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'rose');
+  static const midnight = GroupAchievementsDtoInnerRewardPinStyleEnum._(r'midnight');
 
   /// List of all possible values in this [enum][GroupAchievementsDtoInnerRewardPinStyleEnum].
   static const values = <GroupAchievementsDtoInnerRewardPinStyleEnum>[
     moss,
     sunset,
     aurora,
+    seafoam,
+    honey,
+    orchid,
+    copper,
+    jade,
+    ember,
+    glacier,
+    rose,
+    midnight,
   ];
 
   static GroupAchievementsDtoInnerRewardPinStyleEnum? fromJson(dynamic value) => GroupAchievementsDtoInnerRewardPinStyleEnumTypeTransformer().decode(value);
@@ -360,6 +507,15 @@ class GroupAchievementsDtoInnerRewardPinStyleEnumTypeTransformer {
         case r'moss': return GroupAchievementsDtoInnerRewardPinStyleEnum.moss;
         case r'sunset': return GroupAchievementsDtoInnerRewardPinStyleEnum.sunset;
         case r'aurora': return GroupAchievementsDtoInnerRewardPinStyleEnum.aurora;
+        case r'seafoam': return GroupAchievementsDtoInnerRewardPinStyleEnum.seafoam;
+        case r'honey': return GroupAchievementsDtoInnerRewardPinStyleEnum.honey;
+        case r'orchid': return GroupAchievementsDtoInnerRewardPinStyleEnum.orchid;
+        case r'copper': return GroupAchievementsDtoInnerRewardPinStyleEnum.copper;
+        case r'jade': return GroupAchievementsDtoInnerRewardPinStyleEnum.jade;
+        case r'ember': return GroupAchievementsDtoInnerRewardPinStyleEnum.ember;
+        case r'glacier': return GroupAchievementsDtoInnerRewardPinStyleEnum.glacier;
+        case r'rose': return GroupAchievementsDtoInnerRewardPinStyleEnum.rose;
+        case r'midnight': return GroupAchievementsDtoInnerRewardPinStyleEnum.midnight;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');
