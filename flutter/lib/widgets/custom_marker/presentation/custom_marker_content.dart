@@ -112,6 +112,7 @@ class PinMarkerImage extends StatelessWidget {
                       ),
                       child: Transform.scale(
                         scale: resolvedDesign.imageZoom,
+                        alignment: Alignment.center,
                         child: pinImage,
                       ),
                     ),
