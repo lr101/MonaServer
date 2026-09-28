@@ -566,7 +566,7 @@ case "$rustfs_external_use_ssl" in
 esac
 
 echo 'Building Flutter web app...' >&2
-(cd "$repo_root/flutter" && mise exec -- flutter pub get && mise exec -- flutter build web --wasm --release --no-pub --dart-define="API_HOST=$api_url")
+(cd "$repo_root/flutter" && mise exec -- flutter pub get && mise exec -- flutter build web --wasm --release --no-pub --dart-define="API_HOST=$api_url" && mise exec -- dart run tool/generate_offline_web.dart build/web)
 [[ -d "$web_root" ]] || die "Flutter build did not create $web_root"
 if ((EUID == 0)); then
   runuser -u nobody -- test -r "$web_root/index.html" || die "nginx worker user nobody cannot read $web_root/index.html; grant narrow read access to the Flutter build output"

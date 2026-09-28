@@ -58,6 +58,12 @@ Build from the monorepo root with `mise run flutter-build-web` or
 `mise run flutter-build-apk`. The Android task requires the Android SDK; iOS
 requires macOS and Xcode.
 
+The web build includes an offline app shell. After a first online visit has
+finished downloading it, the same browser can reopen the app without a network
+connection. The service worker caches the compiled app and bundled assets;
+account content continues to use Drift's local cache. API requests and map
+tiles are not cached by the service worker.
+
 The standalone Flutter web container serves only static files. Its API origin
 comes from `API_HOST` in the bundled runtime configuration, so that backend
 and the object-storage origin must allow the web app's origin through CORS. The

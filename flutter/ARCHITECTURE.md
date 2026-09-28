@@ -62,6 +62,14 @@ The combined deployment enables `API_HOST_FROM_PAGE` so its browser client
 uses the current page origin; standalone Flutter web builds retain the
 configured API host.
 
+Web release builds run `tool/generate_offline_web.dart` after Flutter compiles.
+It versions a service worker from the complete static build so a previously
+opened app can start without a network connection. The custom Flutter bootstrap
+avoids Flutter's legacy service-worker registration. The worker caches only
+static app files; API responses, object-store images and map tiles are outside
+its scope. The first visit must finish installing the worker. User data and
+drafts remain in Drift, under the account cleanup rules below.
+
 `app/production_bootstrap.dart` loads configuration, opens Drift, runs legacy
 cache cleanup, selects secure storage, initializes native map tiles/Firebase,
 and wires Riverpod. It closes Drift if a later startup step fails. It bridges the
