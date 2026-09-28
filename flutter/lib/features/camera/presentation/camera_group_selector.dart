@@ -20,6 +20,10 @@ class CameraGroupSelector extends StatelessWidget {
 
   static const double maxCarouselWidth = 420;
   static const double itemViewportFraction = 0.24;
+  static const double shutterRingSize = 100;
+  static const double shutterRingStrokeWidth = 5;
+  static const double shutterImageSize =
+      shutterRingSize - shutterRingStrokeWidth * 2;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +31,7 @@ class CameraGroupSelector extends StatelessWidget {
     final activeIndex = children.isEmpty
         ? 0
         : selectedIndex.clamp(0, children.length - 1);
-    final shutterSize = (height * .78).clamp(56.0, 72.0);
+    const shutterSize = shutterRingSize;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -70,7 +74,7 @@ class CameraGroupSelector extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          width: 5,
+                          width: shutterRingStrokeWidth,
                           color: Theme.of(context).colorScheme.primaryOnSurface,
                         ),
                       ),
@@ -87,7 +91,7 @@ class CameraGroupSelector extends StatelessWidget {
 }
 
 double cameraGroupSelectorHeight(double screenHeight) =>
-    (screenHeight * .12).clamp(80.0, 112.0);
+    (screenHeight * .12).clamp(112.0, 128.0);
 
 double cameraGroupAvatarSize(double screenHeight) =>
     (cameraGroupSelectorHeight(screenHeight) * .58).clamp(44.0, 52.0);
