@@ -61,7 +61,8 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
+	tok, err := token.NewEphemeralHelper(cfg.AccessTokenExpiry)
+	must(err, "generate JWT signing key")
 	mailSvc := newMailService(cfg)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	emailLogin, emailWorker, err := newEmailLoginRuntime(cfg, q, authSvc.Security(), tok, mailSvc)
@@ -78,28 +79,11 @@ func main() {
 	}
 	guardSvc := service.NewGuard(q)
 
-	var objSvc *service.Object
-	if cfg.RustfsEndpoint != "" {
-		o, err := service.NewObjectWithExternalSSL(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
-			cfg.RustfsAccessKey, cfg.RustfsSecretKey,
-			cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsExternalUseSSL, cfg.RustfsURLExpiry)
-		if err != nil {
-			log.Error("rustfs init", "err", err)
-		} else if err := o.EnsureBucket(ctx); err != nil {
-			log.Warn("rustfs ensure bucket", "err", err)
-		} else {
-			log.Info("rustfs ready", "bucket", cfg.RustfsBucket)
-			objSvc = o
-		}
-	}
+	objSvc := initObjectService(ctx, cfg, log, 30*time.Second)
 	if objSvc != nil {
 		go service.NewObjectCleanup(q, objSvc).Run(ctx, time.Minute)
 	}
 	notifSvc := service.NewNotification(ctx, cfg.FirebaseConfigPath)
-
-	achMonaGroupID, _ := uuid.Parse(cfg.AchievementMonaGroupID)
-	achCreatedBefore, _ := time.Parse(time.RFC3339, cfg.AchievementCreatedBefore)
-	achCfg := db.AchievementConfig{MonaGroupID: achMonaGroupID, CreatedBefore: achCreatedBefore}
 
 	userSvc := service.NewUser(q, objSvc, tok, authSvc, mailSvc)
 	groupSvc := service.NewGroup(q, objSvc, userSvc)
@@ -127,7 +111,6 @@ func main() {
 		SessionIdleTTL:     cfg.AdminSessionIdleTTL,
 		SessionAbsoluteTTL: cfg.AdminSessionAbsoluteTTL,
 		ChallengeTTL:       cfg.AdminChallengeTTL,
-		RecentMFATTL:       cfg.AdminRecentMFATTL,
 		PreAuthTTL:         cfg.AdminPreAuthTTL,
 		LoginFailureLimit:  cfg.AdminLoginFailureLimit,
 		LoginIPLimit:       cfg.AdminLoginIPLimit,
@@ -141,7 +124,7 @@ func main() {
 	}
 	reportServicer := handler.NewReportServicer(mailSvc, q, reportConfig)
 	publicServicer := handler.NewPublicServicer()
-	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	// Generated controllers (handle HTTP param parsing).
@@ -158,7 +141,7 @@ func main() {
 	usersCtrl := genserver.NewUsersAPIController(usersServicer)
 	batchCtrl := genserver.NewBatchAPIController(batchServicer, genserver.WithBatchAPIErrorHandler(handler.BatchAPIErrorHandler))
 
-	viewsH := handler.NewViews(q, tok, cfg.RedirectURL)
+	viewsH := handler.NewViews(q, tok, cfg.PublicWebURL())
 
 	sched := scheduler.New()
 	_ = sched.AddWeeklyNotification(func(c context.Context) {
@@ -226,11 +209,11 @@ func main() {
 	})
 
 	// Status endpoint — requires valid JWT to confirm token validity.
-	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc)
 
 	// Authenticated routes: require JWT + USER role.
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
+		r.Use(middleware.JWT(tok, authSvc))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		r.Use(redirectImageResponses)
 		r.Use(requireCompatibilityJSONFields)
@@ -259,7 +242,7 @@ func main() {
 	// authentication behavior is observable. With the production database and
 	// browser-admin authentication service, the admin operation surfaces use
 	// the reviewed bounded runtime adapter.
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q, emailLogin, authSvc.Security(), mailSvc)
+	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q, emailLogin, authSvc.Security(), mailSvc)
 
 	addr := ":" + cfg.Port
 	log.Info("server listening", "addr", addr)
@@ -267,6 +250,45 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		log.Error("server", "err", err)
 		os.Exit(1)
+	}
+}
+
+func initObjectService(ctx context.Context, cfg *config.Config, log *slog.Logger, retryInterval time.Duration) *service.Object {
+	if cfg.RustfsEndpoint == "" {
+		return nil
+	}
+	o, err := service.NewObjectWithExternalSSL(cfg.RustfsEndpoint, cfg.RustfsExternalEndpoint,
+		cfg.RustfsAccessKey, cfg.RustfsSecretKey,
+		cfg.RustfsBucket, cfg.RustfsUseSSL, cfg.RustfsExternalUseSSL, cfg.RustfsURLExpiry)
+	if err != nil {
+		log.Error("rustfs init", "err", err)
+		return nil
+	}
+	if retryInterval <= 0 {
+		retryInterval = 30 * time.Second
+	}
+	go ensureObjectBucket(ctx, o, cfg.RustfsBucket, log, retryInterval)
+	return o
+}
+
+func ensureObjectBucket(ctx context.Context, obj *service.Object, bucket string, log *slog.Logger, retryInterval time.Duration) {
+	for {
+		if err := obj.EnsureBucket(ctx); err == nil {
+			log.Info("rustfs ready", "bucket", bucket)
+			return
+		} else {
+			log.Warn("rustfs ensure bucket", "err", err)
+		}
+
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
 	}
 }
 
@@ -460,7 +482,7 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, options .
 // feature flags. Options may include the browser-admin service and the shared
 // report repository. Keeping the options variadic preserves the compatibility
 // test seam that exercises the unavailable scaffold without a database.
-func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, adminUsername string, options ...interface{}) {
+func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, lookup middleware.UserLookup, options ...interface{}) {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
@@ -516,7 +538,7 @@ func registerV3Routes(r chi.Router, cfg *config.Config, tok *token.Helper, looku
 	// credential. It is independent from the browser-admin session transport.
 	r.Group(func(r chi.Router) {
 		r.Use(v3FeatureFlag(cfg.PublicEmailLogin))
-		r.Use(middleware.JWT(tok, lookup, adminUsername))
+		r.Use(middleware.JWT(tok, lookup))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		registerRoutes(r, sessionAuthCtrl, alwaysTrue)
 	})
@@ -666,9 +688,9 @@ func isStatusRoute(pattern string) bool {
 	return pattern == "/api/v2/status"
 }
 
-func registerProtectedStatusRoutes(r chi.Router, ctrl genserver.Router, tok *token.Helper, auth *service.Auth, adminUsername string) {
+func registerProtectedStatusRoutes(r chi.Router, ctrl genserver.Router, tok *token.Helper, auth *service.Auth) {
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, auth, adminUsername))
+		r.Use(middleware.JWT(tok, auth))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		registerRoutes(r, ctrl, isStatusRoute)
 	})

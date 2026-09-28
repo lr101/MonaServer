@@ -78,7 +78,7 @@ func newV3RuntimeRouter(t *testing.T, cfg *config.Config) (http.Handler, string,
 		adminID:    "admin",
 	}}
 	r := chi.NewRouter()
-	registerV3Routes(r, cfg, tok, lookup, "admin")
+	registerV3Routes(r, cfg, tok, lookup)
 	return r, consumerToken, adminToken
 }
 

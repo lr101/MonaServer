@@ -180,11 +180,9 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	q := db.New(pool)
 	mailHost, mailPort := startTestSMTPServer(t)
 	cfg := &config.Config{
-		JWTSecret:          "test-secret",
 		AccessTokenExpiry:  time.Minute,
 		RefreshTokenExpiry: time.Hour,
 		MaxLoginAttempts:   10,
-		AdminUsername:      "admin",
 		WebAdminAPI:        true,
 		TrustedProxyCIDRs:  "127.0.0.1/32",
 		MailHost:           mailHost,
@@ -193,7 +191,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		MailPassword:       "password",
 		MailFrom:           "mail@test.example",
 	}
-	tok := token.NewHelper(cfg.JWTSecret, cfg.AccessTokenExpiry)
+	tok := token.NewHelper("test-secret", cfg.AccessTokenExpiry)
 	mailSvc := service.NewEmail(cfg, nil)
 	authSvc := service.NewAuth(q, tok, cfg, mailSvc)
 	guardSvc := service.NewGuard(q)
@@ -204,7 +202,6 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	likeSvc := service.NewLike(q)
 	rankSvc := service.NewRanking(q)
 	notifSvc := service.NewNotification(context.Background(), "")
-	achCfg := db.AchievementConfig{}
 
 	authServicer := handler.NewAuthServicer(authSvc, q, mailSvc)
 	groupsServicer := handler.NewGroupsServicer(groupSvc, guardSvc)
@@ -222,7 +219,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		HMACKeyID: "server-test-report-v1",
 	})
 	publicServicer := handler.NewPublicServicer()
-	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q, achCfg)
+	usersServicer := handler.NewUsersServicer(userSvc, guardSvc, q)
 	batchServicer := handler.NewBatchServicer(pinsServicer, usersServicer, groupsServicer, likesServicer, guardSvc)
 
 	authCtrl := genserver.NewAuthAPIController(authServicer)
@@ -247,9 +244,9 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		registerRoutes(r, authCtrl, isDeleteCodeRoute)
 		registerRoutes(r, publicCtrl, alwaysTrue)
 	})
-	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc, cfg.AdminUsername)
+	registerProtectedStatusRoutes(r, authCtrl, tok, authSvc)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.JWT(tok, authSvc, cfg.AdminUsername))
+		r.Use(middleware.JWT(tok, authSvc))
 		r.Use(middleware.RequireRole(middleware.RoleUser))
 		r.Use(redirectImageResponses)
 		r.Use(requireCompatibilityJSONFields)
@@ -266,7 +263,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		registerRoutes(r, batchCtrl, alwaysTrue)
 	})
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
-	registerV3Routes(r, cfg, tok, authSvc, cfg.AdminUsername, adminAuth, q)
+	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
 	return httptest.NewServer(r), q
 }
@@ -959,6 +956,9 @@ func TestEndpointGroups(t *testing.T) {
 		if g["name"] != "testgroup" {
 			t.Fatalf("name mismatch: %v", g["name"])
 		}
+		if inviteURL, ok := g["invite_url"].(string); !ok || inviteURL == "" {
+			t.Fatalf("public group invite_url = %v, want a non-empty code", g["invite_url"])
+		}
 	})
 
 	t.Run("GET /api/v2/groups/{id}/progression requires auth and reports group level", func(t *testing.T) {
@@ -1040,12 +1040,17 @@ func TestEndpointGroups(t *testing.T) {
 	})
 
 	t.Run("GET /api/v2/groups/{id}/invite_url", func(t *testing.T) {
-		// Make group private first so an invite URL is generated.
-		c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{"visibility": 1}).Body.Close()
 		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/invite_url", nil)
-		resp.Body.Close()
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read public group invite URL: %v", err)
+		}
+		if got := string(body); len(got) != 6 {
+			t.Fatalf("public group invite URL = %q, want a six-character code", got)
 		}
 	})
 }

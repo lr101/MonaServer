@@ -19,7 +19,7 @@ class UserGroupOverview extends ConsumerWidget {
       data: (details) {
         final group = details.group;
         if (group == null) {
-          return const Center(child: Text('Group not found'));
+          return const Center(child: Icon(Icons.error));
         } else if (group.userIsMember) {
           return GroupOverview(
             groupId: groupId,

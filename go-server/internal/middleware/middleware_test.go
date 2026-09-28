@@ -53,7 +53,7 @@ func TestJWTRejectsStaleGenerationAndDisabledPrincipal(t *testing.T) {
 	}
 
 	call := func(raw string) int {
-		h := JWT(tok, lookup, "")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		h := JWT(tok, lookup)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		req := httptest.NewRequest("GET", "/", nil)
@@ -97,7 +97,7 @@ func TestJWTAndRole(t *testing.T) {
 	}
 
 	call := func(role, authHeader string) int {
-		h := JWT(tok, lookup, "")(RequireRole(role)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := JWT(tok, lookup)(RequireRole(role)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))
 		req := httptest.NewRequest("GET", "/", nil)

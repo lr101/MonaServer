@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { dataPath } from '../test-data-path.js';
 
@@ -135,13 +136,13 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
   let rejections = 0;
   await page.route('**/api/v2/public/refresh', async (route) => {
     rejections++;
-    await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
   });
   // The only expected browser error is the refresh response injected above.
   page.on('console', (message) => {
     if (message.type() === 'error' &&
         message.location().url.endsWith('/api/v2/public/refresh') &&
-        message.text() === 'Failed to load resource: the server responded with a status of 403 (Forbidden)') {
+        message.text() === 'Failed to load resource: the server responded with a status of 400 (Bad Request)') {
       const errors = uiErrors.get(page)!;
       const index = errors.lastIndexOf(message.text());
       if (index >= 0) errors.splice(index, 1);
@@ -161,6 +162,67 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
   await submitLogin(page, data);
   await page.getByRole('tab', { name: 'Groups', exact: true }).click();
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+test('expired refresh during group creation returns to sign-in without a network error', async ({ page }) => {
+  test.setTimeout(90_000);
+  const data = readE2eData();
+  await login(page, data);
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await page.getByRole('button', { name: 'Show menu' }).click();
+  await page.getByRole('menuitem', { name: 'Create a new group', exact: true }).click();
+
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Change image' }).click();
+  await (await chooser).setFiles(resolve(process.cwd(), '../assets/achievements/art.jpeg'));
+  await page.locator('.cropper-container').waitFor({ state: 'visible' });
+  await page.waitForTimeout(400);
+  await page.mouse.click(await page.evaluate(() => window.innerWidth - 24), 28);
+
+  await page.getByRole('textbox', { name: 'Group name' }).click();
+  await page.keyboard.type('Invalid refresh create regression');
+  await page.getByRole('textbox', { name: 'Description' }).click();
+  await page.keyboard.type('This intercepted request must not create a group.');
+
+  let createRequests = 0;
+  let refreshRequests = 0;
+  await page.route('**/api/v2/groups', async (route) => {
+    if (route.request().method() === 'POST') {
+      createRequests++;
+      await route.fulfill({ status: 401, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.continue();
+  });
+  await page.route('**/api/v2/public/refresh', async (route) => {
+    refreshRequests++;
+    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+  });
+  for (const [pathname, status, reason] of [
+    ['/api/v2/groups', 401, 'Unauthorized'],
+    ['/api/v2/public/refresh', 400, 'Bad Request'],
+  ] as const) {
+    const expected = `Failed to load resource: the server responded with a status of ${status} (${reason})`;
+    page.on('console', (message) => {
+      if (
+        message.type() === 'error' &&
+        message.location().url.endsWith(pathname) &&
+        message.text() === expected
+      ) {
+        const errors = uiErrors.get(page)!;
+        const index = errors.lastIndexOf(message.text());
+        if (index >= 0) errors.splice(index, 1);
+      }
+    });
+  }
+
+  await page.getByRole('button', { name: 'Create group', exact: true }).click();
+  await page.waitForURL(/#\/login/, { timeout: 30_000 });
+  await expect(page.getByText('Your session expired. Sign in again to continue.')).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(page.locator('body')).not.toContainText(/HTTP connection failed|Exception occurred.*\/api\/v2\/groups/i);
+  expect(createRequests).toBe(1);
+  expect(refreshRequests).toBe(1);
 });
 
 test('login and restored sessions each sync once without navigation retriggers', async ({ page }) => {
@@ -196,6 +258,22 @@ test('logs in and renders the seeded group', async ({ page }) => {
   await page.locator('[role="tab"][aria-label="Groups"]').click();
   await expect(page.locator('body')).toContainText('Your groups', { timeout: 30_000 });
   await expect(page.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+});
+
+test('settings navigation exposes its sections and hidden-user empty state', async ({ page }) => {
+  await login(page, readE2eData());
+  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+
+  await expect(page.getByRole('switch', { name: /Dark appearance/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Privacy & data' })).toBeVisible();
+  await page.getByRole('button', { name: 'Hidden users', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Hidden users' })).toBeVisible();
+  const accessibilityTree = await page.locator('body').ariaSnapshot();
+  expect(accessibilityTree).toContain('No hidden users');
+  expect(accessibilityTree).toContain(
+    'Users you hide from the map and feed will appear here.',
+  );
 });
 
 test('loads pins for a public group opened through group search', async ({ page }) => {

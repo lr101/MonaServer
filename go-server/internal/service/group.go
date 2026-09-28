@@ -127,15 +127,11 @@ func (s *Group) Create(ctx context.Context, in CreateGroupInput) (*GroupDTO, err
 		return nil, err
 	}
 	gid := uuid.New()
-	var invite *string
-	if in.Visibility == 1 {
-		code := randomAlpha(6)
-		invite = &code
-	}
+	code := randomAlpha(6)
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {
 		if _, err := q.CreateGroup(ctx, db.Group{
 			ID: gid, Name: in.Name, Description: in.Description, Link: in.Link,
-			Visibility: in.Visibility, AdminID: in.GroupAdmin, InviteUrl: invite,
+			Visibility: in.Visibility, AdminID: in.GroupAdmin, InviteUrl: &code,
 		}); err != nil {
 			return err
 		}
@@ -341,8 +337,6 @@ func (s *Group) Update(ctx context.Context, id uuid.UUID, in UpdateGroupInput) (
 		if *in.Visibility == 1 {
 			code := randomAlpha(6)
 			u.InviteUrl = &code
-		} else {
-			u.ClearInviteURL = true
 		}
 	}
 	if err := s.q.InTx(ctx, func(q *db.Queries) error {

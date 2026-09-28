@@ -260,7 +260,7 @@ func TestAchievementClaimsAreReevaluatedWithoutReversingOrRepayingXP(t *testing.
 	if err != nil {
 		t.Fatalf("get user before reevaluation: %v", err)
 	}
-	progress, err := q.GetAchievementProgress(ctx, uid, db.AchievementConfig{})
+	progress, err := q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get achievement progress: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestAchievementClaimsAreReevaluatedWithoutReversingOrRepayingXP(t *testing.
 	}); err != nil {
 		t.Fatalf("create qualifying pin: %v", err)
 	}
-	progress, err = q.GetAchievementProgress(ctx, uid, db.AchievementConfig{})
+	progress, err = q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get progress after qualifying action: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestAchievementClaimsAreReevaluatedWithoutReversingOrRepayingXP(t *testing.
 	if afterReclaim.XP != beforeReclaim.XP {
 		t.Fatalf("reclaim repaid historical reward: XP changed from %d to %d", beforeReclaim.XP, afterReclaim.XP)
 	}
-	progress, err = q.GetAchievementProgress(ctx, uid, db.AchievementConfig{})
+	progress, err = q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get claimed achievement progress: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestAchievementProgressReportsOneTimeRewardAvailability(t *testing.T) {
 		t.Fatalf("create qualifying pin: %v", err)
 	}
 
-	progress, err := q.GetAchievementProgress(ctx, uid, db.AchievementConfig{})
+	progress, err := q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get available achievement progress: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestAchievementProgressReportsOneTimeRewardAvailability(t *testing.T) {
 	if err := user.ClaimAchievement(ctx, uid, 3); err != nil {
 		t.Fatalf("claim achievement: %v", err)
 	}
-	progress, err = q.GetAchievementProgress(ctx, uid, db.AchievementConfig{})
+	progress, err = q.GetAchievementProgress(ctx, uid)
 	if err != nil {
 		t.Fatalf("get claimed achievement progress: %v", err)
 	}
@@ -380,7 +380,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 		}
 	}
 
-	likerProgress, err := q.GetAchievementProgress(ctx, likerID, db.AchievementConfig{})
+	likerProgress, err := q.GetAchievementProgress(ctx, likerID)
 	if err != nil {
 		t.Fatalf("get liker progress: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 		t.Fatalf("likes-received milestone for liker = %+v, want zero", got)
 	}
 
-	ownerProgress, err := q.GetAchievementProgress(ctx, ownerID, db.AchievementConfig{})
+	ownerProgress, err := q.GetAchievementProgress(ctx, ownerID)
 	if err != nil {
 		t.Fatalf("get owner progress: %v", err)
 	}
@@ -559,7 +559,7 @@ func TestEmailUpdateRollsBackWhenConfirmationMailFails(t *testing.T) {
 	}
 	failingMail := NewEmail(&config.Config{
 		MailHost: "127.0.0.1", MailPort: 1, MailUsername: "sender@example.com",
-		MailPassword: "password", MailFrom: "sender@example.com", AppURL: "https://api.example.com",
+		MailPassword: "password", MailFrom: "sender@example.com", WebHost: "app.example.com",
 	}, nil)
 	userSvc := NewUser(q, nil, nil, auth, failingMail)
 	newEmail := "new-email@example.com"

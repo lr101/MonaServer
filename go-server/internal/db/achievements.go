@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
@@ -22,13 +21,6 @@ type AchievementDef struct {
 	Threshold         int32
 	ThresholdUp       bool // true = currentValue >= threshold to claim
 	sql               string
-}
-
-// AchievementConfig remains part of the handler construction API for callers
-// that still provide the legacy achievement configuration.
-type AchievementConfig struct {
-	MonaGroupID   uuid.UUID
-	CreatedBefore time.Time
 }
 
 var achievementDefs = []AchievementDef{
@@ -280,7 +272,7 @@ func legacyAchievementRewardColor(achievementID int32) (string, bool) {
 	}
 }
 
-func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, _ AchievementConfig) ([]AchievementProgress, error) {
+func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID) ([]AchievementProgress, error) {
 	claimed, err := q.ListUserAchievements(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -376,7 +368,7 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID, 
 	return out, nil
 }
 
-func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID, _ AchievementConfig) (bool, error) {
+func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID) (bool, error) {
 	def, ok := achievementDefinition(achievementID)
 	if !ok {
 		return false, nil

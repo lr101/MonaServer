@@ -61,8 +61,6 @@ jobs:
           POSTGRES_USER=monaserver
           POSTGRES_PASSWORD=$db_password
           DATABASE_URL=postgres://monaserver:$db_password@db:5432/monaserver?sslmode=disable
-          JWT_SECRET=$(openssl rand -hex 32)
-          TOKEN_ADMIN_USERNAME=admin
           RUSTFS_ACCESS_KEY=$(openssl rand -hex 16)
           RUSTFS_SECRET_KEY=$(openssl rand -hex 32)
           ADMIN_TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)

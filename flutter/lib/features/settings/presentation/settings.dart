@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/features/settings/presentation/settings_widgets.dart';
 import 'package:buff_lisa/features/settings/presentation/state/notification_state.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:buff_lisa/util/theme/service/theme_state.dart';
@@ -9,206 +10,228 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:in_app_review/in_app_review.dart';
-import 'package:settings_ui/settings_ui.dart';
 
-class Settings extends ConsumerStatefulWidget {
+class Settings extends ConsumerWidget {
   const Settings({super.key});
 
   @override
-  ConsumerState<Settings> createState() => _SettingsState();
-}
-
-class _SettingsState extends ConsumerState<Settings> {
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeStateProvider);
     final notificationState = ref.watch(notificationStateProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Settings",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: SettingsList(
-        sections: [
-          SettingsSection(
-            title: const Text('App Settings'),
-            tiles: [
-              SettingsTile.navigation(
-                leading: const Icon(Icons.language),
-                title: const Text('Language'),
-                value: const Text('English'),
+    final notificationsEnabled = notificationState.value ?? false;
+    final notificationSubtitle = notificationState.when(
+      data: (_) => 'Choose whether Stick-It can send notifications.',
+      loading: () => 'Checking notification permission…',
+      error: (_, _) => 'Notification permission is unavailable.',
+    );
+
+    return SettingsPageScaffold(
+      title: 'Settings',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SettingsSectionCard(
+            title: 'Appearance',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(Icons.dark_mode_outlined),
+                title: const Text('Dark appearance'),
+                subtitle: const Text('Use a dark color scheme'),
+                value: themeMode == ThemeMode.dark,
+                onChanged: (isDark) =>
+                    ref.read(themeStateProvider.notifier).setTheme(!isDark),
               ),
-              SettingsTile.switchTile(
-                onToggle: ref.read(themeStateProvider.notifier).setTheme,
-                initialValue: ref.watch(themeStateProvider) == ThemeMode.light,
-                leading: const Icon(Icons.dark_mode),
-                title: const Text('Toggle theme'),
-              ),
-              SettingsTile.switchTile(
-                initialValue: notificationState.value ?? false,
-                onToggle: (bool value) => ref
-                    .watch(notificationStateProvider.notifier)
-                    .updatePermission(value),
-                title: const Text('All Notifications'),
-                description: const Text(
-                  "Revoke or grant access to all notifications.",
-                ),
-              ),
-              SettingsTile(
-                title: const Text("Delete cache"),
-                leading: const Icon(Icons.cached),
-                onPressed: (context) => deleteCache(ref, context),
+              const ListTile(
+                leading: Icon(Icons.language_outlined),
+                title: Text('Language'),
+                subtitle: Text('English'),
               ),
             ],
           ),
-          SettingsSection(
-            title: const Text('User Settings'),
-            tiles: [
-              SettingsTile.navigation(
-                leading: const Icon(Icons.person),
-                title: const Text('Edit profile'),
-                onPressed: (context) => context.pushNamed("profileSettings"),
-              ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.password),
-                title: const Text('Edit password'),
-                onPressed: (context) => context.pushNamed("pswSettings"),
-              ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.email),
-                title: const Text('Edit email'),
-                onPressed: (context) => context.pushNamed("emailSettings"),
-              ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.hide_image),
-                title: const Text('Edit hidden posts'),
-                onPressed: (context) => context.pushNamed("hiddenPostSettings"),
-              ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.hide_source),
-                title: const Text('Edit hidden users'),
-                onPressed: (context) => context.pushNamed("hiddenUserSettings"),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: 'Notifications',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(Icons.notifications_outlined),
+                title: const Text('All notifications'),
+                subtitle: Text(notificationSubtitle),
+                value: notificationsEnabled,
+                onChanged: notificationState.isLoading
+                    ? null
+                    : (enabled) => ref
+                          .read(notificationStateProvider.notifier)
+                          .updatePermission(enabled),
               ),
             ],
           ),
-          SettingsSection(
-            title: const Text('About'),
-            tiles: [
-              SettingsTile.navigation(
-                leading: const Icon(Icons.contact_support),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: 'Account',
+            children: [
+              _navigationTile(
+                context,
+                icon: Icons.person_outline,
+                title: 'Edit profile',
+                routeName: 'profileSettings',
+              ),
+              _navigationTile(
+                context,
+                icon: Icons.lock_outline,
+                title: 'Change password',
+                routeName: 'pswSettings',
+              ),
+              _navigationTile(
+                context,
+                icon: Icons.mail_outline,
+                title: 'Change email',
+                routeName: 'emailSettings',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: 'Privacy & data',
+            children: [
+              _navigationTile(
+                context,
+                icon: Icons.hide_image_outlined,
+                title: 'Hidden posts',
+                routeName: 'hiddenPostSettings',
+              ),
+              _navigationTile(
+                context,
+                icon: Icons.person_off_outlined,
+                title: 'Hidden users',
+                routeName: 'hiddenUserSettings',
+              ),
+              ListTile(
+                leading: const Icon(Icons.cached_outlined),
+                title: const Text('Delete cache'),
+                subtitle: const Text('Refresh app data on this device'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _confirmDeleteCache(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: 'About',
+            children: [
+              ListTile(
+                leading: const Icon(Icons.support_agent_outlined),
                 title: const Text('Contact developer'),
-                onPressed: (context) => context.pushNamed(
-                  "report",
-                  extra: ["Bug", "Feature Request", "Other"],
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.pushNamed(
+                  'report',
+                  extra: ['Bug', 'Feature Request', 'Other'],
                 ),
               ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.document_scanner),
-                title: const Text('Privacy Policy'),
-                onPressed: (context) {
-                  context.pushNamed(
-                    'web',
-                    queryParameters: {
-                      'url':
-                          "${ref.watch(globalDataServiceProvider).host}/public/privacy-policy",
-                      'title': "Privacy Policy",
-                    },
-                  );
-                },
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy policy'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () => _openPolicy(
+                  context,
+                  ref,
+                  'Privacy Policy',
+                  '/public/privacy-policy',
+                ),
               ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.document_scanner),
-                title: const Text('Terms of Service'),
-                onPressed: (context) {
-                  context.pushNamed(
-                    'web',
-                    queryParameters: {
-                      'url':
-                          "${ref.watch(globalDataServiceProvider).host}/public/agb",
-                      'title': "Terms of Service",
-                    },
-                  );
-                },
+              ListTile(
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('Terms of service'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () => _openPolicy(
+                  context,
+                  ref,
+                  'Terms of Service',
+                  '/public/agb',
+                ),
               ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.document_scanner),
-                title: const Text('OpenStreetMap Copyright'),
-                onPressed: (context) {
-                  context.pushNamed(
-                    'web',
-                    queryParameters: {
-                      'url': "https://www.openstreetmap.org/copyright",
-                      'title': "Terms of Service",
-                    },
-                  );
-                },
+              ListTile(
+                leading: const Icon(Icons.map_outlined),
+                title: const Text('OpenStreetMap attribution'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () => context.pushNamed(
+                  'web',
+                  queryParameters: {
+                    'url': 'https://www.openstreetmap.org/copyright',
+                    'title': 'OpenStreetMap attribution',
+                  },
+                ),
               ),
-              SettingsTile(
-                leading: const Icon(Icons.share),
-                title: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      onPressed: () =>
-                          clickedOnLink(dotenv.env["DISCORD_INVITE"]),
-                      icon: const FaIcon(FontAwesomeIcons.discord),
-                      iconSize: 30,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                    IconButton(
-                      onPressed: () =>
-                          clickedOnLink(dotenv.env["INSTAGRAM_URL"]),
-                      icon: const FaIcon(FontAwesomeIcons.instagram),
-                      iconSize: 30,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                    IconButton(
-                      onPressed: () =>
-                          clickedOnLink(dotenv.env["URL_GITHUB_REPO"]),
-                      icon: const FaIcon(FontAwesomeIcons.github),
-                      iconSize: 30,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                    IconButton(
-                      onPressed: () => InAppReview.instance.openStoreListing(
-                        appStoreId: dotenv.env["APPSTORE_ID"],
+              ListTile(
+                leading: const Icon(Icons.share_outlined),
+                title: const Text('Follow Stick-It'),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _socialButton(
+                        tooltip: 'Discord',
+                        icon: const FaIcon(FontAwesomeIcons.discord),
+                        onPressed: () =>
+                            clickedOnLink(dotenv.env['DISCORD_INVITE']),
                       ),
-                      icon: const Icon(Icons.star_border),
-                      iconSize: 30,
-                      color: Theme.of(context).iconTheme.color,
-                    ),
-                  ],
+                      _socialButton(
+                        tooltip: 'Instagram',
+                        icon: const FaIcon(FontAwesomeIcons.instagram),
+                        onPressed: () =>
+                            clickedOnLink(dotenv.env['INSTAGRAM_URL']),
+                      ),
+                      _socialButton(
+                        tooltip: 'GitHub',
+                        icon: const FaIcon(FontAwesomeIcons.github),
+                        onPressed: () =>
+                            clickedOnLink(dotenv.env['URL_GITHUB_REPO']),
+                      ),
+                      _socialButton(
+                        tooltip: 'Rate Stick-It',
+                        icon: const Icon(Icons.star_border),
+                        onPressed: () => InAppReview.instance.openStoreListing(
+                          appStoreId: dotenv.env['APPSTORE_ID'],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          SettingsSection(
-            title: const Text("Logout"),
-            tiles: [
-              SettingsTile.navigation(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text(
-                  'Delete Account',
-                  style: TextStyle(color: Colors.red),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: 'Session',
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.delete_forever_outlined,
+                  color: Theme.of(context).colorScheme.error,
                 ),
-                onPressed: (context) => context.pushNamed("deleteSettings"),
+                title: Text(
+                  'Delete account',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                subtitle: const Text(
+                  'Permanently remove your account and data',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.pushNamed('deleteSettings'),
               ),
-              SettingsTile.navigation(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text(
-                  'Logout',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onPressed: (c2) => showDialog(
-                  context: c2,
-                  builder: (c) => CustomDialog(
-                    title: "Confirm Logout",
-                    text2: "Logout",
-                    text1: "Cancel",
-                    onPressed: () async {
-                      context.goNamed("logout");
-                    },
+              ListTile(
+                leading: const Icon(Icons.logout_outlined),
+                title: const Text('Log out'),
+                subtitle: const Text('Sign out on this device'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (dialogContext) => CustomDialog(
+                    title: 'Log out?',
+                    text2: 'Log out',
+                    text1: 'Cancel',
+                    onPressed: () => context.goNamed('logout'),
                   ),
                 ),
               ),
@@ -219,19 +242,75 @@ class _SettingsState extends ConsumerState<Settings> {
     );
   }
 
-  void deleteCache(WidgetRef ref, BuildContext context) {
-    CustomDialog.show(
-      context,
-      acceptText: "Delete",
-      title: "Delete Cache",
-      cancelText: "Cancel",
-      child: const Text(
-        "Deleting the cache can fix wrong states of the app caused by outdated data. This does not log you out and an automatic refresh of all deleted data is performed. IMPORTANT: Posts that are not synced to the server will be lost forever.",
-        maxLines: 10,
-      ),
-      onPressed: () async {
-        context.goNamed("logout", extra: true);
-      },
+  Widget _navigationTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String routeName,
+  }) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: () => context.pushNamed(routeName),
+  );
+
+  Widget _socialButton({
+    required String tooltip,
+    required Widget icon,
+    required VoidCallback onPressed,
+  }) => Tooltip(
+    message: tooltip,
+    child: IconButton.filledTonal(
+      onPressed: onPressed,
+      icon: icon,
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    ),
+  );
+
+  void _openPolicy(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+    String path,
+  ) {
+    final host = ref.read(globalDataServiceProvider).host;
+    context.pushNamed(
+      'web',
+      queryParameters: {'url': '$host$path', 'title': title},
     );
+  }
+
+  Future<void> _confirmDeleteCache(BuildContext context) async {
+    final delete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: const Text('Delete cached app data?'),
+        content: const Text(
+          'This signs you out and refreshes data on this device. Any posts '
+          'that have not synced to the server will be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete cache'),
+          ),
+        ],
+      ),
+    );
+    if (delete == true && context.mounted) {
+      context.goNamed('logout', extra: true);
+    }
   }
 }

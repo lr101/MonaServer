@@ -17,6 +17,19 @@ import (
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
+func TestRootRedirectUsesPublicWebHost(t *testing.T) {
+	cfg := &config.Config{WebHost: "stick-it.example.com/"}
+	view := NewViews(nil, nil, cfg.PublicWebURL())
+	rec := httptest.NewRecorder()
+	view.Root(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("root status = %d, want %d", rec.Code, http.StatusPermanentRedirect)
+	}
+	if got, want := rec.Header().Get("Location"), "https://stick-it.example.com"; got != want {
+		t.Fatalf("root redirect = %q, want %q", got, want)
+	}
+}
+
 func TestRecoverPasswordViewDoesNotGrantBearerJWT(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {

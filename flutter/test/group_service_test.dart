@@ -9,8 +9,8 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -603,6 +603,30 @@ void main() {
 
     await update;
     expect(completed, isTrue);
+  });
+
+  test('refreshes cached group images after a picture update', () async {
+    final profileCache = _FakeImageRepository();
+    final profileSmallCache = _FakeImageRepository();
+    final pinImageCache = _FakeImageRepository();
+    final service = await _createService(
+      groupsApi: _FakeGroupsApi(_groupWithImages()),
+      profileCache: profileCache,
+      profileSmallCache: profileSmallCache,
+      pinImageCache: pinImageCache,
+    );
+
+    final result = await service.updateGroup(
+      UpdateGroupDto(profileImage: 'new-picture-base64'),
+      'group-id',
+    );
+
+    expect(result, isNull);
+    expect(profileCache.overrideUrls, ['https://example.com/profile.jpg']);
+    expect(profileSmallCache.overrideUrls, [
+      'https://example.com/profile-small.jpg',
+    ]);
+    expect(pinImageCache.overrideUrls, ['https://example.com/pin.jpg']);
   });
 
   test('joins a group without image URLs', () async {
@@ -1385,6 +1409,7 @@ class _FakeImageRepository implements IImageRepository {
   final Completer<Uint8List>? _completion;
   final Object? error;
   final List<String> overrideIds = [];
+  final List<String> overrideUrls = [];
   final List<String> fetchIds = [];
 
   @override
@@ -1433,6 +1458,7 @@ class _FakeImageRepository implements IImageRepository {
   @override
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async {
     overrideIds.add(id);
+    overrideUrls.add(url);
     if (error != null) throw error!;
     return _completion?.future ?? Uint8List(0);
   }

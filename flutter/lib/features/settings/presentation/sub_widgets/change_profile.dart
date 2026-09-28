@@ -3,9 +3,9 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/auth/data/login_service.dart';
+import 'package:buff_lisa/features/settings/presentation/settings_widgets.dart';
 import 'package:buff_lisa/features/settings/presentation/state/user_edit_state.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
-import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image_picker.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +24,6 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
   final TextEditingController _usernameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _formInitialized = false;
-  bool _isSaving = false;
   String _originalDescription = '';
   String _originalUsername = '';
   int? _originalBadge;
@@ -41,132 +40,113 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = ref.watch(currentUserProvider).value;
+    final currentUserState = ref.watch(currentUserProvider);
+    final currentUser = currentUserState.value;
     if (!_formInitialized && currentUser != null) {
       _initializeForm(currentUser);
     }
+    if (!_formInitialized) {
+      return SettingsPageScaffold(
+        title: 'Edit profile',
+        child: currentUserState.hasError
+            ? const SettingsEmptyState(
+                icon: Icons.person_off_outlined,
+                title: 'Profile unavailable',
+                description:
+                    'Your profile could not be loaded. Please try again.',
+              )
+            : const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+      );
+    }
     final achievements = ref.watch(achievementsProvider);
-    final isCompact = MediaQuery.sizeOf(context).width < 600;
 
-    return CustomCloseKeyboardScaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Edit profile',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: !_formInitialized
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              top: false,
+    return SettingsPageScaffold(
+      title: 'Edit profile',
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildPhotoCard(context),
+            const SizedBox(height: 16),
+            _buildSectionCard(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: EdgeInsets.fromLTRB(
-                        isCompact ? 16 : 24,
-                        18,
-                        isCompact ? 16 : 24,
-                        20,
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 640),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildPhotoCard(context),
-                                const SizedBox(height: 18),
-                                _buildSectionCard(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildSectionHeading(
-                                        context,
-                                        icon: Icons.person_outline,
-                                        title: 'Your details',
-                                        subtitle: 'Choose how people see you around Stick-It.',
-                                      ),
-                                      const SizedBox(height: 16),
-                                      TextFormField(
-                                        controller: _usernameController,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Username',
-                                          prefixIcon: Icon(
-                                            Icons.alternate_email,
-                                          ),
-                                          helperText: 'You can change it every 14 days.',
-                                        ),
-                                        validator: LoginService.userValidator,
-                                      ),
-                                      const SizedBox(height: 14),
-                                      TextFormField(
-                                        controller: _descriptionController,
-                                        minLines: 3,
-                                        maxLines: 5,
-                                        textCapitalization:
-                                            TextCapitalization.sentences,
-                                        decoration: const InputDecoration(
-                                          labelText: 'About you',
-                                          alignLabelWithHint: true,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                _buildSectionCard(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildSectionHeading(
-                                        context,
-                                        icon: Icons.workspace_premium_outlined,
-                                        title: 'Profile badge',
-                                        subtitle: 'Choose a badge earned from a hard achievement.',
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildBadgeChoices(context, achievements),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                _buildSectionCard(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildSectionHeading(
-                                        context,
-                                        icon: Icons.palette_outlined,
-                                        title: 'Badge color',
-                                        subtitle: 'Colors earned from medium achievements customize your badge.',
-                                      ),
-                                      const SizedBox(height: 16),
-                                      _buildBadgeColorChoices(
-                                        context,
-                                        achievements,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                  _buildSectionHeading(
+                    context,
+                    icon: Icons.person_outline,
+                    title: 'Your details',
+                    subtitle: 'Choose how people see you around Stick-It.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      prefixIcon: Icon(Icons.alternate_email),
+                      helperText: 'You can change it every 14 days.',
+                    ),
+                    validator: LoginService.userValidator,
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _descriptionController,
+                    minLines: 3,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'About you',
+                      alignLabelWithHint: true,
                     ),
                   ),
-                  _buildSaveBar(context, isCompact: isCompact),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            _buildSectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSectionHeading(
+                    context,
+                    icon: Icons.workspace_premium_outlined,
+                    title: 'Profile badge',
+                    subtitle: 'Choose a badge earned from a hard achievement.',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildBadgeChoices(context, achievements),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildSectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSectionHeading(
+                    context,
+                    icon: Icons.palette_outlined,
+                    title: 'Badge color',
+                    subtitle: 'Colors earned from medium achievements customize your badge.',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildBadgeColorChoices(context, achievements),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SettingsActionButton(
+              label: 'Save changes',
+              icon: Icons.check,
+              onPressed: () => _saveProfile(context),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -236,10 +216,8 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
     );
   }
 
-  Widget _buildSectionCard({required Widget child}) => Card(
-    margin: EdgeInsets.zero,
-    child: Padding(padding: const EdgeInsets.all(18), child: child),
-  );
+  Widget _buildSectionCard({required Widget child}) =>
+      SettingsPanel(padding: 18, child: child);
 
   Widget _buildSectionHeading(
     BuildContext context, {
@@ -280,51 +258,6 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSaveBar(BuildContext context, {required bool isCompact}) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(
-          top: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.45)),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isCompact ? 16 : 24,
-                12,
-                isCompact ? 16 : 24,
-                12,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton.icon(
-                  onPressed: _isSaving ? null : () => _saveProfile(context),
-                  icon: _isSaving
-                      ? SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.onPrimary,
-                          ),
-                        )
-                      : const Icon(Icons.check),
-                  label: Text(_isSaving ? 'Saving changes…' : 'Save changes'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -497,40 +430,35 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
   }
 
   Future<void> _saveProfile(BuildContext context) async {
-    if (_isSaving || !_formKey.currentState!.validate()) return;
-    setState(() => _isSaving = true);
-    try {
-      final userId = ref.read(userIdProvider);
-      final image = ref.read(userEditStateProvider);
-      final result = await ref
-          .read(userServiceProvider(userId).notifier)
-          .changeUser(
-            username: _originalUsername == _usernameController.text
-                ? null
-                : _usernameController.text,
-            description: _originalDescription == _descriptionController.text
-                ? null
-                : _descriptionController.text,
-            profilePicture: ref.read(userEditStateProvider.notifier).hasChanged
-                ? image
-                : null,
-            selectedBatch: _selectedBadge == _originalBadge
-                ? null
-                : _selectedBadge,
-            selectedBatchColor: _selectedBadgeColor == _originalBadgeColor
-                ? null
-                : _selectedBadgeColor,
-          );
-      if (!mounted) return;
-      CustomErrorSnackBar.message(
-        message: result ?? 'Successfully changed profile',
-        type: result == null
-            ? CustomErrorSnackBarType.success
-            : CustomErrorSnackBarType.error,
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
+    if (!_formKey.currentState!.validate()) return;
+    final userId = ref.read(userIdProvider);
+    final image = ref.read(userEditStateProvider);
+    final result = await ref
+        .read(userServiceProvider(userId).notifier)
+        .changeUser(
+          username: _originalUsername == _usernameController.text
+              ? null
+              : _usernameController.text,
+          description: _originalDescription == _descriptionController.text
+              ? null
+              : _descriptionController.text,
+          profilePicture: ref.read(userEditStateProvider.notifier).hasChanged
+              ? image
+              : null,
+          selectedBatch: _selectedBadge == _originalBadge
+              ? null
+              : _selectedBadge,
+          selectedBatchColor: _selectedBadgeColor == _originalBadgeColor
+              ? null
+              : _selectedBadgeColor,
+        );
+    if (!mounted) return;
+    CustomErrorSnackBar.message(
+      message: result ?? 'Successfully changed profile',
+      type: result == null
+          ? CustomErrorSnackBarType.success
+          : CustomErrorSnackBarType.error,
+    );
   }
 }
 
