@@ -425,6 +425,10 @@ func TestUpdateGroupCanMakePrivateGroupPublicAndClearOptionalText(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
+	if group.InviteUrl == nil || *group.InviteUrl == "" {
+		t.Fatal("private group should have an invite url")
+	}
+	privateInvite := *group.InviteUrl
 
 	userCtx := middleware.WithUser(ctx, user.UserID, middleware.RoleUser)
 	empty := ""
@@ -451,8 +455,8 @@ func TestUpdateGroupCanMakePrivateGroupPublicAndClearOptionalText(t *testing.T) 
 	if stored.Link != nil && *stored.Link != "" {
 		t.Fatalf("link was not cleared: %q", *stored.Link)
 	}
-	if stored.InviteUrl != nil {
-		t.Fatalf("invite URL was not cleared: %q", *stored.InviteUrl)
+	if stored.InviteUrl == nil || *stored.InviteUrl != privateInvite {
+		t.Fatalf("invite URL after switching to public = %v, want preserved code %q", stored.InviteUrl, privateInvite)
 	}
 
 	second, err := groupSvc.Create(ctx, service.CreateGroupInput{

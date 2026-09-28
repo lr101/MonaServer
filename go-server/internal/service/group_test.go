@@ -350,7 +350,7 @@ func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 }
 
 // TestGroupCreateSideEffects verifies automatic side-effects of group creation:
-// admin is enrolled as a member, XP is awarded, and visibility controls invite URL.
+// admin is enrolled as a member, XP is awarded, and every group gets an invite URL.
 func TestGroupCreateSideEffects(t *testing.T) {
 	q, auth, _, _, _, group, _, _, guard := setupServices(t)
 	ctx := context.Background()
@@ -394,17 +394,17 @@ func TestGroupCreateSideEffects(t *testing.T) {
 		}
 	})
 
-	t.Run("public group has no invite url", func(t *testing.T) {
+	t.Run("public group gets invite url", func(t *testing.T) {
 		g, err := group.Create(ctx, CreateGroupInput{
-			Name:       "publicnourl",
+			Name:       "publichasurl",
 			Visibility: 0,
 			GroupAdmin: adminID,
 		})
 		if err != nil {
 			t.Fatalf("create: %v", err)
 		}
-		if g.InviteUrl != nil {
-			t.Fatalf("public group should have no invite url, got %q", *g.InviteUrl)
+		if g.InviteUrl == nil || *g.InviteUrl == "" {
+			t.Fatal("public group should have a non-empty invite url")
 		}
 	})
 
@@ -513,8 +513,9 @@ func TestGroupUpdateFields(t *testing.T) {
 		}
 	})
 
-	t.Run("visibility 1 to 0 clears invite url", func(t *testing.T) {
-		// Create private, then flip to public.
+	t.Run("visibility changes preserve public links and rotate when private", func(t *testing.T) {
+		// A code shared while public must not remain valid after the group is
+		// switched to private.
 		g, err := group.Create(ctx, CreateGroupInput{
 			Name:       "vis_10",
 			Visibility: 1,
@@ -526,13 +527,22 @@ func TestGroupUpdateFields(t *testing.T) {
 		if g.InviteUrl == nil || *g.InviteUrl == "" {
 			t.Fatal("expected invite url on private group")
 		}
+		privateInvite := *g.InviteUrl
 		vis := 0
 		dto, err := group.Update(ctx, g.ID, UpdateGroupInput{Visibility: &vis})
 		if err != nil {
 			t.Fatalf("update: %v", err)
 		}
-		if dto.InviteUrl != nil && *dto.InviteUrl != "" {
-			t.Fatalf("invite url should be cleared after switching to public, got %q", *dto.InviteUrl)
+		if dto.InviteUrl == nil || *dto.InviteUrl != privateInvite {
+			t.Fatalf("invite url after switching to public = %v, want preserved code %q", dto.InviteUrl, privateInvite)
+		}
+		vis = 1
+		dto, err = group.Update(ctx, g.ID, UpdateGroupInput{Visibility: &vis})
+		if err != nil {
+			t.Fatalf("switch back to private: %v", err)
+		}
+		if dto.InviteUrl == nil || *dto.InviteUrl == "" || *dto.InviteUrl == privateInvite {
+			t.Fatalf("invite url after switching back to private = %v, want a rotated non-empty code", dto.InviteUrl)
 		}
 	})
 

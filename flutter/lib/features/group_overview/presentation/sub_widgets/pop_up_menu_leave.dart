@@ -40,7 +40,7 @@ class PopUpMenuLeave extends ConsumerWidget {
             title: "Report Group",
             icon: Icons.report,
           ),
-          if (groupDto.visibility != 0 && groupDto.inviteUrl != null)
+          if (groupDto.inviteUrl != null)
             CustomMenuItem<int>(
               value: 3,
               title: "Copy share link",
@@ -99,7 +99,12 @@ class PopUpMenuLeave extends ConsumerWidget {
       return;
     }
     if (route?.isCurrent == true) {
-      router.pop();
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        // A group opened from an invite link can be the root route.
+        router.go('/home');
+      }
     }
   }
 

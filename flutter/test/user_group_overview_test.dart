@@ -20,6 +20,77 @@ import 'package:go_router/go_router.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
+  testWidgets('successful leave falls back home when group is the root route', (
+    tester,
+  ) async {
+    final group = GroupEntity(
+      groupId: 'group-id',
+      name: 'Group',
+      visibility: 0,
+      userIsMember: true,
+      groupAdmin: 'another-user',
+      ttl: DateTime.now(),
+      onlySession: false,
+    );
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final router = GoRouter(
+      initialLocation: '/group',
+      routes: [
+        GoRoute(path: '/home', builder: (context, state) => const Text('Home')),
+        GoRoute(
+          path: '/group',
+          builder: (context, state) => ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (context, isVisible, child) => Scaffold(
+              appBar: isVisible
+                  ? AppBar(actions: [PopUpMenuLeave(groupDto: group)])
+                  : null,
+              body: isVisible ? null : const Text('Group not found'),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          memberServiceProvider('group-id')
+              .overrideWith(_EmptyMemberService.new),
+          userGroupServiceProvider.overrideWith(
+            () => _RemovingLeaveUserGroupService(
+              onLeave: () => visible.value = false,
+            ),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.byType(PopupMenuButton<int>));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave Group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Leave'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Group not found'), findsNothing);
+  });
+
   testWidgets('successful leave returns to the previous route', (tester) async {
     final group = GroupEntity(
       groupId: 'group-id',
@@ -94,6 +165,7 @@ void main() {
     await tester.tap(find.text('Leave'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
     expect(find.text('Open group'), findsOneWidget);
   });
@@ -331,7 +403,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Group not found'), findsOneWidget);
+    expect(find.byIcon(Icons.error), findsOneWidget);
+    expect(find.text('Group not found'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

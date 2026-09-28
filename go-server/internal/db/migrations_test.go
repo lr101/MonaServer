@@ -488,3 +488,100 @@ func TestT02SnapshotOrdinalMigrationRepairsPopulatedData(t *testing.T) {
 		t.Fatalf("repaired counts = %d/%d/%d; want 1/1/0", accountCount, eligibleCount, exclusionCount)
 	}
 }
+
+func TestMigration50BackfillsGroupInviteCodes(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+	}
+
+	pool, err := NewPool(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin transaction: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	schema := "group_invite_migration_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create isolated migration schema: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+schema); err != nil {
+		t.Fatalf("set isolated migration search path: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `CREATE TABLE groups (
+		id uuid PRIMARY KEY,
+		visibility integer NOT NULL,
+		invite_url varchar(255) UNIQUE,
+		update_date timestamp
+	)`); err != nil {
+		t.Fatalf("create legacy groups table: %v", err)
+	}
+	publicID, privateID, linkedID := uuid.New(), uuid.New(), uuid.New()
+	legacyUpdatedAt := time.Date(2025, time.January, 2, 3, 4, 5, 0, time.UTC)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO groups (id, visibility, invite_url, update_date)
+		VALUES ($1, 0, NULL, $4), ($2, 1, NULL, $4), ($3, 0, 'ABC123', $4)
+	`, publicID, privateID, linkedID, legacyUpdatedAt); err != nil {
+		t.Fatalf("insert legacy group rows: %v", err)
+	}
+
+	migration, err := migrationsFS.ReadFile("migrations/000050_group_invite_codes.up.sql")
+	if err != nil {
+		t.Fatalf("read group invite migration: %v", err)
+	}
+	if _, err := tx.Exec(ctx, string(migration)); err != nil {
+		t.Fatalf("apply group invite migration: %v", err)
+	}
+
+	rows, err := tx.Query(ctx, `SELECT id, visibility, invite_url, update_date FROM groups ORDER BY id`)
+	if err != nil {
+		t.Fatalf("read migrated group invites: %v", err)
+	}
+	defer rows.Close()
+	seenCodes := make(map[string]struct{}, 3)
+	backfilledVisibility := make(map[int32]int, 2)
+	for rows.Next() {
+		var id uuid.UUID
+		var visibility int32
+		var invite string
+		var updatedAt time.Time
+		if err := rows.Scan(&id, &visibility, &invite, &updatedAt); err != nil {
+			t.Fatalf("scan migrated group invite: %v", err)
+		}
+		if _, exists := seenCodes[invite]; exists {
+			t.Fatalf("duplicate invite code %q after migration", invite)
+		}
+		seenCodes[invite] = struct{}{}
+		if id == linkedID {
+			if invite != "ABC123" || visibility != 0 || !updatedAt.Equal(legacyUpdatedAt) {
+				t.Fatalf("existing invite = %q at %s, want ABC123 at %s", invite, updatedAt, legacyUpdatedAt)
+			}
+			continue
+		}
+		if len(invite) != 6 {
+			t.Fatalf("backfilled invite code = %q, want six characters", invite)
+		}
+		for _, char := range invite {
+			if !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567", char) {
+				t.Fatalf("backfilled invite code = %q, want an app-compatible invite code", invite)
+			}
+		}
+		if !updatedAt.After(legacyUpdatedAt) {
+			t.Fatalf("backfilled group update_date = %s, want after %s", updatedAt, legacyUpdatedAt)
+		}
+		backfilledVisibility[visibility]++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate migrated group invites: %v", err)
+	}
+	if backfilledVisibility[0] != 1 || backfilledVisibility[1] != 1 {
+		t.Fatalf("backfilled groups by visibility = %v, want one public and one private group", backfilledVisibility)
+	}
+}
