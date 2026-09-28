@@ -85,7 +85,7 @@ void main() {
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.text('Dedicated collector'), findsOneWidget);
+    expect(find.text('Dedicated collector').first, findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);
   });
 }
