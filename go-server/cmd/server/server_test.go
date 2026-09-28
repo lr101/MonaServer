@@ -956,6 +956,9 @@ func TestEndpointGroups(t *testing.T) {
 		if g["name"] != "testgroup" {
 			t.Fatalf("name mismatch: %v", g["name"])
 		}
+		if inviteURL, ok := g["invite_url"].(string); !ok || inviteURL == "" {
+			t.Fatalf("public group invite_url = %v, want a non-empty code", g["invite_url"])
+		}
 	})
 
 	t.Run("GET /api/v2/groups/{id}/progression requires auth and reports group level", func(t *testing.T) {
@@ -1037,12 +1040,17 @@ func TestEndpointGroups(t *testing.T) {
 	})
 
 	t.Run("GET /api/v2/groups/{id}/invite_url", func(t *testing.T) {
-		// Make group private first so an invite URL is generated.
-		c.do(t, "PUT", "/api/v2/groups/"+gid, map[string]any{"visibility": 1}).Body.Close()
 		resp := c.do(t, "GET", "/api/v2/groups/"+gid+"/invite_url", nil)
-		resp.Body.Close()
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read public group invite URL: %v", err)
+		}
+		if got := string(body); len(got) != 6 {
+			t.Fatalf("public group invite URL = %q, want a six-character code", got)
 		}
 	})
 }
