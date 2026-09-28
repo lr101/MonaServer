@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
@@ -437,12 +436,10 @@ PinService pinService(Ref ref) => PinService(ref: ref);
 class PinService {
   final Ref ref;
   late IPinRepository _pinRepository;
-  late IImageRepository _pinImageRepository;
   late PinsApi _pinsApi;
 
   PinService({required this.ref}) {
     _pinRepository = ref.watch(pinRepositoryProvider);
-    _pinImageRepository = ref.watch(pinImageRepositoryProvider);
     _pinsApi = ref.read(pinApiProvider);
     ref.listen(userGroupServiceProvider, (_, _) => ());
   }
@@ -469,18 +466,12 @@ class PinService {
       return error.toString();
     }
 
-    // These bounded caches improve the immediate view. The outbox remains the
-    // source of truth if a cache write is interrupted or evicted.
-    try {
-      await _pinRepository.put(pin);
-      await _pinImageRepository.addImage(pin.pinId, image, true);
-    } catch (_) {}
-
+    // The durable outbox is the save boundary. Cache projections and upload
+    // continue after the approval screen can navigate away.
     unawaited(_uploadSavedPinInBackground(pin, session));
     if (showPrompt) {
       CustomErrorSnackBar.message(
-        message:
-            "Post saved. Uploading in background; unfinished uploads retry on next open.",
+        message: "Post saved. Uploading in background; unfinished uploads retry on next open.",
         type: CustomErrorSnackBarType.info,
       );
     }

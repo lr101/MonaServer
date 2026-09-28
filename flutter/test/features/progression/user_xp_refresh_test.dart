@@ -81,6 +81,53 @@ void main() {
     },
   );
 
+  test(
+    'pin save returns after outbox commit without waiting for cache writes',
+    () async {
+      final fixture = await _Fixture.create(
+        _Mutation.pin,
+        pausePinCacheWrite: true,
+      );
+      addTearDown(fixture.dispose);
+
+      final save = fixture.performAction();
+      await fixture.pinCacheWriteStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        await fixture.database.select(fixture.database.pendingPinCreates).get(),
+        hasLength(1),
+        reason: 'the complete post is durable before cache projection starts',
+      );
+      final uploadStartedBeforeCacheWrite = await Future.any([
+        fixture.mutationRequestStarted.future.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+      ]);
+      final returnedBeforeCacheWrite = await Future.any([
+        save.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+      ]);
+
+      fixture.releasePinCacheWrite.complete();
+      await fixture.mutationRequestStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(await save, isNull);
+      await fixture.waitForPinUpload();
+
+      expect(
+        returnedBeforeCacheWrite,
+        isTrue,
+        reason: 'the approval page should leave after the outbox commit',
+      );
+      expect(
+        uploadStartedBeforeCacheWrite,
+        isTrue,
+        reason: 'cache projection must not hold up the background POST',
+      );
+    },
+  );
+
   for (final action in _Mutation.values) {
     test('${action.label} refreshes XP', () async {
       final fixture = await _Fixture.create(action);
@@ -189,6 +236,8 @@ class _Fixture {
     required this.globalData,
     required this.pauseMutation,
     required this.mutationStatus,
+    required this.pinCacheWriteStarted,
+    required this.releasePinCacheWrite,
   });
 
   final _Mutation action;
@@ -198,6 +247,8 @@ class _Fixture {
   final _SwitchableGlobalDataService globalData;
   final bool pauseMutation;
   final int mutationStatus;
+  final Completer<void> pinCacheWriteStarted;
+  final Completer<void> releasePinCacheWrite;
   final mutationRequestStarted = Completer<void>();
   final secondXpRequestStarted = Completer<void>();
   final mutationResponse = Completer<http.Response>();
@@ -208,11 +259,20 @@ class _Fixture {
   static Future<_Fixture> create(
     _Mutation action, {
     bool pauseMutation = false,
+    bool pausePinCacheWrite = false,
     int mutationStatus = 200,
   }) async {
     final database = AppDatabase(NativeDatabase.memory());
     final groups = GroupRepository(database);
-    final pins = PinRepository(database);
+    final pinCacheWriteStarted = Completer<void>();
+    final releasePinCacheWrite = Completer<void>();
+    final pins = pausePinCacheWrite
+        ? _DelayedPinRepository(
+            database,
+            pinCacheWriteStarted,
+            releasePinCacheWrite,
+          )
+        : PinRepository(database);
     await Future.wait([groups.ready, pins.ready]);
     final globalData = _SwitchableGlobalDataService();
     late _Fixture fixture;
@@ -243,6 +303,8 @@ class _Fixture {
       globalData: globalData,
       pauseMutation: pauseMutation,
       mutationStatus: mutationStatus,
+      pinCacheWriteStarted: pinCacheWriteStarted,
+      releasePinCacheWrite: releasePinCacheWrite,
     );
   }
 
@@ -419,6 +481,20 @@ class _Fixture {
     container.dispose();
     apiClient.client.close();
     await database.close();
+  }
+}
+
+class _DelayedPinRepository extends PinRepository {
+  _DelayedPinRepository(super.db, this.started, this.release);
+
+  final Completer<void> started;
+  final Completer<void> release;
+
+  @override
+  Future<void> put(PinEntity item) async {
+    if (!started.isCompleted) started.complete();
+    await release.future;
+    await super.put(item);
   }
 }
 

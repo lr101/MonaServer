@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
@@ -111,16 +112,13 @@ class PendingPinUploader {
       onlySession: false,
       ttl: DateTime.now(),
     );
-    if (!row.cancelRequested) {
-      try {
-        if (await pins.get(row.pinId) == null) await pins.put(draft);
-        if (!isCurrent()) return null;
-        await images.addImage(row.pinId, row.image, true);
-      } catch (_) {
-        // Cache writes are best effort; durable outbox bytes remain available.
-      }
-      if (!isCurrent()) return null;
-    }
+    // Keep the local cache warm without making cache latency hold up the POST.
+    // A successful response waits for this projection before replacing the
+    // draft with the server entity. On failure, the durable outbox is enough to
+    // restore it again on the next attempt.
+    final cacheRestore = row.cancelRequested
+        ? Future<void>.value()
+        : _restoreCachedDraft(row, draft, pins, images, pending, isCurrent);
     try {
       await pending.markAttempted(row.pinId);
       if (!isCurrent()) return null;
@@ -135,12 +133,15 @@ class PendingPinUploader {
       } on ApiException catch (error) {
         final latest = await pending.get(row.pinId);
         if (error.code == 409 && latest?.cancelRequested == true) {
+          await cacheRestore;
           await _removeCancelledDraft(pending, row.pinId, pins, images);
         }
         rethrow;
       }
       if (!isCurrent()) return null;
       if (result == null) throw StateError('Pin create returned no pin');
+      await cacheRestore;
+      if (!isCurrent()) return null;
       final latest = await pending.get(row.pinId);
       if (!isCurrent()) return null;
       if (latest?.cancelRequested == true) {
@@ -165,6 +166,30 @@ class PendingPinUploader {
         await pending.recordError(row.pinId, 'HTTP ${error.code}');
       }
       rethrow;
+    }
+  }
+
+  Future<void> _restoreCachedDraft(
+    PendingPinCreateDb row,
+    PinEntity draft,
+    IPinRepository pins,
+    IImageRepository images,
+    PendingPinRepository pending,
+    bool Function() isCurrent,
+  ) async {
+    try {
+      if (!isCurrent()) return;
+      if (await pins.get(row.pinId) == null) {
+        final latest = await pending.get(row.pinId);
+        if (!isCurrent() || latest == null || latest.cancelRequested) return;
+        await pins.put(draft);
+      }
+      if (!isCurrent()) return;
+      final latest = await pending.get(row.pinId);
+      if (latest == null || latest.cancelRequested) return;
+      await images.addImage(row.pinId, row.image, true);
+    } catch (_) {
+      // Cache writes are best effort; durable outbox bytes remain available.
     }
   }
 

@@ -204,9 +204,9 @@ or make already-started writes atomic with session changes.
 
 New posts use a shared Drift outbox on Android and Web. Its row contains the
 complete request and image bytes and is committed before navigation or upload.
-After the durable save and best-effort cache updates, the camera flow returns
-without waiting for the upload. It starts one foreground upload attempt in the
-background. The local pin UUID is also the
+After the durable save, the camera flow returns without waiting for cache
+updates or upload. Cache projection and one foreground upload attempt continue
+in the background. The local pin UUID is also the
 stable `Idempotency-Key`. Startup and resume sync pull remote changes before
 retrying outbox rows, and still attempt those rows if the pull fails. Older
 Android drafts are migrated into the outbox when their retained image is
