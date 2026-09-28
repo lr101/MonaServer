@@ -50,15 +50,18 @@ func DefaultGroupPinDesign(style string) GroupPinDesign {
 	case "aurora":
 		design.Name, design.BodyColor = "Aurora", "#6D77BA"
 		design.Shape, design.OutlineColor = "shield", "#C4F4EF"
+		design.Badge = "spark"
 	case "seafoam":
 		design.Name, design.BodyColor = "Seafoam", "#4F9A91"
 		design.Shape, design.OutlineColor = "circle", "#D6F3E9"
 	case "honey":
 		design.Name, design.BodyColor = "Honey", "#D69B2D"
 		design.Shape, design.OutlineColor = "teardrop", "#FFF1C2"
+		design.Badge = "sun"
 	case "orchid":
 		design.Name, design.BodyColor = "Orchid", "#8855A5"
 		design.Shape, design.OutlineColor = "shield", "#EDDAF7"
+		design.Badge = "star"
 	case "copper":
 		design.Name, design.BodyColor = "Copper", "#A85B3B"
 		design.Shape, design.OutlineColor = "teardrop", "#FFDCC5"
@@ -68,6 +71,7 @@ func DefaultGroupPinDesign(style string) GroupPinDesign {
 	case "ember":
 		design.Name, design.BodyColor = "Ember", "#C74C3D"
 		design.Shape, design.OutlineColor = "teardrop", "#FFD6C8"
+		design.Badge = "spark"
 	case "glacier":
 		design.Name, design.BodyColor = "Glacier", "#4895B3"
 		design.Shape, design.OutlineColor = "circle", "#D6F4FF"
@@ -77,6 +81,7 @@ func DefaultGroupPinDesign(style string) GroupPinDesign {
 	case "midnight":
 		design.Name, design.BodyColor = "Midnight", "#4D568E"
 		design.Shape, design.OutlineColor = "shield", "#DDE3FF"
+		design.Badge = "star"
 	}
 	return design
 }

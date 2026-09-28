@@ -125,11 +125,9 @@ func (s *GroupPinDesignCatalogService) Update(ctx context.Context, groupID uuid.
 	return mergeGroupPinDesignCatalog(updatedCatalog, progress), nil
 }
 
-// Keep legacy wire fields stable for older clients while removing their effect
-// from pin designs. Existing catalog rows are normalized when read, and older
-// clients can no longer restore badges or disable shadows by saving a design.
+// Keep the earned style's emblem and normalize older catalog rows.
 func normalizeGroupPinDesign(design db.GroupPinDesign) db.GroupPinDesign {
-	design.Badge = "none"
+	design.Badge = db.DefaultGroupPinDesign(design.Style).Badge
 	design.Shadow = true
 	return design
 }

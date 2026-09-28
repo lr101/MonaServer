@@ -23,12 +23,19 @@ func TestGetUserIncludesSelectedAchievementMessagingStateAndBestSeason(t *testin
 		t.Fatalf("signup: %v", err)
 	}
 	groupSvc := service.NewGroup(q, nil, userSvc)
-	for i := 0; i < 25; i++ {
-		if _, err := groupSvc.Create(ctx, service.CreateGroupInput{
+	pinSvc := service.NewPin(q, nil)
+	for i := 0; i < 10; i++ {
+		created, err := groupSvc.Create(ctx, service.CreateGroupInput{
 			Name:       fmt.Sprintf("achievement_profile_group_%d", i),
 			Visibility: 0, GroupAdmin: user.UserID,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("create group %d for achievement eligibility: %v", i+1, err)
+		}
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: user.UserID, GroupID: created.ID,
+		}); err != nil {
+			t.Fatalf("create contribution %d: %v", i+1, err)
 		}
 	}
 	if err := q.ClaimUserAchievement(ctx, user.UserID, 21); err != nil {
@@ -117,7 +124,7 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	for _, item := range items {
 		if item.Name == "Two sticks" {
 			firstStickFound = true
-			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 6 {
+			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 7 {
 				t.Fatalf("first-stick metadata = %+v", item)
 			}
 			if item.Claimed || item.Claimable || item.RewardAvailable == nil || !*item.RewardAvailable || item.CurrentValue != 0 {

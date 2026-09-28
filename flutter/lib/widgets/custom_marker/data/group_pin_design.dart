@@ -14,6 +14,7 @@ class MapPinDesign {
     required this.imageAlignmentX,
     required this.imageAlignmentY,
     required this.imageBorderColor,
+    required this.badge,
   });
 
   final String style;
@@ -27,6 +28,7 @@ class MapPinDesign {
   final double imageAlignmentX;
   final double imageAlignmentY;
   final Color imageBorderColor;
+  final String badge;
 
   factory MapPinDesign.fromDto(GroupPinDesignDto dto) => MapPinDesign(
     style: dto.style.value,
@@ -40,6 +42,7 @@ class MapPinDesign {
     imageAlignmentX: dto.imageAlignmentX.toDouble(),
     imageAlignmentY: dto.imageAlignmentY.toDouble(),
     imageBorderColor: _color(dto.imageBorderColor),
+    badge: dto.badge.value,
   );
 
   factory MapPinDesign.forStyle(String style) {
@@ -53,13 +56,13 @@ class MapPinDesign {
       'sunset' => (
         'Sunset',
         const Color(0xffd57b50),
-        'shield',
+        'circle',
         const Color(0xff5a2f54),
       ),
       'aurora' => (
         'Aurora',
         const Color(0xff6d77ba),
-        'circle',
+        'shield',
         const Color(0xffc4f4ef),
       ),
       'seafoam' => (
@@ -89,7 +92,7 @@ class MapPinDesign {
       'jade' => (
         'Jade',
         const Color(0xff388e67),
-        'shield',
+        'circle',
         const Color(0xffd4f0dc),
       ),
       'ember' => (
@@ -107,13 +110,13 @@ class MapPinDesign {
       'rose' => (
         'Rose',
         const Color(0xffc35c84),
-        'shield',
+        'circle',
         const Color(0xfffde0eb),
       ),
       'midnight' => (
         'Midnight',
         const Color(0xff4d568e),
-        'circle',
+        'shield',
         const Color(0xffdde3ff),
       ),
       _ => ('Classic', const Color(0xff2457d6), 'circle', Colors.white),
@@ -130,6 +133,12 @@ class MapPinDesign {
       imageAlignmentX: 0,
       imageAlignmentY: 0,
       imageBorderColor: Colors.white,
+      badge: switch (style) {
+        'aurora' || 'ember' => 'spark',
+        'honey' => 'sun',
+        'orchid' || 'midnight' => 'star',
+        _ => 'none',
+      },
     );
   }
 
@@ -154,6 +163,7 @@ class MapPinDesign {
     double? imageAlignmentX,
     double? imageAlignmentY,
     Color? imageBorderColor,
+    String? badge,
   }) => MapPinDesign(
     style: style,
     name: name ?? this.name,
@@ -166,6 +176,7 @@ class MapPinDesign {
     imageAlignmentX: imageAlignmentX ?? this.imageAlignmentX,
     imageAlignmentY: imageAlignmentY ?? this.imageAlignmentY,
     imageBorderColor: imageBorderColor ?? this.imageBorderColor,
+    badge: badge ?? this.badge,
   );
 
   GroupPinDesignDto toDto() => GroupPinDesignDto(
@@ -184,7 +195,9 @@ class MapPinDesign {
     imageAlignmentX: imageAlignmentX,
     imageAlignmentY: imageAlignmentY,
     imageBorderColor: _hex(imageBorderColor),
-    badge: GroupPinDesignBadge.none,
+    badge: GroupPinDesignBadge.values.firstWhere(
+      (value) => value.value == badge,
+    ),
     shadow: true,
   );
 }

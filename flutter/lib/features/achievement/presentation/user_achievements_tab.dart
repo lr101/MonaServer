@@ -117,6 +117,10 @@ const _personalAchievementTracks = <_PersonalAchievementTrackDefinition>[
   _PersonalAchievementTrackDefinition('photos', 'Photos'),
   _PersonalAchievementTrackDefinition('places', 'Countries'),
   _PersonalAchievementTrackDefinition('groups', 'Groups'),
+  _PersonalAchievementTrackDefinition(
+    'contributing_groups',
+    'Group contributions',
+  ),
   _PersonalAchievementTrackDefinition('likes_given', 'Likes given'),
   _PersonalAchievementTrackDefinition('likes_received', 'Likes received'),
 ];

@@ -132,6 +132,32 @@ class PinMarkerImage extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (resolvedDesign.badge != 'none')
+                  Positioned(
+                    top: 3 * scale,
+                    right: 1 * scale,
+                    child: DecoratedBox(
+                      key: ValueKey('pin-style-emblem-${resolvedDesign.style}'),
+                      decoration: BoxDecoration(
+                        color: resolvedDesign.outlineColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: resolvedDesign.bodyColor),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(2 * scale),
+                        child: Icon(
+                          switch (resolvedDesign.badge) {
+                            'star' => Icons.star,
+                            'sun' => Icons.wb_sunny,
+                            'leaf' => Icons.eco,
+                            _ => Icons.auto_awesome,
+                          },
+                          color: resolvedDesign.bodyColor,
+                          size: 10 * scale,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (isGone)
                   Positioned(
                     left: overlayLeft + overlayDiameter - 10 * scale,
