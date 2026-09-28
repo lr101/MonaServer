@@ -79,7 +79,11 @@ void main() {
     expect(find.text('3/40'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
-    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    final pinsTierPager = find.descendant(
+      of: find.byKey(const ValueKey('sticks')),
+      matching: find.byType(PageView),
+    );
+    await tester.drag(pinsTierPager, const Offset(-400, 0));
     await tester.pumpAndSettle();
     expect(find.text('Dedicated collector'), findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);
