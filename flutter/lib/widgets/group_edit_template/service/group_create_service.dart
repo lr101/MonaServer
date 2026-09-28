@@ -1,4 +1,3 @@
-
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
@@ -8,35 +7,33 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'group_create_service.g.dart';
 
 class GroupCreateState {
-
-  GroupCreateState({
-    this.visibility = 0,
-    this.profileImage,
-  });
+  GroupCreateState({this.visibility = 0, this.profileImage});
 
   int visibility;
   Uint8List? profileImage;
 
-
-  factory GroupCreateState.fromGroupEntity(GroupEntity groupEntity, Uint8List? profileImage) {
+  factory GroupCreateState.fromGroupEntity(
+    GroupEntity groupEntity,
+    Uint8List? profileImage,
+  ) {
     return GroupCreateState(
       visibility: groupEntity.visibility,
       profileImage: profileImage,
     );
   }
-
-
 }
 
 @riverpod
 class GroupCreateService extends _$GroupCreateService {
-
-
   @override
-  GroupCreateState build() =>  GroupCreateState();
+  GroupCreateState build() => GroupCreateState();
 
   void init(GroupEntity groupEntity, Uint8List? profileImage) {
     state = GroupCreateState.fromGroupEntity(groupEntity, profileImage);
+  }
+
+  void reset() {
+    state = GroupCreateState();
   }
 
   void updateProfileImage(Uint8List profileImage) {
@@ -48,9 +45,7 @@ class GroupCreateService extends _$GroupCreateService {
     state.visibility = visibility;
     ref.notifyListeners();
   }
-
 }
-
 
 @riverpod
 Uint8List? createGroupProfileImage(Ref ref) {

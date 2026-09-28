@@ -15,7 +15,7 @@ void main() {
   setUp(
     () => dotenv.loadFromString(envString: 'API_HOST=https://example.test'),
   );
-  for (final code in [401, 403]) {
+  for (final code in [400, 401, 403]) {
     test(
       'refresh $code expires once and stops queued refresh attempts',
       () async {
@@ -71,6 +71,42 @@ void main() {
         throwsA(isA<ApiException>()),
       );
       expect(manager.accessToken, 'old-access');
+      await manager.refresh(force: true);
+      expect(manager.accessToken, 'new-access');
+      expect(expirations, 0);
+    },
+  );
+
+  test(
+    'a transport error wrapped as HTTP 400 preserves refresh credentials',
+    () async {
+      var expirations = 0;
+      var attempts = 0;
+      final networkFailure = ApiException.withInner(
+        400,
+        'HTTP connection failed: POST /api/v2/public/refresh',
+        http.ClientException('network unavailable'),
+        StackTrace.current,
+      );
+      final manager = AccessTokenManager(
+        initialAccessToken: 'old-access',
+        refreshAccessToken: () async {
+          if (attempts++ == 0) throw networkFailure;
+          return 'new-access';
+        },
+        onInvalidCredentials: () async {
+          expirations++;
+        },
+      );
+      addTearDown(manager.dispose);
+
+      await expectLater(
+        manager.refresh(force: true),
+        throwsA(same(networkFailure)),
+      );
+      expect(manager.accessToken, 'old-access');
+      expect(expirations, 0);
+
       await manager.refresh(force: true);
       expect(manager.accessToken, 'new-access');
       expect(expirations, 0);
