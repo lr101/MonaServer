@@ -57,10 +57,27 @@ class SyncingService extends _$SyncingService {
     const key = GlobalDataRepository.lastSeenKey;
     final lastSeen = ref.read(lastSeenProvider(key));
     try {
-      await _syncFromBackend(lastSeen, isCurrent);
+      Object? firstError;
+      StackTrace? firstStackTrace;
+      try {
+        await _syncFromBackend(lastSeen, isCurrent);
+      } catch (error, stackTrace) {
+        firstError = error;
+        firstStackTrace = stackTrace;
+      }
       if (!isCurrent()) return;
-      await _syncOfflinePins(isCurrent);
+      try {
+        // A failed remote pull must not prevent an already-saved post from
+        // getting its next upload attempt on app open or resume.
+        await _syncOfflinePins(isCurrent);
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
       if (!isCurrent()) return;
+      if (firstError != null) {
+        Error.throwWithStackTrace(firstError, firstStackTrace!);
+      }
       ref.read(lastSeenProvider(key).notifier).setLastSeenNow();
       state = SyncState.finished;
     } catch (e) {

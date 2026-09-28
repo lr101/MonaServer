@@ -49,6 +49,38 @@ void main() {
     expect(refreshed?.totalXp, 5);
   });
 
+  test(
+    'pin save returns while its first network upload is still pending',
+    () async {
+      final fixture = await _Fixture.create(_Mutation.pin, pauseMutation: true);
+      addTearDown(fixture.dispose);
+
+      final save = fixture.performAction();
+      await fixture.mutationRequestStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        await fixture.database.select(fixture.database.pendingPinCreates).get(),
+        hasLength(1),
+        reason: 'the request starts only after its durable outbox row is saved',
+      );
+      final returnedBeforeResponse = await Future.any([
+        save.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 50), () => false),
+      ]);
+
+      fixture.completeMutationSuccess();
+      expect(await save, isNull);
+      await fixture.waitForPinUpload();
+
+      expect(
+        returnedBeforeResponse,
+        isTrue,
+        reason: 'the upload page should finish without waiting for the server',
+      );
+    },
+  );
+
   for (final action in _Mutation.values) {
     test('${action.label} refreshes XP', () async {
       final fixture = await _Fixture.create(action);
@@ -93,12 +125,12 @@ void main() {
       final result = await fixture.performAction();
       if (action == _Mutation.pin) {
         expect(result, isNull);
-        expect(
-          await fixture.database
-              .select(fixture.database.pendingPinCreates)
-              .get(),
-          hasLength(1),
+        await fixture.mutationRequestStarted.future.timeout(
+          const Duration(seconds: 2),
         );
+        final row = await fixture.waitForPinUploadError();
+        expect(row, isNotNull);
+        expect(row!.lastError, 'HTTP 503');
       } else {
         expect(result, isNotNull);
       }
@@ -227,6 +259,28 @@ class _Fixture {
     }
     // Keep providers used by mutations alive as a visible page would.
     _subscriptions.addAll([groups, xp, if (achievements != null) achievements]);
+  }
+
+  Future<void> waitForPinUpload() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final rows = await database.select(database.pendingPinCreates).get();
+      if (rows.isEmpty) return;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    fail('The successful background upload did not clear its outbox row.');
+  }
+
+  Future<PendingPinCreateDb?> waitForPinUploadError() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final row = await database
+          .select(database.pendingPinCreates)
+          .getSingleOrNull();
+      if (row?.lastError != null) return row;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    return database.select(database.pendingPinCreates).getSingleOrNull();
   }
 
   final _subscriptions = <ProviderSubscription<dynamic>>[];

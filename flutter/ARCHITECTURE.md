@@ -204,18 +204,22 @@ or make already-started writes atomic with session changes.
 
 New posts use a shared Drift outbox on Android and Web. Its row contains the
 complete request and image bytes and is committed before navigation or upload.
-The local pin UUID is also the stable `Idempotency-Key`. Startup and resume sync
-pull remote changes before uploading outbox rows; older Android drafts are
-migrated into the outbox when their retained image is available. A failed
-upload keeps the row and leaves the sync checkpoint unchanged. A `409` keeps
-the draft for inspection instead of deleting it. Explicit logout clears the
-account's outbox with the other Drift tables.
+After the durable save and best-effort cache updates, the camera flow returns
+without waiting for the upload. It starts one foreground upload attempt in the
+background. The local pin UUID is also the
+stable `Idempotency-Key`. Startup and resume sync pull remote changes before
+retrying outbox rows, and still attempt those rows if the pull fails. Older
+Android drafts are migrated into the outbox when their retained image is
+available. A failed upload keeps the row and leaves the sync checkpoint
+unchanged. A `409` keeps the draft for inspection instead of deleting it.
+Explicit logout clears the account's outbox with the other Drift tables.
 
 ## Durable offline upload follow-up
 
-The first delivery slice covers connected restart and resume. Closed-browser
-delivery, online-transition triggers, scheduled retries, Android background
-workers, persistent attempt status and backoff remain planned work.
+The first delivery slice covers one immediate upload attempt after local save
+and retry on startup or resume. Closed-browser delivery, online-transition
+triggers, scheduled retries, Android background workers, persistent attempt
+status and backoff remain planned work.
 
 - Persist an operation ID, account/group, immutable draft, durable image key,
   media type/size/checksum, status, attempts, next retry, lease owner/expiry,
@@ -229,9 +233,10 @@ workers, persistent attempt status and backoff remain planned work.
   failure/expired leases, or `failed` for permanent failure. Claim due rows with a
   transactional conditional update and unique lease owner. Completion/retry/lease
   extension must still match that owner; stale workers cannot commit results.
-- Android uses an OS background worker where supported. Web retries while active
-  and on next launch/resume/login/online transition; closed-tab execution is not
-  promised. Schedule due retries with an owned lifecycle and bounded backoff.
+- Android uses an OS background worker where supported. Web starts the first
+  upload while the app is active and retries on next launch or resume;
+  closed-tab execution and online-transition retries are not promised. Schedule
+  due retries with an owned lifecycle and bounded backoff.
 
 The server now accepts an optional `Idempotency-Key` on pin creation and returns
 the original pin for a matching retry. The key is scoped to the authenticated

@@ -59,6 +59,41 @@ void main() {
   );
 
   test(
+    'next sync retries the outbox even if the remote pull is unavailable',
+    () async {
+      final f = await _fixture();
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      final uploader = f.container.read(pendingPinUploaderProvider);
+      f.api.uploadError = ApiException(503, 'temporary upload failure');
+      await expectLater(uploader.upload('draft'), throwsA(isA<ApiException>()));
+      await Future<void>.delayed(Duration.zero);
+      expect(await f.pending.get('draft'), isNotNull);
+
+      f.api.uploadError = null;
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      f.api.syncError = ApiException(503, 'temporary pull failure');
+      final subscription = f.container.listen(
+        syncingServiceProvider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      final retry = f.container
+          .read(syncingServiceProvider.notifier)
+          .syncToBackend();
+      final retryFailure = expectLater(retry, throwsA(isA<ApiException>()));
+      await f.api.secondUploadStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      f.api.upload!.complete(_createdPin());
+      await retryFailure;
+
+      expect(await f.pending.get('draft'), isNull);
+      expect(f.api.calls, 1);
+      expect(f.container.read(syncingServiceProvider), SyncState.failed);
+    },
+  );
+
+  test(
     'cache facade rebuild keeps coordinator ownership and serializes restart',
     () async {
       final f = await _fixture();
@@ -520,21 +555,28 @@ class _NoUser extends UserService {
 
 class _Pins extends PinsApi {
   int calls = 0;
+  int uploadCalls = 0;
   final deleted = <String>[];
   Completer<SyncDto?>? response;
   Completer<PinWithOptionalImageDto?>? upload;
+  Object? syncError;
   Completer<void>? deleteResponse;
   Object? uploadError;
   Object? deleteError;
   final started = Completer<void>();
   final uploadStarted = Completer<void>();
+  final secondUploadStarted = Completer<void>();
   final deleteStarted = Completer<void>();
   @override
   Future<PinWithOptionalImageDto?> createPin(
     PinRequestDto request, {
     String? idempotencyKey,
   }) {
+    uploadCalls++;
     if (!uploadStarted.isCompleted) uploadStarted.complete();
+    if (uploadCalls == 2 && !secondUploadStarted.isCompleted) {
+      secondUploadStarted.complete();
+    }
     if (uploadError != null) return Future.error(uploadError!);
     return upload!.future;
   }
@@ -551,6 +593,7 @@ class _Pins extends PinsApi {
   Future<SyncDto?> callSync({DateTime? lastSeen}) async {
     calls++;
     if (!started.isCompleted) started.complete();
+    if (syncError != null) throw syncError!;
     if (response != null) return response!.future;
     return SyncDto(groupUpdates: []);
   }

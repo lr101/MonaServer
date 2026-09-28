@@ -476,32 +476,34 @@ class PinService {
       await _pinImageRepository.addImage(pin.pinId, image, true);
     } catch (_) {}
 
+    unawaited(_uploadSavedPinInBackground(pin, session));
+    if (showPrompt) {
+      CustomErrorSnackBar.message(
+        message:
+            "Post saved. Uploading in background; unfinished uploads retry on next open.",
+        type: CustomErrorSnackBarType.info,
+      );
+    }
+    return null;
+  }
+
+  Future<void> _uploadSavedPinInBackground(
+    PinEntity pin,
+    SessionIdentity session,
+  ) async {
     try {
       await ref.read(pendingPinUploaderProvider).upload(pin.pinId);
-      if (session.userId != null && isCurrentSession(ref, session)) {
+      if (!isCurrentSession(ref, session)) return;
+      if (session.userId != null) {
         ref.invalidate(userXpProvider(session.userId!));
         ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
       }
-      if (showPrompt) {
-        CustomErrorSnackBar.message(
-          message: "Post uploaded",
-          type: CustomErrorSnackBarType.success,
-        );
-      }
     } catch (_) {
-      if (showPrompt) {
-        CustomErrorSnackBar.message(
-          message:
-              "Post saved offline. It will sync on the next connected start.",
-          type: CustomErrorSnackBarType.warning,
-        );
-      }
-      if (session.userId != null && isCurrentSession(ref, session)) {
+      if (isCurrentSession(ref, session) && session.userId != null) {
         ref.invalidate(groupAchievementsProvider(pin.groupId));
       }
     }
-    return null;
   }
 
   Future<String?> setPinGone(String pinId, bool isGone) async {
