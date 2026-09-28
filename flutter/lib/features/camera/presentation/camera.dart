@@ -20,10 +20,11 @@ import 'package:mutex/mutex.dart';
 import 'package:native_exif/native_exif.dart';
 
 class Camera extends ConsumerStatefulWidget {
-  const Camera({super.key, this.pinPhotoMode = false});
+  const Camera({super.key, this.pinPhotoMode = false, this.isActive = true});
 
   /// Captures a photo for an existing pin and returns it to the calling page.
   final bool pinPhotoMode;
+  final bool isActive;
 
   @override
   ConsumerState<Camera> createState() => _CameraState();
@@ -36,7 +37,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   final _m = Mutex();
   late final ZoomUpdateCoalescer _zoomUpdates;
   late final CameraCapturing _capturingNotifier;
-  bool _discoveringCameras = true;
+  bool _discoveringCameras = false;
+  bool _discoveryInProgress = false;
+  bool _hasDiscoveredCameras = false;
   bool _pinCapturing = false;
   Object? _discoveryError;
 
@@ -54,7 +57,10 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       initialPage: initialGroupIndex ?? 0,
     );
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_discoverCameras());
+    if (widget.isActive) {
+      _discoveringCameras = true;
+      unawaited(_discoverCameras());
+    }
     _zoomUpdates = ZoomUpdateCoalescer((zoom) async {
       final controller = ref.read(cameraControllerProvider).value;
       if (controller == null || !controller.value.isInitialized) {
@@ -64,15 +70,32 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     });
   }
 
+  @override
+  void didUpdateWidget(covariant Camera oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive &&
+        widget.isActive &&
+        !_hasDiscoveredCameras &&
+        !_discoveryInProgress) {
+      _discoveryError = null;
+      _discoveringCameras = true;
+      unawaited(_discoverCameras());
+    }
+  }
+
   Future<void> _discoverCameras() async {
+    if (_discoveryInProgress) return;
+    _discoveryInProgress = true;
     try {
       await ref.read(globalDataServiceProvider.notifier).refreshCameraList();
+      _hasDiscoveredCameras = true;
+      _discoveryError = null;
     } catch (error) {
-      if (!mounted) return;
       _discoveryError = error;
+    } finally {
+      _discoveryInProgress = false;
+      if (mounted) setState(() => _discoveringCameras = false);
     }
-    if (!mounted) return;
-    setState(() => _discoveringCameras = false);
   }
 
   Widget _cameraDiscoveryStatus(Widget child) {
@@ -109,6 +132,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
     final route = ModalRoute.of(context);
     if (!_discoveringCameras &&
+        widget.isActive &&
         _discoveryError == null &&
         (route?.isCurrent ?? false)) {
       final controller = ref.read(cameraControllerProvider).value;
@@ -120,6 +144,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.isActive) return const SizedBox.shrink();
     if (_discoveringCameras) {
       return _cameraDiscoveryStatus(const CircularProgressIndicator());
     }
@@ -130,12 +155,16 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           (error.code == 'NotAllowedError' ||
               error.code.startsWith('CameraAccessDenied') ||
               error.code == 'CameraAccessRestricted');
+      final timedOut =
+          error is CameraException && error.code == 'CameraAccessTimeout';
       return _cameraDiscoveryStatus(
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              denied
+              timedOut
+                  ? 'Camera access is taking too long. Check the browser permission prompt or settings, then retry.'
+                  : denied
                   ? 'Allow camera access in your browser or device settings, then retry.'
                   : 'Could not access the camera. Check that it is connected and available.',
             ),
