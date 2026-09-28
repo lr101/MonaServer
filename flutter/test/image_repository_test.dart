@@ -471,6 +471,82 @@ void main() {
     );
   }
 
+  test(
+    'a late fetch cannot replace bytes from a successful image override',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final oldRequestStarted = Completer<void>();
+      final releaseOldResponse = Completer<void>();
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.group,
+        getImageUrl: (_) async => 'https://example.com/old',
+        httpGet: (uri) async {
+          if (uri.path == '/old') {
+            oldRequestStarted.complete();
+            await releaseOldResponse.future;
+            return http.Response.bytes([1], 200);
+          }
+          return http.Response.bytes([2], 200);
+        },
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+
+      final oldFetch = repository.fetchImage('group-1', true);
+      await oldRequestStarted.future;
+      await repository.overrideUrl('group-1', 'https://example.com/new', true);
+      releaseOldResponse.complete();
+      await oldFetch;
+
+      expect((await repository.get('group-1'))!.image, [2]);
+    },
+  );
+
+  test(
+    'only the latest successful image override can replace cached bytes',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final firstRequestStarted = Completer<void>();
+      final releaseFirstResponse = Completer<void>();
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.group,
+        getImageUrl: (_) async => null,
+        httpGet: (uri) async {
+          if (uri.path == '/first') {
+            firstRequestStarted.complete();
+            await releaseFirstResponse.future;
+            return http.Response.bytes([1], 200);
+          }
+          return http.Response.bytes([2], 200);
+        },
+        ttlDuration: const Duration(days: 7),
+      );
+      await repository.ready;
+
+      final firstOverride = repository.overrideUrl(
+        'group-1',
+        'https://example.com/first',
+        true,
+      );
+      await firstRequestStarted.future;
+      await repository.overrideUrl(
+        'group-1',
+        'https://example.com/second',
+        true,
+      );
+      releaseFirstResponse.complete();
+      await firstOverride;
+
+      expect((await repository.get('group-1'))!.image, [2]);
+    },
+  );
+
   test('a shared empty fetch promotes the image cache to keep alive', () async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);

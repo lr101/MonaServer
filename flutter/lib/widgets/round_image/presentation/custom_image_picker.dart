@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +76,22 @@ class CustomImagePicker {
     CropAspectRatio? initAspectRatio,
   }) async {
     if (res != null && context.mounted) {
+      final viewport = MediaQuery.sizeOf(context);
+      final appWidth = math.min(viewport.width, 450.0);
+      const minDialogViewportWidth = 600.0;
+      const minDialogViewportHeight = 840.0;
+      final usePage =
+          viewport.width < minDialogViewportWidth ||
+          viewport.height < minDialogViewportHeight;
+      final cropperHeightLimit = usePage
+          ? math.min(viewport.height - 180, appWidth - 32)
+          : viewport.height - 280;
+      final cropperWidth = (appWidth - (usePage ? 32 : 128))
+          .clamp(120.0, 500.0)
+          .round();
+      final cropperHeight = cropperHeightLimit
+          .clamp(usePage ? 80.0 : 100.0, 500.0)
+          .round();
       final CroppedFile? croppedFile = await ImageCropper().cropImage(
         sourcePath: res.path,
         aspectRatio:
@@ -92,9 +110,15 @@ class CustomImagePicker {
           ),
           WebUiSettings(
             context: context,
+            size: CropperSize(width: cropperWidth, height: cropperHeight),
+            presentStyle: usePage
+                ? WebPresentStyle.page
+                : WebPresentStyle.dialog,
             dragMode: WebDragMode.move,
             scalable: false,
             viewwMode: WebViewMode.mode_1,
+            minContainerWidth: 100,
+            minContainerHeight: usePage ? 80 : 100,
           ),
         ],
       );

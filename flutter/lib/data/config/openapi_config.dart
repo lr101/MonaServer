@@ -99,7 +99,11 @@ class AccessTokenManager {
           _lastRefreshAt = _now();
         } on ApiException catch (error, stackTrace) {
           _lifetime.checkOpen();
-          if (error.code == 401 || error.code == 403) {
+          // The v2 refresh endpoint uses 400 for missing, expired, revoked,
+          // and mismatched refresh credentials.
+          if ((error.code == 400 && error.innerException == null) ||
+              error.code == 401 ||
+              error.code == 403) {
             await _rejectCredentials();
           }
           Error.throwWithStackTrace(error, stackTrace);
