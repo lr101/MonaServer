@@ -628,6 +628,36 @@ func TestEndpointAuth(t *testing.T) {
 	})
 }
 
+func TestPendingSignupCannotAccessProtectedRoutes(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+	c := &apiClient{base: srv.URL}
+	resp := c.do(t, http.MethodPost, "/api/v2/public/signup", map[string]string{
+		"name": "pending_access", "email": "pending-access@test.example", "password": "password123",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("signup: expected 201, got %d", resp.StatusCode)
+	}
+	var pending authResp
+	if err := json.NewDecoder(resp.Body).Decode(&pending); err != nil {
+		resp.Body.Close()
+		t.Fatalf("decode signup response: %v", err)
+	}
+	resp.Body.Close()
+	protected := &apiClient{base: srv.URL, bearer: pending.AccessToken}
+	access := protected.do(t, http.MethodGet, "/api/v2/status", nil)
+	access.Body.Close()
+	if access.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending access: expected 403, got %d", access.StatusCode)
+	}
+	refresh := c.do(t, http.MethodPost, "/api/v2/public/refresh", map[string]string{"refreshToken": pending.RefreshToken, "userId": pending.UserID})
+	refresh.Body.Close()
+	if refresh.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending refresh: expected 403, got %d", refresh.StatusCode)
+	}
+}
+
 func TestBatchReadAuthenticationAndValidation(t *testing.T) {
 	srv := buildTestServer(t)
 	defer srv.Close()

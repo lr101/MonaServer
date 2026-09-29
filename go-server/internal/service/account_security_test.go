@@ -453,6 +453,7 @@ func TestContainmentRejectsOversizedIncidentInputs(t *testing.T) {
 
 func TestEmailChangeInvalidatesLegacyResetAndDeletionValues(t *testing.T) {
 	q, auth, user, _, _, _, _, _, _ := setupServices(t)
+	user.mail = serviceTestEmail(t)
 	ctx := context.Background()
 	oldEmail := "email-change-fence@example.test"
 	pair, err := auth.Signup(ctx, "email_change_fence", "password123", &oldEmail)
@@ -531,6 +532,7 @@ func TestLegacyResetActionBindsCurrentEmailAndGenerationAndKeepsLinkActive(t *te
 
 func TestLegacyResetURLIsRejectedAfterEmailChange(t *testing.T) {
 	q, auth, user, _, _, _, _, _, _ := setupServices(t)
+	user.mail = serviceTestEmail(t)
 	ctx := context.Background()
 	oldEmail := "legacy-reset-old@example.test"
 	pair, err := auth.Signup(ctx, "legacy_reset_old", "password123", &oldEmail)
@@ -606,6 +608,7 @@ func TestConcurrentLegacyResetPageLoadsKeepURLActive(t *testing.T) {
 
 func TestLegacyEmailConfirmationChecksPresentedURLInsideAccountLock(t *testing.T) {
 	q, auth, user, _, _, _, _, _, _ := setupServices(t)
+	user.mail = serviceTestEmail(t)
 	ctx := context.Background()
 	oldEmail := "confirmation-old@example.test"
 	pair, err := auth.Signup(ctx, "confirmation_atomic", "password123", &oldEmail)
