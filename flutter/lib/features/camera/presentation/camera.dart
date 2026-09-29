@@ -32,9 +32,9 @@ class Camera extends ConsumerStatefulWidget {
 
 class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   // Keep these dimensions aligned with the compact row and the web app shell.
-  static const double _compactContentMaxWidth = 450;
   static const double _compactPreviewWidthFraction = .4;
   static const double _compactPreviewPanelGap = 12;
+  static const double _minimumPortraitPreviewHeight = 180;
 
   late PageController pageController;
   double scaleFactor = 1.0;
@@ -136,28 +136,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     super.didChangeDependencies();
 
     final screenSize = MediaQuery.sizeOf(context);
-    final compactContentWidth = screenSize.width < _compactContentMaxWidth
-        ? screenSize.width
-        : _compactContentMaxWidth;
-    final compactCarouselWidth =
-        compactContentWidth * (1 - _compactPreviewWidthFraction) -
-        _compactPreviewPanelGap;
-    final viewportFraction = screenSize.height < 500
-        ? cameraGroupSelectorViewportFraction(compactCarouselWidth)
-        : cameraGroupSelectorViewportFraction(screenSize.width);
-    if (pageController.viewportFraction != viewportFraction) {
-      final groupIds = ref.read(groupOrderServiceProvider);
-      final selectedIndex = cameraIndexForLength(
-        ref.read(cameraGroupIndexProvider),
-        groupIds.length,
-      );
-      final oldController = pageController;
-      pageController = PageController(
-        viewportFraction: viewportFraction,
-        initialPage: selectedIndex ?? 0,
-      );
-      oldController.dispose();
-    }
+    _updatePageControllerViewportFraction(
+      cameraGroupSelectorViewportFraction(screenSize.width),
+    );
 
     final route = ModalRoute.of(context);
     if (!_discoveringCameras &&
@@ -169,6 +150,22 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
         controller.resumePreview();
       }
     }
+  }
+
+  void _updatePageControllerViewportFraction(double viewportFraction) {
+    if (pageController.viewportFraction == viewportFraction) return;
+
+    final groupIds = ref.read(groupOrderServiceProvider);
+    final selectedIndex = cameraIndexForLength(
+      ref.read(cameraGroupIndexProvider),
+      groupIds.length,
+    );
+    final oldController = pageController;
+    pageController = PageController(
+      viewportFraction: viewportFraction,
+      initialPage: selectedIndex ?? 0,
+    );
+    oldController.dispose();
   }
 
   @override
@@ -289,32 +286,32 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           ),
       ],
     );
-    final groupSelector = groupIds.isEmpty
-        ? null
-        : CameraGroupSelector(
-            controller: pageController,
-            selectedIndex: selectedGroupIndex,
-            onPageChanged: onPageChange,
-            onCapture: (index) => takePicture(groupIds[index], index),
-            children: List.generate(
-              groupIds.length,
-              (index) => groupCard(
-                groupIds[index],
-                selected: index == selectedGroupIndex,
-              ),
-            ),
-          );
     return Scaffold(
       appBar: _pinPhotoAppBar(),
       backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Use the space left after app bars and navigation. A short body
-            // can need the compact layout even when the full window is tall.
+            final screenSize = MediaQuery.sizeOf(context);
+            final selectorHeight = groupIds.isEmpty
+                ? 0.0
+                : cameraGroupSelectorHeight(screenSize.height);
+            final portraitContentHeight =
+                (widget.pinPhotoMode ? 92.0 : 64.0) + 12 + selectorHeight + 5;
             final compactLayout =
-                MediaQuery.sizeOf(context).height < 500 ||
-                constraints.maxHeight < 500;
+                constraints.maxHeight <
+                portraitContentHeight + _minimumPortraitPreviewHeight;
+
+            final compactPanelWidth =
+                constraints.maxWidth * (1 - _compactPreviewWidthFraction) -
+                _compactPreviewPanelGap;
+            final carouselWidth = compactLayout
+                ? compactPanelWidth
+                : constraints.maxWidth;
+            _updatePageControllerViewportFraction(
+              cameraGroupSelectorViewportFraction(carouselWidth),
+            );
+
             final controlRail = _cameraControlRail(
               cameras: cameras,
               cameraIndex: cameraIndex,
@@ -323,6 +320,21 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                   controllerAsync.value?.value.isInitialized == true,
               compact: compactLayout,
             );
+            final groupSelector = groupIds.isEmpty
+                ? null
+                : CameraGroupSelector(
+                    controller: pageController,
+                    selectedIndex: selectedGroupIndex,
+                    onPageChanged: onPageChange,
+                    onCapture: (index) => takePicture(groupIds[index], index),
+                    children: List.generate(
+                      groupIds.length,
+                      (index) => groupCard(
+                        groupIds[index],
+                        selected: index == selectedGroupIndex,
+                      ),
+                    ),
+                  );
             if (compactLayout) {
               final previewWidth =
                   constraints.maxWidth * _compactPreviewWidthFraction;
