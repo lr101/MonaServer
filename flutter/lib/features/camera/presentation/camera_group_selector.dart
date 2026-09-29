@@ -93,5 +93,17 @@ class CameraGroupSelector extends StatelessWidget {
 double cameraGroupSelectorHeight(double screenHeight) =>
     (screenHeight * .12).clamp(112.0, 128.0);
 
+double cameraGroupSelectorViewportFraction(double availableWidth) {
+  final carouselWidth = availableWidth.clamp(
+    CameraGroupSelector.shutterRingSize,
+    CameraGroupSelector.maxCarouselWidth,
+  );
+  final fractionForShutter =
+      CameraGroupSelector.shutterRingSize / carouselWidth;
+  return fractionForShutter > CameraGroupSelector.itemViewportFraction
+      ? fractionForShutter
+      : CameraGroupSelector.itemViewportFraction;
+}
+
 double cameraGroupAvatarSize(double screenHeight) =>
     (cameraGroupSelectorHeight(screenHeight) * .58).clamp(44.0, 52.0);

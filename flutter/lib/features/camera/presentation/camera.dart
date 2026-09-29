@@ -31,7 +31,7 @@ class Camera extends ConsumerStatefulWidget {
 }
 
 class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
-  late final PageController pageController;
+  late PageController pageController;
   double scaleFactor = 1.0;
   double basScaleFactor = 1.0;
   final _m = Mutex();
@@ -130,6 +130,23 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
+    final viewportFraction = cameraGroupSelectorViewportFraction(
+      MediaQuery.sizeOf(context).width,
+    );
+    if (pageController.viewportFraction != viewportFraction) {
+      final groupIds = ref.read(groupOrderServiceProvider);
+      final selectedIndex = cameraIndexForLength(
+        ref.read(cameraGroupIndexProvider),
+        groupIds.length,
+      );
+      final oldController = pageController;
+      pageController = PageController(
+        viewportFraction: viewportFraction,
+        initialPage: selectedIndex ?? 0,
+      );
+      oldController.dispose();
+    }
+
     final route = ModalRoute.of(context);
     if (!_discoveringCameras &&
         widget.isActive &&
@@ -216,97 +233,104 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final controllerAsync = ref.watch(cameraControllerProvider);
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
+    final previewLayer = Stack(
+      fit: StackFit.expand,
+      children: [
+        ColoredBox(color: colorScheme.surface),
+        controllerAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, stack) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Could not start the camera. Check camera access and close other camera apps.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(cameraControllerProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          data: (controller) => cameraStateAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(
+              child: Text(err.toString(), textAlign: TextAlign.center),
+            ),
+            data: (cameraState) => GestureDetector(
+              onDoubleTap: ref.read(cameraIndexProvider.notifier).increment,
+              onScaleStart: (_) => basScaleFactor = scaleFactor,
+              onScaleUpdate: (details) => handleZoom(details, cameraState),
+              child: cameraPreviewViewport(controller),
+            ),
+          ),
+        ),
+        if (!widget.pinPhotoMode && ref.watch(cameraCapturingProvider))
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(child: _capturingIndicator(context)),
+          ),
+      ],
+    );
+    final controlRail = _cameraControlRail(
+      cameras: cameras,
+      cameraIndex: cameraIndex,
+      cameraFlashMode: cameraFlashMode,
+      controllerReady: controllerAsync.value?.value.isInitialized == true,
+    );
+    final groupSelector = groupIds.isEmpty
+        ? null
+        : CameraGroupSelector(
+            controller: pageController,
+            selectedIndex: selectedGroupIndex,
+            onPageChanged: onPageChange,
+            onCapture: (index) => takePicture(groupIds[index], index),
+            children: List.generate(
+              groupIds.length,
+              (index) => groupCard(
+                groupIds[index],
+                selected: index == selectedGroupIndex,
+              ),
+            ),
+          );
+    final compactLayout = MediaQuery.sizeOf(context).height < 500;
     return Scaffold(
       appBar: _pinPhotoAppBar(),
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
+        child: compactLayout
+            ? Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(color: colorScheme.surface),
-                  controllerAsync.when(
-                    // We handle the AsyncValue of the CONTROLLER here.
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Could not start the camera. Check camera access and close other camera apps.',
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () =>
-                                ref.invalidate(cameraControllerProvider),
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
+                  previewLayer,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 5,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        controlRail,
+                        if (groupSelector case final selector?) selector,
+                      ],
                     ),
-                    data: (controller) {
-                      // Once controller is ready, check the values state.
-                      return cameraStateAsync.when(
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (err, stack) => Center(
-                          child: Text(
-                            err.toString(),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        data: (cameraState) => GestureDetector(
-                          onDoubleTap: ref
-                              .read(cameraIndexProvider.notifier)
-                              .increment,
-                          onScaleStart: (_) => basScaleFactor = scaleFactor,
-                          onScaleUpdate: (details) =>
-                              handleZoom(details, cameraState),
-                          child: cameraPreviewViewport(controller),
-                        ),
-                      );
-                    },
                   ),
-                  if (!widget.pinPhotoMode &&
-                      ref.watch(cameraCapturingProvider))
-                    Positioned(
-                      bottom: 16,
-                      left: 0,
-                      right: 0,
-                      child: Center(child: _capturingIndicator(context)),
-                    ),
+                ],
+              )
+            : Column(
+                children: [
+                  Expanded(child: previewLayer),
+                  const SizedBox(height: 12),
+                  controlRail,
+                  if (groupSelector case final selector?) selector,
+                  const SizedBox(height: 5),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            _cameraControlRail(
-              cameras: cameras,
-              cameraIndex: cameraIndex,
-              cameraFlashMode: cameraFlashMode,
-              controllerReady:
-                  controllerAsync.value?.value.isInitialized == true,
-            ),
-            if (groupIds.isNotEmpty)
-              CameraGroupSelector(
-                controller: pageController,
-                selectedIndex: selectedGroupIndex,
-                onPageChanged: onPageChange,
-                onCapture: (index) => takePicture(groupIds[index], index),
-                children: List.generate(
-                  groupIds.length,
-                  (index) => groupCard(
-                    groupIds[index],
-                    selected: index == selectedGroupIndex,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 5),
-          ],
-        ),
       ),
     );
   }
