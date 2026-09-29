@@ -134,10 +134,7 @@ class MaterialTheme {
         style: TextButton.styleFrom(foregroundColor: primaryOnSurface),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: primaryOnSurface,
-          side: BorderSide(color: primaryOnSurface),
-        ),
+        style: OutlinedButton.styleFrom(foregroundColor: primaryOnSurface),
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: primaryOnSurface,
@@ -155,8 +152,21 @@ class MaterialTheme {
       // 4. Input Fields: Blue-Grey background with Orange focus border
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-        floatingLabelStyle: TextStyle(color: primaryOnSurface),
+        floatingLabelStyle: WidgetStateTextStyle.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.38));
+          }
+          if (states.contains(WidgetState.error)) {
+            if (states.contains(WidgetState.hovered)) {
+              return TextStyle(color: colorScheme.onErrorContainer);
+            }
+            return TextStyle(color: colorScheme.error);
+          }
+          if (states.contains(WidgetState.focused)) {
+            return TextStyle(color: primaryOnSurface);
+          }
+          return TextStyle(color: colorScheme.onSurfaceVariant);
+        }),
         // Uses the container color (Dark Grey-Blue in dark mode, Light Grey in light mode)
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         border: OutlineInputBorder(
