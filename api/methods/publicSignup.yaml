@@ -3,8 +3,8 @@ post:
   summary: User registration
   description: >-
     Email signups stay pending until the address is confirmed. Before activation,
-    repeating this request with the same username and password resends the
-    confirmation link and can correct the email address.
+    repeating this request with the same username and password can resend the
+    confirmation link or correct the email address after a five-minute cooldown.
   tags:
     - auth
   requestBody:
