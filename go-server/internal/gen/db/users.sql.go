@@ -28,7 +28,9 @@ func (q *Queries) AddUserXp(ctx context.Context, arg AddUserXpParams) error {
 const confirmUserEmail = `-- name: ConfirmUserEmail :exec
 UPDATE users
 SET email_confirmed = TRUE,
+    account_activated = TRUE,
     email_confirmation_url = NULL,
+    email_confirmation_expires_at = NULL,
     update_date = NOW()
 WHERE id = $1
 `
@@ -59,9 +61,12 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     id, username, password, email, email_confirmation_url,
-    email_confirmed, creation_date, update_date
+    email_confirmed, account_activated, email_confirmation_expires_at,
+    creation_date, update_date
 )
-VALUES ($1, $2, $3, $4, $5, FALSE, NOW(), NOW())
+VALUES ($1, $2, $3, $4, $5, FALSE, $4::varchar IS NULL,
+        CASE WHEN $5::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
+        NOW(), NOW())
 RETURNING id
 `
 
@@ -142,7 +147,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
 ORDER BY id
@@ -174,6 +179,7 @@ type GetUserByEmailRow struct {
 	PasswordDisabled        bool               `json:"password_disabled"`
 	PasswordResetRequired   bool               `json:"password_reset_required"`
 	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
+	AccountActivated        bool               `json:"account_activated"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, btrim string) (GetUserByEmailRow, error) {
@@ -204,6 +210,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, btrim string) (GetUserByEm
 		&i.PasswordDisabled,
 		&i.PasswordResetRequired,
 		&i.CompromisedAt,
+		&i.AccountActivated,
 	)
 	return i, err
 }
@@ -211,7 +218,9 @@ func (q *Queries) GetUserByEmail(ctx context.Context, btrim string) (GetUserByEm
 const getUserByEmailConfirmationUrl = `-- name: GetUserByEmailConfirmationUrl :one
 SELECT id, username, email
 FROM users
-WHERE email_confirmation_url = $1 AND is_deleted = FALSE
+WHERE email_confirmation_url = $1
+  AND email_confirmation_expires_at > NOW()
+  AND is_deleted = FALSE
 `
 
 type GetUserByEmailConfirmationUrlRow struct {
@@ -234,7 +243,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -264,6 +273,7 @@ type GetUserByIDRow struct {
 	PasswordDisabled        bool               `json:"password_disabled"`
 	PasswordResetRequired   bool               `json:"password_reset_required"`
 	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
+	AccountActivated        bool               `json:"account_activated"`
 }
 
 // User and refresh-token queries.
@@ -295,6 +305,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (GetUserByIDR
 		&i.PasswordDisabled,
 		&i.PasswordResetRequired,
 		&i.CompromisedAt,
+		&i.AccountActivated,
 	)
 	return i, err
 }
@@ -347,7 +358,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE username = $1 AND is_deleted = FALSE
 `
@@ -377,6 +388,7 @@ type GetUserByUsernameRow struct {
 	PasswordDisabled        bool               `json:"password_disabled"`
 	PasswordResetRequired   bool               `json:"password_reset_required"`
 	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
+	AccountActivated        bool               `json:"account_activated"`
 }
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (GetUserByUsernameRow, error) {
@@ -407,6 +419,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username pgtype.Text) (
 		&i.PasswordDisabled,
 		&i.PasswordResetRequired,
 		&i.CompromisedAt,
+		&i.AccountActivated,
 	)
 	return i, err
 }
@@ -701,6 +714,7 @@ SET email = $2,
     code_expiration = NULL,
     email_confirmation_url = $3,
     email_confirmed = FALSE,
+    email_confirmation_expires_at = CASE WHEN $3::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
     update_date = NOW()
 WHERE id = $1
 `

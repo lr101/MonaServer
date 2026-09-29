@@ -30,8 +30,8 @@ class LoginService {
     }
   }
 
-  /// This method is called when a user completed the signup form and tries to signup
-  /// return returns null when signup was successful and an error message on errors
+  /// Starts signup or resends the verification email for a pending account.
+  /// A successful response does not create an authenticated session.
   Future<String?> signupUser(SignupData data) async {
     try {
       if (data.name == null || data.password == null) {

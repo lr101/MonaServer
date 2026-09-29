@@ -6,7 +6,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE id = $1 AND is_deleted = FALSE;
 
@@ -22,7 +22,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE username = $1 AND is_deleted = FALSE;
 
@@ -35,7 +35,7 @@ SELECT id, username, email, password, xp, description, profile_picture_exists,
        code, code_expiration, reset_password_url, reset_password_expiration,
        deletion_url, email_confirmation_url, last_username_update, selected_batch,
        selected_batch_color, auth_generation, security_state, password_disabled, password_reset_required,
-       compromised_at
+       compromised_at, account_activated
 FROM users
 WHERE lower(btrim(email)) = lower(btrim($1)) AND is_deleted = FALSE
 ORDER BY id
@@ -44,9 +44,12 @@ LIMIT 1;
 -- name: CreateUser :one
 INSERT INTO users (
     id, username, password, email, email_confirmation_url,
-    email_confirmed, creation_date, update_date
+    email_confirmed, account_activated, email_confirmation_expires_at,
+    creation_date, update_date
 )
-VALUES ($1, $2, $3, $4, $5, FALSE, NOW(), NOW())
+VALUES ($1, $2, $3, $4, $5, FALSE, $4::varchar IS NULL,
+        CASE WHEN $5::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
+        NOW(), NOW())
 RETURNING id;
 
 -- name: IncrementFailedLogin :exec
@@ -101,6 +104,7 @@ SET email = $2,
     code_expiration = NULL,
     email_confirmation_url = $3,
     email_confirmed = FALSE,
+    email_confirmation_expires_at = CASE WHEN $3::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
     update_date = NOW()
 WHERE id = $1;
 
@@ -130,12 +134,16 @@ WHERE deletion_url = $1 AND is_deleted = FALSE;
 -- name: GetUserByEmailConfirmationUrl :one
 SELECT id, username, email
 FROM users
-WHERE email_confirmation_url = $1 AND is_deleted = FALSE;
+WHERE email_confirmation_url = $1
+  AND email_confirmation_expires_at > NOW()
+  AND is_deleted = FALSE;
 
 -- name: ConfirmUserEmail :exec
 UPDATE users
 SET email_confirmed = TRUE,
+    account_activated = TRUE,
     email_confirmation_url = NULL,
+    email_confirmation_expires_at = NULL,
     update_date = NOW()
 WHERE id = $1;
 

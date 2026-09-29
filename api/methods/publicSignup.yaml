@@ -1,6 +1,10 @@
 post:
   operationId: createUser
   summary: User registration
+  description: >-
+    Email signups stay pending until the address is confirmed. Before activation,
+    repeating this request with the same username and password resends the
+    confirmation link and can correct the email address.
   tags:
     - auth
   requestBody:
@@ -20,3 +24,5 @@ post:
       description: Registration failed
     '409':
       description: Username already exists
+    '503':
+      description: Email delivery is unavailable
