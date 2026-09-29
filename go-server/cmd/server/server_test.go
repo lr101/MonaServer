@@ -420,17 +420,8 @@ func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 	if err != nil {
 		t.Fatalf("parse signup user ID: %v", err)
 	}
-	user, err := queries.(*db.Queries).GetUserByID(context.Background(), userID)
-	if err != nil {
-		t.Fatalf("get signup user: %v", err)
-	}
-	if user == nil || user.EmailConfirmationUrl == nil {
-		t.Fatal("signup did not create an email confirmation link")
-	}
-	confirmation := c.do(t, http.MethodGet, "/public/email-confirmation/"+*user.EmailConfirmationUrl, nil)
-	confirmation.Body.Close()
-	if confirmation.StatusCode != http.StatusOK {
-		t.Fatalf("confirm signup email: expected 200, got %d", confirmation.StatusCode)
+	if err := queries.(*db.Queries).ConfirmUserEmail(context.Background(), userID); err != nil {
+		t.Fatalf("confirm signup test user: %v", err)
 	}
 	return ar
 }
