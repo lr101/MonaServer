@@ -31,6 +31,11 @@ class Camera extends ConsumerStatefulWidget {
 }
 
 class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
+  // Keep these dimensions aligned with the compact row and the web app shell.
+  static const double _compactContentMaxWidth = 450;
+  static const double _compactPreviewWidthFraction = .4;
+  static const double _compactPreviewPanelGap = 12;
+
   late PageController pageController;
   double scaleFactor = 1.0;
   double basScaleFactor = 1.0;
@@ -130,9 +135,16 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final viewportFraction = cameraGroupSelectorViewportFraction(
-      MediaQuery.sizeOf(context).width,
-    );
+    final screenSize = MediaQuery.sizeOf(context);
+    final compactContentWidth = screenSize.width < _compactContentMaxWidth
+        ? screenSize.width
+        : _compactContentMaxWidth;
+    final compactCarouselWidth =
+        compactContentWidth * (1 - _compactPreviewWidthFraction) -
+        _compactPreviewPanelGap;
+    final viewportFraction = screenSize.height < 500
+        ? cameraGroupSelectorViewportFraction(compactCarouselWidth)
+        : cameraGroupSelectorViewportFraction(screenSize.width);
     if (pageController.viewportFraction != viewportFraction) {
       final groupIds = ref.read(groupOrderServiceProvider);
       final selectedIndex = cameraIndexForLength(
@@ -233,6 +245,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final controllerAsync = ref.watch(cameraControllerProvider);
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
+    final compactLayout = MediaQuery.sizeOf(context).height < 500;
     final previewLayer = Stack(
       fit: StackFit.expand,
       children: [
@@ -282,6 +295,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       cameraIndex: cameraIndex,
       cameraFlashMode: cameraFlashMode,
       controllerReady: controllerAsync.value?.value.isInitialized == true,
+      compact: compactLayout,
     );
     final groupSelector = groupIds.isEmpty
         ? null
@@ -298,29 +312,38 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
               ),
             ),
           );
-    final compactLayout = MediaQuery.sizeOf(context).height < 500;
     return Scaffold(
       appBar: _pinPhotoAppBar(),
       backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: compactLayout
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  previewLayer,
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 5,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        controlRail,
-                        if (groupSelector case final selector?) selector,
-                      ],
-                    ),
-                  ),
-                ],
+            ? LayoutBuilder(
+                builder: (context, constraints) {
+                  final previewWidth =
+                      constraints.maxWidth * _compactPreviewWidthFraction;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: previewWidth, child: previewLayer),
+                      const SizedBox(width: _compactPreviewPanelGap),
+                      Expanded(
+                        child: ColoredBox(
+                          color: colorScheme.surface,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                controlRail,
+                                if (groupSelector case final selector?)
+                                  selector,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               )
             : Column(
                 children: [
@@ -340,6 +363,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     required int cameraIndex,
     required bool cameraFlashMode,
     required bool controllerReady,
+    required bool compact,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -361,7 +385,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? (isPinPhotoMode ? 1 : 8) : 16,
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
