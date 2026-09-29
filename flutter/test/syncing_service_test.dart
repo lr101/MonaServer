@@ -368,7 +368,10 @@ class _Pins extends PinsApi {
   final started = Completer<void>();
   final uploadStarted = Completer<void>();
   @override
-  Future<PinWithOptionalImageDto?> createPin(PinRequestDto request) {
+  Future<PinWithOptionalImageDto?> createPin(
+    PinRequestDto request, {
+    String? idempotencyKey,
+  }) {
     uploadStarted.complete();
     if (uploadError != null) return Future.error(uploadError!);
     return upload!.future;
