@@ -152,7 +152,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     );
   }
 
-  Future<void> handleApprove() {
+  Future<void> handleApprove() async {
     if (_approvalStarted) return Future<void>.value();
     final groupId = groupIdAt(
       ref.read(groupOrderServiceProvider),
@@ -180,44 +180,34 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     final reviewState = !kIsWeb && ref.read(appReviewStateProvider)
         ? ref.read(appReviewStateProvider.notifier)
         : null;
-    // Start persistence before leaving; PinService starts upload only after the
-    // complete post and image have committed to the outbox.
-    unawaited(
-      ref
+    // Wait for the post and image to commit to the durable local outbox. The
+    // PinService starts the network upload in the background after that point.
+    String? saveError;
+    try {
+      saveError = await ref
           .read(pinServiceProvider)
-          .addPinToGroup(pin, widget.image)
-          .then<void>(
-            (saveError) {
-              if (saveError == null) {
-                CustomErrorSnackBar.message(
-                  message: "Image saved",
-                );
-                if (reviewState != null) {
-                  unawaited(postUploadActions(reviewState));
-                }
-              } else {
-                CustomErrorSnackBar.message(
-                  message:
-                      "Could not save post on this device. Please try again.",
-                  type: CustomErrorSnackBarType.error,
-                );
-              }
-            },
-            onError: (Object _, StackTrace __) {
-              CustomErrorSnackBar.message(
-                message:
-                    "Could not save post on this device. Please try again.",
-                type: CustomErrorSnackBarType.error,
-              );
-            },
-          ),
-    );
+          .addPinToGroup(pin, widget.image);
+    } catch (_) {
+      saveError = 'Could not save post on this device. Please try again.';
+    }
+    if (!mounted) return;
+    if (saveError != null) {
+      _approvalStarted = false;
+      CustomErrorSnackBar.message(
+        message: 'Could not save post on this device. Please try again.',
+        type: CustomErrorSnackBarType.error,
+      );
+      return;
+    }
+
+    CustomErrorSnackBar.message(message: 'Image saved');
+    if (reviewState != null) {
+      unawaited(postUploadActions(reviewState));
+    }
     ref
         .read(cameraGroupIndexProvider.notifier)
         .updateIndex(_groupIndexWhenOpened);
-    if (!mounted) return Future<void>.value();
     Navigator.of(context).popUntil((route) => route.isFirst);
-    return Future<void>.value();
   }
 
   Future<void> postUploadActions(AppReviewState reviewState) async {

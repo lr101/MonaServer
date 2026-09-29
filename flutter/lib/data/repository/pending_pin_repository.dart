@@ -16,7 +16,7 @@ class PendingPinRepository {
   final AppDatabase db;
 
   Future<void> enqueue(PinEntity pin, Uint8List image) async {
-    await db
+    final insertedRowId = await db
         .into(db.pendingPinCreates)
         .insertOnConflictUpdate(
           PendingPinCreatesCompanion.insert(
@@ -31,6 +31,9 @@ class PendingPinRepository {
             image: image,
           ),
         );
+    if (insertedRowId == 0) {
+      throw StateError('Account session ended before the post was saved.');
+    }
   }
 
   Future<List<PendingPinCreateDb>> forOwner(String ownerId) =>

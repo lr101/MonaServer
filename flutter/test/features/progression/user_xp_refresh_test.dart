@@ -195,11 +195,12 @@ void main() {
     );
   });
 
-  testWidgets('approval leaves while the post is still saving locally', (
+  testWidgets('approval leaves after local save without waiting for upload', (
     tester,
   ) async {
     final fixture = await _Fixture.create(
       _Mutation.pin,
+      pauseMutation: true,
       pausePendingPinEnqueue: true,
       provideApprovalScreen: true,
     );
@@ -230,17 +231,17 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Root screen'), findsOneWidget);
+    expect(find.text('Root screen'), findsNothing);
     expect(find.text('Upload'), findsOneWidget);
     expect(find.text('Saving post'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pumpAndSettle();
-    expect(find.text('Approve'), findsNothing);
-    expect(find.text('Upload'), findsNothing);
+    expect(find.text('Approve'), findsOneWidget);
+    expect(find.text('Upload'), findsOneWidget);
     expect(
       await fixture.database.select(fixture.database.pendingPinCreates).get(),
       isEmpty,
-      reason: 'the test keeps the durable write pending while navigation ends',
+      reason: 'navigation must wait until the local outbox write commits',
     );
 
     fixture.releasePendingPinEnqueue.complete();
@@ -249,7 +250,22 @@ void main() {
         const Duration(seconds: 2),
       ),
     );
-    await fixture.waitForPinUpload();
+    await tester.pumpAndSettle();
+    expect(find.text('Root screen'), findsOneWidget);
+    expect(find.text('Upload'), findsNothing);
+    expect(
+      await fixture.database.select(fixture.database.pendingPinCreates).get(),
+      hasLength(1),
+      reason: 'the pending upload remains durable after navigation',
+    );
+
+    // The HTTP request remains unresolved, proving that navigation only waits
+    // for the local save and not for the server.
+    fixture.completeMutationSuccess();
+    await tester.runAsync(
+      () =>
+          fixture.pendingPinRemoved.future.timeout(const Duration(seconds: 2)),
+    );
   });
 
   for (final action in _Mutation.values) {
@@ -364,6 +380,7 @@ class _Fixture {
     required this.releasePinCacheWrite,
     required this.pendingPinEnqueueStarted,
     required this.releasePendingPinEnqueue,
+    required this.pendingPinRemoved,
   });
 
   final _Mutation action;
@@ -377,6 +394,7 @@ class _Fixture {
   final Completer<void> releasePinCacheWrite;
   final Completer<void> pendingPinEnqueueStarted;
   final Completer<void> releasePendingPinEnqueue;
+  final Completer<void> pendingPinRemoved;
   final mutationRequestStarted = Completer<void>();
   final secondXpRequestStarted = Completer<void>();
   final mutationResponse = Completer<http.Response>();
@@ -398,11 +416,13 @@ class _Fixture {
     final releasePinCacheWrite = Completer<void>();
     final pendingPinEnqueueStarted = Completer<void>();
     final releasePendingPinEnqueue = Completer<void>();
+    final pendingPinRemoved = Completer<void>();
     final pendingPins = pausePendingPinEnqueue
         ? _DelayedPendingPinRepository(
             database,
             pendingPinEnqueueStarted,
             releasePendingPinEnqueue,
+            pendingPinRemoved,
           )
         : PendingPinRepository(database);
     final pins = pausePinCacheWrite
@@ -467,6 +487,7 @@ class _Fixture {
       releasePinCacheWrite: releasePinCacheWrite,
       pendingPinEnqueueStarted: pendingPinEnqueueStarted,
       releasePendingPinEnqueue: releasePendingPinEnqueue,
+      pendingPinRemoved: pendingPinRemoved,
     );
   }
 
@@ -665,16 +686,28 @@ class _DelayedPinRepository extends PinRepository {
 }
 
 class _DelayedPendingPinRepository extends PendingPinRepository {
-  _DelayedPendingPinRepository(super.db, this.started, this.release);
+  _DelayedPendingPinRepository(
+    super.db,
+    this.started,
+    this.release,
+    this.removed,
+  );
 
   final Completer<void> started;
   final Completer<void> release;
+  final Completer<void> removed;
 
   @override
   Future<void> enqueue(PinEntity pin, Uint8List image) async {
     started.complete();
     await release.future;
     await super.enqueue(pin, image);
+  }
+
+  @override
+  Future<void> remove(String pinId) async {
+    await super.remove(pinId);
+    if (!removed.isCompleted) removed.complete();
   }
 }
 
