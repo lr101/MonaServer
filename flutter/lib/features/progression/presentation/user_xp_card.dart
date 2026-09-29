@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -169,7 +170,9 @@ class UserXpCard extends StatelessWidget {
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(8),
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+                  valueColor: AlwaysStoppedAnimation(
+                    theme.colorScheme.primaryOnSurface,
+                  ),
                 ),
               ),
               const SizedBox(height: 7),
@@ -244,7 +247,9 @@ class CompactUserLevelIndicator extends StatelessWidget {
                 minHeight: 3,
                 borderRadius: BorderRadius.circular(4),
                 backgroundColor: theme.colorScheme.surfaceContainerLow,
-                valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+                valueColor: AlwaysStoppedAnimation(
+                  theme.colorScheme.primaryOnSurface,
+                ),
               ),
             ),
           ],

@@ -19,13 +19,14 @@ class FeedTimelineHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
     return RotatedBox(
       quarterTurns: isRotated ? 3 : 0,
       child: Stack(
         children: [
           Column(
             children: [
-              Container(width: 2, height: 100, color: Colors.grey),
+              Container(width: 2, height: 100, color: colorScheme.outline),
               RotatedBox(
                 quarterTurns: isRotated ? 1 : 0,
                 child: ClickableGroup(
@@ -36,7 +37,11 @@ class FeedTimelineHeader extends ConsumerWidget {
                   ),
                 ),
               ),
-              Container(width: 2, height: height - 130, color: Colors.grey),
+              Container(
+                width: 2,
+                height: height - 130,
+                color: colorScheme.outline,
+              ),
             ],
           ),
           Row(
@@ -52,8 +57,8 @@ class FeedTimelineHeader extends ConsumerWidget {
                         quarterTurns: 1,
                         child: Text(
                           formatTime(),
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -73,8 +78,8 @@ class FeedTimelineHeader extends ConsumerWidget {
                                     .select((e) => e.value?.name),
                               ) ??
                               "",
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
