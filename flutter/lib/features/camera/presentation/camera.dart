@@ -245,7 +245,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final controllerAsync = ref.watch(cameraControllerProvider);
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
-    final compactLayout = MediaQuery.sizeOf(context).height < 500;
     final previewLayer = Stack(
       fit: StackFit.expand,
       children: [
@@ -290,13 +289,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           ),
       ],
     );
-    final controlRail = _cameraControlRail(
-      cameras: cameras,
-      cameraIndex: cameraIndex,
-      cameraFlashMode: cameraFlashMode,
-      controllerReady: controllerAsync.value?.value.isInitialized == true,
-      compact: compactLayout,
-    );
     final groupSelector = groupIds.isEmpty
         ? null
         : CameraGroupSelector(
@@ -316,55 +308,68 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       appBar: _pinPhotoAppBar(),
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: compactLayout
-            ? LayoutBuilder(
-                builder: (context, constraints) {
-                  final previewWidth =
-                      constraints.maxWidth * _compactPreviewWidthFraction;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(width: previewWidth, child: previewLayer),
-                      const SizedBox(width: _compactPreviewPanelGap),
-                      Expanded(
-                        child: ColoredBox(
-                          color: colorScheme.surface,
-                          child: LayoutBuilder(
-                            builder: (context, panelConstraints) =>
-                                SingleChildScrollView(
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      minHeight: panelConstraints.maxHeight,
-                                    ),
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          controlRail,
-                                          if (groupSelector
-                                              case final selector?)
-                                            selector,
-                                        ],
-                                      ),
-                                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Use the space left after app bars and navigation. A short body
+            // can need the compact layout even when the full window is tall.
+            final compactLayout =
+                MediaQuery.sizeOf(context).height < 500 ||
+                constraints.maxHeight < 500;
+            final controlRail = _cameraControlRail(
+              cameras: cameras,
+              cameraIndex: cameraIndex,
+              cameraFlashMode: cameraFlashMode,
+              controllerReady:
+                  controllerAsync.value?.value.isInitialized == true,
+              compact: compactLayout,
+            );
+            if (compactLayout) {
+              final previewWidth =
+                  constraints.maxWidth * _compactPreviewWidthFraction;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: previewWidth, child: previewLayer),
+                  const SizedBox(width: _compactPreviewPanelGap),
+                  Expanded(
+                    child: ColoredBox(
+                      color: colorScheme.surface,
+                      child: LayoutBuilder(
+                        builder: (context, panelConstraints) =>
+                            SingleChildScrollView(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: panelConstraints.maxHeight,
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      controlRail,
+                                      if (groupSelector case final selector?)
+                                        selector,
+                                    ],
                                   ),
                                 ),
-                          ),
-                        ),
+                              ),
+                            ),
                       ),
-                    ],
-                  );
-                },
-              )
-            : Column(
-                children: [
-                  Expanded(child: previewLayer),
-                  const SizedBox(height: 12),
-                  controlRail,
-                  if (groupSelector case final selector?) selector,
-                  const SizedBox(height: 5),
+                    ),
+                  ),
                 ],
-              ),
+              );
+            }
+            return Column(
+              children: [
+                Expanded(child: previewLayer),
+                const SizedBox(height: 12),
+                controlRail,
+                if (groupSelector case final selector?) selector,
+                const SizedBox(height: 5),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
