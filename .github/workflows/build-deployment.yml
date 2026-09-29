@@ -81,8 +81,8 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8082/ \
             | grep -F 'MonaServer Admin' >/dev/null
           echo 'Checking public admin API denial'
-          blocked_response="$(docker compose exec -T app \
-            wget -S -O /dev/null http://127.0.0.1:8081/api/v3/admin/users 2>&1 || true)"
+          blocked_response="$(printf 'GET /api/v3/admin/users HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' \
+            | docker compose exec -T app busybox nc -w 5 127.0.0.1 8081)"
           printf '%s\n' "$blocked_response"
           grep -q 'HTTP/1.1 404' <<< "$blocked_response"
           grep -qi 'X-Admin-Blocked: true' <<< "$blocked_response"
