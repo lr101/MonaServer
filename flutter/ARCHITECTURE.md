@@ -202,17 +202,24 @@ provider/account/run guards before asynchronous work and checks them before
 follow-up writes. Revocation does not cancel an already-started network request
 or make already-started writes atomic with session changes.
 
-Cached pins with `lastSynced == null` still form the legacy retry source.
-Upload failures retain drafts, fail the run and leave its last-seen checkpoint
-unchanged. The existing HTTP 409 duplicate-deletion policy is retained pending
-server idempotency. This coordinator is in-process only: durable delivery,
-online-transition triggers, next-due retry scheduling and Android worker wake-up
-remain planned work.
+New posts use a shared Drift outbox on Android and Web. Its row contains the
+complete request and image bytes. The camera flow starts the durable save and
+returns without waiting for its commit, cache updates, or upload. Upload starts
+only after the outbox transaction commits. Cache projection and one foreground
+upload attempt then continue in the background. The local pin UUID is also the
+stable `Idempotency-Key`. Startup and resume sync pull remote changes before
+retrying outbox rows, and still attempt those rows if the pull fails. Older
+Android drafts are migrated into the outbox when their retained image is
+available. A failed upload keeps the row and leaves the sync checkpoint
+unchanged. A `409` keeps the draft for inspection instead of deleting it.
+Explicit logout clears the account's outbox with the other Drift tables.
 
-## Durable offline upload design — not implemented
+## Durable offline upload follow-up
 
-Durable uploads remain a main product requirement. Processing is automatic with
-read-only status; no edit/cancel/discard workflow is required.
+The first delivery slice covers one immediate upload attempt after local save
+and retry on startup or resume. Closed-browser delivery, online-transition
+triggers, scheduled retries, Android background workers, persistent attempt
+status and backoff remain planned work.
 
 - Persist an operation ID, account/group, immutable draft, durable image key,
   media type/size/checksum, status, attempts, next retry, lease owner/expiry,
@@ -226,37 +233,24 @@ read-only status; no edit/cancel/discard workflow is required.
   failure/expired leases, or `failed` for permanent failure. Claim due rows with a
   transactional conditional update and unique lease owner. Completion/retry/lease
   extension must still match that owner; stale workers cannot commit results.
-- Android uses an OS background worker where supported. Web retries while active
-  and on next launch/resume/login/online transition; closed-tab execution is not
-  promised. Schedule due retries with an owned lifecycle and bounded backoff.
+- Android uses an OS background worker where supported. Web starts the first
+  upload while the app is active and retries on next launch or resume;
+  closed-tab execution and online-transition retries are not promised. Schedule
+  due retries with an owned lifecycle and bounded backoff.
 
-The approved server direction remains an **optional** `Idempotency-Key` header
-on pin creation; it is not present in the bundled contract yet. The operation ID
-must remain stable across retries. Existing duplicate detection and a `409`
-without a server pin ID are insufficient for reliable reconciliation.
+The server now accepts an optional `Idempotency-Key` on pin creation and returns
+the original pin for a matching retry. The key is scoped to the authenticated
+caller. Existing clients without the header keep their prior behavior.
 
-Server implementation requirements:
+The server stores a versioned hash of the scalar request and image digest,
+plus the resulting pin ID, under a unique caller/key pair. Pin, XP and result
+commit together. Matching retries return the original pin; changed requests
+or deleted results conflict. The result row is retained until account deletion,
+so key reuse cannot silently create another pin. A bounded retention policy
+still needs a privacy-reviewed decision.
 
-- Scope keys to the authenticated caller (separate from the target creator).
-  Store a server-computed, versioned canonical request hash covering creator,
-  group, coordinates, description, UTC date and image checksum; no raw payload.
-- A dedicated table with unique caller/key stores state, result ID, timestamps,
-  expiry and deletion tombstone. Same key/body returns the same result without
-  duplicate XP/image writes; changed body or deleted result returns a permanent
-  conflict. Keep existing behavior when the header is absent.
-- Make pin creation, XP and idempotency state atomic; concurrent duplicate work
-  must wait or return a retryable outcome. Object storage remains nontransactional
-  and needs explicit failure/orphan cleanup.
-- Retain tombstones for the maximum client outbox lifetime plus accepted request
-  delay, and expire client operation IDs consistently. Account deletion is
-  immediate. The retention constant still needs a privacy-reviewed decision.
-- Add new SQL migrations/queries, update the authoring and bundled OpenAPI
-  contracts consistently, reconcile create response statuses, and regenerate Go
-  and Dart clients. Follow the API/database guides when implementing this work.
-
-Test restart, lease recovery/ownership, missing images, duplicate/concurrent
-requests, changed payload, deleted result, caller isolation, old clients,
-retention/cleanup and session changes before claiming durable delivery.
+Further resilience work needs tests for lease ownership, missing images,
+account changes, and interruption between each local write and remote result.
 
 ## Remaining migration order
 

@@ -20,7 +20,7 @@ final class AppReviewStateProvider
         argument: null,
         retry: null,
         name: r'appReviewStateProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -41,7 +41,7 @@ final class AppReviewStateProvider
   }
 }
 
-String _$appReviewStateHash() => r'bb67cb55376ca004838cb08a87e57be00d1e61d9';
+String _$appReviewStateHash() => r'45b9ecc45a4516c99b639d25a815c16a6376006c';
 
 abstract class _$AppReviewState extends $Notifier<bool> {
   bool build();
