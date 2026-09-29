@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 )
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+var testQueriesByServer sync.Map
 
 type memoryPinObjectStore struct {
 	objects map[string][]byte
@@ -254,7 +257,7 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 		r.Use(unpagedWhenPageMissing)
 		r.Use(validateBatchReadJSON)
 		registerRoutes(r, groupsCtrl, alwaysTrue)
-		registerRoutes(r, pinsCtrl, alwaysTrue)
+		registerRoutes(r.With(handler.CapturePinCreateIdempotency), pinsCtrl, alwaysTrue)
 		registerRoutes(r, membersCtrl, alwaysTrue)
 		registerRoutes(r, likesCtrl, alwaysTrue)
 		registerRoutes(r, rankingCtrl, alwaysTrue)
@@ -265,7 +268,10 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
 	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
-	return httptest.NewServer(r), q
+	server := httptest.NewServer(r)
+	testQueriesByServer.Store(server.URL, q)
+	t.Cleanup(func() { testQueriesByServer.Delete(server.URL) })
+	return server, q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -406,6 +412,17 @@ func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 	}
 	var ar authResp
 	_ = json.NewDecoder(resp.Body).Decode(&ar)
+	queries, ok := testQueriesByServer.Load(c.base)
+	if !ok {
+		t.Fatalf("signup test server queries not found for %s", c.base)
+	}
+	userID, err := uuid.Parse(ar.UserID)
+	if err != nil {
+		t.Fatalf("parse signup user ID: %v", err)
+	}
+	if err := queries.(*db.Queries).ConfirmUserEmail(context.Background(), userID); err != nil {
+		t.Fatalf("confirm signup test user: %v", err)
+	}
 	return ar
 }
 
@@ -609,6 +626,36 @@ func TestEndpointAuth(t *testing.T) {
 			t.Fatalf("delete-code: expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestPendingSignupCannotAccessProtectedRoutes(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+	c := &apiClient{base: srv.URL}
+	resp := c.do(t, http.MethodPost, "/api/v2/public/signup", map[string]string{
+		"name": "pending_access", "email": "pending-access@test.example", "password": "password123",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("signup: expected 201, got %d", resp.StatusCode)
+	}
+	var pending authResp
+	if err := json.NewDecoder(resp.Body).Decode(&pending); err != nil {
+		resp.Body.Close()
+		t.Fatalf("decode signup response: %v", err)
+	}
+	resp.Body.Close()
+	protected := &apiClient{base: srv.URL, bearer: pending.AccessToken}
+	access := protected.do(t, http.MethodGet, "/api/v2/status", nil)
+	access.Body.Close()
+	if access.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending access: expected 403, got %d", access.StatusCode)
+	}
+	refresh := c.do(t, http.MethodPost, "/api/v2/public/refresh", map[string]string{"refreshToken": pending.RefreshToken, "userId": pending.UserID})
+	refresh.Body.Close()
+	if refresh.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending refresh: expected 403, got %d", refresh.StatusCode)
+	}
 }
 
 func TestBatchReadAuthenticationAndValidation(t *testing.T) {
@@ -1128,6 +1175,83 @@ func TestEndpointMembers(t *testing.T) {
 			t.Fatalf("leave: expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestEndpointPinCreateIdempotency(t *testing.T) {
+	srv, q := buildTestServerWithQuery(t)
+	defer srv.Close()
+	anon := &apiClient{base: srv.URL}
+	account := anon.signup(t, "retry_route_user", "pw123")
+	client := &apiClient{base: srv.URL, bearer: account.AccessToken}
+	groupID := client.createGroup(t, account.UserID, "retry_route_group", 0)
+	key := uuid.New().String()
+	body := map[string]any{
+		"image": testImageBase64, "latitude": 48.137, "longitude": 11.576,
+		"creationDate": time.Now().UTC().Format(time.RFC3339Nano),
+		"userId":       account.UserID, "groupId": groupID,
+	}
+	before, err := q.GetUserByID(context.Background(), uuid.MustParse(account.UserID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := func(key string, body map[string]any) (int, string) {
+		response := client.doWithHeaders(t, http.MethodPost, "/api/v2/pins", body,
+			map[string]string{"Idempotency-Key": key})
+		defer response.Body.Close()
+		var pin struct {
+			ID string `json:"id"`
+		}
+		_ = json.NewDecoder(response.Body).Decode(&pin)
+		return response.StatusCode, pin.ID
+	}
+	status, firstID := create(key, body)
+	if status != http.StatusCreated || firstID == "" {
+		t.Fatalf("first create = %d/%q", status, firstID)
+	}
+	status, replayID := create(key, body)
+	if status != http.StatusCreated || replayID != firstID {
+		t.Fatalf("replay = %d/%q, want 201/%q", status, replayID, firstID)
+	}
+	after, err := q.GetUserByID(context.Background(), uuid.MustParse(account.UserID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.XP-before.XP != service.CreatePinXP {
+		t.Fatalf("XP delta = %d, want one create", after.XP-before.XP)
+	}
+	changed := make(map[string]any, len(body)+1)
+	for name, value := range body {
+		changed[name] = value
+	}
+	changed["title"] = "different"
+	if status, _ := create(key, changed); status != http.StatusConflict {
+		t.Fatalf("changed replay = %d, want 409", status)
+	}
+	if status, _ := create("invalid-key", body); status != http.StatusBadRequest {
+		t.Fatalf("invalid key = %d, want 400", status)
+	}
+
+	concurrent := make(map[string]any, len(body))
+	for name, value := range body {
+		concurrent[name] = value
+	}
+	concurrent["creationDate"] = time.Now().Add(time.Second).UTC().Format(time.RFC3339Nano)
+	concurrentKey := uuid.New().String()
+	type result struct {
+		status int
+		id     string
+	}
+	results := make(chan result, 2)
+	for range 2 {
+		go func() {
+			status, id := create(concurrentKey, concurrent)
+			results <- result{status, id}
+		}()
+	}
+	one, two := <-results, <-results
+	if one.status != http.StatusCreated || two.status != http.StatusCreated || one.id == "" || one.id != two.id {
+		t.Fatalf("concurrent replay = %+v, %+v", one, two)
+	}
 }
 
 func TestEndpointPins(t *testing.T) {

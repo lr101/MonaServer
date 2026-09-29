@@ -20,6 +20,7 @@ type Config struct {
 	RefreshTokenExpiry    time.Duration `mapstructure:"TOKEN_REFRESH_EXPIRY"`
 	MaxLoginAttempts      int           `mapstructure:"APP_MAX_LOGIN_ATTEMPTS"`
 	PublicEmailLogin      bool          `mapstructure:"PUBLIC_EMAIL_LOGIN"`
+	EmailLoginTokenTTL    time.Duration `mapstructure:"EMAIL_LOGIN_TOKEN_TTL"`
 	EmailLoginHMACKey     string        `mapstructure:"EMAIL_LOGIN_HMAC_KEY"`
 	EmailLoginHMACKeyID   string        `mapstructure:"EMAIL_LOGIN_HMAC_KEY_ID"`
 	EmailDeliveryKey      string        `mapstructure:"EMAIL_DELIVERY_KEY"`
@@ -76,7 +77,7 @@ func Load() (*Config, error) {
 		"PORT", "WEB_HOST", "DATABASE_URL",
 		"TOKEN_ACCESS_EXPIRY", "TOKEN_REFRESH_EXPIRY",
 		"APP_MAX_LOGIN_ATTEMPTS",
-		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",
+		"PUBLIC_EMAIL_LOGIN", "EMAIL_LOGIN_TOKEN_TTL", "EMAIL_LOGIN_HMAC_KEY", "EMAIL_LOGIN_HMAC_KEY_ID",
 		"EMAIL_DELIVERY_KEY", "EMAIL_DELIVERY_KEY_ID", "EMAIL_LOGIN_CALLBACK_URL", "WEB_ADMIN_API",
 		"ADMIN_TOTP_ENCRYPTION_KEY", "ADMIN_TOTP_ENCRYPTION_KEY_ID",
 		"ADMIN_SESSION_HMAC_KEY", "ADMIN_SESSION_HMAC_KEY_ID",
@@ -99,6 +100,7 @@ func Load() (*Config, error) {
 	v.SetDefault("TOKEN_REFRESH_EXPIRY", 365*24*time.Hour)
 	v.SetDefault("APP_MAX_LOGIN_ATTEMPTS", 10)
 	v.SetDefault("PUBLIC_EMAIL_LOGIN", false)
+	v.SetDefault("EMAIL_LOGIN_TOKEN_TTL", 15*time.Minute)
 	// Browser sessions are the authentication boundary for the v2 admin
 	// routes as well as v3. Keep the session bootstrap/login endpoints
 	// available after an upgrade unless an operator explicitly disables the

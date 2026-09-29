@@ -861,6 +861,7 @@ SET is_deleted = TRUE,
     reset_password_expiration = NULL,
     deletion_url = NULL,
     email_confirmation_url = NULL,
+    email_confirmation_expires_at = NULL,
     update_date = now()
 WHERE id = $1 AND is_deleted = FALSE
 RETURNING auth_generation
@@ -2219,7 +2220,7 @@ func (q *Queries) GetReportTargetSnapshot(ctx context.Context, id pgtype.UUID) (
 
 const getUserSecurityState = `-- name: GetUserSecurityState :one
 
-SELECT id, email, email_confirmed, is_deleted, auth_generation, security_state,
+SELECT id, email, email_confirmed, account_activated, is_deleted, auth_generation, security_state,
        password_disabled, password_reset_required, compromised_at
 FROM users
 WHERE id = $1
@@ -2229,6 +2230,7 @@ type GetUserSecurityStateRow struct {
 	ID                    pgtype.UUID        `json:"id"`
 	Email                 pgtype.Text        `json:"email"`
 	EmailConfirmed        bool               `json:"email_confirmed"`
+	AccountActivated      bool               `json:"account_activated"`
 	IsDeleted             bool               `json:"is_deleted"`
 	AuthGeneration        int64              `json:"auth_generation"`
 	SecurityState         string             `json:"security_state"`
@@ -2245,6 +2247,7 @@ func (q *Queries) GetUserSecurityState(ctx context.Context, id pgtype.UUID) (Get
 		&i.ID,
 		&i.Email,
 		&i.EmailConfirmed,
+		&i.AccountActivated,
 		&i.IsDeleted,
 		&i.AuthGeneration,
 		&i.SecurityState,
@@ -3025,7 +3028,7 @@ func (q *Queries) LockReportTarget(ctx context.Context, dollar_1 string) error {
 }
 
 const lockUserSecurityState = `-- name: LockUserSecurityState :one
-SELECT id, email, email_confirmed, is_deleted, auth_generation, security_state,
+SELECT id, email, email_confirmed, account_activated, is_deleted, auth_generation, security_state,
        password_disabled, password_reset_required, compromised_at
 FROM users
 WHERE id = $1
@@ -3036,6 +3039,7 @@ type LockUserSecurityStateRow struct {
 	ID                    pgtype.UUID        `json:"id"`
 	Email                 pgtype.Text        `json:"email"`
 	EmailConfirmed        bool               `json:"email_confirmed"`
+	AccountActivated      bool               `json:"account_activated"`
 	IsDeleted             bool               `json:"is_deleted"`
 	AuthGeneration        int64              `json:"auth_generation"`
 	SecurityState         string             `json:"security_state"`
@@ -3051,6 +3055,7 @@ func (q *Queries) LockUserSecurityState(ctx context.Context, id pgtype.UUID) (Lo
 		&i.ID,
 		&i.Email,
 		&i.EmailConfirmed,
+		&i.AccountActivated,
 		&i.IsDeleted,
 		&i.AuthGeneration,
 		&i.SecurityState,

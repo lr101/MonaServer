@@ -18,7 +18,7 @@ feature-layer migrations**, not completed `domain`/`data`/`presentation` slices.
 | --- | --- | --- |
 | Session HTTP | [`openapi_config.dart`](lib/data/config/openapi_config.dart) owns a client and in-memory token manager per host/user/refresh credential. Refresh is serialized; a request gets one refresh/replay on 401, not on 403. Disposal fences queued work and response streams and closes the refresh transport. | `openapi_config_test.dart` |
 | Account cleanup | [`global_data_service.dart`](lib/data/service/global_data_service.dart) coordinates logout, account switching, and successful account deletion. [`AccountCleanup`](lib/data/service/account_cleanup_service.dart) clears all Drift tables, including likes and offline pictures, plus platform caches. Cleanup failure blocks login until cleanup succeeds. | `account_cleanup_test.dart`, `global_data_repository_test.dart` |
-| Sign in and signup | [`auth.dart`](lib/features/auth/presentation/auth.dart) provides an animated sign-in card with email-link and username/password options, plus signup with username, password, matching email confirmation, and required Terms and Privacy acknowledgements. Username/email requests navigate to a six-character code screen; a rate-limited code or the secondary email link uses the same one-time account admission. Usernames cannot contain `@`, so the email-link field infers identifier type. The app shows a specific unavailable message when the server's email-login flag is off. Signup and password sign-in retain the v2 API contract; link delivery and callback admission retain the public email-login flow. Android App Links capture email callbacks before bootstrap and handle incoming links while the app is running. | `email_login_domain_test.dart`, `email_login_screen_test.dart`, `email_login_data_test.dart`, `email_login_code_test.dart`, `email_login_code_screen_test.dart` |
+| Sign in and signup | [`auth.dart`](lib/features/auth/presentation/auth.dart) provides an animated sign-in card with email-link and username/password options, plus signup with username, password, one email field, and required Terms and Privacy acknowledgements. Email signup stays pending until its confirmation link is opened; the check-email screen can resend or correct the address using the original signup credentials. Confirmation links expire after 24 hours. Username/email sign-in requests navigate to a six-character code screen; a rate-limited code or the secondary email link uses the same one-time account admission. Usernames cannot contain `@`, so the email-link field infers identifier type. The app shows a specific unavailable message when the server's email-login flag is off. Signup and password sign-in retain the v2 API contract; link delivery and callback admission retain the public email-login flow. Android App Links capture email callbacks before bootstrap and handle incoming links while the app is running. | `email_login_domain_test.dart`, `email_login_screen_test.dart`, `email_login_data_test.dart`, `email_login_code_test.dart`, `email_login_code_screen_test.dart` |
 | Android group invites | Public and private group invite links open the group route with the invite code held in memory through sign-in. The group screen submits the code only after the user taps Join; group invite controls copy a shareable link for either visibility. Android link verification also requires the production domain to serve `.well-known/assetlinks.json` containing the release signing certificate fingerprint. | `features/group_overview/pop_up_menu_leave_test.dart` |
 | Local session isolation | [`AccountSession`](lib/data/database/account_session.dart) revokes old database access; [`accountDatabaseProvider`](lib/data/repository/drift_repo.dart) supplies disposable facades over the bootstrap connection. Services capture `accountOperation(ref)` before async work to suppress stale follow-up actions. | `account_cleanup_test.dart` |
 | Sync lifecycle | [`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart) owns session/resume subscriptions; the pure Dart [`SyncCoordinator`](lib/core/sync/sync_coordinator.dart) serializes triggers and revokes superseded runs. Sync provider construction is idle. | `app/sync_coordinator_test.dart`, `app/sync_lifecycle_test.dart`, `syncing_service_test.dart` |
@@ -61,6 +61,14 @@ rejects missing/invalid hosts, user info, paths, queries and fragments. The
 The combined deployment enables `API_HOST_FROM_PAGE` so its browser client
 uses the current page origin; standalone Flutter web builds retain the
 configured API host.
+
+Web release builds run `tool/generate_offline_web.dart` after Flutter compiles.
+It versions a service worker from the complete static build so a previously
+opened app can start without a network connection. The custom Flutter bootstrap
+avoids Flutter's legacy service-worker registration. The worker caches only
+static app files; API responses, object-store images and map tiles are outside
+its scope. The first visit must finish installing the worker. User data and
+drafts remain in Drift, under the account cleanup rules below.
 
 `app/production_bootstrap.dart` loads configuration, opens Drift, runs legacy
 cache cleanup, selects secure storage, initializes native map tiles/Firebase,
@@ -194,17 +202,24 @@ provider/account/run guards before asynchronous work and checks them before
 follow-up writes. Revocation does not cancel an already-started network request
 or make already-started writes atomic with session changes.
 
-Cached pins with `lastSynced == null` still form the legacy retry source.
-Upload failures retain drafts, fail the run and leave its last-seen checkpoint
-unchanged. The existing HTTP 409 duplicate-deletion policy is retained pending
-server idempotency. This coordinator is in-process only: durable delivery,
-online-transition triggers, next-due retry scheduling and Android worker wake-up
-remain planned work.
+New posts use a shared Drift outbox on Android and Web. Its row contains the
+complete request and image bytes. The camera flow starts the durable save and
+returns without waiting for its commit, cache updates, or upload. Upload starts
+only after the outbox transaction commits. Cache projection and one foreground
+upload attempt then continue in the background. The local pin UUID is also the
+stable `Idempotency-Key`. Startup and resume sync pull remote changes before
+retrying outbox rows, and still attempt those rows if the pull fails. Older
+Android drafts are migrated into the outbox when their retained image is
+available. A failed upload keeps the row and leaves the sync checkpoint
+unchanged. A `409` keeps the draft for inspection instead of deleting it.
+Explicit logout clears the account's outbox with the other Drift tables.
 
-## Durable offline upload design — not implemented
+## Durable offline upload follow-up
 
-Durable uploads remain a main product requirement. Processing is automatic with
-read-only status; no edit/cancel/discard workflow is required.
+The first delivery slice covers one immediate upload attempt after local save
+and retry on startup or resume. Closed-browser delivery, online-transition
+triggers, scheduled retries, Android background workers, persistent attempt
+status and backoff remain planned work.
 
 - Persist an operation ID, account/group, immutable draft, durable image key,
   media type/size/checksum, status, attempts, next retry, lease owner/expiry,
@@ -218,37 +233,24 @@ read-only status; no edit/cancel/discard workflow is required.
   failure/expired leases, or `failed` for permanent failure. Claim due rows with a
   transactional conditional update and unique lease owner. Completion/retry/lease
   extension must still match that owner; stale workers cannot commit results.
-- Android uses an OS background worker where supported. Web retries while active
-  and on next launch/resume/login/online transition; closed-tab execution is not
-  promised. Schedule due retries with an owned lifecycle and bounded backoff.
+- Android uses an OS background worker where supported. Web starts the first
+  upload while the app is active and retries on next launch or resume;
+  closed-tab execution and online-transition retries are not promised. Schedule
+  due retries with an owned lifecycle and bounded backoff.
 
-The approved server direction remains an **optional** `Idempotency-Key` header
-on pin creation; it is not present in the bundled contract yet. The operation ID
-must remain stable across retries. Existing duplicate detection and a `409`
-without a server pin ID are insufficient for reliable reconciliation.
+The server now accepts an optional `Idempotency-Key` on pin creation and returns
+the original pin for a matching retry. The key is scoped to the authenticated
+caller. Existing clients without the header keep their prior behavior.
 
-Server implementation requirements:
+The server stores a versioned hash of the scalar request and image digest,
+plus the resulting pin ID, under a unique caller/key pair. Pin, XP and result
+commit together. Matching retries return the original pin; changed requests
+or deleted results conflict. The result row is retained until account deletion,
+so key reuse cannot silently create another pin. A bounded retention policy
+still needs a privacy-reviewed decision.
 
-- Scope keys to the authenticated caller (separate from the target creator).
-  Store a server-computed, versioned canonical request hash covering creator,
-  group, coordinates, description, UTC date and image checksum; no raw payload.
-- A dedicated table with unique caller/key stores state, result ID, timestamps,
-  expiry and deletion tombstone. Same key/body returns the same result without
-  duplicate XP/image writes; changed body or deleted result returns a permanent
-  conflict. Keep existing behavior when the header is absent.
-- Make pin creation, XP and idempotency state atomic; concurrent duplicate work
-  must wait or return a retryable outcome. Object storage remains nontransactional
-  and needs explicit failure/orphan cleanup.
-- Retain tombstones for the maximum client outbox lifetime plus accepted request
-  delay, and expire client operation IDs consistently. Account deletion is
-  immediate. The retention constant still needs a privacy-reviewed decision.
-- Add new SQL migrations/queries, update the authoring and bundled OpenAPI
-  contracts consistently, reconcile create response statuses, and regenerate Go
-  and Dart clients. Follow the API/database guides when implementing this work.
-
-Test restart, lease recovery/ownership, missing images, duplicate/concurrent
-requests, changed payload, deleted result, caller isolation, old clients,
-retention/cleanup and session changes before claiming durable delivery.
+Further resilience work needs tests for lease ownership, missing images,
+account changes, and interruption between each local write and remote result.
 
 ## Remaining migration order
 

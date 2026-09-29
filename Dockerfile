@@ -25,6 +25,7 @@ COPY flutter/api ./api
 RUN flutter pub get
 COPY flutter/ ./
 RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST_FROM_PAGE=true && \
+    dart run tool/generate_offline_web.dart build/web && \
     test -s build/web/main.dart.js && test -s build/web/main.dart.mjs && test -s build/web/main.dart.wasm
 
 FROM nginx:1.28-alpine

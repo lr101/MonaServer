@@ -13,7 +13,10 @@ import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
+import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
@@ -52,6 +55,41 @@ void main() {
       await f.container.read(syncingServiceProvider.notifier).syncToBackend();
       expect(f.api.calls, 1);
       expect(f.container.read(syncingServiceProvider), SyncState.finished);
+    },
+  );
+
+  test(
+    'next sync retries the outbox even if the remote pull is unavailable',
+    () async {
+      final f = await _fixture();
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      final uploader = f.container.read(pendingPinUploaderProvider);
+      f.api.uploadError = ApiException(503, 'temporary upload failure');
+      await expectLater(uploader.upload('draft'), throwsA(isA<ApiException>()));
+      await Future<void>.delayed(Duration.zero);
+      expect(await f.pending.get('draft'), isNotNull);
+
+      f.api.uploadError = null;
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      f.api.syncError = ApiException(503, 'temporary pull failure');
+      final subscription = f.container.listen(
+        syncingServiceProvider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      final retry = f.container
+          .read(syncingServiceProvider.notifier)
+          .syncToBackend();
+      final retryFailure = expectLater(retry, throwsA(isA<ApiException>()));
+      await f.api.secondUploadStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      f.api.upload!.complete(_createdPin());
+      await retryFailure;
+
+      expect(await f.pending.get('draft'), isNull);
+      expect(f.api.calls, 1);
+      expect(f.container.read(syncingServiceProvider), SyncState.failed);
     },
   );
 
@@ -137,6 +175,158 @@ void main() {
   );
 
   test(
+    'delete during cancellation write removes a completed remote post',
+    () async {
+      final f = await _fixture(delayedCancel: true);
+      final pending = f.pending as _DelayedCancelRepository;
+      await pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      await f.container.read(pinRepositoryProvider).put(_draft());
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      final uploading = f.container
+          .read(pendingPinUploaderProvider)
+          .upload('draft');
+      await f.api.uploadStarted.future;
+      final deleting = f.container
+          .read(pinServiceProvider)
+          .deletePinFromGroup('draft');
+      await pending.cancelEntered.future;
+      f.api.upload!.complete(_createdPin());
+      await uploading;
+      pending.releaseCancel.complete();
+      expect(await deleting, isNull);
+      expect(f.api.deleted, ['server-pin']);
+      expect(
+        await f.container.read(pinRepositoryProvider).get('server-pin'),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'cancel after a lost response replays then deletes the server post',
+    () async {
+      final f = await _fixture();
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      final uploader = f.container.read(pendingPinUploaderProvider);
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      final first = uploader.upload('draft');
+      await f.api.uploadStarted.future;
+      f.api.upload!.completeError(Exception('response lost'));
+      await expectLater(first, throwsException);
+      await Future<void>.delayed(Duration.zero);
+      await uploader.discard('draft');
+      final cancelled = await f.pending.get('draft');
+      expect(cancelled?.attempted, isTrue);
+      expect(cancelled?.cancelRequested, isTrue);
+
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      final replay = uploader.upload('draft');
+      await Future<void>.delayed(Duration.zero);
+      f.api.upload!.complete(_createdPin());
+      expect(await replay, isNull);
+      expect(f.api.deleted, ['server-pin']);
+      expect(await f.pending.get('draft'), isNull);
+    },
+  );
+
+  test(
+    'confirmed cancellation delete clears the outbox after its run is revoked',
+    () async {
+      final f = await _fixture();
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      f.api.deleteResponse = Completer<void>();
+      var active = true;
+      final uploader = f.container.read(pendingPinUploaderProvider);
+      final uploading = uploader.upload('draft', isActive: () => active);
+      await f.api.uploadStarted.future;
+      final deleting = uploader.discard('draft');
+      f.api.upload!.complete(_createdPin());
+      await f.api.deleteStarted.future;
+      active = false;
+      f.api.deleteResponse!.complete();
+
+      await uploading;
+      await deleting;
+      expect(f.api.deleted, ['server-pin']);
+      expect(await f.pending.get('draft'), isNull);
+    },
+  );
+
+  test(
+    'canceled replay conflict clears the row after a lost delete response',
+    () async {
+      final f = await _fixture();
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      await f.pending.requestCancel('draft');
+      await f.container.read(pinRepositoryProvider).put(_draft());
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      f.api.deleteError = Exception('delete response lost');
+      final uploader = f.container.read(pendingPinUploaderProvider);
+      final firstAttempt = uploader.upload('draft');
+      await f.api.uploadStarted.future;
+      f.api.upload!.complete(_createdPin());
+      await expectLater(firstAttempt, throwsException);
+      expect(await f.pending.get('draft'), isNotNull);
+
+      f.api.uploadError = ApiException(409, 'missing deleted pin');
+      await uploader.uploadAll();
+
+      expect(await f.pending.get('draft'), isNull);
+      expect(
+        await f.container.read(pinRepositoryProvider).get('draft'),
+        isNull,
+      );
+      expect(await f.db.select(f.db.imageEntities).get(), isEmpty);
+    },
+  );
+
+  test(
+    'canceled replay keeps its tombstone when draft cache cleanup fails',
+    () async {
+      final f = await _fixture(failPinCacheDeletes: true);
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      await f.pending.requestCancel('draft');
+      await f.container.read(pinRepositoryProvider).put(_draft());
+      await f.container
+          .read(pinImageRepositoryProvider)
+          .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+      f.api.uploadError = ApiException(409, 'missing deleted pin');
+
+      await expectLater(
+        f.container.read(pendingPinUploaderProvider).uploadAll(),
+        throwsException,
+      );
+
+      final canceled = await f.pending.get('draft');
+      expect(canceled?.cancelRequested, isTrue);
+      expect(
+        await f.container.read(pinRepositoryProvider).get('draft'),
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'outbox upload continues when the bounded pin cache cannot write',
+    () async {
+      final f = await _fixture(failPinCacheWrites: true);
+      await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+      f.api.upload = Completer<PinWithOptionalImageDto?>();
+      final uploading = f.container
+          .read(pendingPinUploaderProvider)
+          .upload('draft');
+      await f.api.uploadStarted.future;
+      f.api.upload!.complete(_createdPin());
+      await expectLater(uploading, throwsException);
+      expect(await f.pending.get('draft'), isNotNull);
+    },
+  );
+
+  test(
     'upload failures retain the draft, fail the run, and do not log payloads',
     () async {
       final f = await _fixture();
@@ -168,6 +358,11 @@ void main() {
         ),
       );
       expect(f.container.read(syncingServiceProvider), SyncState.failed);
+      expect(
+        f.api.calls,
+        1,
+        reason: 'backend pulls still run when upload fails',
+      );
       expect(await f.db.select(f.db.pinEntities).get(), hasLength(1));
       expect(output, isEmpty);
     },
@@ -215,46 +410,44 @@ void main() {
     },
   );
 
-  test(
-    'handled offline pin conflict refreshes progression and achievements',
-    () async {
-      final f = await _fixture();
-      await f.container.read(pinRepositoryProvider).put(_draft());
-      await f.container
-          .read(pinImageRepositoryProvider)
-          .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
-      f.api.uploadError = ApiException(409, 'duplicate');
-      final progression = f.container.listen(
-        groupProgressionProvider('group'),
-        (_, _) {},
-      );
-      final achievements = f.container.listen(
-        groupAchievementsProvider('group'),
-        (_, _) {},
-      );
-      addTearDown(progression.close);
-      addTearDown(achievements.close);
-      await f.container.read(groupProgressionProvider('group').future);
-      await f.container.read(groupAchievementsProvider('group').future);
-      expect(f.groups.requests, 1);
-      expect(f.groups.achievementRequests, 1);
+  test('conflicted offline pin stays queued for inspection', () async {
+    final f = await _fixture();
+    await f.container.read(pinRepositoryProvider).put(_draft());
+    await f.container
+        .read(pinImageRepositoryProvider)
+        .addImage('draft', Uint8List.fromList([1, 2, 3]), true);
+    f.api.uploadError = ApiException(409, 'duplicate');
+    final progression = f.container.listen(
+      groupProgressionProvider('group'),
+      (_, _) {},
+    );
+    final achievements = f.container.listen(
+      groupAchievementsProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(progression.close);
+    addTearDown(achievements.close);
+    await f.container.read(groupProgressionProvider('group').future);
+    await f.container.read(groupAchievementsProvider('group').future);
+    expect(f.groups.requests, 1);
+    expect(f.groups.achievementRequests, 1);
 
-      await f.container.read(syncingServiceProvider.notifier).syncToBackend();
-      await f.container.pump();
-      final refreshed = await f.container.read(
-        groupProgressionProvider('group').future,
-      );
-      await f.container.read(groupAchievementsProvider('group').future);
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+    await f.container.pump();
+    final refreshed = await f.container.read(
+      groupProgressionProvider('group').future,
+    );
+    await f.container.read(groupAchievementsProvider('group').future);
 
-      expect(f.groups.requests, 2);
-      expect(f.groups.achievementRequests, 2);
-      expect(refreshed?.totalXp, 5);
-      expect(
-        await f.container.read(pinRepositoryProvider).get('draft'),
-        isNull,
-      );
-    },
-  );
+    expect(f.groups.requests, 1);
+    expect(f.groups.achievementRequests, 1);
+    expect(refreshed?.totalXp, 0);
+    expect(
+      await f.container.read(pinRepositoryProvider).get('draft'),
+      isNotNull,
+    );
+    expect(await f.db.select(f.db.pendingPinCreates).get(), hasLength(1));
+  });
 
   test('remote group pin updates refresh group achievements', () async {
     final f = await _fixture();
@@ -362,22 +555,45 @@ class _NoUser extends UserService {
 
 class _Pins extends PinsApi {
   int calls = 0;
+  int uploadCalls = 0;
+  final deleted = <String>[];
   Completer<SyncDto?>? response;
   Completer<PinWithOptionalImageDto?>? upload;
+  Object? syncError;
+  Completer<void>? deleteResponse;
   Object? uploadError;
+  Object? deleteError;
   final started = Completer<void>();
   final uploadStarted = Completer<void>();
+  final secondUploadStarted = Completer<void>();
+  final deleteStarted = Completer<void>();
   @override
-  Future<PinWithOptionalImageDto?> createPin(PinRequestDto request) {
-    uploadStarted.complete();
+  Future<PinWithOptionalImageDto?> createPin(
+    PinRequestDto request, {
+    String? idempotencyKey,
+  }) {
+    uploadCalls++;
+    if (!uploadStarted.isCompleted) uploadStarted.complete();
+    if (uploadCalls == 2 && !secondUploadStarted.isCompleted) {
+      secondUploadStarted.complete();
+    }
     if (uploadError != null) return Future.error(uploadError!);
     return upload!.future;
+  }
+
+  @override
+  Future<void> deletePin(String pinId) async {
+    deleted.add(pinId);
+    if (!deleteStarted.isCompleted) deleteStarted.complete();
+    if (deleteError != null) throw deleteError!;
+    if (deleteResponse != null) await deleteResponse!.future;
   }
 
   @override
   Future<SyncDto?> callSync({DateTime? lastSeen}) async {
     calls++;
     if (!started.isCompleted) started.complete();
+    if (syncError != null) throw syncError!;
     if (response != null) return response!.future;
     return SyncDto(groupUpdates: []);
   }
@@ -410,19 +626,40 @@ class _Groups extends GroupsApi {
 }
 
 Future<
-  ({ProviderContainer container, AppDatabase db, _Pins api, _Groups groups})
+  ({
+    ProviderContainer container,
+    AppDatabase db,
+    _Pins api,
+    _Groups groups,
+    PendingPinRepository pending,
+  })
 >
-_fixture() async {
+_fixture({
+  bool delayedCancel = false,
+  bool failPinCacheWrites = false,
+  bool failPinCacheDeletes = false,
+}) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   final db = AppDatabase(NativeDatabase.memory());
   addTearDown(db.close);
   final api = _Pins();
   final groups = _Groups();
+  final pending = delayedCancel
+      ? _DelayedCancelRepository(db)
+      : PendingPinRepository(db);
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       driftRepoProvider.overrideWithValue(db),
+      if (failPinCacheWrites || failPinCacheDeletes)
+        pinRepositoryProvider.overrideWithValue(
+          _FailingPinRepository(
+            db,
+            failWrites: failPinCacheWrites,
+            failDeletes: failPinCacheDeletes,
+          ),
+        ),
       globalDataOnceProvider.overrideWithValue(
         const GlobalDataDto(
           userId: 'alice',
@@ -431,12 +668,57 @@ _fixture() async {
         ),
       ),
       pinApiProvider.overrideWithValue(api),
+      pendingPinRepositoryProvider.overrideWithValue(pending),
       groupApiProvider.overrideWithValue(groups),
       userServiceProvider('alice').overrideWith(_NoUser.new),
     ],
   );
   addTearDown(container.dispose);
-  return (container: container, db: db, api: api, groups: groups);
+  return (
+    container: container,
+    db: db,
+    api: api,
+    groups: groups,
+    pending: pending,
+  );
+}
+
+class _DelayedCancelRepository extends PendingPinRepository {
+  _DelayedCancelRepository(super.db);
+  final cancelEntered = Completer<void>();
+  final releaseCancel = Completer<void>();
+
+  @override
+  Future<void> requestCancel(String pinId) async {
+    cancelEntered.complete();
+    await releaseCancel.future;
+    await super.requestCancel(pinId);
+  }
+}
+
+class _FailingPinRepository extends PinRepository {
+  _FailingPinRepository(
+    super.db, {
+    this.failWrites = true,
+    this.failDeletes = false,
+  });
+
+  final bool failWrites;
+  final bool failDeletes;
+
+  @override
+  Future<void> put(PinEntity item) =>
+      failWrites ? Future.error(Exception('cache full')) : super.put(item);
+
+  @override
+  Future<void> replacePin(String oldPinId, PinEntity newPin) => failWrites
+      ? Future.error(Exception('cache full'))
+      : super.replacePin(oldPinId, newPin);
+
+  @override
+  Future<void> delete(String id) => failDeletes
+      ? Future.error(Exception('cache unavailable'))
+      : super.delete(id);
 }
 
 PinEntity _draft() => PinEntity(

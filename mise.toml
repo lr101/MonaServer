@@ -1,6 +1,6 @@
 [tools]
 go = "1.27.1"
-flutter = "3.47.4"
+flutter = "3.47.5"
 node = "24.21.0"
 oapi-codegen = "2.8.0"
 sqlc = "1.31.1"
@@ -57,6 +57,7 @@ if [ -n "${E2E_API_URL:-}" ]; then
 else
   flutter build web --wasm --release --no-pub
 fi
+dart run tool/generate_offline_web.dart build/web
 """
 
 [tasks.flutter-playwright-setup]
@@ -81,7 +82,7 @@ run = "node testdata/seed.mjs"
 description = "Build Flutter web and verify the login/group flow with Playwright"
 depends = ["flutter-setup"]
 dir = "flutter"
-run = "E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && cd e2e && npm ci && npm run install:browsers && npm test"
+run = "E2E_WEB_API_HOST=\"${E2E_API_URL:-http://127.0.0.1:8080}\" && flutter build web --wasm --release --no-pub --dart-define=API_HOST=\"$E2E_WEB_API_HOST\" && dart run tool/generate_offline_web.dart build/web && cd e2e && npm ci && npm run install:browsers && node --test offline-startup.test.mjs && npm test"
 
 [tasks.flutter-build-apk]
 description = "Build a debug Android APK"

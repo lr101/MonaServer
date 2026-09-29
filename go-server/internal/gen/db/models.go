@@ -388,6 +388,14 @@ type Pin struct {
 	Title           pgtype.Text        `json:"title"`
 }
 
+type PinCreateIdempotency struct {
+	CallerID       pgtype.UUID        `json:"caller_id"`
+	IdempotencyKey pgtype.UUID        `json:"idempotency_key"`
+	RequestHash    []byte             `json:"request_hash"`
+	PinID          pgtype.UUID        `json:"pin_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type PinPhoto struct {
 	ID                  pgtype.UUID        `json:"id"`
 	PinID               pgtype.UUID        `json:"pin_id"`
@@ -469,35 +477,38 @@ type SecurityIncident struct {
 }
 
 type User struct {
-	ID                      pgtype.UUID        `json:"id"`
-	Username                pgtype.Text        `json:"username"`
-	Email                   pgtype.Text        `json:"email"`
-	Password                pgtype.Text        `json:"password"`
-	ProfilePicture          []byte             `json:"profile_picture"`
-	ProfilePictureSmall     []byte             `json:"profile_picture_small"`
-	UpdateDate              pgtype.Timestamptz `json:"update_date"`
-	CreationDate            pgtype.Timestamptz `json:"creation_date"`
-	ResetPasswordUrl        pgtype.Text        `json:"reset_password_url"`
-	Code                    pgtype.Text        `json:"code"`
-	IsDeleted               bool               `json:"is_deleted"`
-	ProfilePictureExists    bool               `json:"profile_picture_exists"`
-	ResetPasswordExpiration pgtype.Timestamptz `json:"reset_password_expiration"`
-	FailedLoginAttempts     int32              `json:"failed_login_attempts"`
-	CodeExpiration          pgtype.Timestamptz `json:"code_expiration"`
-	DeletionUrl             pgtype.Text        `json:"deletion_url"`
-	Description             pgtype.Text        `json:"description"`
-	LastUsernameUpdate      pgtype.Timestamptz `json:"last_username_update"`
-	Xp                      int32              `json:"xp"`
-	SelectedBatch           pgtype.UUID        `json:"selected_batch"`
-	EmailConfirmed          bool               `json:"email_confirmed"`
-	EmailConfirmationUrl    pgtype.Text        `json:"email_confirmation_url"`
-	FirebaseToken           pgtype.Text        `json:"firebase_token"`
-	AuthGeneration          int64              `json:"auth_generation"`
-	SecurityState           string             `json:"security_state"`
-	PasswordDisabled        bool               `json:"password_disabled"`
-	PasswordResetRequired   bool               `json:"password_reset_required"`
-	CompromisedAt           pgtype.Timestamptz `json:"compromised_at"`
-	SelectedBatchColor      string             `json:"selected_batch_color"`
+	ID                         pgtype.UUID        `json:"id"`
+	Username                   pgtype.Text        `json:"username"`
+	Email                      pgtype.Text        `json:"email"`
+	Password                   pgtype.Text        `json:"password"`
+	ProfilePicture             []byte             `json:"profile_picture"`
+	ProfilePictureSmall        []byte             `json:"profile_picture_small"`
+	UpdateDate                 pgtype.Timestamptz `json:"update_date"`
+	CreationDate               pgtype.Timestamptz `json:"creation_date"`
+	ResetPasswordUrl           pgtype.Text        `json:"reset_password_url"`
+	Code                       pgtype.Text        `json:"code"`
+	IsDeleted                  bool               `json:"is_deleted"`
+	ProfilePictureExists       bool               `json:"profile_picture_exists"`
+	ResetPasswordExpiration    pgtype.Timestamptz `json:"reset_password_expiration"`
+	FailedLoginAttempts        int32              `json:"failed_login_attempts"`
+	CodeExpiration             pgtype.Timestamptz `json:"code_expiration"`
+	DeletionUrl                pgtype.Text        `json:"deletion_url"`
+	Description                pgtype.Text        `json:"description"`
+	LastUsernameUpdate         pgtype.Timestamptz `json:"last_username_update"`
+	Xp                         int32              `json:"xp"`
+	SelectedBatch              pgtype.UUID        `json:"selected_batch"`
+	EmailConfirmed             bool               `json:"email_confirmed"`
+	EmailConfirmationUrl       pgtype.Text        `json:"email_confirmation_url"`
+	FirebaseToken              pgtype.Text        `json:"firebase_token"`
+	AuthGeneration             int64              `json:"auth_generation"`
+	SecurityState              string             `json:"security_state"`
+	PasswordDisabled           bool               `json:"password_disabled"`
+	PasswordResetRequired      bool               `json:"password_reset_required"`
+	CompromisedAt              pgtype.Timestamptz `json:"compromised_at"`
+	SelectedBatchColor         string             `json:"selected_batch_color"`
+	AccountActivated           bool               `json:"account_activated"`
+	EmailConfirmationExpiresAt pgtype.Timestamptz `json:"email_confirmation_expires_at"`
+	EmailConfirmationSentAt    pgtype.Timestamptz `json:"email_confirmation_sent_at"`
 }
 
 type UserAchievement struct {

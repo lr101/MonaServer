@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,20 @@ import (
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/service"
 )
+
+type pinCreateKeyContextKey struct{}
+
+// CapturePinCreateIdempotency bridges the optional contract header through
+// the preserved legacy controller, whose generated signature has no header.
+func CapturePinCreateIdempotency(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v2/pins" {
+			key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+			r = r.WithContext(context.WithValue(r.Context(), pinCreateKeyContextKey{}, key))
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // PinsServicer implements genserver.PinsAPIServicer.
 type PinsServicer struct {
@@ -147,6 +162,14 @@ func (s *PinsServicer) GetNearbyPins(ctx context.Context, latitude, longitude fl
 }
 
 func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDto) (genserver.ImplResponse, error) {
+	var key *uuid.UUID
+	if raw, ok := ctx.Value(pinCreateKeyContextKey{}).(string); ok && raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil || len(raw) > 36 {
+			return genserver.Response(http.StatusBadRequest, nil), nil
+		}
+		key = &parsed
+	}
 	if dto.Image == "" {
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
@@ -175,14 +198,16 @@ func (s *PinsServicer) CreatePin(ctx context.Context, dto genserver.PinRequestDt
 		return genserver.Response(http.StatusBadRequest, nil), nil
 	}
 	result, err := s.pin.Create(ctx, service.CreatePinInput{
-		Latitude:     float64(dto.Latitude),
-		Longitude:    float64(dto.Longitude),
-		CreationDate: dto.CreationDate,
-		Title:        dto.Title,
-		Description:  dto.Description,
-		UserID:       uid,
-		GroupID:      gid,
-		Image:        imgBytes,
+		Latitude:       float64(dto.Latitude),
+		Longitude:      float64(dto.Longitude),
+		CreationDate:   dto.CreationDate,
+		Title:          dto.Title,
+		Description:    dto.Description,
+		UserID:         uid,
+		GroupID:        gid,
+		Image:          imgBytes,
+		CallerID:       caller,
+		IdempotencyKey: key,
 	})
 	if err != nil {
 		return serviceErrResp(ctx, err), nil

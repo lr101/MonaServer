@@ -413,12 +413,18 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 
 	likerID := createTestUser(t, auth, "selected_badge_liker")
 	groupID := createTestGroup(t, group, likerID, "selected_badge_group")
-	for i := 2; i <= 25; i++ {
-		if _, err := group.Create(ctx, CreateGroupInput{
+	for i := 2; i <= 10; i++ {
+		created, err := group.Create(ctx, CreateGroupInput{
 			Name:       fmt.Sprintf("selected_badge_group_%d", i),
 			Visibility: 0, GroupAdmin: likerID,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("create group %d for badge eligibility: %v", i, err)
+		}
+		if _, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: likerID, GroupID: created.ID,
+		}); err != nil {
+			t.Fatalf("create contribution in group %d: %v", i, err)
 		}
 	}
 	if _, err := pin.Create(ctx, CreatePinInput{
@@ -427,14 +433,14 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 		t.Fatalf("create ranking pin: %v", err)
 	}
 	if err := user.ClaimAchievement(ctx, likerID, 21); err != nil {
-		t.Fatalf("claim group-joining achievement: %v", err)
+		t.Fatalf("claim cross-group contribution achievement: %v", err)
 	}
 	rowID, err := q.GetUserAchievementRow(ctx, likerID, 21)
 	if err != nil || rowID == nil {
 		t.Fatalf("get claimed achievement row: id=%v err=%v", rowID, err)
 	}
 	if err := q.SetUserSelectedBatch(ctx, likerID, *rowID); err != nil {
-		t.Fatalf("select group-joining achievement: %v", err)
+		t.Fatalf("select cross-group contribution achievement: %v", err)
 	}
 
 	assertSelected := func(want bool) {
@@ -478,13 +484,11 @@ func TestPublicRankingsHideSelectedBadgesWhenRequirementsNoLongerHold(t *testing
 	assertSelected(true)
 
 	if _, err := q.Pool().Exec(ctx, `
-		UPDATE members
-		SET is_deleted = TRUE
-		WHERE user_id = $1 AND group_id <> $2`, likerID, groupID); err != nil {
-		t.Fatalf("remove group memberships: %v", err)
+		UPDATE pins SET is_deleted = TRUE
+		WHERE creator_id = $1 AND group_id <> $2`, likerID, groupID); err != nil {
+		t.Fatalf("remove group contributions: %v", err)
 	}
-	// Keep the user in this group while revoking the selected badge's separate
-	// 25-group requirement. Public ranking results validate badge progress live.
+	// Keep membership while revoking the selected badge's contribution requirement.
 	assertSelected(false)
 }
 

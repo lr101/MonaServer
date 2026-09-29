@@ -329,6 +329,32 @@ func TestGroupAchievementClaimsUnlockSharedPinStyles(t *testing.T) {
 	}
 }
 
+func TestFirstPairGroupRewardIsProportionalAndOneTime(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userID := createTestUser(t, auth, "first_pair_reward_user")
+	groupID := createTestGroup(t, group, userID, "first_pair_reward_group")
+	for i := 0; i < 2; i++ {
+		if _, err := pin.Create(ctx, CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: userID, GroupID: groupID,
+		}); err != nil {
+			t.Fatalf("create group pin %d: %v", i+1, err)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		if err := group.ClaimAchievement(ctx, groupID, userID, 4); err != nil {
+			t.Fatalf("claim first pair %d: %v", i+1, err)
+		}
+	}
+	var groupXP int32
+	if err := q.Pool().QueryRow(ctx, `SELECT group_xp FROM groups WHERE id = $1`, groupID).Scan(&groupXP); err != nil {
+		t.Fatalf("read group XP: %v", err)
+	}
+	if groupXP != 20 {
+		t.Fatalf("group XP after two pins and one first-pair reward = %d, want 20", groupXP)
+	}
+}
+
 func TestGroupSearchKeepsMetadataWhenImageSigningFails(t *testing.T) {
 	_, auth, _, _, _, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

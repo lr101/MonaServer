@@ -5,7 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'app_review_state.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 class AppReviewState extends _$AppReviewState {
   @override
   bool build() {

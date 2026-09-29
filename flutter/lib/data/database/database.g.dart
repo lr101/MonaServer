@@ -2939,6 +2939,730 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
   }
 }
 
+class $PendingPinCreatesTable extends PendingPinCreates
+    with TableInfo<$PendingPinCreatesTable, PendingPinCreateDb> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PendingPinCreatesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _pinIdMeta = const VerificationMeta('pinId');
+  @override
+  late final GeneratedColumn<String> pinId = GeneratedColumn<String>(
+    'pin_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ownerIdMeta = const VerificationMeta(
+    'ownerId',
+  );
+  @override
+  late final GeneratedColumn<String> ownerId = GeneratedColumn<String>(
+    'owner_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _groupIdMeta = const VerificationMeta(
+    'groupId',
+  );
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+    'group_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _creationDateMeta = const VerificationMeta(
+    'creationDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creationDate = GeneratedColumn<DateTime>(
+    'creation_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _imageMeta = const VerificationMeta('image');
+  @override
+  late final GeneratedColumn<Uint8List> image = GeneratedColumn<Uint8List>(
+    'image',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cancelRequestedMeta = const VerificationMeta(
+    'cancelRequested',
+  );
+  @override
+  late final GeneratedColumn<bool> cancelRequested = GeneratedColumn<bool>(
+    'cancel_requested',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cancel_requested" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _attemptedMeta = const VerificationMeta(
+    'attempted',
+  );
+  @override
+  late final GeneratedColumn<bool> attempted = GeneratedColumn<bool>(
+    'attempted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("attempted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    pinId,
+    ownerId,
+    groupId,
+    latitude,
+    longitude,
+    creationDate,
+    title,
+    description,
+    image,
+    cancelRequested,
+    attempted,
+    lastError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pending_pin_creates';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PendingPinCreateDb> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('pin_id')) {
+      context.handle(
+        _pinIdMeta,
+        pinId.isAcceptableOrUnknown(data['pin_id']!, _pinIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pinIdMeta);
+    }
+    if (data.containsKey('owner_id')) {
+      context.handle(
+        _ownerIdMeta,
+        ownerId.isAcceptableOrUnknown(data['owner_id']!, _ownerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ownerIdMeta);
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(
+        _groupIdMeta,
+        groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_groupIdMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('creation_date')) {
+      context.handle(
+        _creationDateMeta,
+        creationDate.isAcceptableOrUnknown(
+          data['creation_date']!,
+          _creationDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_creationDateMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('image')) {
+      context.handle(
+        _imageMeta,
+        image.isAcceptableOrUnknown(data['image']!, _imageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_imageMeta);
+    }
+    if (data.containsKey('cancel_requested')) {
+      context.handle(
+        _cancelRequestedMeta,
+        cancelRequested.isAcceptableOrUnknown(
+          data['cancel_requested']!,
+          _cancelRequestedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attempted')) {
+      context.handle(
+        _attemptedMeta,
+        attempted.isAcceptableOrUnknown(data['attempted']!, _attemptedMeta),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {pinId};
+  @override
+  PendingPinCreateDb map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PendingPinCreateDb(
+      pinId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pin_id'],
+      )!,
+      ownerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_id'],
+      )!,
+      groupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}group_id'],
+      )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      creationDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creation_date'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      image: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}image'],
+      )!,
+      cancelRequested: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cancel_requested'],
+      )!,
+      attempted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}attempted'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+    );
+  }
+
+  @override
+  $PendingPinCreatesTable createAlias(String alias) {
+    return $PendingPinCreatesTable(attachedDatabase, alias);
+  }
+}
+
+class PendingPinCreateDb extends DataClass
+    implements Insertable<PendingPinCreateDb> {
+  final String pinId;
+  final String ownerId;
+  final String groupId;
+  final double latitude;
+  final double longitude;
+  final DateTime creationDate;
+  final String? title;
+  final String? description;
+  final Uint8List image;
+  final bool cancelRequested;
+  final bool attempted;
+  final String? lastError;
+  const PendingPinCreateDb({
+    required this.pinId,
+    required this.ownerId,
+    required this.groupId,
+    required this.latitude,
+    required this.longitude,
+    required this.creationDate,
+    this.title,
+    this.description,
+    required this.image,
+    required this.cancelRequested,
+    required this.attempted,
+    this.lastError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['pin_id'] = Variable<String>(pinId);
+    map['owner_id'] = Variable<String>(ownerId);
+    map['group_id'] = Variable<String>(groupId);
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    map['creation_date'] = Variable<DateTime>(creationDate);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['image'] = Variable<Uint8List>(image);
+    map['cancel_requested'] = Variable<bool>(cancelRequested);
+    map['attempted'] = Variable<bool>(attempted);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    return map;
+  }
+
+  PendingPinCreatesCompanion toCompanion(bool nullToAbsent) {
+    return PendingPinCreatesCompanion(
+      pinId: Value(pinId),
+      ownerId: Value(ownerId),
+      groupId: Value(groupId),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      creationDate: Value(creationDate),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      image: Value(image),
+      cancelRequested: Value(cancelRequested),
+      attempted: Value(attempted),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+    );
+  }
+
+  factory PendingPinCreateDb.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PendingPinCreateDb(
+      pinId: serializer.fromJson<String>(json['pinId']),
+      ownerId: serializer.fromJson<String>(json['ownerId']),
+      groupId: serializer.fromJson<String>(json['groupId']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      creationDate: serializer.fromJson<DateTime>(json['creationDate']),
+      title: serializer.fromJson<String?>(json['title']),
+      description: serializer.fromJson<String?>(json['description']),
+      image: serializer.fromJson<Uint8List>(json['image']),
+      cancelRequested: serializer.fromJson<bool>(json['cancelRequested']),
+      attempted: serializer.fromJson<bool>(json['attempted']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'pinId': serializer.toJson<String>(pinId),
+      'ownerId': serializer.toJson<String>(ownerId),
+      'groupId': serializer.toJson<String>(groupId),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'creationDate': serializer.toJson<DateTime>(creationDate),
+      'title': serializer.toJson<String?>(title),
+      'description': serializer.toJson<String?>(description),
+      'image': serializer.toJson<Uint8List>(image),
+      'cancelRequested': serializer.toJson<bool>(cancelRequested),
+      'attempted': serializer.toJson<bool>(attempted),
+      'lastError': serializer.toJson<String?>(lastError),
+    };
+  }
+
+  PendingPinCreateDb copyWith({
+    String? pinId,
+    String? ownerId,
+    String? groupId,
+    double? latitude,
+    double? longitude,
+    DateTime? creationDate,
+    Value<String?> title = const Value.absent(),
+    Value<String?> description = const Value.absent(),
+    Uint8List? image,
+    bool? cancelRequested,
+    bool? attempted,
+    Value<String?> lastError = const Value.absent(),
+  }) => PendingPinCreateDb(
+    pinId: pinId ?? this.pinId,
+    ownerId: ownerId ?? this.ownerId,
+    groupId: groupId ?? this.groupId,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    creationDate: creationDate ?? this.creationDate,
+    title: title.present ? title.value : this.title,
+    description: description.present ? description.value : this.description,
+    image: image ?? this.image,
+    cancelRequested: cancelRequested ?? this.cancelRequested,
+    attempted: attempted ?? this.attempted,
+    lastError: lastError.present ? lastError.value : this.lastError,
+  );
+  PendingPinCreateDb copyWithCompanion(PendingPinCreatesCompanion data) {
+    return PendingPinCreateDb(
+      pinId: data.pinId.present ? data.pinId.value : this.pinId,
+      ownerId: data.ownerId.present ? data.ownerId.value : this.ownerId,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      creationDate: data.creationDate.present
+          ? data.creationDate.value
+          : this.creationDate,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      image: data.image.present ? data.image.value : this.image,
+      cancelRequested: data.cancelRequested.present
+          ? data.cancelRequested.value
+          : this.cancelRequested,
+      attempted: data.attempted.present ? data.attempted.value : this.attempted,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingPinCreateDb(')
+          ..write('pinId: $pinId, ')
+          ..write('ownerId: $ownerId, ')
+          ..write('groupId: $groupId, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('image: $image, ')
+          ..write('cancelRequested: $cancelRequested, ')
+          ..write('attempted: $attempted, ')
+          ..write('lastError: $lastError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    pinId,
+    ownerId,
+    groupId,
+    latitude,
+    longitude,
+    creationDate,
+    title,
+    description,
+    $driftBlobEquality.hash(image),
+    cancelRequested,
+    attempted,
+    lastError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PendingPinCreateDb &&
+          other.pinId == this.pinId &&
+          other.ownerId == this.ownerId &&
+          other.groupId == this.groupId &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.creationDate == this.creationDate &&
+          other.title == this.title &&
+          other.description == this.description &&
+          $driftBlobEquality.equals(other.image, this.image) &&
+          other.cancelRequested == this.cancelRequested &&
+          other.attempted == this.attempted &&
+          other.lastError == this.lastError);
+}
+
+class PendingPinCreatesCompanion extends UpdateCompanion<PendingPinCreateDb> {
+  final Value<String> pinId;
+  final Value<String> ownerId;
+  final Value<String> groupId;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<DateTime> creationDate;
+  final Value<String?> title;
+  final Value<String?> description;
+  final Value<Uint8List> image;
+  final Value<bool> cancelRequested;
+  final Value<bool> attempted;
+  final Value<String?> lastError;
+  final Value<int> rowid;
+  const PendingPinCreatesCompanion({
+    this.pinId = const Value.absent(),
+    this.ownerId = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.creationDate = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.image = const Value.absent(),
+    this.cancelRequested = const Value.absent(),
+    this.attempted = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PendingPinCreatesCompanion.insert({
+    required String pinId,
+    required String ownerId,
+    required String groupId,
+    required double latitude,
+    required double longitude,
+    required DateTime creationDate,
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    required Uint8List image,
+    this.cancelRequested = const Value.absent(),
+    this.attempted = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : pinId = Value(pinId),
+       ownerId = Value(ownerId),
+       groupId = Value(groupId),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       creationDate = Value(creationDate),
+       image = Value(image);
+  static Insertable<PendingPinCreateDb> custom({
+    Expression<String>? pinId,
+    Expression<String>? ownerId,
+    Expression<String>? groupId,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<DateTime>? creationDate,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<Uint8List>? image,
+    Expression<bool>? cancelRequested,
+    Expression<bool>? attempted,
+    Expression<String>? lastError,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (pinId != null) 'pin_id': pinId,
+      if (ownerId != null) 'owner_id': ownerId,
+      if (groupId != null) 'group_id': groupId,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (creationDate != null) 'creation_date': creationDate,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (image != null) 'image': image,
+      if (cancelRequested != null) 'cancel_requested': cancelRequested,
+      if (attempted != null) 'attempted': attempted,
+      if (lastError != null) 'last_error': lastError,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PendingPinCreatesCompanion copyWith({
+    Value<String>? pinId,
+    Value<String>? ownerId,
+    Value<String>? groupId,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<DateTime>? creationDate,
+    Value<String?>? title,
+    Value<String?>? description,
+    Value<Uint8List>? image,
+    Value<bool>? cancelRequested,
+    Value<bool>? attempted,
+    Value<String?>? lastError,
+    Value<int>? rowid,
+  }) {
+    return PendingPinCreatesCompanion(
+      pinId: pinId ?? this.pinId,
+      ownerId: ownerId ?? this.ownerId,
+      groupId: groupId ?? this.groupId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      creationDate: creationDate ?? this.creationDate,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      image: image ?? this.image,
+      cancelRequested: cancelRequested ?? this.cancelRequested,
+      attempted: attempted ?? this.attempted,
+      lastError: lastError ?? this.lastError,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (pinId.present) {
+      map['pin_id'] = Variable<String>(pinId.value);
+    }
+    if (ownerId.present) {
+      map['owner_id'] = Variable<String>(ownerId.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (creationDate.present) {
+      map['creation_date'] = Variable<DateTime>(creationDate.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (image.present) {
+      map['image'] = Variable<Uint8List>(image.value);
+    }
+    if (cancelRequested.present) {
+      map['cancel_requested'] = Variable<bool>(cancelRequested.value);
+    }
+    if (attempted.present) {
+      map['attempted'] = Variable<bool>(attempted.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingPinCreatesCompanion(')
+          ..write('pinId: $pinId, ')
+          ..write('ownerId: $ownerId, ')
+          ..write('groupId: $groupId, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('creationDate: $creationDate, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('image: $image, ')
+          ..write('cancelRequested: $cancelRequested, ')
+          ..write('attempted: $attempted, ')
+          ..write('lastError: $lastError, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PinLikeEntitiesTable extends PinLikeEntities
     with TableInfo<$PinLikeEntitiesTable, PinLikeDb> {
   @override
@@ -5504,6 +6228,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ImageEntitiesTable imageEntities = $ImageEntitiesTable(this);
   late final $MemberEntitiesTable memberEntities = $MemberEntitiesTable(this);
   late final $PinEntitiesTable pinEntities = $PinEntitiesTable(this);
+  late final $PendingPinCreatesTable pendingPinCreates =
+      $PendingPinCreatesTable(this);
   late final $PinLikeEntitiesTable pinLikeEntities = $PinLikeEntitiesTable(
     this,
   );
@@ -5523,6 +6249,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     imageEntities,
     memberEntities,
     pinEntities,
+    pendingPinCreates,
     pinLikeEntities,
     userEntities,
     userLikeEntities,
@@ -6909,6 +7636,358 @@ typedef $$PinEntitiesTableProcessedTableManager =
       PinDb,
       PrefetchHooks Function()
     >;
+typedef $$PendingPinCreatesTableCreateCompanionBuilder =
+    PendingPinCreatesCompanion Function({
+      required String pinId,
+      required String ownerId,
+      required String groupId,
+      required double latitude,
+      required double longitude,
+      required DateTime creationDate,
+      Value<String?> title,
+      Value<String?> description,
+      required Uint8List image,
+      Value<bool> cancelRequested,
+      Value<bool> attempted,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+typedef $$PendingPinCreatesTableUpdateCompanionBuilder =
+    PendingPinCreatesCompanion Function({
+      Value<String> pinId,
+      Value<String> ownerId,
+      Value<String> groupId,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<DateTime> creationDate,
+      Value<String?> title,
+      Value<String?> description,
+      Value<Uint8List> image,
+      Value<bool> cancelRequested,
+      Value<bool> attempted,
+      Value<String?> lastError,
+      Value<int> rowid,
+    });
+
+class $$PendingPinCreatesTableFilterComposer
+    extends Composer<_$AppDatabase, $PendingPinCreatesTable> {
+  $$PendingPinCreatesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get pinId => $composableBuilder(
+    column: $table.pinId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerId => $composableBuilder(
+    column: $table.ownerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creationDate => $composableBuilder(
+    column: $table.creationDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get image => $composableBuilder(
+    column: $table.image,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get attempted => $composableBuilder(
+    column: $table.attempted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PendingPinCreatesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PendingPinCreatesTable> {
+  $$PendingPinCreatesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get pinId => $composableBuilder(
+    column: $table.pinId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ownerId => $composableBuilder(
+    column: $table.ownerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get groupId => $composableBuilder(
+    column: $table.groupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creationDate => $composableBuilder(
+    column: $table.creationDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get image => $composableBuilder(
+    column: $table.image,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get attempted => $composableBuilder(
+    column: $table.attempted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PendingPinCreatesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingPinCreatesTable> {
+  $$PendingPinCreatesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get pinId =>
+      $composableBuilder(column: $table.pinId, builder: (column) => column);
+
+  GeneratedColumn<String> get ownerId =>
+      $composableBuilder(column: $table.ownerId, builder: (column) => column);
+
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get creationDate => $composableBuilder(
+    column: $table.creationDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<Uint8List> get image =>
+      $composableBuilder(column: $table.image, builder: (column) => column);
+
+  GeneratedColumn<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get attempted =>
+      $composableBuilder(column: $table.attempted, builder: (column) => column);
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+}
+
+class $$PendingPinCreatesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PendingPinCreatesTable,
+          PendingPinCreateDb,
+          $$PendingPinCreatesTableFilterComposer,
+          $$PendingPinCreatesTableOrderingComposer,
+          $$PendingPinCreatesTableAnnotationComposer,
+          $$PendingPinCreatesTableCreateCompanionBuilder,
+          $$PendingPinCreatesTableUpdateCompanionBuilder,
+          (
+            PendingPinCreateDb,
+            BaseReferences<
+              _$AppDatabase,
+              $PendingPinCreatesTable,
+              PendingPinCreateDb
+            >,
+          ),
+          PendingPinCreateDb,
+          PrefetchHooks Function()
+        > {
+  $$PendingPinCreatesTableTableManager(
+    _$AppDatabase db,
+    $PendingPinCreatesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingPinCreatesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PendingPinCreatesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PendingPinCreatesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> pinId = const Value.absent(),
+                Value<String> ownerId = const Value.absent(),
+                Value<String> groupId = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<DateTime> creationDate = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<Uint8List> image = const Value.absent(),
+                Value<bool> cancelRequested = const Value.absent(),
+                Value<bool> attempted = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingPinCreatesCompanion(
+                pinId: pinId,
+                ownerId: ownerId,
+                groupId: groupId,
+                latitude: latitude,
+                longitude: longitude,
+                creationDate: creationDate,
+                title: title,
+                description: description,
+                image: image,
+                cancelRequested: cancelRequested,
+                attempted: attempted,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String pinId,
+                required String ownerId,
+                required String groupId,
+                required double latitude,
+                required double longitude,
+                required DateTime creationDate,
+                Value<String?> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                required Uint8List image,
+                Value<bool> cancelRequested = const Value.absent(),
+                Value<bool> attempted = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingPinCreatesCompanion.insert(
+                pinId: pinId,
+                ownerId: ownerId,
+                groupId: groupId,
+                latitude: latitude,
+                longitude: longitude,
+                creationDate: creationDate,
+                title: title,
+                description: description,
+                image: image,
+                cancelRequested: cancelRequested,
+                attempted: attempted,
+                lastError: lastError,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PendingPinCreatesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PendingPinCreatesTable,
+      PendingPinCreateDb,
+      $$PendingPinCreatesTableFilterComposer,
+      $$PendingPinCreatesTableOrderingComposer,
+      $$PendingPinCreatesTableAnnotationComposer,
+      $$PendingPinCreatesTableCreateCompanionBuilder,
+      $$PendingPinCreatesTableUpdateCompanionBuilder,
+      (
+        PendingPinCreateDb,
+        BaseReferences<
+          _$AppDatabase,
+          $PendingPinCreatesTable,
+          PendingPinCreateDb
+        >,
+      ),
+      PendingPinCreateDb,
+      PrefetchHooks Function()
+    >;
 typedef $$PinLikeEntitiesTableCreateCompanionBuilder =
     PinLikeEntitiesCompanion Function({
       Value<int> isarId,
@@ -8152,6 +9231,8 @@ class $AppDatabaseManager {
       $$MemberEntitiesTableTableManager(_db, _db.memberEntities);
   $$PinEntitiesTableTableManager get pinEntities =>
       $$PinEntitiesTableTableManager(_db, _db.pinEntities);
+  $$PendingPinCreatesTableTableManager get pendingPinCreates =>
+      $$PendingPinCreatesTableTableManager(_db, _db.pendingPinCreates);
   $$PinLikeEntitiesTableTableManager get pinLikeEntities =>
       $$PinLikeEntitiesTableTableManager(_db, _db.pinLikeEntities);
   $$UserEntitiesTableTableManager get userEntities =>

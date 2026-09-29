@@ -233,88 +233,85 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets(
-    'keeps selector above upload in the preview corner on compact screens',
-    (tester) async {
-      const cameras = [
-        CameraDescription(
-          name: 'back-camera',
-          lensDirection: CameraLensDirection.back,
-          sensorOrientation: 90,
-        ),
-        CameraDescription(
-          name: 'front-camera',
-          lensDirection: CameraLensDirection.front,
-          sensorOrientation: 270,
-        ),
-      ];
-      final controller = _FakeCameraController();
-      final originalPlatform = CameraPlatform.instance;
-      CameraPlatform.instance = _CameraPlatform(cameras);
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await SharedPreferences.getInstance();
+  testWidgets('keeps camera controls accessible in a compact side panel', (
+    tester,
+  ) async {
+    const cameras = [
+      CameraDescription(
+        name: 'back-camera',
+        lensDirection: CameraLensDirection.back,
+        sensorOrientation: 90,
+      ),
+      CameraDescription(
+        name: 'front-camera',
+        lensDirection: CameraLensDirection.front,
+        sensorOrientation: 270,
+      ),
+    ];
+    final controller = _FakeCameraController();
+    final originalPlatform = CameraPlatform.instance;
+    CameraPlatform.instance = _CameraPlatform(cameras);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
 
-      await tester.binding.setSurfaceSize(const Size(320, 240));
-      addTearDown(() async {
-        CameraPlatform.instance = originalPlatform;
-        await tester.binding.setSurfaceSize(null);
-        await controller.dispose();
-      });
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            globalDataOnceProvider.overrideWithValue(
-              const GlobalDataDto(
-                userId: null,
-                refreshToken: null,
-                cameras: cameras,
-              ),
+    await tester.binding.setSurfaceSize(const Size(320, 240));
+    addTearDown(() async {
+      CameraPlatform.instance = originalPlatform;
+      await tester.binding.setSurfaceSize(null);
+      await controller.dispose();
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: null,
+              refreshToken: null,
+              cameras: cameras,
             ),
-            sharedPreferencesProvider.overrideWithValue(preferences),
-            groupOrderServiceProvider.overrideWithValue([]),
-            cameraControllerProvider.overrideWith(
-              (ref) => Future.value(controller),
-            ),
-          ],
-          child: const MaterialApp(home: Camera()),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+          ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          groupOrderServiceProvider.overrideWithValue([]),
+          cameraControllerProvider.overrideWith(
+            (ref) => Future.value(controller),
+          ),
+        ],
+        child: const MaterialApp(home: Camera()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
-      final upload = find.byTooltip('Upload photo');
-      final selector = find.byTooltip('Select camera');
-      expect(upload, findsOneWidget);
-      expect(selector, findsOneWidget);
-      expect(
-        tester.getTopLeft(selector).dy,
-        lessThan(tester.getTopLeft(upload).dy),
-      );
-      expect(tester.getBottomRight(selector).dx, lessThanOrEqualTo(320));
-      expect(tester.getBottomRight(selector).dy, lessThanOrEqualTo(240));
-      expect(tester.takeException(), isNull);
+    final upload = find.byTooltip('Choose from gallery');
+    final selector = find.byTooltip('Select camera');
+    expect(upload, findsOneWidget);
+    expect(selector, findsOneWidget);
+    expect(
+      tester.getTopLeft(selector).dy,
+      closeTo(tester.getTopLeft(upload).dy, .01),
+    );
+    expect(
+      tester.getTopLeft(selector).dx,
+      lessThan(tester.getTopLeft(upload).dx),
+    );
+    expect(tester.getBottomRight(selector).dx, lessThanOrEqualTo(320));
+    expect(tester.getBottomRight(selector).dy, lessThanOrEqualTo(240));
+    expect(tester.takeException(), isNull);
 
-      await tester.tap(selector);
-      await tester.pumpAndSettle();
-      expect(find.text('Back camera'), findsOneWidget);
-      expect(find.text('Front camera'), findsOneWidget);
-      final menu = find
-          .ancestor(
-            of: find.text('Back camera'),
-            matching: find.byType(Material),
-          )
-          .first;
-      expect(
-        tester.getRect(menu).bottom,
-        lessThanOrEqualTo(tester.getTopLeft(upload).dy),
-      );
-      expect(
-        tester.getTopLeft(find.text('Back camera')).dy,
-        greaterThanOrEqualTo(0),
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+    expect(find.text('Back camera'), findsOneWidget);
+    expect(find.text('Front camera'), findsOneWidget);
+    final menu = find
+        .ancestor(of: find.text('Back camera'), matching: find.byType(Material))
+        .first;
+    expect(tester.getRect(menu).bottom, lessThanOrEqualTo(240));
+    expect(
+      tester.getTopLeft(find.text('Back camera')).dy,
+      greaterThanOrEqualTo(0),
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('does not overflow when navigation reduces the preview height', (
     tester,

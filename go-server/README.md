@@ -61,6 +61,7 @@ files.
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
 | `WEB_HOST` | — | Public hostname; canonical domain for email links and the API root redirect |
 | `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and own-session revoke routes; restricted recovery completion remains unavailable |
+| `EMAIL_LOGIN_TOKEN_TTL` | `15m` | Public email sign-in link lifetime as a Go duration string; maximum `24h` |
 | `EMAIL_LOGIN_HMAC_KEY`, `EMAIL_LOGIN_HMAC_KEY_ID` | — | At least 32 bytes and stable ID for public request quotas; required when email login is enabled |
 | `EMAIL_DELIVERY_KEY`, `EMAIL_DELIVERY_KEY_ID` | — | 32-byte AES key and stable ID for durable email payloads; required when email login is enabled |
 | `EMAIL_LOGIN_CALLBACK_URL` | — | Flutter web callback URL such as `https://app.example/#/email-login/callback`; required when email login is enabled. The root Compose deployment derives it from `WEB_HOST`; standalone deployments must set it explicitly. |

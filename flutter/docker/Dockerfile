@@ -49,7 +49,8 @@ COPY . .
 # Flutter's --wasm build includes both the Wasm build and a dart2js fallback.
 # flutter_bootstrap.js selects the first compatible build in the browser.
 ARG API_HOST=https://stick-it.lr-projects.de
-RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST="${API_HOST}"
+RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST="${API_HOST}" && \
+    dart run tool/generate_offline_web.dart build/web
 
 # Fail the image build if a future Flutter/toolchain change drops either
 # browser variant or the runtime configuration assets.

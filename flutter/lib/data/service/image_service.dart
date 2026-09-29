@@ -138,3 +138,17 @@ Stream<Uint8List?> pinImageBytes(Ref ref, String pinId) {
   final repo = ref.watch(pinImageRepositoryProvider);
   return _watchAndFetchImage(repo, pinId, false);
 }
+
+/// Fetches the pin's original image after the request has settled.
+///
+/// Unlike [pinImageBytes], this future does not emit the cache's initial null
+/// value while a background request is still in flight. Detail screens use
+/// that distinction to avoid showing a missing-image state during loading.
+final pinImageForDetailsProvider = FutureProvider.autoDispose
+    .family<Uint8List?, String>((ref, pinId) async {
+      final repo = ref.watch(pinImageRepositoryProvider);
+      final cachedImage = await ref.watch(pinImageBytesProvider(pinId).future);
+      if (cachedImage != null) return cachedImage;
+
+      return repo.fetchImage(pinId, false);
+    });

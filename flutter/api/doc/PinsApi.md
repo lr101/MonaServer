@@ -118,7 +118,7 @@ Name | Type | Description  | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **createPin**
-> PinWithOptionalImageDto createPin(pinRequestDto)
+> PinWithOptionalImageDto createPin(pinRequestDto, idempotencyKey)
 
 Create a new pin
 
@@ -134,9 +134,10 @@ import 'package:openapi/api.dart';
 
 final api_instance = PinsApi();
 final pinRequestDto = PinRequestDto(); // PinRequestDto |
+final idempotencyKey = idempotencyKey_example; // String | Optional client-generated UUID for safely retrying pin creation.
 
 try {
-    final result = api_instance.createPin(pinRequestDto);
+    final result = api_instance.createPin(pinRequestDto, idempotencyKey);
     print(result);
 } catch (e) {
     print('Exception when calling PinsApi->createPin: $e\n');
@@ -148,6 +149,7 @@ try {
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **pinRequestDto** | [**PinRequestDto**](PinRequestDto.md)|  |
+ **idempotencyKey** | **String**| Optional client-generated UUID for safely retrying pin creation. | [optional]
 
 ### Return type
 

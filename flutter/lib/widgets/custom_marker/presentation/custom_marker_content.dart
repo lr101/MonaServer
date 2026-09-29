@@ -72,7 +72,7 @@ class PinMarkerImage extends StatelessWidget {
               : 56.0;
           final scale = math
               .min(availableWidth / 48, availableHeight / 56)
-              .clamp(.55, 1.0);
+              .clamp(0.0, 1.0);
           final width = 48 * scale;
           final height = 56 * scale;
           final strokeWidth = resolvedDesign.outlineWidth * scale;
@@ -88,55 +88,102 @@ class PinMarkerImage extends StatelessWidget {
           final overlayDiameter = headDiameter * .64;
           final overlayLeft = (width - overlayDiameter) / 2;
           final overlayTop = headCenterY - overlayDiameter / 2;
-          return SizedBox(
-            width: width,
-            height: height,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
-                    painter: _MapPinShadowPainter(
-                      resolvedDesign,
-                      strokeWidth: strokeWidth,
+          // Keep round markers framed like the round group profile image.
+          final markerImage = resolvedDesign.shape == 'circle'
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fromRect(
+                      rect: _mapPinCircleRect(
+                        Size(width - strokeWidth, height - strokeWidth),
+                      ).shift(Offset(strokeWidth / 2, strokeWidth / 2)),
+                      child: ClipOval(child: pinImage),
                     ),
-                    foregroundPainter: _MapPinOutlinePainter(
-                      resolvedDesign,
-                      strokeWidth: strokeWidth,
-                    ),
-                    child: ClipPath(
-                      clipper: _MapPinClipper(
-                        resolvedDesign.shape,
+                  ],
+                )
+              : Transform.scale(
+                  scale: resolvedDesign.imageZoom,
+                  child: pinImage,
+                );
+          // Keep preview bounds from stretching the canvas beyond this geometry.
+          return Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      key: ValueKey('pin-style-frame-${resolvedDesign.style}'),
+                      painter: _MapPinShadowPainter(
+                        resolvedDesign,
                         strokeWidth: strokeWidth,
                       ),
-                      child: Transform.scale(
-                        scale: resolvedDesign.imageZoom,
-                        child: pinImage,
+                      foregroundPainter: _MapPinOutlinePainter(
+                        resolvedDesign,
+                        strokeWidth: strokeWidth,
+                      ),
+                      child: ClipPath(
+                        clipper: _MapPinClipper(
+                          resolvedDesign.shape,
+                          strokeWidth: strokeWidth,
+                        ),
+                        child: markerImage,
                       ),
                     ),
                   ),
-                ),
-                if (isGone)
-                  Positioned(
-                    left: overlayLeft + overlayDiameter - 10 * scale,
-                    top: overlayTop + overlayDiameter - 10 * scale,
-                    child: DecoratedBox(
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(scale),
-                        child: Icon(
-                          Icons.remove_circle_outline,
-                          color: Colors.white,
-                          size: 11 * scale,
+                  if (resolvedDesign.badge != 'none')
+                    Positioned(
+                      top: 3 * scale,
+                      right: 1 * scale,
+                      child: DecoratedBox(
+                        key: ValueKey(
+                          'pin-style-emblem-${resolvedDesign.style}',
+                        ),
+                        decoration: BoxDecoration(
+                          color: resolvedDesign.outlineColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: resolvedDesign.bodyColor),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(2 * scale),
+                          child: Icon(
+                            switch (resolvedDesign.badge) {
+                              'star' => Icons.star,
+                              'sun' => Icons.wb_sunny,
+                              'leaf' => Icons.eco,
+                              _ => Icons.auto_awesome,
+                            },
+                            color: resolvedDesign.bodyColor,
+                            size: 10 * scale,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                  if (isGone)
+                    Positioned(
+                      left: overlayLeft + overlayDiameter - 10 * scale,
+                      top: overlayTop + overlayDiameter - 10 * scale,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(scale),
+                          child: Icon(
+                            Icons.remove_circle_outline,
+                            color: Colors.white,
+                            size: 11 * scale,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -282,11 +329,7 @@ Path _mapPinPath(Size size, String shape) {
   }
 
   if (shape == 'circle') {
-    final radius = math.min(width * .46, height * .42);
-    final centerY = height - radius;
-    return Path()..addOval(
-      Rect.fromCircle(center: Offset(center, centerY), radius: radius),
-    );
+    return Path()..addOval(_mapPinCircleRect(size));
   }
 
   return Path()
@@ -324,6 +367,15 @@ Path _mapPinPath(Size size, String shape) {
       height,
     )
     ..close();
+}
+
+Rect _mapPinCircleRect(Size size) {
+  final radius = math.min(size.width * .46, size.height * .42);
+  final centerY = size.height - radius;
+  return Rect.fromCircle(
+    center: Offset(size.width / 2, centerY),
+    radius: radius,
+  );
 }
 
 class RankedClusterMarker extends ConsumerWidget {

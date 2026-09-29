@@ -1,5 +1,3 @@
-import 'package:buff_lisa/app/app_links.dart';
-import 'package:buff_lisa/data/config/api_host.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -7,10 +5,7 @@ import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/widgets/buttons/presentation/custom_menu_item.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_dialog.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -40,12 +35,6 @@ class PopUpMenuLeave extends ConsumerWidget {
             title: "Report Group",
             icon: Icons.report,
           ),
-          if (groupDto.inviteUrl != null)
-            CustomMenuItem<int>(
-              value: 3,
-              title: "Copy share link",
-              icon: Icons.link,
-            ),
           if (isAdmin)
             CustomMenuItem<int>(
               value: 2,
@@ -78,8 +67,6 @@ class PopUpMenuLeave extends ConsumerWidget {
               'groupEdit',
               pathParameters: {"id": groupDto.groupId},
             );
-          case 3:
-            _copyShareLink(context);
         }
       },
     );
@@ -106,23 +93,5 @@ class PopUpMenuLeave extends ConsumerWidget {
         router.go('/home');
       }
     }
-  }
-
-  Future<void> _copyShareLink(BuildContext context) async {
-    final inviteCode = groupDto.inviteUrl;
-    if (inviteCode == null) return;
-
-    final shareLink = groupInviteShareLink(
-      apiHost: resolveApiHost(
-        configuredHost: dotenv.env['API_HOST'],
-        pageOrigin: kIsWeb ? Uri.base.origin : null,
-      ),
-      groupId: groupDto.groupId,
-      inviteCode: inviteCode,
-    );
-    await Clipboard.setData(ClipboardData(text: shareLink));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Share link copied')));
   }
 }

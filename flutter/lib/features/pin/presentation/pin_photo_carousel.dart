@@ -10,11 +10,13 @@ class PinPhotoCarousel extends StatefulWidget {
   const PinPhotoCarousel({
     super.key,
     this.originalImage,
+    this.isOriginalLoading = false,
     required this.photos,
     this.onPageChanged,
   });
 
   final Uint8List? originalImage;
+  final bool isOriginalLoading;
   final List<PinPhotoDto> photos;
   final ValueChanged<int>? onPageChanged;
 
@@ -121,36 +123,76 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
   }
 
   Widget _originalPhoto(BuildContext context) {
-    if (widget.originalImage case final bytes? when bytes.isNotEmpty) {
-      return LayoutBuilder(
-        builder: (context, constraints) => Image(
-          image: memoryImageForDisplay(
+    final original = widget.photos
+        .where((photo) => photo.isOriginal)
+        .firstOrNull;
+    final url = original?.image;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bytes = widget.originalImage;
+        final ImageProvider<Object>? imageProvider;
+        if (bytes != null && bytes.isNotEmpty) {
+          imageProvider = memoryImageForDisplay(
             bytes,
             devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
             logicalWidth: math.min(constraints.maxWidth, 720),
             maximumCacheWidth: 720,
-          ),
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => _unavailablePhoto(context),
-        ),
-      );
-    }
-    final original = widget.photos
-        .where((photo) => photo.isOriginal)
-        .firstOrNull;
-    return _networkPhoto(context, original?.image);
+          );
+        } else if (url != null && url.isNotEmpty) {
+          imageProvider = NetworkImage(url);
+        } else {
+          imageProvider = null;
+        }
+
+        if (imageProvider == null) {
+          return widget.isOriginalLoading
+              ? _loadingPhoto(context)
+              : _unavailablePhoto(context);
+        }
+
+        return _photoImage(
+          context,
+          imageProvider,
+          showUnavailableOnError: !widget.isOriginalLoading,
+        );
+      },
+    );
   }
 
   Widget _networkPhoto(BuildContext context, String? url) =>
       url == null || url.isEmpty
       ? _unavailablePhoto(context)
-      : Image.network(
-          url,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => _unavailablePhoto(context),
-        );
+      : _photoImage(context, NetworkImage(url), showUnavailableOnError: true);
+
+  Widget _photoImage(
+    BuildContext context,
+    ImageProvider<Object> imageProvider, {
+    required bool showUnavailableOnError,
+  }) => Stack(
+    fit: StackFit.expand,
+    children: [
+      ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+      Image(
+        image: imageProvider,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              opacity: wasSynchronouslyLoaded || frame != null ? 1 : 0,
+              child: child,
+            ),
+        errorBuilder: (_, _, _) => showUnavailableOnError
+            ? _unavailablePhoto(context)
+            : _loadingPhoto(context),
+      ),
+    ],
+  );
+
+  Widget _loadingPhoto(BuildContext context) =>
+      ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest);
 
   Widget _unavailablePhoto(BuildContext context) => ColoredBox(
     color: Theme.of(context).colorScheme.surfaceContainerHighest,

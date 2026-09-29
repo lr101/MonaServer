@@ -3,6 +3,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_ranking_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/user_ranking_tile.dart';
 import 'package:flutter/material.dart';
@@ -205,7 +206,7 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
                         Icon(
                           Icons.emoji_events_outlined,
                           size: 18,
-                          color: theme.colorScheme.primary,
+                          color: theme.colorScheme.primaryOnSurface,
                         ),
                         const SizedBox(width: 8),
                         // Flexible allows Text to shrink and show ellipsis

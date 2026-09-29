@@ -7,7 +7,7 @@ import (
 	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
 )
 
-const userAchievementDefinitionVersion int32 = 6
+const userAchievementDefinitionVersion int32 = 7
 
 // AchievementDef is a server-owned personal milestone and reward.
 type AchievementDef struct {
@@ -67,7 +67,7 @@ var achievementDefs = []AchievementDef{
 		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
 	},
 	{
-		ID: 8, Name: "Fan favorite", Description: "Receive likes on two hundred of your sticks.",
+		ID: 8, Name: "Fan favorite", Description: "Receive 200 likes on your sticks.",
 		Track: "likes_received", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
 		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
@@ -97,10 +97,10 @@ var achievementDefs = []AchievementDef{
 		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
 	},
 	{
-		ID: 13, Name: "Community regular", Description: "Join ten groups.",
-		Track: "groups", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
-		Threshold: 10, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
+		ID: 13, Name: "Community contributor", Description: "Add sticks in three different groups.",
+		Track: "contributing_groups", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 3, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT p.group_id)::int FROM pins p JOIN groups g ON g.id=p.group_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE`,
 	},
 	{
 		ID: 14, Name: "Big supporter", Description: "Give likes to four hundred sticks from other people.",
@@ -109,7 +109,7 @@ var achievementDefs = []AchievementDef{
 		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
 	},
 	{
-		ID: 15, Name: "Community favorite", Description: "Receive likes on four hundred of your sticks.",
+		ID: 15, Name: "Community favorite", Description: "Receive 400 likes on your sticks.",
 		Track: "likes_received", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 400, ThresholdUp: true,
 		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
@@ -121,19 +121,19 @@ var achievementDefs = []AchievementDef{
 		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
 	},
 	{
-		ID: 17, Name: "Photo storyteller", Description: "Add photos to two of your sticks.",
+		ID: 17, Name: "Photo storyteller", Description: "Have photos on two of your sticks.",
 		Track: "photos", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 2, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
 	},
 	{
-		ID: 18, Name: "Album keeper", Description: "Add photos to 40 different sticks.",
+		ID: 18, Name: "Album keeper", Description: "Have photos on 40 of your sticks.",
 		Track: "photos", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 40, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
 	},
 	{
-		ID: 19, Name: "Gallery curator", Description: "Add photos to 200 different sticks.",
+		ID: 19, Name: "Gallery curator", Description: "Have photos on 200 of your sticks.",
 		Track: "photos", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
@@ -145,10 +145,10 @@ var achievementDefs = []AchievementDef{
 		sql: `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p JOIN admin2_boundaries b ON b.id=p.state_province_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''`,
 	},
 	{
-		ID: 21, Name: "Community builder", Description: "Join 25 groups.",
-		Track: "groups", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
-		Threshold: 25, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
+		ID: 21, Name: "Cross-group builder", Description: "Add sticks in ten different groups.",
+		Track: "contributing_groups", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: `SELECT COUNT(DISTINCT p.group_id)::int FROM pins p JOIN groups g ON g.id=p.group_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE`,
 	},
 	{
 		ID: 22, Name: "Generous supporter", Description: "Give likes to 1,000 sticks from other people.",
@@ -198,7 +198,7 @@ func achievementReward(def AchievementDef) AchievementReward {
 		case 4:
 			color = "#FF7CB342" // leaf green
 		case 7:
-			color = "#FFE53935" // ruby
+			color = "#FF3F51B5" // indigo
 		case 8:
 			color = "#FFC62828" // crimson
 		case 9:
@@ -206,7 +206,7 @@ func achievementReward(def AchievementDef) AchievementReward {
 		case 10:
 			color = "#FFD81B60" // magenta
 		case 13:
-			color = "#FFC2185B" // raspberry
+			color = "#FF7B1FA2" // amethyst purple
 		case 18:
 			color = "#FFFF7043" // coral
 		default:
@@ -249,6 +249,9 @@ func (q *Queries) HasUserAchievementRewardColor(ctx context.Context, userID uuid
 		// Keep colors selected before reward colors became unique available to
 		// their original owners. This lets them keep or reselect a legacy color.
 		if legacyColor, ok := legacyAchievementRewardColor(id); ok && legacyColor == color {
+			return true, nil
+		}
+		if (id == 7 && color == "#FFE53935") || (id == 13 && color == "#FFC2185B") {
 			return true, nil
 		}
 	}
@@ -303,7 +306,7 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID) 
 	}
 	legacyRewardedSet := make(map[int32]bool, len(legacyRewards))
 	for _, id := range legacyRewards {
-		if def, ok := achievementDefinition(id); ok && def.Track == "places" {
+		if def, ok := achievementDefinition(id); ok && (def.Track == "places" || def.Track == "contributing_groups") {
 			continue
 		}
 		legacyRewardedSet[id] = true

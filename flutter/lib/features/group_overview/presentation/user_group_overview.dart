@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/service/group_details_service.dart';
+import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_invite_share_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_join_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/pop_up_menu_leave.dart';
@@ -24,7 +25,11 @@ class UserGroupOverview extends ConsumerWidget {
           return GroupOverview(
             groupId: groupId,
             details: details,
-            actions: [PopUpMenuLeave(groupDto: group)],
+            actions: [
+              if (group.inviteUrl != null)
+                GroupInviteShareButton(groupDto: group),
+              PopUpMenuLeave(groupDto: group),
+            ],
           );
         } else if (group.visibility == 0) {
           return GroupOverview(

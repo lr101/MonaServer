@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -6,6 +8,7 @@ import 'package:buff_lisa/features/camera/data/app_review_state.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
+import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/foundation.dart';
@@ -31,6 +34,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
   final _descriptionController = TextEditingController();
 
   late int _groupIndexWhenOpened;
+  bool _approvalStarted = false;
 
   @override
   void initState() {
@@ -136,7 +140,11 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
             visible: !isKeyboardVisible,
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: SubmitButton(onPressed: handleApprove, text: "Upload"),
+              child: SubmitButton(
+                onPressed: handleApprove,
+                text: "Upload",
+                showLoadingIndicator: false,
+              ),
             ),
           ),
         ],
@@ -145,8 +153,13 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
   }
 
   Future<void> handleApprove() async {
-    final group = await ref.watch(cameraSelectedGroupProvider.future);
-    if (group == null) return;
+    if (_approvalStarted) return Future<void>.value();
+    final groupId = groupIdAt(
+      ref.read(groupOrderServiceProvider),
+      ref.read(cameraGroupIndexProvider),
+    );
+    if (groupId == null) return Future<void>.value();
+    _approvalStarted = true;
     final pin = PinEntity(
       pinId: const Uuid().v4(),
       latitude: widget.position.latitude,
@@ -158,31 +171,50 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       description: _descriptionController.text.isEmpty
           ? null
           : _descriptionController.text,
-      creator: ref.watch(globalDataServiceProvider).userId!,
-      groupId: group.groupId,
+      creator: ref.read(globalDataServiceProvider).userId!,
+      groupId: groupId,
       onlySession: false,
       keepAlive: true,
       ttl: DateTime.now(),
     );
-    ref
-        .read(pinServiceProvider)
-        .addPinToGroup(pin, widget.image, showPrompt: true)
-        .then(postUploadActions); // async adding pin
+    final reviewState = !kIsWeb && ref.read(appReviewStateProvider)
+        ? ref.read(appReviewStateProvider.notifier)
+        : null;
+    // Wait for the post and image to commit to the durable local outbox. The
+    // PinService starts the network upload in the background after that point.
+    String? saveError;
+    try {
+      saveError = await ref
+          .read(pinServiceProvider)
+          .addPinToGroup(pin, widget.image);
+    } catch (_) {
+      saveError = 'Could not save post on this device. Please try again.';
+    }
+    if (!mounted) return;
+    if (saveError != null) {
+      _approvalStarted = false;
+      CustomErrorSnackBar.message(
+        message: 'Could not save post on this device. Please try again.',
+        type: CustomErrorSnackBarType.error,
+      );
+      return;
+    }
+
+    CustomErrorSnackBar.message(message: 'Image saved');
+    if (reviewState != null) {
+      unawaited(postUploadActions(reviewState));
+    }
     ref
         .read(cameraGroupIndexProvider.notifier)
         .updateIndex(_groupIndexWhenOpened);
-    if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  Future<void> postUploadActions(String? _) async {
-    if (!kIsWeb && mounted && ref.read(appReviewStateProvider)) {
-      if (mounted)
-        ref.read(appReviewStateProvider.notifier).updateLastReviewDate();
-      final InAppReview inAppReview = InAppReview.instance;
-      if (await inAppReview.isAvailable()) {
-        await inAppReview.requestReview();
-      }
+  Future<void> postUploadActions(AppReviewState reviewState) async {
+    reviewState.updateLastReviewDate();
+    final InAppReview inAppReview = InAppReview.instance;
+    if (await inAppReview.isAvailable()) {
+      await inAppReview.requestReview();
     }
   }
 
