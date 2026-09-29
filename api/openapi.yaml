@@ -837,6 +837,8 @@ paths:
           description: Registration failed
         "409":
           description: Username already exists
+        "429":
+          description: A verification email was sent recently; retry after five minutes
         "503":
           description: Email delivery is unavailable
       summary: User registration

@@ -25,12 +25,27 @@ func (q *Queries) AddUserXp(ctx context.Context, arg AddUserXpParams) error {
 	return err
 }
 
+const canResendSignupConfirmation = `-- name: CanResendSignupConfirmation :one
+SELECT email_confirmation_sent_at IS NULL
+    OR email_confirmation_sent_at <= NOW() - INTERVAL '5 minutes'
+FROM users
+WHERE id = $1 AND is_deleted = FALSE
+`
+
+func (q *Queries) CanResendSignupConfirmation(ctx context.Context, id pgtype.UUID) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, canResendSignupConfirmation, id)
+	var column_1 pgtype.Bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const confirmUserEmail = `-- name: ConfirmUserEmail :exec
 UPDATE users
 SET email_confirmed = TRUE,
     account_activated = TRUE,
     email_confirmation_url = NULL,
     email_confirmation_expires_at = NULL,
+    email_confirmation_sent_at = NULL,
     update_date = NOW()
 WHERE id = $1
 `
@@ -61,11 +76,12 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     id, username, password, email, email_confirmation_url,
-    email_confirmed, account_activated, email_confirmation_expires_at,
+    email_confirmed, account_activated, email_confirmation_expires_at, email_confirmation_sent_at,
     creation_date, update_date
 )
 VALUES ($1, $2, $3, $4, $5, FALSE, $4::varchar IS NULL,
         CASE WHEN $5::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
+        CASE WHEN $5::varchar IS NULL THEN NULL ELSE NOW() END,
         NOW(), NOW())
 RETURNING id
 `
@@ -715,6 +731,7 @@ SET email = $2,
     email_confirmation_url = $3,
     email_confirmed = FALSE,
     email_confirmation_expires_at = CASE WHEN $3::varchar IS NULL THEN NULL ELSE NOW() + INTERVAL '24 hours' END,
+    email_confirmation_sent_at = CASE WHEN $3::varchar IS NULL THEN NULL ELSE NOW() END,
     update_date = NOW()
 WHERE id = $1
 `

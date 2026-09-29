@@ -140,6 +140,17 @@ func (s *Auth) resendPendingSignup(ctx context.Context, id uuid.UUID, plainPW st
 		if err := q.ResetFailedLogin(ctx, user.ID); err != nil {
 			return err
 		}
+		canResend, err := q.CanResendSignupConfirmation(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !canResend {
+			signupErr = apperrors.New(http.StatusTooManyRequests, "verification email recently sent; wait five minutes")
+			return nil
+		}
+		if err := q.InvalidateUserTokens(ctx, id); err != nil {
+			return err
+		}
 		confirmationURL := randomAlpha(32)
 		if err := q.ChangeUserEmail(ctx, id, email, &confirmationURL); err != nil {
 			return err

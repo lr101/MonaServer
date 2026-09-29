@@ -376,6 +376,13 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash str
 func (q *Queries) UpdateUserEmail(ctx context.Context, id uuid.UUID, email, confirmationUrl *string) error {
 	return q.ChangeUserEmail(ctx, id, email, confirmationUrl)
 }
+func (q *Queries) CanResendSignupConfirmation(ctx context.Context, id uuid.UUID) (bool, error) {
+	allowed, err := q.g.CanResendSignupConfirmation(ctx, pgUUID(id))
+	if err != nil {
+		return false, err
+	}
+	return allowed.Valid && allowed.Bool, nil
+}
 func (q *Queries) SetUserProfilePictureExists(ctx context.Context, id uuid.UUID, exists bool) error {
 	return q.g.SetUserProfilePictureExists(ctx, dbgen.SetUserProfilePictureExistsParams{ID: pgUUID(id), ProfilePictureExists: exists})
 }

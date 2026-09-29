@@ -508,6 +508,7 @@ type User struct {
 	SelectedBatchColor         string             `json:"selected_batch_color"`
 	AccountActivated           bool               `json:"account_activated"`
 	EmailConfirmationExpiresAt pgtype.Timestamptz `json:"email_confirmation_expires_at"`
+	EmailConfirmationSentAt    pgtype.Timestamptz `json:"email_confirmation_sent_at"`
 }
 
 type UserAchievement struct {

@@ -179,6 +179,8 @@ class _AuthState extends ConsumerState<Auth> {
       _busy = false;
       _error = error == 'username already exists'
           ? 'We couldn’t confirm those signup details. Sign in or check your username and password.'
+          : error == 'verification email recently sent; wait five minutes'
+          ? 'Please wait five minutes before requesting another verification link.'
           : error;
       if (error == null) {
         _verificationNotice =
