@@ -31,7 +31,12 @@ class Camera extends ConsumerStatefulWidget {
 }
 
 class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
-  late final PageController pageController;
+  // Keep these dimensions aligned with the compact row and the web app shell.
+  static const double _compactPreviewWidthFraction = .4;
+  static const double _compactPreviewPanelGap = 12;
+  static const double _minimumPortraitPreviewHeight = 180;
+
+  late PageController pageController;
   double scaleFactor = 1.0;
   double basScaleFactor = 1.0;
   final _m = Mutex();
@@ -130,6 +135,11 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
+    final screenSize = MediaQuery.sizeOf(context);
+    _updatePageControllerViewportFraction(
+      cameraGroupSelectorViewportFraction(screenSize.width),
+    );
+
     final route = ModalRoute.of(context);
     if (!_discoveringCameras &&
         widget.isActive &&
@@ -140,6 +150,22 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
         controller.resumePreview();
       }
     }
+  }
+
+  void _updatePageControllerViewportFraction(double viewportFraction) {
+    if (pageController.viewportFraction == viewportFraction) return;
+
+    final groupIds = ref.read(groupOrderServiceProvider);
+    final selectedIndex = cameraIndexForLength(
+      ref.read(cameraGroupIndexProvider),
+      groupIds.length,
+    );
+    final oldController = pageController;
+    pageController = PageController(
+      viewportFraction: viewportFraction,
+      initialPage: selectedIndex ?? 0,
+    );
+    oldController.dispose();
   }
 
   @override
@@ -193,9 +219,16 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       globalDataServiceProvider.select((t) => t.cameras),
     );
     final cameraFlashMode = ref.watch(cameraTorchProvider);
+    final colorScheme = Theme.of(context).colorScheme;
     final groupIds = widget.pinPhotoMode
         ? <String>[]
         : ref.watch(groupOrderServiceProvider);
+    final selectedGroupIndex =
+        cameraIndexForLength(
+          ref.watch(cameraGroupIndexProvider),
+          groupIds.length,
+        ) ??
+        0;
     if (cameras.isEmpty) {
       return Scaffold(
         appBar: _pinPhotoAppBar(),
@@ -209,199 +242,338 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final controllerAsync = ref.watch(cameraControllerProvider);
     final cameraStateAsync = ref.watch(cameraValuesProvider);
     final cameraIndex = ref.watch(cameraIndexProvider);
+    final previewLayer = Stack(
+      fit: StackFit.expand,
+      children: [
+        ColoredBox(color: colorScheme.surface),
+        controllerAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, stack) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Could not start the camera. Check camera access and close other camera apps.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.invalidate(cameraControllerProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          data: (controller) => cameraStateAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => Center(
+              child: Text(err.toString(), textAlign: TextAlign.center),
+            ),
+            data: (cameraState) => GestureDetector(
+              onDoubleTap: ref.read(cameraIndexProvider.notifier).increment,
+              onScaleStart: (_) => basScaleFactor = scaleFactor,
+              onScaleUpdate: (details) => handleZoom(details, cameraState),
+              child: cameraPreviewViewport(controller),
+            ),
+          ),
+        ),
+        if (!widget.pinPhotoMode && ref.watch(cameraCapturingProvider))
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(child: _capturingIndicator(context)),
+          ),
+      ],
+    );
     return Scaffold(
       appBar: _pinPhotoAppBar(),
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        // We handle the AsyncValue of the CONTROLLER here
-                        child: controllerAsync.when(
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
-                          error: (err, stack) => Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Could not start the camera. Check camera access and close other camera apps.',
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      ref.invalidate(cameraControllerProvider),
-                                  child: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          data: (controller) {
-                            // Once controller is ready, we check the Values state
-                            return cameraStateAsync.when(
-                              loading: () => const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                              error: (err, stack) => Text(err.toString()),
-                              data: (cameraState) => GestureDetector(
-                                onDoubleTap: ref
-                                    .read(cameraIndexProvider.notifier)
-                                    .increment,
-                                onScaleStart: (_) =>
-                                    basScaleFactor = scaleFactor,
-                                onScaleUpdate: (details) =>
-                                    handleZoom(details, cameraState),
-                                child: cameraPreviewViewport(controller),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      Align(
-                        alignment: FractionalOffset.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 75),
-                          child:
-                              (widget.pinPhotoMode
-                                  ? _pinCapturing
-                                  : ref.watch(cameraCapturingProvider))
-                              ? Container(
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).highlightColor,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(5),
-                                    child: Text("Hold steady capturing ..."),
-                                  ),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                      Align(
-                        alignment: FractionalOffset.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.all(5),
-                          child: SizedBox(
-                            height: 50,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(2.5),
-                                  child: CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Colors.grey.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    child: Center(
-                                      child: IconButton(
-                                        onPressed: kIsWeb
-                                            ? null
-                                            : () => handleFlashChange(
-                                                !cameraFlashMode,
-                                              ),
-                                        icon: cameraFlashMode
-                                            ? const Icon(Icons.flash_off)
-                                            : const Icon(Icons.flash_auto),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned.fill(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            const controlSpacing = 8.0;
-                            const controlBottomPadding = 12.0;
-                            const controlButtonHeight = 48.0;
-                            final maxMenuHeight =
-                                (constraints.maxHeight -
-                                        controlBottomPadding -
-                                        (controlButtonHeight * 2) -
-                                        controlSpacing)
-                                    .clamp(0.0, 240.0);
-                            return Align(
-                              alignment: Alignment.bottomRight,
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  right: 12,
-                                  bottom: controlBottomPadding,
-                                ),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.bottomRight,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      CameraSelectorButton(
-                                        cameras: cameras,
-                                        selectedIndex: cameraIndex,
-                                        onSelected: handleCameraChange,
-                                        maxMenuHeight: maxMenuHeight,
-                                      ),
-                                      const SizedBox(height: controlSpacing),
-                                      if (!widget.pinPhotoMode)
-                                        Material(
-                                          color: Colors.grey.withValues(
-                                            alpha: 0.5,
-                                          ),
-                                          shape: const CircleBorder(),
-                                          child: IconButton(
-                                            tooltip: 'Upload photo',
-                                            onPressed: uploadFileImage,
-                                            icon: const Icon(Icons.upload),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      if (widget.pinPhotoMode)
-                        Align(
-                          alignment: Alignment.bottomCenter,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: IconButton.filled(
-                              tooltip: 'Take photo',
-                              iconSize: 36,
-                              onPressed:
-                                  controllerAsync.value?.value.isInitialized ==
-                                      true
-                                  ? capturePinPhoto
-                                  : null,
-                              icon: const Icon(Icons.camera_alt),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (groupIds.isNotEmpty)
-                  CameraGroupSelector(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenSize = MediaQuery.sizeOf(context);
+            final selectorHeight = groupIds.isEmpty
+                ? 0.0
+                : cameraGroupSelectorHeight(screenSize.height);
+            final portraitContentHeight =
+                (widget.pinPhotoMode ? 92.0 : 64.0) + 12 + selectorHeight + 5;
+            final compactLayout =
+                constraints.maxHeight <
+                portraitContentHeight + _minimumPortraitPreviewHeight;
+
+            final compactPanelWidth =
+                constraints.maxWidth * (1 - _compactPreviewWidthFraction) -
+                _compactPreviewPanelGap;
+            final carouselWidth = compactLayout
+                ? compactPanelWidth
+                : constraints.maxWidth;
+            _updatePageControllerViewportFraction(
+              cameraGroupSelectorViewportFraction(carouselWidth),
+            );
+
+            final controlRail = _cameraControlRail(
+              cameras: cameras,
+              cameraIndex: cameraIndex,
+              cameraFlashMode: cameraFlashMode,
+              controllerReady:
+                  controllerAsync.value?.value.isInitialized == true,
+              compact: compactLayout,
+            );
+            final groupSelector = groupIds.isEmpty
+                ? null
+                : CameraGroupSelector(
                     controller: pageController,
-                    selectedIndex: ref.watch(cameraGroupIndexProvider),
+                    selectedIndex: selectedGroupIndex,
                     onPageChanged: onPageChange,
                     onCapture: (index) => takePicture(groupIds[index], index),
                     children: List.generate(
                       groupIds.length,
-                      (index) => groupCard(groupIds[index]),
+                      (index) => groupCard(
+                        groupIds[index],
+                        selected: index == selectedGroupIndex,
+                      ),
+                    ),
+                  );
+            if (compactLayout) {
+              final previewWidth =
+                  constraints.maxWidth * _compactPreviewWidthFraction;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: previewWidth, child: previewLayer),
+                  const SizedBox(width: _compactPreviewPanelGap),
+                  Expanded(
+                    child: ColoredBox(
+                      color: colorScheme.surface,
+                      child: LayoutBuilder(
+                        builder: (context, panelConstraints) =>
+                            SingleChildScrollView(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: panelConstraints.maxHeight,
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      controlRail,
+                                      if (groupSelector case final selector?)
+                                        selector,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ),
                     ),
                   ),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                Expanded(child: previewLayer),
+                const SizedBox(height: 12),
+                controlRail,
+                if (groupSelector case final selector?) selector,
                 const SizedBox(height: 5),
               ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _cameraControlRail({
+    required List<CameraDescription> cameras,
+    required int cameraIndex,
+    required bool cameraFlashMode,
+    required bool controllerReady,
+    required bool compact,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isPinPhotoMode = widget.pinPhotoMode;
+    final railHeight = isPinPhotoMode
+        ? (compact ? 88.0 : 92.0)
+        : (compact ? 60.0 : 64.0);
+    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 300).clamp(
+      0.0,
+      240.0,
+    );
+
+    return Container(
+      height: railHeight,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: .18),
+          ),
+        ),
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? (isPinPhotoMode ? 1 : 8) : 16,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: CameraGroupSelector.maxCarouselWidth,
+          ),
+          child: Row(
+            children: [
+              _cameraControlButton(
+                tooltip: kIsWeb
+                    ? 'Flash is unavailable in the browser'
+                    : cameraFlashMode
+                    ? 'Turn flash off'
+                    : 'Set flash to auto',
+                icon: cameraFlashMode ? Icons.flash_off : Icons.flash_auto,
+                onPressed: kIsWeb
+                    ? null
+                    : () => handleFlashChange(!cameraFlashMode),
+              ),
+              const Spacer(),
+              if (isPinPhotoMode)
+                _pinPhotoShutterButton(
+                  enabled: controllerReady && !_pinCapturing,
+                ),
+              const Spacer(),
+              CameraSelectorButton(
+                cameras: cameras,
+                selectedIndex: cameraIndex,
+                onSelected: handleCameraChange,
+                maxMenuHeight: maxMenuHeight,
+                preferDialog: true,
+              ),
+              if (!isPinPhotoMode) ...[
+                const SizedBox(width: 8),
+                _cameraControlButton(
+                  tooltip: 'Choose from gallery',
+                  icon: Icons.photo_library_outlined,
+                  onPressed: uploadFileImage,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _cameraControlButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        foregroundColor: colorScheme.onSurface,
+        backgroundColor: Colors.transparent,
+        iconSize: 18,
+        minimumSize: const Size.square(44),
+        fixedSize: const Size.square(44),
+        shape: const CircleBorder(),
+        padding: EdgeInsets.zero,
+      ),
+      icon: Material(
+        color: colorScheme.surfaceContainerHighest,
+        shape: CircleBorder(
+          side: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: .55),
+          ),
+        ),
+        child: SizedBox.square(dimension: 30, child: Icon(icon, size: 18)),
+      ),
+    );
+  }
+
+  Widget _pinPhotoShutterButton({required bool enabled}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: 'Take photo',
+      child: Tooltip(
+        message: 'Take photo',
+        child: Material(
+          color: colorScheme.surfaceContainerHighest,
+          shape: CircleBorder(
+            side: BorderSide(color: colorScheme.onSurface, width: 2),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: enabled ? capturePinPhoto : null,
+            customBorder: const CircleBorder(),
+            child: SizedBox.square(
+              dimension: 80,
+              child: Center(
+                child: DecoratedBox(
+                  decoration: ShapeDecoration(
+                    color: colorScheme.primary,
+                    shape: const CircleBorder(),
+                  ),
+                  child: SizedBox.square(
+                    dimension: 60,
+                    child: Center(
+                      child: _pinCapturing
+                          ? SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: colorScheme.onPrimary,
+                              ),
+                            )
+                          : Icon(
+                              Icons.camera_alt,
+                              size: 30,
+                              color: colorScheme.onPrimary,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _capturingIndicator(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Material(
+      elevation: 2,
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Preparing photo…',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: colorScheme.onSurface,
+              ),
             ),
           ],
         ),
@@ -443,14 +615,31 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     ref.read(cameraGroupIndexProvider.notifier).updateIndex(index);
   }
 
-  Widget groupCard(String groupId) {
+  Widget groupCard(String groupId, {required bool selected}) {
+    final radius = selected
+        ? CameraGroupSelector.shutterImageSize / 2 - 3
+        : cameraGroupAvatarSize(MediaQuery.sizeOf(context).height) - 3;
+    final image = SmallProfilePicture.group(groupId: groupId, radius: radius);
+
+    if (selected) {
+      return Center(
+        child: OverflowBox(
+          minWidth: 0,
+          maxWidth: CameraGroupSelector.shutterImageSize,
+          minHeight: 0,
+          maxHeight: CameraGroupSelector.shutterImageSize,
+          child: SizedBox.square(
+            dimension: CameraGroupSelector.shutterImageSize,
+            child: image,
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(5),
-        child: SmallProfilePicture.group(
-          groupId: groupId,
-          radius: cameraGroupAvatarSize(MediaQuery.sizeOf(context).height) - 3,
-        ),
+        child: AspectRatio(aspectRatio: 1, child: image),
       ),
     );
   }
@@ -639,10 +828,23 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
                 );
 
           return Center(
-            child: SizedBox.fromSize(
+            child: Container(
               key: const ValueKey('camera-preview-frame'),
-              size: frameSize,
-              child: ClipRect(child: preview),
+              width: frameSize.width,
+              height: frameSize.height,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant
+                      .withValues(alpha: .45),
+                ),
+              ),
+              child: preview,
             ),
           );
         },
