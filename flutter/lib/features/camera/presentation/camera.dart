@@ -379,7 +379,9 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isPinPhotoMode = widget.pinPhotoMode;
-    final railHeight = isPinPhotoMode ? 92.0 : 64.0;
+    final railHeight = isPinPhotoMode
+        ? (compact ? 88.0 : 92.0)
+        : (compact ? 60.0 : 64.0);
     final maxMenuHeight = (MediaQuery.sizeOf(context).height - 300).clamp(
       0.0,
       240.0,
