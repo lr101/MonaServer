@@ -11,13 +11,13 @@ class FeedDescriptionExpandable extends ConsumerWidget {
 
   final PinEntity pin;
 
-  static const showLessOrMoreStyle = TextStyle(
-    fontWeight: FontWeight.bold,
-    color: Colors.grey, // Instagram style "more" is usually greyish
-  );
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final showLessOrMoreStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.bold,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
     // NOTE: Ensure feedDescriptionProvider is defined in your state management
     final isExpanded = ref.watch(feedDescriptionProvider(pin.pinId));
     final toggleExpansion = ref.watch(feedDescriptionProvider(pin.pinId).notifier);

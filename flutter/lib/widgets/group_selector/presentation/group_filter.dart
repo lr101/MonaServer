@@ -1,5 +1,6 @@
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -95,7 +96,11 @@ class GroupFilterWidget extends ConsumerWidget {
                 ),
               ),
             const SizedBox(width: 8),
-            Icon(Icons.filter_list, size: 16, color: theme.colorScheme.primary),
+            Icon(
+              Icons.filter_list,
+              size: 16,
+              color: theme.colorScheme.primaryOnSurface,
+            ),
           ],
         ),
       ),
@@ -224,7 +229,9 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isActive
-                          ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                          ? theme.colorScheme.primaryOnSurface.withValues(
+                              alpha: 0.5,
+                            )
                           : Colors.transparent,
                     ),
                   ),
@@ -255,10 +262,10 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
                                   width: 1.5,
                                 ),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.check,
                                 size: 8,
-                                color: Colors.white,
+                                color: theme.colorScheme.onPrimary,
                               ),
                             ),
                         ],

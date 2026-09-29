@@ -1,3 +1,4 @@
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:flutter/material.dart';
 
 /// A centered, bounded group carousel with a fixed shutter target.
@@ -70,7 +71,7 @@ class CameraGroupSelector extends StatelessWidget {
                         shape: BoxShape.circle,
                         border: Border.all(
                           width: 5,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(context).colorScheme.primaryOnSurface,
                         ),
                       ),
                     ),

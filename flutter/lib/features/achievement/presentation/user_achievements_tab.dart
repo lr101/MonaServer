@@ -5,6 +5,7 @@ import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
 import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/util/types/achievement.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
@@ -226,7 +227,7 @@ class _AchievementRewardPreview extends StatelessWidget {
       'xp' => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bolt, size: 14, color: theme.colorScheme.primary),
+          Icon(Icons.bolt, size: 14, color: theme.colorScheme.primaryOnSurface),
           const SizedBox(width: 4),
           Text('${achievement.rewardXp ?? 20} XP'),
         ],

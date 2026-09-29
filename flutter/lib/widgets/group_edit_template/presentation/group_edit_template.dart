@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/group_edit_template/service/group_create_service.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image_picker.dart';
 import 'package:flutter/material.dart';
@@ -350,7 +351,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: borderRadius,
-        borderSide: BorderSide(color: colorScheme.primaryContainer, width: 2),
+        borderSide: BorderSide(color: colorScheme.primaryOnSurface, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: borderRadius,

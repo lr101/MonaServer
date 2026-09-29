@@ -1,3 +1,4 @@
+import "package:buff_lisa/util/theme/data/app_color_scheme.dart";
 import "package:flutter/material.dart";
 
 class MaterialTheme {
@@ -100,6 +101,8 @@ class MaterialTheme {
   ThemeData light() => theme(lightScheme());
 
   ThemeData theme(ColorScheme colorScheme) {
+    final primaryOnSurface = colorScheme.primaryOnSurface;
+
     return ThemeData(
       useMaterial3: true,
       brightness: colorScheme.brightness,
@@ -127,6 +130,18 @@ class MaterialTheme {
         centerTitle: true,
       ),
 
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: primaryOnSurface),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(foregroundColor: primaryOnSurface),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: primaryOnSurface,
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        indicatorColor: primaryOnSurface,
+      ),
+
       // 3. Floating Action Button: Orange
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
@@ -137,6 +152,21 @@ class MaterialTheme {
       // 4. Input Fields: Blue-Grey background with Orange focus border
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
+        floatingLabelStyle: WidgetStateTextStyle.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.38));
+          }
+          if (states.contains(WidgetState.error)) {
+            if (states.contains(WidgetState.hovered)) {
+              return TextStyle(color: colorScheme.onErrorContainer);
+            }
+            return TextStyle(color: colorScheme.error);
+          }
+          if (states.contains(WidgetState.focused)) {
+            return TextStyle(color: primaryOnSurface);
+          }
+          return TextStyle(color: colorScheme.onSurfaceVariant);
+        }),
         // Uses the container color (Dark Grey-Blue in dark mode, Light Grey in light mode)
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         border: OutlineInputBorder(
@@ -146,9 +176,12 @@ class MaterialTheme {
         // When focused, the border becomes Orange
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 2),
+          borderSide: BorderSide(color: primaryOnSurface, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: primaryOnSurface,
       ),
 
       // 5. Cards: Subtle borders, using the "Container" color for depth
@@ -166,17 +199,17 @@ class MaterialTheme {
       // 6. Selectors (Switches, Radios, Sliders) use the Primary (Orange)
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return colorScheme.primary;
+          if (states.contains(WidgetState.selected)) return primaryOnSurface;
           return null;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return colorScheme.primary.withValues(alpha: 0.5);
+          if (states.contains(WidgetState.selected)) return primaryOnSurface.withValues(alpha: 0.5);
           return null;
         }),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: colorScheme.primary,
-        thumbColor: colorScheme.primary,
+        activeTrackColor: primaryOnSurface,
+        thumbColor: primaryOnSurface,
       ),
 
       // 7. Navigation: Material 3 NavigationBar and NavigationRail
@@ -185,13 +218,13 @@ class MaterialTheme {
         indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return IconThemeData(color: colorScheme.primary);
+            return IconThemeData(color: primaryOnSurface);
           }
           return IconThemeData(color: colorScheme.onSurfaceVariant);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12);
+            return TextStyle(color: primaryOnSurface, fontWeight: FontWeight.bold, fontSize: 12);
           }
           return TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12);
         }),
@@ -199,9 +232,9 @@ class MaterialTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: colorScheme.surface,
         indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
-        selectedIconTheme: IconThemeData(color: colorScheme.primary),
+        selectedIconTheme: IconThemeData(color: primaryOnSurface),
         unselectedIconTheme: IconThemeData(color: colorScheme.onSurfaceVariant),
-        selectedLabelTextStyle: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12),
+        selectedLabelTextStyle: TextStyle(color: primaryOnSurface, fontWeight: FontWeight.bold, fontSize: 12),
         unselectedLabelTextStyle: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
       ),
     );

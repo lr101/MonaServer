@@ -7,6 +7,7 @@ import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/like_button_animated.dart';
@@ -218,7 +219,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           Text(
             'Update',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.primaryOnSurface,
               fontWeight: FontWeight.w700,
             ),
           ),

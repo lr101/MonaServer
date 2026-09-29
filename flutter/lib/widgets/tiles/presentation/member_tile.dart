@@ -2,6 +2,7 @@ import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +50,7 @@ class MemberTile extends ConsumerWidget {
                   child: Icon(
                     Icons.shield_outlined,
                     size: 15,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Theme.of(context).colorScheme.primaryOnSurface,
                   ),
                 ),
               if (isGroupLeader) const SizedBox(width: 5),
