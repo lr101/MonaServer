@@ -1,3 +1,4 @@
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:flutter/material.dart';
 
 class RankingTabButton extends StatelessWidget {
@@ -14,8 +15,9 @@ class RankingTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c1 = Theme.of(context).colorScheme.surfaceContainerHighest; // Color when not selected
-    final c2 = Theme.of(context).primaryColor; // Color when selected
+    final colorScheme = Theme.of(context).colorScheme;
+    final surface = colorScheme.surfaceContainerHighest;
+    final primary = colorScheme.primary;
 
     return ListenableBuilder(
       listenable: tabController,
@@ -24,7 +26,7 @@ class RankingTabButton extends StatelessWidget {
 
         return ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: isSelected ? c2 : c1, // Set background color
+            backgroundColor: isSelected ? primary : surface,
           ),
           onPressed: () {
             tabController.index = index; // Update the TabController index
@@ -33,7 +35,11 @@ class RankingTabButton extends StatelessWidget {
             padding: const EdgeInsets.all(10.0),
             child: Text(
               label,
-              style: TextStyle(color: isSelected ? c1 : c2), // Set text color
+              style: TextStyle(
+                color: isSelected
+                    ? colorScheme.onPrimary
+                    : colorScheme.primaryOnSurface,
+              ),
             ),
           ),
         );

@@ -2,13 +2,53 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 )
+
+func TestPinCreateIdempotentRetry(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	uid := createTestUser(t, auth, "retry_pinner")
+	gid := createTestGroup(t, group, uid, "retry_group")
+	key := uuid.New()
+	in := CreatePinInput{
+		Latitude: 52.1, Longitude: 13.1, CreationDate: time.Now().UTC(),
+		UserID: uid, GroupID: gid, CallerID: uid, IdempotencyKey: &key,
+	}
+	before, err := q.GetUserByID(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := pin.Create(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := pin.Create(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.ID != first.ID {
+		t.Fatalf("replay ID = %s, want %s", replayed.ID, first.ID)
+	}
+	after, err := q.GetUserByID(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.XP-before.XP != CreatePinXP {
+		t.Fatalf("XP delta = %d", after.XP-before.XP)
+	}
+	in.Title = new(string)
+	if _, err := pin.Create(ctx, in); !errors.Is(err, apperrors.ErrConflict) {
+		t.Fatalf("changed replay error = %v, want conflict", err)
+	}
+}
 
 func TestPinUsesNearestBoundaryWhenPointIsOutsideAllPolygons(t *testing.T) {
 	q, auth, _, _, pin, group, _, _, _ := setupServices(t)

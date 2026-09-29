@@ -87,7 +87,7 @@ func (v *Views) EmailConfirmation(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "404.html", nil)
 		return
 	}
-	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": username})
+	renderTemplate(w, "email-confirmation-view.html", map[string]any{"Username": username, "WebURL": v.publicWebURL})
 }
 
 func (v *Views) RequestDeleteCode(w http.ResponseWriter, r *http.Request) {

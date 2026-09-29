@@ -16,6 +16,7 @@ class FeedCardSubtitle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final pinLike = ref.watch(likeServiceProvider(pin.pinId));
     final userId = ref.watch(globalDataServiceProvider).userId!;
     // Watch the group data to display the name
@@ -34,9 +35,7 @@ class FeedCardSubtitle extends ConsumerWidget {
               likeBuilder: (isLiked) {
                 return Icon(
                   isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked
-                      ? Colors.red
-                      : Theme.of(context).colorScheme.onSurface,
+                  color: isLiked ? Colors.red : theme.colorScheme.onSurface,
                   size: 26,
                 );
               },
@@ -64,44 +63,61 @@ class FeedCardSubtitle extends ConsumerWidget {
               },
             ),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 "•",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
             ),
 
-            groupAsync.when(
-              data: (group) => ClickableGroup(
-                groupId: group?.groupId ?? "",
-                child: Text(
-                  group?.name ?? "",
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+            Flexible(
+              child: groupAsync.when(
+                data: (group) => ClickableGroup(
+                  groupId: group?.groupId ?? "",
+                  child: Text(
+                    group?.name ?? "",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => Text(
+                  "Unknown Group",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                ),
               ),
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const Text("Unknown Group"),
             ),
 
             // Separator dot
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
                 "•",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
             ),
 
             // Time Ago
             Text(
               _formatTimeAgo(pin.creationDate),
-              style: Theme.of(context).textTheme.labelSmall
-                  ?.copyWith(color: Colors.grey, fontSize: 12),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
             ),
           ],
         ),

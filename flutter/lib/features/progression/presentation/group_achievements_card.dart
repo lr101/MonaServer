@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
 import 'package:flutter/material.dart';
@@ -284,7 +285,7 @@ class _AchievementRow extends StatelessWidget {
       'xp' => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bolt, size: 15, color: theme.colorScheme.primary),
+          Icon(Icons.bolt, size: 15, color: theme.colorScheme.primaryOnSurface),
           const SizedBox(width: 4),
           Text('${achievement.rewardXp ?? 50} Group XP'),
         ],

@@ -67,6 +67,9 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 		return nil, err
 	}
 	if existing != nil {
+		if email != nil && !existing.AccountActivated {
+			return s.resendPendingSignup(ctx, existing.ID, plainPW, email)
+		}
 		return nil, apperrors.New(409, "username already exists")
 	}
 	hash, err := password.Hash(plainPW)
@@ -85,7 +88,7 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 			return err
 		}
 		if s.mail != nil && email != nil && confirmationURL != nil {
-			if err := s.mail.SendEmailConfirmation(ctx, username, *email, *confirmationURL); err != nil {
+			if err := deliverEmailConfirmation(ctx, s.mail, username, *email, *confirmationURL); err != nil {
 				return err
 			}
 		}
@@ -95,6 +98,83 @@ func (s *Auth) Signup(ctx context.Context, username, plainPW string, email *stri
 		return nil, err
 	}
 	return pair, nil
+}
+
+// resendPendingSignup lets the account owner resend the confirmation link or
+// correct the address before activation. The existing password is required so
+// this does not become an unauthenticated way to replace another user's email.
+func (s *Auth) resendPendingSignup(ctx context.Context, id uuid.UUID, plainPW string, email *string) (*TokenPair, error) {
+	if s.mail == nil {
+		return nil, ErrEmailDeliveryUnavailable
+	}
+	var pair *TokenPair
+	var signupErr error
+	err := s.q.InTxRetry(ctx, func(q *db.Queries) error {
+		state, err := q.LockUserSecurity(ctx, id)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted || state.AccountActivated {
+			signupErr = apperrors.New(http.StatusConflict, "username already exists")
+			return nil
+		}
+		user, err := q.GetUserByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if user == nil {
+			signupErr = apperrors.New(http.StatusConflict, "username already exists")
+			return nil
+		}
+		if user.FailedLoginAttempts >= s.maxLoginAttempts() || user.PasswordDisabled || user.PasswordResetRequired || user.SecurityState != db.SecurityStateNormal {
+			signupErr = apperrors.New(http.StatusForbidden, "account locked")
+			return nil
+		}
+		if !password.Verify(user.Password, plainPW) {
+			if err := q.IncrementFailedLogin(ctx, user.ID); err != nil {
+				return err
+			}
+			signupErr = apperrors.New(http.StatusConflict, "username already exists")
+			return nil
+		}
+		if err := q.ResetFailedLogin(ctx, user.ID); err != nil {
+			return err
+		}
+		canResend, err := q.CanResendSignupConfirmation(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !canResend {
+			signupErr = apperrors.New(http.StatusTooManyRequests, "verification email recently sent; wait five minutes")
+			return nil
+		}
+		if err := q.InvalidateUserTokens(ctx, id); err != nil {
+			return err
+		}
+		confirmationURL := randomAlpha(32)
+		if err := q.ChangeUserEmail(ctx, id, email, &confirmationURL); err != nil {
+			return err
+		}
+		if err := deliverEmailConfirmation(ctx, s.mail, user.Username, *email, confirmationURL); err != nil {
+			return err
+		}
+		pair, err = s.Security().IssueTokens(ctx, q, s.tok, id)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if signupErr != nil {
+		return nil, signupErr
+	}
+	return pair, nil
+}
+
+func (s *Auth) maxLoginAttempts() int {
+	if s.cfg != nil && s.cfg.MaxLoginAttempts > 0 {
+		return s.cfg.MaxLoginAttempts
+	}
+	return 10
 }
 
 func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair, error) {
@@ -128,10 +208,7 @@ func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair,
 			authErr = apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
 			return nil
 		}
-		maxAttempts := 10
-		if s.cfg != nil && s.cfg.MaxLoginAttempts > 0 {
-			maxAttempts = s.cfg.MaxLoginAttempts
-		}
+		maxAttempts := s.maxLoginAttempts()
 		if u.FailedLoginAttempts >= maxAttempts {
 			authErr = apperrors.New(http.StatusForbidden, "account locked")
 			return nil
@@ -145,6 +222,13 @@ func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair,
 				return err
 			}
 			authErr = apperrors.New(http.StatusBadRequest, "wrong password")
+			return nil
+		}
+		if !state.AccountActivated {
+			if err := q.ResetFailedLogin(ctx, u.ID); err != nil {
+				return err
+			}
+			authErr = apperrors.New(http.StatusForbidden, "email is not confirmed")
 			return nil
 		}
 		if password.NeedsUpgrade(u.Password) {
@@ -209,6 +293,10 @@ func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPa
 			refreshErr = apperrors.New(http.StatusBadRequest, "refresh token expired")
 			return nil
 		}
+		if !state.AccountActivated {
+			refreshErr = apperrors.New(http.StatusForbidden, "email is not confirmed")
+			return nil
+		}
 		if err := q.TouchRefreshToken(ctx, refresh); err != nil {
 			return err
 		}
@@ -265,7 +353,7 @@ func (s *Auth) GetSecurityState(ctx context.Context, id uuid.UUID) (*middleware.
 	return &middleware.PrincipalSecurityState{
 		AuthGeneration: state.AuthGeneration, SecurityState: state.SecurityState,
 		PasswordDisabled: state.PasswordDisabled, PasswordResetRequired: state.PasswordResetRequired,
-		IsDeleted: state.IsDeleted,
+		IsDeleted: state.IsDeleted, SignupPending: !state.AccountActivated,
 	}, nil
 }
 

@@ -95,12 +95,22 @@ func (e *Email) SendEmailConfirmation(ctx context.Context, username, to, token s
 		Title:   "Confirm your email",
 		Heading: "Confirm your email",
 		Name:    username,
-		Intro:   "Thanks for joining Stick-It! Please confirm your email address to finish setting up your account.",
+		Intro:   "Thanks for joining Stick-It! Please confirm your email address to finish setting up your account. This link expires in 24 hours.",
 		Button:  "Confirm email",
 		URL:     e.viewLink("/public/email-confirmation/", token),
 		Note:    "If you didn’t create a Stick-It account, you can safely ignore this email.",
 	})
 	return e.SendHTML(ctx, to, "Confirm your email", html)
+}
+
+func deliverEmailConfirmation(ctx context.Context, mailer *Email, username, to, token string) error {
+	if mailer == nil {
+		return ErrEmailDeliveryUnavailable
+	}
+	if err := mailer.SendEmailConfirmation(ctx, username, to, token); err != nil {
+		return fmt.Errorf("%w: %v", ErrEmailDeliveryUnavailable, err)
+	}
+	return nil
 }
 
 // SendPasswordRecovery emails a direct link to reset the user's password.

@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:string_validator/string_validator.dart';
 
-enum _AuthMode { login, signup }
+enum _AuthMode { login, signup, verificationPending }
 
 class Auth extends ConsumerStatefulWidget {
   const Auth({super.key});
@@ -22,11 +22,11 @@ class Auth extends ConsumerStatefulWidget {
 class _AuthState extends ConsumerState<Auth> {
   final _formKey = GlobalKey<FormState>();
   final _loginFormKey = GlobalKey<FormState>();
+  final _verificationFormKey = GlobalKey<FormState>();
   final _identifier = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _email = TextEditingController();
-  final _emailConfirmation = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _showPassword = false;
   bool _showSignupPassword = false;
@@ -34,6 +34,7 @@ class _AuthState extends ConsumerState<Auth> {
   bool _acceptedPrivacy = false;
   bool _busy = false;
   String? _error;
+  String? _verificationNotice;
 
   @override
   void dispose() {
@@ -41,7 +42,6 @@ class _AuthState extends ConsumerState<Auth> {
     _username.dispose();
     _password.dispose();
     _email.dispose();
-    _emailConfirmation.dispose();
     super.dispose();
   }
 
@@ -61,6 +61,17 @@ class _AuthState extends ConsumerState<Auth> {
         .read(loginServiceProvider)
         .authUser(LoginData(name: identifier, password: password));
     if (!mounted) return;
+    if (error == 'email is not confirmed') {
+      setState(() {
+        _mode = _AuthMode.verificationPending;
+        _username.text = identifier;
+        _email.clear();
+        _verificationNotice = 'This account still needs email confirmation. Enter the address you used, or correct it, and we’ll send a fresh link.';
+        _busy = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _busy = false;
       _error = error;
@@ -80,7 +91,7 @@ class _AuthState extends ConsumerState<Auth> {
     if (!mounted) return;
     if (result.status == EmailLinkRequestStatus.accepted) {
       setState(() => _busy = false);
-      context.pushNamed('emailLoginCode', extra: result.identifier!);
+      context.pushNamed('emailLoginCode', extra: result.identifier);
       return;
     }
     setState(() {
@@ -133,22 +144,57 @@ class _AuthState extends ConsumerState<Auth> {
       _busy = true;
       _error = null;
     });
-    final error = await ref
-        .read(loginServiceProvider)
-        .signupUser(
-          SignupData.fromSignupForm(
-            name: _username.text.trim(),
-            password: _password.text,
-            additionalSignupData: {'email': _email.text.trim()},
-          ),
-        );
+    final error = await _sendVerificationEmail();
     if (!mounted) return;
     setState(() {
       _busy = false;
       _error = error;
+      if (error == null) {
+        _mode = _AuthMode.verificationPending;
+        _verificationNotice =
+            'We sent a verification link to ${_email.text.trim()}.';
+      }
     });
-    if (error == null) context.goNamed('home');
   }
+
+  Future<String?> _sendVerificationEmail() => ref
+      .read(loginServiceProvider)
+      .signupUser(
+        SignupData.fromSignupForm(
+          name: _username.text.trim(),
+          password: _password.text,
+          additionalSignupData: {'email': _email.text.trim()},
+        ),
+      );
+
+  Future<void> _resendVerification() async {
+    if (_busy || !_verificationFormKey.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final error = await _sendVerificationEmail();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error == 'username already exists'
+          ? 'We couldn’t confirm those signup details. Sign in or check your username and password.'
+          : error == 'verification email recently sent; wait five minutes'
+          ? 'Please wait five minutes before requesting another verification link.'
+          : error;
+      if (error == null) {
+        _verificationNotice =
+            'We sent a fresh verification link to ${_email.text.trim()}.';
+      }
+    });
+  }
+
+  void _openPendingSignIn() => setState(() {
+    _mode = _AuthMode.login;
+    _showPassword = true;
+    _identifier.text = _username.text;
+    _error = null;
+  });
 
   void _switchMode(_AuthMode mode) => setState(() {
     _mode = mode;
@@ -167,7 +213,6 @@ class _AuthState extends ConsumerState<Auth> {
   Widget build(BuildContext context) {
     final global = ref.watch(globalDataServiceProvider);
     final theme = Theme.of(context);
-    final signup = _mode == _AuthMode.signup;
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
@@ -204,9 +249,16 @@ class _AuthState extends ConsumerState<Auth> {
                         child: child,
                       ),
                     ),
-                    child: signup
-                        ? _signupForm(theme)
-                        : _loginForm(theme, global.sessionStatus),
+                    child: switch (_mode) {
+                      _AuthMode.login => _loginForm(
+                        theme,
+                        global.sessionStatus,
+                      ),
+                      _AuthMode.signup => _signupForm(theme),
+                      _AuthMode.verificationPending => _verificationPendingForm(
+                        theme,
+                      ),
+                    },
                   ),
                 ),
               ),
@@ -396,7 +448,7 @@ class _AuthState extends ConsumerState<Auth> {
         _brand(
           theme,
           title: 'Create your account',
-          subtitle: 'A few details and you’re ready to go.',
+          subtitle: 'Create an account, then verify your email to sign in.',
         ),
         TextFormField(
           key: const Key('signup-username'),
@@ -427,24 +479,6 @@ class _AuthState extends ConsumerState<Auth> {
           validator: (value) => isEmail(value?.trim() ?? '')
               ? null
               : 'Enter a valid email address.',
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          key: const Key('signup-email-confirmation'),
-          controller: _emailConfirmation,
-          enabled: !_busy,
-          keyboardType: TextInputType.emailAddress,
-          autofillHints: const [AutofillHints.email],
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: 'Confirm email address',
-            prefixIcon: Icon(Icons.mark_email_read_outlined),
-          ),
-          validator: (value) =>
-              value?.trim().toLowerCase() == _email.text.trim().toLowerCase() &&
-                  value!.isNotEmpty
-              ? null
-              : 'Email addresses do not match.',
         ),
         const SizedBox(height: 12),
         TextFormField(
@@ -519,6 +553,65 @@ class _AuthState extends ConsumerState<Auth> {
         TextButton(
           onPressed: _busy ? null : () => _switchMode(_AuthMode.login),
           child: const Text('Already have an account? Sign in'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _verificationPendingForm(ThemeData theme) => Form(
+    key: _verificationFormKey,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _brand(
+          theme,
+          title: 'Check your email',
+          subtitle: 'Confirm your address before signing in.',
+        ),
+        Text(
+          _verificationNotice ?? 'Enter the email address for this account. You can correct it here and we’ll send a fresh verification link.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 20),
+        TextFormField(
+          key: const Key('pending-verification-email'),
+          controller: _email,
+          enabled: !_busy,
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.email],
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'Email address',
+            prefixIcon: Icon(Icons.mail_outline),
+          ),
+          validator: (value) => isEmail(value?.trim() ?? '')
+              ? null
+              : 'Enter a valid email address.',
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'The link expires after 24 hours. You can request another link if needed.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall,
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _error == null ? const SizedBox.shrink() : _errorText(theme),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          key: const Key('pending-verification-submit'),
+          onPressed: _busy ? null : _resendVerification,
+          child: _busy
+              ? const _BusyLabel()
+              : const Text('Send verification email'),
+        ),
+        TextButton(
+          onPressed: _busy ? null : _openPendingSignIn,
+          child: const Text('Already verified? Sign in'),
         ),
       ],
     ),

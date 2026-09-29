@@ -1,4 +1,5 @@
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +46,7 @@ class JoinGroupHintOverlay extends ConsumerWidget {
             children: [
               Icon(
                 Icons.search_rounded,
-                color: theme.colorScheme.primary,
+                color: theme.colorScheme.primaryOnSurface,
                 size: 18.0,
               ),
               const SizedBox(width: 4.0),

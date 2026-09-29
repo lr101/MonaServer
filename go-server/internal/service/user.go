@@ -317,6 +317,9 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if !u.EmailConfirmed {
 			return nil, apperrors.New(403, "email is not confirmed")
 		}
+		if s.mail == nil {
+			return nil, ErrEmailDeliveryUnavailable
+		}
 		confirmUrl := randomURL()
 		// Keep the claim-aware mutation inside the caller-owned transaction.
 		// This also revokes capabilities bound to the previous address before
@@ -324,10 +327,8 @@ func (s *User) update(ctx context.Context, id uuid.UUID, in UserUpdateInput) (*U
 		if err := s.q.ChangeUserEmail(ctx, id, in.Email, &confirmUrl); err != nil {
 			return nil, err
 		}
-		if s.mail != nil {
-			if err := s.mail.SendEmailConfirmation(ctx, u.Username, *in.Email, confirmUrl); err != nil {
-				return nil, err
-			}
+		if err := deliverEmailConfirmation(ctx, s.mail, u.Username, *in.Email, confirmUrl); err != nil {
+			return nil, err
 		}
 		u.Email = in.Email
 		u.EmailConfirmed = false

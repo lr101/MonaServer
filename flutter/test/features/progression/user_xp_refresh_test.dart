@@ -6,23 +6,35 @@ import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
+import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
+import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
+import 'package:buff_lisa/features/camera/data/app_review_state.dart';
+import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
+import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
+import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
+import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
+import 'package:transparent_image/transparent_image.dart';
 
 void main() {
   test('online pin creation refreshes group progression', () async {
@@ -47,6 +59,213 @@ void main() {
 
     expect(fixture.groupProgressionRequests, 2);
     expect(refreshed?.totalXp, 5);
+  });
+
+  test(
+    'pin save returns while its first network upload is still pending',
+    () async {
+      final fixture = await _Fixture.create(_Mutation.pin, pauseMutation: true);
+      addTearDown(fixture.dispose);
+
+      final save = fixture.performAction();
+      await fixture.mutationRequestStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        await fixture.database.select(fixture.database.pendingPinCreates).get(),
+        hasLength(1),
+        reason: 'the request starts only after its durable outbox row is saved',
+      );
+      final returnedBeforeResponse = await Future.any([
+        save.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 50), () => false),
+      ]);
+
+      fixture.completeMutationSuccess();
+      expect(await save, isNull);
+      await fixture.waitForPinUpload();
+
+      expect(
+        returnedBeforeResponse,
+        isTrue,
+        reason: 'the upload page should finish without waiting for the server',
+      );
+    },
+  );
+
+  test(
+    'pin save returns after outbox commit without waiting for cache writes',
+    () async {
+      final fixture = await _Fixture.create(
+        _Mutation.pin,
+        pausePinCacheWrite: true,
+      );
+      addTearDown(fixture.dispose);
+
+      final save = fixture.performAction();
+      await fixture.pinCacheWriteStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(
+        await fixture.database.select(fixture.database.pendingPinCreates).get(),
+        hasLength(1),
+        reason: 'the complete post is durable before cache projection starts',
+      );
+      final uploadStartedBeforeCacheWrite = await Future.any([
+        fixture.mutationRequestStarted.future.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+      ]);
+      final returnedBeforeCacheWrite = await Future.any([
+        save.then((_) => true),
+        Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+      ]);
+
+      fixture.releasePinCacheWrite.complete();
+      await fixture.mutationRequestStarted.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(await save, isNull);
+      await fixture.waitForPinUpload();
+
+      expect(
+        returnedBeforeCacheWrite,
+        isTrue,
+        reason: 'the approval page should leave after the outbox commit',
+      );
+      expect(
+        uploadStartedBeforeCacheWrite,
+        isTrue,
+        reason: 'cache projection must not hold up the background POST',
+      );
+    },
+  );
+
+  test('deleting a failed upload waits for its pending cache write', () async {
+    final fixture = await _Fixture.create(
+      _Mutation.pin,
+      pauseMutation: true,
+      pausePinCacheWrite: true,
+    );
+    addTearDown(fixture.dispose);
+
+    final save = fixture.performAction();
+    await fixture.pinCacheWriteStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    await fixture.mutationRequestStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    expect(await save, isNull);
+
+    final deleting = fixture.container
+        .read(pinServiceProvider)
+        .deletePinFromGroup('draft-pin');
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final row = await fixture.database
+          .select(fixture.database.pendingPinCreates)
+          .getSingleOrNull();
+      if (row?.cancelRequested == true) break;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(
+      (await fixture.database
+              .select(fixture.database.pendingPinCreates)
+              .getSingleOrNull())
+          ?.cancelRequested,
+      isTrue,
+    );
+
+    fixture.mutationResponse.complete(http.Response('Unavailable', 503));
+    final deleteReturnedBeforeCacheWrite = await Future.any([
+      deleting.then((_) => true),
+      Future<bool>.delayed(const Duration(milliseconds: 250), () => false),
+    ]);
+    expect(
+      deleteReturnedBeforeCacheWrite,
+      isFalse,
+      reason: 'delete must wait for the in-flight cache projection',
+    );
+
+    fixture.releasePinCacheWrite.complete();
+    expect(await deleting, isNull);
+    expect(
+      await fixture.container.read(pinRepositoryProvider).get('draft-pin'),
+      isNull,
+    );
+  });
+
+  testWidgets('approval leaves after local save without waiting for upload', (
+    tester,
+  ) async {
+    final fixture = await _Fixture.create(
+      _Mutation.pin,
+      pauseMutation: true,
+      pausePendingPinEnqueue: true,
+      provideApprovalScreen: true,
+    );
+    addTearDown(fixture.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: fixture.container,
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const Scaffold(body: Text('Root screen')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ImageUpload(image: kTransparentImage, position: const LatLng(1, 2)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Upload'), findsOneWidget);
+    await tester.tap(find.text('Upload'));
+    await fixture.pendingPinEnqueueStarted.future.timeout(
+      const Duration(seconds: 2),
+    );
+    await tester.pump();
+
+    expect(find.text('Root screen'), findsNothing);
+    expect(find.text('Upload'), findsOneWidget);
+    expect(find.text('Saving post'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pumpAndSettle();
+    expect(find.text('Approve'), findsOneWidget);
+    expect(find.text('Upload'), findsOneWidget);
+    expect(
+      await fixture.database.select(fixture.database.pendingPinCreates).get(),
+      isEmpty,
+      reason: 'navigation must wait until the local outbox write commits',
+    );
+
+    fixture.releasePendingPinEnqueue.complete();
+    await tester.runAsync(
+      () => fixture.mutationRequestStarted.future.timeout(
+        const Duration(seconds: 2),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Root screen'), findsOneWidget);
+    expect(find.text('Upload'), findsNothing);
+    expect(
+      await fixture.database.select(fixture.database.pendingPinCreates).get(),
+      hasLength(1),
+      reason: 'the pending upload remains durable after navigation',
+    );
+
+    // The HTTP request remains unresolved, proving that navigation only waits
+    // for the local save and not for the server.
+    fixture.completeMutationSuccess();
+    await tester.runAsync(
+      () =>
+          fixture.pendingPinRemoved.future.timeout(const Duration(seconds: 2)),
+    );
   });
 
   for (final action in _Mutation.values) {
@@ -90,7 +309,18 @@ void main() {
       addTearDown(fixture.dispose);
       await fixture.prepare();
 
-      expect(await fixture.performAction(), isNotNull);
+      final result = await fixture.performAction();
+      if (action == _Mutation.pin) {
+        expect(result, isNull);
+        await fixture.mutationRequestStarted.future.timeout(
+          const Duration(seconds: 2),
+        );
+        final row = await fixture.waitForPinUploadError();
+        expect(row, isNotNull);
+        expect(row!.lastError, 'HTTP 503');
+      } else {
+        expect(result, isNotNull);
+      }
       await fixture.container.pump();
 
       expect(fixture.xpRequests, 1);
@@ -146,6 +376,11 @@ class _Fixture {
     required this.globalData,
     required this.pauseMutation,
     required this.mutationStatus,
+    required this.pinCacheWriteStarted,
+    required this.releasePinCacheWrite,
+    required this.pendingPinEnqueueStarted,
+    required this.releasePendingPinEnqueue,
+    required this.pendingPinRemoved,
   });
 
   final _Mutation action;
@@ -155,6 +390,11 @@ class _Fixture {
   final _SwitchableGlobalDataService globalData;
   final bool pauseMutation;
   final int mutationStatus;
+  final Completer<void> pinCacheWriteStarted;
+  final Completer<void> releasePinCacheWrite;
+  final Completer<void> pendingPinEnqueueStarted;
+  final Completer<void> releasePendingPinEnqueue;
+  final Completer<void> pendingPinRemoved;
   final mutationRequestStarted = Completer<void>();
   final secondXpRequestStarted = Completer<void>();
   final mutationResponse = Completer<http.Response>();
@@ -165,11 +405,33 @@ class _Fixture {
   static Future<_Fixture> create(
     _Mutation action, {
     bool pauseMutation = false,
+    bool pausePinCacheWrite = false,
+    bool pausePendingPinEnqueue = false,
+    bool provideApprovalScreen = false,
     int mutationStatus = 200,
   }) async {
     final database = AppDatabase(NativeDatabase.memory());
     final groups = GroupRepository(database);
-    final pins = PinRepository(database);
+    final pinCacheWriteStarted = Completer<void>();
+    final releasePinCacheWrite = Completer<void>();
+    final pendingPinEnqueueStarted = Completer<void>();
+    final releasePendingPinEnqueue = Completer<void>();
+    final pendingPinRemoved = Completer<void>();
+    final pendingPins = pausePendingPinEnqueue
+        ? _DelayedPendingPinRepository(
+            database,
+            pendingPinEnqueueStarted,
+            releasePendingPinEnqueue,
+            pendingPinRemoved,
+          )
+        : PendingPinRepository(database);
+    final pins = pausePinCacheWrite
+        ? _DelayedPinRepository(
+            database,
+            pinCacheWriteStarted,
+            releasePinCacheWrite,
+          )
+        : PinRepository(database);
     await Future.wait([groups.ready, pins.ready]);
     final globalData = _SwitchableGlobalDataService();
     late _Fixture fixture;
@@ -185,11 +447,32 @@ class _Fixture {
         driftRepoProvider.overrideWithValue(database),
         accountDatabaseProvider.overrideWithValue(database),
         groupRepositoryProvider.overrideWithValue(groups),
+        pendingPinRepositoryProvider.overrideWithValue(pendingPins),
         pinRepositoryProvider.overrideWithValue(pins),
         pinApiProvider.overrideWithValue(PinsApi(client)),
         groupApiProvider.overrideWithValue(GroupsApi(client)),
         memberApiProvider.overrideWithValue(MembersApi(client)),
         userApiProvider.overrideWithValue(UsersApi(client)),
+        if (provideApprovalScreen)
+          cameraSelectedGroupProvider.overrideWith(
+            (_) async => GroupEntity(
+              groupId: 'group-id',
+              name: 'Test group',
+              visibility: 0,
+              userIsMember: true,
+              ttl: DateTime.now(),
+              onlySession: false,
+            ),
+          ),
+        if (provideApprovalScreen)
+          groupOrderServiceProvider.overrideWithValue(['group-id']),
+        if (provideApprovalScreen)
+          appReviewStateProvider.overrideWithValue(false),
+        if (provideApprovalScreen)
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+        if (provideApprovalScreen)
+          groupProfilePictureSmallByIdProvider('group-id')
+              .overrideWith((_) => Stream.value(kTransparentImage)),
       ],
     );
     return fixture = _Fixture(
@@ -200,6 +483,11 @@ class _Fixture {
       globalData: globalData,
       pauseMutation: pauseMutation,
       mutationStatus: mutationStatus,
+      pinCacheWriteStarted: pinCacheWriteStarted,
+      releasePinCacheWrite: releasePinCacheWrite,
+      pendingPinEnqueueStarted: pendingPinEnqueueStarted,
+      releasePendingPinEnqueue: releasePendingPinEnqueue,
+      pendingPinRemoved: pendingPinRemoved,
     );
   }
 
@@ -216,6 +504,28 @@ class _Fixture {
     }
     // Keep providers used by mutations alive as a visible page would.
     _subscriptions.addAll([groups, xp, if (achievements != null) achievements]);
+  }
+
+  Future<void> waitForPinUpload() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final rows = await database.select(database.pendingPinCreates).get();
+      if (rows.isEmpty) return;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    fail('The successful background upload did not clear its outbox row.');
+  }
+
+  Future<PendingPinCreateDb?> waitForPinUploadError() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      final row = await database
+          .select(database.pendingPinCreates)
+          .getSingleOrNull();
+      if (row?.lastError != null) return row;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    return database.select(database.pendingPinCreates).getSingleOrNull();
   }
 
   final _subscriptions = <ProviderSubscription<dynamic>>[];
@@ -348,12 +658,56 @@ class _Fixture {
       mutationResponse.complete(_mutationResponse(200));
 
   Future<void> dispose() async {
+    if (!releasePinCacheWrite.isCompleted) releasePinCacheWrite.complete();
+    if (!releasePendingPinEnqueue.isCompleted) {
+      releasePendingPinEnqueue.complete();
+    }
     for (final subscription in _subscriptions) {
       subscription.close();
     }
     container.dispose();
     apiClient.client.close();
     await database.close();
+  }
+}
+
+class _DelayedPinRepository extends PinRepository {
+  _DelayedPinRepository(super.db, this.started, this.release);
+
+  final Completer<void> started;
+  final Completer<void> release;
+
+  @override
+  Future<void> put(PinEntity item) async {
+    if (!started.isCompleted) started.complete();
+    await release.future;
+    await super.put(item);
+  }
+}
+
+class _DelayedPendingPinRepository extends PendingPinRepository {
+  _DelayedPendingPinRepository(
+    super.db,
+    this.started,
+    this.release,
+    this.removed,
+  );
+
+  final Completer<void> started;
+  final Completer<void> release;
+  final Completer<void> removed;
+
+  @override
+  Future<void> enqueue(PinEntity pin, Uint8List image) async {
+    started.complete();
+    await release.future;
+    await super.enqueue(pin, image);
+  }
+
+  @override
+  Future<void> remove(String pinId) async {
+    await super.remove(pinId);
+    if (!removed.isCompleted) removed.complete();
   }
 }
 

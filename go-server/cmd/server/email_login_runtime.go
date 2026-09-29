@@ -14,6 +14,11 @@ import (
 	"github.com/lrprojects/monaserver/internal/token"
 )
 
+const (
+	defaultEmailLoginTokenTTL = 15 * time.Minute
+	maxEmailLoginTokenTTL     = 24 * time.Hour
+)
+
 // newEmailLoginRuntime installs the public auth service and delivery worker
 // together. A disabled feature creates neither; an enabled feature requires
 // explicit secrets, callback URL, and SMTP configuration before startup.
@@ -33,20 +38,29 @@ func newEmailLoginRuntime(cfg *config.Config, q *db.Queries, security *service.A
 		(callback.Fragment != "/email-login/callback" && callback.Fragment != "/email-login/callback?token=") {
 		return nil, nil, errors.New("email login callback URL must be an HTTPS Flutter web callback")
 	}
+	tokenTTL := cfg.EmailLoginTokenTTL
+	if tokenTTL == 0 {
+		tokenTTL = defaultEmailLoginTokenTTL
+	}
+	if tokenTTL < 0 || tokenTTL > maxEmailLoginTokenTTL {
+		return nil, nil, errors.New("email login token lifetime must be greater than zero and no more than 24 hours")
+	}
 	// Campaign login links live for 24 hours, so encrypted delivery payloads
-	// need the same maximum. Public login payloads still expire with their
-	// shorter 15-minute action token.
+	// need the same maximum. Public login token and delivery payload lifetimes
+	// are configurable up to the same limit.
 	ring, err := service.NewDeliveryKeyRing(map[string][]byte{
 		cfg.EmailDeliveryKeyID: decodeAdminKey(cfg.EmailDeliveryKey),
-	}, cfg.EmailDeliveryKeyID, 24*time.Hour)
+	}, cfg.EmailDeliveryKeyID, maxEmailLoginTokenTTL)
 	if err != nil {
 		return nil, nil, err
 	}
 	login := service.NewEmailLogin(q, security, tok, service.EmailLoginConfig{
-		HMACKeyID:       cfg.EmailLoginHMACKeyID,
-		HMACKey:         decodeAdminKey(cfg.EmailLoginHMACKey),
-		CallbackURL:     cfg.EmailLoginCallbackURL,
-		DeliveryKeyRing: ring,
+		HMACKeyID:          cfg.EmailLoginHMACKeyID,
+		HMACKey:            decodeAdminKey(cfg.EmailLoginHMACKey),
+		LoginTokenTTL:      tokenTTL,
+		DeliveryPayloadTTL: tokenTTL,
+		CallbackURL:        cfg.EmailLoginCallbackURL,
+		DeliveryKeyRing:    ring,
 	}, nil)
 	attempts := service.NewValidatedDeliveryAttemptStore(q, q, ring, nil)
 	dispatcher := service.NewDeliveryDispatcher(attempts, ring, service.NewEmailDelivery(service.NewSMTPEmailProvider(mail)), nil, nil)

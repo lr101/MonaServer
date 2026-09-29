@@ -127,6 +127,7 @@ type UserSecurityState struct {
 	ID                    uuid.UUID
 	Email                 *string
 	EmailConfirmed        bool
+	AccountActivated      bool
 	IsDeleted             bool
 	AuthGeneration        int64
 	SecurityState         string
@@ -157,6 +158,7 @@ func securityStateFromRow(r dbgen.GetUserSecurityStateRow) UserSecurityState {
 		ID:                    goUUID(r.ID),
 		Email:                 goText(r.Email),
 		EmailConfirmed:        r.EmailConfirmed,
+		AccountActivated:      r.AccountActivated,
 		IsDeleted:             r.IsDeleted,
 		AuthGeneration:        r.AuthGeneration,
 		SecurityState:         r.SecurityState,
@@ -171,6 +173,7 @@ func securityStateFromLockRow(r dbgen.LockUserSecurityStateRow) UserSecurityStat
 		ID:                    goUUID(r.ID),
 		Email:                 goText(r.Email),
 		EmailConfirmed:        r.EmailConfirmed,
+		AccountActivated:      r.AccountActivated,
 		IsDeleted:             r.IsDeleted,
 		AuthGeneration:        r.AuthGeneration,
 		SecurityState:         r.SecurityState,

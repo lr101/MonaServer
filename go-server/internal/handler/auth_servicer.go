@@ -101,6 +101,9 @@ func (s *AuthServicer) UserLogin(ctx context.Context, req genserver.UserLoginReq
 }
 
 func (s *AuthServicer) CreateUser(ctx context.Context, req genserver.UserRequestDto) (genserver.ImplResponse, error) {
+	if req.Email != "" && s.mail == nil {
+		return serviceErrResp(ctx, service.ErrEmailDeliveryUnavailable), nil
+	}
 	var email *string
 	if req.Email != "" {
 		e := req.Email

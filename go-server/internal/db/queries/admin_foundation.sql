@@ -77,13 +77,13 @@ DELETE FROM email_login_claims WHERE canonical_email = $1;
 -- User security state --------------------------------------------------------
 
 -- name: GetUserSecurityState :one
-SELECT id, email, email_confirmed, is_deleted, auth_generation, security_state,
+SELECT id, email, email_confirmed, account_activated, is_deleted, auth_generation, security_state,
        password_disabled, password_reset_required, compromised_at
 FROM users
 WHERE id = $1;
 
 -- name: LockUserSecurityState :one
-SELECT id, email, email_confirmed, is_deleted, auth_generation, security_state,
+SELECT id, email, email_confirmed, account_activated, is_deleted, auth_generation, security_state,
        password_disabled, password_reset_required, compromised_at
 FROM users
 WHERE id = $1
@@ -121,6 +121,7 @@ SET is_deleted = TRUE,
     reset_password_expiration = NULL,
     deletion_url = NULL,
     email_confirmation_url = NULL,
+    email_confirmation_expires_at = NULL,
     update_date = now()
 WHERE id = $1 AND is_deleted = FALSE
 RETURNING auth_generation;

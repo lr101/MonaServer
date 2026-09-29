@@ -450,7 +450,12 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
 
   Widget _createLikeCountWidget(int? likeCount, bool isLiked, String text) {
     return widget.countBuilder?.call(likeCount, isLiked, text) ??
-        Text(text, style: const TextStyle(color: Colors.grey));
+        Text(
+          text,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        );
   }
 
   void onTap() {

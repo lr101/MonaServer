@@ -77,13 +77,13 @@ jobs:
           done
 
           curl --fail --silent --show-error http://127.0.0.1:18081/ \
-            | grep -q 'MonaServer Admin'
+            | grep -F 'MonaServer Admin' >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:18081/src/main.js \
-            | grep -q "./api.js"
+            | grep -F "./api.js" >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:18081/dashboard \
-            | grep -q 'MonaServer Admin'
+            | grep -F 'MonaServer Admin' >/dev/null
           curl --fail --silent --show-error --head http://127.0.0.1:18081/ \
-            | grep -qi '^X-Content-Type-Options: nosniff'
+            | grep -i '^X-Content-Type-Options: nosniff' >/dev/null
 
           status_code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:18081/api/health)

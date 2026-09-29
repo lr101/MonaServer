@@ -49,8 +49,9 @@ void main() {
           ),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
-          pinImageBytesProvider('pin')
-              .overrideWith((ref) => Stream.value(kTransparentImage)),
+          pinImageForDetailsProvider('pin').overrideWith(
+            (ref) => kTransparentImage,
+          ),
           currentLocationProvider.overrideWith((ref) => const Stream.empty()),
           pinPhotoHistoryProvider('pin').overrideWith(
             (ref) => Future.value([

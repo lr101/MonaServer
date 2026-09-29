@@ -59,6 +59,10 @@ func JWT(tok *token.Helper, lookup UserLookup) func(http.Handler) http.Handler {
 					apperrors.WriteJSONError(w, "invalid token", http.StatusUnauthorized)
 					return
 				}
+				if state.SignupPending {
+					apperrors.WriteJSONError(w, "email is not confirmed", http.StatusForbidden)
+					return
+				}
 				admin, err := security.IsAdmin(r.Context(), uid)
 				if err != nil {
 					apperrors.WriteJSONError(w, "invalid token", http.StatusUnauthorized)

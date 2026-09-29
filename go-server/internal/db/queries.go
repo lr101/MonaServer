@@ -27,6 +27,40 @@ type Queries struct {
 	inTx bool
 }
 
+// ClaimPinCreate serializes retries for one caller and key in the caller's
+// transaction. A committed row always has a pin ID.
+func (q *Queries) ClaimPinCreate(ctx context.Context, callerID, key uuid.UUID, hash []byte) (*uuid.UUID, []byte, error) {
+	inserted, err := q.g.ClaimPinCreateIdempotency(ctx, dbgen.ClaimPinCreateIdempotencyParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key), RequestHash: hash,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if inserted == 1 {
+		return nil, nil, nil
+	}
+	row, err := q.g.GetPinCreateIdempotencyForUpdate(ctx, dbgen.GetPinCreateIdempotencyForUpdateParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return goUUIDPtr(row.PinID), row.RequestHash, nil
+}
+
+func (q *Queries) FinishPinCreate(ctx context.Context, callerID, key, pinID uuid.UUID) error {
+	updated, err := q.g.FinishPinCreateIdempotency(ctx, dbgen.FinishPinCreateIdempotencyParams{
+		CallerID: pgUUID(callerID), IdempotencyKey: pgUUID(key), PinID: pgUUID(pinID),
+	})
+	if err != nil {
+		return err
+	}
+	if updated != 1 {
+		return apperrors.ErrConflict
+	}
+	return nil
+}
+
 func New(pool *pgxpool.Pool) *Queries {
 	return &Queries{pool: pool, runner: pool, g: dbgen.New(pool)}
 }
@@ -116,6 +150,7 @@ type User struct {
 	Description             *string
 	ProfilePictureExists    bool
 	EmailConfirmed          bool
+	AccountActivated        bool
 	FailedLoginAttempts     int
 	FirebaseToken           *string
 	Code                    *string
@@ -181,6 +216,7 @@ func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 		Description:             goText(r.Description),
 		ProfilePictureExists:    r.ProfilePictureExists,
 		EmailConfirmed:          r.EmailConfirmed,
+		AccountActivated:        r.AccountActivated,
 		FailedLoginAttempts:     int(r.FailedLoginAttempts),
 		FirebaseToken:           goText(r.FirebaseToken),
 		Code:                    goText(r.Code),
@@ -218,6 +254,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 		Description:             goText(row.Description),
 		ProfilePictureExists:    row.ProfilePictureExists,
 		EmailConfirmed:          row.EmailConfirmed,
+		AccountActivated:        row.AccountActivated,
 		FailedLoginAttempts:     int(row.FailedLoginAttempts),
 		FirebaseToken:           goText(row.FirebaseToken),
 		Code:                    goText(row.Code),
@@ -253,6 +290,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, erro
 		Description:             goText(r.Description),
 		ProfilePictureExists:    r.ProfilePictureExists,
 		EmailConfirmed:          r.EmailConfirmed,
+		AccountActivated:        r.AccountActivated,
 		FailedLoginAttempts:     int(r.FailedLoginAttempts),
 		FirebaseToken:           goText(r.FirebaseToken),
 		Code:                    goText(r.Code),
@@ -337,6 +375,13 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash str
 }
 func (q *Queries) UpdateUserEmail(ctx context.Context, id uuid.UUID, email, confirmationUrl *string) error {
 	return q.ChangeUserEmail(ctx, id, email, confirmationUrl)
+}
+func (q *Queries) CanResendSignupConfirmation(ctx context.Context, id uuid.UUID) (bool, error) {
+	allowed, err := q.g.CanResendSignupConfirmation(ctx, pgUUID(id))
+	if err != nil {
+		return false, err
+	}
+	return allowed.Valid && allowed.Bool, nil
 }
 func (q *Queries) SetUserProfilePictureExists(ctx context.Context, id uuid.UUID, exists bool) error {
 	return q.g.SetUserProfilePictureExists(ctx, dbgen.SetUserProfilePictureExistsParams{ID: pgUUID(id), ProfilePictureExists: exists})

@@ -9,6 +9,7 @@ class CameraSelectorButton extends StatefulWidget {
     required this.selectedIndex,
     required this.onSelected,
     this.maxMenuHeight = 240,
+    this.preferDialog = false,
     super.key,
   });
 
@@ -16,6 +17,7 @@ class CameraSelectorButton extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final double maxMenuHeight;
+  final bool preferDialog;
 
   @override
   State<CameraSelectorButton> createState() => _CameraSelectorButtonState();
@@ -157,21 +159,38 @@ class _CameraSelectorButtonState extends State<CameraSelectorButton>
               ),
             ),
           ),
-          Material(
-            color: Colors.grey.withValues(alpha: 0.5),
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: 'Select camera',
-              onPressed: widget.cameras.isEmpty
-                  ? null
-                  : () {
-                      if (widget.maxMenuHeight < 48) {
-                        unawaited(_showCameraPickerDialog());
-                      } else {
-                        _setOpen(!_open);
-                      }
-                    },
-              icon: const Icon(Icons.flip_camera_android),
+          IconButton(
+            tooltip: 'Select camera',
+            onPressed: widget.cameras.isEmpty
+                ? null
+                : () {
+                    if (widget.preferDialog || widget.maxMenuHeight < 48) {
+                      unawaited(_showCameraPickerDialog());
+                    } else {
+                      _setOpen(!_open);
+                    }
+                  },
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: Colors.transparent,
+              iconSize: 18,
+              minimumSize: const Size.square(44),
+              fixedSize: const Size.square(44),
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+            ),
+            icon: Material(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: CircleBorder(
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant
+                      .withValues(alpha: .55),
+                ),
+              ),
+              child: const SizedBox.square(
+                dimension: 30,
+                child: Icon(Icons.flip_camera_android, size: 18),
+              ),
             ),
           ),
         ],

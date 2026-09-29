@@ -1,3 +1,4 @@
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/util/types/achievement.dart';
 import 'package:flutter/material.dart';
 
@@ -27,7 +28,7 @@ class Batch extends StatelessWidget {
         borderRadius: BorderRadius.circular(5),
         border: isCapstone
             ? Border.all(
-                color: Theme.of(context).colorScheme.primary,
+                color: Theme.of(context).colorScheme.primaryOnSurface,
                 width: 1.5,
               )
             : null,

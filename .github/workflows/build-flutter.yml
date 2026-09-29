@@ -139,10 +139,18 @@ jobs:
         run: |
           flutter pub get
           flutter build web --wasm --release --no-pub
+          dart run tool/generate_offline_web.dart build/web
 
       - name: Verify browser-compatible web artifacts
         working-directory: flutter
         run: bash docker/test_web_build.sh build/web
+
+      - name: Verify offline browser restart
+        working-directory: flutter/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:offline
 
       - name: Upload compiled web app
         uses: actions/upload-artifact@v7

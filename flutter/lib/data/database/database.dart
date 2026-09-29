@@ -126,6 +126,27 @@ class PinEntities extends Table with CacheTable {
   DateTimeColumn get lastSynced => dateTime().nullable()();
 }
 
+// Durable work is independent of the bounded display and image caches.
+@DataClassName('PendingPinCreateDb')
+class PendingPinCreates extends Table {
+  TextColumn get pinId => text()();
+  TextColumn get ownerId => text()();
+  TextColumn get groupId => text()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  DateTimeColumn get creationDate => dateTime()();
+  TextColumn get title => text().nullable()();
+  TextColumn get description => text().nullable()();
+  BlobColumn get image => blob()();
+  BoolColumn get cancelRequested =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get attempted => boolean().withDefault(const Constant(false))();
+  TextColumn get lastError => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {pinId};
+}
+
 @DataClassName('PinLikeDb')
 class PinLikeEntities extends Table with CacheTable {
   TextColumn get id => text()();
@@ -171,6 +192,7 @@ class UserPinsEntities extends Table with CacheTable {
     ImageEntities,
     MemberEntities,
     PinEntities,
+    PendingPinCreates,
     PinLikeEntities,
     UserEntities,
     UserLikeEntities,
@@ -183,7 +205,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -246,6 +268,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await m.addColumn(userEntities, userEntities.selectedBatchColor);
+      }
+      if (from < 7) {
+        await m.createTable(pendingPinCreates);
       }
     },
   );

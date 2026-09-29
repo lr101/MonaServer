@@ -1,10 +1,13 @@
 package service
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -201,6 +204,162 @@ func TestSignupCreatesEmailConfirmationToken(t *testing.T) {
 	if user.EmailConfirmed {
 		t.Fatal("new signup should remain unconfirmed until the confirmation link is used")
 	}
+}
+
+func TestPendingSignupAccessAndResendCooldownRotation(t *testing.T) {
+	q, _, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	host, port := startServiceTestSMTP(t)
+	cfg := &config.Config{MailHost: host, MailPort: port, MailUsername: "sender@example.com", MailPassword: "test", MailFrom: "sender@example.com", WebHost: "app.example.com", MaxLoginAttempts: 5, RefreshTokenExpiry: time.Hour}
+	tok := token.NewHelper("test-secret", time.Minute)
+	auth := NewAuth(q, tok, cfg, NewEmail(cfg, nil))
+	originalEmail := "pending@example.com"
+	pair, err := auth.Signup(ctx, "pending_signup", "password123", &originalEmail)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if _, err := auth.Login(ctx, "pending_signup", "password123"); err == nil {
+		t.Fatal("pending account login should be rejected")
+	}
+	if _, err := auth.Refresh(ctx, pair.RefreshToken, pair.UserID); err == nil {
+		t.Fatal("pending account refresh should be rejected")
+	}
+
+	correctedEmail := "corrected@example.com"
+	if _, err := auth.Signup(ctx, "pending_signup", "wrong-password", &correctedEmail); err == nil {
+		t.Fatal("resend with wrong password should be rejected")
+	}
+	user, err := q.GetUserByID(ctx, pair.UserID)
+	if err != nil {
+		t.Fatalf("get user after wrong password: %v", err)
+	}
+	if user.Email == nil || *user.Email != originalEmail {
+		t.Fatalf("email after wrong password = %v, want %q", user.Email, originalEmail)
+	}
+
+	if _, err := auth.Signup(ctx, "pending_signup", "password123", &correctedEmail); err == nil {
+		t.Fatal("resend during cooldown should be rejected")
+	}
+	user, err = q.GetUserByID(ctx, pair.UserID)
+	if err != nil {
+		t.Fatalf("get user during cooldown: %v", err)
+	}
+	if user.Email == nil || *user.Email != originalEmail {
+		t.Fatalf("email during cooldown = %v, want %q", user.Email, originalEmail)
+	}
+	if _, err := q.FindRefreshToken(ctx, pair.RefreshToken); err != nil {
+		t.Fatalf("cooldown changed original refresh token: %v", err)
+	}
+
+	if _, err := q.Pool().Exec(ctx, `UPDATE users SET email_confirmation_sent_at = NOW() - INTERVAL '6 minutes' WHERE id = $1`, pair.UserID); err != nil {
+		t.Fatalf("age confirmation send timestamp: %v", err)
+	}
+	rotated, err := auth.Signup(ctx, "pending_signup", "password123", &correctedEmail)
+	if err != nil {
+		t.Fatalf("resend after cooldown: %v", err)
+	}
+	if rotated.RefreshToken == pair.RefreshToken {
+		t.Fatal("successful resend did not rotate the refresh token")
+	}
+	if _, err := q.FindRefreshToken(ctx, pair.RefreshToken); err == nil {
+		t.Fatal("old refresh token remains valid after resend")
+	}
+	if _, err := q.FindRefreshToken(ctx, rotated.RefreshToken); err != nil {
+		t.Fatalf("new refresh token missing: %v", err)
+	}
+	var refreshCount int
+	if err := q.Pool().QueryRow(ctx, `SELECT COUNT(*) FROM refresh_token WHERE user_id = $1`, pair.UserID).Scan(&refreshCount); err != nil {
+		t.Fatalf("count refresh tokens: %v", err)
+	}
+	if refreshCount != 1 {
+		t.Fatalf("refresh token count = %d, want exactly one", refreshCount)
+	}
+	user, err = q.GetUserByID(ctx, pair.UserID)
+	if err != nil {
+		t.Fatalf("get user after resend: %v", err)
+	}
+	if user.Email == nil || *user.Email != correctedEmail {
+		t.Fatalf("email after resend = %v, want %q", user.Email, correctedEmail)
+	}
+	if user.EmailConfirmed {
+		t.Fatal("resend should leave account pending confirmation")
+	}
+	if user.EmailConfirmationUrl == nil || *user.EmailConfirmationUrl == "" {
+		t.Fatal("resend did not issue a new confirmation token")
+	}
+	if _, err := auth.Refresh(ctx, rotated.RefreshToken, rotated.UserID); err == nil {
+		t.Fatal("new refresh token should remain blocked until confirmation")
+	}
+}
+
+func startServiceTestSMTP(t *testing.T) (string, int) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for SMTP: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split SMTP address: %v", err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatalf("parse SMTP port: %v", err)
+	}
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				r, w := bufio.NewReader(conn), bufio.NewWriter(conn)
+				write := func(s string) { _, _ = w.WriteString(s + "\r\n"); _ = w.Flush() }
+				write("220 localhost ESMTP")
+				for {
+					line, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					command := strings.TrimSpace(line)
+					switch {
+					case strings.HasPrefix(command, "EHLO"), strings.HasPrefix(command, "HELO"):
+						_, _ = w.WriteString("250-localhost\r\n250 AUTH PLAIN\r\n")
+						_ = w.Flush()
+					case strings.HasPrefix(command, "AUTH"):
+						write("235 authenticated")
+					case command == "DATA":
+						write("354 continue")
+						for {
+							data, err := r.ReadString('\n')
+							if err != nil {
+								return
+							}
+							if strings.TrimSpace(data) == "." {
+								break
+							}
+						}
+						write("250 queued")
+					case command == "QUIT":
+						write("221 bye")
+						return
+					default:
+						write("250 OK")
+					}
+				}
+			}(conn)
+		}
+	}()
+	return host, port
+}
+
+func serviceTestEmail(t *testing.T) *Email {
+	t.Helper()
+	host, port := startServiceTestSMTP(t)
+	cfg := &config.Config{MailHost: host, MailPort: port, MailUsername: "sender@example.com", MailPassword: "test", MailFrom: "sender@example.com", WebHost: "app.example.com"}
+	return NewEmail(cfg, nil)
 }
 
 func TestSignupRollsBackWhenConfirmationMailFails(t *testing.T) {

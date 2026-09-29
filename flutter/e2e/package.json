@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test:unit": "node --test test-data-path.test.js test-config.test.js static_server.test.mjs",
+    "test:offline": "node --test offline-startup.test.mjs",
     "test": "npm run test:unit && playwright test",
     "test:headed": "playwright test --headed",
     "install:browsers": "playwright install --with-deps chromium"

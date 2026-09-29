@@ -1,3 +1,4 @@
+import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:mutex/mutex.dart';
 
@@ -6,6 +7,7 @@ class SubmitButton extends StatefulWidget {
   final String text;
   final double height;
   final IconData icon;
+  final bool showLoadingIndicator;
 
   const SubmitButton({
     super.key,
@@ -13,6 +15,7 @@ class SubmitButton extends StatefulWidget {
     this.text = 'Submit',
     this.height = 50,
     this.icon = Icons.arrow_forward,
+    this.showLoadingIndicator = true,
   });
 
   @override
@@ -45,15 +48,17 @@ class _SubmitButtonState extends State<SubmitButton> {
 
   @override
   Widget build(BuildContext context) {
-
-    return  Align(
+    return Align(
       alignment: Alignment.bottomRight,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _handlePress,
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16.0),
           textStyle: const TextStyle(fontSize: 18.0),
-          side: BorderSide(width: 2, color: Theme.of(context).colorScheme.primary),
+          side: BorderSide(
+            width: 2,
+            color: Theme.of(context).colorScheme.primaryOnSurface,
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -61,7 +66,10 @@ class _SubmitButtonState extends State<SubmitButton> {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (_isLoading) const CircularProgressIndicator() else Text(widget.text),
+              if (_isLoading && widget.showLoadingIndicator)
+                const CircularProgressIndicator()
+              else
+                Text(widget.text),
               const SizedBox(width: 5),
               Icon(widget.icon),
             ],
