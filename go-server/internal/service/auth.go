@@ -122,9 +122,23 @@ func (s *Auth) resendPendingSignup(ctx context.Context, id uuid.UUID, plainPW st
 		if err != nil {
 			return err
 		}
-		if user == nil || !password.Verify(user.Password, plainPW) {
+		if user == nil {
 			signupErr = apperrors.New(http.StatusConflict, "username already exists")
 			return nil
+		}
+		if user.FailedLoginAttempts >= s.maxLoginAttempts() || user.PasswordDisabled || user.PasswordResetRequired || user.SecurityState != db.SecurityStateNormal {
+			signupErr = apperrors.New(http.StatusForbidden, "account locked")
+			return nil
+		}
+		if !password.Verify(user.Password, plainPW) {
+			if err := q.IncrementFailedLogin(ctx, user.ID); err != nil {
+				return err
+			}
+			signupErr = apperrors.New(http.StatusConflict, "username already exists")
+			return nil
+		}
+		if err := q.ResetFailedLogin(ctx, user.ID); err != nil {
+			return err
 		}
 		confirmationURL := randomAlpha(32)
 		if err := q.ChangeUserEmail(ctx, id, email, &confirmationURL); err != nil {
@@ -143,6 +157,13 @@ func (s *Auth) resendPendingSignup(ctx context.Context, id uuid.UUID, plainPW st
 		return nil, signupErr
 	}
 	return pair, nil
+}
+
+func (s *Auth) maxLoginAttempts() int {
+	if s.cfg != nil && s.cfg.MaxLoginAttempts > 0 {
+		return s.cfg.MaxLoginAttempts
+	}
+	return 10
 }
 
 func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair, error) {
@@ -176,10 +197,7 @@ func (s *Auth) Login(ctx context.Context, username, plainPW string) (*TokenPair,
 			authErr = apperrors.New(http.StatusBadRequest, "wrong password or user does not exist")
 			return nil
 		}
-		maxAttempts := 10
-		if s.cfg != nil && s.cfg.MaxLoginAttempts > 0 {
-			maxAttempts = s.cfg.MaxLoginAttempts
-		}
+		maxAttempts := s.maxLoginAttempts()
 		if u.FailedLoginAttempts >= maxAttempts {
 			authErr = apperrors.New(http.StatusForbidden, "account locked")
 			return nil

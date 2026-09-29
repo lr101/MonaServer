@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 )
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+var testQueriesByServer sync.Map
 
 type memoryPinObjectStore struct {
 	objects map[string][]byte
@@ -265,7 +268,10 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
 	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
-	return httptest.NewServer(r), q
+	server := httptest.NewServer(r)
+	testQueriesByServer.Store(server.URL, q)
+	t.Cleanup(func() { testQueriesByServer.Delete(server.URL) })
+	return server, q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -406,6 +412,26 @@ func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 	}
 	var ar authResp
 	_ = json.NewDecoder(resp.Body).Decode(&ar)
+	queries, ok := testQueriesByServer.Load(c.base)
+	if !ok {
+		t.Fatalf("signup test server queries not found for %s", c.base)
+	}
+	userID, err := uuid.Parse(ar.UserID)
+	if err != nil {
+		t.Fatalf("parse signup user ID: %v", err)
+	}
+	user, err := queries.(*db.Queries).GetUserByID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("get signup user: %v", err)
+	}
+	if user == nil || user.EmailConfirmationUrl == nil {
+		t.Fatal("signup did not create an email confirmation link")
+	}
+	confirmation := c.do(t, http.MethodGet, "/public/email-confirmation/"+*user.EmailConfirmationUrl, nil)
+	confirmation.Body.Close()
+	if confirmation.StatusCode != http.StatusOK {
+		t.Fatalf("confirm signup email: expected 200, got %d", confirmation.StatusCode)
+	}
 	return ar
 }
 
