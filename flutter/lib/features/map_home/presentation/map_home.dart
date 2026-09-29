@@ -85,6 +85,11 @@ class _MapHomeState extends ConsumerState<MapHome>
               onPointerUp: (event, point) {
                 ref.read(districtServiceProvider.notifier).refetch();
               },
+              onMapEvent: (event) {
+                if (event is MapEventDoubleTapZoomEnd) {
+                  ref.read(districtServiceProvider.notifier).refetch();
+                }
+              },
               onPositionChanged: (position, hasGesture) {
                 ref.read(mapZoomLevelProvider.notifier).setZoom(position.zoom);
                 ref
@@ -96,7 +101,10 @@ class _MapHomeState extends ConsumerState<MapHome>
                     );
               },
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                flags:
+                    InteractiveFlag.pinchZoom |
+                    InteractiveFlag.doubleTapZoom |
+                    InteractiveFlag.drag,
               ),
             ),
             children: [
