@@ -329,15 +329,26 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                       Expanded(
                         child: ColoredBox(
                           color: colorScheme.surface,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                controlRail,
-                                if (groupSelector case final selector?)
-                                  selector,
-                              ],
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, panelConstraints) =>
+                                SingleChildScrollView(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: panelConstraints.maxHeight,
+                                    ),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          controlRail,
+                                          if (groupSelector
+                                              case final selector?)
+                                            selector,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                           ),
                         ),
                       ),
@@ -805,6 +816,9 @@ Widget cameraPreviewViewport(CameraController controller, {bool? isWeb}) {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              foregroundDecoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: Theme.of(context).colorScheme.outlineVariant
