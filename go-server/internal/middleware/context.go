@@ -32,6 +32,7 @@ type PrincipalSecurityState struct {
 	PasswordDisabled      bool
 	PasswordResetRequired bool
 	IsDeleted             bool
+	SignupPending         bool
 }
 
 func WithUser(ctx context.Context, id uuid.UUID, role string) context.Context {

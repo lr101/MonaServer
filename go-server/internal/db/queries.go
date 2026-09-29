@@ -150,6 +150,7 @@ type User struct {
 	Description             *string
 	ProfilePictureExists    bool
 	EmailConfirmed          bool
+	AccountActivated        bool
 	FailedLoginAttempts     int
 	FirebaseToken           *string
 	Code                    *string
@@ -215,6 +216,7 @@ func userFromIDRow(r dbgen.GetUserByIDRow) *User {
 		Description:             goText(r.Description),
 		ProfilePictureExists:    r.ProfilePictureExists,
 		EmailConfirmed:          r.EmailConfirmed,
+		AccountActivated:        r.AccountActivated,
 		FailedLoginAttempts:     int(r.FailedLoginAttempts),
 		FirebaseToken:           goText(r.FirebaseToken),
 		Code:                    goText(r.Code),
@@ -252,6 +254,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User
 		Description:             goText(row.Description),
 		ProfilePictureExists:    row.ProfilePictureExists,
 		EmailConfirmed:          row.EmailConfirmed,
+		AccountActivated:        row.AccountActivated,
 		FailedLoginAttempts:     int(row.FailedLoginAttempts),
 		FirebaseToken:           goText(row.FirebaseToken),
 		Code:                    goText(row.Code),
@@ -287,6 +290,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, erro
 		Description:             goText(r.Description),
 		ProfilePictureExists:    r.ProfilePictureExists,
 		EmailConfirmed:          r.EmailConfirmed,
+		AccountActivated:        r.AccountActivated,
 		FailedLoginAttempts:     int(r.FailedLoginAttempts),
 		FirebaseToken:           goText(r.FirebaseToken),
 		Code:                    goText(r.Code),
@@ -371,6 +375,13 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, id uuid.UUID, hash str
 }
 func (q *Queries) UpdateUserEmail(ctx context.Context, id uuid.UUID, email, confirmationUrl *string) error {
 	return q.ChangeUserEmail(ctx, id, email, confirmationUrl)
+}
+func (q *Queries) CanResendSignupConfirmation(ctx context.Context, id uuid.UUID) (bool, error) {
+	allowed, err := q.g.CanResendSignupConfirmation(ctx, pgUUID(id))
+	if err != nil {
+		return false, err
+	}
+	return allowed.Valid && allowed.Bool, nil
 }
 func (q *Queries) SetUserProfilePictureExists(ctx context.Context, id uuid.UUID, exists bool) error {
 	return q.g.SetUserProfilePictureExists(ctx, dbgen.SetUserProfilePictureExistsParams{ID: pgUUID(id), ProfilePictureExists: exists})

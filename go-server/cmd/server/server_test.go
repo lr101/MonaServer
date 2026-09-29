@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 )
 
 const testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+var testQueriesByServer sync.Map
 
 type memoryPinObjectStore struct {
 	objects map[string][]byte
@@ -265,7 +268,10 @@ func buildTestServerWithPinStore(t *testing.T, pinStore service.PinObjectStore) 
 	registerAdminV2Routes(r, adminCtrl, adminAuth, cfg.WebAdminAPI)
 	registerV3Routes(r, cfg, tok, authSvc, adminAuth, q)
 
-	return httptest.NewServer(r), q
+	server := httptest.NewServer(r)
+	testQueriesByServer.Store(server.URL, q)
+	t.Cleanup(func() { testQueriesByServer.Delete(server.URL) })
+	return server, q
 }
 
 func TestUnpagedWhenPageMissing(t *testing.T) {
@@ -406,6 +412,17 @@ func (c *apiClient) signup(t *testing.T, username, password string) authResp {
 	}
 	var ar authResp
 	_ = json.NewDecoder(resp.Body).Decode(&ar)
+	queries, ok := testQueriesByServer.Load(c.base)
+	if !ok {
+		t.Fatalf("signup test server queries not found for %s", c.base)
+	}
+	userID, err := uuid.Parse(ar.UserID)
+	if err != nil {
+		t.Fatalf("parse signup user ID: %v", err)
+	}
+	if err := queries.(*db.Queries).ConfirmUserEmail(context.Background(), userID); err != nil {
+		t.Fatalf("confirm signup test user: %v", err)
+	}
 	return ar
 }
 
@@ -609,6 +626,36 @@ func TestEndpointAuth(t *testing.T) {
 			t.Fatalf("delete-code: expected 200, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestPendingSignupCannotAccessProtectedRoutes(t *testing.T) {
+	srv := buildTestServer(t)
+	defer srv.Close()
+	c := &apiClient{base: srv.URL}
+	resp := c.do(t, http.MethodPost, "/api/v2/public/signup", map[string]string{
+		"name": "pending_access", "email": "pending-access@test.example", "password": "password123",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		resp.Body.Close()
+		t.Fatalf("signup: expected 201, got %d", resp.StatusCode)
+	}
+	var pending authResp
+	if err := json.NewDecoder(resp.Body).Decode(&pending); err != nil {
+		resp.Body.Close()
+		t.Fatalf("decode signup response: %v", err)
+	}
+	resp.Body.Close()
+	protected := &apiClient{base: srv.URL, bearer: pending.AccessToken}
+	access := protected.do(t, http.MethodGet, "/api/v2/status", nil)
+	access.Body.Close()
+	if access.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending access: expected 403, got %d", access.StatusCode)
+	}
+	refresh := c.do(t, http.MethodPost, "/api/v2/public/refresh", map[string]string{"refreshToken": pending.RefreshToken, "userId": pending.UserID})
+	refresh.Body.Close()
+	if refresh.StatusCode != http.StatusForbidden {
+		t.Fatalf("pending refresh: expected 403, got %d", refresh.StatusCode)
+	}
 }
 
 func TestBatchReadAuthenticationAndValidation(t *testing.T) {

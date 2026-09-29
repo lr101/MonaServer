@@ -249,8 +249,6 @@ class AuthService extends _$AuthService {
     String email,
   ) async {
     final authApi = ref.read(authApiProvider);
-    final global = ref.read(globalDataServiceProvider.notifier);
-    final generation = global.generation;
     try {
       final request = UserRequestDto(
         name: username,
@@ -258,26 +256,13 @@ class AuthService extends _$AuthService {
         email: email,
       );
       final response = await authApi.createUser(request);
-      if (response != null) {
-        if (global.generation != generation) return "Session ended";
-        final accepted = await global.updateData(
-          response,
-          username,
-          expectedGeneration: generation,
-        );
-        return accepted ? null : "Session ended";
-      } else {
-        return "Something unexpected happened";
-      }
+      return response == null ? "Something unexpected happened" : null;
     } on ApiException catch (e) {
       return e.message;
     }
   }
 
-  Future<String?> report(
-    String reportedReferences,
-    String reportMessage,
-  ) {
+  Future<String?> report(String reportedReferences, String reportMessage) {
     final userId = ref.read(userIdProvider);
     return reportDto(
       ReportDto(

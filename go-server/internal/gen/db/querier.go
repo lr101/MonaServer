@@ -29,6 +29,7 @@ type Querier interface {
 	// code does not duplicate SQL or accidentally escape a caller transaction.
 	// Canonical email claims -----------------------------------------------------
 	BackfillEmailLoginClaims(ctx context.Context) error
+	CanResendSignupConfirmation(ctx context.Context, id pgtype.UUID) (pgtype.Bool, error)
 	// Admin membership and bootstrap -------------------------------------------
 	// The singleton claim serializes competing environment bootstraps. A prior
 	// explicit operator enrollment marks the deployment claimed too.

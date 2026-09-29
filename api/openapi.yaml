@@ -815,6 +815,10 @@ paths:
       - auth
   /api/v2/public/signup:
     post:
+      description: >-
+        Email signups stay pending until the address is confirmed. Before activation,
+        repeating this request with the same username and password can resend the
+        confirmation link or correct the email address after a five-minute cooldown.
       operationId: createUser
       requestBody:
         content:
@@ -833,6 +837,10 @@ paths:
           description: Registration failed
         "409":
           description: Username already exists
+        "429":
+          description: A verification email was sent recently; retry after five minutes
+        "503":
+          description: Email delivery is unavailable
       summary: User registration
       tags:
       - auth

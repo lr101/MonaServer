@@ -22,12 +22,14 @@ Method | HTTP request | Description
 
 User registration
 
+Email signups stay pending until the address is confirmed. Before activation, repeating this request with the same username and password can resend the confirmation link or correct the email address after a five-minute cooldown.
+
 ### Example
 ```dart
 import 'package:openapi/api.dart';
 
 final api_instance = AuthApi();
-final userRequestDto = UserRequestDto(); // UserRequestDto | 
+final userRequestDto = UserRequestDto(); // UserRequestDto |
 
 try {
     final result = api_instance.createUser(userRequestDto);
@@ -41,7 +43,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userRequestDto** | [**UserRequestDto**](UserRequestDto.md)|  | 
+ **userRequestDto** | [**UserRequestDto**](UserRequestDto.md)|  |
 
 ### Return type
 
@@ -87,7 +89,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **username** | **String**| userId | 
+ **username** | **String**| userId |
 
 ### Return type
 
@@ -159,7 +161,7 @@ Request a new access token with a refresh token
 import 'package:openapi/api.dart';
 
 final api_instance = AuthApi();
-final refreshTokenRequestDto = RefreshTokenRequestDto(); // RefreshTokenRequestDto | 
+final refreshTokenRequestDto = RefreshTokenRequestDto(); // RefreshTokenRequestDto |
 
 try {
     final result = api_instance.refreshToken(refreshTokenRequestDto);
@@ -173,7 +175,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **refreshTokenRequestDto** | [**RefreshTokenRequestDto**](RefreshTokenRequestDto.md)|  | [optional] 
+ **refreshTokenRequestDto** | [**RefreshTokenRequestDto**](RefreshTokenRequestDto.md)|  | [optional]
 
 ### Return type
 
@@ -200,7 +202,7 @@ Request password recovery
 import 'package:openapi/api.dart';
 
 final api_instance = AuthApi();
-final username = username_example; // String | 
+final username = username_example; // String |
 
 try {
     api_instance.requestPasswordRecovery(username);
@@ -213,7 +215,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **username** | **String**|  | 
+ **username** | **String**|  |
 
 ### Return type
 
@@ -240,7 +242,7 @@ User login
 import 'package:openapi/api.dart';
 
 final api_instance = AuthApi();
-final userLoginRequest = UserLoginRequest(); // UserLoginRequest | 
+final userLoginRequest = UserLoginRequest(); // UserLoginRequest |
 
 try {
     final result = api_instance.userLogin(userLoginRequest);
@@ -254,7 +256,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userLoginRequest** | [**UserLoginRequest**](UserLoginRequest.md)|  | 
+ **userLoginRequest** | [**UserLoginRequest**](UserLoginRequest.md)|  |
 
 ### Return type
 
@@ -270,4 +272,3 @@ No authorization required
  - **Accept**: application/json, text/plain; charset=utf-8
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
