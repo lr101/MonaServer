@@ -78,14 +78,16 @@ func (s *Pin) toDTO(ctx context.Context, p *db.Pin, withImage bool) *PinDTO {
 
 // CreatePinInput mirrors PinRequestDto.
 type CreatePinInput struct {
-	Latitude     float64   `json:"latitude"`
-	Longitude    float64   `json:"longitude"`
-	CreationDate time.Time `json:"creationDate"`
-	Title        *string   `json:"title,omitempty"`
-	Description  *string   `json:"description,omitempty"`
-	UserID       uuid.UUID `json:"userId"`
-	GroupID      uuid.UUID `json:"groupId"`
-	Image        []byte    `json:"image,omitempty"`
+	Latitude       float64    `json:"latitude"`
+	Longitude      float64    `json:"longitude"`
+	CreationDate   time.Time  `json:"creationDate"`
+	Title          *string    `json:"title,omitempty"`
+	Description    *string    `json:"description,omitempty"`
+	UserID         uuid.UUID  `json:"userId"`
+	GroupID        uuid.UUID  `json:"groupId"`
+	Image          []byte     `json:"image,omitempty"`
+	CallerID       uuid.UUID  `json:"-"`
+	IdempotencyKey *uuid.UUID `json:"-"`
 }
 
 type AddPinPhotoInput struct {
@@ -109,13 +111,31 @@ type PinPhotoDTO struct {
 }
 
 func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
-	exists, err := s.q.PinExistsForUserAt(ctx, in.UserID, in.Latitude, in.Longitude, in.CreationDate)
-	if err != nil {
-		return nil, err
+	var requestHash []byte
+	if in.IdempotencyKey != nil {
+		if in.CallerID == uuid.Nil {
+			return nil, apperrors.ErrBadRequest
+		}
+		imageHash := sha256.Sum256(in.Image)
+		payload, err := json.Marshal(struct {
+			Version      int
+			Latitude     float64
+			Longitude    float64
+			CreationDate time.Time
+			Title        *string
+			Description  *string
+			UserID       uuid.UUID
+			GroupID      uuid.UUID
+			ImageHash    [32]byte
+		}{1, in.Latitude, in.Longitude, in.CreationDate.UTC(), in.Title,
+			in.Description, in.UserID, in.GroupID, imageHash})
+		if err != nil {
+			return nil, err
+		}
+		hash := sha256.Sum256(payload)
+		requestHash = hash[:]
 	}
-	if exists {
-		return nil, apperrors.ErrConflict
-	}
+	var err error
 	boundary, err := s.q.FindBoundaryForPoint(ctx, in.Latitude, in.Longitude)
 	if err != nil {
 		return nil, err
@@ -135,8 +155,32 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 			return nil, err
 		}
 	}
+	var replayID *uuid.UUID
 	err = s.q.InTx(ctx, func(q *db.Queries) error {
 		var err error
+		if in.IdempotencyKey != nil {
+			originalID, originalHash, err := q.ClaimPinCreate(ctx, in.CallerID, *in.IdempotencyKey, requestHash)
+			if err != nil {
+				return err
+			}
+			if originalHash != nil {
+				if !bytes.Equal(originalHash, requestHash) {
+					return apperrors.ErrConflict
+				}
+				if originalID == nil {
+					return apperrors.ErrUnavailable
+				}
+				replayID = originalID
+				return nil
+			}
+		}
+		exists, err := q.PinExistsForUserAt(ctx, in.UserID, in.Latitude, in.Longitude, in.CreationDate)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return apperrors.ErrConflict
+		}
 		id, err = q.CreatePin(ctx, db.Pin{
 			ID:       id,
 			Latitude: in.Latitude, Longitude: in.Longitude,
@@ -179,9 +223,13 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 				return err
 			}
 			if stagedImage {
-				return q.DeletePendingObjectCleanup(ctx, imageKey)
+				if err := q.DeletePendingObjectCleanup(ctx, imageKey); err != nil {
+					return err
+				}
 			}
-			return nil
+		}
+		if in.IdempotencyKey != nil {
+			return q.FinishPinCreate(ctx, in.CallerID, *in.IdempotencyKey, id)
 		}
 		return nil
 	})
@@ -193,9 +241,20 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 		}
 		return nil, err
 	}
+	if replayID != nil {
+		if stagedImage {
+			if err := s.releaseStagedObjectCleanup(ctx, imageKey); err != nil {
+				return nil, err
+			}
+		}
+		id = *replayID
+	}
 	p, err := s.q.GetPinByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if p == nil {
+		return nil, apperrors.ErrConflict
 	}
 	return s.toDTO(ctx, p, true), nil
 }

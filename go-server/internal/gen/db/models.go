@@ -388,6 +388,14 @@ type Pin struct {
 	Title           pgtype.Text        `json:"title"`
 }
 
+type PinCreateIdempotency struct {
+	CallerID       pgtype.UUID        `json:"caller_id"`
+	IdempotencyKey pgtype.UUID        `json:"idempotency_key"`
+	RequestHash    []byte             `json:"request_hash"`
+	PinID          pgtype.UUID        `json:"pin_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type PinPhoto struct {
 	ID                  pgtype.UUID        `json:"id"`
 	PinID               pgtype.UUID        `json:"pin_id"`
