@@ -106,6 +106,7 @@ part 'model/admin_user_details_dto.dart';
 part 'model/admin_user_dto.dart';
 part 'model/admin_user_filter_dto.dart';
 part 'model/admin_user_page_dto.dart';
+part 'model/admin_user_update_dto.dart';
 part 'model/all_audience.dart';
 part 'model/api_error_dto.dart';
 part 'model/audience_kind.dart';
@@ -178,7 +179,6 @@ part 'model/user_update_dto.dart';
 part 'model/user_update_response_dto.dart';
 part 'model/user_xp_dto.dart';
 
-
 /// An [ApiClient] instance that uses the default values obtained from
 /// the OpenAPI specification file.
 var defaultApiClient = ApiClient();
@@ -191,4 +191,5 @@ final _regList = RegExp(r'^List<(.*)>$');
 final _regSet = RegExp(r'^Set<(.*)>$');
 final _regMap = RegExp(r'^Map<String,(.*)>$');
 
-bool _isEpochMarker(String? pattern) => pattern == _dateEpochMarker || pattern == '/$_dateEpochMarker/';
+bool _isEpochMarker(String? pattern) =>
+    pattern == _dateEpochMarker || pattern == '/$_dateEpochMarker/';

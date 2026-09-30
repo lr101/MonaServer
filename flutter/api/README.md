@@ -95,8 +95,9 @@ Class | Method | HTTP request | Description
 *AdminSessionApi* | [**reauthenticateAdminSession**](doc//AdminSessionApi.md#reauthenticateadminsession) | **POST** /api/v3/admin/session/reauthenticate | Reauthenticate an admin session for a sensitive action
 *AdminUsersApi* | [**getAdminUser**](doc//AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
 *AdminUsersApi* | [**listAdminUsers**](doc//AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
-*AdminUsersApi* | [**sendAdminUserLoginLink**](doc//AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+*AdminUsersApi* | [**sendAdminUserLoginLink**](doc//AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's current email
 *AdminUsersApi* | [**sendAdminUserPasswordResetLink**](doc//AdminUsersApi.md#sendadminuserpasswordresetlink) | **POST** /api/v3/admin/users/{userId}/password-reset | Send one user's password recovery email as an administrator
+*AdminUsersApi* | [**updateAdminUser**](doc//AdminUsersApi.md#updateadminuser) | **PATCH** /api/v3/admin/users/{userId} | Edit one user's profile and account status
 *AdminUsersApi* | [**verifyAdminUserEmail**](doc//AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 *AuthApi* | [**createUser**](doc//AuthApi.md#createuser) | **POST** /api/v2/public/signup | User registration
 *AuthApi* | [**generateDeleteCode**](doc//AuthApi.md#generatedeletecode) | **GET** /api/v2/public/delete-code/{username} | Generate delete code
@@ -217,6 +218,7 @@ Class | Method | HTTP request | Description
  - [AdminUserDto](doc//AdminUserDto.md)
  - [AdminUserFilterDto](doc//AdminUserFilterDto.md)
  - [AdminUserPageDto](doc//AdminUserPageDto.md)
+ - [AdminUserUpdateDto](doc//AdminUserUpdateDto.md)
  - [AllAudience](doc//AllAudience.md)
  - [ApiErrorDto](doc//ApiErrorDto.md)
  - [AudienceKind](doc//AudienceKind.md)

@@ -66,6 +66,7 @@ doc/AdminUserDetailsDto.md
 doc/AdminUserDto.md
 doc/AdminUserFilterDto.md
 doc/AdminUserPageDto.md
+doc/AdminUserUpdateDto.md
 doc/AdminUsersApi.md
 doc/AllAudience.md
 doc/ApiErrorDto.md
@@ -238,6 +239,7 @@ lib/model/admin_user_details_dto.dart
 lib/model/admin_user_dto.dart
 lib/model/admin_user_filter_dto.dart
 lib/model/admin_user_page_dto.dart
+lib/model/admin_user_update_dto.dart
 lib/model/all_audience.dart
 lib/model/api_error_dto.dart
 lib/model/audience_kind.dart
