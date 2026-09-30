@@ -15,21 +15,19 @@ while IFS= read -r -d '' generated_file; do
     # serialize an omitted PATCH field as an explicit request to clear it.
     python3 - "$generated_file" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 path = Path(sys.argv[1])
 contents = path.read_text()
-generated = (
-    "        adminPermissions: json[r'adminPermissions'] is Iterable\n"
-    "            ? (json[r'adminPermissions'] as Iterable)\n"
-    "                .cast<String>()\n"
-    "                .toList(growable: false)\n"
-    "            : const [],"
+deserializer = re.compile(
+    r"(adminPermissions:\s*json\[r'adminPermissions'\]\s+is Iterable\s*"
+    r"\?\s*\(json\[r'adminPermissions'\]\s+as Iterable\)\s*"
+    r"\.cast<String>\(\)\s*\.toList\(growable: false\)\s*:\s*)"
+    r"(?:const \[\]|null),"
 )
-compatible = generated.replace(": const [],", ": null,")
-if generated in contents:
-    contents = contents.replace(generated, compatible, 1)
-elif compatible not in contents:
+contents, replacements = deserializer.subn(r"\1null,", contents, count=1)
+if replacements != 1:
     raise SystemExit(f"cannot preserve omitted admin permissions in {path}")
 path.write_text(contents)
 PY
