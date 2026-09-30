@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func TestProductionAdminUserUpdateChangesEmailAndSecurityState(t *testing.T) {
@@ -15,11 +13,12 @@ func TestProductionAdminUserUpdateChangesEmailAndSecurityState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	actorID := createTestUser(t, auth, "admin_edit_actor")
 	store := NewProductionAdminStore(q, serviceTestEmail(t))
 	users := NewAdminUserService(store)
 	users.SetRecentMFATTL(5 * time.Minute)
 	actor := AdminActor{
-		ID: uuid.New(), Capabilities: []string{"users.write"},
+		ID: actorID, Capabilities: []string{"users.write"},
 		RecentMFAAt: timePtrForAdminUserTest(time.Now().UTC()), RecentMFAAction: "users.write",
 	}
 	initial, err := q.GetAdminRuntimeAccount(ctx, pair.UserID)
