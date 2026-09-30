@@ -39,14 +39,20 @@ test('eligible selected users can receive a login email before email verificatio
   assert.equal(canSendUserLoginLink({ ...user, email: null }, capabilities), false);
   assert.equal(canSendUserLoginLink({ ...user, accountActivated: false }, capabilities), false);
   assert.equal(canSendUserLoginLink(user, []), false);
+  assert.equal(canSendUserLoginLink(user, ['superadmin']), true);
 });
 
 test('admin user edits include account fields and never include the immutable id', () => {
   assert.deepEqual(adminUserUpdatePayload({
     id: 'immutable-id', expectedAuthGeneration: 9, username: 'alice', email: 'alice@example.test', securityState: 'normal',
     passwordDisabled: false, passwordResetRequired: false, communicationOptOut: true, pushOptedOut: false,
+    adminPermissions: ['users.read', 'users.write'],
   }), {
     expectedAuthGeneration: 9, username: 'alice', email: 'alice@example.test', securityState: 'normal',
     passwordDisabled: false, passwordResetRequired: false, communicationOptOut: true, pushOptedOut: false,
+    adminPermissions: ['users.read', 'users.write'],
+  });
+  assert.deepEqual(adminUserUpdatePayload({ expectedAuthGeneration: 1, adminPermissions: [] }), {
+    expectedAuthGeneration: 1, adminPermissions: [],
   });
 });

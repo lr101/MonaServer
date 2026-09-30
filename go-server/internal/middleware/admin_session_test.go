@@ -23,6 +23,21 @@ func TestAdminCapabilityGuardReturnsForbiddenForMissingCapability(t *testing.T) 
 	}
 }
 
+func TestAdminCapabilityGuardAllowsSuperadminUnknownFutureCapability(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	r := httptest.NewRequest(http.MethodPost, "/api/v2/admin/mail", nil)
+	ctx := WithAdminPrincipal(r.Context(), AdminPrincipal{Capabilities: []string{"superadmin"}})
+	recorder := httptest.NewRecorder()
+	AdminCapabilityGuard(next).ServeHTTP(recorder, r.WithContext(ctx))
+	if recorder.Code != http.StatusNoContent || !called {
+		t.Fatalf("status = %d, next called = %v; superadmin should pass any capability", recorder.Code, called)
+	}
+}
+
 type adminValidatorFunc func(context.Context, string) (*AdminPrincipal, error)
 
 func (f adminValidatorFunc) ValidateAdminSession(ctx context.Context, cookie string) (*AdminPrincipal, error) {

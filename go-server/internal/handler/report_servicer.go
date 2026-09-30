@@ -407,10 +407,8 @@ func requireReportAdmin(ctx context.Context, capability string) (uuid.UUID, erro
 	if current, present := ctxUserID(ctx); present && current != actor {
 		return uuid.Nil, service.ErrAdminForbidden
 	}
-	for _, value := range principal.Capabilities {
-		if value == capability {
-			return actor, nil
-		}
+	if (service.AdminActor{ID: actor, Capabilities: principal.Capabilities}).Can(capability) {
+		return actor, nil
 	}
 	return uuid.Nil, service.ErrAdminForbidden
 }

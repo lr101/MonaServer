@@ -9,6 +9,49 @@ while IFS= read -r -d '' generated_file; do
   # Preserve byte-identical files already in the checked-in output. This keeps
   # a generator upgrade or a new schema from rewriting unrelated legacy files.
   relative_file=${generated_file#"$generated_root"/}
+
+  if [ "$relative_file" = "lib/model/admin_user_update_dto.dart" ]; then
+    # The Dart generator defaults optional arrays to const [], which would
+    # serialize an omitted PATCH field as an explicit request to clear it.
+    python3 - "$generated_file" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+contents = path.read_text()
+deserializer = re.compile(
+    r"(adminPermissions:\s*json\[r'adminPermissions'\]\s+is Iterable\s*"
+    r"\?\s*\(json\[r'adminPermissions'\]\s+as Iterable\)\s*"
+    r"\.cast<String>\(\)\s*\.toList\(growable: false\)\s*:\s*)"
+    r"(?:const \[\]|null),"
+)
+contents, replacements = deserializer.subn(r"\1null,", contents, count=1)
+if replacements != 1:
+    raise SystemExit(f"cannot preserve omitted admin permissions in {path}")
+path.write_text(contents)
+PY
+  fi
+
+  if [ "$relative_file" = "doc/AdminUserUpdateDto.md" ]; then
+    # adminPermissions is optional; its empty-list behavior is explicit and
+    # must not inherit the generator's default-to-empty-array documentation.
+    python3 - "$generated_file" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+contents = path.read_text()
+default_note = "**adminPermissions** | **List<String>** | Replacement permission list for an existing active admin membership. Only superadmins may set it. The superadmin entry grants every current and future permission, and an empty list removes all permissions. | [optional] [default to const []]"
+without_default = default_note.removesuffix(" [default to const []]")
+if default_note in contents:
+    contents = contents.replace(default_note, without_default, 1)
+elif without_default not in contents:
+    raise SystemExit(f"cannot normalize admin permission documentation in {path}")
+path.write_text(contents)
+PY
+  fi
+
   if [ -n "$reference_root" ] &&
     [ -f "$reference_root/$relative_file" ] &&
     cmp -s "$generated_file" "$reference_root/$relative_file"; then

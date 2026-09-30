@@ -18,6 +18,9 @@ import (
 type AdminUserUpdateDto struct {
 	CommunicationOptOut *bool `json:"communicationOptOut,omitempty"`
 
+	// Replacement permission list for an existing active admin membership. Only superadmins may set it. The superadmin entry grants every current and future permission, and an empty list removes all permissions.
+	AdminPermissions *[]string `json:"adminPermissions,omitempty"`
+
 	// Auth generation from the displayed user details. Rejects edits based on stale security state.
 	ExpectedAuthGeneration *int64 `json:"expectedAuthGeneration"`
 

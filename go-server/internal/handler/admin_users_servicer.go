@@ -140,6 +140,9 @@ func (s *AdminUsersServicer) UpdateAdminUser(ctx context.Context, userID, csrf s
 		PasswordDisabled: request.PasswordDisabled, PasswordResetRequired: request.PasswordResetRequired,
 		CommunicationOptOut: request.CommunicationOptOut, PushOptedOut: request.PushOptedOut,
 	}
+	if request.AdminPermissions != nil {
+		update.AdminPermissions = request.AdminPermissions
+	}
 	user, err := s.users.Update(ctx, actor, id, update)
 	if err != nil {
 		return adminResponse(ctx, err)

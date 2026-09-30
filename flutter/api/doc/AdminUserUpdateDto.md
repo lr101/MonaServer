@@ -9,6 +9,7 @@ import 'package:openapi/api.dart';
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **communicationOptOut** | **bool** |  | [optional]
+**adminPermissions** | **List<String>** | Replacement permission list for an existing active admin membership. Only superadmins may set it. The superadmin entry grants every current and future permission, and an empty list removes all permissions. | [optional]
 **expectedAuthGeneration** | **int** | Auth generation from the displayed user details. Rejects edits based on stale security state. |
 **email** | **String** |  | [optional]
 **passwordDisabled** | **bool** |  | [optional]

@@ -208,8 +208,15 @@ func (a AdminActor) Can(capability string) bool {
 	if a.ID == uuid.Nil || strings.TrimSpace(capability) == "" {
 		return false
 	}
-	for _, value := range a.Capabilities {
-		if value == capability {
+	return hasAdminPermission(a.Capabilities, capability)
+}
+
+func hasAdminPermission(capabilities []string, required string) bool {
+	if strings.TrimSpace(required) == "" {
+		return false
+	}
+	for _, capability := range capabilities {
+		if capability == "superadmin" || capability == required {
 			return true
 		}
 	}

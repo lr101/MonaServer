@@ -3755,6 +3755,14 @@ components:
       allOf:
       - $ref: "#/components/schemas/adminUserDto"
       - properties:
+          adminPermissions:
+            description: Current admin permission list. Returned only to superadmins; superadmin grants every current and future permission.
+            items:
+              maxLength: 128
+              minLength: 1
+              type: string
+            maxItems: 100
+            type: array
           accountActivated:
             type: boolean
           communicationOptOut:
@@ -3777,6 +3785,16 @@ components:
         communicationOptOut:
           nullable: true
           type: boolean
+        adminPermissions:
+          description: Replacement permission list for an existing active admin membership. Only superadmins may set it. The superadmin entry grants every current and future permission, and an empty list removes all permissions.
+          items:
+            maxLength: 128
+            minLength: 1
+            type: string
+          maxItems: 100
+          nullable: true
+          type: array
+          x-preserve-null-default: true
         expectedAuthGeneration:
           description: Auth generation from the displayed user details. Rejects edits based on stale security state.
           format: int64
