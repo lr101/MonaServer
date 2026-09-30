@@ -29,6 +29,7 @@ void main() {
     final group = _memberGroup(inviteUrl: 'a1b2c3');
     String? clipboardText;
     Map<String, dynamic>? sharedContent;
+    var shareUnavailable = false;
     const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -44,6 +45,9 @@ void main() {
       shareChannel,
       (call) async {
         if (call.method == 'share') {
+          if (shareUnavailable) {
+            throw PlatformException(code: 'share_unavailable');
+          }
           sharedContent = Map<String, dynamic>.from(
             call.arguments as Map<Object?, Object?>,
           );
@@ -83,6 +87,16 @@ void main() {
       'https://preview-api.example.test/#/groups/group-id?invite=a1b2c3',
     );
     expect(clipboardText, isNull);
+
+    shareUnavailable = true;
+    await tester.tap(shareButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      clipboardText,
+      'https://preview-api.example.test/#/groups/group-id?invite=a1b2c3',
+    );
+    expect(find.text('Share unavailable. Link copied.'), findsOneWidget);
   });
 
   testWidgets('member group without an invite link hides the share action', (

@@ -48,6 +48,7 @@ class _GroupInviteShareButtonState extends State<GroupInviteShareButton> {
           title: 'Join ${widget.groupDto.name}',
           text: 'Join ${widget.groupDto.name} on Stick-It: $shareLink',
           sharePositionOrigin: _sharePositionOrigin,
+          mailToFallbackEnabled: false,
         ),
       );
     } catch (_) {
