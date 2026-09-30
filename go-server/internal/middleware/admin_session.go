@@ -329,8 +329,11 @@ func AdminCapabilityGuard(next http.Handler) http.Handler {
 }
 
 func hasCapability(capabilities []string, required string) bool {
+	if required == "" {
+		return false
+	}
 	for _, capability := range capabilities {
-		if capability == required {
+		if capability == "superadmin" || capability == required {
 			return true
 		}
 	}

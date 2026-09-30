@@ -261,6 +261,7 @@ func toAdminUserDetails(user service.AdminUser) genserver.AdminUserDetailsDto {
 		IsAdmin: user.IsAdmin, CompromisedAt: cloneTimeValue(user.CompromisedAt), EligibilityReasons: append([]string(nil), user.EligibilityReasons...),
 		CommunicationOptOut: user.CommunicationOptOut, PushOptedOut: user.PushOptedOut,
 		RegisteredDeviceCount: user.RegisteredDeviceCount,
+		AdminPermissions:      append([]string(nil), user.AdminPermissions...),
 		AccountActivated:      user.AccountActivated,
 	}
 }

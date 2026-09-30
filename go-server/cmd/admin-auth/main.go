@@ -11,6 +11,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 
@@ -44,7 +46,7 @@ func parseAdminAuthCommand(args []string) (adminAuthCommandOptions, error) {
 	flags := flag.NewFlagSet("admin-auth "+operation, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	username := flags.String("username", "", "existing user account to enroll or recover")
-	permissionText := flags.String("permissions", "", "comma-separated stable admin capabilities")
+	permissionText := flags.String("permissions", "", "comma-separated admin permissions, including superadmin for all permissions")
 	actorText := flags.String("actor-id", "", "active admin actor UUID for break-glass recovery")
 	if err := flags.Parse(args[1:]); err != nil {
 		return adminAuthCommandOptions{}, err
@@ -93,9 +95,9 @@ func runAdminAuthCommand(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if dsn == "" {
-		return errors.New("DATABASE_URL is required")
+	dsn, err := adminAuthDatabaseURL()
+	if err != nil {
+		return err
 	}
 	encryptionKey, err := keyFromEnv("ADMIN_TOTP_ENCRYPTION_KEY", true)
 	if err != nil {
@@ -144,6 +146,39 @@ func runAdminAuthCommand(args []string, stdout, stderr io.Writer) error {
 	default:
 		return errors.New("unsupported operation")
 	}
+}
+
+func adminAuthDatabaseURL() (string, error) {
+	if dsn := strings.TrimSpace(os.Getenv("DATABASE_URL")); dsn != "" {
+		return dsn, nil
+	}
+	username := strings.TrimSpace(os.Getenv("POSTGRES_USER"))
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if username == "" || password == "" {
+		return "", errors.New("DATABASE_URL is required, or set POSTGRES_USER and POSTGRES_PASSWORD")
+	}
+	host := strings.TrimSpace(os.Getenv("POSTGRES_HOST"))
+	if host == "" {
+		host = "db"
+	}
+	port := strings.TrimSpace(os.Getenv("POSTGRES_PORT"))
+	if port == "" {
+		port = "5432"
+	}
+	database := strings.TrimSpace(os.Getenv("POSTGRES_DB"))
+	if database == "" {
+		database = "monaserver"
+	}
+	dsn := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(username, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + database,
+	}
+	query := dsn.Query()
+	query.Set("sslmode", "disable")
+	dsn.RawQuery = query.Encode()
+	return dsn.String(), nil
 }
 
 func keyFromEnv(name string, encryption bool) ([]byte, error) {

@@ -159,6 +159,30 @@ keys there and keep them stable. Set all three `ADMIN_BOOTSTRAP_*` values
 together for first enrollment, then remove them after the admin account is
 created.
 
+### Admin permissions and superadmins
+
+The `superadmin` permission grants every current and future admin capability.
+New environment-bootstrapped admins receive this permission. On an existing
+deployment, use the bundled `admin-auth` operator command once to promote an
+already enrolled account; rerunning `enroll` for an active account updates its
+permissions, revokes its admin sessions, and keeps its current MFA secret. The
+command uses `DATABASE_URL` when set, or builds the standard Compose connection
+from `POSTGRES_USER` and `POSTGRES_PASSWORD`:
+
+```bash
+docker compose exec app /app/admin-auth enroll --username admin-web --permissions superadmin
+```
+
+After that account signs in again, it can open Users, select an existing admin
+account, and edit its permissions in the user editor (one permission per line).
+Adding `superadmin` grants all permissions; replacing it with specific entries
+removes wildcard access. Permission edits revoke the target's current admin
+sessions. To enroll a regular account as an admin, use `admin-auth enroll` so
+the account can set up MFA before it receives browser-admin access.
+
+Admin permissions already use a flexible database array, so this change does
+not need a database migration.
+
 ## API
 
 The source of truth is the OpenAPI spec at `../api/openapi.yaml`. Regenerate the

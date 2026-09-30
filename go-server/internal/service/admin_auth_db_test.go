@@ -108,8 +108,11 @@ func TestBootstrapInitialAdminFromConfigCreatesLoginWithoutResetOnRestart(t *tes
 		t.Fatalf("bootstrapped account = %#v, err = %v", user, err)
 	}
 	membership, err := q.GetAdminMembership(ctx, user.ID)
-	if err != nil || membership == nil || !membership.Active || !containsString(membership.Permissions, "campaigns.write") {
+	if err != nil || membership == nil || !membership.Active || !containsString(membership.Permissions, "superadmin") {
 		t.Fatalf("bootstrapped membership = %#v, err = %v", membership, err)
+	}
+	if !hasAdminPermission(CapabilitiesForPermissions(membership.Permissions), "a.future.capability") {
+		t.Fatal("bootstrapped superadmin cannot use a future capability")
 	}
 	recorder := httptest.NewRecorder()
 	bootstrapCtx := middleware.WithAdminClientIP(middleware.WithAdminResponseWriter(ctx, recorder), "192.0.2.10")
@@ -359,15 +362,38 @@ func TestAdminEnrollmentIsIdempotentAndEncrypted(t *testing.T) {
 	if first.Secret == "" || second.Secret != "" {
 		t.Fatalf("idempotent secret presence = first:%v second:%v", first.Secret != "", second.Secret != "")
 	}
-	membership, err := q.GetAdminMembership(ctx, id)
+	membershipBefore, err := q.GetAdminMembership(ctx, id)
 	if err != nil {
-		t.Fatalf("membership: %v", err)
+		t.Fatalf("membership before permission change: %v", err)
 	}
-	if membership == nil || len(membership.TotpSecretCiphertext) == 0 || string(membership.TotpSecretCiphertext) == first.Secret {
-		t.Fatalf("unencrypted or missing enrollment = %#v", membership)
+	if membershipBefore == nil || len(membershipBefore.TotpSecretCiphertext) == 0 || string(membershipBefore.TotpSecretCiphertext) == first.Secret {
+		t.Fatalf("unencrypted or missing enrollment = %#v", membershipBefore)
 	}
-	if membership.UserID != id {
-		t.Fatalf("membership user = %s, want %s", membership.UserID, id)
+	sessionHash := []byte("admin-enrollment-permission-change-session")
+	now := time.Now().UTC()
+	if err := q.CreateAdminSession(ctx, db.AdminSessionParams{
+		ID: uuid.New(), SessionHash: sessionHash, UserID: id, CSRFHash: []byte("csrf-hash"),
+		State: "authenticated", AuthGeneration: 0, IdleExpiresAt: now.Add(time.Minute), AbsoluteExpiresAt: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("seed active admin session: %v", err)
+	}
+	changed, err := admin.EnrollAdminOperator(ctx, "enrollment-operator", []string{"superadmin"})
+	if err != nil || !changed.AlreadyEnrolled || changed.Secret != "" {
+		t.Fatalf("permission re-enrollment = %#v, err=%v", changed, err)
+	}
+	membership, err := q.GetAdminMembership(ctx, id)
+	if err != nil || membership == nil {
+		t.Fatalf("membership after permission change = %#v, err=%v", membership, err)
+	}
+	if membership.UserID != id || len(membership.Permissions) != 1 || membership.Permissions[0] != "superadmin" {
+		t.Fatalf("updated membership = %#v, want superadmin for %s", membership, id)
+	}
+	if string(membership.TotpSecretCiphertext) != string(membershipBefore.TotpSecretCiphertext) {
+		t.Fatal("permission re-enrollment replaced the existing TOTP secret")
+	}
+	session, err := q.GetAdminSessionByHash(ctx, sessionHash)
+	if err != nil || session == nil || session.RevokedAt == nil {
+		t.Fatalf("permission-edited session = %#v, err=%v; want revoked", session, err)
 	}
 }
 

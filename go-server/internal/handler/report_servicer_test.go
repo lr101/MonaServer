@@ -50,9 +50,16 @@ func setupReportHandlerDB(t *testing.T) (*db.Queries, uuid.UUID, uuid.UUID) {
 }
 
 func reportAdminContext(adminID uuid.UUID) context.Context {
+	return reportContextWithCapabilities(adminID, []string{"reports.read", "reports.review", "reports.resolve", "reports.dismiss"})
+}
+
+func reportSuperadminContext(adminID uuid.UUID) context.Context {
+	return reportContextWithCapabilities(adminID, []string{"superadmin"})
+}
+
+func reportContextWithCapabilities(adminID uuid.UUID, capabilities []string) context.Context {
 	principal := middleware.AdminPrincipal{
-		UserID: adminID.String(), State: "authenticated",
-		Capabilities: []string{"reports.read", "reports.review", "reports.resolve", "reports.dismiss"},
+		UserID: adminID.String(), State: "authenticated", Capabilities: capabilities,
 	}
 	ctx := middleware.WithAdminPrincipal(context.Background(), principal)
 	return middleware.WithUser(ctx, adminID, middleware.RoleAdmin)
@@ -328,7 +335,7 @@ func TestAdminReportHandlerRequiresCapabilityAndSupportsReviewWorkflow(t *testin
 		t.Fatalf("unauthorized list status = %d, want 401", unauthorized.Code)
 	}
 
-	ctx := reportAdminContext(adminID)
+	ctx := reportSuperadminContext(adminID)
 	listed, err := servicer.ListAdminReports(ctx, "", 25, "", "")
 	if err != nil || listed.Code != http.StatusOK {
 		t.Fatalf("list reports = %#v err=%v", listed, err)

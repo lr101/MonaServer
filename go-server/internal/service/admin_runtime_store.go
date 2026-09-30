@@ -70,6 +70,15 @@ func (s *ProductionAdminStore) GetUser(ctx context.Context, id uuid.UUID) (*Admi
 		return nil, err
 	}
 	user := adminUserFromRuntime(*row)
+	if row.IsAdmin {
+		membership, err := s.queries.GetAdminMembership(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if membership != nil && membership.Active && membership.RevokedAt == nil {
+			user.AdminPermissions = append([]string(nil), membership.Permissions...)
+		}
+	}
 	return &user, nil
 }
 
@@ -108,7 +117,14 @@ func (s *ProductionAdminStore) VerifyUserEmail(ctx context.Context, actorID, id 
 		if row == nil {
 			return ErrUserNotFound
 		}
+		membership, err := tx.GetAdminMembership(ctx, id)
+		if err != nil {
+			return err
+		}
 		user := adminUserFromRuntime(*row)
+		if membership != nil && membership.Active && membership.RevokedAt == nil {
+			user.AdminPermissions = append([]string(nil), membership.Permissions...)
+		}
 		verified = &user
 		return nil
 	})
@@ -264,6 +280,33 @@ func (s *ProductionAdminStore) UpdateUser(ctx context.Context, actorID, id uuid.
 			}
 		}
 
+		if update.AdminPermissions != nil {
+			membership, err := tx.GetAdminMembership(ctx, id)
+			if err != nil {
+				return err
+			}
+			if membership == nil || !membership.Active || membership.RevokedAt != nil {
+				return ErrAdminPermissionTarget
+			}
+			permissions := append([]string(nil), (*update.AdminPermissions)...)
+			if !equalStrings(membership.Permissions, permissions) {
+				if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{
+					ID: membership.ID, UserID: id, Permissions: permissions, Active: membership.Active,
+					TotpSecretCiphertext: membership.TotpSecretCiphertext, TotpKeyID: membership.TotpKeyID,
+					TotpEnrolledAt: membership.TotpEnrolledAt, RevokedAt: membership.RevokedAt,
+				}); err != nil {
+					return err
+				}
+				if err := tx.RevokeAdminSessionsForUser(ctx, id); err != nil {
+					return err
+				}
+				if err := tx.RevokeAdminLoginChallengesForUser(ctx, id); err != nil {
+					return err
+				}
+				changed = append(changed, "adminPermissions")
+			}
+		}
+
 		if len(changed) > 0 {
 			metadata, err := json.Marshal(map[string][]string{"fields": changed})
 			if err != nil {
@@ -283,11 +326,30 @@ func (s *ProductionAdminStore) UpdateUser(ctx context.Context, actorID, id uuid.
 		if row == nil {
 			return ErrUserNotFound
 		}
+		membership, err := tx.GetAdminMembership(ctx, id)
+		if err != nil {
+			return err
+		}
 		user := adminUserFromRuntime(*row)
+		if membership != nil && membership.Active && membership.RevokedAt == nil {
+			user.AdminPermissions = append([]string(nil), membership.Permissions...)
+		}
 		updated = &user
 		return nil
 	})
 	return updated, err
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func adminUserFromRuntime(row db.AdminRuntimeAccount) AdminUser {

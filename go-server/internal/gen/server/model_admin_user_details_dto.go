@@ -41,6 +41,9 @@ type AdminUserDetailsDto struct {
 
 	Username string `json:"username"`
 
+	// Current admin permission list. Returned only to superadmins; superadmin grants every current and future permission.
+	AdminPermissions []string `json:"adminPermissions,omitempty"`
+
 	AccountActivated bool `json:"accountActivated"`
 
 	CommunicationOptOut bool `json:"communicationOptOut"`

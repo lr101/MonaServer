@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -54,5 +55,46 @@ func TestParseCommandRequiresNonNilActorForRecovery(t *testing.T) {
 		"recover-mfa", "--username", "operator", "--actor-id", "00000000-0000-0000-0000-000000000000",
 	}); err == nil {
 		t.Fatal("nil recovery actor unexpectedly succeeded")
+	}
+}
+
+func TestAdminAuthDatabaseURLUsesComposePostgresEnvironment(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("POSTGRES_USER", "operator")
+	t.Setenv("POSTGRES_PASSWORD", "p@ss:word")
+	t.Setenv("POSTGRES_HOST", "")
+	t.Setenv("POSTGRES_PORT", "")
+	t.Setenv("POSTGRES_DB", "")
+
+	raw, err := adminAuthDatabaseURL()
+	if err != nil {
+		t.Fatalf("admin-auth database URL: %v", err)
+	}
+	dsn, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse admin-auth database URL: %v", err)
+	}
+	username := dsn.User.Username()
+	password, ok := dsn.User.Password()
+	if !ok || username != "operator" || password != "p@ss:word" {
+		t.Fatal("database credentials did not round-trip")
+	}
+	if dsn.Host != "db:5432" || dsn.Path != "/monaserver" || dsn.Query().Get("sslmode") != "disable" {
+		t.Fatal("compose database URL has unexpected host, database, or SSL mode")
+	}
+}
+
+func TestAdminAuthDatabaseURLPrefersExplicitDSN(t *testing.T) {
+	want := "postgres://configured:secret@db.internal:5544/custom?sslmode=require"
+	t.Setenv("DATABASE_URL", want)
+	t.Setenv("POSTGRES_USER", "")
+	t.Setenv("POSTGRES_PASSWORD", "")
+
+	dsn, err := adminAuthDatabaseURL()
+	if err != nil {
+		t.Fatalf("admin-auth database URL: %v", err)
+	}
+	if dsn != want {
+		t.Fatal("explicit DATABASE_URL was not preserved")
 	}
 }

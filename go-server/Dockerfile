@@ -17,11 +17,14 @@ ENV CGO_ENABLED=0
 # Persist compiled packages across source edits; CI exports this mount separately.
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/monaserver ./cmd/server
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/admin-auth ./cmd/admin-auth
 
 # ---- runtime stage ----
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=build /out/monaserver /app/monaserver
+COPY --from=build /out/admin-auth /app/admin-auth
 # Templates and static assets are embedded via //go:embed at build time;
 # no extra COPY is needed for them.
 EXPOSE 8080

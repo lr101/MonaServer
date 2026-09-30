@@ -20,6 +20,7 @@ Name | Type | Description | Notes
 **passwordResetRequired** | **bool** |  |
 **securityState** | [**AdminSecurityState**](AdminSecurityState.md) |  |
 **username** | **String** |  |
+**adminPermissions** | **List<String>** | Current admin permission list. Returned only to superadmins; superadmin grants every current and future permission. | [optional] [default to const []]
 **accountActivated** | **bool** |  |
 **communicationOptOut** | **bool** |  |
 **pushOptedOut** | **bool** |  |
