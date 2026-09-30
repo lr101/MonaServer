@@ -114,6 +114,70 @@ func TestAdminUserServiceUpdateRequiresCapabilityAndRecentMFA(t *testing.T) {
 	}
 }
 
+func TestAdminUserServicePermissionEditingIsSuperadminOnlyAndCanClearPermissions(t *testing.T) {
+	store := NewMemoryAdminStore()
+	id := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: id, Username: "operator", IsAdmin: true, AdminPermissions: []string{"users.read"}})
+	users := NewAdminUserService(store)
+	expectedAuthGeneration := int64(0)
+	emptyPermissions := []string{}
+	update := AdminUserUpdate{ExpectedAuthGeneration: &expectedAuthGeneration, AdminPermissions: &emptyPermissions}
+	now := time.Now().UTC()
+	actor := AdminActor{ID: uuid.New(), Capabilities: []string{"users.write"}, RecentMFAAt: &now, RecentMFAAction: "users.write"}
+	username := "operator-renamed"
+	regularUpdate, err := users.Update(context.Background(), actor, id, AdminUserUpdate{
+		ExpectedAuthGeneration: &expectedAuthGeneration, Username: &username,
+	})
+	if err != nil {
+		t.Fatalf("unrelated user edit: %v", err)
+	}
+	if regularUpdate.AdminPermissions != nil {
+		t.Fatalf("non-superadmin update response exposed permissions: %#v", regularUpdate.AdminPermissions)
+	}
+	if _, err := users.Update(context.Background(), actor, id, update); !errors.Is(err, ErrAudienceForbidden) {
+		t.Fatalf("permission edit without superadmin = %v", err)
+	}
+	actor.Capabilities = []string{"superadmin"}
+	updated, err := users.Update(context.Background(), actor, id, update)
+	if err != nil {
+		t.Fatalf("clear permissions: %v", err)
+	}
+	if len(updated.AdminPermissions) != 0 {
+		t.Fatalf("updated admin permissions = %#v, want explicitly empty", updated.AdminPermissions)
+	}
+	regular, err := users.Get(context.Background(), AdminActor{ID: uuid.New(), Capabilities: []string{"users.read"}}, id)
+	if err != nil {
+		t.Fatalf("get regular admin projection: %v", err)
+	}
+	if regular.AdminPermissions != nil {
+		t.Fatalf("non-superadmin received admin permissions: %#v", regular.AdminPermissions)
+	}
+}
+
+func TestAdminUserServiceSuperadminCanReplacePermissionList(t *testing.T) {
+	store := NewMemoryAdminStore()
+	id := uuid.New()
+	store.Users = append(store.Users, AdminUser{ID: id, Username: "operator", IsAdmin: true, AdminPermissions: []string{"users.read"}})
+	users := NewAdminUserService(store)
+	expectedAuthGeneration := int64(0)
+	permissions := []string{"users.write", "users.read", "users.write"}
+	now := time.Now().UTC()
+	updated, err := users.Update(context.Background(), AdminActor{ID: uuid.New(), Capabilities: []string{"superadmin"}, RecentMFAAt: &now, RecentMFAAction: "users.write"}, id,
+		AdminUserUpdate{ExpectedAuthGeneration: &expectedAuthGeneration, AdminPermissions: &permissions})
+	if err != nil {
+		t.Fatalf("replace permissions: %v", err)
+	}
+	want := []string{"users.read", "users.write"}
+	if len(updated.AdminPermissions) != len(want) {
+		t.Fatalf("updated permissions = %#v, want %#v", updated.AdminPermissions, want)
+	}
+	for index := range want {
+		if updated.AdminPermissions[index] != want[index] {
+			t.Fatalf("updated permissions = %#v, want %#v", updated.AdminPermissions, want)
+		}
+	}
+}
+
 func adminUserBoolPtr(value bool) *bool { return &value }
 
 func adminUserTimePtr(value time.Time) *time.Time { return &value }

@@ -8,6 +8,7 @@ COPY go-server/ ./
 ARG TARGETOS
 ARG TARGETARCH
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/monaserver ./cmd/server
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/admin-auth ./cmd/admin-auth
 
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS web-build
 ARG FLUTTER_VERSION=3.47.4
@@ -32,6 +33,7 @@ FROM nginx:1.28-alpine
 RUN mkdir -p /tmp/nginx/client /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi && \
     chown -R nginx:nginx /tmp/nginx
 COPY --from=api-build /out/monaserver /app/monaserver
+COPY --from=api-build /out/admin-auth /app/admin-auth
 COPY --from=web-build /app/build/web/ /srv/web/
 COPY admin-web/index.html /srv/admin/index.html
 COPY admin-web/src/ /srv/admin/src/

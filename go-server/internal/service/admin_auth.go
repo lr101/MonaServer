@@ -265,6 +265,9 @@ func CapabilitiesForPermissions(permissions []string) []string {
 		if permission == "" || len(permission) > adminDefaultMaxPermissionLength {
 			continue
 		}
+		if permission == "superadmin" {
+			return []string{"superadmin"}
+		}
 		if _, ok := seen[permission]; ok {
 			continue
 		}
@@ -603,7 +606,7 @@ func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials Admin
 }
 
 func bootstrapAdminPermissions() []string {
-	return []string{"audit.read", "campaign.login_link", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read", "users.verify", "users.write"}
+	return []string{"superadmin"}
 }
 
 // BootstrapAdminSession creates a cryptographically bound pre-auth cookie.
@@ -1238,7 +1241,7 @@ func (a *AdminAuth) ReauthenticateAdminSession(ctx context.Context, csrf, action
 	if !isKnownAdminAction(action) || required == "" {
 		return nil, ErrAdminInvalidAction
 	}
-	if !containsString(principal.Capabilities, required) {
+	if !hasAdminPermission(principal.Capabilities, required) {
 		return nil, ErrAdminForbidden
 	}
 	if err := a.checkFailedChallengeQuota(ctx, mustUUID(principal.UserID), adminClientIP(ctx)); err != nil {
@@ -1282,7 +1285,7 @@ func (a *AdminAuth) ReauthenticateAdminSession(ctx context.Context, csrf, action
 		if err != nil {
 			return err
 		}
-		if currentMembership == nil || !currentMembership.Active || currentMembership.RevokedAt != nil || !containsString(CapabilitiesForPermissions(currentMembership.Permissions), required) {
+		if currentMembership == nil || !currentMembership.Active || currentMembership.RevokedAt != nil || !hasAdminPermission(CapabilitiesForPermissions(currentMembership.Permissions), required) {
 			return ErrAdminForbidden
 		}
 		secret, err := a.decryptTOTP(membershipSecret(currentMembership), membershipKeyID(currentMembership))
@@ -1397,6 +1400,14 @@ func (a *AdminAuth) EnrollAdminOperator(ctx context.Context, username string, pe
 			return err
 		}
 		if membership != nil && membership.Active && membership.RevokedAt == nil && len(membership.TotpSecretCiphertext) > 0 && membership.TotpKeyID != nil {
+			if !equalStrings(membership.Permissions, permissions) {
+				if err := tx.RevokeAdminSessionsForUser(ctx, user.ID); err != nil {
+					return err
+				}
+				if err := tx.RevokeAdminLoginChallengesForUser(ctx, user.ID); err != nil {
+					return err
+				}
+			}
 			if err := tx.UpsertAdminMembership(ctx, db.AdminMembershipParams{ID: membership.ID, UserID: user.ID, Permissions: permissions, Active: true,
 				TotpSecretCiphertext: membership.TotpSecretCiphertext, TotpKeyID: membership.TotpKeyID, TotpEnrolledAt: membership.TotpEnrolledAt}); err != nil {
 				return err
@@ -1480,7 +1491,7 @@ func (a *AdminAuth) BreakGlassRecoverAdminMFA(ctx context.Context, username stri
 			return err
 		}
 		if actorMembership == nil || !actorMembership.Active || actorMembership.RevokedAt != nil ||
-			!containsString(CapabilitiesForPermissions(actorMembership.Permissions), "security.recovery_resend") {
+			!hasAdminPermission(CapabilitiesForPermissions(actorMembership.Permissions), "security.recovery_resend") {
 			return ErrAdminForbidden
 		}
 		state, err := tx.LockUserSecurity(ctx, user.ID)

@@ -25,6 +25,7 @@ class AdminUserDetailsDto {
     required this.passwordResetRequired,
     required this.securityState,
     required this.username,
+    this.adminPermissions = const [],
     required this.accountActivated,
     required this.communicationOptOut,
     required this.pushOptedOut,
@@ -56,6 +57,9 @@ class AdminUserDetailsDto {
 
   String username;
 
+  /// Current admin permission list. Returned only to superadmins; superadmin grants every current and future permission.
+  List<String> adminPermissions;
+
   bool accountActivated;
 
   bool communicationOptOut;
@@ -81,6 +85,7 @@ class AdminUserDetailsDto {
           other.passwordResetRequired == passwordResetRequired &&
           other.securityState == securityState &&
           other.username == username &&
+          _deepEquality.equals(other.adminPermissions, adminPermissions) &&
           other.accountActivated == accountActivated &&
           other.communicationOptOut == communicationOptOut &&
           other.pushOptedOut == pushOptedOut &&
@@ -101,6 +106,7 @@ class AdminUserDetailsDto {
       (passwordResetRequired.hashCode) +
       (securityState.hashCode) +
       (username.hashCode) +
+      (adminPermissions.hashCode) +
       (accountActivated.hashCode) +
       (communicationOptOut.hashCode) +
       (pushOptedOut.hashCode) +
@@ -108,7 +114,7 @@ class AdminUserDetailsDto {
 
   @override
   String toString() =>
-      'AdminUserDetailsDto[authGeneration=$authGeneration, compromisedAt=$compromisedAt, createdAt=$createdAt, email=$email, emailVerified=$emailVerified, eligibilityReasons=$eligibilityReasons, id=$id, isAdmin=$isAdmin, passwordDisabled=$passwordDisabled, passwordResetRequired=$passwordResetRequired, securityState=$securityState, username=$username, accountActivated=$accountActivated, communicationOptOut=$communicationOptOut, pushOptedOut=$pushOptedOut, registeredDeviceCount=$registeredDeviceCount]';
+      'AdminUserDetailsDto[authGeneration=$authGeneration, compromisedAt=$compromisedAt, createdAt=$createdAt, email=$email, emailVerified=$emailVerified, eligibilityReasons=$eligibilityReasons, id=$id, isAdmin=$isAdmin, passwordDisabled=$passwordDisabled, passwordResetRequired=$passwordResetRequired, securityState=$securityState, username=$username, adminPermissions=$adminPermissions, accountActivated=$accountActivated, communicationOptOut=$communicationOptOut, pushOptedOut=$pushOptedOut, registeredDeviceCount=$registeredDeviceCount]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -132,6 +138,7 @@ class AdminUserDetailsDto {
     json[r'passwordResetRequired'] = this.passwordResetRequired;
     json[r'securityState'] = this.securityState;
     json[r'username'] = this.username;
+    json[r'adminPermissions'] = this.adminPermissions;
     json[r'accountActivated'] = this.accountActivated;
     json[r'communicationOptOut'] = this.communicationOptOut;
     json[r'pushOptedOut'] = this.pushOptedOut;
@@ -177,6 +184,11 @@ class AdminUserDetailsDto {
             mapValueOfType<bool>(json, r'passwordResetRequired')!,
         securityState: AdminSecurityState.fromJson(json[r'securityState'])!,
         username: mapValueOfType<String>(json, r'username')!,
+        adminPermissions: json[r'adminPermissions'] is Iterable
+            ? (json[r'adminPermissions'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : const [],
         accountActivated: mapValueOfType<bool>(json, r'accountActivated')!,
         communicationOptOut:
             mapValueOfType<bool>(json, r'communicationOptOut')!,

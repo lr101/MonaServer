@@ -1,6 +1,6 @@
 import { AdminApi, AdminHttpError } from './api.js';
 import { AdminState } from './state.js';
-import { adminUserUpdatePayload, canSendUserLoginLink, countLabel, reportUpdatePayload, userDisplayName } from './view-model.js';
+import { adminUserUpdatePayload, canSendUserLoginLink, countLabel, hasAdminCapability, reportUpdatePayload, userDisplayName } from './view-model.js';
 
 const root = document.querySelector('#app');
 const api = new AdminApi();
@@ -81,13 +81,14 @@ function userRow(user) { const id = user.id ?? ''; return `<button class="record
 function userDetail(value) {
   const user = value.detail;
   const capabilities = value.sessionData?.capabilities ?? [];
-  const canVerify = capabilities.includes('users.verify');
-  const canEdit = capabilities.includes('users.write');
+  const canVerify = hasAdminCapability(capabilities, 'users.verify');
+  const canEdit = hasAdminCapability(capabilities, 'users.write');
   const recoveryAllowed = user.securityState === 'normal'
     ? (!user.passwordDisabled || user.passwordResetRequired)
     : ['password_disabled', 'compromised'].includes(user.securityState) && user.passwordResetRequired;
-  const canResetPassword = capabilities.includes('security.recovery_resend') && user.email && user.emailVerified && recoveryAllowed;
+  const canResetPassword = hasAdminCapability(capabilities, 'security.recovery_resend') && user.email && user.emailVerified && recoveryAllowed;
   const canSendLoginLink = canSendUserLoginLink(user, capabilities);
+  const canViewPermissions = hasAdminCapability(capabilities, 'superadmin') && user.isAdmin;
   const disabled = value.busy ? 'disabled' : '';
   const actions = [
     canEdit ? `<button data-action="edit-user" ${disabled}>Edit user</button>` : '',
@@ -95,14 +96,16 @@ function userDetail(value) {
     canResetPassword ? `<button data-action="send-user-password-reset" ${disabled}>Send password reset link</button>` : '',
     canSendLoginLink ? `<button data-action="send-user-login-link" ${disabled}>Send login email</button>` : '',
   ].filter(Boolean).join('');
-  return `<div class="detail-actions"><button data-action="back">Back to users</button></div><article class="card"><h3>${escape(userDisplayName(user))}</h3><dl>${field('Username', user.username)}${field('User ID', user.id)}${field('Email', user.email)}${field('Security state', user.securityState)}${field('Password disabled', user.passwordDisabled)}${field('Password reset required', user.passwordResetRequired)}${field('Account activated', user.accountActivated)}${field('Email verified', user.emailVerified)}${field('Created', formatDate(user.createdAt))}${field('Admin account', user.isAdmin)}${field('Email opt-out', user.communicationOptOut)}${field('Push opt-out', user.pushOptedOut)}${field('Registered devices', user.registeredDeviceCount)}${field('Eligibility', (user.eligibilityReasons ?? []).join(', ') || 'eligible')}</dl><h4>Account actions</h4><p class="muted">A password reset email does not change the password until the user completes recovery. A login email uses the current address, even if it is not verified.</p><div class="detail-actions">${actions || '<span class="muted">No actions are available for this account.</span>'}</div></article>`;
+  return `<div class="detail-actions"><button data-action="back">Back to users</button></div><article class="card"><h3>${escape(userDisplayName(user))}</h3><dl>${field('Username', user.username)}${field('User ID', user.id)}${field('Email', user.email)}${field('Security state', user.securityState)}${field('Password disabled', user.passwordDisabled)}${field('Password reset required', user.passwordResetRequired)}${field('Account activated', user.accountActivated)}${field('Email verified', user.emailVerified)}${field('Created', formatDate(user.createdAt))}${field('Admin account', user.isAdmin)}${canViewPermissions ? field('Admin permissions', (user.adminPermissions ?? []).join(', ') || 'none') : ''}${field('Email opt-out', user.communicationOptOut)}${field('Push opt-out', user.pushOptedOut)}${field('Registered devices', user.registeredDeviceCount)}${field('Eligibility', (user.eligibilityReasons ?? []).join(', ') || 'eligible')}</dl>${hasAdminCapability(capabilities, 'superadmin') && !user.isAdmin ? '<p class="muted">To grant admin access, enroll this account with the admin-auth tool so it can set up MFA. Its permissions can then be edited here.</p>' : ''}<h4>Account actions</h4><p class="muted">A password reset email does not change the password until the user completes recovery. A login email uses the current address, even if it is not verified.</p><div class="detail-actions">${actions || '<span class="muted">No actions are available for this account.</span>'}</div></article>`;
 }
 function userEditor(value) {
   const user = value.detail;
+  const capabilities = value.sessionData?.capabilities ?? [];
+  const canEditPermissions = hasAdminCapability(capabilities, 'superadmin') && user.isAdmin;
   const disabled = value.busy ? 'disabled' : '';
   const emailDisabled = user.securityState !== 'normal' || user.passwordResetRequired;
   const states = ['normal', 'password_disabled', 'compromised', 'secured_manual_recovery_required'];
-  return `<div class="detail-actions"><button data-action="back">Back to user details</button></div><article class="card"><h3>Edit user</h3><p class="muted">Email changes send a verification message and are available only in normal security state with no password reset required. Changing security status or password restrictions invalidates active account credentials and sessions.</p><form id="user-editor" class="stack-form"><label>User ID<input value="${escape(user.id)}" readonly aria-readonly="true"></label><label>Username<input name="username" maxlength="255" required value="${escape(user.username)}"></label><label>Email<input name="email" type="email" maxlength="255" value="${escape(user.email ?? '')}" ${user.email ? 'required' : ''} ${emailDisabled ? 'disabled' : ''}></label><label>Security status<select name="securityState" required>${states.map((status) => `<option value="${status}" ${user.securityState === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select></label><label class="checkbox"><input name="passwordDisabled" type="checkbox" ${user.passwordDisabled ? 'checked' : ''}> Disable password sign-in</label><label class="checkbox"><input name="passwordResetRequired" type="checkbox" ${user.passwordResetRequired ? 'checked' : ''}> Require a password reset</label><label class="checkbox"><input name="communicationOptOut" type="checkbox" ${user.communicationOptOut ? 'checked' : ''}> Opt out of general email</label><label class="checkbox"><input name="pushOptedOut" type="checkbox" ${user.pushOptedOut ? 'checked' : ''}> Opt out of push notifications</label><div class="detail-actions"><button type="submit" ${disabled}>Save user</button><button type="button" class="outline" data-action="cancel-user-edit" ${disabled}>Cancel</button></div></form></article>`;
+  return `<div class="detail-actions"><button data-action="back">Back to user details</button></div><article class="card"><h3>Edit user</h3><p class="muted">Email changes send a verification message and are available only in normal security state with no password reset required. Changing security status or password restrictions invalidates active account credentials and sessions.</p><form id="user-editor" class="stack-form"><label>User ID<input value="${escape(user.id)}" readonly aria-readonly="true"></label><label>Username<input name="username" maxlength="255" required value="${escape(user.username)}"></label><label>Email<input name="email" type="email" maxlength="255" value="${escape(user.email ?? '')}" ${user.email ? 'required' : ''} ${emailDisabled ? 'disabled' : ''}></label><label>Security status<select name="securityState" required>${states.map((status) => `<option value="${status}" ${user.securityState === status ? 'selected' : ''}>${status.replaceAll('_', ' ')}</option>`).join('')}</select></label><label class="checkbox"><input name="passwordDisabled" type="checkbox" ${user.passwordDisabled ? 'checked' : ''}> Disable password sign-in</label><label class="checkbox"><input name="passwordResetRequired" type="checkbox" ${user.passwordResetRequired ? 'checked' : ''}> Require a password reset</label><label class="checkbox"><input name="communicationOptOut" type="checkbox" ${user.communicationOptOut ? 'checked' : ''}> Opt out of general email</label><label class="checkbox"><input name="pushOptedOut" type="checkbox" ${user.pushOptedOut ? 'checked' : ''}> Opt out of push notifications</label>${canEditPermissions ? `<label>Admin permissions<textarea name="adminPermissions" rows="6" spellcheck="false">${escape((user.adminPermissions ?? []).join('\n'))}</textarea></label><p class="muted">Enter one permission per line. Use superadmin to grant all current and future permissions.</p>` : ''}<div class="detail-actions"><button type="submit" ${disabled}>Save user</button><button type="button" class="outline" data-action="cancel-user-edit" ${disabled}>Cancel</button></div></form></article>`;
 }
 function reportRow(report) { return `<button class="record card" data-report-id="${escape(report.id ?? '')}"><div><h3>Report ${escape(report.id ?? '')}</h3><p class="muted">${escape(report.text ?? report.legacyMessage ?? '')}</p></div><span class="badge">${escape(report.status ?? 'open')}</span></button>`; }
 function reportDetail(value) { const report = value.detail; const target = report.target ?? {}; const notes = value.notes ?? report.notes ?? []; return `<div class="detail-actions"><button data-action="back">Back to reports</button></div><article class="card"><h3>Report ${escape(report.id ?? '')}</h3><dl>${field('Status', report.status)}${field('Revision', report.revision)}${field('Reporter', report.reporterUserId)}${field('Target', target.userId ?? (target.deleted ? 'deleted account' : null))}${field('Created', formatDate(report.createdAt))}</dl><p>${escape(report.text ?? report.legacyMessage ?? 'No description supplied.')}</p><form id="report-update" class="stack-form"><label>Optional note<textarea name="note" rows="3" placeholder="Add context if useful"></textarea></label><div class="detail-actions"><button name="status" value="resolved" ${value.busy || report.status === 'resolved' ? 'disabled' : ''}>Resolve report</button><button name="status" value="dismissed" class="outline" ${value.busy || report.status === 'dismissed' ? 'disabled' : ''}>Dismiss report</button>${report.status !== 'open' ? `<button name="status" value="open" class="outline" ${value.busy ? 'disabled' : ''}>Reopen report</button>` : ''}</div></form></article><section class="card"><h3>Notes</h3>${notes.length ? `<div class="records">${notes.map((note) => `<article class="note"><p>${escape(note.text ?? '')}</p><small>${escape(note.actorUserId ?? '')} · ${formatDate(note.createdAt)}</small></article>`).join('')}</div>` : '<p class="muted">No notes.</p>'}<form id="note-form" class="stack-form"><label>Add note<textarea name="text" rows="2" required></textarea></label><button>Add note</button></form></section>`; }
@@ -171,7 +174,7 @@ async function selectPage(page) { if (loginCampaignRunning) return; state.update
 async function loadOverview() { const results = await Promise.allSettled([api.listUsers({ limit: 100 }), api.listReports({ limit: 100, status: 'open' }), api.listCampaigns({ limit: 100 })]); const overview = Object.fromEntries(['users', 'reports', 'campaigns'].map((key, index) => [key, results[index].status === 'fulfilled' ? results[index].value : null])); state.update({ overview }); }
 async function loadPage(page, options = {}) { state.update({ page, busy: true, error: null }); try { const result = page === 'users' ? await api.listUsers(options) : page === 'reports' ? await api.listReports(options) : page === 'campaigns' ? await api.listCampaigns(options) : await api.listAudit(options); state.update({ busy: false, loaded: true, items: result?.items ?? [], nextCursor: result?.nextCursor ?? null }); } catch (error) { handle(error); } }
 async function searchUsers(event) { event.preventDefault(); const form = new FormData(event.currentTarget); const filters = { search: form.get('search'), securityStatus: form.get('securityStatus'), verifiedEmail: form.get('verifiedEmail') }; state.update({ filters }); await loadPage('users', filters); }
-function canSendLoginCampaign(value) { const capabilities = value.sessionData?.capabilities ?? []; return capabilities.includes('campaign.login_link') && capabilities.includes('campaigns.read') && capabilities.includes('users.read'); }
+function canSendLoginCampaign(value) { const capabilities = value.sessionData?.capabilities ?? []; return hasAdminCapability(capabilities, 'campaign.login_link') && hasAdminCapability(capabilities, 'campaigns.read') && hasAdminCapability(capabilities, 'users.read'); }
 function beginCampaignLoginSend() {
   const campaign = state.value.detail;
   if (!campaign || campaign.channel !== 'email' || campaign.status !== 'active' || !canSendLoginCampaign(state.value)) return;
@@ -346,6 +349,11 @@ async function submitUserUpdate(event) {
   const form = new FormData(event.currentTarget);
   const passwordDisabled = form.get('passwordDisabled') === 'on';
   const passwordResetRequired = form.get('passwordResetRequired') === 'on';
+  const adminPermissionsText = form.get('adminPermissions');
+  const adminPermissions = typeof adminPermissionsText === 'string'
+    ? [...new Set(adminPermissionsText.split(/\r?\n/).map((permission) => permission.trim()).filter(Boolean))].sort()
+    : undefined;
+  const currentAdminPermissions = [...new Set(user.adminPermissions ?? [])].sort();
   const update = adminUserUpdatePayload({
     expectedAuthGeneration: user.authGeneration,
     username: form.get('username') !== user.username ? form.get('username') : undefined,
@@ -355,13 +363,15 @@ async function submitUserUpdate(event) {
     passwordResetRequired: passwordResetRequired === user.passwordResetRequired ? undefined : passwordResetRequired,
     communicationOptOut: (form.get('communicationOptOut') === 'on') !== user.communicationOptOut ? form.get('communicationOptOut') === 'on' : undefined,
     pushOptedOut: (form.get('pushOptedOut') === 'on') !== user.pushOptedOut ? form.get('pushOptedOut') === 'on' : undefined,
+    adminPermissions: adminPermissions && JSON.stringify(adminPermissions) !== JSON.stringify(currentAdminPermissions) ? adminPermissions : undefined,
   });
   if (Object.keys(update).length === 1) {
     state.update({ editor: null, notice: 'No changes to save.' });
     return;
   }
   const statusChanged = update.securityState !== undefined;
-  const prompt = `Save these account changes for ${user.username}?${statusChanged ? ' Changing security status revokes active credentials and sessions.' : ''}${update.email && update.email !== user.email ? ' The new email address must be verified.' : ''}`;
+  const permissionsChanged = update.adminPermissions !== undefined;
+  const prompt = `Save these account changes for ${user.username}?${statusChanged ? ' Changing security status revokes active credentials and sessions.' : ''}${permissionsChanged ? ' Changing admin permissions revokes the target’s active admin sessions.' : ''}${update.email && update.email !== user.email ? ' The new email address must be verified.' : ''}`;
   if (!window.confirm(prompt)) return;
   await mutate(async () => {
     state.update({ detail: await api.updateUser(user.id, update), editor: null });
