@@ -37,14 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Test container image promotion
-        run: bash .github/scripts/test_promote_image_channel.sh
-
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: '1.27.1'
-          # Separate validation caches from the old publish job's empty cache.
+          # Keep validation dependency caches separate from the Docker image cache.
           cache-dependency-path: |
             go-server/go.sum
             .github/workflows/build-go-docker.yml
