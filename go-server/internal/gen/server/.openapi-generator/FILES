@@ -74,6 +74,7 @@ model_admin_user_details_dto.go
 model_admin_user_dto.go
 model_admin_user_filter_dto.go
 model_admin_user_page_dto.go
+model_admin_user_update_dto.go
 model_all_audience.go
 model_api_error_dto.go
 model_audience_kind.go

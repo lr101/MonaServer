@@ -66,6 +66,12 @@ func (c *AdminUsersAPIController) Routes() Routes {
 			"/api/v3/admin/users/{userId}",
 			c.GetAdminUser,
 		},
+		"UpdateAdminUser": Route{
+			"UpdateAdminUser",
+			strings.ToUpper("Patch"),
+			"/api/v3/admin/users/{userId}",
+			c.UpdateAdminUser,
+		},
 		"VerifyAdminUserEmail": Route{
 			"VerifyAdminUserEmail",
 			strings.ToUpper("Post"),
@@ -101,6 +107,12 @@ func (c *AdminUsersAPIController) OrderedRoutes() []Route {
 			strings.ToUpper("Get"),
 			"/api/v3/admin/users/{userId}",
 			c.GetAdminUser,
+		},
+		Route{
+			"UpdateAdminUser",
+			strings.ToUpper("Patch"),
+			"/api/v3/admin/users/{userId}",
+			c.UpdateAdminUser,
 		},
 		Route{
 			"VerifyAdminUserEmail",
@@ -232,6 +244,39 @@ func (c *AdminUsersAPIController) GetAdminUser(w http.ResponseWriter, r *http.Re
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 
+// UpdateAdminUser - Edit one user's profile and account status
+func (c *AdminUsersAPIController) UpdateAdminUser(w http.ResponseWriter, r *http.Request) {
+	userIdParam := chi.URLParam(r, "userId")
+	if userIdParam == "" {
+		c.errorHandler(w, r, &RequiredError{"userId"}, nil)
+		return
+	}
+	xCSRFTokenParam := r.Header.Get("X-CSRF-Token")
+	var adminUserUpdateDtoParam AdminUserUpdateDto
+	d := json.NewDecoder(r.Body)
+	d.DisallowUnknownFields()
+	if err := d.Decode(&adminUserUpdateDtoParam); err != nil {
+		c.errorHandler(w, r, &ParsingError{Err: err}, nil)
+		return
+	}
+	if err := AssertAdminUserUpdateDtoRequired(adminUserUpdateDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	if err := AssertAdminUserUpdateDtoConstraints(adminUserUpdateDtoParam); err != nil {
+		c.errorHandler(w, r, err, nil)
+		return
+	}
+	result, err := c.service.UpdateAdminUser(r.Context(), userIdParam, xCSRFTokenParam, adminUserUpdateDtoParam)
+	// If an error occurred, encode the error with the status code
+	if err != nil {
+		c.errorHandler(w, r, err, &result)
+		return
+	}
+	// If no error, encode the body and the result code
+	_ = EncodeJSONResponse(result.Body, &result.Code, w)
+}
+
 // VerifyAdminUserEmail - Verify one user email as an administrator
 func (c *AdminUsersAPIController) VerifyAdminUserEmail(w http.ResponseWriter, r *http.Request) {
 	userIdParam := chi.URLParam(r, "userId")
@@ -250,7 +295,7 @@ func (c *AdminUsersAPIController) VerifyAdminUserEmail(w http.ResponseWriter, r 
 	_ = EncodeJSONResponse(result.Body, &result.Code, w)
 }
 
-// SendAdminUserLoginLink - Queue a one-time login link to one user's verified email
+// SendAdminUserLoginLink - Queue a one-time login link to one user's current email
 func (c *AdminUsersAPIController) SendAdminUserLoginLink(w http.ResponseWriter, r *http.Request) {
 	userIdParam := chi.URLParam(r, "userId")
 	if userIdParam == "" {

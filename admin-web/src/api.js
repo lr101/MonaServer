@@ -1,3 +1,5 @@
+import { adminUserUpdatePayload } from './view-model.js';
+
 const defaultBase = globalThis.window?.ADMIN_API_BASE ?? '';
 const adminSessionRequestTimeoutMs = 15_000;
 
@@ -146,6 +148,12 @@ export class AdminApi {
 
   getUser(userId) {
     return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}`);
+  }
+
+  updateUser(userId, update) {
+    return this.request(`/api/v3/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH', csrf: true, body: adminUserUpdatePayload(update),
+    });
   }
 
   verifyUserEmail(userId) {

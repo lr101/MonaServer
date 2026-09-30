@@ -601,15 +601,22 @@ func (s *AccountSecurity) issueActionTokenUntilLocked(ctx context.Context, q *db
 		return nil, ErrInvalidAction
 	}
 	if emailBinding != nil {
-		trusted, err := canonicalVerifiedEmail(ctx, q, state)
-		if err != nil {
-			return nil, err
-		}
 		canonical := db.CanonicalEmail(*emailBinding)
-		if trusted == nil || canonical == "" || canonical != *trusted {
-			return nil, ErrInvalidAction
+		if purpose == db.ActionTokenPurposeAdminLoginLink {
+			if !state.AccountActivated || state.Email == nil || canonical == "" || canonical != db.CanonicalEmail(*state.Email) {
+				return nil, ErrInvalidAction
+			}
+			emailBinding = &canonical
+		} else {
+			trusted, err := canonicalVerifiedEmail(ctx, q, state)
+			if err != nil {
+				return nil, err
+			}
+			if trusted == nil || canonical == "" || canonical != *trusted {
+				return nil, ErrInvalidAction
+			}
+			emailBinding = trusted
 		}
-		emailBinding = trusted
 	} else if purpose == db.ActionTokenPurposeRecovery {
 		return nil, ErrInvalidAction
 	}
@@ -790,7 +797,8 @@ func canUseRecoveryAction(state *db.UserSecurityState) bool {
 func validActionPurpose(purpose string) bool {
 	switch purpose {
 	case db.ActionTokenPurposeLoginLink, db.ActionTokenPurposeRecovery,
-		db.ActionTokenPurposeEmailConfirmation, db.ActionTokenPurposeDeleteAccount:
+		db.ActionTokenPurposeAdminLoginLink, db.ActionTokenPurposeEmailConfirmation,
+		db.ActionTokenPurposeDeleteAccount:
 		return true
 	default:
 		return false

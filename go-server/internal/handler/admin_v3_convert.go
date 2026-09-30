@@ -259,7 +259,9 @@ func toAdminUserDetails(user service.AdminUser) genserver.AdminUserDetailsDto {
 		CreatedAt: user.CreatedAt, SecurityState: genserver.AdminSecurityState(user.SecurityState), AuthGeneration: user.AuthGeneration,
 		PasswordDisabled: user.PasswordDisabled, PasswordResetRequired: user.PasswordResetRequired,
 		IsAdmin: user.IsAdmin, CompromisedAt: cloneTimeValue(user.CompromisedAt), EligibilityReasons: append([]string(nil), user.EligibilityReasons...),
-		CommunicationOptOut: user.CommunicationOptOut, RegisteredDeviceCount: user.RegisteredDeviceCount,
+		CommunicationOptOut: user.CommunicationOptOut, PushOptedOut: user.PushOptedOut,
+		RegisteredDeviceCount: user.RegisteredDeviceCount,
+		AccountActivated:      user.AccountActivated,
 	}
 }
 

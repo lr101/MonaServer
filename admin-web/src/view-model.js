@@ -12,3 +12,22 @@ export function reportUpdatePayload({ revision, status, assignee, note }) {
 export function userDisplayName(user) {
   return user.username || user.email || 'Account';
 }
+
+export function adminUserUpdatePayload(values = {}) {
+  const update = {};
+  if (Number.isSafeInteger(values.expectedAuthGeneration) && values.expectedAuthGeneration >= 0) {
+    update.expectedAuthGeneration = values.expectedAuthGeneration;
+  }
+  for (const field of ['username', 'email', 'securityState']) {
+    if (typeof values[field] === 'string' && values[field].trim() !== '') update[field] = values[field].trim();
+  }
+  for (const field of ['passwordDisabled', 'passwordResetRequired', 'communicationOptOut', 'pushOptedOut']) {
+    if (typeof values[field] === 'boolean') update[field] = values[field];
+  }
+  return update;
+}
+
+export function canSendUserLoginLink(user, capabilities = []) {
+  return Boolean(user?.accountActivated) && Boolean(user?.email) && capabilities.includes('campaign.login_link') &&
+    user.securityState === 'normal' && !user.passwordDisabled && !user.passwordResetRequired;
+}

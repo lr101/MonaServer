@@ -144,6 +144,7 @@ type LoginLinkDeliveryRequest struct {
 	AccountID      uuid.UUID
 	Username       string
 	To             string
+	Purpose        string
 	Token          string
 	Code           string
 	Template       *LoginLinkEmailTemplate
@@ -413,7 +414,7 @@ func (s *EmailLogin) RequestEmailLink(ctx context.Context, request EmailLoginReq
 		if err != nil || !ownedEmailMatches(state, lockedClaim, canonical, *claim.OwnerUserID) || user == nil {
 			return err
 		}
-		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, canonical, s.cfg.LoginTokenTTL, s.cfg.DeliveryPayloadTTL, nil, uuid.Nil)
+		issued, err := s.issueLoginLinkLocked(ctx, tx, state, user, lockedClaim, canonical, s.cfg.LoginTokenTTL, s.cfg.DeliveryPayloadTTL, nil, uuid.Nil, false)
 		if err != nil {
 			return err
 		}
@@ -619,8 +620,42 @@ func ownedEmailMatches(state *db.UserSecurityState, claim *db.EmailLoginClaim, c
 		db.CanonicalEmail(*state.Email) == canonical
 }
 
-func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, state *db.UserSecurityState, user *db.User, canonical string, tokenTTL, payloadTTL time.Duration, emailTemplate *LoginLinkEmailTemplate, actionTokenID uuid.UUID) (*EmailLinkRequestResult, error) {
-	if tx == nil || state == nil || user == nil || !ownedEmailMatches(state, &db.EmailLoginClaim{CanonicalEmail: canonical, OwnerUserID: &state.ID, State: db.EmailClaimOwned}, canonical, state.ID) {
+// adminLoginEmailMatches allows the selected-account admin flow to bind a
+// login token to the account's current unverified address. A verified claim
+// owned by another account or an ambiguous address remains ineligible.
+func adminLoginEmailMatches(state *db.UserSecurityState, claim *db.EmailLoginClaim, canonical string, owner uuid.UUID) bool {
+	if canonical == "" || state == nil || owner == uuid.Nil || owner != state.ID || state.IsDeleted || !state.AccountActivated ||
+		state.SecurityState != db.SecurityStateNormal || state.PasswordDisabled || state.PasswordResetRequired || state.Email == nil ||
+		db.CanonicalEmail(*state.Email) != canonical {
+		return false
+	}
+	if claim == nil {
+		return true
+	}
+	if claim.IsAmbiguous {
+		return false
+	}
+	switch claim.State {
+	case db.EmailClaimAvailable:
+		return claim.OwnerUserID == nil
+	case db.EmailClaimOwned:
+		return claim.OwnerUserID != nil && *claim.OwnerUserID == owner
+	default:
+		return false
+	}
+}
+
+func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, state *db.UserSecurityState, user *db.User, claim *db.EmailLoginClaim, canonical string, tokenTTL, payloadTTL time.Duration, emailTemplate *LoginLinkEmailTemplate, actionTokenID uuid.UUID, allowUnverified bool) (*EmailLinkRequestResult, error) {
+	if tx == nil || state == nil || user == nil {
+		return nil, nil
+	}
+	validEmail := ownedEmailMatches(state, claim, canonical, state.ID)
+	purpose := db.ActionTokenPurposeLoginLink
+	if allowUnverified {
+		validEmail = adminLoginEmailMatches(state, claim, canonical, state.ID)
+		purpose = db.ActionTokenPurposeAdminLoginLink
+	}
+	if !validEmail {
 		return nil, nil
 	}
 	code, err := generateEmailLoginCode()
@@ -629,7 +664,7 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 	}
 	// issueActionTokenLocked is called after the account and claim locks are
 	// held. It persists only the hash and binds the current generation/email.
-	action, err := s.security.issueActionTokenWithIDLocked(ctx, tx, state, db.ActionTokenPurposeLoginLink, &canonical, tokenTTL, actionTokenID)
+	action, err := s.security.issueActionTokenWithIDLocked(ctx, tx, state, purpose, &canonical, tokenTTL, actionTokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -638,7 +673,7 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 		return nil, ErrEmailDeliveryUnavailable
 	}
 	if err := tx.CreateAccountActionToken(ctx, db.AccountActionTokenParams{
-		ID: uuid.New(), TokenHash: codeHashes[0], Purpose: db.ActionTokenPurposeLoginLink,
+		ID: uuid.New(), TokenHash: codeHashes[0], Purpose: purpose,
 		AccountID: state.ID, EmailBinding: &canonical, AuthGeneration: state.AuthGeneration,
 		ExpiresAt: action.ExpiresAt,
 	}); err != nil {
@@ -651,7 +686,7 @@ func (s *EmailLogin) issueLoginLinkLocked(ctx context.Context, tx *db.Queries, s
 		return nil, ErrEmailDeliveryUnavailable
 	}
 	deliveryID, err := enqueuer.EnqueueLoginLink(ctx, tx, LoginLinkDeliveryRequest{
-		AccountID: state.ID, Username: user.Username, To: canonical, Token: action.Token, Code: code,
+		AccountID: state.ID, Username: user.Username, To: canonical, Purpose: purpose, Token: action.Token, Code: code,
 		Template:  emailTemplate,
 		ExpiresIn: tokenTTL, PayloadTTL: payloadTTL,
 		ActionTokenID: action.ID, AuthGeneration: state.AuthGeneration, ExpiresAt: action.ExpiresAt,
@@ -725,7 +760,7 @@ func (s *EmailLogin) IssueLoginLink(ctx context.Context, request LoginLinkIssueR
 		if state == nil {
 			return ErrInvalidEmailLink
 		}
-		if state.Email == nil || !state.EmailConfirmed {
+		if state.Email == nil || (!state.EmailConfirmed && (hasCampaignContext || request.ActorID == nil)) {
 			return ErrInvalidEmailLink
 		}
 		canonical := db.CanonicalEmail(*state.Email)
@@ -734,10 +769,15 @@ func (s *EmailLogin) IssueLoginLink(ctx context.Context, request LoginLinkIssueR
 			return err
 		}
 		user, err := tx.GetUserByID(ctx, request.AccountID)
-		if err != nil || user == nil || !ownedEmailMatches(state, claim, canonical, request.AccountID) {
+		validEmail := ownedEmailMatches(state, claim, canonical, request.AccountID)
+		allowUnverified := !state.EmailConfirmed && !hasCampaignContext && request.ActorID != nil
+		if allowUnverified {
+			validEmail = adminLoginEmailMatches(state, claim, canonical, request.AccountID)
+		}
+		if err != nil || user == nil || !validEmail {
 			return ErrInvalidEmailLink
 		}
-		result, err = s.issueLoginLinkLocked(ctx, tx, state, user, canonical, adminLoginLinkTokenTTL, adminLoginPayloadTTL, emailTemplate, actionTokenID)
+		result, err = s.issueLoginLinkLocked(ctx, tx, state, user, claim, canonical, adminLoginLinkTokenTTL, adminLoginPayloadTTL, emailTemplate, actionTokenID, allowUnverified)
 		if err != nil || result == nil || request.ActorID == nil {
 			return err
 		}
@@ -890,7 +930,8 @@ func (s *EmailLogin) exchangeLoginActionToken(ctx context.Context, hash []byte, 
 	var result *EmailLinkExchangeResult
 	err := s.q.InTxRetry(ctx, func(tx *db.Queries) error {
 		initial, err := tx.GetAccountActionTokenByHash(ctx, hash)
-		if err != nil || initial == nil || initial.Purpose != db.ActionTokenPurposeLoginLink || initial.EmailBinding == nil {
+		if err != nil || initial == nil || initial.EmailBinding == nil ||
+			(initial.Purpose != db.ActionTokenPurposeLoginLink && initial.Purpose != db.ActionTokenPurposeAdminLoginLink) {
 			return ErrInvalidEmailLink
 		}
 		if expectedEmail != nil && db.CanonicalEmail(*initial.EmailBinding) != *expectedEmail {
@@ -907,10 +948,18 @@ func (s *EmailLogin) exchangeLoginActionToken(ctx context.Context, hash []byte, 
 		if err != nil {
 			return err
 		}
-		if claim == nil || !ownedEmailMatches(state, claim, db.CanonicalEmail(*initial.EmailBinding), initial.AccountID) {
+		canonical := db.CanonicalEmail(*initial.EmailBinding)
+		validEmail := false
+		switch initial.Purpose {
+		case db.ActionTokenPurposeLoginLink:
+			validEmail = ownedEmailMatches(state, claim, canonical, initial.AccountID)
+		case db.ActionTokenPurposeAdminLoginLink:
+			validEmail = adminLoginEmailMatches(state, claim, canonical, initial.AccountID)
+		}
+		if !validEmail {
 			return ErrInvalidEmailLink
 		}
-		consumed, ok, err := tx.ConsumeAccountActionToken(ctx, hash, db.ActionTokenPurposeLoginLink, now)
+		consumed, ok, err := tx.ConsumeAccountActionToken(ctx, hash, initial.Purpose, now)
 		if err != nil {
 			return err
 		}
@@ -1143,6 +1192,8 @@ func validateAuthenticatedDelivery(ctx context.Context, tx *db.Queries, metadata
 	switch metadata.Purpose {
 	case db.ActionTokenPurposeLoginLink:
 		validClaim = ownedEmailMatches(state, claim, canonical, metadata.AccountID)
+	case db.ActionTokenPurposeAdminLoginLink:
+		validClaim = adminLoginEmailMatches(state, claim, canonical, metadata.AccountID)
 	case db.ActionTokenPurposeRecovery:
 		validClaim = recoveryEmailMatches(state, claim, canonical, metadata.AccountID)
 	default:
@@ -1208,6 +1259,13 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 	if e == nil || e.keys == nil || tx == nil || request.AccountID == uuid.Nil || request.ActionTokenID == uuid.Nil || request.Token == "" || !validEmailLoginCode(request.Code) || request.To == "" {
 		return nil, ErrEmailDeliveryUnavailable
 	}
+	purpose := request.Purpose
+	if purpose == "" {
+		purpose = db.ActionTokenPurposeLoginLink
+	}
+	if purpose != db.ActionTokenPurposeLoginLink && purpose != db.ActionTokenPurposeAdminLoginLink {
+		return nil, ErrEmailDeliveryUnavailable
+	}
 	now := e.clock()
 	if now.IsZero() {
 		now = time.Now()
@@ -1227,7 +1285,7 @@ func (e *DurableLoginLinkEnqueuer) EnqueueLoginLink(ctx context.Context, tx *db.
 	metadata := authenticatedDeliveryMetadata{
 		ActionTokenID:  request.ActionTokenID,
 		TokenHash:      sha256Bytes(request.Token),
-		Purpose:        db.ActionTokenPurposeLoginLink,
+		Purpose:        purpose,
 		AccountID:      request.AccountID,
 		AuthGeneration: request.AuthGeneration,
 		CanonicalEmail: db.CanonicalEmail(request.To),

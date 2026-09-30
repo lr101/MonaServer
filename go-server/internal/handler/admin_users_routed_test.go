@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
@@ -52,5 +55,42 @@ func TestRoutedAdminUsersPreservesExplicitFalseVerifiedEmailFilter(t *testing.T)
 	}
 	if len(omittedPage.Items) != 2 {
 		t.Fatalf("omitted filter page = %#v, want both users", omittedPage)
+	}
+}
+
+func TestRoutedAdminUserUpdateChangesEditableFieldsAndKeepsID(t *testing.T) {
+	store := service.NewMemoryAdminStore()
+	userID := uuid.New()
+	oldEmail := "old@example.com"
+	store.Users = append(store.Users, service.AdminUser{
+		ID: userID, Username: "alice", Email: &oldEmail, EmailVerified: true,
+		AccountActivated: true, SecurityState: "normal",
+	})
+	csrf := "test-csrf-token"
+	now := time.Now().UTC()
+	ctx := middleware.WithAdminPrincipal(t.Context(), middleware.AdminPrincipal{
+		UserID: uuid.NewString(), State: "authenticated", CSRFHash: middleware.CSRFHash(csrf),
+		Capabilities: []string{"users.write"}, RecentMFAAt: &now, RecentMFAAction: "users.write",
+	})
+	controller := genserver.NewAdminUsersAPIController(NewAdminUsersServicer(service.NewAdminUserService(store)))
+	router := chi.NewRouter()
+	router.Patch("/api/v3/admin/users/{userId}", controller.UpdateAdminUser)
+	body := `{"expectedAuthGeneration":0,"username":"alice-renamed","email":"new@example.com","securityState":"normal","communicationOptOut":true,"pushOptedOut":true}`
+	request := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/users/"+userID.String(), strings.NewReader(body)).WithContext(ctx)
+	request.Header.Set("X-CSRF-Token", csrf)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body=%s", response.Code, response.Body.String())
+	}
+	var updated genserver.AdminUserDetailsDto
+	if err := json.Unmarshal(response.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode updated user: %v", err)
+	}
+	if updated.Id != userID.String() || updated.Username != "alice-renamed" || updated.Email == nil || *updated.Email != "new@example.com" || updated.EmailVerified {
+		t.Fatalf("updated profile = %#v", updated)
+	}
+	if !updated.CommunicationOptOut || !updated.PushOptedOut {
+		t.Fatalf("updated preferences = %#v", updated)
 	}
 }

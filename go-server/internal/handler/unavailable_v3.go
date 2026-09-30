@@ -140,6 +140,10 @@ func (s *UnavailableV3Servicer) GetAdminUser(context.Context, string) (genserver
 	return s.unavailable()
 }
 
+func (s *UnavailableV3Servicer) UpdateAdminUser(context.Context, string, string, genserver.AdminUserUpdateDto) (genserver.ImplResponse, error) {
+	return s.unavailable()
+}
+
 func (s *UnavailableV3Servicer) ListAdminCampaigns(context.Context, string, int32) (genserver.ImplResponse, error) {
 	return s.unavailable()
 }
