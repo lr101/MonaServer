@@ -458,7 +458,7 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, options .
 			mail = value
 		}
 	}
-	store := service.NewProductionAdminStore(queries)
+	store := service.NewProductionAdminStore(queries, mail)
 	audiences := service.NewAdminAudienceService(store)
 	audiences.SetRecentMFATTL(auth.RecentMFATTL())
 	jobs := service.NewAdminBulkService(store, audiences, nil, auth)
@@ -468,7 +468,9 @@ func newV3AdminServicers(queries *db.Queries, auth *service.AdminAuth, options .
 	// persist a pending job; list/detail reads remain available.
 	jobs.SetExecutionReady(false)
 	passwordRecovery := service.NewAdminPasswordRecovery(queries, mail)
-	servicers.users = handler.NewAdminUsersServicerWithPasswordRecovery(service.NewAdminUserService(store), emailLogin, passwordRecovery)
+	adminUsers := service.NewAdminUserService(store)
+	adminUsers.SetRecentMFATTL(auth.RecentMFATTL())
+	servicers.users = handler.NewAdminUsersServicerWithPasswordRecovery(adminUsers, emailLogin, passwordRecovery)
 	servicers.campaigns = handler.NewAdminCampaignsServicer(service.NewCampaignService(service.NewProductionCampaignStore(queries)))
 	servicers.audiences = handler.NewAdminAudienceServicer(audiences)
 	servicers.jobs = handler.NewAdminJobsServicer(jobs)

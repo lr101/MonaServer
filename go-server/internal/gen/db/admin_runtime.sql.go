@@ -100,6 +100,7 @@ SELECT u.id,
        u.username,
        u.email,
        u.email_confirmed,
+       u.account_activated,
        u.creation_date,
        u.security_state,
        u.auth_generation,
@@ -129,6 +130,7 @@ type GetAdminRuntimeAccountRow struct {
 	Username              pgtype.Text        `json:"username"`
 	Email                 pgtype.Text        `json:"email"`
 	EmailConfirmed        bool               `json:"email_confirmed"`
+	AccountActivated      bool               `json:"account_activated"`
 	CreationDate          pgtype.Timestamptz `json:"creation_date"`
 	SecurityState         string             `json:"security_state"`
 	AuthGeneration        int64              `json:"auth_generation"`
@@ -149,6 +151,7 @@ func (q *Queries) GetAdminRuntimeAccount(ctx context.Context, userID pgtype.UUID
 		&i.Username,
 		&i.Email,
 		&i.EmailConfirmed,
+		&i.AccountActivated,
 		&i.CreationDate,
 		&i.SecurityState,
 		&i.AuthGeneration,
@@ -169,6 +172,7 @@ SELECT u.id,
        u.username,
        u.email,
        u.email_confirmed,
+       u.account_activated,
        u.creation_date,
        u.security_state,
        u.auth_generation,
@@ -236,6 +240,7 @@ type ListAdminRuntimeAccountsRow struct {
 	Username              pgtype.Text        `json:"username"`
 	Email                 pgtype.Text        `json:"email"`
 	EmailConfirmed        bool               `json:"email_confirmed"`
+	AccountActivated      bool               `json:"account_activated"`
 	CreationDate          pgtype.Timestamptz `json:"creation_date"`
 	SecurityState         string             `json:"security_state"`
 	AuthGeneration        int64              `json:"auth_generation"`
@@ -280,6 +285,7 @@ func (q *Queries) ListAdminRuntimeAccounts(ctx context.Context, arg ListAdminRun
 			&i.Username,
 			&i.Email,
 			&i.EmailConfirmed,
+			&i.AccountActivated,
 			&i.CreationDate,
 			&i.SecurityState,
 			&i.AuthGeneration,

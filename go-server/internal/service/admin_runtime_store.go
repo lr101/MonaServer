@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/db"
 )
 
@@ -16,10 +18,15 @@ import (
 // transitions are deployed, AdminBulkService stops before a provider call.
 type ProductionAdminStore struct {
 	queries *db.Queries
+	mail    *Email
 }
 
-func NewProductionAdminStore(queries *db.Queries) *ProductionAdminStore {
-	return &ProductionAdminStore{queries: queries}
+func NewProductionAdminStore(queries *db.Queries, mail ...*Email) *ProductionAdminStore {
+	store := &ProductionAdminStore{queries: queries}
+	if len(mail) > 0 {
+		store.mail = mail[0]
+	}
+	return store
 }
 
 func (s *ProductionAdminStore) ListUsers(ctx context.Context, query AdminUserQuery) (AdminUserPage, error) {
@@ -108,12 +115,188 @@ func (s *ProductionAdminStore) VerifyUserEmail(ctx context.Context, actorID, id 
 	return verified, err
 }
 
+func (s *ProductionAdminStore) UpdateUser(ctx context.Context, actorID, id uuid.UUID, update AdminUserUpdate) (*AdminUser, error) {
+	if s == nil || s.queries == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	var updated *AdminUser
+	err := s.queries.InTxRetry(ctx, func(tx *db.Queries) error {
+		state, err := tx.LockUserSecurity(ctx, id)
+		if err != nil {
+			return err
+		}
+		if state == nil || state.IsDeleted {
+			return ErrUserNotFound
+		}
+		if update.ExpectedAuthGeneration == nil || state.AuthGeneration != *update.ExpectedAuthGeneration {
+			return apperrors.ErrConflict
+		}
+		row, err := tx.GetAdminRuntimeAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			return ErrUserNotFound
+		}
+
+		changed := make([]string, 0, 5)
+		authInvalidated := false
+		if update.Username != nil && row.Username != *update.Username {
+			existing, err := tx.GetUserByUsername(ctx, *update.Username)
+			if err != nil {
+				return err
+			}
+			if existing != nil && existing.ID != id {
+				return apperrors.ErrConflict
+			}
+			if err := tx.UpdateUserUsername(ctx, id, *update.Username); err != nil {
+				return err
+			}
+			row.Username = *update.Username
+			changed = append(changed, "username")
+		}
+
+		securityState := row.SecurityState
+		passwordDisabled := row.PasswordDisabled
+		passwordResetRequired := row.PasswordResetRequired
+		compromisedAt := row.CompromisedAt
+		securityStateChanged := update.SecurityState != nil && row.SecurityState != *update.SecurityState
+		if securityStateChanged {
+			securityState = *update.SecurityState
+			passwordDisabled, passwordResetRequired, compromisedAt = adminUserSecurityValues(securityState, time.Now().UTC())
+		}
+		if update.PasswordDisabled != nil {
+			passwordDisabled = *update.PasswordDisabled
+		}
+		if update.PasswordResetRequired != nil {
+			passwordResetRequired = *update.PasswordResetRequired
+		}
+		passwordDisabledChanged := row.PasswordDisabled != passwordDisabled
+		passwordResetRequiredChanged := row.PasswordResetRequired != passwordResetRequired
+		if securityStateChanged || passwordDisabledChanged || passwordResetRequiredChanged {
+			if _, err := tx.AdvanceUserAuthGeneration(ctx, id); err != nil {
+				return err
+			}
+			if securityState == "normal" && !passwordDisabled && !passwordResetRequired && compromisedAt == nil {
+				if err := tx.ClearUserRecoveryRestriction(ctx, id); err != nil {
+					return err
+				}
+			} else if err := tx.SetUserSecurityState(ctx, id, securityState, passwordDisabled, passwordResetRequired, compromisedAt); err != nil {
+				return err
+			}
+			if err := tx.InvalidateUserTokens(ctx, id); err != nil {
+				return err
+			}
+			if err := tx.RevokeAdminSessionsForUser(ctx, id); err != nil {
+				return err
+			}
+			if err := tx.RevokeAdminLoginChallengesForUser(ctx, id); err != nil {
+				return err
+			}
+			authInvalidated = true
+			row.SecurityState = securityState
+			row.PasswordDisabled = passwordDisabled
+			row.PasswordResetRequired = passwordResetRequired
+			row.CompromisedAt = compromisedAt
+			if securityStateChanged {
+				changed = append(changed, "securityState")
+			}
+			if passwordDisabledChanged {
+				changed = append(changed, "passwordDisabled")
+			}
+			if passwordResetRequiredChanged {
+				changed = append(changed, "passwordResetRequired")
+			}
+		}
+
+		if update.Email != nil && (row.Email == nil || db.CanonicalEmail(*row.Email) != db.CanonicalEmail(*update.Email)) {
+			if row.SecurityState != "normal" || s.mail == nil {
+				return ErrUserEmailUnavailable
+			}
+			if !authInvalidated {
+				if _, err := tx.AdvanceUserAuthGeneration(ctx, id); err != nil {
+					return err
+				}
+				if err := tx.InvalidateUserTokens(ctx, id); err != nil {
+					return err
+				}
+				if err := tx.RevokeAdminSessionsForUser(ctx, id); err != nil {
+					return err
+				}
+				if err := tx.RevokeAdminLoginChallengesForUser(ctx, id); err != nil {
+					return err
+				}
+				authInvalidated = true
+			}
+			confirmationURL := randomURL()
+			if err := tx.ChangeUserEmail(ctx, id, update.Email, &confirmationURL); err != nil {
+				return err
+			}
+			if err := deliverEmailConfirmation(ctx, s.mail, row.Username, *update.Email, confirmationURL); err != nil {
+				return err
+			}
+			row.Email = update.Email
+			row.EmailConfirmed = false
+			changed = append(changed, "email")
+		}
+
+		if update.CommunicationOptOut != nil || update.PushOptedOut != nil {
+			preferences, err := tx.GetCommunicationPreferences(ctx, id)
+			if err != nil {
+				return err
+			}
+			securityEmailEnabled, generalEmailEnabled, pushEnabled := true, true, true
+			if preferences != nil {
+				securityEmailEnabled = preferences.SecurityEmailEnabled
+				generalEmailEnabled = preferences.GeneralEmailEnabled
+				pushEnabled = preferences.PushEnabled
+			}
+			if update.CommunicationOptOut != nil && generalEmailEnabled == *update.CommunicationOptOut {
+				generalEmailEnabled = !*update.CommunicationOptOut
+				changed = append(changed, "communicationOptOut")
+			}
+			if update.PushOptedOut != nil && pushEnabled == *update.PushOptedOut {
+				pushEnabled = !*update.PushOptedOut
+				changed = append(changed, "pushOptedOut")
+			}
+			if _, err := tx.UpsertCommunicationPreferences(ctx, id, securityEmailEnabled, generalEmailEnabled, pushEnabled); err != nil {
+				return err
+			}
+		}
+
+		if len(changed) > 0 {
+			metadata, err := json.Marshal(map[string][]string{"fields": changed})
+			if err != nil {
+				return err
+			}
+			if err := tx.CreateAuditEvent(ctx, db.AuditEventParams{
+				ID: uuid.New(), ActorID: &actorID, TargetAccountID: &id, Action: "admin_user_updated", Metadata: metadata,
+			}); err != nil {
+				return err
+			}
+		}
+
+		row, err = tx.GetAdminRuntimeAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			return ErrUserNotFound
+		}
+		user := adminUserFromRuntime(*row)
+		updated = &user
+		return nil
+	})
+	return updated, err
+}
+
 func adminUserFromRuntime(row db.AdminRuntimeAccount) AdminUser {
 	user := AdminUser{
 		ID:                    row.ID,
 		Username:              row.Username,
 		Email:                 row.Email,
 		EmailVerified:         row.EmailConfirmed,
+		AccountActivated:      row.AccountActivated,
 		CreatedAt:             row.CreatedAt,
 		SecurityState:         row.SecurityState,
 		AuthGeneration:        row.AuthGeneration,

@@ -11,8 +11,9 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**getAdminUser**](AdminUsersApi.md#getadminuser) | **GET** /api/v3/admin/users/{userId} | Get one administrative user record
 [**listAdminUsers**](AdminUsersApi.md#listadminusers) | **GET** /api/v3/admin/users | Search administrative user records
-[**sendAdminUserLoginLink**](AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's verified email
+[**sendAdminUserLoginLink**](AdminUsersApi.md#sendadminuserloginlink) | **POST** /api/v3/admin/users/{userId}/login-link | Queue a one-time login link to one user's current email
 [**sendAdminUserPasswordResetLink**](AdminUsersApi.md#sendadminuserpasswordresetlink) | **POST** /api/v3/admin/users/{userId}/password-reset | Send one user's password recovery email as an administrator
+[**updateAdminUser**](AdminUsersApi.md#updateadminuser) | **PATCH** /api/v3/admin/users/{userId} | Edit one user's profile and account status
 [**verifyAdminUserEmail**](AdminUsersApi.md#verifyadminuseremail) | **POST** /api/v3/admin/users/{userId}/verify-email | Verify one user email as an administrator
 
 
@@ -123,7 +124,7 @@ Name | Type | Description  | Notes
 # **sendAdminUserLoginLink**
 > sendAdminUserLoginLink(userId, xCSRFToken, adminLoginLinkCampaignRequestDto)
 
-Queue a one-time login link to one user's verified email
+Queue a one-time login link to one user's current email
 
 ### Example
 ```dart
@@ -136,7 +137,7 @@ import 'package:openapi/api.dart';
 final api_instance = AdminUsersApi();
 final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier.
 final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
-final adminLoginLinkCampaignRequestDto = AdminLoginLinkCampaignRequestDto(); // AdminLoginLinkCampaignRequestDto | Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server.
+final adminLoginLinkCampaignRequestDto = AdminLoginLinkCampaignRequestDto(); // AdminLoginLinkCampaignRequestDto | Optional campaign send context. Omit it to use the standard single-user sign-in message. An administrator may use that selected-user action for an unverified current email on an activated account; campaign sends still require a verified, uniquely owned email. Campaign content is loaded from the active campaign on the server.
 
 try {
     api_instance.sendAdminUserLoginLink(userId, xCSRFToken, adminLoginLinkCampaignRequestDto);
@@ -151,7 +152,7 @@ Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **userId** | **String**| Stable account identifier. |
  **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
- **adminLoginLinkCampaignRequestDto** | [**AdminLoginLinkCampaignRequestDto**](AdminLoginLinkCampaignRequestDto.md)| Optional campaign send context. Omit it to use the standard single-user sign-in message. Campaign content is loaded from the active campaign on the server. | [optional]
+ **adminLoginLinkCampaignRequestDto** | [**AdminLoginLinkCampaignRequestDto**](AdminLoginLinkCampaignRequestDto.md)| Optional campaign send context. Omit it to use the standard single-user sign-in message. An administrator may use that selected-user action for an unverified current email on an activated account; campaign sends still require a verified, uniquely owned email. Campaign content is loaded from the active campaign on the server. | [optional]
 
 ### Return type
 
@@ -212,6 +213,57 @@ void (empty response body)
 ### HTTP request headers
 
  - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+# **updateAdminUser**
+> AdminUserDetailsDto updateAdminUser(userId, xCSRFToken, adminUserUpdateDto)
+
+Edit one user's profile and account status
+
+Requires the users.write capability, CSRF, and recent action-bound MFA. Email changes require normal security state with no password reset pending and remain unverified until confirmed; status and password-restriction changes revoke existing credentials and sessions. A stale auth generation returns 409.
+
+### Example
+```dart
+import 'package:openapi/api.dart';
+// TODO Configure API key authorization: adminSession
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKey = 'YOUR_API_KEY';
+// uncomment below to setup prefix (e.g. Bearer) for API key, if needed
+//defaultApiClient.getAuthentication<ApiKeyAuth>('adminSession').apiKeyPrefix = 'Bearer';
+
+final api_instance = AdminUsersApi();
+final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Stable account identifier. This value cannot be changed.
+final xCSRFToken = xCSRFToken_example; // String | Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication.
+final adminUserUpdateDto = AdminUserUpdateDto(); // AdminUserUpdateDto |
+
+try {
+    final result = api_instance.updateAdminUser(userId, xCSRFToken, adminUserUpdateDto);
+    print(result);
+} catch (e) {
+    print('Exception when calling AdminUsersApi->updateAdminUser: $e\n');
+}
+```
+
+### Parameters
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+ **userId** | **String**| Stable account identifier. This value cannot be changed. |
+ **xCSRFToken** | **String**| Double-submit CSRF value issued by the admin session bootstrap and rotated after MFA or reauthentication. |
+ **adminUserUpdateDto** | [**AdminUserUpdateDto**](AdminUserUpdateDto.md)|  |
+
+### Return type
+
+[**AdminUserDetailsDto**](AdminUserDetailsDto.md)
+
+### Authorization
+
+[adminSession](../README.md#adminSession)
+
+### HTTP request headers
+
+ - **Content-Type**: application/json
  - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

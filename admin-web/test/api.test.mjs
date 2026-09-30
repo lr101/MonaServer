@@ -148,6 +148,22 @@ test('verifies a user email using the authenticated CSRF token', async () => {
   assert.equal(calls[0].options.headers['X-CSRF-Token'], 'active-token');
 });
 
+test('updates the selected user with only editable fields and authenticated CSRF', async () => {
+  const { api, calls } = recordingApi([response(200, { id: 'user-id', username: 'alice' })]);
+  api.csrf = 'active-token';
+  await api.updateUser('user/id', {
+    id: 'must-not-be-sent', expectedAuthGeneration: 4, username: 'alice', email: 'alice@example.test', securityState: 'normal',
+    passwordDisabled: false, passwordResetRequired: false, communicationOptOut: true, pushOptedOut: false,
+  });
+  assert.equal(calls[0].url, 'https://admin.example/api/v3/admin/users/user%2Fid');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(calls[0].options.headers['X-CSRF-Token'], 'active-token');
+  assert.equal(calls[0].options.body, JSON.stringify({
+    expectedAuthGeneration: 4, username: 'alice', email: 'alice@example.test', securityState: 'normal',
+    passwordDisabled: false, passwordResetRequired: false, communicationOptOut: true, pushOptedOut: false,
+  }));
+});
+
 test('queues a login link for one selected account', async () => {
   const { api, calls } = recordingApi([response(202)]);
   api.csrf = 'active-token';

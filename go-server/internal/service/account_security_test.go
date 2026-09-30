@@ -952,8 +952,17 @@ func TestConcurrentEmailChangeAndContainmentLeaveTheAddressFenced(t *testing.T) 
 	if err := <-containError; err != nil {
 		t.Fatalf("containment race: %v", err)
 	}
-	if err := <-updateError; err != nil && apperrors.HTTPStatus(err) != 403 && apperrors.HTTPStatus(err) != 401 {
-		t.Fatalf("email update race error = %v, want restricted rejection", err)
+	if err := <-updateError; err != nil {
+		status := apperrors.HTTPStatus(err)
+		if status != 403 && status != 401 && status != 503 {
+			t.Fatalf("email update race error = %v, want restricted rejection or unavailable delivery", err)
+		}
+		if status == 503 {
+			persisted, err := q.GetUserByID(ctx, pair.UserID)
+			if err != nil || persisted == nil || persisted.Email == nil || *persisted.Email != oldEmail {
+				t.Fatalf("email after unavailable delivery = %#v, err=%v, want unchanged %q", persisted, err, oldEmail)
+			}
+		}
 	}
 	state, err := q.GetUserSecurityState(ctx, pair.UserID)
 	if err != nil || state == nil || (state.SecurityState != db.SecurityStateCompromised && state.SecurityState != db.SecurityStateSecuredManualRecovery) || !state.PasswordDisabled || !state.PasswordResetRequired {

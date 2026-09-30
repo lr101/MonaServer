@@ -28,7 +28,7 @@ jobs:
         id: compute_version
         run: |
           BASE_VERSION=$(grep -m1 -E '^version' go-server/VERSION 2>/dev/null | awk -F'=' '{print $2}' | xargs)
-          if [ -z "$BASE_VERSION" ]; then BASE_VERSION="1.0.1"; fi
+          if [ -z "$BASE_VERSION" ]; then BASE_VERSION="4.0.0"; fi
           FINAL_TAG="${BASE_VERSION}.${{ github.run_number }}"
           echo "tag=$FINAL_TAG" >> "$GITHUB_OUTPUT"
           echo "Computed FINAL_TAG=$FINAL_TAG"

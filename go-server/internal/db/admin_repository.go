@@ -256,7 +256,8 @@ func (q *Queries) consumeAccountActionToken(ctx context.Context, tokenHash []byt
 		return nil, false, nil
 	}
 	if locked.EmailBinding != nil {
-		if !account.EmailConfirmed || account.Email == nil || CanonicalEmail(*account.Email) != CanonicalEmail(*locked.EmailBinding) {
+		if (purpose == ActionTokenPurposeAdminLoginLink && !account.AccountActivated) || account.Email == nil || CanonicalEmail(*account.Email) != CanonicalEmail(*locked.EmailBinding) ||
+			(!account.EmailConfirmed && purpose != ActionTokenPurposeAdminLoginLink) {
 			return nil, false, nil
 		}
 	}
@@ -269,9 +270,11 @@ func (q *Queries) consumeAccountActionToken(ctx context.Context, tokenHash []byt
 	if err != nil {
 		return nil, false, err
 	}
-	if purpose == ActionTokenPurposeLoginLink {
-		if err := q.g.RevokeAccountActionTokens(ctx, dbgen.RevokeAccountActionTokensParams{AccountID: pgUUID(locked.AccountID), Column2: purpose}); err != nil {
-			return nil, false, err
+	if purpose == ActionTokenPurposeLoginLink || purpose == ActionTokenPurposeAdminLoginLink {
+		for _, loginPurpose := range []string{ActionTokenPurposeLoginLink, ActionTokenPurposeAdminLoginLink} {
+			if err := q.g.RevokeAccountActionTokens(ctx, dbgen.RevokeAccountActionTokensParams{AccountID: pgUUID(locked.AccountID), Column2: loginPurpose}); err != nil {
+				return nil, false, err
+			}
 		}
 	}
 	v := accountActionTokenFromRow(consumed)

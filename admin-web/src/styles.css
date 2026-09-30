@@ -44,6 +44,8 @@ fieldset { border: 1px solid #e2e7f0; border-radius: .6rem; display: grid; gap: 
 .recipient input { width: 1.1rem; height: 1.1rem; }
 .stack-form { display: grid; gap: 1rem; margin-top: 1rem; }
 .stack-form label { display: grid; gap: .4rem; }
+.stack-form label.checkbox { align-items: center; display: flex; gap: .65rem; }
+.stack-form label.checkbox input { height: 1rem; padding: 0; width: 1rem; }
 .notice { background: #fff9e8; border: 1px solid #ead28b; border-radius: .6rem; margin-bottom: 1rem; padding: .8rem 1rem; }
 .notice p { margin: .25rem 0 .6rem; }
 .variable-info { background: #fff4c6; border: 1px solid #e5cf78; border-radius: .75rem; color: #4f421d; padding: .9rem 1rem; }

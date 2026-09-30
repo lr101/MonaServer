@@ -924,6 +924,10 @@ paths:
       - auth
   /api/v2/public/signup:
     post:
+      description: "Email signups stay pending until the address is confirmed. Before\
+        \ activation, repeating this request with the same username and password can\
+        \ resend the confirmation link or correct the email address after a five-minute\
+        \ cooldown."
       operationId: createUser
       requestBody:
         content:
@@ -942,6 +946,10 @@ paths:
           description: Registration failed
         "409":
           description: Username already exists
+        "429":
+          description: A verification email was sent recently; retry after five minutes
+        "503":
+          description: Email delivery is unavailable
       summary: User registration
       tags:
       - auth
@@ -2860,6 +2868,91 @@ paths:
       - adminUsers
       x-availability: disabled
       x-feature-flag: web_admin_api
+    patch:
+      description: "Requires the users.write capability, CSRF, and recent action-bound\
+        \ MFA. Email changes require normal security state with no password reset\
+        \ pending and remain unverified until confirmed; status and password-restriction\
+        \ changes revoke existing credentials and sessions. A stale auth generation\
+        \ returns 409."
+      operationId: updateAdminUser
+      parameters:
+      - description: Stable account identifier. This value cannot be changed.
+        explode: false
+        in: path
+        name: userId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - description: Double-submit CSRF value issued by the admin session bootstrap
+          and rotated after MFA or reauthentication.
+        explode: false
+        in: header
+        name: X-CSRF-Token
+        required: true
+        schema:
+          maxLength: 256
+          minLength: 16
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/adminUserUpdateDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/adminUserDetailsDto"
+          description: Updated administrative user details
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Request is malformed or a token/action is invalid.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Authentication is missing, expired, revoked, or invalid."
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The authenticated principal lacks the required capability.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: The resource is absent or not visible to the caller.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: "Revision, payload, audience, or idempotency key conflicts\
+            \ with current state."
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/apiErrorDto"
+          description: Feature is disabled or a required local provider is unavailable.
+      security:
+      - adminSession: []
+      summary: Edit one user's profile and account status
+      tags:
+      - adminUsers
+      x-availability: disabled
+      x-feature-flag: web_admin_api
   /api/v3/admin/users/{userId}/verify-email:
     post:
       operationId: verifyAdminUserEmail
@@ -2964,13 +3057,15 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/adminLoginLinkCampaignRequestDto"
-        description: Optional campaign send context. Omit it to use the standard single-user
-          sign-in message. Campaign content is loaded from the active campaign on
-          the server.
+        description: "Optional campaign send context. Omit it to use the standard\
+          \ single-user sign-in message. An administrator may use that selected-user\
+          \ action for an unverified current email on an activated account; campaign\
+          \ sends still require a verified, uniquely owned email. Campaign content\
+          \ is loaded from the active campaign on the server."
         required: false
       responses:
         "202":
-          description: Login link delivery queued for the user's verified email
+          description: Login link delivery queued for the user's current email
         "400":
           content:
             application/json:
@@ -3016,7 +3111,7 @@ paths:
           description: Feature is disabled or a required local provider is unavailable.
       security:
       - adminSession: []
-      summary: Queue a one-time login link to one user's verified email
+      summary: Queue a one-time login link to one user's current email
       tags:
       - adminUsers
       x-availability: disabled
@@ -4975,7 +5070,7 @@ components:
           minLength: 8
           type: string
         username:
-          maxLength: 256
+          maxLength: 255
           minLength: 1
           type: string
       required:
@@ -5130,6 +5225,7 @@ components:
       - messages.test
       - reports.review
       - campaigns.write
+      - users.write
       type: string
     audienceKind:
       enum:
@@ -5254,13 +5350,19 @@ components:
       allOf:
       - $ref: "#/components/schemas/adminUserDto"
       - properties:
+          accountActivated:
+            type: boolean
           communicationOptOut:
+            type: boolean
+          pushOptedOut:
             type: boolean
           registeredDeviceCount:
             minimum: 0
             type: integer
         required:
+        - accountActivated
         - communicationOptOut
+        - pushOptedOut
         - registeredDeviceCount
         type: object
       description: Administrative account details with aggregate device/preferences
@@ -5279,12 +5381,59 @@ components:
         securityState: normal
         createdAt: 2000-01-23T04:56:07.000+00:00
         emailVerified: true
+        accountActivated: true
+        pushOptedOut: true
         compromisedAt: 2000-01-23T04:56:07.000+00:00
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         passwordResetRequired: true
         authGeneration: 0
         email: email
         username: username
+    adminUserUpdateDto:
+      description: Editable selected-user fields. ID and other system-generated metadata
+        cannot be changed. expectedAuthGeneration is required as a concurrency precondition;
+        omitted or null editable properties are left unchanged.
+      properties:
+        communicationOptOut:
+          nullable: true
+          type: boolean
+        expectedAuthGeneration:
+          description: Auth generation from the displayed user details. Rejects edits
+            based on stale security state.
+          format: int64
+          minimum: 0
+          nullable: true
+          type: integer
+        email:
+          format: email
+          maxLength: 255
+          nullable: true
+          type: string
+        passwordDisabled:
+          nullable: true
+          type: boolean
+        passwordResetRequired:
+          nullable: true
+          type: boolean
+        pushOptedOut:
+          nullable: true
+          type: boolean
+        securityState:
+          enum:
+          - normal
+          - password_disabled
+          - compromised
+          - secured_manual_recovery_required
+          nullable: true
+          type: string
+        username:
+          maxLength: 255
+          minLength: 1
+          nullable: true
+          type: string
+      required:
+      - expectedAuthGeneration
+      type: object
     adminCampaignChannel:
       enum:
       - email
