@@ -67,3 +67,53 @@ func TestAdminUserVerifyEmailRequiresCapability(t *testing.T) {
 		t.Fatalf("verified user = %#v, %v", verified, err)
 	}
 }
+
+func TestAdminUserServiceUpdateRequiresCapabilityAndRecentMFA(t *testing.T) {
+	store := NewMemoryAdminStore()
+	id := uuid.New()
+	oldEmail := "alice@example.com"
+	store.Users = append(store.Users, AdminUser{
+		ID: id, Username: "alice", Email: &oldEmail, EmailVerified: true,
+		SecurityState: "normal", CommunicationOptOut: false,
+	})
+	users := NewAdminUserService(store)
+	users.SetRecentMFATTL(5 * time.Minute)
+	expectedAuthGeneration := int64(0)
+	update := AdminUserUpdate{
+		ExpectedAuthGeneration: &expectedAuthGeneration,
+		Username:               stringPtr("alice-renamed"),
+		Email:                  stringPtr("new-alice@example.com"),
+		SecurityState:          stringPtr("password_disabled"),
+		CommunicationOptOut:    adminUserBoolPtr(true),
+		PushOptedOut:           adminUserBoolPtr(true),
+	}
+	actor := AdminActor{ID: uuid.New(), Capabilities: []string{"users.write"}}
+	if _, err := users.Update(context.Background(), actor, id, update); !errors.Is(err, ErrRecentMFARequired) {
+		t.Fatalf("update without recent MFA = %v", err)
+	}
+	actor.RecentMFAAt = adminUserTimePtr(time.Now().UTC())
+	actor.RecentMFAAction = "users.write"
+	actor.Capabilities = []string{"users.read"}
+	if _, err := users.Update(context.Background(), actor, id, update); !errors.Is(err, ErrAudienceForbidden) {
+		t.Fatalf("update without users.write = %v", err)
+	}
+	actor.Capabilities = []string{"users.verify"}
+	if _, err := users.Update(context.Background(), actor, id, update); !errors.Is(err, ErrAudienceForbidden) {
+		t.Fatalf("update with users.verify only = %v", err)
+	}
+	actor.Capabilities = []string{"users.write"}
+	updated, err := users.Update(context.Background(), actor, id, update)
+	if err != nil {
+		t.Fatalf("update user: %v", err)
+	}
+	if updated.ID != id || updated.Username != "alice-renamed" || updated.Email == nil || *updated.Email != "new-alice@example.com" || updated.EmailVerified {
+		t.Fatalf("updated profile = %#v", updated)
+	}
+	if updated.SecurityState != "password_disabled" || !updated.PasswordDisabled || !updated.PasswordResetRequired || !updated.CommunicationOptOut || !updated.PushOptedOut {
+		t.Fatalf("updated account state = %#v", updated)
+	}
+}
+
+func adminUserBoolPtr(value bool) *bool { return &value }
+
+func adminUserTimePtr(value time.Time) *time.Time { return &value }

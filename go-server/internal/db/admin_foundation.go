@@ -28,6 +28,7 @@ const (
 	EmailClaimOwned                     = "owned"
 	EmailClaimBlocked                   = "blocked"
 	ActionTokenPurposeLoginLink         = "login_link"
+	ActionTokenPurposeAdminLoginLink    = "admin_login_link"
 	ActionTokenPurposeRecovery          = "recovery"
 	ActionTokenPurposeEmailConfirmation = "email_confirmation"
 	ActionTokenPurposeDeleteAccount     = "delete_account"

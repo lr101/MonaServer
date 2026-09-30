@@ -603,7 +603,7 @@ func (a *AdminAuth) BootstrapInitialAdmin(ctx context.Context, credentials Admin
 }
 
 func bootstrapAdminPermissions() []string {
-	return []string{"audit.read", "campaign.login_link", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read", "users.verify"}
+	return []string{"audit.read", "campaign.login_link", "campaigns.read", "campaigns.write", "reports.read", "reports.review", "security.recovery_resend", "users.read", "users.verify", "users.write"}
 }
 
 // BootstrapAdminSession creates a cryptographically bound pre-auth cookie.
@@ -986,6 +986,8 @@ func actionCapability(action string) string {
 		return "campaign.push"
 	case "audience.preview":
 		return "audience.preview"
+	case "users.write":
+		return "users.write"
 	case "jobs.create", "jobs.control", "messages.test", "reports.review", "campaigns.write":
 		// These route-family actions are intentionally capability-shaped. The
 		// generated request type is a string alias at runtime, so a step-up can

@@ -20,6 +20,7 @@ type AdminRuntimeAccount struct {
 	Username              string
 	Email                 *string
 	EmailConfirmed        bool
+	AccountActivated      bool
 	CreatedAt             time.Time
 	SecurityState         string
 	AuthGeneration        int64
@@ -55,6 +56,7 @@ func adminRuntimeAccountFromRow(row dbgen.ListAdminRuntimeAccountsRow) AdminRunt
 		Username:              textFromPG(row.Username),
 		Email:                 textPtrFromPG(row.Email),
 		EmailConfirmed:        row.EmailConfirmed,
+		AccountActivated:      row.AccountActivated,
 		CreatedAt:             timeFromPG(row.CreationDate),
 		SecurityState:         row.SecurityState,
 		AuthGeneration:        row.AuthGeneration,
@@ -154,6 +156,7 @@ func (q *Queries) GetAdminRuntimeAccount(ctx context.Context, id uuid.UUID) (*Ad
 		Username:              textFromPG(row.Username),
 		Email:                 textPtrFromPG(row.Email),
 		EmailConfirmed:        row.EmailConfirmed,
+		AccountActivated:      row.AccountActivated,
 		CreatedAt:             timeFromPG(row.CreationDate),
 		SecurityState:         row.SecurityState,
 		AuthGeneration:        row.AuthGeneration,

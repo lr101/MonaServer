@@ -318,3 +318,13 @@ func TestAdminMutationActionsAreExplicitAndBodyBound(t *testing.T) {
 		t.Fatalf("body-bound mismatching action status = %d, want 403", wrongRecorder.Code)
 	}
 }
+
+func TestAdminUserUpdateRouteUsesWriteCapabilityAndMFAAction(t *testing.T) {
+	const path = "/api/v3/admin/users/00000000-0000-4000-8000-000000000001"
+	if got := RequiredAdminCapability(http.MethodPatch, path); got != "users.write" {
+		t.Fatalf("required capability = %q, want users.write", got)
+	}
+	if got := AdminMutationAction(http.MethodPatch, path); got != "users.write" {
+		t.Fatalf("MFA action = %q, want users.write", got)
+	}
+}

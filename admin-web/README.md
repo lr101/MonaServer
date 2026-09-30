@@ -27,11 +27,22 @@ session; the web app does not ask for a second code during that session.
 Administrators with `users.verify` can mark a user's email as verified from
 the account detail page. Verification requires that the email claim be
 available and writes an audit event.
+Administrators with `users.write` can open the account editor for username,
+email, security status, password restrictions, and email/push preferences; the
+account ID is read-only. Edits include the displayed auth generation and fail
+if security state changed after the account was loaded. Email changes send a
+confirmation link and are available only when the account is in normal
+security state with no password reset required. Security changes invalidate
+the user's active credentials and admin sessions and are audited.
 The user detail actions also let operators with `security.recovery_resend`
 send a password recovery link to a verified, owned email address. The admin
 endpoint requires CSRF and recent MFA and records an audit event; the current
 password remains active until the user completes recovery. Eligible users can
-also receive a one-time 24-hour login link from this page.
+also receive a one-time 24-hour login link from this page, including when the
+selected account's email is not verified. The confirmation dialog identifies
+an unverified address. This selected-user action requires an activated
+account, a normal sign-in state, and a current email address; campaigns
+continue to require verified email ownership.
 Email campaigns are personalized login email templates. Their subject and
 message can use `{{username}}`, `{{email}}`, `{{login_code}}`,
 `{{login_link}}`, `{{expires_in}}`, and `{{app_name}}`; the mustard variable

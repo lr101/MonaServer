@@ -41,7 +41,11 @@ type AdminUserDetailsDto struct {
 
 	Username string `json:"username"`
 
+	AccountActivated bool `json:"accountActivated"`
+
 	CommunicationOptOut bool `json:"communicationOptOut"`
+
+	PushOptedOut bool `json:"pushOptedOut"`
 
 	RegisteredDeviceCount int32 `json:"registeredDeviceCount"`
 }
@@ -59,7 +63,9 @@ func AssertAdminUserDetailsDtoRequired(obj AdminUserDetailsDto) error {
 		"passwordResetRequired": obj.PasswordResetRequired,
 		"securityState":         obj.SecurityState,
 		"username":              obj.Username,
+		"accountActivated":      obj.AccountActivated,
 		"communicationOptOut":   obj.CommunicationOptOut,
+		"pushOptedOut":          obj.PushOptedOut,
 		"registeredDeviceCount": obj.RegisteredDeviceCount,
 	}
 	for name, el := range elements {

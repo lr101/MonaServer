@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"net/http"
+	"net/mail"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -15,11 +17,14 @@ import (
 
 var (
 	ErrInvalidUserQuery     = apperrors.New(http.StatusBadRequest, "invalid user query")
+	ErrInvalidUserUpdate    = apperrors.New(http.StatusBadRequest, "invalid user update")
 	ErrUserNotFound         = apperrors.New(http.StatusNotFound, "user was not found")
 	ErrUserEmailUnavailable = apperrors.New(http.StatusConflict, "user email cannot be verified")
 )
 
 const maxAdminUserSearchBytes = 256
+
+const defaultAdminUserWriteMFATTL = 5 * time.Minute
 
 // AdminUser is the safe administrative account projection. It intentionally
 // has no password, refresh token, action token, provider token, or delivery
@@ -29,6 +34,7 @@ type AdminUser struct {
 	Username              string
 	Email                 *string
 	EmailVerified         bool
+	AccountActivated      bool
 	CreatedAt             time.Time
 	SecurityState         string
 	AuthGeneration        int64
@@ -40,6 +46,20 @@ type AdminUser struct {
 	CommunicationOptOut   bool
 	PushOptedOut          bool
 	RegisteredDeviceCount int32
+}
+
+// AdminUserUpdate contains the editable account fields exposed to admins.
+// Identity, creation metadata, authentication generation, eligibility, and
+// aggregate device counts are managed by the server.
+type AdminUserUpdate struct {
+	ExpectedAuthGeneration *int64
+	Username               *string
+	Email                  *string
+	SecurityState          *string
+	PasswordDisabled       *bool
+	PasswordResetRequired  *bool
+	CommunicationOptOut    *bool
+	PushOptedOut           *bool
 }
 
 type AdminUserQuery struct {
@@ -72,16 +92,109 @@ type adminUserEmailVerifier interface {
 	VerifyUserEmail(context.Context, uuid.UUID, uuid.UUID) (*AdminUser, error)
 }
 
+type adminUserUpdater interface {
+	UpdateUser(context.Context, uuid.UUID, uuid.UUID, AdminUserUpdate) (*AdminUser, error)
+}
+
 type AdminUserService struct {
-	store AdminUserStore
+	store        AdminUserStore
+	recentMFATTL time.Duration
 }
 
 func NewAdminUserService(store AdminUserStore) *AdminUserService {
-	return &AdminUserService{store: store}
+	return &AdminUserService{store: store, recentMFATTL: defaultAdminUserWriteMFATTL}
 }
 
 func NewAdminUsersService(store AdminUserStore) *AdminUserService {
 	return NewAdminUserService(store)
+}
+
+func (s *AdminUserService) SetRecentMFATTL(ttl time.Duration) {
+	if s == nil {
+		return
+	}
+	if ttl <= 0 {
+		ttl = defaultAdminUserWriteMFATTL
+	}
+	s.recentMFATTL = ttl
+}
+
+func (s *AdminUserService) Update(ctx context.Context, actor AdminActor, id uuid.UUID, update AdminUserUpdate) (*AdminUser, error) {
+	if s == nil || s.store == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	if !actor.Valid() {
+		return nil, ErrAudienceUnauthorized
+	}
+	if !actor.Can("users.write") {
+		return nil, ErrAudienceForbidden
+	}
+	if !RecentMFAValid(actor.RecentMFAAt, time.Now().UTC(), s.recentMFATTL) || !mfaActionMatches(actor.RecentMFAAction, "users.write") {
+		return nil, ErrRecentMFARequired
+	}
+	if id == uuid.Nil {
+		return nil, ErrInvalidUserUpdate
+	}
+	update, err := normalizeAdminUserUpdate(update)
+	if err != nil {
+		return nil, err
+	}
+	updater, ok := s.store.(adminUserUpdater)
+	if !ok {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	user, err := updater.UpdateUser(ctx, actor.ID, id, update)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+	clean := sanitizeUser(*user)
+	return &clean, nil
+}
+
+func normalizeAdminUserUpdate(update AdminUserUpdate) (AdminUserUpdate, error) {
+	if update.ExpectedAuthGeneration == nil || *update.ExpectedAuthGeneration < 0 ||
+		(update.Username == nil && update.Email == nil && update.SecurityState == nil &&
+			update.PasswordDisabled == nil && update.PasswordResetRequired == nil &&
+			update.CommunicationOptOut == nil && update.PushOptedOut == nil) {
+		return AdminUserUpdate{}, ErrInvalidUserUpdate
+	}
+	if update.Username != nil {
+		value := strings.TrimSpace(*update.Username)
+		if value == "" || utf8.RuneCountInString(value) > 255 || strings.Contains(value, "@") {
+			return AdminUserUpdate{}, ErrInvalidUserUpdate
+		}
+		update.Username = &value
+	}
+	if update.Email != nil {
+		value := strings.TrimSpace(*update.Email)
+		parsed, err := mail.ParseAddress(value)
+		if err != nil || parsed.Address != value || utf8.RuneCountInString(value) > 255 {
+			return AdminUserUpdate{}, ErrInvalidUserUpdate
+		}
+		update.Email = &value
+	}
+	if update.SecurityState != nil {
+		value := strings.TrimSpace(*update.SecurityState)
+		if value != "normal" && value != "password_disabled" && value != "compromised" && value != "secured_manual_recovery_required" {
+			return AdminUserUpdate{}, ErrInvalidUserUpdate
+		}
+		update.SecurityState = &value
+	}
+	return update, nil
+}
+
+func adminUserSecurityValues(state string, now time.Time) (passwordDisabled, passwordResetRequired bool, compromisedAt *time.Time) {
+	switch state {
+	case "password_disabled", "compromised", "secured_manual_recovery_required":
+		passwordDisabled, passwordResetRequired = true, true
+		if state == "compromised" {
+			compromisedAt = &now
+		}
+	}
+	return passwordDisabled, passwordResetRequired, compromisedAt
 }
 
 func (s *AdminUserService) VerifyEmail(ctx context.Context, actor AdminActor, id uuid.UUID) (*AdminUser, error) {
@@ -326,6 +439,64 @@ func (m *MemoryAdminStore) VerifyUserEmail(_ context.Context, _, id uuid.UUID) (
 			clean := sanitizeUser(m.Users[i])
 			return &clean, nil
 		}
+	}
+	return nil, nil
+}
+
+func (m *MemoryAdminStore) UpdateUser(_ context.Context, _, id uuid.UUID, update AdminUserUpdate) (*AdminUser, error) {
+	if m == nil {
+		return nil, ErrAdminRepositoryAbsent
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.Users {
+		if m.Users[i].ID != id {
+			if update.Username != nil && m.Users[i].Username == *update.Username {
+				return nil, apperrors.ErrConflict
+			}
+			continue
+		}
+		if update.ExpectedAuthGeneration == nil || m.Users[i].AuthGeneration != *update.ExpectedAuthGeneration {
+			return nil, apperrors.ErrConflict
+		}
+		previousState := m.Users[i].SecurityState
+		previousPasswordDisabled := m.Users[i].PasswordDisabled
+		previousPasswordResetRequired := m.Users[i].PasswordResetRequired
+		authInvalidated := false
+		if update.Username != nil {
+			m.Users[i].Username = *update.Username
+		}
+		if update.Email != nil && (m.Users[i].Email == nil || *m.Users[i].Email != *update.Email) {
+			m.Users[i].Email = update.Email
+			m.Users[i].EmailVerified = false
+			authInvalidated = true
+		}
+		if update.SecurityState != nil || update.PasswordDisabled != nil || update.PasswordResetRequired != nil {
+			if update.SecurityState != nil && m.Users[i].SecurityState != *update.SecurityState {
+				m.Users[i].SecurityState = *update.SecurityState
+				m.Users[i].PasswordDisabled, m.Users[i].PasswordResetRequired, m.Users[i].CompromisedAt = adminUserSecurityValues(*update.SecurityState, time.Now().UTC())
+			}
+			if update.PasswordDisabled != nil {
+				m.Users[i].PasswordDisabled = *update.PasswordDisabled
+			}
+			if update.PasswordResetRequired != nil {
+				m.Users[i].PasswordResetRequired = *update.PasswordResetRequired
+			}
+		}
+		if update.CommunicationOptOut != nil {
+			m.Users[i].CommunicationOptOut = *update.CommunicationOptOut
+		}
+		if update.PushOptedOut != nil {
+			m.Users[i].PushOptedOut = *update.PushOptedOut
+		}
+		if previousState != m.Users[i].SecurityState || previousPasswordDisabled != m.Users[i].PasswordDisabled || previousPasswordResetRequired != m.Users[i].PasswordResetRequired {
+			authInvalidated = true
+		}
+		if authInvalidated {
+			m.Users[i].AuthGeneration++
+		}
+		user := sanitizeUser(m.Users[i])
+		return &user, nil
 	}
 	return nil, nil
 }

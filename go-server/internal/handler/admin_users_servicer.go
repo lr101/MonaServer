@@ -122,6 +122,31 @@ func (s *AdminUsersServicer) GetAdminUser(ctx context.Context, userID string) (g
 	return genserver.Response(http.StatusOK, toAdminUserDetails(*user)), nil
 }
 
+func (s *AdminUsersServicer) UpdateAdminUser(ctx context.Context, userID, csrf string, request genserver.AdminUserUpdateDto) (genserver.ImplResponse, error) {
+	if s == nil || s.users == nil {
+		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)
+	}
+	actor, err := adminMutationActor(ctx, csrf)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	id, err := parseAdminUUID(userID)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	update := service.AdminUserUpdate{
+		ExpectedAuthGeneration: request.ExpectedAuthGeneration,
+		Username:               request.Username, Email: request.Email, SecurityState: request.SecurityState,
+		PasswordDisabled: request.PasswordDisabled, PasswordResetRequired: request.PasswordResetRequired,
+		CommunicationOptOut: request.CommunicationOptOut, PushOptedOut: request.PushOptedOut,
+	}
+	user, err := s.users.Update(ctx, actor, id, update)
+	if err != nil {
+		return adminResponse(ctx, err)
+	}
+	return genserver.Response(http.StatusOK, toAdminUserDetails(*user)), nil
+}
+
 func (s *AdminUsersServicer) VerifyAdminUserEmail(ctx context.Context, userID, _ string) (genserver.ImplResponse, error) {
 	if s == nil || s.users == nil {
 		return adminResponse(ctx, service.ErrAdminRepositoryAbsent)

@@ -10,7 +10,6 @@
 
 part of openapi.api;
 
-
 class AdminActionKind {
   /// Instantiate a new enum with the provided [value].
   const AdminActionKind._(this.value);
@@ -35,6 +34,7 @@ class AdminActionKind {
   static const messagesPeriodTest = AdminActionKind._(r'messages.test');
   static const reportsPeriodReview = AdminActionKind._(r'reports.review');
   static const campaignsPeriodWrite = AdminActionKind._(r'campaigns.write');
+  static const usersPeriodWrite = AdminActionKind._(r'users.write');
 
   /// List of all possible values in this [enum][AdminActionKind].
   static const values = <AdminActionKind>[
@@ -50,11 +50,16 @@ class AdminActionKind {
     messagesPeriodTest,
     reportsPeriodReview,
     campaignsPeriodWrite,
+    usersPeriodWrite,
   ];
 
-  static AdminActionKind? fromJson(dynamic value) => AdminActionKindTypeTransformer().decode(value);
+  static AdminActionKind? fromJson(dynamic value) =>
+      AdminActionKindTypeTransformer().decode(value);
 
-  static List<AdminActionKind> listFromJson(dynamic json, {bool growable = false,}) {
+  static List<AdminActionKind> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final result = <AdminActionKind>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
@@ -71,7 +76,8 @@ class AdminActionKind {
 /// Transformation class that can [encode] an instance of [AdminActionKind] to String,
 /// and [decode] dynamic data back to [AdminActionKind].
 class AdminActionKindTypeTransformer {
-  factory AdminActionKindTypeTransformer() => _instance ??= const AdminActionKindTypeTransformer._();
+  factory AdminActionKindTypeTransformer() =>
+      _instance ??= const AdminActionKindTypeTransformer._();
 
   const AdminActionKindTypeTransformer._();
 
@@ -88,18 +94,32 @@ class AdminActionKindTypeTransformer {
   AdminActionKind? decode(dynamic data, {bool allowNull = true}) {
     if (data != null) {
       switch (data) {
-        case r'email': return AdminActionKind.email;
-        case r'login_link': return AdminActionKind.loginLink;
-        case r'push': return AdminActionKind.push;
-        case r'revoke_sessions': return AdminActionKind.revokeSessions;
-        case r'mark_compromised': return AdminActionKind.markCompromised;
-        case r'recovery_resend': return AdminActionKind.recoveryResend;
-        case r'report_resolve': return AdminActionKind.reportResolve;
-        case r'report_dismiss': return AdminActionKind.reportDismiss;
-        case r'jobs.control': return AdminActionKind.jobsPeriodControl;
-        case r'messages.test': return AdminActionKind.messagesPeriodTest;
-        case r'reports.review': return AdminActionKind.reportsPeriodReview;
-        case r'campaigns.write': return AdminActionKind.campaignsPeriodWrite;
+        case r'email':
+          return AdminActionKind.email;
+        case r'login_link':
+          return AdminActionKind.loginLink;
+        case r'push':
+          return AdminActionKind.push;
+        case r'revoke_sessions':
+          return AdminActionKind.revokeSessions;
+        case r'mark_compromised':
+          return AdminActionKind.markCompromised;
+        case r'recovery_resend':
+          return AdminActionKind.recoveryResend;
+        case r'report_resolve':
+          return AdminActionKind.reportResolve;
+        case r'report_dismiss':
+          return AdminActionKind.reportDismiss;
+        case r'jobs.control':
+          return AdminActionKind.jobsPeriodControl;
+        case r'messages.test':
+          return AdminActionKind.messagesPeriodTest;
+        case r'reports.review':
+          return AdminActionKind.reportsPeriodReview;
+        case r'campaigns.write':
+          return AdminActionKind.campaignsPeriodWrite;
+        case r'users.write':
+          return AdminActionKind.usersPeriodWrite;
         default:
           if (!allowNull) {
             throw ArgumentError('Unknown enum value to decode: $data');

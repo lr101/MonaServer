@@ -250,6 +250,8 @@ func AdminMutationAction(method, path string) string {
 		return "login_link"
 	case strings.HasSuffix(path, "/password-reset") && strings.HasPrefix(path, "/api/v3/admin/users/"):
 		return "security.recovery_resend"
+	case method == http.MethodPatch && strings.HasPrefix(path, "/api/v3/admin/users/") && !strings.Contains(strings.TrimPrefix(path, "/api/v3/admin/users/"), "/"):
+		return "users.write"
 	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):
 		return "campaigns.write"
 	case path == "/api/v3/admin/audiences/preview":
@@ -348,6 +350,8 @@ func RequiredAdminCapability(method, path string) string {
 		return "campaign.login_link"
 	case method == http.MethodPost && strings.HasSuffix(path, "/password-reset") && strings.HasPrefix(path, "/api/v3/admin/users/"):
 		return "security.recovery_resend"
+	case method == http.MethodPatch && strings.HasPrefix(path, "/api/v3/admin/users/") && !strings.Contains(strings.TrimPrefix(path, "/api/v3/admin/users/"), "/"):
+		return "users.write"
 	case path == "/api/v3/admin/users" || strings.HasPrefix(path, "/api/v3/admin/users/"):
 		return "users.read"
 	case path == "/api/v3/admin/campaigns" || strings.HasPrefix(path, "/api/v3/admin/campaigns/"):

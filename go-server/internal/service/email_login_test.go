@@ -234,6 +234,97 @@ func TestAdminIssuedLoginLinkQueuesToVerifiedEmailAndAudits(t *testing.T) {
 	}
 }
 
+func TestAdminIssuedLoginLinkQueuesForUnverifiedEmailAndRedeems(t *testing.T) {
+	q, auth, userService, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userService.mail = serviceTestEmail(t)
+	verifiedEmail := "verified-before-admin-link@example.com"
+	pair, err := auth.Signup(ctx, "admin_unverified_link_recipient", "password123", &verifiedEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConfirmUserEmail(ctx, pair.UserID); err != nil {
+		t.Fatal(err)
+	}
+	email := "unverified-current@example.com"
+	if _, err := userService.Update(ctx, pair.UserID, UserUpdateInput{Email: &email}); err != nil {
+		t.Fatalf("change email: %v", err)
+	}
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{HMACKeyID: "test-v1", HMACKey: uniqueQuotaKey()}, enqueuer)
+	actorID := pair.UserID
+	issued, err := login.IssueLoginLink(ctx, LoginLinkIssueRequest{AccountID: pair.UserID, ActorID: &actorID})
+	if err != nil || issued == nil || !issued.Issued || len(enqueuer.requests) != 1 || enqueuer.requests[0].To != email {
+		t.Fatalf("admin link issue for unverified email failed: issued=%t deliveries=%d err=%v", issued != nil && issued.Issued, len(enqueuer.requests), err)
+	}
+	tokenHash := sha256.Sum256([]byte(issued.Action.Token))
+	metadata := &authenticatedDeliveryMetadata{
+		ActionTokenID: issued.Action.ID, TokenHash: tokenHash[:], Purpose: db.ActionTokenPurposeAdminLoginLink,
+		AccountID: pair.UserID, AuthGeneration: issued.Action.AuthGeneration, CanonicalEmail: email,
+	}
+	var deliveryValid bool
+	if err := q.InTxRetry(ctx, func(tx *db.Queries) error {
+		var err error
+		deliveryValid, err = validateAuthenticatedDelivery(ctx, tx, metadata, time.Now())
+		return err
+	}); err != nil || !deliveryValid {
+		t.Fatalf("delivery validation for unverified admin link = %t, err=%v", deliveryValid, err)
+	}
+	exchanged, err := login.ExchangeEmailLink(ctx, issued.Action.Token)
+	if err != nil || exchanged == nil || exchanged.Pair == nil || exchanged.Pair.UserID != pair.UserID {
+		t.Fatalf("admin link redemption for unverified email = %#v, err=%v", exchanged, err)
+	}
+}
+
+func TestAdminIssuedLoginLinkRejectsPendingSignup(t *testing.T) {
+	q, auth, _, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	email := "pending-signup@example.com"
+	pair, err := auth.Signup(ctx, "admin_pending_signup", "password123", &email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{HMACKeyID: "test-v1", HMACKey: uniqueQuotaKey()}, enqueuer)
+	actorID := pair.UserID
+	issued, err := login.IssueLoginLink(ctx, LoginLinkIssueRequest{AccountID: pair.UserID, ActorID: &actorID})
+	if !errors.Is(err, ErrInvalidEmailLink) || issued != nil || len(enqueuer.requests) != 0 {
+		t.Fatalf("pending-signup admin link issue = %#v, deliveries=%d, err=%v", issued, len(enqueuer.requests), err)
+	}
+}
+
+func TestAdminIssuedLoginLinkRejectsUnverifiedEmailOwnedByAnotherAccount(t *testing.T) {
+	q, auth, userService, _, _, _, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	userService.mail = serviceTestEmail(t)
+	ownedEmail := "already-owned@example.com"
+	owner, err := auth.Signup(ctx, "verified_email_owner", "password123", &ownedEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConfirmUserEmail(ctx, owner.UserID); err != nil {
+		t.Fatal(err)
+	}
+	initialEmail := "duplicate-initial@example.com"
+	duplicate, err := auth.Signup(ctx, "unverified_duplicate_email", "password123", &initialEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.ConfirmUserEmail(ctx, duplicate.UserID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := userService.Update(ctx, duplicate.UserID, UserUpdateInput{Email: &ownedEmail}); err != nil {
+		t.Fatalf("change duplicate account email to owned address: %v", err)
+	}
+	enqueuer := &recordingLoginLinkEnqueuer{}
+	login := NewEmailLogin(q, auth.Security(), authTokenHelper(auth), EmailLoginConfig{HMACKeyID: "test-v1", HMACKey: uniqueQuotaKey()}, enqueuer)
+	actorID := owner.UserID
+	issued, err := login.IssueLoginLink(ctx, LoginLinkIssueRequest{AccountID: duplicate.UserID, ActorID: &actorID})
+	if !errors.Is(err, ErrInvalidEmailLink) || issued != nil || len(enqueuer.requests) != 0 {
+		t.Fatalf("duplicate unverified email issue = %#v, deliveries=%d, err=%v", issued, len(enqueuer.requests), err)
+	}
+}
+
 func newTestEmailLogin(q *db.Queries, auth *Auth, enqueuer LoginLinkDeliveryEnqueuer) *EmailLogin {
 	return NewEmailLogin(q, auth.Security(), token.NewHelper("test-secret", time.Minute), EmailLoginConfig{
 		HMACKeyID: "test-v1",
