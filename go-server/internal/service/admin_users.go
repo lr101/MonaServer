@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrInvalidUserQuery     = apperrors.New(http.StatusBadRequest, "invalid user query")
-	ErrInvalidUserUpdate    = apperrors.New(http.StatusBadRequest, "invalid user update")
-	ErrUserNotFound         = apperrors.New(http.StatusNotFound, "user was not found")
-	ErrUserEmailUnavailable = apperrors.New(http.StatusConflict, "user email cannot be verified")
+	ErrInvalidUserQuery      = apperrors.New(http.StatusBadRequest, "invalid user query")
+	ErrInvalidUserUpdate     = apperrors.New(http.StatusBadRequest, "invalid user update")
+	ErrUserNotFound          = apperrors.New(http.StatusNotFound, "user was not found")
+	ErrUserEmailUnavailable  = apperrors.New(http.StatusConflict, "user email cannot be verified")
+	ErrAdminPermissionTarget = apperrors.New(http.StatusConflict, "user has no active admin membership")
 )
 
 const maxAdminUserSearchBytes = 256
@@ -41,6 +42,7 @@ type AdminUser struct {
 	PasswordDisabled      bool
 	PasswordResetRequired bool
 	IsAdmin               bool
+	AdminPermissions      []string
 	CompromisedAt         *time.Time
 	EligibilityReasons    []string
 	CommunicationOptOut   bool
@@ -60,6 +62,7 @@ type AdminUserUpdate struct {
 	PasswordResetRequired  *bool
 	CommunicationOptOut    *bool
 	PushOptedOut           *bool
+	AdminPermissions       *[]string
 }
 
 type AdminUserQuery struct {
@@ -129,6 +132,9 @@ func (s *AdminUserService) Update(ctx context.Context, actor AdminActor, id uuid
 	if !actor.Can("users.write") {
 		return nil, ErrAudienceForbidden
 	}
+	if update.AdminPermissions != nil && !actor.Can("superadmin") {
+		return nil, ErrAudienceForbidden
+	}
 	if !RecentMFAValid(actor.RecentMFAAt, time.Now().UTC(), s.recentMFATTL) || !mfaActionMatches(actor.RecentMFAAction, "users.write") {
 		return nil, ErrRecentMFARequired
 	}
@@ -151,6 +157,9 @@ func (s *AdminUserService) Update(ctx context.Context, actor AdminActor, id uuid
 		return nil, ErrUserNotFound
 	}
 	clean := sanitizeUser(*user)
+	if !actor.Can("superadmin") {
+		clean.AdminPermissions = nil
+	}
 	return &clean, nil
 }
 
@@ -158,7 +167,7 @@ func normalizeAdminUserUpdate(update AdminUserUpdate) (AdminUserUpdate, error) {
 	if update.ExpectedAuthGeneration == nil || *update.ExpectedAuthGeneration < 0 ||
 		(update.Username == nil && update.Email == nil && update.SecurityState == nil &&
 			update.PasswordDisabled == nil && update.PasswordResetRequired == nil &&
-			update.CommunicationOptOut == nil && update.PushOptedOut == nil) {
+			update.CommunicationOptOut == nil && update.PushOptedOut == nil && update.AdminPermissions == nil) {
 		return AdminUserUpdate{}, ErrInvalidUserUpdate
 	}
 	if update.Username != nil {
@@ -183,7 +192,35 @@ func normalizeAdminUserUpdate(update AdminUserUpdate) (AdminUserUpdate, error) {
 		}
 		update.SecurityState = &value
 	}
+	if update.AdminPermissions != nil {
+		permissions, err := normalizeAdminPermissionList(*update.AdminPermissions)
+		if err != nil {
+			return AdminUserUpdate{}, err
+		}
+		update.AdminPermissions = &permissions
+	}
 	return update, nil
+}
+
+func normalizeAdminPermissionList(permissions []string) ([]string, error) {
+	if len(permissions) > adminDefaultMaxPermissionCount {
+		return nil, ErrInvalidUserUpdate
+	}
+	seen := make(map[string]struct{}, len(permissions))
+	clean := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		permission = strings.TrimSpace(permission)
+		if permission == "" || len(permission) > adminDefaultMaxPermissionLength || strings.ContainsAny(permission, "\x00\r\n") {
+			return nil, ErrInvalidUserUpdate
+		}
+		if _, ok := seen[permission]; ok {
+			continue
+		}
+		seen[permission] = struct{}{}
+		clean = append(clean, permission)
+	}
+	sort.Strings(clean)
+	return clean, nil
 }
 
 func adminUserSecurityValues(state string, now time.Time) (passwordDisabled, passwordResetRequired bool, compromisedAt *time.Time) {
@@ -222,6 +259,9 @@ func (s *AdminUserService) VerifyEmail(ctx context.Context, actor AdminActor, id
 		return nil, ErrUserNotFound
 	}
 	clean := sanitizeUser(*user)
+	if !actor.Can("superadmin") {
+		clean.AdminPermissions = nil
+	}
 	return &clean, nil
 }
 
@@ -290,6 +330,9 @@ func (s *AdminUserService) Get(ctx context.Context, actor AdminActor, id uuid.UU
 		return nil, ErrUserNotFound
 	}
 	clean := sanitizeUser(*user)
+	if !actor.Can("superadmin") {
+		clean.AdminPermissions = nil
+	}
 	return &clean, nil
 }
 
@@ -308,6 +351,7 @@ func sanitizeUser(user AdminUser) AdminUser {
 		user.Email = &email
 	}
 	user.CompromisedAt = cloneTime(user.CompromisedAt)
+	user.AdminPermissions = append([]string(nil), user.AdminPermissions...)
 	if user.SecurityState == "" {
 		user.SecurityState = "normal"
 	}
@@ -488,6 +532,12 @@ func (m *MemoryAdminStore) UpdateUser(_ context.Context, _, id uuid.UUID, update
 		}
 		if update.PushOptedOut != nil {
 			m.Users[i].PushOptedOut = *update.PushOptedOut
+		}
+		if update.AdminPermissions != nil {
+			if !m.Users[i].IsAdmin {
+				return nil, ErrAdminPermissionTarget
+			}
+			m.Users[i].AdminPermissions = append([]string(nil), (*update.AdminPermissions)...)
 		}
 		if previousState != m.Users[i].SecurityState || previousPasswordDisabled != m.Users[i].PasswordDisabled || previousPasswordResetRequired != m.Users[i].PasswordResetRequired {
 			authInvalidated = true

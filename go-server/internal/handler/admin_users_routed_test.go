@@ -94,3 +94,31 @@ func TestRoutedAdminUserUpdateChangesEditableFieldsAndKeepsID(t *testing.T) {
 		t.Fatalf("updated preferences = %#v", updated)
 	}
 }
+
+func TestRoutedAdminUserUpdateCanClearAdminPermissions(t *testing.T) {
+	store := service.NewMemoryAdminStore()
+	userID := uuid.New()
+	store.Users = append(store.Users, service.AdminUser{
+		ID: userID, Username: "operator", IsAdmin: true, AdminPermissions: []string{"users.read"},
+	})
+	csrf := "test-csrf-token"
+	now := time.Now().UTC()
+	ctx := middleware.WithAdminPrincipal(t.Context(), middleware.AdminPrincipal{
+		UserID: uuid.NewString(), State: "authenticated", CSRFHash: middleware.CSRFHash(csrf),
+		Capabilities: []string{"superadmin"}, RecentMFAAt: &now, RecentMFAAction: "users.write",
+	})
+	controller := genserver.NewAdminUsersAPIController(NewAdminUsersServicer(service.NewAdminUserService(store)))
+	router := chi.NewRouter()
+	router.Patch("/api/v3/admin/users/{userId}", controller.UpdateAdminUser)
+	request := httptest.NewRequest(http.MethodPatch, "/api/v3/admin/users/"+userID.String(), strings.NewReader(`{"expectedAuthGeneration":0,"adminPermissions":[]}`)).WithContext(ctx)
+	request.Header.Set("X-CSRF-Token", csrf)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("clear permissions status = %d, body=%s", response.Code, response.Body.String())
+	}
+	updated, err := store.GetUser(t.Context(), userID)
+	if err != nil || updated == nil || !updated.IsAdmin || len(updated.AdminPermissions) != 0 {
+		t.Fatalf("cleared membership = %#v, %v", updated, err)
+	}
+}

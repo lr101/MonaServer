@@ -24,10 +24,15 @@ export function adminUserUpdatePayload(values = {}) {
   for (const field of ['passwordDisabled', 'passwordResetRequired', 'communicationOptOut', 'pushOptedOut']) {
     if (typeof values[field] === 'boolean') update[field] = values[field];
   }
+  if (Array.isArray(values.adminPermissions)) update.adminPermissions = [...values.adminPermissions];
   return update;
 }
 
+export function hasAdminCapability(capabilities = [], required) {
+  return Array.isArray(capabilities) && capabilities.some((capability) => capability === 'superadmin' || capability === required);
+}
+
 export function canSendUserLoginLink(user, capabilities = []) {
-  return Boolean(user?.accountActivated) && Boolean(user?.email) && capabilities.includes('campaign.login_link') &&
+  return Boolean(user?.accountActivated) && Boolean(user?.email) && hasAdminCapability(capabilities, 'campaign.login_link') &&
     user.securityState === 'normal' && !user.passwordDisabled && !user.passwordResetRequired;
 }

@@ -21,6 +21,25 @@ func TestAdminCapabilitiesReflectStableMembershipPermissions(t *testing.T) {
 	}
 }
 
+func TestSuperadminGrantsCurrentAndFutureCapabilities(t *testing.T) {
+	actor := AdminActor{ID: uuid.New(), Capabilities: CapabilitiesForPermissions([]string{"superadmin"})}
+	if len(actor.Capabilities) != 1 || actor.Capabilities[0] != "superadmin" {
+		t.Fatalf("superadmin capabilities = %#v, want only the persistent superadmin marker", actor.Capabilities)
+	}
+	for _, permission := range []string{"users.write", "campaign.login_link", "a.future.capability"} {
+		if !actor.Can(permission) {
+			t.Errorf("superadmin cannot %q", permission)
+		}
+	}
+}
+
+func TestNewBootstrapAdminIsSuperadmin(t *testing.T) {
+	permissions := bootstrapAdminPermissions()
+	if len(permissions) != 1 || permissions[0] != "superadmin" {
+		t.Fatalf("bootstrap permissions = %#v, want superadmin", permissions)
+	}
+}
+
 func TestCampaignWriteActionMapsToCampaignCapability(t *testing.T) {
 	if got := AdminActionCapability("campaigns.write"); got != "campaigns.write" {
 		t.Fatalf("campaign write action capability = %q, want campaigns.write", got)

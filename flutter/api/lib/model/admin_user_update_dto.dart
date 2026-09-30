@@ -14,6 +14,7 @@ class AdminUserUpdateDto {
   /// Returns a new [AdminUserUpdateDto] instance.
   AdminUserUpdateDto({
     this.communicationOptOut,
+    this.adminPermissions,
     required this.expectedAuthGeneration,
     this.email,
     this.passwordDisabled,
@@ -24,6 +25,9 @@ class AdminUserUpdateDto {
   });
 
   bool? communicationOptOut;
+
+  /// Replacement permission list for an existing active admin membership. Only superadmins may set it. The superadmin entry grants every current and future permission, and an empty list removes all permissions.
+  List<String>? adminPermissions;
 
   /// Auth generation from the displayed user details. Rejects edits based on stale security state.
   ///
@@ -47,6 +51,7 @@ class AdminUserUpdateDto {
       identical(this, other) ||
       other is AdminUserUpdateDto &&
           other.communicationOptOut == communicationOptOut &&
+          _deepEquality.equals(other.adminPermissions, adminPermissions) &&
           other.expectedAuthGeneration == expectedAuthGeneration &&
           other.email == email &&
           other.passwordDisabled == passwordDisabled &&
@@ -59,6 +64,7 @@ class AdminUserUpdateDto {
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (communicationOptOut == null ? 0 : communicationOptOut!.hashCode) +
+      (adminPermissions == null ? 0 : adminPermissions!.hashCode) +
       (expectedAuthGeneration == null ? 0 : expectedAuthGeneration!.hashCode) +
       (email == null ? 0 : email!.hashCode) +
       (passwordDisabled == null ? 0 : passwordDisabled!.hashCode) +
@@ -69,7 +75,7 @@ class AdminUserUpdateDto {
 
   @override
   String toString() =>
-      'AdminUserUpdateDto[communicationOptOut=$communicationOptOut, expectedAuthGeneration=$expectedAuthGeneration, email=$email, passwordDisabled=$passwordDisabled, passwordResetRequired=$passwordResetRequired, pushOptedOut=$pushOptedOut, securityState=$securityState, username=$username]';
+      'AdminUserUpdateDto[communicationOptOut=$communicationOptOut, adminPermissions=$adminPermissions, expectedAuthGeneration=$expectedAuthGeneration, email=$email, passwordDisabled=$passwordDisabled, passwordResetRequired=$passwordResetRequired, pushOptedOut=$pushOptedOut, securityState=$securityState, username=$username]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -77,6 +83,11 @@ class AdminUserUpdateDto {
       json[r'communicationOptOut'] = this.communicationOptOut;
     } else {
       json[r'communicationOptOut'] = null;
+    }
+    if (this.adminPermissions != null) {
+      json[r'adminPermissions'] = this.adminPermissions;
+    } else {
+      json[r'adminPermissions'] = null;
     }
     if (this.expectedAuthGeneration != null) {
       json[r'expectedAuthGeneration'] = this.expectedAuthGeneration;
@@ -138,6 +149,11 @@ class AdminUserUpdateDto {
 
       return AdminUserUpdateDto(
         communicationOptOut: mapValueOfType<bool>(json, r'communicationOptOut'),
+        adminPermissions: json[r'adminPermissions'] is Iterable
+            ? (json[r'adminPermissions'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
+            : null,
         expectedAuthGeneration:
             mapValueOfType<int>(json, r'expectedAuthGeneration'),
         email: mapValueOfType<String>(json, r'email'),
