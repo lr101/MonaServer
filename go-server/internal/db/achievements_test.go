@@ -106,11 +106,7 @@ func TestContributionMilestonesCountGroupsWithPins(t *testing.T) {
 }
 
 func TestPublicAchievementProgressIncludesOnlyClaimedDefinitions(t *testing.T) {
-	got := publicAchievementProgress([]UserAchievement{
-		{AchievementID: 3, Claimed: true},
-		{AchievementID: 4, Claimed: false},
-		{AchievementID: 999, Claimed: true},
-	})
+	got := publicAchievementProgress([]int32{3, 999})
 	if len(got) != 1 {
 		t.Fatalf("public achievements = %d, want 1", len(got))
 	}
@@ -120,6 +116,31 @@ func TestPublicAchievementProgressIncludesOnlyClaimedDefinitions(t *testing.T) {
 	}
 	if item.RewardXP != 0 || item.RewardType != "" || item.Claimable || item.RewardAvailable || item.DefinitionVersion != 0 {
 		t.Fatalf("public achievement exposes reward metadata: %+v", item)
+	}
+}
+
+func TestGetClaimedAchievementProgressHidesRevokedClaims(t *testing.T) {
+	q, cleanup := t02Database(t)
+	defer cleanup()
+	ctx := context.Background()
+	userID := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO users (id, username, password, email_confirmed, creation_date, update_date)
+		VALUES ($1, 'revoked_public_claim_user', 'hash', FALSE, NOW(), NOW())`, userID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO user_achievement (id, user_id, achievement_id, claimed, creation_date, update_date)
+		VALUES ($1, $2, 3, TRUE, NOW(), NOW())`, uuid.New(), userID); err != nil {
+		t.Fatalf("insert revoked achievement claim: %v", err)
+	}
+
+	got, err := q.GetClaimedAchievementProgress(ctx, userID)
+	if err != nil {
+		t.Fatalf("get current public achievements: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("public achievements = %+v, want stale Two sticks claim hidden", got)
 	}
 }
 

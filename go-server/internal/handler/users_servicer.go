@@ -192,6 +192,13 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
+	existingUser, err := s.q.GetUserByID(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if existingUser == nil {
+		return genserver.Response(http.StatusNotFound, nil), nil
+	}
 	isOwner := caller == id
 	var items []db.AchievementProgress
 	if isOwner {

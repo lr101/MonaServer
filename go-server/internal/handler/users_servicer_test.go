@@ -151,7 +151,22 @@ func TestGetUserAchievementsShowsOnlyEarnedAchievementsToOtherUsers(t *testing.T
 	if err != nil {
 		t.Fatalf("signup viewer: %v", err)
 	}
-	if err := q.ClaimUserAchievement(ctx, owner.UserID, 3); err != nil {
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "public_achievement_group", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create achievement group: %v", err)
+	}
+	pinSvc := service.NewPin(q, nil)
+	for i := 0; i < 2; i++ {
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: owner.UserID, GroupID: group.ID,
+		}); err != nil {
+			t.Fatalf("create qualifying stick %d: %v", i+1, err)
+		}
+	}
+	if err := userSvc.ClaimAchievement(ctx, owner.UserID, 3); err != nil {
 		t.Fatalf("claim achievement for owner: %v", err)
 	}
 

@@ -986,6 +986,12 @@ func TestEndpointUsers(t *testing.T) {
 		if len(earned) != 0 {
 			t.Fatalf("new user's public achievements = %v, want empty earned list", earned)
 		}
+
+		missing := viewer.do(t, "GET", "/api/v2/users/"+uuid.NewString()+"/achievements", nil)
+		defer missing.Body.Close()
+		if missing.StatusCode != http.StatusNotFound {
+			t.Fatalf("missing user's public achievements status = %d, want 404", missing.StatusCode)
+		}
 	})
 
 	t.Run("GET /api/v2/users/{id}/profile_picture — returns 200", func(t *testing.T) {
