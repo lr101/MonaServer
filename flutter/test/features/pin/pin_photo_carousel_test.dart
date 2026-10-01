@@ -49,6 +49,7 @@ void main() {
 
     expect(find.text('1/2'), findsOneWidget);
     expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('UPDATE'), findsNothing);
     expect(find.text('Still here today'), findsNothing);
     expect(
       tester.getSize(find.byType(PageView)).height,
@@ -62,6 +63,7 @@ void main() {
 
     expect(find.text('2/2'), findsOneWidget);
     expect(find.text('ORIGINAL'), findsNothing);
+    expect(find.text('UPDATE'), findsOneWidget);
     expect(selectedIndex, 1);
     final updateImage = tester.widget<Image>(find.byType(Image));
     expect(updateImage.image, isA<NetworkImage>());

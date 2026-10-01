@@ -106,12 +106,13 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                       _originalPhoto(context)
                     else
                       _networkPhoto(context, updates[index - 1].image),
-                    if (index == 0)
-                      const Positioned(
-                        top: 12,
-                        left: 12,
-                        child: _OriginalBadge(),
-                      ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: index == 0
+                          ? const _OriginalBadge()
+                          : const _UpdateBadge(),
+                    ),
                   ],
                 ),
               ),
@@ -210,6 +211,25 @@ class _OriginalBadge extends StatelessWidget {
   const _OriginalBadge();
 
   @override
+  Widget build(BuildContext context) =>
+      const _PhotoBadge(label: 'ORIGINAL', icon: Icons.star_rounded);
+}
+
+class _UpdateBadge extends StatelessWidget {
+  const _UpdateBadge();
+
+  @override
+  Widget build(BuildContext context) =>
+      const _PhotoBadge(label: 'UPDATE', icon: Icons.update_rounded);
+}
+
+class _PhotoBadge extends StatelessWidget {
+  const _PhotoBadge({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.76),
@@ -221,10 +241,10 @@ class _OriginalBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.star_rounded, size: 15, color: Colors.white),
+          Icon(icon, size: 15, color: Colors.white),
           const SizedBox(width: 4),
           Text(
-            'ORIGINAL',
+            label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w800,
