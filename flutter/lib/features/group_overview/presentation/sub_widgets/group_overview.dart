@@ -1,8 +1,10 @@
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
+import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
-import 'package:buff_lisa/features/progression/presentation/group_xp_panel.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
@@ -49,13 +51,23 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
   Widget build(BuildContext context) {
     final members = ref.watch(memberServiceProvider(widget.groupId));
     final group = widget.details.group;
+    final xp = ref.watch(groupProgressionProvider(widget.groupId)).value;
+    final progress = xp == null ? null : XpLevelProgress.fromGroupDto(xp);
     return CustomAvatarScaffold(
+      avatarBuilder: progress == null
+          ? null
+          : (avatar) => UserXpAvatarIndicator(
+              progress: progress,
+              avatar: avatar,
+              radius: 40,
+            ),
       floatingActionButton: widget.floatingActionButton,
       avatar: widget.details.profileImage,
       title: Text(
         group?.name ?? "",
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
+      hasBackButton: false,
       actions: widget.actions,
       profileQuickViewBoxes: _buildQuickStats(members),
       bottom: TabBar(
@@ -141,8 +153,6 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              GroupXpPanel(groupId: widget.groupId),
-              const SizedBox(height: 12),
               GroupAchievementsPanel(groupId: widget.groupId, group: group),
             ],
           ),

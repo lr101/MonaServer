@@ -371,6 +371,41 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID) 
 	return out, nil
 }
 
+// GetClaimedAchievementProgress returns display data for earned achievements
+// without evaluating live activity progress or reward eligibility.
+func (q *Queries) GetClaimedAchievementProgress(ctx context.Context, userID uuid.UUID) ([]AchievementProgress, error) {
+	claimedIDs, err := q.g.ListCurrentClaimedUserAchievementIDs(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	return publicAchievementProgress(claimedIDs), nil
+}
+
+func publicAchievementProgress(claimedIDs []int32) []AchievementProgress {
+	claimedSet := make(map[int32]bool, len(claimedIDs))
+	for _, id := range claimedIDs {
+		claimedSet[id] = true
+	}
+	progress := make([]AchievementProgress, 0, len(claimedSet))
+	for _, def := range achievementDefs {
+		if !claimedSet[def.ID] {
+			continue
+		}
+		progress = append(progress, AchievementProgress{
+			ID:           def.ID,
+			Name:         def.Name,
+			Description:  def.Description,
+			Track:        def.Track,
+			Difficulty:   def.Difficulty,
+			CurrentValue: def.Threshold,
+			Threshold:    def.Threshold,
+			ThresholdUp:  def.ThresholdUp,
+			Claimed:      true,
+		})
+	}
+	return progress
+}
+
 func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID) (bool, error) {
 	def, ok := achievementDefinition(achievementID)
 	if !ok {

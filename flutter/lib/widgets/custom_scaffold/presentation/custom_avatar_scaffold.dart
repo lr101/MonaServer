@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const double _defaultExpandedHeight = 180;
 const double _avatarTopPadding = 60;
-const double _avatarDimension = 80;
+const double _avatarDimension = 88;
 const double _bottomContentSpacing = 12;
 
 class CustomAvatarScaffold extends ConsumerStatefulWidget {
@@ -15,6 +15,7 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
     required this.avatar,
     required this.title,
     this.boxes,
+    this.avatarBuilder,
     this.bottom,
     this.actions,
     this.avatarEditAction,
@@ -27,6 +28,7 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
 
   final AsyncValue<Uint8List?> avatar;
   final Widget title;
+  final Widget Function(Widget avatar)? avatarBuilder;
   final List<SliverToBoxAdapter>? boxes;
   final Widget body;
   final PreferredSizeWidget? bottom;
@@ -55,6 +57,14 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
   void dispose() {
     controller.dispose();
     super.dispose();
+  }
+
+  Widget _buildAvatar() {
+    final avatar = RoundImage(
+      imageCallback: widget.avatar,
+      size: widget.avatarBuilder == null ? 43 : 40,
+    );
+    return widget.avatarBuilder?.call(avatar) ?? avatar;
   }
 
   @override
@@ -97,12 +107,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            Positioned.fill(
-                              child: RoundImage(
-                                imageCallback: widget.avatar,
-                                size: 40, // size is half of dimension
-                              ),
-                            ),
+                            Positioned.fill(child: _buildAvatar()),
                             if (widget.avatarEditAction != null)
                               Positioned(
                                 right: -4,
@@ -110,11 +115,14 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
                                 child: IconButton.filledTonal(
                                   tooltip: widget.avatarEditTooltip,
                                   onPressed: widget.avatarEditAction,
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 18,
+                                  iconSize: 15,
                                   constraints: const BoxConstraints.tightFor(
-                                    width: 34,
-                                    height: 34,
+                                    width: 28,
+                                    height: 28,
+                                  ),
+                                  style: IconButton.styleFrom(
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   icon: const Icon(Icons.edit),
                                 ),

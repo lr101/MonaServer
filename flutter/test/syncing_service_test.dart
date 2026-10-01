@@ -625,6 +625,16 @@ class _Groups extends GroupsApi {
   }
 }
 
+class _Users extends UsersApi {
+  @override
+  Future<UserXpDto?> getUserXp(String userId) async => UserXpDto(
+    totalXp: 0,
+    currentLevel: 1,
+    currentLevelXp: 0,
+    nextLevelXp: 50,
+  );
+}
+
 Future<
   ({
     ProviderContainer container,
@@ -668,6 +678,7 @@ _fixture({
         ),
       ),
       pinApiProvider.overrideWithValue(api),
+      userApiProvider.overrideWithValue(_Users()),
       pendingPinRepositoryProvider.overrideWithValue(pending),
       groupApiProvider.overrideWithValue(groups),
       userServiceProvider('alice').overrideWith(_NoUser.new),

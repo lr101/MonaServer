@@ -137,6 +137,73 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	}
 }
 
+func TestGetUserAchievementsShowsOnlyEarnedAchievementsToOtherUsers(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	servicer := NewUsersServicer(userSvc, service.NewGuard(q), q)
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "public_achievement_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup owner: %v", err)
+	}
+	viewer, err := auth.Signup(ctx, "public_achievement_viewer", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup viewer: %v", err)
+	}
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "public_achievement_group", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create achievement group: %v", err)
+	}
+	pinSvc := service.NewPin(q, nil)
+	for i := 0; i < 2; i++ {
+		if _, err := pinSvc.Create(ctx, service.CreatePinInput{
+			Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: owner.UserID, GroupID: group.ID,
+		}); err != nil {
+			t.Fatalf("create qualifying stick %d: %v", i+1, err)
+		}
+	}
+	if err := userSvc.ClaimAchievement(ctx, owner.UserID, 3); err != nil {
+		t.Fatalf("claim achievement for owner: %v", err)
+	}
+
+	ownerResponse, err := servicer.GetUserAchievements(
+		middleware.WithUser(ctx, owner.UserID, middleware.RoleUser),
+		owner.UserID.String(),
+	)
+	if err != nil {
+		t.Fatalf("get owner's achievements: %v", err)
+	}
+	if got := len(ownerResponse.Body.([]genserver.UserAchievementsDtoInner)); got != 23 {
+		t.Fatalf("owner achievement count = %d, want full catalog of 23", got)
+	}
+
+	response, err := servicer.GetUserAchievements(
+		middleware.WithUser(ctx, viewer.UserID, middleware.RoleUser),
+		owner.UserID.String(),
+	)
+	if err != nil {
+		t.Fatalf("get public achievements: %v", err)
+	}
+	items, ok := response.Body.([]genserver.UserAchievementsDtoInner)
+	if !ok {
+		t.Fatalf("response body type = %T", response.Body)
+	}
+	if len(items) != 1 {
+		t.Fatalf("public achievement count = %d, want only the one earned achievement", len(items))
+	}
+	got := items[0]
+	if got.AchievementId != 3 || got.Name != "Two sticks" || !got.Claimed {
+		t.Fatalf("public achievement = %+v, want earned Two sticks achievement", got)
+	}
+	if got.CurrentValue != got.ThresholdValue || got.Claimable || got.RewardAvailable != nil || got.RewardType != nil || got.RewardColor != nil || got.RewardXp != 0 {
+		t.Fatalf("public achievement exposed live progress or reward details: %+v", got)
+	}
+}
+
 func TestGetUserAchievementsIncludesFalseRewardAvailability(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q

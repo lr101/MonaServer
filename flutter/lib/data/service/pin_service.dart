@@ -12,8 +12,6 @@ import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
-import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
-import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -467,8 +465,6 @@ class PinService {
       await ref.read(pendingPinUploaderProvider).upload(pin.pinId);
       if (!isCurrentSession(ref, session)) return;
       if (session.userId != null) {
-        ref.invalidate(userXpProvider(session.userId!));
-        ref.invalidate(groupProgressionProvider(pin.groupId));
         ref.invalidate(groupAchievementsProvider(pin.groupId));
       }
     } catch (_) {
@@ -512,9 +508,6 @@ class PinService {
   }) async {
     PinEntity? pin;
     try {
-      if (showPrompt) {
-        CustomErrorSnackBar.loadingMessage(message: "Deleting image");
-      }
       final completedPinId = await ref
           .read(pendingPinUploaderProvider)
           .discard(pinId);
@@ -527,12 +520,6 @@ class PinService {
       await _pinRepository.delete(pin?.pinId ?? pinId);
       if (pin != null) {
         ref.invalidate(groupAchievementsProvider(pin.groupId));
-      }
-      if (showPrompt) {
-        CustomErrorSnackBar.message(
-          message: "Succesfully deleted",
-          type: CustomErrorSnackBarType.success,
-        );
       }
     } on ApiException catch (e) {
       if (showPrompt) {
