@@ -149,4 +149,14 @@ import 'package:buff_lisa/core/failure.dart';
       );
     },
   );
+
+  test('app composition root may install the global XP feedback host', () {
+    expect(
+      architectureViolations(
+        'lib/app/app.dart',
+        "import 'package:buff_lisa/features/progression/presentation/xp_gain_banner.dart';",
+      ),
+      isEmpty,
+    );
+  });
 }
