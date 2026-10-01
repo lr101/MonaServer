@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
+import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/like_button_animated.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,9 +42,13 @@ void main() {
       ttl: DateTime.utc(2099),
       onlySession: false,
     );
+    final likes = _PendingLikeService();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          groupMetadataProvider('group')
+              .overrideWith((ref) => Stream.value(null)),
+          likeServiceProvider('pin').overrideWith(() => likes),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(
               userId: 'viewer',
@@ -49,9 +58,8 @@ void main() {
           ),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
-          pinImageForDetailsProvider('pin').overrideWith(
-            (ref) => kTransparentImage,
-          ),
+          pinImageForDetailsProvider('pin')
+              .overrideWith((ref) => kTransparentImage),
           currentLocationProvider.overrideWith((ref) => const Stream.empty()),
           pinPhotoHistoryProvider('pin').overrideWith(
             (ref) => Future.value([
@@ -105,8 +113,33 @@ void main() {
       tester.getTopLeft(find.text('The riverside gate')).dy,
       greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
     );
+    final heart = find.byType(LikeButtonAnimated);
+    expect(tester.getTopLeft(heart).dx, lessThan(30));
+    expect(
+      tester.getTopLeft(heart).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
+    );
+    expect(
+      tester.getBottomLeft(heart).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.text('The riverside gate')).dy),
+    );
+    await tester.tap(find.byType(PageView));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byType(PageView));
+    await tester.pump();
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(likes.request!.like, true);
+    expect(
+      tester.state<LikeButtonAnimatedState>(heart).controller!.isAnimating,
+      true,
+    );
+    likes.pending.complete();
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+    expect(find.text('-1'), findsNothing);
     expect(find.text('1/2'), findsOneWidget);
     expect(find.text('ORIGINAL'), findsOneWidget);
+    expect(find.text('UPDATE'), findsNothing);
     expect(find.text('Original pin photo'), findsNothing);
     expect(find.text('Update'), findsOneWidget);
     expect(find.text('Take photo'), findsNothing);
@@ -137,6 +170,8 @@ void main() {
     expect(find.byType(ClickableUser), findsNothing);
     expect(find.text('Still here today'), findsOneWidget);
     expect(find.text('A note on this pin'), findsNothing);
+    expect(find.text('Update'), findsOneWidget);
+    expect(find.text('UPDATE'), findsOneWidget);
     expect(find.text('ORIGINAL'), findsNothing);
     expect(find.text('2/2'), findsOneWidget);
     final updateDate = MaterialLocalizations.of(
@@ -144,4 +179,19 @@ void main() {
     ).formatMediumDate(DateTime.utc(2026, 2).toLocal());
     expect(find.text('· $updateDate'), findsOneWidget);
   });
+}
+
+class _PendingLikeService extends LikeService {
+  final pending = Completer<void>();
+  CreateLikeDto? request;
+  @override
+  Future<PinLikeDto> build(String pinId) async =>
+      PinLikeDto(likeCount: 0, likedByUser: false);
+  @override
+  Future<void> addLike(String creatorId, CreateLikeDto dto) async {
+    request = dto;
+    state = AsyncData(PinLikeDto(likeCount: 1, likedByUser: true));
+    await pending.future;
+    state = AsyncData(PinLikeDto(likeCount: 0, likedByUser: false));
+  }
 }

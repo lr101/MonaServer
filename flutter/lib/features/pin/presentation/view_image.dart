@@ -7,10 +7,9 @@ import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
-import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/like_button_animated.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,19 +92,38 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      PinPhotoCarousel(
-                        key: ValueKey(currentPin.pinId),
-                        originalImage: image,
-                        photos: photos,
-                        isOriginalLoading:
-                            imageState.isLoading || photoHistoryState.isLoading,
-                        onPageChanged: (index) {
-                          if (_selectedPhotoIndex != index) {
-                            setState(() => _selectedPhotoIndex = index);
-                          }
+                      GestureDetector(
+                        onDoubleTap: () {
+                          final userId = ref
+                              .read(globalDataServiceProvider)
+                              .userId;
+                          if (userId == null) return;
+                          ref
+                              .read(
+                                likeServiceProvider(currentPin.pinId).notifier,
+                              )
+                              .addLike(
+                                currentPin.creator,
+                                CreateLikeDto(userId: userId, like: true),
+                              );
                         },
+                        child: PinPhotoCarousel(
+                          key: ValueKey(currentPin.pinId),
+                          originalImage: image,
+                          photos: photos,
+                          isOriginalLoading:
+                              imageState.isLoading ||
+                              photoHistoryState.isLoading,
+                          onPageChanged: (index) {
+                            if (_selectedPhotoIndex != index) {
+                              setState(() => _selectedPhotoIndex = index);
+                            }
+                          },
+                        ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 5),
+                      FeedCardSubtitle(pin: currentPin, showDescription: false),
+                      const SizedBox(height: 8),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),
                         switchInCurve: Curves.easeOut,
@@ -124,8 +142,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                           pin: currentPin,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      _PinLikeButton(pin: currentPin),
                       const SizedBox(height: 8),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,14 +231,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
-        if (!isOriginal)
-          Text(
-            'Update',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primaryOnSurface,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
         Row(
           children: [
             Icon(
@@ -284,56 +292,5 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     } finally {
       if (mounted) setState(() => _isSavingPresence = false);
     }
-  }
-}
-
-class _PinLikeButton extends ConsumerWidget {
-  const _PinLikeButton({required this.pin});
-
-  final PinEntity pin;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final like = ref.watch(likeServiceProvider(pin.pinId));
-    final liked = like.value?.likedByUser ?? false;
-    final userId = ref.watch(
-      globalDataServiceProvider.select((data) => data.userId),
-    );
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Semantics(
-        label: '${like.value?.likeCount ?? 0} likes',
-        child: LikeButtonAnimated(
-          isLikedProvider: likeServiceProvider(pin.pinId)
-              .select((state) => state.value?.likedByUser),
-          isLiked: liked,
-          size: 28,
-          likeCount: like.value?.likeCount ?? 0,
-          likeBuilder: (isLiked) => Icon(
-            isLiked ? Icons.favorite : Icons.favorite_border,
-            color: isLiked
-                ? Colors.red
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-            size: 24,
-          ),
-          onTap: userId == null
-              ? null
-              : (isLiked) async {
-                  try {
-                    await ref
-                        .read(likeServiceProvider(pin.pinId).notifier)
-                        .addLike(
-                          pin.creator,
-                          CreateLikeDto(userId: userId, like: !isLiked),
-                        );
-                    return true;
-                  } catch (_) {
-                    return false;
-                  }
-                },
-        ),
-      ),
-    );
   }
 }
