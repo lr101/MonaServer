@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/features/progression/data/xp_gain_provider.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -15,5 +16,10 @@ Future<UserXpDto?> userXp(Ref ref, String userId) async {
 
   final xp = await ref.watch(userApiProvider).getUserXp(userId);
   if (!isCurrentSession(ref, session)) return null;
+  if (xp != null) {
+    ref
+        .read(xpGainsProvider.notifier)
+        .observe('user:$userId', xp.totalXp, xp.currentLevel);
+  }
   return xp;
 }

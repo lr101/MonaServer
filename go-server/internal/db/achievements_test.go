@@ -105,6 +105,24 @@ func TestContributionMilestonesCountGroupsWithPins(t *testing.T) {
 	}
 }
 
+func TestPublicAchievementProgressIncludesOnlyClaimedDefinitions(t *testing.T) {
+	got := publicAchievementProgress([]UserAchievement{
+		{AchievementID: 3, Claimed: true},
+		{AchievementID: 4, Claimed: false},
+		{AchievementID: 999, Claimed: true},
+	})
+	if len(got) != 1 {
+		t.Fatalf("public achievements = %d, want 1", len(got))
+	}
+	item := got[0]
+	if item.ID != 3 || item.Name != "Two sticks" || !item.Claimed || item.CurrentValue != item.Threshold || item.Threshold != 2 {
+		t.Fatalf("public achievement = %+v, want earned Two sticks with completed threshold", item)
+	}
+	if item.RewardXP != 0 || item.RewardType != "" || item.Claimable || item.RewardAvailable || item.DefinitionVersion != 0 {
+		t.Fatalf("public achievement exposes reward metadata: %+v", item)
+	}
+}
+
 func containsAll(s string, words ...string) bool {
 	for _, word := range words {
 		if !strings.Contains(s, word) {

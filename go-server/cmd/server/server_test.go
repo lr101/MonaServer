@@ -973,6 +973,21 @@ func TestEndpointUsers(t *testing.T) {
 		}
 	})
 
+	t.Run("GET /api/v2/users/{id}/achievements — public earned achievements", func(t *testing.T) {
+		other := anon.signup(t, "achievement_viewer", "pw123")
+		viewer := &apiClient{base: srv.URL, bearer: other.AccessToken}
+		resp := viewer.do(t, "GET", "/api/v2/users/"+uid+"/achievements", nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 for authenticated viewer, got %d", resp.StatusCode)
+		}
+		var earned []map[string]any
+		decode(t, resp, &earned)
+		if len(earned) != 0 {
+			t.Fatalf("new user's public achievements = %v, want empty earned list", earned)
+		}
+	})
+
 	t.Run("GET /api/v2/users/{id}/profile_picture — returns 200", func(t *testing.T) {
 		resp := c.do(t, "GET", "/api/v2/users/"+uid+"/profile_picture", nil)
 		resp.Body.Close()

@@ -7,8 +7,8 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/camera/data/app_review_state.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart';
-import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
+import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/foundation.dart';
@@ -200,7 +200,6 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       return;
     }
 
-    CustomErrorSnackBar.message(message: 'Image saved');
     if (reviewState != null) {
       unawaited(postUploadActions(reviewState));
     }

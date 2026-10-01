@@ -107,12 +107,24 @@ class SmallProfilePicture extends ConsumerWidget {
 class UserXpAvatarIndicator extends StatelessWidget {
   const UserXpAvatarIndicator({
     super.key,
-    required this.progress,
+    required XpLevelProgress progress,
     required this.avatar,
     this.radius = 17,
-  });
+  }) : progress = progress,
+       level = null,
+       fraction = null;
 
-  final XpLevelProgress progress;
+  const UserXpAvatarIndicator.public({
+    super.key,
+    required this.level,
+    required this.fraction,
+    required this.avatar,
+    this.radius = 17,
+  }) : progress = null;
+
+  final XpLevelProgress? progress;
+  final int? level;
+  final double? fraction;
   final Widget avatar;
   final double radius;
 
@@ -120,17 +132,18 @@ class UserXpAvatarIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final displayLevel = progress?.level ?? level!;
+    final progressFraction = progress?.fraction ?? fraction!;
     final avatarDiameter = radius * 2;
     final dimension = avatarDiameter + 6;
     final strokeWidth = (radius * 0.15).clamp(1.5, 3.5);
-    final levelProgressLabel = progress.xpToNextLevel == 0
-        ? 'Level ${progress.level}, maximum level'
-        : 'Level ${progress.level}, ${progress.xpIntoLevel} XP into this level, '
-              '${progress.xpToNextLevel} XP to next level';
+    final levelProgressLabel = progress == null
+        ? 'Level $displayLevel, ${(progressFraction * 100).round()}% progress to next level'
+        : _xpProgressLabel(progress!);
 
     return Tooltip(
       excludeFromSemantics: true,
-      message: 'Level ${progress.level} · ${progress.totalXp} XP',
+      message: levelProgressLabel,
       child: Semantics(
         excludeSemantics: true,
         label: levelProgressLabel,
@@ -142,7 +155,7 @@ class UserXpAvatarIndicator extends StatelessWidget {
             children: [
               TweenAnimationBuilder<double>(
                 tween: Tween<double>(
-                  end: progress.fraction.clamp(0, 1).toDouble(),
+                  end: progressFraction.clamp(0, 1).toDouble(),
                 ),
                 duration: reduceMotion
                     ? Duration.zero
@@ -166,7 +179,7 @@ class UserXpAvatarIndicator extends StatelessWidget {
                 bottom: 0,
                 child: _levelBadge(
                   context,
-                  level: progress.level,
+                  level: displayLevel,
                   radius: radius,
                 ),
               ),
@@ -178,34 +191,48 @@ class UserXpAvatarIndicator extends StatelessWidget {
   }
 }
 
+String _xpProgressLabel(XpLevelProgress progress) {
+  final levelSpan = progress.xpIntoLevel + progress.xpToNextLevel;
+  return progress.xpToNextLevel == 0
+      ? 'Level ${progress.level}, ${progress.totalXp} total XP, maximum level'
+      : 'Level ${progress.level}, ${progress.totalXp} total XP, '
+            '${progress.xpIntoLevel} of $levelSpan XP into this level, '
+            '${progress.xpToNextLevel} XP to next level';
+}
+
 Widget _levelBadge(
   BuildContext context, {
   required int level,
   required double radius,
 }) {
   final theme = Theme.of(context);
-  final badgeSize = (radius * 0.94).clamp(10.0, 20.0);
+  final badgeHeight = (radius * 0.70).clamp(12.0, 26.0);
   return DecoratedBox(
+    key: const ValueKey('profile-level-badge'),
     decoration: ShapeDecoration(
       color: theme.colorScheme.primary,
-      shape: CircleBorder(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(100),
         side: BorderSide(
           color: theme.colorScheme.surfaceContainer,
           width: (radius * 0.09).clamp(1.0, 1.75),
         ),
       ),
     ),
-    child: SizedBox.square(
-      dimension: badgeSize,
-      child: Center(
-        child: FittedBox(
-          child: Padding(
-            padding: const EdgeInsets.all(1),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minHeight: badgeHeight),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: (radius * 0.09).clamp(2.0, 4.0),
+          vertical: 1,
+        ),
+        child: Center(
+          child: FittedBox(
             child: Text(
-              '$level',
+              'Lv $level',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onPrimary,
-                fontSize: (badgeSize * 0.5).clamp(5.0, 10.0),
+                fontSize: (radius * 0.22).clamp(6.5, 9.0),
                 fontWeight: FontWeight.bold,
               ),
             ),

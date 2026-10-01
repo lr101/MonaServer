@@ -61,6 +61,28 @@ every screen. A form or settings screen should still feel like the same app.
   Keep map controls, attribution, bottom actions, and status messages clear as
   sheets expand or transient messages appear.
 
+### XP feedback and profile identity
+
+User and group profile headers show a circular XP ring around the avatar and a
+visible “Lv” badge at the ring's lower-left. Keep XP progress in the ring rather
+than repeating it in a separate profile section; exact amounts remain available
+from the indicator's tooltip and semantics. Achievement pages contain the
+rewards themselves.
+
+Other users' profiles show their public level progress and earned achievements.
+Keep in-progress totals and unclaimed reward details private; the public
+achievement view is read-only.
+
+Confirmed XP increases use one dismissible, themed notice over the lower part
+of the current route and above the bottom navigation, with separate personal
+and named-group amounts. Keep it inside the system gesture inset and do not
+shift the route when it appears.
+Initial loads,
+repeated server totals, and queued uploads are not reward events. Remove
+redundant success/loading toasts when the content already confirms the change;
+retain actionable failures. If XP cannot be loaded, keep the saved action and
+recover the profile total on refresh without inventing a reward amount.
+
 ## Map, artwork, and progression semantics
 
 The map is the central browsing surface. Individual markers are about 48×56px

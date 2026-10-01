@@ -1532,11 +1532,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/userAchievementsDto"
-          description: Successfully returned user's achievements
+          description: Returns all progress to the owner and earned achievements to other authenticated users
         "404":
           description: User not found
-        "403":
-          description: Token not of requested user
       security:
       - token: []
       summary: Get user's achievements

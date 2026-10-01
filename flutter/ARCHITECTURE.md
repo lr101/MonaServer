@@ -30,6 +30,16 @@ feature-layer migrations**, not completed `domain`/`data`/`presentation` slices.
 These are coverage locations, not a claim that tests ran for this documentation
 update or that every production failure path is covered.
 
+XP providers report confirmed totals to a session-scoped ledger in
+`features/progression`. The ledger ignores initial loads, repeated totals, and
+older responses. Pin delivery and achievement claims make best-effort XP reads
+before and after server confirmation. The app-level `XpGainBannerHost` keeps the
+signed-in user's XP subscribed and combines pending personal/group gains in a
+notice above the route. Account changes clear the ledger and notices. Missing XP
+responses never prevent a saved pin or reward claim; unavailable baselines skip
+celebration rather than estimating a gain. Profile headers own XP summaries,
+while achievement tabs own collectible rewards.
+
 ## Where code lives now
 
 ```text

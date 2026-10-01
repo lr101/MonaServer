@@ -1,12 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
@@ -159,6 +161,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
+          groupProgressionProvider('group-1').overrideWith((ref) => null),
           userIdProvider.overrideWithValue('member-1'),
           groupApiProvider.overrideWithValue(groupsApi),
           groupProfilePictureSmallByIdProvider('group-1')

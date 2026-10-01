@@ -1,56 +1,56 @@
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
-import 'package:floating_snackbar/floating_snackbar.dart';
 import 'package:flutter/material.dart';
 
 // ignore: avoid_classes_with_only_static_members
 class CustomErrorSnackBar {
-  static void message(
-      {required String message,
-      CustomErrorSnackBarType type = CustomErrorSnackBarType.info,}) {
-    floatingSnackBar(
-      message: message,
-      context: navigatorKey.currentContext!,
-      backgroundColor: type.color,
-    );
-  }
-
-  static void loadingMessage({required String message, CustomErrorSnackBarType type = CustomErrorSnackBarType.info,}) {
-    final snack = SnackBar(
-    behavior: SnackBarBehavior.floating, // Make the SnackBar floating
-    margin: const EdgeInsets.all(20), // Set margin around the SnackBar
-    shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10)), // Rounded corners for the SnackBar
-    content: Row(
-      children: [
-        const SizedBox.square(dimension: 10, child: CircularProgressIndicator(),),
-        const SizedBox(width: 10,),
-        Text(message,style: const TextStyle(color: Colors.white),
-    ),
-    ],), 
-    backgroundColor: type.color
-  );
-
-  // Hide any currently displayed SnackBar
-  ScaffoldMessenger.of(navigatorKey.currentContext!).hideCurrentSnackBar();
-
-  // Show the created SnackBar
-  ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(snack);
+  static void message({
+    required String message,
+    CustomErrorSnackBarType type = CustomErrorSnackBarType.info,
+  }) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    final theme = Theme.of(context);
+    final isError = type == CustomErrorSnackBarType.error;
+    final foreground = isError
+        ? theme.colorScheme.onErrorContainer
+        : theme.colorScheme.onSurface;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          showCloseIcon: true,
+          closeIconColor: foreground,
+          backgroundColor: isError
+              ? theme.colorScheme.errorContainer
+              : theme.colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          content: Row(
+            children: [
+              Icon(switch (type) {
+                CustomErrorSnackBarType.error => Icons.error_outline,
+                CustomErrorSnackBarType.warning => Icons.warning_amber_rounded,
+                CustomErrorSnackBarType.success => Icons.check_circle_outline,
+                CustomErrorSnackBarType.info => Icons.info_outline,
+              }, color: foreground),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 }
 
-enum CustomErrorSnackBarType {
-  success, error, warning, info;
-
-  Color get color {
-    switch (this) {
-      case CustomErrorSnackBarType.success:
-        return Colors.green;
-      case CustomErrorSnackBarType.error:
-        return Colors.red;
-      case CustomErrorSnackBarType.warning:
-        return Colors.orange;
-      case CustomErrorSnackBarType.info:
-        return Colors.blue;
-    }
-  }
-}
+enum CustomErrorSnackBarType { success, error, warning, info }

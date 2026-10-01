@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
 import 'package:flutter/material.dart';
@@ -61,22 +65,30 @@ class _GroupAchievementsPanelState
   }
 
   Future<void> _claimAchievement(int achievementId) async {
+    final session = ref.read(accountSessionProvider);
     setState(() => _claimingAchievementId = achievementId);
     try {
+      try {
+        await ref
+            .read(groupProgressionProvider(widget.groupId).future)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        /* A reward claim must not depend on XP availability. */
+      }
+      if (!mounted || !session.isActive) return;
       await ref
           .read(groupApiProvider)
           .claimGroupAchievement(widget.groupId, achievementId);
-      if (!mounted) return;
+      if (!mounted || !session.isActive) return;
       ref.invalidate(groupAchievementsProvider(widget.groupId));
       ref.invalidate(groupPinDesignCatalogProvider(widget.groupId));
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Group reward unlocked'),
-        ),
+      unawaited(
+        ref
+            .refresh(groupProgressionProvider(widget.groupId).future)
+            .then<void>((_) {}, onError: (Object _) {}),
       );
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || !session.isActive) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,

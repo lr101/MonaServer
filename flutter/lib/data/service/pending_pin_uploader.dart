@@ -9,8 +9,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
-import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
-import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
+import 'package:buff_lisa/features/progression/data/refresh_xp.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
@@ -122,6 +121,10 @@ class PendingPinUploader {
     try {
       await pending.markAttempted(row.pinId);
       if (!isCurrent()) return null;
+      if (!row.cancelRequested) {
+        await readXpBestEffort(ref, owner, groupId: row.groupId);
+        if (!isCurrent()) return null;
+      }
       PinWithOptionalImageDto? result;
       try {
         result = await ref
@@ -157,8 +160,9 @@ class PendingPinUploader {
       if (synced.pinId != row.pinId) await images.delete(row.pinId);
       if (!isCurrent()) return null;
       await pending.remove(row.pinId);
-      ref.invalidate(userXpProvider(owner));
-      ref.invalidate(groupProgressionProvider(row.groupId));
+      unawaited(
+        readXpBestEffort(ref, owner, groupId: row.groupId, refresh: true),
+      );
       ref.invalidate(groupAchievementsProvider(row.groupId));
       return synced.pinId;
     } on ApiException catch (error) {

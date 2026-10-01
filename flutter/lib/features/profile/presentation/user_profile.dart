@@ -7,6 +7,9 @@ import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
+import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
+import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
@@ -58,7 +61,16 @@ class _UserProfileState extends ConsumerState<UserProfile>
     final likes = ref.watch(userLikeServiceProvider(userId));
     final profileImage = ref.watch(getUserProfileProvider(userId));
 
+    final xp = ref.watch(userXpProvider(userId)).value;
+    final progress = xp == null ? null : XpLevelProgress.fromDto(xp);
     return CustomAvatarScaffold(
+      avatarBuilder: progress == null
+          ? null
+          : (avatar) => UserXpAvatarIndicator(
+              progress: progress,
+              avatar: avatar,
+              radius: 40,
+            ),
       avatar: profileImage,
       avatarEditAction: () => context.pushNamed("profileSettings"),
       title: _buildTitle(currentUser),
