@@ -11,6 +11,7 @@ class RoundImagePicker extends ConsumerWidget {
   final Function(Uint8List) imageUpload;
   final double size;
   final double? editSize;
+  final Offset editOffset;
 
   const RoundImagePicker({
     super.key,
@@ -18,12 +19,13 @@ class RoundImagePicker extends ConsumerWidget {
     required this.size,
     required this.imageUpload,
     this.editSize,
+    this.editOffset = Offset.zero,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final editButtonSize = ((editSize ?? 22) * 2).clamp(44.0, double.infinity);
+    final editButtonSize = (editSize ?? 22) * 2;
 
     return RoundImage(
       imageCallback: imageCallback,
@@ -35,8 +37,7 @@ class RoundImagePicker extends ConsumerWidget {
             child: Tooltip(
               message: 'Change image',
               child: Material(
-                color: colorScheme.primaryContainer,
-                shape: const CircleBorder(),
+                color: Colors.transparent,
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: () async {
@@ -53,10 +54,25 @@ class RoundImagePicker extends ConsumerWidget {
                     }
                   },
                   child: SizedBox.square(
-                    dimension: editButtonSize,
-                    child: Icon(
-                      Icons.edit,
-                      color: colorScheme.onPrimaryContainer,
+                    dimension: 44,
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: Transform.translate(
+                        offset: editOffset,
+                        child: Ink(
+                          width: editButtonSize,
+                          height: editButtonSize,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.edit,
+                            size: editSize == null ? 24 : editSize! * 1.25,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

@@ -176,6 +176,7 @@ class _ChangeProfileState extends ConsumerState<ChangeProfile> {
                 child: RoundImagePicker(
                   size: 36,
                   editSize: 14,
+                  editOffset: const Offset(6, 6),
                   imageUpload: (image) {
                     ref.read(userEditStateProvider.notifier).update(image);
                   },
