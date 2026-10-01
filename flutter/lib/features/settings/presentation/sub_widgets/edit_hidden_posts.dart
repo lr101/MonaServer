@@ -1,7 +1,9 @@
 import 'package:buff_lisa/data/service/filter_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/settings/presentation/settings_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class EditHiddenPosts extends ConsumerWidget {
   const EditHiddenPosts({super.key});
@@ -28,25 +30,9 @@ class EditHiddenPosts extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 for (final pinId in hiddenPosts) ...[
-                  SettingsPanel(
-                    padding: 8,
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.image_outlined),
-                      ),
-                      title: const Text('Hidden artwork'),
-                      subtitle: Text(
-                        'Pin ID: ${_shortId(pinId)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: IconButton(
-                        tooltip: 'Show this post again',
-                        icon: const Icon(Icons.visibility_outlined),
-                        onPressed: () => _removePost(context, ref, pinId),
-                      ),
-                      onTap: () => _removePost(context, ref, pinId),
-                    ),
+                  _HiddenPostTile(
+                    pinId: pinId,
+                    onRestore: () => _removePost(context, ref, pinId),
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -54,9 +40,6 @@ class EditHiddenPosts extends ConsumerWidget {
             ),
     );
   }
-
-  static String _shortId(String id) =>
-      id.length <= 12 ? id : '${id.substring(0, 8)}…';
 
   Future<void> _removePost(
     BuildContext context,
@@ -72,5 +55,59 @@ class EditHiddenPosts extends ConsumerWidget {
     if (confirmed) {
       ref.read(hiddenPostsServiceProvider.notifier).removeHiddenPost(pinId);
     }
+  }
+}
+
+class _HiddenPostTile extends ConsumerWidget {
+  const _HiddenPostTile({required this.pinId, required this.onRestore});
+
+  final String pinId;
+  final VoidCallback onRestore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final image = ref.watch(pinImageForDetailsProvider(pinId)).value;
+    final colors = Theme.of(context).colorScheme;
+
+    return SettingsPanel(
+      padding: 8,
+      child: ListTile(
+        leading: SizedBox.square(
+          dimension: 56,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: image == null
+                ? ColoredBox(
+                    color: colors.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.image_outlined,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  )
+                : Image.memory(
+                    image,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (context, error, stackTrace) => ColoredBox(
+                      color: colors.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        title: const Text('Hidden artwork'),
+        subtitle: const Text('Tap to view this artwork'),
+        trailing: IconButton(
+          tooltip: 'Show this post again',
+          icon: const Icon(Icons.visibility_outlined),
+          onPressed: onRestore,
+        ),
+        onTap: () =>
+            context.pushNamed('viewImage', pathParameters: {'id': pinId}),
+      ),
+    );
   }
 }
