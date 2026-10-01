@@ -110,13 +110,14 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
           ],
         ),
         const SizedBox(height: 5),
-        FeedCardSubtitle(pin: widget.item),
+        FeedCardSubtitle(pin: widget.item, animateLikeChanges: false),
       ],
     );
   }
 
   void likeImage() {
-    final userId = ref.watch(globalDataServiceProvider).userId!;
+    final userId = ref.read(globalDataServiceProvider).userId;
+    if (userId == null) return;
     ref
         .read(likeServiceProvider(widget.item.pinId).notifier)
         .addLike(

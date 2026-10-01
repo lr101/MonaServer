@@ -44,6 +44,7 @@ class LikeButtonAnimated extends ConsumerStatefulWidget {
     this.padding,
     this.countDecoration,
     this.postFrameCallback,
+    this.animateLikeChanges = true,
   }) : bubblesSize = bubblesSize ?? size * 2.0,
        circleSize = circleSize ?? size * 0.8;
 
@@ -116,6 +117,9 @@ class LikeButtonAnimated extends ConsumerStatefulWidget {
   /// call back of first frame with LikeButtonState
   final Function(LikeButtonAnimatedState state)? postFrameCallback;
 
+  /// Whether changed like state and count should play their transition effects.
+  final bool animateLikeChanges;
+
   final ProviderListenable<bool?> isLikedProvider;
 
   @override
@@ -137,6 +141,7 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
   AnimationController? get controller => _controller;
   AnimationController? get likeCountController => _likeCountController;
 
+  bool _pending = false;
   bool? _isLiked = false;
   int? _likeCount;
   int? _preLikeCount;
@@ -150,7 +155,7 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
 
     _isLiked = widget.isLiked;
 
-    _likeCount = widget.likeCount;
+    _likeCount = widget.likeCount?.clamp(0, 1 << 53);
     _preLikeCount = _likeCount;
 
     _controller = AnimationController(
@@ -176,9 +181,26 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
 
   @override
   void didUpdateWidget(LikeButtonAnimated oldWidget) {
-    _isLiked = widget.isLiked;
-    _likeCount = widget.likeCount;
+    final wasLiked = _isLiked;
     _preLikeCount = _likeCount;
+    _isLiked = widget.isLiked ?? false;
+    _likeCount = widget.likeCount?.clamp(0, 1 << 53);
+    if (!widget.animateLikeChanges) {
+      _preLikeCount = _likeCount;
+      _controller!.reset();
+      _likeCountController!.reset();
+    } else {
+      if (wasLiked != _isLiked) {
+        if (_isLiked == true) {
+          _controller!.forward(from: 0);
+        } else {
+          _controller!.reset();
+        }
+      }
+      if (_likeCount != _preLikeCount) {
+        _likeCountController!.forward(from: 0);
+      }
+    }
 
     if (_controller?.duration != widget.animationDuration) {
       _controller?.dispose();
@@ -210,9 +232,6 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(widget.isLikedProvider, (prev, next) {
-      _handleIsLikeChanged(prev, next);
-    });
     Widget likeCountWidget = _getLikeCountWidget();
     if (widget.countDecoration != null) {
       likeCountWidget =
@@ -308,7 +327,7 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTap: onTap,
+      onTap: widget.onTap == null ? null : onTap,
       child: result,
     );
   }
@@ -458,60 +477,13 @@ class LikeButtonAnimatedState extends ConsumerState<LikeButtonAnimated>
         );
   }
 
-  void onTap() {
-    if (_controller!.isAnimating || _likeCountController!.isAnimating) {
-      return;
-    }
-    if (widget.onTap != null) {
-      // animation triggered by on tab provider change
-      widget.onTap!(_isLiked ?? true);
-    } else {
-      _handleIsLikeChanged(_isLiked, !(_isLiked ?? true));
-    }
-  }
-
-  void _handleIsLikeChanged(bool? preIsLiked, bool? isLiked) {
-    if (_isLiked == null) {
-      if (_likeCount != null) {
-        _preLikeCount = _likeCount;
-        _likeCount = _likeCount! + 1;
-      }
-      if (mounted) {
-        setState(() {
-          if (widget.likeCountAnimationType != LikeCountAnimationType.none &&
-              preIsLiked != null) {
-            _likeCountController!.reset();
-            _likeCountController!.forward();
-          }
-        });
-      }
-      return;
-    }
-
-    if (isLiked != null && isLiked != _isLiked) {
-      if (_likeCount != null) {
-        _preLikeCount = _likeCount;
-        if (isLiked) {
-          _likeCount = _likeCount! + 1;
-        } else {
-          _likeCount = _likeCount! - 1;
-        }
-      }
-      _isLiked = isLiked;
-
-      if (mounted) {
-        setState(() {
-          if (_isLiked!) {
-            _controller!.reset();
-            _controller!.forward();
-          }
-          if (widget.likeCountAnimationType != LikeCountAnimationType.none &&
-              preIsLiked != null) {
-            _likeCountController!.reset();
-            _likeCountController!.forward();
-          }
-        });
-      }
+  Future<void> onTap() async {
+    if (_pending || widget.onTap == null) return;
+    _pending = true;
+    try {
+      await widget.onTap!(_isLiked ?? false);
+    } finally {
+      _pending = false;
     }
   }
 
