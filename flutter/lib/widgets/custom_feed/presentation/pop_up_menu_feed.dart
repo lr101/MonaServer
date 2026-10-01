@@ -21,15 +21,15 @@ class PopUpMenuFeed extends ConsumerWidget {
         .watch(groupMetadataProvider(pinDto.groupId))
         .whenOrNull(data: (d) => d?.groupAdmin);
     final bool isNotCreator = userId != pinDto.creator;
-    return PopupMenuButton(
+    return PopupMenuButton<int>(
+      tooltip: 'Post options',
       itemBuilder: (context) {
         return [
-          if (isNotCreator)
-            CustomMenuItem<int>(
-              value: 0,
-              title: "Hide post",
-              icon: Icons.hide_image,
-            ),
+          CustomMenuItem<int>(
+            value: 0,
+            title: "Hide post",
+            icon: Icons.hide_image_outlined,
+          ),
           if (isNotCreator)
             CustomMenuItem<int>(
               value: 1,
@@ -40,7 +40,7 @@ class PopUpMenuFeed extends ConsumerWidget {
             CustomMenuItem<int>(
               value: 2,
               title: "Hide user",
-              icon: Icons.hide_source,
+              icon: Icons.person_off_outlined,
             ),
           if (isNotCreator)
             CustomMenuItem<int>(
@@ -55,9 +55,13 @@ class PopUpMenuFeed extends ConsumerWidget {
       onSelected: (value) {
         switch (value) {
           case 0:
-            ref
-                .read(hiddenPostsServiceProvider.notifier)
-                .addHiddenPost(pinDto.pinId);
+            final posts = ref.read(hiddenPostsServiceProvider.notifier);
+            posts.addHiddenPost(pinDto.pinId);
+            _showHiddenFeedback(
+              context,
+              'Post hidden. Restore it in Settings → Hidden posts.',
+              () => posts.removeHiddenPost(pinDto.pinId),
+            );
           case 1:
             context.pushNamed(
               "report",
@@ -65,9 +69,13 @@ class PopUpMenuFeed extends ConsumerWidget {
               extra: ["Report post"],
             );
           case 2:
-            ref
-                .read(hiddenUserServiceProvider.notifier)
-                .addHiddenUser(pinDto.creator);
+            final users = ref.read(hiddenUserServiceProvider.notifier);
+            users.addHiddenUser(pinDto.creator);
+            _showHiddenFeedback(
+              context,
+              'User hidden. Restore their posts in Settings → Hidden users.',
+              () => users.removeHiddenUser(pinDto.creator),
+            );
           case 3:
             context.pushNamed(
               "report",
@@ -79,6 +87,21 @@ class PopUpMenuFeed extends ConsumerWidget {
         }
       },
     );
+  }
+
+  void _showHiddenFeedback(
+    BuildContext context,
+    String message,
+    VoidCallback undo,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: SnackBarAction(label: 'Undo', onPressed: undo),
+        ),
+      );
   }
 
   Future<void> _deleteStick(
@@ -96,6 +119,7 @@ class PopUpMenuFeed extends ConsumerWidget {
           pinDto.pinId,
           showPrompt: true,
         );
+        if (!context.mounted) return;
         if (result == null && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
