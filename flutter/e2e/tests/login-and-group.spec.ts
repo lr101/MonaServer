@@ -123,11 +123,51 @@ async function logout(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.mouse.move(225, 650);
   await page.mouse.wheel(0, 1600);
-  await page.getByRole('button', { name: 'Logout', exact: true }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Logout', exact: true }).click();
+  await page.getByRole('button', { name: 'Log out Sign out on this device', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Log out', exact: true }).click();
   await page.waitForURL(/#\/login/, { timeout: 30_000 });
   await expect(page.locator('input[aria-label="Email or username"]')).toBeVisible();
 }
+
+test('login survives a month idle and reopening the browser tab', async ({ page, context }) => {
+  test.setTimeout(90_000);
+  const data = readE2eData();
+  // Wasm captures Date.now when loading its imports, so install the clock first.
+  const signedInAt = new Date();
+  await page.clock.setFixedTime(signedInAt);
+  await login(page, data);
+
+  // Advance Date without running a month's worth of animation/polling timers.
+  await page.clock.setFixedTime(new Date(signedInAt.getTime() + 31 * 24 * 60 * 60 * 1000));
+  const renewed = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v2/public/refresh' && response.ok());
+  const searched = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v2/groups' && response.ok());
+  await page.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await page.getByRole('button', { name: 'Show menu' }).click();
+  await page.getByRole('menuitem', { name: 'Search existing groups', exact: true }).click();
+  await renewed;
+  await searched;
+  await expect(page.locator('input').first()).toBeVisible();
+  await expect(page).not.toHaveURL(/#\/login/);
+
+  // A new page has no in-memory access token or sessionStorage from this tab.
+  // It must restore the refresh credentials from persistent browser storage.
+  const reopened = await context.newPage();
+  reopened.on('pageerror', (error) => uiErrors.get(page)!.push(error.message));
+  reopened.on('console', (message) => {
+    if (message.type() === 'error') uiErrors.get(page)!.push(message.text());
+  });
+  const restored = reopened.waitForResponse((response) =>
+    new URL(response.url()).pathname === '/api/v2/public/refresh' && response.ok());
+  await page.close();
+  await reopened.goto('/');
+  await enableAccessibility(reopened);
+  await restored;
+  await reopened.getByRole('tab', { name: 'Groups', exact: true }).click();
+  await expect(reopened.locator('body')).toContainText(data.groupName, { timeout: 30_000 });
+  await expect(reopened).not.toHaveURL(/#\/login/);
+});
 
 test('rejected refresh returns to login, survives reload, and permits reauthentication', async ({ page }) => {
   test.setTimeout(90_000);
@@ -136,13 +176,17 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
   let rejections = 0;
   await page.route('**/api/v2/public/refresh', async (route) => {
     rejections++;
-    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+    await route.fulfill({
+      status: 410,
+      contentType: 'text/plain',
+      body: 'refresh token expired',
+    });
   });
   // The only expected browser error is the refresh response injected above.
   page.on('console', (message) => {
     if (message.type() === 'error' &&
         message.location().url.endsWith('/api/v2/public/refresh') &&
-        message.text() === 'Failed to load resource: the server responded with a status of 400 (Bad Request)') {
+        message.text() === 'Failed to load resource: the server responded with a status of 410 (Gone)') {
       const errors = uiErrors.get(page)!;
       const index = errors.lastIndexOf(message.text());
       if (index >= 0) errors.splice(index, 1);
@@ -196,11 +240,15 @@ test('expired refresh during group creation returns to sign-in without a network
   });
   await page.route('**/api/v2/public/refresh', async (route) => {
     refreshRequests++;
-    await route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+    await route.fulfill({
+      status: 410,
+      contentType: 'text/plain',
+      body: 'refresh token expired',
+    });
   });
   for (const [pathname, status, reason] of [
     ['/api/v2/groups', 401, 'Unauthorized'],
-    ['/api/v2/public/refresh', 400, 'Bad Request'],
+    ['/api/v2/public/refresh', 410, 'Gone'],
   ] as const) {
     const expected = `Failed to load resource: the server responded with a status of ${status} (${reason})`;
     page.on('console', (message) => {
