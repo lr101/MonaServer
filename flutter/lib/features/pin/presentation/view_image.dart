@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -86,6 +87,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
               onDownloadPhoto: canDownloadSelectedPhoto
                   ? () => _downloadPhoto(
                       pinId: toolbarPin.pinId,
+                      pinCreatorId: toolbarPin.creator,
                       photo: selectedPhoto,
                       isOriginal: isOriginalSelected,
                       originalImage: image,
@@ -292,6 +294,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
 
   Future<void> _downloadPhoto({
     required String pinId,
+    required String pinCreatorId,
     required PinPhotoDto? photo,
     required bool isOriginal,
     required Uint8List? originalImage,
@@ -302,6 +305,8 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     try {
       final bytes = await _loadPhotoBytes(
         photo: photo,
+        pinId: pinId,
+        pinCreatorId: pinCreatorId,
         isOriginal: isOriginal,
         originalImage: originalImage,
       );
@@ -324,6 +329,8 @@ class _ViewImageState extends ConsumerState<ViewImage> {
   }
 
   Future<Uint8List> _loadPhotoBytes({
+    required String pinId,
+    required String pinCreatorId,
     required PinPhotoDto? photo,
     required bool isOriginal,
     required Uint8List? originalImage,
@@ -333,7 +340,42 @@ class _ViewImageState extends ConsumerState<ViewImage> {
       if (bytes != null && bytes.isNotEmpty) return bytes;
     }
 
-    final imageUrl = photo?.image;
+    var photoToDownload = photo;
+    if (photo != null) {
+      try {
+        final photos = await ref
+            .read(pinApiProvider)
+            .getPinPhotos(pinId)
+            .timeout(const Duration(seconds: 20));
+        photoToDownload = photos
+            ?.where(
+              (candidate) =>
+                  candidate.id == photo.id &&
+                  candidate.pinId == pinId &&
+                  candidate.isOriginal == isOriginal,
+            )
+            .firstOrNull;
+        if (photoToDownload == null) {
+          throw const _PinPhotoDownloadException();
+        }
+
+        final contributorId = photoToDownload.contributorId;
+        final ownerId =
+            isOriginal && (contributorId == null || contributorId.isEmpty)
+            ? pinCreatorId
+            : contributorId;
+        final currentUserId = ref.read(userIdProvider);
+        if (currentUserId.isEmpty || currentUserId != ownerId) {
+          throw const _PinPhotoDownloadException();
+        }
+      } on _PinPhotoDownloadException {
+        rethrow;
+      } catch (_) {
+        throw const _PinPhotoDownloadException();
+      }
+    }
+
+    final imageUrl = photoToDownload?.image;
     if (imageUrl == null || imageUrl.isEmpty) {
       throw const _PinPhotoDownloadException();
     }
