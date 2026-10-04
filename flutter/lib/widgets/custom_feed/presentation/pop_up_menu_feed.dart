@@ -10,9 +10,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 class PopUpMenuFeed extends ConsumerWidget {
-  const PopUpMenuFeed({super.key, required this.pinDto});
+  const PopUpMenuFeed({
+    super.key,
+    required this.pinDto,
+    this.onDownloadPhoto,
+    this.isDownloadingPhoto = false,
+    this.tooltip = 'Post options',
+  });
 
   final PinEntity pinDto;
+  final VoidCallback? onDownloadPhoto;
+  final bool isDownloadingPhoto;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,9 +31,16 @@ class PopUpMenuFeed extends ConsumerWidget {
         .whenOrNull(data: (d) => d?.groupAdmin);
     final bool isNotCreator = userId != pinDto.creator;
     return PopupMenuButton<int>(
-      tooltip: 'Post options',
+      tooltip: tooltip,
       itemBuilder: (context) {
         return [
+          if (onDownloadPhoto != null)
+            CustomMenuItem<int>(
+              value: 5,
+              title: isDownloadingPhoto ? 'Downloading…' : 'Download photo',
+              icon: Icons.download_outlined,
+              enabled: !isDownloadingPhoto,
+            ),
           CustomMenuItem<int>(
             value: 0,
             title: "Hide post",
@@ -84,6 +100,8 @@ class PopUpMenuFeed extends ConsumerWidget {
             );
           case 4:
             _deleteStick(ref, context, ref.read(pinServiceProvider));
+          case 5:
+            onDownloadPhoto?.call();
         }
       },
     );
