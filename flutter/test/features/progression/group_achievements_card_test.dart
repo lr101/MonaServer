@@ -42,6 +42,38 @@ void main() {
     expect(find.text('Gone pins'), findsOneWidget);
   });
 
+  testWidgets('group hard achievement rewards are labeled Legendary', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [
+              _achievement(
+                achievementId: 18,
+                track: 'gone_pins',
+                name: 'Steward',
+                difficulty: GroupAchievementsDtoInnerDifficultyEnum.hard,
+                rewardType: GroupAchievementsDtoInnerRewardTypeEnum.badge,
+                thresholdValue: 50,
+                currentValue: 0,
+                claimable: false,
+              ),
+            ],
+            group: _group(),
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    final semantics = tester.getSemantics(find.byType(AchievementCard));
+    expect(semantics.label, contains('unlocks Legendary Moss badge design'));
+  });
+
   testWidgets('shows progress and claims a ready group achievement', (
     tester,
   ) async {
@@ -230,6 +262,13 @@ void main() {
 GroupAchievementsDtoInner _achievement({
   int achievementId = 1,
   String track = 'active_pins',
+  String? name,
+  GroupAchievementsDtoInnerDifficultyEnum difficulty =
+      GroupAchievementsDtoInnerDifficultyEnum.easy,
+  GroupAchievementsDtoInnerRewardTypeEnum? rewardType =
+      GroupAchievementsDtoInnerRewardTypeEnum.xp,
+  int? rewardXp,
+  int? thresholdValue,
   bool claimed = false,
   bool claimable = true,
   int currentValue = 10,
@@ -237,29 +276,33 @@ GroupAchievementsDtoInner _achievement({
       GroupAchievementsDtoInnerRewardPinStyleEnum.moss,
 }) => GroupAchievementsDtoInner(
   achievementId: achievementId,
-  name: 'Pins $achievementId',
+  name: name ?? 'Pins $achievementId',
   description: 'Add active pins to your group',
   track: track,
-  difficulty: GroupAchievementsDtoInnerDifficultyEnum.easy,
+  difficulty: difficulty,
   claimed: claimed,
   claimable: claimable,
-  thresholdValue: switch (achievementId) {
-    1 => 40,
-    2 => 100,
-    3 => 200,
-    4 => 2,
-    5 => 400,
-    6 => 1000,
-    7 => 2,
-    8 => 20,
-    9 => 60,
-    10 => 10,
-    11 => 60,
-    12 => 200,
-    _ => 2,
-  },
+  thresholdValue:
+      thresholdValue ??
+      switch (achievementId) {
+        1 => 40,
+        2 => 100,
+        3 => 200,
+        4 => 2,
+        5 => 400,
+        6 => 1000,
+        7 => 2,
+        8 => 20,
+        9 => 60,
+        10 => 10,
+        11 => 60,
+        12 => 200,
+        _ => 2,
+      },
   currentValue: currentValue,
   thresholdUp: true,
+  rewardType: rewardType,
+  rewardXp: rewardXp,
   rewardPinStyle: rewardPinStyle,
 );
 

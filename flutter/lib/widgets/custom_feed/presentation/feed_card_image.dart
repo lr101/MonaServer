@@ -26,6 +26,7 @@ class FeedCardImage extends ConsumerStatefulWidget {
     this.rotateHeader = false,
     this.onTab,
     this.initialPhotoId,
+    this.onPhotoChanged,
     this.isDetail = false,
   });
   final PinEntity item;
@@ -35,6 +36,7 @@ class FeedCardImage extends ConsumerStatefulWidget {
   final bool rotateHeader;
   final dynamic Function(LatLng location, double zoom)? onTab;
   final String? initialPhotoId;
+  final ValueChanged<PinEntity>? onPhotoChanged;
   final bool isDetail;
   @override
   ConsumerState<FeedCardImage> createState() => _FeedCardImageState();
@@ -125,7 +127,7 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                   (image.isLoading && preview.isLoading) || history.isLoading,
               photos: photos,
               initialPhotoId: initialId,
-              onPageChanged: (index) => setState(() => _selectedIndex = index),
+              onPageChanged: (index) => _selectPhoto(index, parent, updates),
               onTap: widget.isDetail ? null : openDetails,
               onDoubleTap: () => _like(selected),
               overlayBuilder: (context, index, count, _, _) => Stack(
@@ -149,6 +151,7 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                           child: FeedCardImageHeader(
                             pin: selected,
                             distance: widget.distance,
+                            showOptions: !widget.isDetail,
                           ),
                         ),
                       ),
@@ -236,6 +239,16 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
         if (selected.description?.trim().isNotEmpty ?? false)
           FeedDescriptionExpandable(pin: selected),
       ],
+    );
+  }
+
+  void _selectPhoto(int index, PinEntity parent, List<PinPhotoDto> updates) {
+    setState(() => _selectedIndex = index);
+    final selectedPhoto = index == 0 || index > updates.length
+        ? null
+        : updates[index - 1];
+    widget.onPhotoChanged?.call(
+      selectedPhoto == null ? parent : parent.withPhotoUpdate(selectedPhoto),
     );
   }
 

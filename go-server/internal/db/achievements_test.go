@@ -150,6 +150,44 @@ func TestAchievementNamesAreSingleWordAndDifficultyMatchesTrackProgress(t *testi
 	}
 }
 
+func TestPhotoUpdateAndGonePinMilestonesReachTheLegendaryRewardTier(t *testing.T) {
+	want := map[int32]struct {
+		track       string
+		threshold   int32
+		difficulty  string
+		rewardType  string
+		rewardXP    int32
+		rewardColor string
+	}{
+		24: {track: "updates", threshold: 1, difficulty: "easy", rewardType: "xp", rewardXP: 20},
+		25: {track: "updates", threshold: 10, difficulty: "medium", rewardType: "color", rewardColor: "#FF00897B"},
+		26: {track: "updates", threshold: 50, difficulty: "hard", rewardType: "badge"},
+		27: {track: "gone_pins", threshold: 1, difficulty: "easy", rewardType: "xp", rewardXP: 20},
+		28: {track: "gone_pins", threshold: 10, difficulty: "medium", rewardType: "color", rewardColor: "#FF795548"},
+		29: {track: "gone_pins", threshold: 50, difficulty: "hard", rewardType: "badge"},
+	}
+
+	for id, expected := range want {
+		def, ok := achievementDefinition(id)
+		if !ok {
+			t.Errorf("achievement %d is missing", id)
+			continue
+		}
+		reward := achievementReward(def)
+		gotColor := ""
+		if reward.Color != nil {
+			gotColor = *reward.Color
+		}
+		if def.Track != expected.track || def.Threshold != expected.threshold ||
+			def.Difficulty != expected.difficulty || reward.Type != expected.rewardType ||
+			def.RewardXP != expected.rewardXP || gotColor != expected.rewardColor {
+			t.Errorf("achievement %d = (%s, %d, %s, %s, %d, %s), want (%s, %d, %s, %s, %d, %s)",
+				id, def.Track, def.Threshold, def.Difficulty, reward.Type, def.RewardXP, gotColor,
+				expected.track, expected.threshold, expected.difficulty, expected.rewardType, expected.rewardXP, expected.rewardColor)
+		}
+	}
+}
+
 func TestContributionMilestonesCountGroupsWithPins(t *testing.T) {
 	for _, tc := range []struct {
 		id, threshold int32

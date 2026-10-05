@@ -5,15 +5,11 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
-import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/platform/pin_photo_saver.dart';
-import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
-import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
-import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +30,22 @@ class ViewImage extends ConsumerStatefulWidget {
 class _ViewImageState extends ConsumerState<ViewImage> {
   bool _isSavingPresence = false;
   bool _isDownloadingPhoto = false;
-  int _selectedPhotoIndex = 0;
+  String? _selectedPhotoId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPhotoId = widget.initialPhotoId;
+  }
+
+  @override
+  void didUpdateWidget(covariant ViewImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pinId != widget.pinId ||
+        oldWidget.initialPhotoId != widget.initialPhotoId) {
+      _selectedPhotoId = widget.initialPhotoId;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,9 +55,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
         .whenOrNull(data: (position) => position);
     final toolbarPin = pin.whenOrNull(data: (value) => value);
     final currentUserId = ref.watch(userIdProvider);
-    final creatorNameState = toolbarPin == null
-        ? null
-        : ref.watch(userByIdUsernameProvider(toolbarPin.creator));
     final imageState = toolbarPin == null
         ? null
         : ref.watch(pinImageForDetailsProvider(toolbarPin.pinId));
@@ -55,14 +63,12 @@ class _ViewImageState extends ConsumerState<ViewImage> {
         : ref.watch(pinPhotoHistoryProvider(toolbarPin.pinId));
     final image = imageState?.value;
     final photos = photoHistoryState?.value ?? const <PinPhotoDto>[];
-    final updates = photos.where((photo) => !photo.isOriginal).toList();
-    final selectedUpdate =
-        _selectedPhotoIndex > 0 && _selectedPhotoIndex <= updates.length
-        ? updates[_selectedPhotoIndex - 1]
-        : null;
     final originalPhoto = photos.where((photo) => photo.isOriginal).firstOrNull;
-    final selectedPhoto = selectedUpdate ?? originalPhoto;
-    final isOriginalSelected = selectedUpdate == null;
+    final selectedPhoto = _selectedPhotoId == null
+        ? originalPhoto
+        : photos.where((photo) => photo.id == _selectedPhotoId).firstOrNull;
+    final isOriginalSelected =
+        _selectedPhotoId == null || selectedPhoto?.isOriginal == true;
     final originalContributorId = selectedPhoto?.contributorId;
     final selectedPhotoContributor = isOriginalSelected
         ? originalContributorId == null || originalContributorId.isEmpty
@@ -106,9 +112,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           if (currentPin == null) {
             return const Center(child: Text('This pin is unavailable.'));
           }
-          final selectedPin = isOriginalSelected || selectedPhoto == null
-              ? currentPin
-              : currentPin.withPhotoUpdate(selectedPhoto);
           final updateEnabled = canAddPinPhotoHere(userPosition, currentPin);
           final presenceEnabled =
               currentPin.lastSynced != null &&
@@ -119,9 +122,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
             updateEnabled: updateEnabled,
             presenceEnabled: presenceEnabled,
           );
-          final title = currentPin.title?.trim();
-          final description = currentPin.description?.trim();
-
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             children: [
@@ -131,58 +131,25 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      PinPhotoCarousel(
-                        key: ValueKey(currentPin.pinId),
-                        originalImage: image,
-                        photos: photos,
-                        initialPhotoId: widget.initialPhotoId,
-                        isOriginalLoading:
-                            (imageState?.isLoading ?? false) ||
-                            (photoHistoryState?.isLoading ?? false),
-                        onPageChanged: (index) {
-                          if (_selectedPhotoIndex != index) {
-                            setState(() => _selectedPhotoIndex = index);
-                          }
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final width = constraints.maxWidth;
+                          return FeedCardImage(
+                            key: ValueKey(currentPin.pinId),
+                            item: currentPin,
+                            maxWidth: width,
+                            maxHeight: width * 4 / 3,
+                            initialPhotoId: widget.initialPhotoId,
+                            isDetail: true,
+                            onPhotoChanged: (photo) {
+                              if (_selectedPhotoId != photo.photoId) {
+                                setState(
+                                  () => _selectedPhotoId = photo.photoId,
+                                );
+                              }
+                            },
+                          );
                         },
-                        onDoubleTap: () {
-                          final userId = ref
-                              .read(globalDataServiceProvider)
-                              .userId;
-                          if (userId == null) return;
-                          ref
-                              .read(
-                                likeServiceProvider(selectedPin.entryId)
-                                    .notifier,
-                              )
-                              .addLike(
-                                selectedPin.creator,
-                                CreateLikeDto(userId: userId, like: true),
-                              );
-                        },
-                      ),
-                      const SizedBox(height: 5),
-                      FeedCardSubtitle(
-                        pin: selectedPin,
-                        showDescription: false,
-                      ),
-                      const SizedBox(height: 8),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        child: _selectedPhotoDetails(
-                          key: ValueKey(selectedPhoto?.id ?? 'original'),
-                          photo: selectedPhoto,
-                          isOriginal: isOriginalSelected,
-                          title: title == null || title.isEmpty ? null : title,
-                          description:
-                              description == null || description.isEmpty
-                              ? null
-                              : description,
-                          creatorId: currentPin.creator,
-                          creatorName: creatorNameState?.value ?? 'Pin creator',
-                          pin: currentPin,
-                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -223,79 +190,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           );
         },
       ),
-    );
-  }
-
-  Widget _selectedPhotoDetails({
-    required Key key,
-    required PinPhotoDto? photo,
-    required bool isOriginal,
-    required String? title,
-    required String? description,
-    required String creatorId,
-    required String creatorName,
-    required PinEntity pin,
-  }) {
-    final date = photo?.observedAt ?? pin.creationDate;
-    final author = photo?.contributorUsername ?? creatorName;
-    final authorText = Text(
-      author,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall,
-    );
-    final contributorId = photo?.contributorId;
-    final Widget authorWidget;
-    if (isOriginal) {
-      authorWidget = ClickableUser(
-        userId: contributorId ?? creatorId,
-        child: authorText,
-      );
-    } else if (contributorId != null && contributorId.isNotEmpty) {
-      authorWidget = ClickableUser(userId: contributorId, child: authorText);
-    } else {
-      authorWidget = authorText;
-    }
-    final dateLabel = MaterialLocalizations.of(context)
-        .formatMediumDate(date.toLocal());
-    final detailsText = photo?.caption?.trim();
-    final body = isOriginal ? description : detailsText;
-
-    return Column(
-      key: key,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (isOriginal && title != null)
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        Row(
-          children: [
-            Icon(
-              Icons.person_outline,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 4),
-            Flexible(child: authorWidget),
-            const SizedBox(width: 6),
-            Text(
-              '· $dateLabel',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        if (body != null && body.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(body, maxLines: 3, overflow: TextOverflow.ellipsis),
-        ],
-      ],
     );
   }
 

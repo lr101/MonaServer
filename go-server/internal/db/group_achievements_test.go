@@ -43,3 +43,38 @@ func TestGroupAchievementCatalogTracksPhotoUpdatesAndGonePins(t *testing.T) {
 		}
 	}
 }
+
+func TestNewGroupAchievementRewardsMatchTheDifficultyLadder(t *testing.T) {
+	want := map[int32]struct {
+		track       string
+		difficulty  string
+		rewardType  string
+		rewardXP    int32
+		rewardColor string
+		pinStyle    string
+	}{
+		13: {track: "photo_updates", difficulty: "easy", rewardType: "xp", rewardXP: 50},
+		14: {track: "photo_updates", difficulty: "medium", rewardType: "color", rewardColor: "#77A88A", pinStyle: "seafoam"},
+		15: {track: "photo_updates", difficulty: "hard", rewardType: "badge", pinStyle: "glacier"},
+		16: {track: "gone_pins", difficulty: "easy", rewardType: "xp", rewardXP: 50},
+		17: {track: "gone_pins", difficulty: "medium", rewardType: "color", rewardColor: "#BD8054", pinStyle: "copper"},
+		18: {track: "gone_pins", difficulty: "hard", rewardType: "badge", pinStyle: "moss"},
+	}
+
+	for _, def := range groupAchievementDefs {
+		expected, ok := want[def.ID]
+		if !ok {
+			continue
+		}
+		if def.Track != expected.track || def.Difficulty != expected.difficulty ||
+			def.RewardType != expected.rewardType || def.RewardXP != expected.rewardXP ||
+			def.RewardColor != expected.rewardColor || def.RewardPinStyle != expected.pinStyle {
+			t.Errorf("group achievement %d reward = (%s, %s, %s, %d, %s, %s), want (%s, %s, %s, %d, %s, %s)",
+				def.ID, def.Track, def.Difficulty, def.RewardType, def.RewardXP, def.RewardColor, def.RewardPinStyle,
+				expected.track, expected.difficulty, expected.rewardType, expected.rewardXP, expected.rewardColor, expected.pinStyle)
+		}
+		if def.Difficulty != "easy" && def.RewardPinStyle == "" {
+			t.Errorf("group achievement %d is missing its pin appearance reward", def.ID)
+		}
+	}
+}

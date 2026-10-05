@@ -377,7 +377,7 @@ String _groupRewardType(String? difficulty) => switch (difficulty) {
 };
 
 String _groupRewardRarity(String? difficulty) => switch (difficulty) {
-  'hard' => 'Mythic',
+  'hard' => 'Legendary',
   'medium' => 'Rare',
   _ => 'Signature',
 };

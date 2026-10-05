@@ -73,7 +73,7 @@ var groupAchievementDefs = []GroupAchievementDef{
 	},
 	{
 		ID: 13, Track: "photo_updates", Name: "Refresher", Description: "Add 2 photo updates to this group.",
-		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 20,
+		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 50,
 	},
 	{
 		ID: 14, Track: "photo_updates", Name: "Chroniclers", Description: "Add 20 photo updates to this group.",
@@ -85,7 +85,7 @@ var groupAchievementDefs = []GroupAchievementDef{
 	},
 	{
 		ID: 16, Track: "gone_pins", Name: "Spotter", Description: "Mark 1 stick in this group as gone.",
-		Difficulty: "easy", Threshold: 1, RewardType: "xp", RewardXP: 20,
+		Difficulty: "easy", Threshold: 1, RewardType: "xp", RewardXP: 50,
 	},
 	{
 		ID: 17, Track: "gone_pins", Name: "Caretakers", Description: "Mark 10 sticks in this group as gone.",

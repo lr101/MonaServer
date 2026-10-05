@@ -12,10 +12,16 @@ import 'package:geocoding/geocoding.dart';
 
 /// The compact attribution overlay shown over a pin photo.
 class FeedCardImageHeader extends ConsumerStatefulWidget {
-  const FeedCardImageHeader({super.key, required this.pin, this.distance});
+  const FeedCardImageHeader({
+    super.key,
+    required this.pin,
+    this.distance,
+    this.showOptions = true,
+  });
 
   final PinEntity pin;
   final double? distance;
+  final bool showOptions;
 
   @override
   ConsumerState<FeedCardImageHeader> createState() =>
@@ -71,7 +77,6 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
           );
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _OverlappingProfilePictures(
           authorId: authorId,
@@ -123,7 +128,7 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
             ],
           ),
         ),
-        PopUpMenuFeed(pinDto: widget.pin),
+        if (widget.showOptions) PopUpMenuFeed(pinDto: widget.pin),
       ],
     );
   }
