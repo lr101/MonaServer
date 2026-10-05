@@ -19,7 +19,7 @@ Method | HTTP request | Description
 
 Create or update a like
 
-Create or update a like
+Create or update a like for the original pin photo or a selected update photo.
 
 ### Example
 ```dart
@@ -32,8 +32,8 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = LikesApi();
-final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
-final createLikeDto = CreateLikeDto(); // CreateLikeDto | 
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Original pin ID or update photo ID.
+final createLikeDto = CreateLikeDto(); // CreateLikeDto |
 
 try {
     final result = api_instance.createOrUpdateLike(pinId, createLikeDto);
@@ -47,8 +47,8 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinId** | **String**|  | 
- **createLikeDto** | [**CreateLikeDto**](CreateLikeDto.md)|  | 
+ **pinId** | **String**| Original pin ID or update photo ID. |
+ **createLikeDto** | [**CreateLikeDto**](CreateLikeDto.md)|  |
 
 ### Return type
 
@@ -70,7 +70,7 @@ Name | Type | Description  | Notes
 
 Get pin likes
 
-Get pin likes
+Get likes for the original pin photo or a selected update photo.
 
 ### Example
 ```dart
@@ -83,7 +83,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = LikesApi();
-final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
+final pinId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | Original pin ID or update photo ID.
 
 try {
     final result = api_instance.getPinLikes(pinId);
@@ -97,7 +97,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **pinId** | **String**|  | 
+ **pinId** | **String**| Original pin ID or update photo ID. |
 
 ### Return type
 
@@ -130,7 +130,7 @@ import 'package:openapi/api.dart';
 //defaultApiClient.getAuthentication<HttpBearerAuth>('token').setAccessToken(yourTokenGeneratorFunction);
 
 final api_instance = LikesApi();
-final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String | 
+final userId = 38400000-8cf0-11bd-b23e-10b96e4ef00d; // String |
 
 try {
     final result = api_instance.getUserLikes(userId);
@@ -144,7 +144,7 @@ try {
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **userId** | **String**|  | 
+ **userId** | **String**|  |
 
 ### Return type
 
@@ -160,4 +160,3 @@ Name | Type | Description  | Notes
  - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
