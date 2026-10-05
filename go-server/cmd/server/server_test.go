@@ -54,6 +54,11 @@ func (s *memoryPinObjectStore) Remove(_ context.Context, key string) error {
 	return nil
 }
 
+func (s *memoryPinObjectStore) GetIfExists(_ context.Context, key string) ([]byte, bool, error) {
+	data, ok := s.objects[key]
+	return bytes.Clone(data), ok, nil
+}
+
 func (s *memoryPinObjectStore) PresignedGet(_ context.Context, key string) (string, error) {
 	if _, ok := s.objects[key]; !ok {
 		return "", nil

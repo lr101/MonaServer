@@ -129,6 +129,7 @@ class BatchReadItemKindEnum {
   String toJson() => value;
 
   static const pinImage = BatchReadItemKindEnum._(r'pinImage');
+  static const pinImageThumbnail = BatchReadItemKindEnum._(r'pinImageThumbnail');
   static const userImageSmall = BatchReadItemKindEnum._(r'userImageSmall');
   static const userImage = BatchReadItemKindEnum._(r'userImage');
   static const groupImageSmall = BatchReadItemKindEnum._(r'groupImageSmall');
@@ -142,6 +143,7 @@ class BatchReadItemKindEnum {
   /// List of all possible values in this [enum][BatchReadItemKindEnum].
   static const values = <BatchReadItemKindEnum>[
     pinImage,
+    pinImageThumbnail,
     userImageSmall,
     userImage,
     groupImageSmall,
@@ -190,6 +192,7 @@ class BatchReadItemKindEnumTypeTransformer {
     if (data != null) {
       switch (data) {
         case r'pinImage': return BatchReadItemKindEnum.pinImage;
+        case r'pinImageThumbnail': return BatchReadItemKindEnum.pinImageThumbnail;
         case r'userImageSmall': return BatchReadItemKindEnum.userImageSmall;
         case r'userImage': return BatchReadItemKindEnum.userImage;
         case r'groupImageSmall': return BatchReadItemKindEnum.groupImageSmall;

@@ -2,28 +2,37 @@
 
 -- name: CreatePin :exec
 INSERT INTO pins (id, latitude, longitude, creation_date, update_date,
-                  title, description, creator_id, group_id, state_province_id)
-VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9);
+                  title, description, creator_id, group_id, state_province_id,
+                  image_blurhash)
+VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9, $10);
 
 -- name: CreatePinPhoto :exec
 INSERT INTO pin_photos (
     id, pin_id, contributor_id, contributor_username, image_key,
-    idempotency_key, request_hash, caption, observed_at, is_original
+    idempotency_key, request_hash, caption, observed_at, is_original,
+    image_blurhash
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: ListPinPhotos :many
 SELECT id, pin_id, contributor_id, contributor_username, image_key,
-       idempotency_key, request_hash, caption, observed_at, is_original
+       idempotency_key, request_hash, caption, observed_at, is_original,
+       image_blurhash
 FROM pin_photos
 WHERE pin_id = $1
 ORDER BY is_original DESC, observed_at ASC, id ASC;
 
 -- name: GetPinPhotoByIdempotencyKey :one
 SELECT id, pin_id, contributor_id, contributor_username, image_key,
-       idempotency_key, request_hash, caption, observed_at, is_original
+       idempotency_key, request_hash, caption, observed_at, is_original,
+       image_blurhash
 FROM pin_photos
 WHERE contributor_id = $1 AND idempotency_key = $2;
+
+-- name: SetPinPhotoImageBlurhash :execrows
+UPDATE pin_photos
+SET image_blurhash = $2
+WHERE id = $1 AND image_blurhash IS NULL;
 
 -- name: ListPinPhotoKeys :many
 SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key;
@@ -32,12 +41,17 @@ SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key;
 UPDATE pins SET update_date = NOW()
 WHERE id = $1 AND is_deleted = FALSE;
 
+-- name: SetPinImageBlurhash :execrows
+UPDATE pins
+SET image_blurhash = $2, update_date = NOW()
+WHERE id = $1 AND is_deleted = FALSE AND image_blurhash IS NULL;
+
 -- name: LockPinForDelete :one
 SELECT id FROM pins WHERE id = $1 FOR UPDATE;
 
 -- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, title, description,
-       creator_id, group_id, state_province_id, is_gone
+       creator_id, group_id, state_province_id, is_gone, image_blurhash
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE;
 
@@ -67,7 +81,7 @@ SELECT id FROM pins WHERE group_id = $1 ORDER BY id;
 
 -- name: ListUpdatedPinsForGroups :many
 SELECT id, latitude, longitude, creation_date, update_date, title, description,
-       creator_id, group_id, state_province_id, is_gone
+       creator_id, group_id, state_province_id, is_gone, image_blurhash
 FROM pins
 WHERE is_deleted = FALSE
   AND group_id = ANY(sqlc.arg('group_ids')::uuid[])
@@ -77,7 +91,8 @@ ORDER BY update_date DESC;
 
 -- name: SearchPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
-       p.title, p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
+       p.title, p.description, p.creator_id, p.group_id, p.state_province_id,
+       p.is_gone, p.image_blurhash
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.is_deleted = FALSE
@@ -122,6 +137,7 @@ LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 -- name: FindNearbyPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
        p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone,
+       p.image_blurhash,
        COALESCE(g.name, '')::text AS group_name,
        ROUND(ST_Distance(
          ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,

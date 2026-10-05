@@ -2168,6 +2168,17 @@ class $PinEntitiesTable extends PinEntities
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _imageBlurhashMeta = const VerificationMeta(
+    'imageBlurhash',
+  );
+  @override
+  late final GeneratedColumn<String> imageBlurhash = GeneratedColumn<String>(
+    'image_blurhash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _creatorMeta = const VerificationMeta(
     'creator',
   );
@@ -2242,6 +2253,7 @@ class $PinEntitiesTable extends PinEntities
     creationDate,
     title,
     description,
+    imageBlurhash,
     creator,
     groupId,
     isHidden,
@@ -2345,6 +2357,15 @@ class $PinEntitiesTable extends PinEntities
         ),
       );
     }
+    if (data.containsKey('image_blurhash')) {
+      context.handle(
+        _imageBlurhashMeta,
+        imageBlurhash.isAcceptableOrUnknown(
+          data['image_blurhash']!,
+          _imageBlurhashMeta,
+        ),
+      );
+    }
     if (data.containsKey('creator')) {
       context.handle(
         _creatorMeta,
@@ -2432,6 +2453,10 @@ class $PinEntitiesTable extends PinEntities
         DriftSqlType.string,
         data['${effectivePrefix}description'],
       ),
+      imageBlurhash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_blurhash'],
+      ),
       creator: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}creator'],
@@ -2473,6 +2498,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
   final DateTime creationDate;
   final String? title;
   final String? description;
+  final String? imageBlurhash;
   final String creator;
   final String groupId;
   final bool isHidden;
@@ -2490,6 +2516,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     required this.creationDate,
     this.title,
     this.description,
+    this.imageBlurhash,
     required this.creator,
     required this.groupId,
     required this.isHidden,
@@ -2513,6 +2540,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     }
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || imageBlurhash != null) {
+      map['image_blurhash'] = Variable<String>(imageBlurhash);
     }
     map['creator'] = Variable<String>(creator);
     map['group_id'] = Variable<String>(groupId);
@@ -2541,6 +2571,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
+      imageBlurhash: imageBlurhash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageBlurhash),
       creator: Value(creator),
       groupId: Value(groupId),
       isHidden: Value(isHidden),
@@ -2568,6 +2601,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       creationDate: serializer.fromJson<DateTime>(json['creationDate']),
       title: serializer.fromJson<String?>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
+      imageBlurhash: serializer.fromJson<String?>(json['imageBlurhash']),
       creator: serializer.fromJson<String>(json['creator']),
       groupId: serializer.fromJson<String>(json['groupId']),
       isHidden: serializer.fromJson<bool>(json['isHidden']),
@@ -2590,6 +2624,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       'creationDate': serializer.toJson<DateTime>(creationDate),
       'title': serializer.toJson<String?>(title),
       'description': serializer.toJson<String?>(description),
+      'imageBlurhash': serializer.toJson<String?>(imageBlurhash),
       'creator': serializer.toJson<String>(creator),
       'groupId': serializer.toJson<String>(groupId),
       'isHidden': serializer.toJson<bool>(isHidden),
@@ -2610,6 +2645,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     DateTime? creationDate,
     Value<String?> title = const Value.absent(),
     Value<String?> description = const Value.absent(),
+    Value<String?> imageBlurhash = const Value.absent(),
     String? creator,
     String? groupId,
     bool? isHidden,
@@ -2627,6 +2663,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     creationDate: creationDate ?? this.creationDate,
     title: title.present ? title.value : this.title,
     description: description.present ? description.value : this.description,
+    imageBlurhash: imageBlurhash.present
+        ? imageBlurhash.value
+        : this.imageBlurhash,
     creator: creator ?? this.creator,
     groupId: groupId ?? this.groupId,
     isHidden: isHidden ?? this.isHidden,
@@ -2652,6 +2691,9 @@ class PinDb extends DataClass implements Insertable<PinDb> {
       description: data.description.present
           ? data.description.value
           : this.description,
+      imageBlurhash: data.imageBlurhash.present
+          ? data.imageBlurhash.value
+          : this.imageBlurhash,
       creator: data.creator.present ? data.creator.value : this.creator,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
@@ -2676,6 +2718,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           ..write('creationDate: $creationDate, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
+          ..write('imageBlurhash: $imageBlurhash, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
@@ -2698,6 +2741,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
     creationDate,
     title,
     description,
+    imageBlurhash,
     creator,
     groupId,
     isHidden,
@@ -2719,6 +2763,7 @@ class PinDb extends DataClass implements Insertable<PinDb> {
           other.creationDate == this.creationDate &&
           other.title == this.title &&
           other.description == this.description &&
+          other.imageBlurhash == this.imageBlurhash &&
           other.creator == this.creator &&
           other.groupId == this.groupId &&
           other.isHidden == this.isHidden &&
@@ -2738,6 +2783,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
   final Value<DateTime> creationDate;
   final Value<String?> title;
   final Value<String?> description;
+  final Value<String?> imageBlurhash;
   final Value<String> creator;
   final Value<String> groupId;
   final Value<bool> isHidden;
@@ -2755,6 +2801,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     this.creationDate = const Value.absent(),
     this.title = const Value.absent(),
     this.description = const Value.absent(),
+    this.imageBlurhash = const Value.absent(),
     this.creator = const Value.absent(),
     this.groupId = const Value.absent(),
     this.isHidden = const Value.absent(),
@@ -2773,6 +2820,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     required DateTime creationDate,
     this.title = const Value.absent(),
     this.description = const Value.absent(),
+    this.imageBlurhash = const Value.absent(),
     required String creator,
     required String groupId,
     this.isHidden = const Value.absent(),
@@ -2797,6 +2845,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Expression<DateTime>? creationDate,
     Expression<String>? title,
     Expression<String>? description,
+    Expression<String>? imageBlurhash,
     Expression<String>? creator,
     Expression<String>? groupId,
     Expression<bool>? isHidden,
@@ -2815,6 +2864,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       if (creationDate != null) 'creation_date': creationDate,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
+      if (imageBlurhash != null) 'image_blurhash': imageBlurhash,
       if (creator != null) 'creator': creator,
       if (groupId != null) 'group_id': groupId,
       if (isHidden != null) 'is_hidden': isHidden,
@@ -2835,6 +2885,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     Value<DateTime>? creationDate,
     Value<String?>? title,
     Value<String?>? description,
+    Value<String?>? imageBlurhash,
     Value<String>? creator,
     Value<String>? groupId,
     Value<bool>? isHidden,
@@ -2853,6 +2904,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
       creationDate: creationDate ?? this.creationDate,
       title: title ?? this.title,
       description: description ?? this.description,
+      imageBlurhash: imageBlurhash ?? this.imageBlurhash,
       creator: creator ?? this.creator,
       groupId: groupId ?? this.groupId,
       isHidden: isHidden ?? this.isHidden,
@@ -2897,6 +2949,9 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (imageBlurhash.present) {
+      map['image_blurhash'] = Variable<String>(imageBlurhash.value);
+    }
     if (creator.present) {
       map['creator'] = Variable<String>(creator.value);
     }
@@ -2929,6 +2984,7 @@ class PinEntitiesCompanion extends UpdateCompanion<PinDb> {
           ..write('creationDate: $creationDate, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
+          ..write('imageBlurhash: $imageBlurhash, ')
           ..write('creator: $creator, ')
           ..write('groupId: $groupId, ')
           ..write('isHidden: $isHidden, ')
@@ -6747,6 +6803,7 @@ typedef $$PinEntitiesTableCreateCompanionBuilder =
       required DateTime creationDate,
       Value<String?> title,
       Value<String?> description,
+      Value<String?> imageBlurhash,
       required String creator,
       required String groupId,
       Value<bool> isHidden,
@@ -6766,6 +6823,7 @@ typedef $$PinEntitiesTableUpdateCompanionBuilder =
       Value<DateTime> creationDate,
       Value<String?> title,
       Value<String?> description,
+      Value<String?> imageBlurhash,
       Value<String> creator,
       Value<String> groupId,
       Value<bool> isHidden,
@@ -6834,6 +6892,11 @@ class $$PinEntitiesTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
     column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageBlurhash => $composableBuilder(
+    column: $table.imageBlurhash,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6927,6 +6990,11 @@ class $$PinEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get imageBlurhash => $composableBuilder(
+    column: $table.imageBlurhash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get creator => $composableBuilder(
     column: $table.creator,
     builder: (column) => ColumnOrderings(column),
@@ -7001,6 +7069,11 @@ class $$PinEntitiesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get imageBlurhash => $composableBuilder(
+    column: $table.imageBlurhash,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get creator =>
       $composableBuilder(column: $table.creator, builder: (column) => column);
 
@@ -7058,6 +7131,7 @@ class $$PinEntitiesTableTableManager
                 Value<DateTime> creationDate = const Value.absent(),
                 Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
+                Value<String?> imageBlurhash = const Value.absent(),
                 Value<String> creator = const Value.absent(),
                 Value<String> groupId = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
@@ -7075,6 +7149,7 @@ class $$PinEntitiesTableTableManager
                 creationDate: creationDate,
                 title: title,
                 description: description,
+                imageBlurhash: imageBlurhash,
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,
@@ -7094,6 +7169,7 @@ class $$PinEntitiesTableTableManager
                 required DateTime creationDate,
                 Value<String?> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
+                Value<String?> imageBlurhash = const Value.absent(),
                 required String creator,
                 required String groupId,
                 Value<bool> isHidden = const Value.absent(),
@@ -7111,6 +7187,7 @@ class $$PinEntitiesTableTableManager
                 creationDate: creationDate,
                 title: title,
                 description: description,
+                imageBlurhash: imageBlurhash,
                 creator: creator,
                 groupId: groupId,
                 isHidden: isHidden,

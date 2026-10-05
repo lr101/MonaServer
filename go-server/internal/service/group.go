@@ -385,8 +385,7 @@ func (s *Group) Delete(ctx context.Context, id uuid.UUID) error {
 			if err != nil {
 				return err
 			}
-			objectKeys = append(objectKeys, PinKey(pinID))
-			objectKeys = append(objectKeys, keys...)
+			objectKeys = append(objectKeys, PinObjectKeysForCleanup(pinID, keys)...)
 			if err := q.LogDeletion(ctx, db.DeletedEntityPin, pinID); err != nil {
 				return err
 			}

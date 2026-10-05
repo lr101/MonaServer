@@ -151,8 +151,14 @@ func (s *PinsServicer) GetNearbyPins(ctx context.Context, latitude, longitude fl
 	items := make([]genserver.NearbyPinDto, 0, len(pins))
 	for _, nearby := range pins {
 		pin := pinToDto(nearby.Pin)
-		if imageURL, err := s.pin.LatestImageURL(ctx, nearby.Pin.ID); err == nil && imageURL != nil {
-			pin.Image = *imageURL
+		if imageURL, blurhash, err := s.pin.LatestImageAndBlurhash(ctx, nearby.Pin.ID); err == nil {
+			pin.ImageBlurhash = ""
+			if blurhash != nil {
+				pin.ImageBlurhash = *blurhash
+			}
+			if imageURL != nil {
+				pin.Image = *imageURL
+			}
 		}
 		items = append(items, genserver.NearbyPinDto{
 			Pin: pin, DistanceMeters: nearby.DistanceMeters, GroupName: nearby.GroupName,
@@ -364,6 +370,14 @@ func (s *PinsServicer) DeletePin(ctx context.Context, pinID string) (genserver.I
 }
 
 func (s *PinsServicer) GetPinImage(ctx context.Context, pinID string, redirect bool) (genserver.ImplResponse, error) {
+	return s.pinImageResponse(ctx, pinID, redirect, false)
+}
+
+func (s *PinsServicer) GetPinImageThumbnail(ctx context.Context, pinID string) (genserver.ImplResponse, error) {
+	return s.pinImageResponse(ctx, pinID, false, true)
+}
+
+func (s *PinsServicer) pinImageResponse(ctx context.Context, pinID string, redirect, thumbnail bool) (genserver.ImplResponse, error) {
 	id, err := uuid.Parse(pinID)
 	if err != nil {
 		return genserver.Response(http.StatusBadRequest, nil), nil
@@ -375,7 +389,12 @@ func (s *PinsServicer) GetPinImage(ctx context.Context, pinID string, redirect b
 	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, id, uid); !ok2 {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	u, err := s.pin.ImageURL(ctx, id)
+	var u *string
+	if thumbnail {
+		u, err = s.pin.ThumbnailImageURL(ctx, id)
+	} else {
+		u, err = s.pin.ImageURL(ctx, id)
+	}
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}
@@ -448,16 +467,21 @@ func pinToDto(p db.Pin) genserver.PinWithOptionalImageDto {
 		creationDate = *p.CreationDate
 	}
 	isGone := p.IsGone
+	imageBlurhash := ""
+	if p.ImageBlurhash != nil {
+		imageBlurhash = *p.ImageBlurhash
+	}
 	return genserver.PinWithOptionalImageDto{
-		Id:           p.ID.String(),
-		CreationDate: creationDate,
-		Latitude:     float32(p.Latitude),
-		Longitude:    float32(p.Longitude),
-		CreationUser: p.CreatorID.String(),
-		GroupId:      p.GroupID.String(),
-		Title:        p.Title,
-		Description:  p.Description,
-		IsGone:       &isGone,
+		Id:            p.ID.String(),
+		CreationDate:  creationDate,
+		Latitude:      float32(p.Latitude),
+		Longitude:     float32(p.Longitude),
+		CreationUser:  p.CreatorID.String(),
+		GroupId:       p.GroupID.String(),
+		Title:         p.Title,
+		Description:   p.Description,
+		IsGone:        &isGone,
+		ImageBlurhash: imageBlurhash,
 	}
 }
 
@@ -470,18 +494,23 @@ func pinDTOtoDto(p *service.PinDTO) genserver.PinWithOptionalImageDto {
 	if p.Image != nil {
 		img = *p.Image
 	}
+	imageBlurhash := ""
+	if p.ImageBlurhash != nil {
+		imageBlurhash = *p.ImageBlurhash
+	}
 	isGone := p.IsGone
 	return genserver.PinWithOptionalImageDto{
-		Id:           p.ID.String(),
-		CreationDate: creationDate,
-		Latitude:     float32(p.Latitude),
-		Longitude:    float32(p.Longitude),
-		CreationUser: p.UserID.String(),
-		GroupId:      p.GroupID.String(),
-		Title:        p.Title,
-		Description:  p.Description,
-		IsGone:       &isGone,
-		Image:        img,
+		Id:            p.ID.String(),
+		CreationDate:  creationDate,
+		Latitude:      float32(p.Latitude),
+		Longitude:     float32(p.Longitude),
+		CreationUser:  p.UserID.String(),
+		GroupId:       p.GroupID.String(),
+		Title:         p.Title,
+		Description:   p.Description,
+		IsGone:        &isGone,
+		Image:         img,
+		ImageBlurhash: imageBlurhash,
 	}
 }
 

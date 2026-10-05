@@ -17,7 +17,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinImageRepositoryProvider.overrideWithValue(_ImageRepository(bytes)),
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(bytes, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin),
+          ),
         ],
         child: const MaterialApp(
           home: MediaQuery(
@@ -52,7 +57,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinImageRepositoryProvider.overrideWithValue(_ImageRepository(null)),
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin),
+          ),
         ],
         child: const MaterialApp(
           home: SquareImage(
@@ -73,12 +83,12 @@ void main() {
 void _ignoreTap(int index) {}
 
 class _ImageRepository implements IImageRepository {
-  _ImageRepository(this.image);
+  _ImageRepository(this.image, this.type);
 
   final Uint8List? image;
 
   @override
-  ImageType get type => ImageType.pin;
+  final ImageType type;
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async => image;

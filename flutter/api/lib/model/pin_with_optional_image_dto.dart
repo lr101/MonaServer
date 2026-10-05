@@ -19,6 +19,7 @@ class PinWithOptionalImageDto {
     required this.longitude,
     required this.creationUser,
     this.image,
+    this.imageBlurhash,
     required this.groupId,
     this.title,
     this.description,
@@ -47,6 +48,15 @@ class PinWithOptionalImageDto {
   ///
   String? image;
 
+  /// Compact BlurHash placeholder for the pin image.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  String? imageBlurhash;
+
   String groupId;
 
   String? title;
@@ -63,6 +73,7 @@ class PinWithOptionalImageDto {
     other.longitude == longitude &&
     other.creationUser == creationUser &&
     other.image == image &&
+    other.imageBlurhash == imageBlurhash &&
     other.groupId == groupId &&
     other.title == title &&
     other.description == description &&
@@ -77,13 +88,14 @@ class PinWithOptionalImageDto {
     (longitude.hashCode) +
     (creationUser.hashCode) +
     (image == null ? 0 : image!.hashCode) +
+    (imageBlurhash == null ? 0 : imageBlurhash!.hashCode) +
     (groupId.hashCode) +
     (title == null ? 0 : title!.hashCode) +
     (description == null ? 0 : description!.hashCode) +
     (isGone == null ? 0 : isGone!.hashCode);
 
   @override
-  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, groupId=$groupId, title=$title, description=$description, isGone=$isGone]';
+  String toString() => 'PinWithOptionalImageDto[id=$id, creationDate=$creationDate, latitude=$latitude, longitude=$longitude, creationUser=$creationUser, image=$image, imageBlurhash=$imageBlurhash, groupId=$groupId, title=$title, description=$description, isGone=$isGone]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -96,6 +108,11 @@ class PinWithOptionalImageDto {
       json[r'image'] = this.image;
     } else {
       json[r'image'] = null;
+    }
+    if (this.imageBlurhash != null) {
+      json[r'imageBlurhash'] = this.imageBlurhash;
+    } else {
+      json[r'imageBlurhash'] = null;
     }
       json[r'groupId'] = this.groupId;
     if (this.title != null) {
@@ -141,6 +158,7 @@ class PinWithOptionalImageDto {
         longitude: num.parse('${json[r'longitude']}'),
         creationUser: mapValueOfType<String>(json, r'creationUser')!,
         image: mapValueOfType<String>(json, r'image'),
+        imageBlurhash: mapValueOfType<String>(json, r'imageBlurhash'),
         groupId: mapValueOfType<String>(json, r'groupId')!,
         title: mapValueOfType<String>(json, r'title'),
         description: mapValueOfType<String>(json, r'description'),

@@ -4972,6 +4972,7 @@ components:
         kind:
           enum:
           - pinImage
+          - pinImageThumbnail
           - userImageSmall
           - userImage
           - groupImageSmall
@@ -5014,6 +5015,7 @@ components:
         kind:
           enum:
           - pinImage
+          - pinImageThumbnail
           - userImageSmall
           - userImage
           - groupImageSmall
@@ -5575,6 +5577,11 @@ components:
         image:
           example: https://storage.example.com/stick-it/1/1.png
           format: url
+          type: string
+        imageBlurhash:
+          description: Compact BlurHash placeholder for the pin image.
+          maxLength: 16
+          minLength: 16
           type: string
         groupId:
           format: uuid
