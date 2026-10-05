@@ -47,8 +47,9 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
   void didUpdateWidget(covariant FeedCardImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item.entryId != widget.item.entryId ||
-        oldWidget.initialPhotoId != widget.initialPhotoId)
+        oldWidget.initialPhotoId != widget.initialPhotoId) {
       _selectedIndex = null;
+    }
   }
 
   @override
@@ -89,9 +90,11 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
         : parent;
     if (_selectedIndex == null &&
         selectedPhoto == null &&
-        widget.item.isPhotoUpdate)
+        widget.item.isPhotoUpdate) {
       selected = widget.item;
+    }
 
+    final preview = ref.watch(pinThumbnailBytesProvider(parent.pinId));
     final image = ref.watch(pinImageForDetailsProvider(parent.pinId));
     final showPhoto = ref.watch(feedMapStateProvider(widget.item.entryId));
     final overlayTheme = Theme.of(context).copyWith(
@@ -117,8 +120,9 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
             borderRadius: BorderRadius.circular(10),
             child: PinPhotoCarousel(
               key: ValueKey(widget.item.entryId),
-              originalImage: image.value,
-              isOriginalLoading: image.isLoading || history.isLoading,
+              originalImage: image.value ?? preview.value,
+              isOriginalLoading:
+                  (image.isLoading && preview.isLoading) || history.isLoading,
               photos: photos,
               initialPhotoId: initialId,
               onPageChanged: (index) => setState(() => _selectedIndex = index),
@@ -196,9 +200,10 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                                                   Icons.photo_library_outlined,
                                                 ),
                                           )
-                                        : image.value != null
+                                        : image.value != null ||
+                                              preview.value != null
                                         ? Image.memory(
-                                            image.value!,
+                                            image.value ?? preview.value!,
                                             fit: BoxFit.cover,
                                             gaplessPlayback: true,
                                           )
@@ -236,10 +241,11 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
 
   void _like(PinEntity selected) {
     final userId = ref.read(globalDataServiceProvider).userId;
-    if (userId != null)
+    if (userId != null) {
       ref
           .read(likeServiceProvider(selected.entryId).notifier)
           .addLike(selected.creator, CreateLikeDto(userId: userId, like: true));
+    }
   }
 }
 

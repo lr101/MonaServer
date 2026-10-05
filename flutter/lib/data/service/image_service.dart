@@ -139,6 +139,12 @@ Stream<Uint8List?> pinImageBytes(Ref ref, String pinId) {
   return _watchAndFetchImage(repo, pinId, false);
 }
 
+final pinThumbnailBytesProvider = StreamProvider.autoDispose
+    .family<Uint8List?, String>((ref, pinId) {
+      final repo = ref.watch(pinThumbnailRepositoryProvider);
+      return _watchAndFetchImage(repo, pinId, false);
+    });
+
 /// Fetches the pin's original image after the request has settled.
 ///
 /// Unlike [pinImageBytes], this future does not emit the cache's initial null

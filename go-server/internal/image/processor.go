@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"log"
 
+	"github.com/bbrks/go-blurhash"
 	"github.com/disintegration/imaging"
 )
 
@@ -82,6 +83,32 @@ func CompressPinJPEG(raw []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// CompressPinThumbnailJPEG creates a small feed and grid preview from a pin
+// image while keeping the normalized portrait aspect ratio.
+func CompressPinThumbnailJPEG(raw []byte) ([]byte, error) {
+	img, err := imaging.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	img = imaging.Fit(img, 320, 427, imaging.Lanczos)
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 72}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// PinImageBlurhash returns a compact, low-detail placeholder for a pin image.
+// Three by two components keep the encoded value to 16 characters.
+func PinImageBlurhash(raw []byte) (string, error) {
+	img, err := imaging.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return "", err
+	}
+	img = imaging.Resize(img, 64, 85, imaging.Lanczos)
+	return blurhash.Encode(3, 2, img)
 }
 
 func taggedJPEGQuality(sizeBytes int) int {

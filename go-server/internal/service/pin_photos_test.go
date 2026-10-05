@@ -383,8 +383,8 @@ func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) 
 	if err == nil {
 		t.Fatal("add photo update succeeded after its upload cancelled the request")
 	}
-	if len(store.objects) != 1 {
-		t.Fatalf("stored objects after cancelled photo create = %d, want uploaded object retained for retry", len(store.objects))
+	if len(store.objects) != 2 {
+		t.Fatalf("stored objects after cancelled photo create = %d, want original and thumbnail retained for retry", len(store.objects))
 	}
 	key := store.lastPutKey
 	if key == "" {
@@ -393,6 +393,7 @@ func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) 
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, strings.TrimSuffix(key, ".thumbnail.jpg"))
 	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry object cleanup: %v", err)
@@ -428,12 +429,13 @@ func TestCancelledOriginalPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *tes
 		t.Fatal("pin creation succeeded after its original photo upload cancelled the request")
 	}
 	key := store.lastPutKey
-	if key == "" || store.objectCount() != 1 {
-		t.Fatalf("original photo upload key %q, stored object count %d; want one uploaded object", key, store.objectCount())
+	if key == "" || store.objectCount() != 2 {
+		t.Fatalf("original photo upload key %q, stored object count %d; want original and thumbnail", key, store.objectCount())
 	}
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, strings.TrimSuffix(key, ".thumbnail.jpg"))
 	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry original photo object cleanup: %v", err)
@@ -663,8 +665,8 @@ func TestDeletingPinRemovesItsPhotoUpdateObjects(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add photo update: %v", err)
 	}
-	if len(store.objects) != 2 {
-		t.Fatalf("stored pin photo objects = %d, want original plus update", len(store.objects))
+	if len(store.objects) != 4 {
+		t.Fatalf("stored pin photo objects = %d, want original and update images plus thumbnails", len(store.objects))
 	}
 	if err := pin.Delete(ctx, created.ID); err != nil {
 		t.Fatalf("delete pin: %v", err)

@@ -134,6 +134,61 @@ void main() {
     },
   );
 
+  test('bounds concurrent requests across separate flushes', () async {
+    final responses = <Completer<List<BatchReadResult>>>[];
+    final batches = <List<BatchReadItem>>[];
+    var activeRequests = 0;
+    var maximumActiveRequests = 0;
+    final loader = BatchReadCoalescer(
+      window: Duration.zero,
+      maxConcurrentBatches: 1,
+      read: (items) {
+        batches.add(items);
+        activeRequests++;
+        if (activeRequests > maximumActiveRequests) {
+          maximumActiveRequests = activeRequests;
+        }
+        final response = Completer<List<BatchReadResult>>();
+        responses.add(response);
+        return response.future.whenComplete(() => activeRequests--);
+      },
+    );
+    addTearDown(loader.dispose);
+
+    final first = loader.readKey(
+      const BatchReadKey(BatchReadKind.user, 'first'),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final second = loader.readKey(
+      const BatchReadKey(BatchReadKind.user, 'second'),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final requestsBeforeRelease = responses.length;
+    final concurrencyBeforeRelease = maximumActiveRequests;
+
+    var responseIndex = 0;
+    while (responseIndex < responses.length) {
+      responses[responseIndex].complete(
+        batches[responseIndex]
+            .map(
+              (item) => BatchReadResult(
+                kind: batchResultKind(item.kind),
+                id: item.id,
+                status: 200,
+              ),
+            )
+            .toList(),
+      );
+      responseIndex++;
+      await Future<void>.delayed(Duration.zero);
+    }
+    await Future.wait([first, second]);
+
+    expect(requestsBeforeRelease, 1);
+    expect(concurrencyBeforeRelease, 1);
+    expect(maximumActiveRequests, 1);
+  });
+
   test('splits more than one hundred keys into bounded requests', () async {
     final requests = <List<BatchReadItem>>[];
     final loader = BatchReadCoalescer(

@@ -4,7 +4,15 @@ import 'package:buff_lisa/data/entity/cache_entity.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 
 // 1. Define your entity types
-enum ImageType { pin, user, userSmall, group, groupSmall, groupPin }
+enum ImageType {
+  pin,
+  user,
+  userSmall,
+  group,
+  groupSmall,
+  groupPin,
+  pinThumbnail,
+}
 
 class ImageEntity extends CacheEntity {
   String get cacheKey => '${type.name}:$id';

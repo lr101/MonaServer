@@ -14,16 +14,17 @@ import (
 const maxBatchReadRequests = 100
 
 var batchReadKinds = map[string]struct{}{
-	"pinImage":         {},
-	"userImageSmall":   {},
-	"userImage":        {},
-	"groupImageSmall":  {},
-	"groupImage":       {},
-	"groupPinImage":    {},
-	"user":             {},
-	"pinLikes":         {},
-	"userProgression":  {},
-	"groupProgression": {},
+	"pinImage":          {},
+	"pinImageThumbnail": {},
+	"userImageSmall":    {},
+	"userImage":         {},
+	"groupImageSmall":   {},
+	"groupImage":        {},
+	"groupPinImage":     {},
+	"user":              {},
+	"pinLikes":          {},
+	"userProgression":   {},
+	"groupProgression":  {},
 }
 
 // BatchServicer composes existing read servicers without making loopback HTTP calls.
@@ -171,6 +172,8 @@ func (s *BatchServicer) readOne(ctx context.Context, item genserver.BatchReadIte
 	switch item.Kind {
 	case "pinImage":
 		response, err = s.pins.GetPinImage(ctx, item.Id, false)
+	case "pinImageThumbnail":
+		response, err = s.pins.GetPinImageThumbnail(ctx, item.Id)
 	case "userImageSmall":
 		response, err = s.users.GetUserProfileImageSmall(ctx, item.Id, false)
 	case "userImage":
@@ -191,7 +194,7 @@ func (s *BatchServicer) readOne(ctx context.Context, item genserver.BatchReadIte
 	}
 
 	switch item.Kind {
-	case "pinImage", "userImageSmall", "userImage", "groupImageSmall", "groupImage", "groupPinImage":
+	case "pinImage", "pinImageThumbnail", "userImageSmall", "userImage", "groupImageSmall", "groupImage", "groupPinImage":
 		if image, ok := response.Body.([]byte); ok {
 			result.ImageUrl = string(image)
 		}

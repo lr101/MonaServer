@@ -200,6 +200,21 @@ func PinPhotoKey(pinID, photoID uuid.UUID) string {
 	return fmt.Sprintf("pins/%s/photos/%s.jpg", pinID, photoID)
 }
 
+// PinThumbnailKey returns the small JPEG preview key paired with an image key.
+func PinThumbnailKey(imageKey string) string {
+	return imageKey + ".thumbnail.jpg"
+}
+
+// PinObjectKeysForCleanup returns source and preview keys for every pin image.
+func PinObjectKeysForCleanup(pinID uuid.UUID, photoKeys []string) []string {
+	imageKeys := append([]string{PinKey(pinID)}, photoKeys...)
+	objectKeys := make([]string, 0, len(imageKeys)*2)
+	for _, imageKey := range imageKeys {
+		objectKeys = append(objectKeys, imageKey, PinThumbnailKey(imageKey))
+	}
+	return objectKeys
+}
+
 // GroupPinKey returns groups/{id}/group_pin.png.
 func GroupPinKey(id uuid.UUID) string { return fmt.Sprintf("groups/%s/group_pin.png", id) }
 

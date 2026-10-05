@@ -8,6 +8,7 @@ properties:
     type: string
     enum:
       - pinImage
+      - pinImageThumbnail
       - userImageSmall
       - userImage
       - groupImageSmall

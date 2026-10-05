@@ -14,6 +14,7 @@ class PinEntity extends CacheEntity {
   final DateTime creationDate;
   final String? title;
   final String? description;
+  final String? imageBlurhash;
 
   int get creatorFastId => fastHash(creator);
   final String creator; // Assuming this is a userId
@@ -39,6 +40,7 @@ class PinEntity extends CacheEntity {
     required this.creationDate,
     this.title,
     this.description,
+    this.imageBlurhash,
     required this.creator,
     required this.groupId,
     this.isHidden = false,
@@ -67,6 +69,7 @@ class PinEntity extends CacheEntity {
       groupId: pinDto.groupId,
       title: pinDto.title,
       description: pinDto.description,
+      imageBlurhash: pinDto.imageBlurhash,
       isGone: pinDto.isGone ?? false,
       lastSynced: DateTime.now(),
       keepAlive: keepAlive,
@@ -116,6 +119,7 @@ class PinEntity extends CacheEntity {
     bool? keepAlive,
     bool? onlySession,
     bool? isGone,
+    String? imageBlurhash,
   }) {
     return PinEntity(
       pinId: pinId,
@@ -124,6 +128,7 @@ class PinEntity extends CacheEntity {
       creationDate: creationDate,
       title: title,
       description: description,
+      imageBlurhash: imageBlurhash ?? this.imageBlurhash,
       creator: creator,
       groupId: groupId,
       isHidden: isHidden,

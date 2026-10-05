@@ -2,12 +2,13 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:transparent_image/transparent_image.dart';
 
 class SquareImage extends ConsumerStatefulWidget {
   final String pinId;
+  final String? imageBlurhash;
   final String groupId;
   final String? photoUrl;
   final String? photoId;
@@ -17,6 +18,7 @@ class SquareImage extends ConsumerStatefulWidget {
   const SquareImage({
     super.key,
     required this.pinId,
+    this.imageBlurhash,
     required this.index,
     required this.groupId,
     this.photoUrl,
@@ -47,16 +49,43 @@ class _SquareImageState extends ConsumerState<SquareImage> {
     }
   }
 
-  Future<Uint8List?> _fetchImage() {
+  Future<Uint8List?> _fetchImage() async {
     final photoUrl = widget.photoUrl;
-    final photoId = widget.photoId;
-    if (photoUrl != null && photoId != null) {
-      return ref
-          .read(pinImageRepositoryProvider)
-          .fetchImageFromUrl(photoId, photoUrl, false);
+    if (photoUrl != null) {
+      final photoId = widget.photoId;
+      if (photoId == null) return null;
+      try {
+        final bytes = await ref
+            .read(pinImageRepositoryProvider)
+            .fetchImageFromUrl(photoId, photoUrl, false);
+        return bytes != null && bytes.isNotEmpty ? bytes : null;
+      } catch (_) {
+        // A direct network image below still gives the update a chance to load.
+        return null;
+      }
     }
-    if (photoUrl != null) return Future<Uint8List?>.value();
-    return ref.read(pinImageRepositoryProvider).fetchImage(widget.pinId, false);
+
+    final thumbnailRepository = ref.read(pinThumbnailRepositoryProvider);
+    final fullImageRepository = ref.read(pinImageRepositoryProvider);
+    try {
+      final thumbnail = await thumbnailRepository.fetchImage(
+        widget.pinId,
+        false,
+      );
+      if (thumbnail != null && thumbnail.isNotEmpty) return thumbnail;
+    } catch (_) {
+      // Keep the pin visible when thumbnail generation or delivery fails.
+    }
+
+    try {
+      final fullImage = await fullImageRepository.fetchImage(
+        widget.pinId,
+        false,
+      );
+      return fullImage != null && fullImage.isNotEmpty ? fullImage : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -65,53 +94,70 @@ class _SquareImageState extends ConsumerState<SquareImage> {
       builder: (context, constraints) => FutureBuilder<Uint8List?>(
         future: _imageFuture,
         builder: (context, snapshot) {
-          final image = snapshot.data;
+          final isReady = snapshot.connectionState == ConnectionState.done;
+          final image = isReady ? snapshot.data : null;
           final showNetworkFallback =
-              widget.photoUrl != null &&
-              (widget.photoId == null ||
-                  snapshot.connectionState == ConnectionState.done);
-          if (image != null || showNetworkFallback) {
-            return GestureDetector(
-              onTap: () => widget.onTap(widget.index),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  FadeInImage(
-                    fadeInDuration: const Duration(milliseconds: 100),
+              widget.photoUrl != null && (widget.photoId == null || isReady);
+          final canOpen = image != null || showNetworkFallback;
+
+          return GestureDetector(
+            onTap: canOpen ? () => widget.onTap(widget.index) : null,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                PinImagePlaceholder(blurhash: widget.imageBlurhash),
+                if (image != null)
+                  Image(
                     fit: BoxFit.cover,
                     alignment: Alignment.topCenter,
-                    placeholder: MemoryImage(kTransparentImage),
-                    image: widget.photoUrl == null
-                        ? memoryImageForDisplay(
-                            image!,
-                            devicePixelRatio: MediaQuery.devicePixelRatioOf(
-                              context,
+                    image: memoryImageForDisplay(
+                      image,
+                      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                      logicalWidth: constraints.maxWidth,
+                      maximumCacheWidth: 720,
+                    ),
+                    gaplessPlayback: true,
+                    frameBuilder:
+                        (context, child, frame, wasSynchronouslyLoaded) =>
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              opacity: wasSynchronouslyLoaded || frame != null
+                                  ? 1
+                                  : 0,
+                              child: child,
                             ),
-                            logicalWidth: constraints.maxWidth,
-                            maximumCacheWidth: 720,
-                          )
-                        : image == null
-                        ? NetworkImage(widget.photoUrl!)
-                        : memoryImageForDisplay(
-                            image,
-                            devicePixelRatio: MediaQuery.devicePixelRatioOf(
-                              context,
+                  )
+                else if (showNetworkFallback)
+                  Image.network(
+                    widget.photoUrl!,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => _unavailableImage(),
+                    frameBuilder:
+                        (context, child, frame, wasSynchronouslyLoaded) =>
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              opacity: wasSynchronouslyLoaded || frame != null
+                                  ? 1
+                                  : 0,
+                              child: child,
                             ),
-                            logicalWidth: constraints.maxWidth,
-                            maximumCacheWidth: 720,
-                          ),
                   ),
-                ],
-              ),
-            );
-          }
-
-          return const ColoredBox(
-            color: Colors.black12,
-            child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                if (isReady && image == null && !showNetworkFallback)
+                  _unavailableImage(),
+              ],
+            ),
           );
         },
       ),
     );
   }
+
+  Widget _unavailableImage() => const ColoredBox(
+    color: Colors.black12,
+    child: Center(child: Icon(Icons.image_not_supported_outlined)),
+  );
 }

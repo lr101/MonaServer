@@ -9,6 +9,7 @@ import 'package:openapi/api.dart';
 /// The resource kinds supported by the authenticated batch-read endpoint.
 enum BatchReadKind {
   pinImage,
+  pinImageThumbnail,
   userImageSmall,
   userImage,
   groupImageSmall,
@@ -37,6 +38,7 @@ class BatchReadKey {
 
 BatchReadItemKindEnum batchItemKind(BatchReadKind kind) => switch (kind) {
   BatchReadKind.pinImage => BatchReadItemKindEnum.pinImage,
+  BatchReadKind.pinImageThumbnail => BatchReadItemKindEnum.pinImageThumbnail,
   BatchReadKind.userImageSmall => BatchReadItemKindEnum.userImageSmall,
   BatchReadKind.userImage => BatchReadItemKindEnum.userImage,
   BatchReadKind.groupImageSmall => BatchReadItemKindEnum.groupImageSmall,
@@ -51,6 +53,8 @@ BatchReadItemKindEnum batchItemKind(BatchReadKind kind) => switch (kind) {
 BatchReadResultKindEnum batchResultKind(BatchReadItemKindEnum kind) =>
     switch (kind) {
       BatchReadItemKindEnum.pinImage => BatchReadResultKindEnum.pinImage,
+      BatchReadItemKindEnum.pinImageThumbnail =>
+        BatchReadResultKindEnum.pinImageThumbnail,
       BatchReadItemKindEnum.userImageSmall =>
         BatchReadResultKindEnum.userImageSmall,
       BatchReadItemKindEnum.userImage => BatchReadResultKindEnum.userImage,
@@ -70,6 +74,7 @@ BatchReadResultKindEnum batchResultKind(BatchReadItemKindEnum kind) =>
 
 BatchReadKind batchReadKind(BatchReadResultKindEnum kind) => switch (kind) {
   BatchReadResultKindEnum.pinImage => BatchReadKind.pinImage,
+  BatchReadResultKindEnum.pinImageThumbnail => BatchReadKind.pinImageThumbnail,
   BatchReadResultKindEnum.userImageSmall => BatchReadKind.userImageSmall,
   BatchReadResultKindEnum.userImage => BatchReadKind.userImage,
   BatchReadResultKindEnum.groupImageSmall => BatchReadKind.groupImageSmall,
@@ -154,7 +159,10 @@ class BatchReadCoalescer {
   final Map<BatchReadKey, Completer<BatchReadResult>> _requests = {};
   final Map<BatchReadKey, Completer<BatchReadResult>> _pending = {};
   final Set<Completer<BatchReadResult>> _inFlight = {};
+  final Queue<List<MapEntry<BatchReadKey, Completer<BatchReadResult>>>>
+  _queuedChunks = Queue();
   Timer? _timer;
+  int _activeBatches = 0;
   bool _disposed = false;
 
   Future<BatchReadResult> readKey(BatchReadKey key) {
@@ -187,26 +195,18 @@ class BatchReadCoalescer {
         ),
       );
     }
-    unawaited(_runChunks(chunks));
+    _queuedChunks.addAll(chunks);
+    _pumpChunks();
   }
 
-  Future<void> _runChunks(
-    List<List<MapEntry<BatchReadKey, Completer<BatchReadResult>>>> chunks,
-  ) async {
-    var next = 0;
-    Future<void> worker() async {
-      while (!_disposed && next < chunks.length) {
-        final chunk = chunks[next++];
-        await _readChunk(chunk);
-      }
+  void _pumpChunks() {
+    if (_disposed) return;
+    final limit = maxConcurrentBatches < 1 ? 1 : maxConcurrentBatches;
+    while (_activeBatches < limit && _queuedChunks.isNotEmpty) {
+      final chunk = _queuedChunks.removeFirst();
+      _activeBatches++;
+      unawaited(_readChunk(chunk));
     }
-
-    await Future.wait(
-      List.generate(
-        maxConcurrentBatches.clamp(1, chunks.length),
-        (_) => worker(),
-      ),
-    );
   }
 
   Future<void> _readChunk(
@@ -247,6 +247,8 @@ class BatchReadCoalescer {
       }
     } finally {
       _inFlight.removeAll(chunk.map((entry) => entry.value));
+      _activeBatches--;
+      _pumpChunks();
     }
   }
 
@@ -260,24 +262,39 @@ class BatchReadCoalescer {
       if (!completer.isCompleted) completer.completeError(error);
     }
     _pending.clear();
+    _queuedChunks.clear();
     _inFlight.clear();
     _requests.clear();
   }
 }
 
-/// A small LRU registry for URLs supplied with sync/list DTOs. It has no byte
-/// data and is disposed with the authenticated API session.
+class _SuppliedImageUrl {
+  const _SuppliedImageUrl(this.value, this.expiresAt);
+
+  final String value;
+  final DateTime expiresAt;
+}
+
+/// A small LRU registry for short-lived URLs supplied with sync/list DTOs.
+/// It has no byte data and is disposed with the authenticated API session.
 class SuppliedImageUrlRegistry {
-  SuppliedImageUrlRegistry({this.maxEntries = 1000});
+  SuppliedImageUrlRegistry({
+    this.maxEntries = 1000,
+    this.urlTtl = const Duration(minutes: 5),
+  });
 
   final int maxEntries;
-  final LinkedHashMap<BatchReadKey, String> _urls = LinkedHashMap();
+  final Duration urlTtl;
+  final LinkedHashMap<BatchReadKey, _SuppliedImageUrl> _urls = LinkedHashMap();
 
   void register(BatchReadKind kind, String id, String? url) {
-    if (url == null || url.isEmpty) return;
     final key = BatchReadKey(kind, id);
+    if (url == null || url.isEmpty) {
+      _urls.remove(key);
+      return;
+    }
     _urls.remove(key);
-    _urls[key] = url;
+    _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl));
     while (_urls.length > maxEntries) {
       _urls.remove(_urls.keys.first);
     }
@@ -285,9 +302,16 @@ class SuppliedImageUrlRegistry {
 
   String? lookup(BatchReadKind kind, String id) {
     final key = BatchReadKey(kind, id);
-    final url = _urls.remove(key);
-    if (url != null) _urls[key] = url;
-    return url;
+    final entry = _urls.remove(key);
+    if (entry == null) return null;
+    if (!entry.expiresAt.isAfter(DateTime.now())) return null;
+    _urls[key] = entry;
+    return entry.value;
+  }
+
+  void invalidate(BatchReadKind kind, String id, String url) {
+    final key = BatchReadKey(kind, id);
+    if (_urls[key]?.value == url) _urls.remove(key);
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/top_status_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
@@ -37,6 +38,7 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
     return SafeArea(
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
+        scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
         slivers: [
           const SliverAppBar(
             backgroundColor: Colors.transparent,

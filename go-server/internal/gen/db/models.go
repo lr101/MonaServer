@@ -384,6 +384,7 @@ type Pin struct {
 	Description     pgtype.Text        `json:"description"`
 	IsGone          bool               `json:"is_gone"`
 	Title           pgtype.Text        `json:"title"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 type PinCreateIdempotency struct {
@@ -412,6 +413,7 @@ type PinPhoto struct {
 	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	IsOriginal          bool               `json:"is_original"`
+	ImageBlurhash       pgtype.Text        `json:"image_blurhash"`
 }
 
 type RateLimitBucket struct {
