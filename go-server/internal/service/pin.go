@@ -107,6 +107,8 @@ type PinPhotoDTO struct {
 	ContributorID       *uuid.UUID `json:"contributorId,omitempty"`
 	ContributorUsername string     `json:"contributorUsername"`
 	Image               *string    `json:"image"`
+	ImageThumbnail      *string    `json:"imageThumbnail,omitempty"`
+	ImageBlurhash       *string    `json:"imageBlurhash,omitempty"`
 	Caption             *string    `json:"caption,omitempty"`
 	ObservedAt          time.Time  `json:"observedAt"`
 	IsOriginal          bool       `json:"isOriginal"`
@@ -686,7 +688,7 @@ func (s *Pin) resolveIdempotentPhoto(ctx context.Context, existing *db.PinPhoto,
 }
 
 func (s *Pin) photoDTO(ctx context.Context, photo db.PinPhoto) (*PinPhotoDTO, error) {
-	var imageURL *string
+	var imageURL, thumbnailURL *string
 	if s.obj != nil {
 		url, err := s.obj.PresignedGet(ctx, photo.ImageKey)
 		if err != nil {
@@ -695,10 +697,22 @@ func (s *Pin) photoDTO(ctx context.Context, photo db.PinPhoto) (*PinPhotoDTO, er
 		if url != "" {
 			imageURL = &url
 		}
+		url, err = s.obj.PresignedGet(ctx, PinThumbnailKey(photo.ImageKey))
+		if err != nil {
+			return nil, err
+		}
+		if url != "" {
+			thumbnailURL = &url
+		}
+	}
+	blurhash := photo.ImageBlurhash
+	if blurhash == nil {
+		blurhash = s.ensurePinPhotoImageBlurhash(ctx, photo)
 	}
 	return &PinPhotoDTO{
 		ID: photo.ID, PinID: photo.PinID, ContributorID: photo.ContributorID,
 		ContributorUsername: photo.ContributorUsername, Image: imageURL,
+		ImageThumbnail: thumbnailURL, ImageBlurhash: blurhash,
 		Caption: photo.Caption, ObservedAt: photo.ObservedAt,
 		IsOriginal: photo.IsOriginal,
 	}, nil

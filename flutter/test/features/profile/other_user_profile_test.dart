@@ -33,7 +33,7 @@ void main() {
           userByIdDescriptionProvider('alice')
               .overrideWith((ref) async => null),
           userByIdBestSeasonProvider('alice').overrideWith((ref) async => null),
-          getUserProfileProvider('alice')
+          getUserProfileProgressiveProvider('alice')
               .overrideWith((ref) => Stream.value(null)),
           publicUserProgressionProvider('alice').overrideWith(
             (ref) async => ProfileProgressionDto(level: 4, fraction: 0.6),

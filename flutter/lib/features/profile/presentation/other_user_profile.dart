@@ -33,7 +33,7 @@ class OtherUserProfile extends ConsumerWidget {
             userServiceProvider(userId)
                 .select((user) => user.value?.selectedBatchColor),
           );
-    final profileImage = ref.watch(getUserProfileProvider(userId));
+    final profileImage = ref.watch(getUserProfileProgressiveProvider(userId));
     final likes = ref.watch(userLikeServiceProvider(userId));
     final progression = ref.watch(publicUserProgressionProvider(userId)).value;
     return DefaultTabController(

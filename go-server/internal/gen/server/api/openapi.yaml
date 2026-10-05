@@ -7760,6 +7760,7 @@ components:
     pinPhotoDto:
       example:
         image: http://example.com/aeiou
+        imageBlurhash: imageBlurhash
         isOriginal: true
         contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         contributorUsername: contributorUsername
@@ -7767,6 +7768,7 @@ components:
         caption: caption
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        imageThumbnail: http://example.com/aeiou
       properties:
         id:
           format: uuid
@@ -7782,6 +7784,15 @@ components:
           type: string
         image:
           format: url
+          nullable: true
+          type: string
+        imageThumbnail:
+          description: Signed URL for the small server-generated photo preview.
+          format: url
+          nullable: true
+          type: string
+        imageBlurhash:
+          description: Low-detail placeholder hash generated from the photo preview.
           nullable: true
           type: string
         caption:

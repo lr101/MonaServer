@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
 /// The original pin picture followed by its later photo updates.
@@ -10,12 +13,16 @@ class PinPhotoCarousel extends StatefulWidget {
   const PinPhotoCarousel({
     super.key,
     this.originalImage,
+    this.thumbnailImage,
+    this.originalImageBlurhash,
     this.isOriginalLoading = false,
     required this.photos,
     this.onPageChanged,
   });
 
   final Uint8List? originalImage;
+  final Uint8List? thumbnailImage;
+  final String? originalImageBlurhash;
   final bool isOriginalLoading;
   final List<PinPhotoDto> photos;
   final ValueChanged<int>? onPageChanged;
@@ -105,7 +112,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                     if (index == 0)
                       _originalPhoto(context)
                     else
-                      _networkPhoto(context, updates[index - 1].image),
+                      _networkPhoto(context, updates[index - 1]),
                     Positioned(
                       top: 12,
                       left: 12,
@@ -124,56 +131,94 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
   }
 
   Widget _originalPhoto(BuildContext context) {
-    final original = widget.photos
-        .where((photo) => photo.isOriginal)
-        .firstOrNull;
-    final url = original?.image;
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bytes = widget.originalImage;
-        final ImageProvider<Object>? imageProvider;
-        if (bytes != null && bytes.isNotEmpty) {
-          imageProvider = memoryImageForDisplay(
-            bytes,
-            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-            logicalWidth: math.min(constraints.maxWidth, 720),
-            maximumCacheWidth: 720,
-          );
-        } else if (url != null && url.isNotEmpty) {
-          imageProvider = NetworkImage(url);
-        } else {
-          imageProvider = null;
-        }
-
+        final originalImage = widget.originalImage;
+        final bytes = originalImage?.isNotEmpty == true
+            ? originalImage
+            : widget.thumbnailImage;
+        final imageProvider = bytes == null || bytes.isEmpty
+            ? null
+            : memoryImageForDisplay(
+                bytes,
+                devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                logicalWidth: math.min(constraints.maxWidth, 720),
+                maximumCacheWidth: 720,
+              );
         if (imageProvider == null) {
-          return widget.isOriginalLoading
-              ? _loadingPhoto(context)
-              : _unavailablePhoto(context);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              PinImagePlaceholder(blurhash: widget.originalImageBlurhash),
+              if (!widget.isOriginalLoading) _unavailablePhoto(context),
+            ],
+          );
         }
 
         return _photoImage(
           context,
           imageProvider,
           showUnavailableOnError: !widget.isOriginalLoading,
+          blurhash: widget.originalImageBlurhash,
         );
       },
     );
   }
 
-  Widget _networkPhoto(BuildContext context, String? url) =>
-      url == null || url.isEmpty
-      ? _unavailablePhoto(context)
-      : _photoImage(context, NetworkImage(url), showUnavailableOnError: true);
+  Widget _networkPhoto(BuildContext context, PinPhotoDto photo) {
+    if ((photo.image == null || photo.image!.isEmpty) &&
+        (photo.imageThumbnail == null || photo.imageThumbnail!.isEmpty)) {
+      return _unavailablePhoto(context);
+    }
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final imageState = ref.watch(
+          pinPhotoProgressiveImageBytesProvider((
+            photoId: photo.id,
+            thumbnailUrl: photo.imageThumbnail,
+            imageUrl: photo.image,
+          )),
+        );
+        final bytes = imageState.value;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (bytes == null || bytes.isEmpty) {
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  PinImagePlaceholder(blurhash: photo.imageBlurhash),
+                  if (imageState.hasError || imageState.hasValue)
+                    _unavailablePhoto(context),
+                ],
+              );
+            }
+            return _photoImage(
+              context,
+              memoryImageForDisplay(
+                bytes,
+                devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                logicalWidth: math.min(constraints.maxWidth, 720),
+                maximumCacheWidth: 720,
+              ),
+              showUnavailableOnError: true,
+              blurhash: photo.imageBlurhash,
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _photoImage(
     BuildContext context,
     ImageProvider<Object> imageProvider, {
     required bool showUnavailableOnError,
+    String? blurhash,
   }) => Stack(
     fit: StackFit.expand,
     children: [
-      ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+      PinImagePlaceholder(blurhash: blurhash),
       Image(
         image: imageProvider,
         fit: BoxFit.cover,

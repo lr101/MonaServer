@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
@@ -18,7 +19,6 @@ import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
 class ViewImage extends ConsumerStatefulWidget {
@@ -49,6 +49,9 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     final imageState = toolbarPin == null
         ? null
         : ref.watch(pinImageForDetailsProvider(toolbarPin.pinId));
+    final thumbnailState = toolbarPin == null
+        ? null
+        : ref.watch(pinThumbnailBytesProvider(toolbarPin.pinId));
     final photoHistoryState = toolbarPin == null
         ? null
         : ref.watch(pinPhotoHistoryProvider(toolbarPin.pinId));
@@ -145,6 +148,8 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                         child: PinPhotoCarousel(
                           key: ValueKey(currentPin.pinId),
                           originalImage: image,
+                          thumbnailImage: thumbnailState?.value,
+                          originalImageBlurhash: currentPin.imageBlurhash,
                           photos: photos,
                           isOriginalLoading:
                               (imageState?.isLoading ?? false) ||
@@ -376,22 +381,23 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     }
 
     final imageUrl = photoToDownload?.image;
-    if (imageUrl == null || imageUrl.isEmpty) {
+    if (!isOriginal && (imageUrl == null || imageUrl.isEmpty)) {
       throw const _PinPhotoDownloadException();
     }
 
-    final uri = Uri.tryParse(imageUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      throw const _PinPhotoDownloadException();
-    }
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300 ||
-          response.bodyBytes.isEmpty) {
+      final imageRepository = ref.read(pinImageRepositoryProvider);
+      final bytes = isOriginal
+          ? await imageRepository.fetchImage(pinId, false)
+          : await imageRepository.fetchImageFromUrl(
+              'photo:${photoToDownload!.id}',
+              imageUrl!,
+              false,
+            );
+      if (bytes == null || bytes.isEmpty) {
         throw const _PinPhotoDownloadException();
       }
-      return response.bodyBytes;
+      return bytes;
     } on _PinPhotoDownloadException {
       rethrow;
     } catch (_) {

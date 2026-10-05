@@ -88,7 +88,7 @@ void main() {
     expect(find.text('Group level 2 · 70 XP'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Achievements'), findsOneWidget);
-    expect(tester.getTopLeft(find.byType(UserXpAvatarIndicator)).dx, 16);
+    expect(tester.getTopLeft(find.byType(UserXpAvatarIndicator)).dx, 17);
     expect(
       tester
           .widget<CircularProgressIndicator>(

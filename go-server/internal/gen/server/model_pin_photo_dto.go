@@ -25,6 +25,12 @@ type PinPhotoDto struct {
 
 	Image *string `json:"image,omitempty"`
 
+	// Signed URL for the small server-generated photo preview.
+	ImageThumbnail *string `json:"imageThumbnail,omitempty"`
+
+	// Low-detail placeholder hash generated from the photo preview.
+	ImageBlurhash *string `json:"imageBlurhash,omitempty"`
+
 	Caption *string `json:"caption,omitempty"`
 
 	ObservedAt time.Time `json:"observedAt"`

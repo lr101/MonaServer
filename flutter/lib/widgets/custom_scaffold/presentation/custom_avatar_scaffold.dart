@@ -7,6 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 const double _defaultExpandedHeight = 180;
 const double _avatarTopPadding = 60;
 const double _avatarDimension = 88;
+// An 80 px image leaves room for the 86 px XP ring without changing the image
+// bounds when progression data arrives.
+const double _avatarImageRadius = 40;
 const double _bottomContentSpacing = 12;
 
 class CustomAvatarScaffold extends ConsumerStatefulWidget {
@@ -62,7 +65,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
   Widget _buildAvatar() {
     final avatar = RoundImage(
       imageCallback: widget.avatar,
-      size: widget.avatarBuilder == null ? 43 : 40,
+      size: _avatarImageRadius,
     );
     return widget.avatarBuilder?.call(avatar) ?? avatar;
   }
@@ -105,9 +108,12 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
                       SizedBox.square(
                         dimension: _avatarDimension,
                         child: Stack(
+                          alignment: Alignment.center,
                           clipBehavior: Clip.none,
                           children: [
-                            Positioned.fill(child: _buildAvatar()),
+                            // Keep loose constraints so RoundImage's circular
+                            // background stays the same size as its image.
+                            _buildAvatar(),
                             if (widget.avatarEditAction != null)
                               Positioned(
                                 right: -4,

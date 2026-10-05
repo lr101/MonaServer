@@ -80,7 +80,7 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(<PinEntity>[])),
-          groupProfilePictureByIdProvider('group-id')
+          groupProfilePictureProgressiveByIdProvider('group-id')
               .overrideWith((ref) => Stream.value(null)),
         ],
       );
@@ -117,7 +117,7 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(<PinEntity>[])),
-          groupProfilePictureByIdProvider('group-id')
+          groupProfilePictureProgressiveByIdProvider('group-id')
               .overrideWith((ref) => Stream.value(null)),
         ],
       );
@@ -156,7 +156,7 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => pendingPins.future),
-          groupProfilePictureByIdProvider('group-id')
+          groupProfilePictureProgressiveByIdProvider('group-id')
               .overrideWith((ref) => pendingProfile.stream),
         ],
       );
@@ -240,7 +240,7 @@ void main() {
               .overrideWith((ref) => Stream.value(group)),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(pins)),
-          groupProfilePictureByIdProvider('group-id')
+          groupProfilePictureProgressiveByIdProvider('group-id')
               .overrideWith((ref) => Stream.value(Uint8List.fromList([1]))),
         ],
       );
@@ -257,7 +257,7 @@ void main() {
         fireImmediately: true,
       );
       final profileSubscription = container.listen(
-        groupProfilePictureByIdProvider('group-id'),
+        groupProfilePictureProgressiveByIdProvider('group-id'),
         (_, _) {},
         fireImmediately: true,
       );
@@ -267,7 +267,9 @@ void main() {
 
       await container.read(groupMetadataProvider('group-id').future);
       await container.read(pinGroupServiceProvider('group-id').future);
-      await container.read(groupProfilePictureByIdProvider('group-id').future);
+      await container.read(
+        groupProfilePictureProgressiveByIdProvider('group-id').future,
+      );
 
       final states = <GroupDetailsState>[];
       final detailsSubscription = container.listen(

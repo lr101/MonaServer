@@ -44,7 +44,7 @@ void main() {
               .overrideWith(_EmptyPinUserService.new),
           userLikeServiceProvider('alice')
               .overrideWith(_EmptyUserLikeService.new),
-          getUserProfileProvider('alice')
+          getUserProfileProgressiveProvider('alice')
               .overrideWith((ref) => Stream.value(null)),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),

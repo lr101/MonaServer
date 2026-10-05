@@ -523,7 +523,8 @@ func pinPhotoToDto(photo service.PinPhotoDTO) genserver.PinPhotoDto {
 	return genserver.PinPhotoDto{
 		Id: photo.ID.String(), PinId: photo.PinID.String(),
 		ContributorId: contributorID, ContributorUsername: photo.ContributorUsername,
-		Image: photo.Image, Caption: photo.Caption,
+		Image: photo.Image, ImageThumbnail: photo.ImageThumbnail,
+		ImageBlurhash: photo.ImageBlurhash, Caption: photo.Caption,
 		ObservedAt: photo.ObservedAt, IsOriginal: photo.IsOriginal,
 	}
 }
