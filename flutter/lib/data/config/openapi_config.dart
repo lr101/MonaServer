@@ -14,7 +14,7 @@ part 'openapi_config.g.dart';
 typedef RefreshAccessToken = Future<String?> Function();
 typedef HttpClientFactory = http.Client Function();
 
-/// Signals that a refresh token is no longer accepted by the server.
+/// Signals that the server confirmed the refresh token has expired.
 class InvalidRefreshCredentialsException implements Exception {
   const InvalidRefreshCredentialsException();
 
@@ -49,6 +49,7 @@ class AccessTokenManager {
   );
 
   static const _refreshInterval = Duration(minutes: 1);
+  static const _refreshFailureCooldown = Duration(seconds: 30);
 
   final RefreshAccessToken _refreshAccessToken;
   final Future<void> Function()? _onInvalidCredentials;
@@ -59,6 +60,9 @@ class AccessTokenManager {
 
   String _accessToken;
   DateTime? _lastRefreshAt;
+  DateTime? _refreshFailureAt;
+  Object? _lastRefreshFailure;
+  StackTrace? _lastRefreshFailureStack;
 
   String get accessToken => _accessToken;
 
@@ -71,6 +75,7 @@ class AccessTokenManager {
   Future<void> refresh({bool force = false}) async {
     _lifetime.checkOpen();
     if (_credentialsRejected) throw const InvalidRefreshCredentialsException();
+    _throwRecentRefreshFailure();
     final accessTokenBeforeWait = _accessToken;
     if (!force && !needsRefresh) {
       return;
@@ -82,6 +87,7 @@ class AccessTokenManager {
         if (_credentialsRejected) {
           throw const InvalidRefreshCredentialsException();
         }
+        _throwRecentRefreshFailure();
         if (!force && !needsRefresh) {
           return;
         }
@@ -93,23 +99,50 @@ class AccessTokenManager {
           final accessToken = await _refreshAccessToken();
           _lifetime.checkOpen();
           if (accessToken == null || accessToken.isEmpty) {
-            await _rejectCredentials();
+            throw StateError(
+              'Refresh response did not include an access token',
+            );
           }
           _accessToken = accessToken;
           _lastRefreshAt = _now();
+          _refreshFailureAt = null;
+          _lastRefreshFailure = null;
+          _lastRefreshFailureStack = null;
         } on ApiException catch (error, stackTrace) {
           _lifetime.checkOpen();
-          // The v2 refresh endpoint uses 400 for missing, expired, revoked,
-          // and mismatched refresh credentials.
-          if ((error.code == 400 && error.innerException == null) ||
-              error.code == 401 ||
-              error.code == 403) {
+          // The API uses 410 with this exact plain-text body only when the
+          // refresh token has expired. Other responses can come from a proxy
+          // or gateway; keep the session and let the persisted upload retry.
+          if (_isExpiredRefreshResponse(error)) {
             await _rejectCredentials();
           }
+          _rememberRefreshFailure(error, stackTrace);
+          Error.throwWithStackTrace(error, stackTrace);
+        } catch (error, stackTrace) {
+          _lifetime.checkOpen();
+          _rememberRefreshFailure(error, stackTrace);
           Error.throwWithStackTrace(error, stackTrace);
         }
       }),
     );
+  }
+
+  void _rememberRefreshFailure(Object error, StackTrace stackTrace) {
+    _refreshFailureAt = _now();
+    _lastRefreshFailure = error;
+    _lastRefreshFailureStack = stackTrace;
+  }
+
+  void _throwRecentRefreshFailure() {
+    final failedAt = _refreshFailureAt;
+    final failure = _lastRefreshFailure;
+    final stackTrace = _lastRefreshFailureStack;
+    if (failedAt != null &&
+        failure != null &&
+        stackTrace != null &&
+        _now().difference(failedAt) < _refreshFailureCooldown) {
+      Error.throwWithStackTrace(failure, stackTrace);
+    }
   }
 
   Future<Never> _rejectCredentials() async {
@@ -129,9 +162,17 @@ class AccessTokenManager {
     _clearCredentials();
   }
 
+  bool _isExpiredRefreshResponse(ApiException error) {
+    if (error.code != 410 || error.innerException != null) return false;
+    return error.message?.trim() == 'refresh token expired';
+  }
+
   void _clearCredentials() {
     _accessToken = '';
     _lastRefreshAt = null;
+    _refreshFailureAt = null;
+    _lastRefreshFailure = null;
+    _lastRefreshFailureStack = null;
   }
 }
 

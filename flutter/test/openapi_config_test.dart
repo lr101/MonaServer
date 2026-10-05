@@ -15,7 +15,7 @@ void main() {
   setUp(
     () => dotenv.loadFromString(envString: 'API_HOST=https://example.test'),
   );
-  for (final code in [400, 401, 403]) {
+  for (final code in [410]) {
     test(
       'refresh $code expires once and stops queued refresh attempts',
       () async {
@@ -26,7 +26,7 @@ void main() {
           refreshAccessToken: () {
             refreshes++;
             return Future<String?>.error(
-              ApiException(code, 'rejected credential'),
+              ApiException(code, 'refresh token expired'),
             );
           },
           onInvalidCredentials: () async {
@@ -51,14 +51,40 @@ void main() {
   }
 
   test(
+    'a 410 refresh response without the expiry marker preserves the session',
+    () async {
+      var expirations = 0;
+      final manager = AccessTokenManager(
+        initialAccessToken: 'old-access',
+        refreshAccessToken: () async =>
+            throw ApiException(410, 'gateway temporarily unavailable'),
+        onInvalidCredentials: () async {
+          expirations++;
+        },
+      );
+      addTearDown(manager.dispose);
+
+      await expectLater(
+        manager.refresh(force: true),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(manager.accessToken, 'old-access');
+      expect(expirations, 0);
+    },
+  );
+
+  test(
     'transient refresh errors never signal session expiry and can recover',
     () async {
       var expirations = 0;
       var attempts = 0;
+      var now = DateTime(2026);
       final manager = AccessTokenManager(
         initialAccessToken: 'old-access',
+        now: () => now,
         refreshAccessToken: () async {
-          if (attempts++ == 0) throw ApiException(503, 'temporary outage');
+          if (attempts++ == 0) throw ApiException(403, 'blocked by gateway');
           return 'new-access';
         },
         onInvalidCredentials: () async {
@@ -71,6 +97,7 @@ void main() {
         throwsA(isA<ApiException>()),
       );
       expect(manager.accessToken, 'old-access');
+      now = now.add(const Duration(seconds: 31));
       await manager.refresh(force: true);
       expect(manager.accessToken, 'new-access');
       expect(expirations, 0);
@@ -82,6 +109,7 @@ void main() {
     () async {
       var expirations = 0;
       var attempts = 0;
+      var now = DateTime(2026);
       final networkFailure = ApiException.withInner(
         400,
         'HTTP connection failed: POST /api/v2/public/refresh',
@@ -90,6 +118,7 @@ void main() {
       );
       final manager = AccessTokenManager(
         initialAccessToken: 'old-access',
+        now: () => now,
         refreshAccessToken: () async {
           if (attempts++ == 0) throw networkFailure;
           return 'new-access';
@@ -107,6 +136,7 @@ void main() {
       expect(manager.accessToken, 'old-access');
       expect(expirations, 0);
 
+      now = now.add(const Duration(seconds: 31));
       await manager.refresh(force: true);
       expect(manager.accessToken, 'new-access');
       expect(expirations, 0);
@@ -142,7 +172,8 @@ void main() {
     'expiry persistence errors do not replace the credential rejection',
     () async {
       final manager = AccessTokenManager(
-        refreshAccessToken: () async => throw ApiException(403, 'rejected'),
+        refreshAccessToken: () async =>
+            throw ApiException(410, 'refresh token expired'),
         onInvalidCredentials: () async =>
             throw StateError('secure storage unavailable'),
       );
@@ -426,7 +457,7 @@ void main() {
     final tokenManager = AccessTokenManager(
       initialAccessToken: 'stale-token',
       refreshAccessToken: () =>
-          Future<String?>.error(ApiException(401, 'refresh token expired')),
+          Future<String?>.error(ApiException(410, 'refresh token expired')),
     );
 
     await expectLater(
@@ -452,6 +483,37 @@ void main() {
       );
 
       expect(tokenManager.accessToken, 'usable-token');
+    },
+  );
+
+  test(
+    'a request after a month idle refreshes without expiring the session',
+    () async {
+      final requests = _RecordingClient([200]);
+      final lastRefresh = DateTime(2026);
+      var expirations = 0;
+      final tokenManager = AccessTokenManager(
+        initialAccessToken: 'expired-access',
+        lastRefreshAt: lastRefresh,
+        now: () => DateTime(2026, 2),
+        refreshAccessToken: () async => 'renewed-access',
+        onInvalidCredentials: () async {
+          expirations++;
+        },
+      );
+      final client = createRetryingAuthClient(
+        inner: requests,
+        tokenManager: tokenManager,
+        rateLimitDelay: Duration.zero,
+      );
+      addTearDown(client.close);
+      addTearDown(tokenManager.dispose);
+
+      final response = await client.get(Uri.parse('https://example.test/pins'));
+
+      expect(response.statusCode, 200);
+      expect(requests.authorizationHeaders, ['Bearer renewed-access']);
+      expect(expirations, 0);
     },
   );
 

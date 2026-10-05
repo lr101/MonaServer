@@ -290,7 +290,7 @@ func (s *Auth) Refresh(ctx context.Context, refresh, userID uuid.UUID) (*TokenPa
 			if err := q.DeleteRefreshToken(ctx, refresh); err != nil {
 				return err
 			}
-			refreshErr = apperrors.New(http.StatusBadRequest, "refresh token expired")
+			refreshErr = apperrors.New(http.StatusGone, "refresh token expired")
 			return nil
 		}
 		if !state.AccountActivated {

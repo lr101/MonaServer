@@ -57,7 +57,7 @@ files.
 | `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | `postgres://user:pw@host:5432/db?sslmode=disable` |
 | `TOKEN_ACCESS_EXPIRY` | `15m` | Go duration string |
-| `TOKEN_REFRESH_EXPIRY` | `8760h` | Go duration string (1 year) |
+| `TOKEN_REFRESH_EXPIRY` | `8760h` | Inactivity limit (365 days); each successful refresh restarts it. Go duration string; zero or negative values use the default. |
 | `APP_MAX_LOGIN_ATTEMPTS` | `10` | Failed-login lockout threshold |
 | `WEB_HOST` | — | Public hostname; canonical domain for email links and the API root redirect |
 | `PUBLIC_EMAIL_LOGIN` | `false` | Enables the v3 email-link and own-session revoke routes; restricted recovery completion remains unavailable |

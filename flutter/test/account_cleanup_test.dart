@@ -187,9 +187,9 @@ void main() {
       () => MockClient((request) async {
         if (request.url.path.contains('refresh')) {
           return http.Response(
-            '{}',
-            401,
-            headers: {'content-type': 'application/json'},
+            'refresh token expired',
+            410,
+            headers: {'content-type': 'text/plain'},
           );
         }
         protectedSends++;
