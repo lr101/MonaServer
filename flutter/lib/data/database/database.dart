@@ -151,13 +151,7 @@ class PendingPinCreates extends Table {
 class PinLikeEntities extends Table with CacheTable {
   TextColumn get id => text()();
   IntColumn get likeCount => integer()();
-  IntColumn get likePhotographyCount => integer()();
-  IntColumn get likeLocationCount => integer()();
-  IntColumn get likeArtCount => integer()();
   BoolColumn get hasLike => boolean()();
-  BoolColumn get hasLikePhotography => boolean()();
-  BoolColumn get hasLikeLocation => boolean()();
-  BoolColumn get hasLikeArt => boolean()();
 }
 
 @DataClassName('UserDb')
@@ -175,9 +169,6 @@ class UserEntities extends Table with CacheTable {
 class UserLikeEntities extends Table with CacheTable {
   TextColumn get userId => text()();
   IntColumn get likeCount => integer()();
-  IntColumn get likePhotographyCount => integer()();
-  IntColumn get likeLocationCount => integer()();
-  IntColumn get likeArtCount => integer()();
 }
 
 @DataClassName('UserPinsDb')
@@ -205,7 +196,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -271,6 +262,16 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await m.createTable(pendingPinCreates);
+      }
+      if (from < 8) {
+        await m.database.customStatement(
+          'DROP TABLE IF EXISTS pin_like_entities',
+        );
+        await m.database.customStatement(
+          'DROP TABLE IF EXISTS user_like_entities',
+        );
+        await m.createTable(pinLikeEntities);
+        await m.createTable(userLikeEntities);
       }
     },
   );

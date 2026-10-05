@@ -147,9 +147,6 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity>
     return UserLikeEntitiesCompanion(
       userId: Value(entity.userId),
       likeCount: Value(entity.likeCount),
-      likePhotographyCount: Value(entity.likePhotographyCount),
-      likeLocationCount: Value(entity.likeLocationCount),
-      likeArtCount: Value(entity.likeArtCount),
       isarId: Value(entity.isarId),
       ttl: Value(entity.ttl),
       hits: Value(entity.hits),
@@ -162,9 +159,6 @@ class UserLikeRepository extends CacheImpl<UserLikeEntity>
     return UserLikeEntity(
       userId: data.userId,
       likeCount: data.likeCount,
-      likePhotographyCount: data.likePhotographyCount,
-      likeLocationCount: data.likeLocationCount,
-      likeArtCount: data.likeArtCount,
       hits: data.hits,
       ttl: data.ttl,
       onlySession: data.onlySession,

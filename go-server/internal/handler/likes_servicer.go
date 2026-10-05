@@ -59,11 +59,8 @@ func (s *LikesServicer) CreateOrUpdateLike(ctx context.Context, pinID string, dt
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	result, err := s.like.CreateOrUpdate(ctx, pid, service.CreateLikeInput{
-		UserID:          uid,
-		Like:            dto.Like,
-		LikeLocation:    dto.LikeLocation,
-		LikePhotography: dto.LikePhotography,
-		LikeArt:         dto.LikeArt,
+		UserID: uid,
+		Like:   dto.Like,
 	})
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
@@ -81,22 +78,13 @@ func (s *LikesServicer) GetUserLikes(ctx context.Context, userID string) (genser
 		return serviceErrResp(ctx, err), nil
 	}
 	return genserver.Response(http.StatusOK, genserver.UserLikesDto{
-		LikeCount:            int32(dto.LikeCount),
-		LikeArtCount:         int32(dto.LikeArtCount),
-		LikeLocationCount:    int32(dto.LikeLocationCount),
-		LikePhotographyCount: int32(dto.LikePhotographyCount),
+		LikeCount: int32(dto.LikeCount),
 	}), nil
 }
 
 func toLikesDto(d *service.PinLikeDTO) genserver.PinLikeDto {
 	return genserver.PinLikeDto{
-		LikeCount:              int32(d.LikeCount),
-		LikeArtCount:           int32(d.LikeArtCount),
-		LikeLocationCount:      int32(d.LikeLocationCount),
-		LikePhotographyCount:   int32(d.LikePhotographyCount),
-		LikedByUser:            d.LikedByUser,
-		LikedArtByUser:         d.LikedArtByUser,
-		LikedLocationByUser:    d.LikedLocationByUser,
-		LikedPhotographyByUser: d.LikedPhotographyByUser,
+		LikeCount:   int32(d.LikeCount),
+		LikedByUser: d.LikedByUser,
 	}
 }

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -10,7 +12,36 @@ import (
 	"github.com/lrprojects/monaserver/internal/service"
 )
 
-func TestPartialLikeUpdatePreservesOmittedFlags(t *testing.T) {
+func TestGetUserLikesReturnsOnlyNormalLikeCount(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	servicer := NewLikesServicer(service.NewLike(authHandler.q), service.NewGuard(authHandler.q))
+	ctx := context.Background()
+	user, err := auth.Signup(ctx, "normal_like_counts_user", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+
+	resp, err := servicer.GetUserLikes(ctx, user.UserID.String())
+	if err != nil {
+		t.Fatalf("get user likes: %v", err)
+	}
+	if resp.Code != http.StatusOK {
+		t.Fatalf("get user likes status = %d, want 200", resp.Code)
+	}
+	body, err := json.Marshal(resp.Body)
+	if err != nil {
+		t.Fatalf("marshal user likes: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		t.Fatalf("decode user likes: %v", err)
+	}
+	if len(fields) != 1 || fields["likeCount"] == nil {
+		t.Fatalf("user likes response = %s, want only likeCount", body)
+	}
+}
+
+func TestNormalLikeCanBeRemoved(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q
 	userSvc := service.NewUser(q, nil, nil, auth, nil)
@@ -24,7 +55,7 @@ func TestPartialLikeUpdatePreservesOmittedFlags(t *testing.T) {
 		t.Fatalf("signup: %v", err)
 	}
 	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
-		Name: "partial_like_group", Visibility: 0, GroupAdmin: user.UserID,
+		Name: "normal_like_group", Visibility: 0, GroupAdmin: user.UserID,
 	})
 	if err != nil {
 		t.Fatalf("create group: %v", err)
@@ -37,7 +68,7 @@ func TestPartialLikeUpdatePreservesOmittedFlags(t *testing.T) {
 	}
 	on := true
 	if _, err := likeSvc.CreateOrUpdate(ctx, pin.ID, service.CreateLikeInput{
-		UserID: user.UserID, Like: &on, LikeLocation: &on, LikePhotography: &on, LikeArt: &on,
+		UserID: user.UserID, Like: &on,
 	}); err != nil {
 		t.Fatalf("create initial like: %v", err)
 	}
@@ -45,7 +76,7 @@ func TestPartialLikeUpdatePreservesOmittedFlags(t *testing.T) {
 	userCtx := middleware.WithUser(ctx, user.UserID, middleware.RoleUser)
 	off := false
 	resp, err := servicer.CreateOrUpdateLike(userCtx, pin.ID.String(), genserver.CreateLikeDto{
-		UserId: user.UserID.String(), LikeArt: &off,
+		UserId: user.UserID.String(), Like: &off,
 	})
 	if err != nil {
 		t.Fatalf("update like: %v", err)
@@ -57,7 +88,7 @@ func TestPartialLikeUpdatePreservesOmittedFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count likes: %v", err)
 	}
-	if got.LikeCount != 1 || got.LikeLocationCount != 1 || got.LikePhotographyCount != 1 || got.LikeArtCount != 0 {
-		t.Fatalf("partial update produced %+v", got)
+	if got.LikeCount != 0 || got.LikedByUser {
+		t.Fatalf("unlike produced %+v", got)
 	}
 }

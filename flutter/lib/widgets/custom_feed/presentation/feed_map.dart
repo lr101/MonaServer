@@ -11,7 +11,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 
 class FeedMap extends ConsumerStatefulWidget {
-
   const FeedMap({super.key, required this.item});
   final PinEntity item;
 
@@ -20,7 +19,6 @@ class FeedMap extends ConsumerStatefulWidget {
 }
 
 class FeedMapState extends ConsumerState<FeedMap> {
-
   late MapController _mapController;
   late LatLng center;
   late double _zoom;
@@ -33,33 +31,39 @@ class FeedMapState extends ConsumerState<FeedMap> {
     _zoom = 5;
   }
 
-
   @override
   Widget build(BuildContext context) {
     final isExpanded = !ref.watch(feedMapStateProvider(widget.item.pinId));
-    final switchFun = ref.read(feedMapStateProvider(widget.item.pinId).notifier).update;
+    final switchFun = ref
+        .read(feedMapStateProvider(widget.item.pinId).notifier)
+        .update;
     return Stack(
       children: [
         GestureDetector(
-            onTap: isExpanded ? null : switchFun,
-            onDoubleTap: isExpanded ? like : null,
-            child: AbsorbPointer(child: FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            minZoom: 2,
-            maxZoom: 18,
-            initialZoom: _zoom,
-            initialCenter: center,
-            keepAlive: true,
-            interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.pinchZoom,),
+          onTap: isExpanded ? null : switchFun,
+          onDoubleTap: isExpanded ? like : null,
+          child: AbsorbPointer(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                minZoom: 2,
+                maxZoom: 18,
+                initialZoom: _zoom,
+                initialCenter: center,
+                keepAlive: true,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.pinchZoom,
+                ),
+              ),
+              children: [
+                CustomTileLayer(),
+                MarkerLayer(markers: [CustomMarkerWidget(pinDto: widget.item)]),
+              ],
+            ),
           ),
-          children: [
-            CustomTileLayer(),
-            MarkerLayer(markers: [CustomMarkerWidget(pinDto: widget.item),]),
-          ],
-        ),),),
-        if(isExpanded) Align(
+        ),
+        if (isExpanded)
+          Align(
             alignment: Alignment.bottomLeft,
             child: Padding(
               padding: const EdgeInsets.all(8),
@@ -68,18 +72,22 @@ class FeedMapState extends ConsumerState<FeedMap> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   _MapControlButton(
-                      onTap: () => zoomIn(center),
-                      theme: Theme.of(context),
-                      icon: Icons.zoom_in,),
-                  const SizedBox(height: 5,),
-                   _MapControlButton(
-                      onTap: () => zoomOut(center),
-                      theme: Theme.of(context),
-                      icon: Icons.zoom_out_rounded,),
+                    onTap: () => zoomIn(center),
+                    theme: Theme.of(context),
+                    icon: Icons.zoom_in,
+                  ),
+                  const SizedBox(height: 5),
+                  _MapControlButton(
+                    onTap: () => zoomOut(center),
+                    theme: Theme.of(context),
+                    icon: Icons.zoom_out_rounded,
+                  ),
                 ],
               ),
-            ),),
-      ],);
+            ),
+          ),
+      ],
+    );
   }
 
   void zoomIn(LatLng center) {
@@ -92,8 +100,12 @@ class FeedMapState extends ConsumerState<FeedMap> {
 
   void like() {
     final userId = ref.watch(globalDataServiceProvider).userId!;
-    ref.read(likeServiceProvider(widget.item.pinId).notifier)
-        .addLike(widget.item.creator, CreateLikeDto(userId: userId, likeLocation: true));
+    ref
+        .read(likeServiceProvider(widget.item.pinId).notifier)
+        .addLike(
+          widget.item.creator,
+          CreateLikeDto(userId: userId, like: true),
+        );
   }
 }
 
@@ -133,11 +145,7 @@ class _MapControlButton extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(
-            icon,
-            color: theme.colorScheme.onSurface,
-            size: 20,
-          ),
+          child: Icon(icon, color: theme.colorScheme.onSurface, size: 20),
         ),
       ),
     );

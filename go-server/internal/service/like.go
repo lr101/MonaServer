@@ -16,78 +16,46 @@ func NewLike(q *db.Queries) *Like { return &Like{q: q} }
 
 // CreateLikeInput mirrors CreateLikeDto.
 type CreateLikeInput struct {
-	UserID          uuid.UUID `json:"userId"`
-	Like            *bool     `json:"like,omitempty"`
-	LikeLocation    *bool     `json:"likeLocation,omitempty"`
-	LikePhotography *bool     `json:"likePhotography,omitempty"`
-	LikeArt         *bool     `json:"likeArt,omitempty"`
+	UserID uuid.UUID `json:"userId"`
+	Like   *bool     `json:"like,omitempty"`
 }
 
 // PinLikeDTO mirrors PinLikeDto.
 type PinLikeDTO struct {
-	LikeCount              int64 `json:"likeCount"`
-	LikeLocationCount      int64 `json:"likeLocationCount"`
-	LikePhotographyCount   int64 `json:"likePhotographyCount"`
-	LikeArtCount           int64 `json:"likeArtCount"`
-	LikedByUser            bool  `json:"likedByUser"`
-	LikedLocationByUser    bool  `json:"likedLocationByUser"`
-	LikedPhotographyByUser bool  `json:"likedPhotographyByUser"`
-	LikedArtByUser         bool  `json:"likedArtByUser"`
+	LikeCount   int64 `json:"likeCount"`
+	LikedByUser bool  `json:"likedByUser"`
 }
 
 // UserLikesDTO mirrors UserLikesDto — aggregates likes received on user's pins.
 type UserLikesDTO struct {
-	LikeCount            int64 `json:"likeCount"`
-	LikeLocationCount    int64 `json:"likeLocationCount"`
-	LikePhotographyCount int64 `json:"likePhotographyCount"`
-	LikeArtCount         int64 `json:"likeArtCount"`
+	LikeCount int64 `json:"likeCount"`
 }
 
 func (s *Like) CreateOrUpdate(ctx context.Context, pinID uuid.UUID, in CreateLikeInput) (*PinLikeDTO, error) {
-	existing, err := s.q.GetLikeByUserAndPin(ctx, in.UserID, pinID)
-	if err != nil {
-		return nil, err
-	}
-	flags := db.LikeFlags{}
-	if existing != nil {
-		flags = *existing
-	}
 	if in.Like != nil {
-		flags.LikeAll = *in.Like
-	}
-	if in.LikeLocation != nil {
-		flags.LikeLocation = *in.LikeLocation
-	}
-	if in.LikePhotography != nil {
-		flags.LikePhotography = *in.LikePhotography
-	}
-	if in.LikeArt != nil {
-		flags.LikeArt = *in.LikeArt
-	}
-	if err := s.q.UpsertLike(ctx, in.UserID, pinID, flags); err != nil {
-		return nil, err
+		if *in.Like {
+			if err := s.q.UpsertLike(ctx, in.UserID, pinID, db.LikeFlags{LikeAll: true}); err != nil {
+				return nil, err
+			}
+		} else if err := s.q.DeleteLike(ctx, in.UserID, pinID); err != nil {
+			return nil, err
+		}
 	}
 	return s.CountByPin(ctx, pinID, in.UserID)
 }
 
 func (s *Like) CountByPin(ctx context.Context, pinID, userID uuid.UUID) (*PinLikeDTO, error) {
-	counts, err := s.q.CountPinLikesByType(ctx, pinID)
+	count, err := s.q.CountPinLikes(ctx, pinID)
 	if err != nil {
 		return nil, err
 	}
-	out := &PinLikeDTO{
-		LikeCount: counts.LikeAll, LikeLocationCount: counts.LikeLocation,
-		LikePhotographyCount: counts.LikePhotography, LikeArtCount: counts.LikeArt,
-	}
+	out := &PinLikeDTO{LikeCount: count}
 	mine, err := s.q.GetLikeByUserAndPin(ctx, userID, pinID)
 	if err != nil {
 		return nil, err
 	}
 	if mine != nil {
 		out.LikedByUser = mine.LikeAll
-		out.LikedLocationByUser = mine.LikeLocation
-		out.LikedPhotographyByUser = mine.LikePhotography
-		out.LikedArtByUser = mine.LikeArt
 	}
 	return out, nil
 }
@@ -97,10 +65,7 @@ func (s *Like) UserLikes(ctx context.Context, userID uuid.UUID) (*UserLikesDTO, 
 	if err != nil {
 		return nil, err
 	}
-	return &UserLikesDTO{
-		LikeCount: c.LikeAll, LikeLocationCount: c.LikeLocation,
-		LikePhotographyCount: c.LikePhotography, LikeArtCount: c.LikeArt,
-	}, nil
+	return &UserLikesDTO{LikeCount: c}, nil
 }
 
 var _ = apperrors.ErrNotFound

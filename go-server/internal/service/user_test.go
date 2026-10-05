@@ -357,17 +357,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 		}
 		likeInput := CreateLikeInput{UserID: likerID}
 		liked := true
-		switch i % 4 {
-		case 0:
-			likeInput.Like = &liked
-			likeInput.LikeArt = &liked
-		case 1:
-			likeInput.LikeLocation = &liked
-		case 2:
-			likeInput.LikePhotography = &liked
-		case 3:
-			likeInput.LikeArt = &liked
-		}
+		likeInput.Like = &liked
 		if _, err := like.CreateOrUpdate(ctx, created.ID, likeInput); err != nil {
 			t.Fatalf("like pin %d: %v", i, err)
 		}

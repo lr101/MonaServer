@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
-  test('unlike cannot make stale zero creator totals negative', () async {
+  test('unlike cannot make stale zero creator total negative', () async {
     final repo = _UserLikes();
     final container = ProviderContainer(
       overrides: [
@@ -21,37 +21,16 @@ void main() {
     await container.read(userLikeServiceProvider('creator').future);
     await container
         .read(userLikeServiceProvider('creator').notifier)
-        .updateLikeCount(
-          CreateLikeDto(
-            userId: 'viewer',
-            like: false,
-            likeArt: false,
-            likeLocation: false,
-            likePhotography: false,
-          ),
-        );
+        .updateLikeCount(CreateLikeDto(userId: 'viewer', like: false));
     final likes = container.read(userLikeServiceProvider('creator')).value!;
-    expect(
-      [
-        likes.likeCount,
-        likes.likeArtCount,
-        likes.likeLocationCount,
-        likes.likePhotographyCount,
-      ],
-      [0, 0, 0, 0],
-    );
+    expect(likes.likeCount, 0);
     expect(repo.value.likeCount, 0);
   });
 
   test('negative cached creator totals are normalized when loaded', () async {
     final repo = _UserLikes(
       value: UserLikeEntity.fromDto(
-        UserLikesDto(
-          likeCount: -1,
-          likeArtCount: -2,
-          likeLocationCount: -3,
-          likePhotographyCount: -4,
-        ),
+        UserLikesDto(likeCount: -1),
         'creator',
         true,
       ),
@@ -68,15 +47,7 @@ void main() {
     final likes = await container.read(
       userLikeServiceProvider('creator').future,
     );
-    expect(
-      [
-        likes.likeCount,
-        likes.likeArtCount,
-        likes.likeLocationCount,
-        likes.likePhotographyCount,
-      ],
-      [0, 0, 0, 0],
-    );
+    expect(likes.likeCount, 0);
   });
 }
 
@@ -86,16 +57,7 @@ class _UserLikes implements IUserLikeRepository {
   _UserLikes({UserLikeEntity? value})
     : value =
           value ??
-          UserLikeEntity.fromDto(
-            UserLikesDto(
-              likeCount: 0,
-              likeArtCount: 0,
-              likeLocationCount: 0,
-              likePhotographyCount: 0,
-            ),
-            'creator',
-            true,
-          );
+          UserLikeEntity.fromDto(UserLikesDto(likeCount: 0), 'creator', true);
   @override
   Future<UserLikeEntity?> get(String id) async => value;
   @override

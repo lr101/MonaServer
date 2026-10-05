@@ -21,21 +21,6 @@ void main() {
       // TODO
     });
 
-    // bool likeLocation
-    test('to test the property `likeLocation`', () async {
-      // TODO
-    });
-
-    // bool likePhotography
-    test('to test the property `likePhotography`', () async {
-      // TODO
-    });
-
-    // bool likeArt
-    test('to test the property `likeArt`', () async {
-      // TODO
-    });
-
     // String userId
     test('to test the property `userId`', () async {
       // TODO

@@ -24,51 +24,51 @@ type GroupAchievementDef struct {
 
 var groupAchievementDefs = []GroupAchievementDef{
 	{
-		ID: 1, Track: "active_pins", Name: "First gathering", Description: "Add 40 active sticks to this group.",
+		ID: 1, Track: "active_pins", Name: "Gatherer", Description: "Add 40 active sticks to this group.",
 		Difficulty: "easy", Threshold: 40, RewardType: "xp", RewardXP: 50,
 	},
 	{
-		ID: 2, Track: "active_pins", Name: "Local landmark", Description: "Add 100 active sticks to this group.",
+		ID: 2, Track: "active_pins", Name: "Landmark", Description: "Add 100 active sticks to this group.",
 		Difficulty: "medium", Threshold: 100, RewardType: "color", RewardColor: "#D57B50", RewardPinStyle: "sunset",
 	},
 	{
-		ID: 3, Track: "active_pins", Name: "Mapmaker crew", Description: "Add 200 active sticks to this group.",
+		ID: 3, Track: "active_pins", Name: "Mapmaker", Description: "Add 200 active sticks to this group.",
 		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "aurora",
 	},
 	{
-		ID: 4, Track: "active_pins", Name: "First pair", Description: "Add 2 active sticks to this group.",
+		ID: 4, Track: "active_pins", Name: "Spark", Description: "Add 2 active sticks to this group.",
 		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 10,
 	},
 	{
-		ID: 5, Track: "active_pins", Name: "Four hundred pins", Description: "Add 400 active sticks to this group.",
+		ID: 5, Track: "active_pins", Name: "Pioneer", Description: "Add 400 active sticks to this group.",
 		Difficulty: "hard", Threshold: 400, RewardType: "badge", RewardPinStyle: "honey",
 	},
 	{
-		ID: 6, Track: "active_pins", Name: "Pin legend", Description: "Add 1,000 active sticks to this group.",
+		ID: 6, Track: "active_pins", Name: "Epic", Description: "Add 1,000 active sticks to this group.",
 		Difficulty: "hard", Threshold: 1000, RewardType: "badge", RewardPinStyle: "orchid",
 	},
 	{
-		ID: 7, Track: "contributors", Name: "Shared start", Description: "Have 2 people each add at least 1 stick.",
+		ID: 7, Track: "contributors", Name: "Teamwork", Description: "Have 2 people each add at least 1 stick.",
 		Difficulty: "easy", Threshold: 2, ContributorMinimumPins: 1, RewardType: "xp", RewardXP: 50,
 	},
 	{
-		ID: 8, Track: "contributors", Name: "Many hands", Description: "Have 20 people each add at least 3 sticks.",
+		ID: 8, Track: "contributors", Name: "Network", Description: "Have 20 people each add at least 3 sticks.",
 		Difficulty: "medium", Threshold: 20, ContributorMinimumPins: 3, RewardType: "color", RewardColor: "#388E67", RewardPinStyle: "jade",
 	},
 	{
-		ID: 9, Track: "contributors", Name: "Community mosaic", Description: "Have 60 people each add at least 5 sticks.",
+		ID: 9, Track: "contributors", Name: "Mosaic", Description: "Have 60 people each add at least 5 sticks.",
 		Difficulty: "hard", Threshold: 60, ContributorMinimumPins: 5, RewardType: "badge", RewardPinStyle: "ember",
 	},
 	{
-		ID: 10, Track: "members", Name: "Welcoming crew", Description: "Grow this group to 10 active members.",
+		ID: 10, Track: "members", Name: "Host", Description: "Grow this group to 10 active members.",
 		Difficulty: "easy", Threshold: 10, RewardType: "xp", RewardXP: 50,
 	},
 	{
-		ID: 11, Track: "members", Name: "Growing circle", Description: "Grow this group to 60 active members.",
+		ID: 11, Track: "members", Name: "Circle", Description: "Grow this group to 60 active members.",
 		Difficulty: "medium", Threshold: 60, RewardType: "color", RewardColor: "#C35C84", RewardPinStyle: "rose",
 	},
 	{
-		ID: 12, Track: "members", Name: "Big table", Description: "Grow this group to 200 active members.",
+		ID: 12, Track: "members", Name: "Society", Description: "Grow this group to 200 active members.",
 		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "midnight",
 	},
 }

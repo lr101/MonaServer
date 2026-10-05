@@ -5625,44 +5625,17 @@ components:
       type: object
     pinLikeDto:
       example:
-        likedLocationByUser: true
-        likeLocationCount: 1
         likedByUser: true
-        likeArtCount: 6
-        likePhotographyCount: 5
         likeCount: 0
-        likedArtByUser: true
-        likedPhotographyByUser: true
       properties:
         likeCount:
           type: integer
-        likeArtCount:
-          type: integer
-        likeLocationCount:
-          type: integer
-        likePhotographyCount:
-          type: integer
         likedByUser:
-          type: boolean
-        likedArtByUser:
-          type: boolean
-        likedLocationByUser:
-          type: boolean
-        likedPhotographyByUser:
           type: boolean
       type: object
     createLikeDto:
       properties:
         like:
-          nullable: true
-          type: boolean
-        likeLocation:
-          nullable: true
-          type: boolean
-        likePhotography:
-          nullable: true
-          type: boolean
-        likeArt:
           nullable: true
           type: boolean
         userId:
@@ -5673,24 +5646,12 @@ components:
       type: object
     userLikesDto:
       example:
-        likeLocationCount: 1
-        likeArtCount: 6
-        likePhotographyCount: 5
         likeCount: 0
       properties:
         likeCount:
           type: integer
-        likeArtCount:
-          type: integer
-        likeLocationCount:
-          type: integer
-        likePhotographyCount:
-          type: integer
       required:
-      - likeArtCount
       - likeCount
-      - likeLocationCount
-      - likePhotographyCount
       type: object
     infoDto:
       example:

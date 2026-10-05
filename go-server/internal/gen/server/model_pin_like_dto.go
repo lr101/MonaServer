@@ -13,19 +13,7 @@ package genserver
 type PinLikeDto struct {
 	LikeCount int32 `json:"likeCount,omitempty"`
 
-	LikeArtCount int32 `json:"likeArtCount,omitempty"`
-
-	LikeLocationCount int32 `json:"likeLocationCount,omitempty"`
-
-	LikePhotographyCount int32 `json:"likePhotographyCount,omitempty"`
-
 	LikedByUser bool `json:"likedByUser,omitempty"`
-
-	LikedArtByUser bool `json:"likedArtByUser,omitempty"`
-
-	LikedLocationByUser bool `json:"likedLocationByUser,omitempty"`
-
-	LikedPhotographyByUser bool `json:"likedPhotographyByUser,omitempty"`
 }
 
 // AssertPinLikeDtoRequired checks if the required fields are not zero-ed

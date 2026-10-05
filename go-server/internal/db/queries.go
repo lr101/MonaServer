@@ -1439,16 +1439,11 @@ func (q *Queries) FindBoundaryForPoint(ctx context.Context, lat, lng float64) (*
 // ---- Likes ----
 
 type UserLikedPin struct {
-	PinID           uuid.UUID
-	LikeAll         bool
-	LikeLocation    bool
-	LikePhotography bool
-	LikeArt         bool
+	PinID   uuid.UUID
+	LikeAll bool
 }
 
-type LikeFlags struct {
-	LikeAll, LikeLocation, LikePhotography, LikeArt bool
-}
+type LikeFlags struct{ LikeAll bool }
 
 func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UUID) (*LikeFlags, error) {
 	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
@@ -1458,35 +1453,26 @@ func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	return &LikeFlags{LikeAll: row.LikeAll, LikeLocation: row.LikeLocation, LikePhotography: row.LikePhotography, LikeArt: row.LikeArt}, nil
+	return &LikeFlags{LikeAll: row.LikeAll}, nil
 }
 
 func (q *Queries) UpsertLike(ctx context.Context, userID, pinID uuid.UUID, f LikeFlags) error {
 	return q.g.UpsertLike(ctx, dbgen.UpsertLikeParams{
 		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), UserID: pgUUID(userID),
-		LikeAll: f.LikeAll, LikeLocation: f.LikeLocation,
-		LikePhotography: f.LikePhotography, LikeArt: f.LikeArt,
+		LikeAll: f.LikeAll,
 	})
 }
 
-type LikeCounts struct {
-	LikeAll, LikeLocation, LikePhotography, LikeArt int64
+func (q *Queries) DeleteLike(ctx context.Context, userID, pinID uuid.UUID) error {
+	return q.g.DeleteLike(ctx, dbgen.DeleteLikeParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
 }
 
-func (q *Queries) CountPinLikesByType(ctx context.Context, pinID uuid.UUID) (LikeCounts, error) {
-	r, err := q.g.CountPinLikesByType(ctx, pgUUID(pinID))
-	if err != nil {
-		return LikeCounts{}, err
-	}
-	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+func (q *Queries) CountPinLikes(ctx context.Context, pinID uuid.UUID) (int64, error) {
+	return q.g.CountPinLikes(ctx, pgUUID(pinID))
 }
 
-func (q *Queries) CountLikesForCreator(ctx context.Context, userID uuid.UUID) (LikeCounts, error) {
-	r, err := q.g.CountLikesForCreator(ctx, pgUUID(userID))
-	if err != nil {
-		return LikeCounts{}, err
-	}
-	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+func (q *Queries) CountLikesForCreator(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return q.g.CountLikesForCreator(ctx, pgUUID(userID))
 }
 
 func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]UserLikedPin, error) {
@@ -1497,11 +1483,8 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]Us
 	out := make([]UserLikedPin, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, UserLikedPin{
-			PinID:           goUUID(r.PinID),
-			LikeAll:         r.LikeAll,
-			LikeLocation:    r.LikeLocation,
-			LikePhotography: r.LikePhotography,
-			LikeArt:         r.LikeArt,
+			PinID:   goUUID(r.PinID),
+			LikeAll: r.LikeAll,
 		})
 	}
 	return out, nil
