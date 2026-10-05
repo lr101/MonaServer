@@ -44,7 +44,7 @@ void main() {
     );
     await tester.pump();
 
-    final image = tester.widget<FadeInImage>(find.byType(FadeInImage));
+    final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as ResizeImage;
 
     expect(provider.width, 300);
