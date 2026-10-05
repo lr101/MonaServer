@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/geojson_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
@@ -5,6 +6,7 @@ import 'package:buff_lisa/features/map_home/data/marker_window_state.dart';
 import 'package:buff_lisa/features/map_home/presentation/circle_with_indicator.dart';
 import 'package:buff_lisa/features/map_home/presentation/join_group_hint.dart';
 import 'package:buff_lisa/features/map_home/presentation/osm_copyright.dart';
+import 'package:buff_lisa/features/map_home/presentation/pin_cluster_preview_marker.dart';
 import 'package:buff_lisa/features/map_home/presentation/ranking_panel.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_map_setup/presentation/custom_tile_layer.dart';
@@ -20,6 +22,20 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+class _ClusterPreviewSelection {
+  const _ClusterPreviewSelection({
+    required this.clusterKey,
+    required this.center,
+    required this.pins,
+    required this.markerSignature,
+  });
+
+  final String clusterKey;
+  final LatLng center;
+  final List<PinEntity> pins;
+  final int markerSignature;
+}
+
 class MapHome extends ConsumerStatefulWidget {
   const MapHome({super.key});
 
@@ -32,8 +48,16 @@ class _MapHomeState extends ConsumerState<MapHome>
   final MapController _controller = MapController();
   late final AnimationController _animateController;
   late final MapLocationAnimator _locationAnimator;
+  String? _openClusterKey;
+  String? _previewClusterKey;
+  List<PinEntity> _previewPins = const [];
+  LatLng? _previewCenter;
+  int? _previewMarkerSignature;
+  _ClusterPreviewSelection? _pendingClusterPreview;
+  bool _previewInvalidationScheduled = false;
 
   static const double panelHeaderSize = 60;
+  static const double maxMapZoom = 18;
 
   @override
   void initState() {
@@ -71,6 +95,15 @@ class _MapHomeState extends ConsumerState<MapHome>
     final mapState = ref.watch(mapStatesProvider);
     final mapZoom = ref.watch(mapZoomLevelProvider);
     ref.watch(markerWindowStateProvider);
+    final markerSignature = _markerSignature(mapState.markers);
+    _closePreviewWhenMarkerDataChanges(markerSignature);
+    final previewIsOpen =
+        _openClusterKey != null &&
+        _openClusterKey == _previewClusterKey &&
+        _previewMarkerSignature == markerSignature;
+    final previewSize = PinClusterPreviewMarker.sizeForCount(
+      _previewPins.length,
+    );
     return Stack(
       children: [
         Positioned.fill(
@@ -78,7 +111,7 @@ class _MapHomeState extends ConsumerState<MapHome>
             mapController: _controller,
             options: MapOptions(
               minZoom: 2,
-              maxZoom: 18,
+              maxZoom: maxMapZoom,
               initialZoom: mapZoom,
               keepAlive: true,
               initialCenter: ref.watch(lastKnownLocationProvider),
@@ -91,6 +124,14 @@ class _MapHomeState extends ConsumerState<MapHome>
                 }
               },
               onPositionChanged: (position, hasGesture) {
+                if (position.zoom < maxMapZoom &&
+                    (_openClusterKey != null ||
+                        _pendingClusterPreview != null)) {
+                  setState(() {
+                    _openClusterKey = null;
+                    _pendingClusterPreview = null;
+                  });
+                }
                 ref.read(mapZoomLevelProvider.notifier).setZoom(position.zoom);
                 ref
                     .read(districtServiceProvider.notifier)
@@ -112,19 +153,57 @@ class _MapHomeState extends ConsumerState<MapHome>
               const CurrentLocationLayer(),
               MarkerClusterLayerWidget(
                 options: MarkerClusterLayerOptions(
-                  disableClusteringAtZoom: 16,
+                  disableClusteringAtZoom: maxMapZoom.toInt(),
                   size: const Size(80, 80),
+                  maxClusterRadius: 120,
+                  zoomToBoundsOnClick: false,
+                  spiderfyCluster: false,
                   markers: mapState.markers,
                   polygonOptions: const PolygonOptions(
                     color: Colors.transparent,
                   ),
                   onMarkerTap: onMarkerTab,
-                  builder: (context, markers) => CircleWithIndicator(
-                    color: Theme.of(context).highlightColor,
-                    number: markers.length,
-                  ),
+                  builder: (context, markers) {
+                    final pins = markers
+                        .whereType<CustomMarkerWidget>()
+                        .map((marker) => marker.pinDto)
+                        .toList();
+                    final clusterKey = _clusterKey(markers);
+                    final clusterCenter = _clusterCenter(markers);
+                    void onCountTap() => _onClusterNumberPressed(
+                      clusterKey,
+                      clusterCenter,
+                      pins,
+                      markerSignature,
+                    );
+                    return CircleWithIndicator(
+                      color: Theme.of(context).highlightColor,
+                      number: markers.length,
+                      onTap: onCountTap,
+                    );
+                  },
                 ),
               ),
+              if (_previewPins.isNotEmpty && _previewCenter != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      key: const ValueKey('pin-cluster-preview'),
+                      point: _previewCenter!,
+                      width: previewSize.width,
+                      height: previewSize.height,
+                      child: PinClusterPreviewMarker(
+                        pins: _previewPins,
+                        isOpen: previewIsOpen,
+                        onPinSelected: (pinId) => context.pushNamed(
+                          'viewImage',
+                          pathParameters: {'id': pinId},
+                        ),
+                        onClosed: _onClusterPreviewClosed,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -169,10 +248,147 @@ class _MapHomeState extends ConsumerState<MapHome>
     );
   }
 
-  Future<void> onMarkerTab(Marker marker) async {
-    final m = marker as CustomMarkerWidget;
-    context.pushNamed("viewImage", pathParameters: {"id": m.pinDto.pinId});
+  void onMarkerTab(Marker marker) {
+    final tappedMarker = marker as CustomMarkerWidget;
+    context.pushNamed(
+      'viewImage',
+      pathParameters: {'id': tappedMarker.pinDto.pinId},
+    );
   }
+
+  String _clusterKey(List<Marker> markers) {
+    final pinIds =
+        markers
+            .whereType<CustomMarkerWidget>()
+            .map((marker) => marker.pinDto.pinId)
+            .toList()
+          ..sort();
+    return pinIds.join('|');
+  }
+
+  LatLng _clusterCenter(List<Marker> markers) =>
+      LatLngBounds.fromPoints(markers.map((marker) => marker.point).toList())
+          .center;
+
+  void _onClusterNumberPressed(
+    String clusterKey,
+    LatLng clusterCenter,
+    List<PinEntity> pins,
+    int markerSignature,
+  ) {
+    final currentZoom = ref.read(mapZoomLevelProvider);
+    if (currentZoom >= maxMapZoom) {
+      if (pins.isEmpty) return;
+      final selection = _ClusterPreviewSelection(
+        clusterKey: clusterKey,
+        center: clusterCenter,
+        pins: pins,
+        markerSignature: markerSignature,
+      );
+      final isCurrentPreviewOpen =
+          _openClusterKey == clusterKey &&
+          _previewClusterKey == clusterKey &&
+          _previewMarkerSignature == markerSignature;
+      if (isCurrentPreviewOpen) {
+        setState(() {
+          _openClusterKey = null;
+          _pendingClusterPreview = null;
+        });
+      } else if (_previewPins.isNotEmpty) {
+        setState(() {
+          _openClusterKey = null;
+          _pendingClusterPreview = selection;
+        });
+      } else {
+        setState(() => _applyClusterPreview(selection));
+      }
+      return;
+    }
+
+    final nextZoom = (currentZoom.ceil() + 1)
+        .clamp(2, maxMapZoom.toInt())
+        .toDouble();
+    if (nextZoom <= currentZoom) return;
+
+    _locationAnimator.animate(
+      currentCenter: _controller.camera.center,
+      currentZoom: _controller.camera.zoom,
+      destination: clusterCenter,
+      destinationZoom: nextZoom,
+    );
+  }
+
+  void _onClusterPreviewClosed() {
+    if (!mounted || _previewPins.isEmpty) return;
+    final pendingPreview = _pendingClusterPreview;
+    final currentMarkerSignature = _markerSignature(
+      ref.read(mapStatesProvider).markers,
+    );
+    if (pendingPreview != null &&
+        pendingPreview.markerSignature == currentMarkerSignature) {
+      setState(() => _applyClusterPreview(pendingPreview));
+      return;
+    }
+
+    final currentPreviewIsOpen =
+        _openClusterKey != null &&
+        _openClusterKey == _previewClusterKey &&
+        _previewMarkerSignature == currentMarkerSignature;
+    if (currentPreviewIsOpen) return;
+
+    setState(() {
+      _openClusterKey = null;
+      _previewClusterKey = null;
+      _previewPins = const [];
+      _previewCenter = null;
+      _previewMarkerSignature = null;
+      _pendingClusterPreview = null;
+      _previewInvalidationScheduled = false;
+    });
+  }
+
+  void _applyClusterPreview(_ClusterPreviewSelection selection) {
+    _openClusterKey = selection.clusterKey;
+    _previewClusterKey = selection.clusterKey;
+    _previewPins = List.unmodifiable(selection.pins);
+    _previewCenter = selection.center;
+    _previewMarkerSignature = selection.markerSignature;
+    _pendingClusterPreview = null;
+  }
+
+  void _closePreviewWhenMarkerDataChanges(int markerSignature) {
+    if (_previewPins.isEmpty || _previewInvalidationScheduled) return;
+    final expectedSignature =
+        _pendingClusterPreview?.markerSignature ?? _previewMarkerSignature;
+    if (expectedSignature == markerSignature) return;
+
+    _previewInvalidationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final latestMarkerSignature = _markerSignature(
+        ref.read(mapStatesProvider).markers,
+      );
+      final latestExpectedSignature =
+          _pendingClusterPreview?.markerSignature ?? _previewMarkerSignature;
+      if (latestExpectedSignature != latestMarkerSignature) {
+        setState(() {
+          _openClusterKey = null;
+          _pendingClusterPreview = null;
+        });
+      }
+      _previewInvalidationScheduled = false;
+    });
+  }
+
+  int _markerSignature(List<Marker> markers) => Object.hashAllUnordered(
+    markers.whereType<CustomMarkerWidget>().map(
+      (marker) => Object.hash(
+        marker.pinDto.pinId,
+        marker.point.latitude,
+        marker.point.longitude,
+      ),
+    ),
+  );
 
   Future<void> moveToCurrentPosition({
     required bool showPermissionError,
