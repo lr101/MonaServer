@@ -785,7 +785,7 @@ func TestBatchReadResourcesAndPerItemAuthorization(t *testing.T) {
 	privatePinID := createPin(privateGroupID)
 
 	like := ownerClient.do(t, http.MethodPost, "/api/v2/pins/"+publicPinID+"/likes", map[string]any{
-		"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false, "userId": owner.UserID,
+		"like": true, "userId": owner.UserID,
 	})
 	like.Body.Close()
 	if like.StatusCode != http.StatusCreated {
@@ -1882,7 +1882,7 @@ func TestEndpointLikes(t *testing.T) {
 
 	t.Run("POST /api/v2/pins/{id}/likes — like pin", func(t *testing.T) {
 		resp := c.do(t, "POST", "/api/v2/pins/"+pid+"/likes", map[string]any{
-			"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false,
+			"like":   true,
 			"userId": ar.UserID,
 		})
 		defer resp.Body.Close()

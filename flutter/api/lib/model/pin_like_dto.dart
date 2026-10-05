@@ -14,13 +14,7 @@ class PinLikeDto {
   /// Returns a new [PinLikeDto] instance.
   PinLikeDto({
     this.likeCount,
-    this.likeArtCount,
-    this.likeLocationCount,
-    this.likePhotographyCount,
     this.likedByUser,
-    this.likedArtByUser,
-    this.likedLocationByUser,
-    this.likedPhotographyByUser,
   });
 
   ///
@@ -37,81 +31,21 @@ class PinLikeDto {
   /// source code must fall back to having a nullable type.
   /// Consider adding a "default:" property in the specification file to hide this note.
   ///
-  int? likeArtCount;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  int? likeLocationCount;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  int? likePhotographyCount;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   bool? likedByUser;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  bool? likedArtByUser;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  bool? likedLocationByUser;
-
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  bool? likedPhotographyByUser;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is PinLikeDto &&
     other.likeCount == likeCount &&
-    other.likeArtCount == likeArtCount &&
-    other.likeLocationCount == likeLocationCount &&
-    other.likePhotographyCount == likePhotographyCount &&
-    other.likedByUser == likedByUser &&
-    other.likedArtByUser == likedArtByUser &&
-    other.likedLocationByUser == likedLocationByUser &&
-    other.likedPhotographyByUser == likedPhotographyByUser;
+    other.likedByUser == likedByUser;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (likeCount == null ? 0 : likeCount!.hashCode) +
-    (likeArtCount == null ? 0 : likeArtCount!.hashCode) +
-    (likeLocationCount == null ? 0 : likeLocationCount!.hashCode) +
-    (likePhotographyCount == null ? 0 : likePhotographyCount!.hashCode) +
-    (likedByUser == null ? 0 : likedByUser!.hashCode) +
-    (likedArtByUser == null ? 0 : likedArtByUser!.hashCode) +
-    (likedLocationByUser == null ? 0 : likedLocationByUser!.hashCode) +
-    (likedPhotographyByUser == null ? 0 : likedPhotographyByUser!.hashCode);
+    (likedByUser == null ? 0 : likedByUser!.hashCode);
 
   @override
-  String toString() => 'PinLikeDto[likeCount=$likeCount, likeArtCount=$likeArtCount, likeLocationCount=$likeLocationCount, likePhotographyCount=$likePhotographyCount, likedByUser=$likedByUser, likedArtByUser=$likedArtByUser, likedLocationByUser=$likedLocationByUser, likedPhotographyByUser=$likedPhotographyByUser]';
+  String toString() => 'PinLikeDto[likeCount=$likeCount, likedByUser=$likedByUser]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -120,40 +54,10 @@ class PinLikeDto {
     } else {
       json[r'likeCount'] = null;
     }
-    if (this.likeArtCount != null) {
-      json[r'likeArtCount'] = this.likeArtCount;
-    } else {
-      json[r'likeArtCount'] = null;
-    }
-    if (this.likeLocationCount != null) {
-      json[r'likeLocationCount'] = this.likeLocationCount;
-    } else {
-      json[r'likeLocationCount'] = null;
-    }
-    if (this.likePhotographyCount != null) {
-      json[r'likePhotographyCount'] = this.likePhotographyCount;
-    } else {
-      json[r'likePhotographyCount'] = null;
-    }
     if (this.likedByUser != null) {
       json[r'likedByUser'] = this.likedByUser;
     } else {
       json[r'likedByUser'] = null;
-    }
-    if (this.likedArtByUser != null) {
-      json[r'likedArtByUser'] = this.likedArtByUser;
-    } else {
-      json[r'likedArtByUser'] = null;
-    }
-    if (this.likedLocationByUser != null) {
-      json[r'likedLocationByUser'] = this.likedLocationByUser;
-    } else {
-      json[r'likedLocationByUser'] = null;
-    }
-    if (this.likedPhotographyByUser != null) {
-      json[r'likedPhotographyByUser'] = this.likedPhotographyByUser;
-    } else {
-      json[r'likedPhotographyByUser'] = null;
     }
     return json;
   }
@@ -178,13 +82,7 @@ class PinLikeDto {
 
       return PinLikeDto(
         likeCount: mapValueOfType<int>(json, r'likeCount'),
-        likeArtCount: mapValueOfType<int>(json, r'likeArtCount'),
-        likeLocationCount: mapValueOfType<int>(json, r'likeLocationCount'),
-        likePhotographyCount: mapValueOfType<int>(json, r'likePhotographyCount'),
         likedByUser: mapValueOfType<bool>(json, r'likedByUser'),
-        likedArtByUser: mapValueOfType<bool>(json, r'likedArtByUser'),
-        likedLocationByUser: mapValueOfType<bool>(json, r'likedLocationByUser'),
-        likedPhotographyByUser: mapValueOfType<bool>(json, r'likedPhotographyByUser'),
       );
     }
     return null;
@@ -234,4 +132,3 @@ class PinLikeDto {
   static const requiredKeys = <String>{
   };
 }
-

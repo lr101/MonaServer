@@ -27,17 +27,11 @@ func TestLikeCreateOrUpdateAndCount(t *testing.T) {
 	})
 
 	likeAll := true
-	likeLoc := false
-	likePhoto := true
-	likeArt := false
 
 	t.Run("create like", func(t *testing.T) {
 		dto, err := like.CreateOrUpdate(ctx, pid, CreateLikeInput{
-			UserID:          uid,
-			Like:            &likeAll,
-			LikeLocation:    &likeLoc,
-			LikePhotography: &likePhoto,
-			LikeArt:         &likeArt,
+			UserID: uid,
+			Like:   &likeAll,
 		})
 		if err != nil {
 			t.Fatalf("create or update: %v", err)
@@ -47,9 +41,6 @@ func TestLikeCreateOrUpdateAndCount(t *testing.T) {
 		}
 		if !dto.LikedByUser {
 			t.Fatal("expected LikedByUser=true")
-		}
-		if dto.LikePhotographyCount != 1 {
-			t.Fatalf("expected 1 photography like, got %d", dto.LikePhotographyCount)
 		}
 	})
 

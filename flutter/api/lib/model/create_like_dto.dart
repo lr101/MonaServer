@@ -14,41 +14,26 @@ class CreateLikeDto {
   /// Returns a new [CreateLikeDto] instance.
   CreateLikeDto({
     this.like,
-    this.likeLocation,
-    this.likePhotography,
-    this.likeArt,
     required this.userId,
   });
 
   bool? like;
-
-  bool? likeLocation;
-
-  bool? likePhotography;
-
-  bool? likeArt;
 
   String userId;
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is CreateLikeDto &&
     other.like == like &&
-    other.likeLocation == likeLocation &&
-    other.likePhotography == likePhotography &&
-    other.likeArt == likeArt &&
     other.userId == userId;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
     (like == null ? 0 : like!.hashCode) +
-    (likeLocation == null ? 0 : likeLocation!.hashCode) +
-    (likePhotography == null ? 0 : likePhotography!.hashCode) +
-    (likeArt == null ? 0 : likeArt!.hashCode) +
     (userId.hashCode);
 
   @override
-  String toString() => 'CreateLikeDto[like=$like, likeLocation=$likeLocation, likePhotography=$likePhotography, likeArt=$likeArt, userId=$userId]';
+  String toString() => 'CreateLikeDto[like=$like, userId=$userId]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -56,21 +41,6 @@ class CreateLikeDto {
       json[r'like'] = this.like;
     } else {
       json[r'like'] = null;
-    }
-    if (this.likeLocation != null) {
-      json[r'likeLocation'] = this.likeLocation;
-    } else {
-      json[r'likeLocation'] = null;
-    }
-    if (this.likePhotography != null) {
-      json[r'likePhotography'] = this.likePhotography;
-    } else {
-      json[r'likePhotography'] = null;
-    }
-    if (this.likeArt != null) {
-      json[r'likeArt'] = this.likeArt;
-    } else {
-      json[r'likeArt'] = null;
     }
       json[r'userId'] = this.userId;
     return json;
@@ -96,9 +66,6 @@ class CreateLikeDto {
 
       return CreateLikeDto(
         like: mapValueOfType<bool>(json, r'like'),
-        likeLocation: mapValueOfType<bool>(json, r'likeLocation'),
-        likePhotography: mapValueOfType<bool>(json, r'likePhotography'),
-        likeArt: mapValueOfType<bool>(json, r'likeArt'),
         userId: mapValueOfType<String>(json, r'userId')!,
       );
     }
@@ -150,4 +117,3 @@ class CreateLikeDto {
     'userId',
   };
 }
-

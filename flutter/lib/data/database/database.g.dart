@@ -3747,38 +3747,6 @@ class $PinLikeEntitiesTable extends PinLikeEntities
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _likePhotographyCountMeta =
-      const VerificationMeta('likePhotographyCount');
-  @override
-  late final GeneratedColumn<int> likePhotographyCount = GeneratedColumn<int>(
-    'like_photography_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _likeLocationCountMeta = const VerificationMeta(
-    'likeLocationCount',
-  );
-  @override
-  late final GeneratedColumn<int> likeLocationCount = GeneratedColumn<int>(
-    'like_location_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _likeArtCountMeta = const VerificationMeta(
-    'likeArtCount',
-  );
-  @override
-  late final GeneratedColumn<int> likeArtCount = GeneratedColumn<int>(
-    'like_art_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
   static const VerificationMeta _hasLikeMeta = const VerificationMeta(
     'hasLike',
   );
@@ -3793,47 +3761,6 @@ class $PinLikeEntitiesTable extends PinLikeEntities
       'CHECK ("has_like" IN (0, 1))',
     ),
   );
-  static const VerificationMeta _hasLikePhotographyMeta =
-      const VerificationMeta('hasLikePhotography');
-  @override
-  late final GeneratedColumn<bool> hasLikePhotography = GeneratedColumn<bool>(
-    'has_like_photography',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("has_like_photography" IN (0, 1))',
-    ),
-  );
-  static const VerificationMeta _hasLikeLocationMeta = const VerificationMeta(
-    'hasLikeLocation',
-  );
-  @override
-  late final GeneratedColumn<bool> hasLikeLocation = GeneratedColumn<bool>(
-    'has_like_location',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("has_like_location" IN (0, 1))',
-    ),
-  );
-  static const VerificationMeta _hasLikeArtMeta = const VerificationMeta(
-    'hasLikeArt',
-  );
-  @override
-  late final GeneratedColumn<bool> hasLikeArt = GeneratedColumn<bool>(
-    'has_like_art',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("has_like_art" IN (0, 1))',
-    ),
-  );
   @override
   List<GeneratedColumn> get $columns => [
     isarId,
@@ -3843,13 +3770,7 @@ class $PinLikeEntitiesTable extends PinLikeEntities
     onlySession,
     id,
     likeCount,
-    likePhotographyCount,
-    likeLocationCount,
-    likeArtCount,
     hasLike,
-    hasLikePhotography,
-    hasLikeLocation,
-    hasLikeArt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3911,39 +3832,6 @@ class $PinLikeEntitiesTable extends PinLikeEntities
     } else if (isInserting) {
       context.missing(_likeCountMeta);
     }
-    if (data.containsKey('like_photography_count')) {
-      context.handle(
-        _likePhotographyCountMeta,
-        likePhotographyCount.isAcceptableOrUnknown(
-          data['like_photography_count']!,
-          _likePhotographyCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likePhotographyCountMeta);
-    }
-    if (data.containsKey('like_location_count')) {
-      context.handle(
-        _likeLocationCountMeta,
-        likeLocationCount.isAcceptableOrUnknown(
-          data['like_location_count']!,
-          _likeLocationCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likeLocationCountMeta);
-    }
-    if (data.containsKey('like_art_count')) {
-      context.handle(
-        _likeArtCountMeta,
-        likeArtCount.isAcceptableOrUnknown(
-          data['like_art_count']!,
-          _likeArtCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likeArtCountMeta);
-    }
     if (data.containsKey('has_like')) {
       context.handle(
         _hasLikeMeta,
@@ -3951,39 +3839,6 @@ class $PinLikeEntitiesTable extends PinLikeEntities
       );
     } else if (isInserting) {
       context.missing(_hasLikeMeta);
-    }
-    if (data.containsKey('has_like_photography')) {
-      context.handle(
-        _hasLikePhotographyMeta,
-        hasLikePhotography.isAcceptableOrUnknown(
-          data['has_like_photography']!,
-          _hasLikePhotographyMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_hasLikePhotographyMeta);
-    }
-    if (data.containsKey('has_like_location')) {
-      context.handle(
-        _hasLikeLocationMeta,
-        hasLikeLocation.isAcceptableOrUnknown(
-          data['has_like_location']!,
-          _hasLikeLocationMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_hasLikeLocationMeta);
-    }
-    if (data.containsKey('has_like_art')) {
-      context.handle(
-        _hasLikeArtMeta,
-        hasLikeArt.isAcceptableOrUnknown(
-          data['has_like_art']!,
-          _hasLikeArtMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_hasLikeArtMeta);
     }
     return context;
   }
@@ -4022,33 +3877,9 @@ class $PinLikeEntitiesTable extends PinLikeEntities
         DriftSqlType.int,
         data['${effectivePrefix}like_count'],
       )!,
-      likePhotographyCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_photography_count'],
-      )!,
-      likeLocationCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_location_count'],
-      )!,
-      likeArtCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_art_count'],
-      )!,
       hasLike: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_like'],
-      )!,
-      hasLikePhotography: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}has_like_photography'],
-      )!,
-      hasLikeLocation: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}has_like_location'],
-      )!,
-      hasLikeArt: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}has_like_art'],
       )!,
     );
   }
@@ -4067,13 +3898,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
   final bool onlySession;
   final String id;
   final int likeCount;
-  final int likePhotographyCount;
-  final int likeLocationCount;
-  final int likeArtCount;
   final bool hasLike;
-  final bool hasLikePhotography;
-  final bool hasLikeLocation;
-  final bool hasLikeArt;
   const PinLikeDb({
     required this.isarId,
     required this.ttl,
@@ -4082,13 +3907,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
     required this.onlySession,
     required this.id,
     required this.likeCount,
-    required this.likePhotographyCount,
-    required this.likeLocationCount,
-    required this.likeArtCount,
     required this.hasLike,
-    required this.hasLikePhotography,
-    required this.hasLikeLocation,
-    required this.hasLikeArt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4100,13 +3919,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
     map['only_session'] = Variable<bool>(onlySession);
     map['id'] = Variable<String>(id);
     map['like_count'] = Variable<int>(likeCount);
-    map['like_photography_count'] = Variable<int>(likePhotographyCount);
-    map['like_location_count'] = Variable<int>(likeLocationCount);
-    map['like_art_count'] = Variable<int>(likeArtCount);
     map['has_like'] = Variable<bool>(hasLike);
-    map['has_like_photography'] = Variable<bool>(hasLikePhotography);
-    map['has_like_location'] = Variable<bool>(hasLikeLocation);
-    map['has_like_art'] = Variable<bool>(hasLikeArt);
     return map;
   }
 
@@ -4119,13 +3932,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
       onlySession: Value(onlySession),
       id: Value(id),
       likeCount: Value(likeCount),
-      likePhotographyCount: Value(likePhotographyCount),
-      likeLocationCount: Value(likeLocationCount),
-      likeArtCount: Value(likeArtCount),
       hasLike: Value(hasLike),
-      hasLikePhotography: Value(hasLikePhotography),
-      hasLikeLocation: Value(hasLikeLocation),
-      hasLikeArt: Value(hasLikeArt),
     );
   }
 
@@ -4142,15 +3949,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
       onlySession: serializer.fromJson<bool>(json['onlySession']),
       id: serializer.fromJson<String>(json['id']),
       likeCount: serializer.fromJson<int>(json['likeCount']),
-      likePhotographyCount: serializer.fromJson<int>(
-        json['likePhotographyCount'],
-      ),
-      likeLocationCount: serializer.fromJson<int>(json['likeLocationCount']),
-      likeArtCount: serializer.fromJson<int>(json['likeArtCount']),
       hasLike: serializer.fromJson<bool>(json['hasLike']),
-      hasLikePhotography: serializer.fromJson<bool>(json['hasLikePhotography']),
-      hasLikeLocation: serializer.fromJson<bool>(json['hasLikeLocation']),
-      hasLikeArt: serializer.fromJson<bool>(json['hasLikeArt']),
     );
   }
   @override
@@ -4164,13 +3963,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
       'onlySession': serializer.toJson<bool>(onlySession),
       'id': serializer.toJson<String>(id),
       'likeCount': serializer.toJson<int>(likeCount),
-      'likePhotographyCount': serializer.toJson<int>(likePhotographyCount),
-      'likeLocationCount': serializer.toJson<int>(likeLocationCount),
-      'likeArtCount': serializer.toJson<int>(likeArtCount),
       'hasLike': serializer.toJson<bool>(hasLike),
-      'hasLikePhotography': serializer.toJson<bool>(hasLikePhotography),
-      'hasLikeLocation': serializer.toJson<bool>(hasLikeLocation),
-      'hasLikeArt': serializer.toJson<bool>(hasLikeArt),
     };
   }
 
@@ -4182,13 +3975,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
     bool? onlySession,
     String? id,
     int? likeCount,
-    int? likePhotographyCount,
-    int? likeLocationCount,
-    int? likeArtCount,
     bool? hasLike,
-    bool? hasLikePhotography,
-    bool? hasLikeLocation,
-    bool? hasLikeArt,
   }) => PinLikeDb(
     isarId: isarId ?? this.isarId,
     ttl: ttl ?? this.ttl,
@@ -4197,13 +3984,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
     onlySession: onlySession ?? this.onlySession,
     id: id ?? this.id,
     likeCount: likeCount ?? this.likeCount,
-    likePhotographyCount: likePhotographyCount ?? this.likePhotographyCount,
-    likeLocationCount: likeLocationCount ?? this.likeLocationCount,
-    likeArtCount: likeArtCount ?? this.likeArtCount,
     hasLike: hasLike ?? this.hasLike,
-    hasLikePhotography: hasLikePhotography ?? this.hasLikePhotography,
-    hasLikeLocation: hasLikeLocation ?? this.hasLikeLocation,
-    hasLikeArt: hasLikeArt ?? this.hasLikeArt,
   );
   PinLikeDb copyWithCompanion(PinLikeEntitiesCompanion data) {
     return PinLikeDb(
@@ -4216,25 +3997,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
           : this.onlySession,
       id: data.id.present ? data.id.value : this.id,
       likeCount: data.likeCount.present ? data.likeCount.value : this.likeCount,
-      likePhotographyCount: data.likePhotographyCount.present
-          ? data.likePhotographyCount.value
-          : this.likePhotographyCount,
-      likeLocationCount: data.likeLocationCount.present
-          ? data.likeLocationCount.value
-          : this.likeLocationCount,
-      likeArtCount: data.likeArtCount.present
-          ? data.likeArtCount.value
-          : this.likeArtCount,
       hasLike: data.hasLike.present ? data.hasLike.value : this.hasLike,
-      hasLikePhotography: data.hasLikePhotography.present
-          ? data.hasLikePhotography.value
-          : this.hasLikePhotography,
-      hasLikeLocation: data.hasLikeLocation.present
-          ? data.hasLikeLocation.value
-          : this.hasLikeLocation,
-      hasLikeArt: data.hasLikeArt.present
-          ? data.hasLikeArt.value
-          : this.hasLikeArt,
     );
   }
 
@@ -4248,13 +4011,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
           ..write('onlySession: $onlySession, ')
           ..write('id: $id, ')
           ..write('likeCount: $likeCount, ')
-          ..write('likePhotographyCount: $likePhotographyCount, ')
-          ..write('likeLocationCount: $likeLocationCount, ')
-          ..write('likeArtCount: $likeArtCount, ')
-          ..write('hasLike: $hasLike, ')
-          ..write('hasLikePhotography: $hasLikePhotography, ')
-          ..write('hasLikeLocation: $hasLikeLocation, ')
-          ..write('hasLikeArt: $hasLikeArt')
+          ..write('hasLike: $hasLike')
           ..write(')'))
         .toString();
   }
@@ -4268,13 +4025,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
     onlySession,
     id,
     likeCount,
-    likePhotographyCount,
-    likeLocationCount,
-    likeArtCount,
     hasLike,
-    hasLikePhotography,
-    hasLikeLocation,
-    hasLikeArt,
   );
   @override
   bool operator ==(Object other) =>
@@ -4287,13 +4038,7 @@ class PinLikeDb extends DataClass implements Insertable<PinLikeDb> {
           other.onlySession == this.onlySession &&
           other.id == this.id &&
           other.likeCount == this.likeCount &&
-          other.likePhotographyCount == this.likePhotographyCount &&
-          other.likeLocationCount == this.likeLocationCount &&
-          other.likeArtCount == this.likeArtCount &&
-          other.hasLike == this.hasLike &&
-          other.hasLikePhotography == this.hasLikePhotography &&
-          other.hasLikeLocation == this.hasLikeLocation &&
-          other.hasLikeArt == this.hasLikeArt);
+          other.hasLike == this.hasLike);
 }
 
 class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
@@ -4304,13 +4049,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
   final Value<bool> onlySession;
   final Value<String> id;
   final Value<int> likeCount;
-  final Value<int> likePhotographyCount;
-  final Value<int> likeLocationCount;
-  final Value<int> likeArtCount;
   final Value<bool> hasLike;
-  final Value<bool> hasLikePhotography;
-  final Value<bool> hasLikeLocation;
-  final Value<bool> hasLikeArt;
   const PinLikeEntitiesCompanion({
     this.isarId = const Value.absent(),
     this.ttl = const Value.absent(),
@@ -4319,13 +4058,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
     this.onlySession = const Value.absent(),
     this.id = const Value.absent(),
     this.likeCount = const Value.absent(),
-    this.likePhotographyCount = const Value.absent(),
-    this.likeLocationCount = const Value.absent(),
-    this.likeArtCount = const Value.absent(),
     this.hasLike = const Value.absent(),
-    this.hasLikePhotography = const Value.absent(),
-    this.hasLikeLocation = const Value.absent(),
-    this.hasLikeArt = const Value.absent(),
   });
   PinLikeEntitiesCompanion.insert({
     this.isarId = const Value.absent(),
@@ -4335,23 +4068,11 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
     this.onlySession = const Value.absent(),
     required String id,
     required int likeCount,
-    required int likePhotographyCount,
-    required int likeLocationCount,
-    required int likeArtCount,
     required bool hasLike,
-    required bool hasLikePhotography,
-    required bool hasLikeLocation,
-    required bool hasLikeArt,
   }) : ttl = Value(ttl),
        id = Value(id),
        likeCount = Value(likeCount),
-       likePhotographyCount = Value(likePhotographyCount),
-       likeLocationCount = Value(likeLocationCount),
-       likeArtCount = Value(likeArtCount),
-       hasLike = Value(hasLike),
-       hasLikePhotography = Value(hasLikePhotography),
-       hasLikeLocation = Value(hasLikeLocation),
-       hasLikeArt = Value(hasLikeArt);
+       hasLike = Value(hasLike);
   static Insertable<PinLikeDb> custom({
     Expression<int>? isarId,
     Expression<DateTime>? ttl,
@@ -4360,13 +4081,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
     Expression<bool>? onlySession,
     Expression<String>? id,
     Expression<int>? likeCount,
-    Expression<int>? likePhotographyCount,
-    Expression<int>? likeLocationCount,
-    Expression<int>? likeArtCount,
     Expression<bool>? hasLike,
-    Expression<bool>? hasLikePhotography,
-    Expression<bool>? hasLikeLocation,
-    Expression<bool>? hasLikeArt,
   }) {
     return RawValuesInsertable({
       if (isarId != null) 'isar_id': isarId,
@@ -4376,15 +4091,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
       if (onlySession != null) 'only_session': onlySession,
       if (id != null) 'id': id,
       if (likeCount != null) 'like_count': likeCount,
-      if (likePhotographyCount != null)
-        'like_photography_count': likePhotographyCount,
-      if (likeLocationCount != null) 'like_location_count': likeLocationCount,
-      if (likeArtCount != null) 'like_art_count': likeArtCount,
       if (hasLike != null) 'has_like': hasLike,
-      if (hasLikePhotography != null)
-        'has_like_photography': hasLikePhotography,
-      if (hasLikeLocation != null) 'has_like_location': hasLikeLocation,
-      if (hasLikeArt != null) 'has_like_art': hasLikeArt,
     });
   }
 
@@ -4396,13 +4103,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
     Value<bool>? onlySession,
     Value<String>? id,
     Value<int>? likeCount,
-    Value<int>? likePhotographyCount,
-    Value<int>? likeLocationCount,
-    Value<int>? likeArtCount,
     Value<bool>? hasLike,
-    Value<bool>? hasLikePhotography,
-    Value<bool>? hasLikeLocation,
-    Value<bool>? hasLikeArt,
   }) {
     return PinLikeEntitiesCompanion(
       isarId: isarId ?? this.isarId,
@@ -4412,13 +4113,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
       onlySession: onlySession ?? this.onlySession,
       id: id ?? this.id,
       likeCount: likeCount ?? this.likeCount,
-      likePhotographyCount: likePhotographyCount ?? this.likePhotographyCount,
-      likeLocationCount: likeLocationCount ?? this.likeLocationCount,
-      likeArtCount: likeArtCount ?? this.likeArtCount,
       hasLike: hasLike ?? this.hasLike,
-      hasLikePhotography: hasLikePhotography ?? this.hasLikePhotography,
-      hasLikeLocation: hasLikeLocation ?? this.hasLikeLocation,
-      hasLikeArt: hasLikeArt ?? this.hasLikeArt,
     );
   }
 
@@ -4446,26 +4141,8 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
     if (likeCount.present) {
       map['like_count'] = Variable<int>(likeCount.value);
     }
-    if (likePhotographyCount.present) {
-      map['like_photography_count'] = Variable<int>(likePhotographyCount.value);
-    }
-    if (likeLocationCount.present) {
-      map['like_location_count'] = Variable<int>(likeLocationCount.value);
-    }
-    if (likeArtCount.present) {
-      map['like_art_count'] = Variable<int>(likeArtCount.value);
-    }
     if (hasLike.present) {
       map['has_like'] = Variable<bool>(hasLike.value);
-    }
-    if (hasLikePhotography.present) {
-      map['has_like_photography'] = Variable<bool>(hasLikePhotography.value);
-    }
-    if (hasLikeLocation.present) {
-      map['has_like_location'] = Variable<bool>(hasLikeLocation.value);
-    }
-    if (hasLikeArt.present) {
-      map['has_like_art'] = Variable<bool>(hasLikeArt.value);
     }
     return map;
   }
@@ -4480,13 +4157,7 @@ class PinLikeEntitiesCompanion extends UpdateCompanion<PinLikeDb> {
           ..write('onlySession: $onlySession, ')
           ..write('id: $id, ')
           ..write('likeCount: $likeCount, ')
-          ..write('likePhotographyCount: $likePhotographyCount, ')
-          ..write('likeLocationCount: $likeLocationCount, ')
-          ..write('likeArtCount: $likeArtCount, ')
-          ..write('hasLike: $hasLike, ')
-          ..write('hasLikePhotography: $hasLikePhotography, ')
-          ..write('hasLikeLocation: $hasLikeLocation, ')
-          ..write('hasLikeArt: $hasLikeArt')
+          ..write('hasLike: $hasLike')
           ..write(')'))
         .toString();
   }
@@ -5246,38 +4917,6 @@ class $UserLikeEntitiesTable extends UserLikeEntities
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _likePhotographyCountMeta =
-      const VerificationMeta('likePhotographyCount');
-  @override
-  late final GeneratedColumn<int> likePhotographyCount = GeneratedColumn<int>(
-    'like_photography_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _likeLocationCountMeta = const VerificationMeta(
-    'likeLocationCount',
-  );
-  @override
-  late final GeneratedColumn<int> likeLocationCount = GeneratedColumn<int>(
-    'like_location_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _likeArtCountMeta = const VerificationMeta(
-    'likeArtCount',
-  );
-  @override
-  late final GeneratedColumn<int> likeArtCount = GeneratedColumn<int>(
-    'like_art_count',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
   @override
   List<GeneratedColumn> get $columns => [
     isarId,
@@ -5287,9 +4926,6 @@ class $UserLikeEntitiesTable extends UserLikeEntities
     onlySession,
     userId,
     likeCount,
-    likePhotographyCount,
-    likeLocationCount,
-    likeArtCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5354,39 +4990,6 @@ class $UserLikeEntitiesTable extends UserLikeEntities
     } else if (isInserting) {
       context.missing(_likeCountMeta);
     }
-    if (data.containsKey('like_photography_count')) {
-      context.handle(
-        _likePhotographyCountMeta,
-        likePhotographyCount.isAcceptableOrUnknown(
-          data['like_photography_count']!,
-          _likePhotographyCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likePhotographyCountMeta);
-    }
-    if (data.containsKey('like_location_count')) {
-      context.handle(
-        _likeLocationCountMeta,
-        likeLocationCount.isAcceptableOrUnknown(
-          data['like_location_count']!,
-          _likeLocationCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likeLocationCountMeta);
-    }
-    if (data.containsKey('like_art_count')) {
-      context.handle(
-        _likeArtCountMeta,
-        likeArtCount.isAcceptableOrUnknown(
-          data['like_art_count']!,
-          _likeArtCountMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_likeArtCountMeta);
-    }
     return context;
   }
 
@@ -5424,18 +5027,6 @@ class $UserLikeEntitiesTable extends UserLikeEntities
         DriftSqlType.int,
         data['${effectivePrefix}like_count'],
       )!,
-      likePhotographyCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_photography_count'],
-      )!,
-      likeLocationCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_location_count'],
-      )!,
-      likeArtCount: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}like_art_count'],
-      )!,
     );
   }
 
@@ -5453,9 +5044,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
   final bool onlySession;
   final String userId;
   final int likeCount;
-  final int likePhotographyCount;
-  final int likeLocationCount;
-  final int likeArtCount;
   const UserLikeDb({
     required this.isarId,
     required this.ttl,
@@ -5464,9 +5052,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
     required this.onlySession,
     required this.userId,
     required this.likeCount,
-    required this.likePhotographyCount,
-    required this.likeLocationCount,
-    required this.likeArtCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5478,9 +5063,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
     map['only_session'] = Variable<bool>(onlySession);
     map['user_id'] = Variable<String>(userId);
     map['like_count'] = Variable<int>(likeCount);
-    map['like_photography_count'] = Variable<int>(likePhotographyCount);
-    map['like_location_count'] = Variable<int>(likeLocationCount);
-    map['like_art_count'] = Variable<int>(likeArtCount);
     return map;
   }
 
@@ -5493,9 +5075,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
       onlySession: Value(onlySession),
       userId: Value(userId),
       likeCount: Value(likeCount),
-      likePhotographyCount: Value(likePhotographyCount),
-      likeLocationCount: Value(likeLocationCount),
-      likeArtCount: Value(likeArtCount),
     );
   }
 
@@ -5512,11 +5091,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
       onlySession: serializer.fromJson<bool>(json['onlySession']),
       userId: serializer.fromJson<String>(json['userId']),
       likeCount: serializer.fromJson<int>(json['likeCount']),
-      likePhotographyCount: serializer.fromJson<int>(
-        json['likePhotographyCount'],
-      ),
-      likeLocationCount: serializer.fromJson<int>(json['likeLocationCount']),
-      likeArtCount: serializer.fromJson<int>(json['likeArtCount']),
     );
   }
   @override
@@ -5530,9 +5104,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
       'onlySession': serializer.toJson<bool>(onlySession),
       'userId': serializer.toJson<String>(userId),
       'likeCount': serializer.toJson<int>(likeCount),
-      'likePhotographyCount': serializer.toJson<int>(likePhotographyCount),
-      'likeLocationCount': serializer.toJson<int>(likeLocationCount),
-      'likeArtCount': serializer.toJson<int>(likeArtCount),
     };
   }
 
@@ -5544,9 +5115,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
     bool? onlySession,
     String? userId,
     int? likeCount,
-    int? likePhotographyCount,
-    int? likeLocationCount,
-    int? likeArtCount,
   }) => UserLikeDb(
     isarId: isarId ?? this.isarId,
     ttl: ttl ?? this.ttl,
@@ -5555,9 +5123,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
     onlySession: onlySession ?? this.onlySession,
     userId: userId ?? this.userId,
     likeCount: likeCount ?? this.likeCount,
-    likePhotographyCount: likePhotographyCount ?? this.likePhotographyCount,
-    likeLocationCount: likeLocationCount ?? this.likeLocationCount,
-    likeArtCount: likeArtCount ?? this.likeArtCount,
   );
   UserLikeDb copyWithCompanion(UserLikeEntitiesCompanion data) {
     return UserLikeDb(
@@ -5570,15 +5135,6 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
           : this.onlySession,
       userId: data.userId.present ? data.userId.value : this.userId,
       likeCount: data.likeCount.present ? data.likeCount.value : this.likeCount,
-      likePhotographyCount: data.likePhotographyCount.present
-          ? data.likePhotographyCount.value
-          : this.likePhotographyCount,
-      likeLocationCount: data.likeLocationCount.present
-          ? data.likeLocationCount.value
-          : this.likeLocationCount,
-      likeArtCount: data.likeArtCount.present
-          ? data.likeArtCount.value
-          : this.likeArtCount,
     );
   }
 
@@ -5591,27 +5147,14 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
           ..write('keepAlive: $keepAlive, ')
           ..write('onlySession: $onlySession, ')
           ..write('userId: $userId, ')
-          ..write('likeCount: $likeCount, ')
-          ..write('likePhotographyCount: $likePhotographyCount, ')
-          ..write('likeLocationCount: $likeLocationCount, ')
-          ..write('likeArtCount: $likeArtCount')
+          ..write('likeCount: $likeCount')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-    isarId,
-    ttl,
-    hits,
-    keepAlive,
-    onlySession,
-    userId,
-    likeCount,
-    likePhotographyCount,
-    likeLocationCount,
-    likeArtCount,
-  );
+  int get hashCode =>
+      Object.hash(isarId, ttl, hits, keepAlive, onlySession, userId, likeCount);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5622,10 +5165,7 @@ class UserLikeDb extends DataClass implements Insertable<UserLikeDb> {
           other.keepAlive == this.keepAlive &&
           other.onlySession == this.onlySession &&
           other.userId == this.userId &&
-          other.likeCount == this.likeCount &&
-          other.likePhotographyCount == this.likePhotographyCount &&
-          other.likeLocationCount == this.likeLocationCount &&
-          other.likeArtCount == this.likeArtCount);
+          other.likeCount == this.likeCount);
 }
 
 class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
@@ -5636,9 +5176,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
   final Value<bool> onlySession;
   final Value<String> userId;
   final Value<int> likeCount;
-  final Value<int> likePhotographyCount;
-  final Value<int> likeLocationCount;
-  final Value<int> likeArtCount;
   const UserLikeEntitiesCompanion({
     this.isarId = const Value.absent(),
     this.ttl = const Value.absent(),
@@ -5647,9 +5184,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
     this.onlySession = const Value.absent(),
     this.userId = const Value.absent(),
     this.likeCount = const Value.absent(),
-    this.likePhotographyCount = const Value.absent(),
-    this.likeLocationCount = const Value.absent(),
-    this.likeArtCount = const Value.absent(),
   });
   UserLikeEntitiesCompanion.insert({
     this.isarId = const Value.absent(),
@@ -5659,15 +5193,9 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
     this.onlySession = const Value.absent(),
     required String userId,
     required int likeCount,
-    required int likePhotographyCount,
-    required int likeLocationCount,
-    required int likeArtCount,
   }) : ttl = Value(ttl),
        userId = Value(userId),
-       likeCount = Value(likeCount),
-       likePhotographyCount = Value(likePhotographyCount),
-       likeLocationCount = Value(likeLocationCount),
-       likeArtCount = Value(likeArtCount);
+       likeCount = Value(likeCount);
   static Insertable<UserLikeDb> custom({
     Expression<int>? isarId,
     Expression<DateTime>? ttl,
@@ -5676,9 +5204,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
     Expression<bool>? onlySession,
     Expression<String>? userId,
     Expression<int>? likeCount,
-    Expression<int>? likePhotographyCount,
-    Expression<int>? likeLocationCount,
-    Expression<int>? likeArtCount,
   }) {
     return RawValuesInsertable({
       if (isarId != null) 'isar_id': isarId,
@@ -5688,10 +5213,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
       if (onlySession != null) 'only_session': onlySession,
       if (userId != null) 'user_id': userId,
       if (likeCount != null) 'like_count': likeCount,
-      if (likePhotographyCount != null)
-        'like_photography_count': likePhotographyCount,
-      if (likeLocationCount != null) 'like_location_count': likeLocationCount,
-      if (likeArtCount != null) 'like_art_count': likeArtCount,
     });
   }
 
@@ -5703,9 +5224,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
     Value<bool>? onlySession,
     Value<String>? userId,
     Value<int>? likeCount,
-    Value<int>? likePhotographyCount,
-    Value<int>? likeLocationCount,
-    Value<int>? likeArtCount,
   }) {
     return UserLikeEntitiesCompanion(
       isarId: isarId ?? this.isarId,
@@ -5715,9 +5233,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
       onlySession: onlySession ?? this.onlySession,
       userId: userId ?? this.userId,
       likeCount: likeCount ?? this.likeCount,
-      likePhotographyCount: likePhotographyCount ?? this.likePhotographyCount,
-      likeLocationCount: likeLocationCount ?? this.likeLocationCount,
-      likeArtCount: likeArtCount ?? this.likeArtCount,
     );
   }
 
@@ -5745,15 +5260,6 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
     if (likeCount.present) {
       map['like_count'] = Variable<int>(likeCount.value);
     }
-    if (likePhotographyCount.present) {
-      map['like_photography_count'] = Variable<int>(likePhotographyCount.value);
-    }
-    if (likeLocationCount.present) {
-      map['like_location_count'] = Variable<int>(likeLocationCount.value);
-    }
-    if (likeArtCount.present) {
-      map['like_art_count'] = Variable<int>(likeArtCount.value);
-    }
     return map;
   }
 
@@ -5766,10 +5272,7 @@ class UserLikeEntitiesCompanion extends UpdateCompanion<UserLikeDb> {
           ..write('keepAlive: $keepAlive, ')
           ..write('onlySession: $onlySession, ')
           ..write('userId: $userId, ')
-          ..write('likeCount: $likeCount, ')
-          ..write('likePhotographyCount: $likePhotographyCount, ')
-          ..write('likeLocationCount: $likeLocationCount, ')
-          ..write('likeArtCount: $likeArtCount')
+          ..write('likeCount: $likeCount')
           ..write(')'))
         .toString();
   }
@@ -7997,13 +7500,7 @@ typedef $$PinLikeEntitiesTableCreateCompanionBuilder =
       Value<bool> onlySession,
       required String id,
       required int likeCount,
-      required int likePhotographyCount,
-      required int likeLocationCount,
-      required int likeArtCount,
       required bool hasLike,
-      required bool hasLikePhotography,
-      required bool hasLikeLocation,
-      required bool hasLikeArt,
     });
 typedef $$PinLikeEntitiesTableUpdateCompanionBuilder =
     PinLikeEntitiesCompanion Function({
@@ -8014,13 +7511,7 @@ typedef $$PinLikeEntitiesTableUpdateCompanionBuilder =
       Value<bool> onlySession,
       Value<String> id,
       Value<int> likeCount,
-      Value<int> likePhotographyCount,
-      Value<int> likeLocationCount,
-      Value<int> likeArtCount,
       Value<bool> hasLike,
-      Value<bool> hasLikePhotography,
-      Value<bool> hasLikeLocation,
-      Value<bool> hasLikeArt,
     });
 
 class $$PinLikeEntitiesTableFilterComposer
@@ -8067,38 +7558,8 @@ class $$PinLikeEntitiesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<bool> get hasLike => $composableBuilder(
     column: $table.hasLike,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get hasLikePhotography => $composableBuilder(
-    column: $table.hasLikePhotography,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get hasLikeLocation => $composableBuilder(
-    column: $table.hasLikeLocation,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get hasLikeArt => $composableBuilder(
-    column: $table.hasLikeArt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8147,38 +7608,8 @@ class $$PinLikeEntitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<bool> get hasLike => $composableBuilder(
     column: $table.hasLike,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get hasLikePhotography => $composableBuilder(
-    column: $table.hasLikePhotography,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get hasLikeLocation => $composableBuilder(
-    column: $table.hasLikeLocation,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get hasLikeArt => $composableBuilder(
-    column: $table.hasLikeArt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -8215,38 +7646,8 @@ class $$PinLikeEntitiesTableAnnotationComposer
   GeneratedColumn<int> get likeCount =>
       $composableBuilder(column: $table.likeCount, builder: (column) => column);
 
-  GeneratedColumn<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<bool> get hasLike =>
       $composableBuilder(column: $table.hasLike, builder: (column) => column);
-
-  GeneratedColumn<bool> get hasLikePhotography => $composableBuilder(
-    column: $table.hasLikePhotography,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get hasLikeLocation => $composableBuilder(
-    column: $table.hasLikeLocation,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get hasLikeArt => $composableBuilder(
-    column: $table.hasLikeArt,
-    builder: (column) => column,
-  );
 }
 
 class $$PinLikeEntitiesTableTableManager
@@ -8289,13 +7690,7 @@ class $$PinLikeEntitiesTableTableManager
                 Value<bool> onlySession = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<int> likeCount = const Value.absent(),
-                Value<int> likePhotographyCount = const Value.absent(),
-                Value<int> likeLocationCount = const Value.absent(),
-                Value<int> likeArtCount = const Value.absent(),
                 Value<bool> hasLike = const Value.absent(),
-                Value<bool> hasLikePhotography = const Value.absent(),
-                Value<bool> hasLikeLocation = const Value.absent(),
-                Value<bool> hasLikeArt = const Value.absent(),
               }) => PinLikeEntitiesCompanion(
                 isarId: isarId,
                 ttl: ttl,
@@ -8304,13 +7699,7 @@ class $$PinLikeEntitiesTableTableManager
                 onlySession: onlySession,
                 id: id,
                 likeCount: likeCount,
-                likePhotographyCount: likePhotographyCount,
-                likeLocationCount: likeLocationCount,
-                likeArtCount: likeArtCount,
                 hasLike: hasLike,
-                hasLikePhotography: hasLikePhotography,
-                hasLikeLocation: hasLikeLocation,
-                hasLikeArt: hasLikeArt,
               ),
           createCompanionCallback:
               ({
@@ -8321,13 +7710,7 @@ class $$PinLikeEntitiesTableTableManager
                 Value<bool> onlySession = const Value.absent(),
                 required String id,
                 required int likeCount,
-                required int likePhotographyCount,
-                required int likeLocationCount,
-                required int likeArtCount,
                 required bool hasLike,
-                required bool hasLikePhotography,
-                required bool hasLikeLocation,
-                required bool hasLikeArt,
               }) => PinLikeEntitiesCompanion.insert(
                 isarId: isarId,
                 ttl: ttl,
@@ -8336,13 +7719,7 @@ class $$PinLikeEntitiesTableTableManager
                 onlySession: onlySession,
                 id: id,
                 likeCount: likeCount,
-                likePhotographyCount: likePhotographyCount,
-                likeLocationCount: likeLocationCount,
-                likeArtCount: likeArtCount,
                 hasLike: hasLike,
-                hasLikePhotography: hasLikePhotography,
-                hasLikeLocation: hasLikeLocation,
-                hasLikeArt: hasLikeArt,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -8692,9 +8069,6 @@ typedef $$UserLikeEntitiesTableCreateCompanionBuilder =
       Value<bool> onlySession,
       required String userId,
       required int likeCount,
-      required int likePhotographyCount,
-      required int likeLocationCount,
-      required int likeArtCount,
     });
 typedef $$UserLikeEntitiesTableUpdateCompanionBuilder =
     UserLikeEntitiesCompanion Function({
@@ -8705,9 +8079,6 @@ typedef $$UserLikeEntitiesTableUpdateCompanionBuilder =
       Value<bool> onlySession,
       Value<String> userId,
       Value<int> likeCount,
-      Value<int> likePhotographyCount,
-      Value<int> likeLocationCount,
-      Value<int> likeArtCount,
     });
 
 class $$UserLikeEntitiesTableFilterComposer
@@ -8751,21 +8122,6 @@ class $$UserLikeEntitiesTableFilterComposer
 
   ColumnFilters<int> get likeCount => $composableBuilder(
     column: $table.likeCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8813,21 +8169,6 @@ class $$UserLikeEntitiesTableOrderingComposer
     column: $table.likeCount,
     builder: (column) => ColumnOrderings(column),
   );
-
-  ColumnOrderings<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
-    builder: (column) => ColumnOrderings(column),
-  );
 }
 
 class $$UserLikeEntitiesTableAnnotationComposer
@@ -8861,21 +8202,6 @@ class $$UserLikeEntitiesTableAnnotationComposer
 
   GeneratedColumn<int> get likeCount =>
       $composableBuilder(column: $table.likeCount, builder: (column) => column);
-
-  GeneratedColumn<int> get likePhotographyCount => $composableBuilder(
-    column: $table.likePhotographyCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get likeLocationCount => $composableBuilder(
-    column: $table.likeLocationCount,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get likeArtCount => $composableBuilder(
-    column: $table.likeArtCount,
-    builder: (column) => column,
-  );
 }
 
 class $$UserLikeEntitiesTableTableManager
@@ -8918,9 +8244,6 @@ class $$UserLikeEntitiesTableTableManager
                 Value<bool> onlySession = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<int> likeCount = const Value.absent(),
-                Value<int> likePhotographyCount = const Value.absent(),
-                Value<int> likeLocationCount = const Value.absent(),
-                Value<int> likeArtCount = const Value.absent(),
               }) => UserLikeEntitiesCompanion(
                 isarId: isarId,
                 ttl: ttl,
@@ -8929,9 +8252,6 @@ class $$UserLikeEntitiesTableTableManager
                 onlySession: onlySession,
                 userId: userId,
                 likeCount: likeCount,
-                likePhotographyCount: likePhotographyCount,
-                likeLocationCount: likeLocationCount,
-                likeArtCount: likeArtCount,
               ),
           createCompanionCallback:
               ({
@@ -8942,9 +8262,6 @@ class $$UserLikeEntitiesTableTableManager
                 Value<bool> onlySession = const Value.absent(),
                 required String userId,
                 required int likeCount,
-                required int likePhotographyCount,
-                required int likeLocationCount,
-                required int likeArtCount,
               }) => UserLikeEntitiesCompanion.insert(
                 isarId: isarId,
                 ttl: ttl,
@@ -8953,9 +8270,6 @@ class $$UserLikeEntitiesTableTableManager
                 onlySession: onlySession,
                 userId: userId,
                 likeCount: likeCount,
-                likePhotographyCount: likePhotographyCount,
-                likeLocationCount: likeLocationCount,
-                likeArtCount: likeArtCount,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

@@ -328,15 +328,12 @@ type GroupsSeason struct {
 }
 
 type Like struct {
-	ID              pgtype.UUID        `json:"id"`
-	PinID           pgtype.UUID        `json:"pin_id"`
-	UserID          pgtype.UUID        `json:"user_id"`
-	CreationDate    pgtype.Timestamptz `json:"creation_date"`
-	UpdateDate      pgtype.Timestamptz `json:"update_date"`
-	LikeAll         bool               `json:"like_all"`
-	LikeLocation    bool               `json:"like_location"`
-	LikePhotography bool               `json:"like_photography"`
-	LikeArt         bool               `json:"like_art"`
+	ID           pgtype.UUID        `json:"id"`
+	PinID        pgtype.UUID        `json:"pin_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	CreationDate pgtype.Timestamptz `json:"creation_date"`
+	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	LikeAll      bool               `json:"like_all"`
 }
 
 type Member struct {

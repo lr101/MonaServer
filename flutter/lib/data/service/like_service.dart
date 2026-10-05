@@ -14,23 +14,10 @@ class UserLikeService extends _$UserLikeService {
     final likeApi = ref.watch(likeApiProvider);
     final likes = await userLikeRepo.get(userId);
     if (likes != null) {
-      return _nonNegative(
-        UserLikesDto(
-          likeCount: likes.likeCount,
-          likeArtCount: likes.likeArtCount,
-          likeLocationCount: likes.likeLocationCount,
-          likePhotographyCount: likes.likePhotographyCount,
-        ),
-      );
+      return _nonNegative(UserLikesDto(likeCount: likes.likeCount));
     } else {
       final likeDto = _nonNegative(
-        await likeApi.getUserLikes(userId) ??
-            UserLikesDto(
-              likeCount: 0,
-              likeArtCount: 0,
-              likeLocationCount: 0,
-              likePhotographyCount: 0,
-            ),
+        await likeApi.getUserLikes(userId) ?? UserLikesDto(likeCount: 0),
       );
       await userLikeRepo.put(UserLikeEntity.fromDto(likeDto, userId, true));
       return likeDto;
@@ -42,15 +29,6 @@ class UserLikeService extends _$UserLikeService {
     final current = state.value!;
     final UserLikesDto likes = UserLikesDto(
       likeCount: _count(current.likeCount + _likeUpdate(likeUpdate.like)),
-      likeArtCount: _count(
-        current.likeArtCount + _likeUpdate(likeUpdate.likeArt),
-      ),
-      likeLocationCount: _count(
-        current.likeLocationCount + _likeUpdate(likeUpdate.likeLocation),
-      ),
-      likePhotographyCount: _count(
-        current.likePhotographyCount + _likeUpdate(likeUpdate.likePhotography),
-      ),
     );
     state = AsyncData(likes);
     final userLikeRepo = ref.read(userLikeRepositoryProvider);
@@ -59,12 +37,8 @@ class UserLikeService extends _$UserLikeService {
 
   int _count(int value) => value < 0 ? 0 : value;
 
-  UserLikesDto _nonNegative(UserLikesDto likes) => UserLikesDto(
-    likeCount: _count(likes.likeCount),
-    likeArtCount: _count(likes.likeArtCount),
-    likeLocationCount: _count(likes.likeLocationCount),
-    likePhotographyCount: _count(likes.likePhotographyCount),
-  );
+  UserLikesDto _nonNegative(UserLikesDto likes) =>
+      UserLikesDto(likeCount: _count(likes.likeCount));
 
   int _likeUpdate(bool? like) {
     if (like == true) {

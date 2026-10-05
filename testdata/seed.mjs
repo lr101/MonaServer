@@ -276,7 +276,7 @@ async function ensurePin(apiUrl, creator, group, pin) {
 
 async function ensureLike(apiUrl, user, pin, like) {
   const body = { userId: user.userId };
-  for (const field of ['like', 'likeLocation', 'likePhotography', 'likeArt']) {
+  for (const field of ['like']) {
     if (like[field] !== undefined) body[field] = like[field];
   }
   const result = await request(apiUrl, `/api/v2/pins/${pin.id}/likes`, {

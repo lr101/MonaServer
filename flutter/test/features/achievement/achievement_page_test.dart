@@ -58,34 +58,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Achievements'), findsOneWidget);
-    expect(find.text('Two sticks'), findsNothing);
+    expect(find.text('Creator'), findsNothing);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
     expect(find.text('0/3 earned'), findsNothing);
-    expect(find.text('Two sticks'), findsOneWidget);
+    expect(find.text('Creator'), findsOneWidget);
     expect(find.text('Claim 20 XP'), findsNothing);
     expect(find.text('1/1'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
 
-    await tester.tap(find.text('Two sticks'));
+    await tester.tap(find.text('Creator'));
     await tester.pumpAndSettle();
     expect(usersApi.claimedId, 3);
 
     // Claiming the first milestone advances this track to its next unclaimed
     // tier without moving through other achievement categories.
-    expect(find.text('Stick collector'), findsOneWidget);
+    expect(find.text('Collector'), findsOneWidget);
     expect(find.text('3/40'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
-    await tester.fling(
-      find.text('Stick collector'),
-      const Offset(-500, 0),
-      1000,
-    );
+    await tester.fling(find.text('Collector'), const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
-    expect(find.text('Dedicated collector').first, findsOneWidget);
+    expect(find.text('Veteran').first, findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);
   });
 }
@@ -104,7 +100,7 @@ class _TestAchievements extends Achievements {
   Future<List<UserAchievementsDtoInner>> build() => Future.value([
     UserAchievementsDtoInner(
       achievementId: 3,
-      name: 'Two sticks',
+      name: 'Creator',
       description: 'Add two sticks.',
       track: 'sticks',
       difficulty: 'easy',
@@ -119,7 +115,7 @@ class _TestAchievements extends Achievements {
     ),
     UserAchievementsDtoInner(
       achievementId: 9,
-      name: 'Stick collector',
+      name: 'Collector',
       description: 'Add forty sticks.',
       claimed: false,
       track: 'sticks',
@@ -132,7 +128,7 @@ class _TestAchievements extends Achievements {
     ),
     UserAchievementsDtoInner(
       achievementId: 12,
-      name: 'Dedicated collector',
+      name: 'Veteran',
       description: 'Add two hundred sticks.',
       track: 'sticks',
       difficulty: 'hard',
@@ -155,12 +151,7 @@ class _EmptyPinUserService extends PinUserService {
 
 class _EmptyUserLikeService extends UserLikeService {
   @override
-  Future<UserLikesDto> build(String userId) async => UserLikesDto(
-    likeCount: 0,
-    likeArtCount: 0,
-    likeLocationCount: 0,
-    likePhotographyCount: 0,
-  );
+  Future<UserLikesDto> build(String userId) async => UserLikesDto(likeCount: 0);
 }
 
 class _EmptyUserGroupService extends UserGroupService {

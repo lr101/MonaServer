@@ -290,12 +290,7 @@ class _DelayedLikesApi extends LikesApi {
 class _RecordingUserLikes extends UserLikeService {
   CreateLikeDto? recordedUpdate;
   @override
-  Future<UserLikesDto> build(String userId) async => UserLikesDto(
-    likeCount: 1,
-    likeArtCount: 0,
-    likeLocationCount: 0,
-    likePhotographyCount: 0,
-  );
+  Future<UserLikesDto> build(String userId) async => UserLikesDto(likeCount: 1);
   @override
   Future<void> updateLikeCount(CreateLikeDto dto) async {
     recordedUpdate = dto;

@@ -41,7 +41,7 @@ void main() {
             (ref) => [
               GroupAchievementsDtoInner(
                 achievementId: 1,
-                name: 'First gathering',
+                name: 'Gatherer',
                 description: 'Add group pins.',
                 track: 'active_pins',
                 claimed: false,
@@ -84,7 +84,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('First gathering'), findsNothing);
+    expect(find.text('Gatherer'), findsNothing);
     expect(find.text('Group level 2 · 70 XP'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Achievements'), findsOneWidget);
@@ -108,7 +108,7 @@ void main() {
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
-    expect(find.text('First gathering'), findsOneWidget);
+    expect(find.text('Gatherer'), findsOneWidget);
     expect(find.text('Group level 2 · 70 XP'), findsNothing);
   });
 }

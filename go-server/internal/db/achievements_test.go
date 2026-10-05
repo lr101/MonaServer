@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 
@@ -89,6 +90,56 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 	}
 }
 
+func TestAchievementNamesAreSingleWordAndDifficultyMatchesTrackProgress(t *testing.T) {
+	rank := map[string]int{"easy": 1, "medium": 2, "hard": 3}
+	reward := map[string]string{"easy": "xp", "medium": "color", "hard": "badge"}
+	type milestone struct {
+		threshold  int32
+		difficulty string
+	}
+	tracks := make(map[string][]milestone)
+
+	for _, def := range achievementDefs {
+		if len(strings.Fields(def.Name)) != 1 {
+			t.Errorf("personal achievement %d name %q must be one word", def.ID, def.Name)
+		}
+		if want, ok := reward[def.Difficulty]; !ok || achievementReward(def).Type != want {
+			t.Errorf("personal achievement %d has difficulty %q and reward %q", def.ID, def.Difficulty, achievementReward(def).Type)
+		}
+		track := "personal/" + def.Track
+		tracks[track] = append(tracks[track], milestone{threshold: def.Threshold, difficulty: def.Difficulty})
+	}
+
+	for _, def := range groupAchievementDefs {
+		if len(strings.Fields(def.Name)) != 1 {
+			t.Errorf("group achievement %d name %q must be one word", def.ID, def.Name)
+		}
+		if want, ok := reward[def.Difficulty]; !ok || def.RewardType != want {
+			t.Errorf("group achievement %d has difficulty %q and reward %q", def.ID, def.Difficulty, def.RewardType)
+		}
+		track := "group/" + def.Track
+		tracks[track] = append(tracks[track], milestone{threshold: def.Threshold, difficulty: def.Difficulty})
+	}
+
+	for track, milestones := range tracks {
+		sort.Slice(milestones, func(i, j int) bool {
+			return milestones[i].threshold < milestones[j].threshold
+		})
+		lastRank := 0
+		for _, milestone := range milestones {
+			currentRank, ok := rank[milestone.difficulty]
+			if !ok {
+				t.Errorf("%s has unknown difficulty %q", track, milestone.difficulty)
+				continue
+			}
+			if currentRank < lastRank {
+				t.Errorf("%s difficulty drops at threshold %d: %q", track, milestone.threshold, milestone.difficulty)
+			}
+			lastRank = currentRank
+		}
+	}
+}
+
 func TestContributionMilestonesCountGroupsWithPins(t *testing.T) {
 	for _, tc := range []struct {
 		id, threshold int32
@@ -105,14 +156,30 @@ func TestContributionMilestonesCountGroupsWithPins(t *testing.T) {
 	}
 }
 
+func TestLikeAchievementQueriesCountOnlyNormalLikes(t *testing.T) {
+	for _, def := range achievementDefs {
+		if def.Track != "likes_given" && def.Track != "likes_received" {
+			continue
+		}
+		if !strings.Contains(def.sql, "l.like_all=TRUE") {
+			t.Errorf("achievement %d does not count normal likes", def.ID)
+		}
+		for _, oldType := range []string{"like_location", "like_photography", "like_art"} {
+			if strings.Contains(def.sql, oldType) {
+				t.Errorf("achievement %d still counts obsolete %s likes", def.ID, oldType)
+			}
+		}
+	}
+}
+
 func TestPublicAchievementProgressIncludesOnlyClaimedDefinitions(t *testing.T) {
 	got := publicAchievementProgress([]int32{3, 999})
 	if len(got) != 1 {
 		t.Fatalf("public achievements = %d, want 1", len(got))
 	}
 	item := got[0]
-	if item.ID != 3 || item.Name != "Two sticks" || !item.Claimed || item.CurrentValue != item.Threshold || item.Threshold != 2 {
-		t.Fatalf("public achievement = %+v, want earned Two sticks with completed threshold", item)
+	if item.ID != 3 || item.Name != "Creator" || !item.Claimed || item.CurrentValue != item.Threshold || item.Threshold != 2 {
+		t.Fatalf("public achievement = %+v, want earned Creator with completed threshold", item)
 	}
 	if item.RewardXP != 0 || item.RewardType != "" || item.Claimable || item.RewardAvailable || item.DefinitionVersion != 0 {
 		t.Fatalf("public achievement exposes reward metadata: %+v", item)
@@ -140,7 +207,7 @@ func TestGetClaimedAchievementProgressHidesRevokedClaims(t *testing.T) {
 		t.Fatalf("get current public achievements: %v", err)
 	}
 	if len(got) != 0 {
-		t.Fatalf("public achievements = %+v, want stale Two sticks claim hidden", got)
+		t.Fatalf("public achievements = %+v, want stale Creator claim hidden", got)
 	}
 }
 
@@ -206,8 +273,15 @@ func TestContributionMigrationRevokesLegacySelectionWithoutPins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read contribution migration: %v", err)
 	}
-	if _, err := q.Pool().Exec(ctx, string(migration)); err != nil {
-		t.Fatalf("reapply contribution migration: %v", err)
+	cleanupSQL := strings.SplitN(string(migration), "$function$;", 2)
+	if len(cleanupSQL) != 2 {
+		t.Fatal("contribution migration is missing its function terminator")
+	}
+	// The current function was installed by the full migration chain. Reapply
+	// only the data cleanup statements because the historical function body
+	// references like-type columns removed by a later migration.
+	if _, err := q.Pool().Exec(ctx, cleanupSQL[1]); err != nil {
+		t.Fatalf("apply contribution data cleanup: %v", err)
 	}
 	var badgeCleared, colorCleared bool
 	if err := q.Pool().QueryRow(ctx, `

@@ -237,7 +237,7 @@ func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
 		}
 	}
 	if firstGathering == nil || !firstGathering.Claimed || firstGathering.RewardType != "xp" || firstGathering.RewardXp != 50 {
-		t.Fatalf("admin achievement = %+v, want claimed First gathering XP reward", firstGathering)
+		t.Fatalf("admin achievement = %+v, want claimed Gatherer XP reward", firstGathering)
 	}
 }
 

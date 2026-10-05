@@ -90,10 +90,5 @@ class _EmptyPins extends PinUserService {
 
 class _EmptyLikes extends UserLikeService {
   @override
-  Future<UserLikesDto> build(String userId) async => UserLikesDto(
-    likeCount: 0,
-    likeArtCount: 0,
-    likeLocationCount: 0,
-    likePhotographyCount: 0,
-  );
+  Future<UserLikesDto> build(String userId) async => UserLikesDto(likeCount: 0);
 }

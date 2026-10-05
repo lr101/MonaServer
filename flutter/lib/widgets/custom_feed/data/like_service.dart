@@ -63,36 +63,11 @@ class LikeService extends _$LikeService {
     final currentState = _nonNegative(state.value ?? PinLikeDto());
     try {
       final pinDto = PinLikeDto(
-        likePhotographyCount: _likeUpdate(
-          createLikeDto.likePhotography,
-          currentState.likedPhotographyByUser,
-          currentState.likePhotographyCount ?? 0,
-        ),
-        likeArtCount: _likeUpdate(
-          createLikeDto.likeArt,
-          currentState.likedArtByUser,
-          currentState.likeArtCount ?? 0,
-        ),
-        likeLocationCount: _likeUpdate(
-          createLikeDto.likeLocation,
-          currentState.likedLocationByUser,
-          currentState.likeLocationCount ?? 0,
-        ),
         likeCount: _likeUpdate(
           createLikeDto.like,
           currentState.likedByUser,
           currentState.likeCount ?? 0,
         ),
-        likedArtByUser:
-            createLikeDto.likeArt ?? currentState.likedArtByUser ?? false,
-        likedPhotographyByUser:
-            createLikeDto.likePhotography ??
-            currentState.likedPhotographyByUser ??
-            false,
-        likedLocationByUser:
-            createLikeDto.likeLocation ??
-            currentState.likedLocationByUser ??
-            false,
         likedByUser: createLikeDto.like ?? currentState.likedByUser ?? false,
       );
       if (!isCurrentSession(ref, session)) return;
@@ -121,18 +96,6 @@ class LikeService extends _$LikeService {
               CreateLikeDto(
                 userId: createLikeDto.userId,
                 like: _changed(currentState.likedByUser, confirmed.likedByUser),
-                likeArt: _changed(
-                  currentState.likedArtByUser,
-                  confirmed.likedArtByUser,
-                ),
-                likeLocation: _changed(
-                  currentState.likedLocationByUser,
-                  confirmed.likedLocationByUser,
-                ),
-                likePhotography: _changed(
-                  currentState.likedPhotographyByUser,
-                  confirmed.likedPhotographyByUser,
-                ),
               ),
             );
       } catch (error) {
@@ -145,13 +108,7 @@ class LikeService extends _$LikeService {
 
   PinLikeDto _nonNegative(PinLikeDto likes) => PinLikeDto(
     likeCount: _count(likes.likeCount),
-    likeArtCount: _count(likes.likeArtCount),
-    likeLocationCount: _count(likes.likeLocationCount),
-    likePhotographyCount: _count(likes.likePhotographyCount),
     likedByUser: likes.likedByUser,
-    likedArtByUser: likes.likedArtByUser,
-    likedLocationByUser: likes.likedLocationByUser,
-    likedPhotographyByUser: likes.likedPhotographyByUser,
   );
 
   int? _count(int? value) => value == null || value >= 0 ? value : 0;

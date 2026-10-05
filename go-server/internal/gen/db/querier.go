@@ -77,9 +77,8 @@ type Querier interface {
 	CountAdminRuntimeReports(ctx context.Context, arg CountAdminRuntimeReportsParams) (int64, error)
 	CountAudienceSnapshotMembers(ctx context.Context, snapshotID pgtype.UUID) (CountAudienceSnapshotMembersRow, error)
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
-	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error)
+	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (int64, error)
 	CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error)
-	CountPinLikesByType(ctx context.Context, pinID pgtype.UUID) (CountPinLikesByTypeRow, error)
 	// Action tokens -------------------------------------------------------------
 	CreateAccountActionToken(ctx context.Context, arg CreateAccountActionTokenParams) error
 	// Admin jobs and recipient items --------------------------------------------
