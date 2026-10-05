@@ -31,7 +31,9 @@ it. Swiping updates the image, contributor, date, caption, and likes together.
 The original is the first photo when opening details from the map. Opening
 details from a photo entry keeps that photo selected. Pin details show a full
 photo carousel with thumbnail navigation and the selected photo's contributor,
-date, caption, likes, and presence actions.
+date, caption, and likes. Pin details do not show separate update or mark-gone
+buttons; users make photo updates and gone reports through the regular camera
+flow.
 
 ## Adding photo updates
 

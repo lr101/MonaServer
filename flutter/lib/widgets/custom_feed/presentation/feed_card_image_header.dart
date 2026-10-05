@@ -76,7 +76,7 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
                 .select((user) => user.value?.selectedBatchColor),
           );
 
-    return Row(
+    final header = Row(
       children: [
         _OverlappingProfilePictures(
           authorId: authorId,
@@ -130,6 +130,11 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
         ),
         if (widget.showOptions) PopUpMenuFeed(pinDto: widget.pin),
       ],
+    );
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: kMinInteractiveDimension),
+      child: header,
     );
   }
 

@@ -158,8 +158,11 @@ photo; swiping changes photos.
 The map inset switches with the main view and is the visible way back to the
 photo while the map fills the card.
 Place likes, group name, and photo age under the image, followed by title and
-description. Pin details keep the selected photo, contributor, date, caption,
-photo navigation, likes and presence actions together.
+description. The attribution header reserves the same 48 px height in the feed
+and in pin details, even when the detail view hides the feed options menu. Pin
+details keep the selected photo, contributor, date, caption, photo navigation,
+and likes together. They do not show separate update or mark-gone buttons;
+photo updates and gone reports use the regular camera flow.
 
 Photo updates start in the regular camera approval screen. After capture, let
 people select a synced pin within 50 m from the selected group, or leave the

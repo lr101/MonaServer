@@ -11,6 +11,7 @@ import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_header.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -110,13 +111,17 @@ void main() {
       expect(find.text('Still here today'), findsOneWidget);
       expect(find.text('Original photographer'), findsNothing);
       expect(find.text('A note on this pin'), findsNothing);
+      expect(
+        tester.getSize(find.byType(FeedCardImageHeader)).height,
+        kMinInteractiveDimension,
+      );
       expect(find.byTooltip('Pin options'), findsOneWidget);
       expect(find.byTooltip('Post options'), findsNothing);
       expect(find.byTooltip('Previous photo'), findsNothing);
       expect(find.byTooltip('Next photo'), findsNothing);
-      expect(find.text('Update'), findsOneWidget);
-      expect(find.text('Mark as gone'), findsOneWidget);
-      expect(find.text('Waiting for a location fix.'), findsOneWidget);
+      expect(find.text('Update'), findsNothing);
+      expect(find.text('Mark as gone'), findsNothing);
+      expect(find.text('Waiting for a location fix.'), findsNothing);
       expect(tester.takeException(), isNull);
 
       await tester.tap(find.byType(PageView));

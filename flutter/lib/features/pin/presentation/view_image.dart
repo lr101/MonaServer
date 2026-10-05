@@ -1,19 +1,15 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
-import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
-import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/platform/pin_photo_saver.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
-import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
@@ -28,7 +24,6 @@ class ViewImage extends ConsumerStatefulWidget {
 }
 
 class _ViewImageState extends ConsumerState<ViewImage> {
-  bool _isSavingPresence = false;
   bool _isDownloadingPhoto = false;
   String? _selectedPhotoId;
 
@@ -50,9 +45,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
   @override
   Widget build(BuildContext context) {
     final pin = ref.watch(pinByIdProvider(widget.pinId));
-    final userPosition = ref
-        .watch(currentLocationProvider)
-        .whenOrNull(data: (position) => position);
     final toolbarPin = pin.whenOrNull(data: (value) => value);
     final currentUserId = ref.watch(userIdProvider);
     final imageState = toolbarPin == null
@@ -112,16 +104,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           if (currentPin == null) {
             return const Center(child: Text('This pin is unavailable.'));
           }
-          final updateEnabled = canAddPinPhotoHere(userPosition, currentPin);
-          final presenceEnabled =
-              currentPin.lastSynced != null &&
-              isPinWithinPresenceRange(userPosition, currentPin);
-          final availabilityMessage = _availabilityMessage(
-            pin: currentPin,
-            userPosition: userPosition,
-            updateEnabled: updateEnabled,
-            presenceEnabled: presenceEnabled,
-          );
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             children: [
@@ -151,37 +133,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                           );
                         },
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: PinPresenceControl(
-                              pin: currentPin,
-                              userPosition: userPosition,
-                              isSaving: _isSavingPresence,
-                              showStatusMessage: false,
-                              onToggle: () => _updatePresence(currentPin),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: PinPhotoHistoryPanel(
-                              pin: currentPin,
-                              userPosition: userPosition,
-                              showAvailabilityMessage: false,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (availabilityMessage != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          availabilityMessage,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -313,43 +264,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message), duration: duration));
-  }
-
-  String? _availabilityMessage({
-    required PinEntity pin,
-    required Position? userPosition,
-    required bool updateEnabled,
-    required bool presenceEnabled,
-  }) {
-    if (updateEnabled && presenceEnabled) return null;
-    if (pin.lastSynced == null) return 'Sync this pin before updating it.';
-    if (userPosition == null) return 'Waiting for a location fix.';
-    if (!isPinWithinPresenceRange(userPosition, pin)) {
-      return 'Get within 50 m of this pin to update it.';
-    }
-    if (!updateEnabled) {
-      return 'Location accuracy must be 50 m or better to add a photo update.';
-    }
-    return null;
-  }
-
-  Future<void> _updatePresence(PinEntity pin) async {
-    setState(() => _isSavingPresence = true);
-    try {
-      final error = await ref
-          .read(pinServiceProvider)
-          .setPinGone(pin.pinId, !pin.isGone);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error ?? (pin.isGone ? 'Marked still here' : 'Marked gone'),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isSavingPresence = false);
-    }
   }
 }
 

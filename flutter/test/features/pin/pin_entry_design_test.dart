@@ -13,6 +13,7 @@ import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/util/theme/data/material_theme.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_header.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -188,6 +189,10 @@ void main() {
           });
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
+          expect(
+            tester.getSize(find.byType(FeedCardImageHeader)).height,
+            kMinInteractiveDimension,
+          );
           await expectLater(
             find.byKey(const Key('design')),
             matchesGoldenFile(
