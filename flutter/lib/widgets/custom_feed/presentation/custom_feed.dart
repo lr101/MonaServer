@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/pin_thumbnail_prefetch_coordinator.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
+import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card.dart';
@@ -31,9 +34,12 @@ class CustomFeed extends ConsumerStatefulWidget {
 
 class _CustomFeedState extends ConsumerState<CustomFeed> {
   static const int _pageSize = 3;
+  static const int _thumbnailPrefetchPageCount = 2;
 
   List<PinEntity> _pins = [];
   final GlobalKey _initialItemKey = GlobalKey();
+  final Set<String> _thumbnailPrefetchTargets = {};
+  PinThumbnailPrefetchCoordinator? _thumbnailPrefetchCoordinator;
   late final PageRequestListener<int> _pageRequestListener;
 
   @override
@@ -53,6 +59,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
 
   @override
   void dispose() {
+    _thumbnailPrefetchTargets.clear();
+    _thumbnailPrefetchCoordinator?.cancelWindow(this);
     widget.pagingController.removePageRequestListener(_pageRequestListener);
     super.dispose();
   }
@@ -86,6 +94,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   Widget build(BuildContext context) {
     ref.listen(widget.pinProvider, (previous, next) {
       _pins = next.value ?? [];
+      _thumbnailPrefetchTargets.clear();
+      _thumbnailPrefetchCoordinator?.cancelWindow(this);
       widget.pagingController.refresh();
     });
     return PagedSliverList<int, PinEntity>(
@@ -115,14 +125,14 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       final idList = _pins.getRange(pageKey, end).toList();
       final coalescer = ref.read(batchReadCoalescerProvider);
       for (final pin in idList) {
-        // Hydrate metadata while the page is assembled. Object bytes remain
-        // lazy and are fetched only by the image widget that needs them.
-        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+        // Hydrate current-page metadata while the page is assembled.
+        _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
         _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
         ref.read(userServiceProvider(pin.creator));
         ref.read(likeServiceProvider(pin.pinId));
       }
       _prefetchNextPageMetadata(end, pageSize);
+      _prefetchNextPageThumbnails(end, pageSize);
       if (!mounted) return;
       if (end == _pins.length) {
         widget.pagingController.appendLastPage(idList);
@@ -134,13 +144,87 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     }
   }
 
+  void _prefetchNextPageThumbnails(int start, int pageSize) {
+    final end = (start + pageSize * _thumbnailPrefetchPageCount).clamp(
+      0,
+      _pins.length,
+    );
+    final lookAheadIds = _pins
+        .getRange(start, end)
+        .map((pin) => pin.pinId)
+        .toSet();
+
+    _thumbnailPrefetchTargets
+      ..clear()
+      ..addAll(lookAheadIds);
+    final logicalWidth = (MediaQuery.sizeOf(context).width - 36).clamp(
+      1.0,
+      double.infinity,
+    );
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final imageSize = Size(logicalWidth, logicalWidth * 4 / 3);
+    final requests = <String, PinThumbnailWarmer>{
+      for (final id in lookAheadIds)
+        id: (bytes) => _precacheThumbnail(
+          id,
+          bytes,
+          logicalWidth: logicalWidth,
+          devicePixelRatio: devicePixelRatio,
+          imageSize: imageSize,
+        ),
+    };
+    _currentPrefetchCoordinator().updateWindow(this, requests);
+  }
+
+  PinThumbnailPrefetchCoordinator _currentPrefetchCoordinator() {
+    final current = ref.read(pinThumbnailPrefetchCoordinatorProvider);
+    if (!identical(current, _thumbnailPrefetchCoordinator)) {
+      _thumbnailPrefetchCoordinator?.cancelWindow(this);
+      _thumbnailPrefetchCoordinator = current;
+    }
+    return current;
+  }
+
+  Future<void> _precacheThumbnail(
+    String pinId,
+    Uint8List bytes, {
+    required double logicalWidth,
+    required double devicePixelRatio,
+    required Size imageSize,
+  }) async {
+    if (!mounted || !_thumbnailPrefetchTargets.contains(pinId)) return;
+    final imageProvider = memoryImageForDisplay(
+      bytes,
+      devicePixelRatio: devicePixelRatio,
+      logicalWidth: logicalWidth,
+      maximumCacheWidth: 720,
+    );
+    await precacheImage(
+      imageProvider,
+      context,
+      size: imageSize,
+      onError: (error, stackTrace) {},
+    );
+  }
+
   void _prefetchNextPageMetadata(int start, int pageSize) {
-    final end = (start + pageSize).clamp(0, _pins.length);
+    final thumbnailEnd = (start + pageSize * _thumbnailPrefetchPageCount).clamp(
+      0,
+      _pins.length,
+    );
     final coalescer = ref.read(batchReadCoalescerProvider);
-    final pins = _pins.getRange(start, end).toList(growable: false);
-    for (final pin in pins) {
-      // Metadata only: resolving a URL does not download object bytes.
-      _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+    final thumbnailPins = _pins
+        .getRange(start, thumbnailEnd)
+        .toList(growable: false);
+    for (final pin in thumbnailPins) {
+      _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
+    }
+
+    final metadataEnd = (start + pageSize).clamp(0, _pins.length);
+    final metadataPins = _pins
+        .getRange(start, metadataEnd)
+        .toList(growable: false);
+    for (final pin in metadataPins) {
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
       ref.read(userServiceProvider(pin.creator));
       ref.read(likeServiceProvider(pin.pinId));

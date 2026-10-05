@@ -119,6 +119,7 @@ class PinEntities extends Table with CacheTable {
   DateTimeColumn get creationDate => dateTime()();
   TextColumn get title => text().nullable()();
   TextColumn get description => text().nullable()();
+  TextColumn get imageBlurhash => text().nullable()();
   TextColumn get creator => text()();
   TextColumn get groupId => text()();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
@@ -196,7 +197,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -263,7 +264,7 @@ class AppDatabase extends _$AppDatabase {
       if (from < 7) {
         await m.createTable(pendingPinCreates);
       }
-      if (from < 8) {
+      if (from < 9) {
         await m.database.customStatement(
           'DROP TABLE IF EXISTS pin_like_entities',
         );
@@ -272,6 +273,15 @@ class AppDatabase extends _$AppDatabase {
         );
         await m.createTable(pinLikeEntities);
         await m.createTable(userLikeEntities);
+        final pinColumns = await m.database
+            .customSelect('PRAGMA table_info(pin_entities)')
+            .get();
+        final hasImageBlurhash = pinColumns.any(
+          (column) => column.read<String>('name') == 'image_blurhash',
+        );
+        if (!hasImageBlurhash) {
+          await m.addColumn(pinEntities, pinEntities.imageBlurhash);
+        }
       }
     },
   );

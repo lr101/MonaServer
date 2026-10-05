@@ -17,7 +17,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinImageRepositoryProvider.overrideWithValue(_ImageRepository(bytes)),
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(bytes, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin),
+          ),
         ],
         child: const MaterialApp(
           home: MediaQuery(
@@ -39,7 +44,7 @@ void main() {
     );
     await tester.pump();
 
-    final image = tester.widget<FadeInImage>(find.byType(FadeInImage));
+    final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as ResizeImage;
 
     expect(provider.width, 300);
@@ -52,7 +57,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinImageRepositoryProvider.overrideWithValue(_ImageRepository(null)),
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin),
+          ),
         ],
         child: const MaterialApp(
           home: SquareImage(
@@ -68,17 +78,60 @@ void main() {
 
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
   });
+
+  testWidgets(
+    'falls back to the full image when the thumbnail is unavailable',
+    (tester) async {
+      final bytes = Uint8List.fromList(kTransparentImage);
+      int? tappedIndex;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            pinThumbnailRepositoryProvider.overrideWithValue(
+              _ImageRepository(null, ImageType.pinThumbnail),
+            ),
+            pinImageRepositoryProvider.overrideWithValue(
+              _ImageRepository(bytes, ImageType.pin),
+            ),
+          ],
+          child: MaterialApp(
+            home: Center(
+              child: SizedBox.square(
+                dimension: 100,
+                child: SquareImage(
+                  pinId: 'pin-1',
+                  groupId: 'group-1',
+                  index: 7,
+                  onTap: (index) => tappedIndex = index,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image));
+      final provider = image.image as ResizeImage;
+      expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
+
+      await tester.tap(find.byType(SquareImage));
+      expect(tappedIndex, 7);
+    },
+  );
 }
 
 void _ignoreTap(int index) {}
 
 class _ImageRepository implements IImageRepository {
-  _ImageRepository(this.image);
+  _ImageRepository(this.image, this.type);
 
   final Uint8List? image;
 
   @override
-  ImageType get type => ImageType.pin;
+  final ImageType type;
 
   @override
   Future<Uint8List?> fetchImage(String id, bool keepAlive) async => image;

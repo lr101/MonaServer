@@ -27,6 +27,7 @@ const maxPinPhotoBytes = 8 << 20
 type PinObjectStore interface {
 	Put(context.Context, string, []byte, string) error
 	Remove(context.Context, string) error
+	GetIfExists(context.Context, string) ([]byte, bool, error)
 	PresignedGet(context.Context, string) (string, error)
 }
 
@@ -48,17 +49,18 @@ func NewPin(q *db.Queries, obj PinObjectStore) *Pin {
 
 // PinDTO is the shape returned by pin endpoints.
 type PinDTO struct {
-	ID           uuid.UUID  `json:"id"`
-	Latitude     float64    `json:"latitude"`
-	Longitude    float64    `json:"longitude"`
-	CreationDate *time.Time `json:"creationDate,omitempty"`
-	UpdateDate   *time.Time `json:"updateDate,omitempty"`
-	Title        *string    `json:"title,omitempty"`
-	Description  *string    `json:"description,omitempty"`
-	UserID       uuid.UUID  `json:"userId"`
-	GroupID      uuid.UUID  `json:"groupId"`
-	IsGone       bool       `json:"isGone"`
-	Image        *string    `json:"image,omitempty"`
+	ID            uuid.UUID  `json:"id"`
+	Latitude      float64    `json:"latitude"`
+	Longitude     float64    `json:"longitude"`
+	CreationDate  *time.Time `json:"creationDate,omitempty"`
+	UpdateDate    *time.Time `json:"updateDate,omitempty"`
+	Title         *string    `json:"title,omitempty"`
+	Description   *string    `json:"description,omitempty"`
+	UserID        uuid.UUID  `json:"userId"`
+	GroupID       uuid.UUID  `json:"groupId"`
+	IsGone        bool       `json:"isGone"`
+	Image         *string    `json:"image,omitempty"`
+	ImageBlurhash *string    `json:"imageBlurhash,omitempty"`
 }
 
 func (s *Pin) toDTO(ctx context.Context, p *db.Pin, withImage bool) *PinDTO {
@@ -66,7 +68,7 @@ func (s *Pin) toDTO(ctx context.Context, p *db.Pin, withImage bool) *PinDTO {
 		ID: p.ID, Latitude: p.Latitude, Longitude: p.Longitude,
 		CreationDate: p.CreationDate, UpdateDate: p.UpdateDate,
 		Title: p.Title, Description: p.Description, UserID: p.CreatorID, GroupID: p.GroupID,
-		IsGone: p.IsGone,
+		IsGone: p.IsGone, ImageBlurhash: p.ImageBlurhash,
 	}
 	if withImage && s.obj != nil {
 		if u, _ := s.obj.PresignedGet(ctx, PinKey(p.ID)); u != "" {
@@ -141,17 +143,29 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 		return nil, err
 	}
 	var compressed []byte
+	var thumbnail []byte
+	var imageBlurhash *string
 	if len(in.Image) > 0 {
 		compressed, err = image.CompressPinJPEG(in.Image)
 		if err != nil {
 			return nil, apperrors.ErrBadRequest
 		}
+		thumbnail, err = image.CompressPinThumbnailJPEG(compressed)
+		if err != nil {
+			return nil, apperrors.ErrBadRequest
+		}
+		hash, err := image.PinImageBlurhash(thumbnail)
+		if err != nil {
+			return nil, apperrors.ErrBadRequest
+		}
+		imageBlurhash = &hash
 	}
 	id := uuid.New()
 	imageKey := PinKey(id)
+	imageKeys := []string{imageKey, PinThumbnailKey(imageKey)}
 	stagedImage := len(compressed) > 0 && s.obj != nil
 	if stagedImage {
-		if err := s.q.StageObjectCleanup(ctx, imageKey); err != nil {
+		if err := s.stageImageCleanups(ctx, imageKeys); err != nil {
 			return nil, err
 		}
 	}
@@ -186,6 +200,7 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 			Latitude: in.Latitude, Longitude: in.Longitude,
 			CreationDate: &in.CreationDate, Title: in.Title, Description: in.Description,
 			CreatorID: in.UserID, GroupID: in.GroupID, StateProvinceID: boundary,
+			ImageBlurhash: imageBlurhash,
 		})
 		if err != nil {
 			return err
@@ -198,14 +213,19 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 		}
 		if len(compressed) > 0 {
 			if s.obj != nil {
-				locked, err := q.LockStagedObjectCleanup(ctx, imageKey)
-				if err != nil {
-					return err
-				}
-				if !locked {
-					return apperrors.ErrUnavailable
+				for _, key := range imageKeys {
+					locked, err := q.LockStagedObjectCleanup(ctx, key)
+					if err != nil {
+						return err
+					}
+					if !locked {
+						return apperrors.ErrUnavailable
+					}
 				}
 				if err := s.obj.Put(ctx, imageKey, compressed, "image/jpeg"); err != nil {
+					return err
+				}
+				if err := s.obj.Put(ctx, PinThumbnailKey(imageKey), thumbnail, "image/jpeg"); err != nil {
 					return err
 				}
 			}
@@ -218,13 +238,15 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 				ID: id, PinID: id, ContributorID: &contributorID,
 				ContributorUsername: contributorUsername, ImageKey: imageKey,
 				Caption: in.Description, ObservedAt: in.CreationDate,
-				IsOriginal: true,
+				IsOriginal: true, ImageBlurhash: imageBlurhash,
 			}); err != nil {
 				return err
 			}
 			if stagedImage {
-				if err := q.DeletePendingObjectCleanup(ctx, imageKey); err != nil {
-					return err
+				for _, key := range imageKeys {
+					if err := q.DeletePendingObjectCleanup(ctx, key); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -235,7 +257,7 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 	})
 	if err != nil {
 		if stagedImage {
-			if readyErr := s.releaseStagedObjectCleanup(ctx, imageKey); readyErr != nil {
+			if readyErr := s.releaseStagedObjectCleanups(ctx, imageKeys); readyErr != nil {
 				return nil, errors.Join(err, readyErr)
 			}
 		}
@@ -243,7 +265,7 @@ func (s *Pin) Create(ctx context.Context, in CreatePinInput) (*PinDTO, error) {
 	}
 	if replayID != nil {
 		if stagedImage {
-			if err := s.releaseStagedObjectCleanup(ctx, imageKey); err != nil {
+			if err := s.releaseStagedObjectCleanups(ctx, imageKeys); err != nil {
 				return nil, err
 			}
 		}
@@ -309,7 +331,7 @@ func (s *Pin) Delete(ctx context.Context, id uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		objectKeys := append([]string{PinKey(id)}, photoKeys...)
+		objectKeys := PinObjectKeysForCleanup(id, photoKeys)
 		if err := q.EnqueueObjectCleanup(ctx, objectKeys); err != nil {
 			return err
 		}
@@ -328,15 +350,159 @@ func (s *Pin) ImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
 	return s.imageURLForKey(ctx, PinKey(id))
 }
 
-func (s *Pin) LatestImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
-	photos, err := s.q.ListPinPhotos(ctx, id)
+// ThumbnailImageURL returns the cached small preview, creating it on first
+// access for images stored before thumbnails were introduced.
+func (s *Pin) ThumbnailImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
+	if s.obj == nil {
+		return nil, nil
+	}
+	imageKey := PinKey(id)
+	thumbnailKey := PinThumbnailKey(imageKey)
+	existingThumbnail, exists, err := s.obj.GetIfExists(ctx, thumbnailKey)
 	if err != nil {
 		return nil, err
 	}
-	if len(photos) == 0 {
-		return s.ImageURL(ctx, id)
+	if exists {
+		s.ensureImageBlurhash(ctx, id, existingThumbnail)
+		return s.imageURLForKey(ctx, thumbnailKey)
 	}
-	return s.imageURLForKey(ctx, photos[len(photos)-1].ImageKey)
+	if err := s.q.StageObjectCleanup(ctx, thumbnailKey); err != nil {
+		return nil, err
+	}
+	var available bool
+	var thumbnail []byte
+	err = s.q.InTx(ctx, func(q *db.Queries) error {
+		locked, err := q.LockPinForDelete(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return apperrors.ErrNotFound
+		}
+		staged, err := q.LockStagedObjectCleanup(ctx, thumbnailKey)
+		if err != nil {
+			return err
+		}
+		if !staged {
+			if _, exists, err := s.obj.GetIfExists(ctx, thumbnailKey); err != nil {
+				return err
+			} else if exists {
+				available = true
+				return nil
+			}
+			return apperrors.ErrUnavailable
+		}
+		if _, exists, err := s.obj.GetIfExists(ctx, thumbnailKey); err != nil {
+			return err
+		} else if exists {
+			available = true
+			return q.DeletePendingObjectCleanup(ctx, thumbnailKey)
+		}
+		original, exists, err := s.obj.GetIfExists(ctx, imageKey)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return q.DeletePendingObjectCleanup(ctx, thumbnailKey)
+		}
+		thumbnail, err = image.CompressPinThumbnailJPEG(original)
+		if err != nil {
+			return err
+		}
+		if err := s.obj.Put(ctx, thumbnailKey, thumbnail, "image/jpeg"); err != nil {
+			return err
+		}
+		available = true
+		return q.DeletePendingObjectCleanup(ctx, thumbnailKey)
+	})
+	if err != nil {
+		if readyErr := s.releaseStagedObjectCleanup(ctx, thumbnailKey); readyErr != nil {
+			return nil, errors.Join(err, readyErr)
+		}
+		return nil, err
+	}
+	if !available {
+		return nil, nil
+	}
+	s.ensureImageBlurhash(ctx, id, thumbnail)
+	return s.imageURLForKey(ctx, thumbnailKey)
+}
+
+// ensureImageBlurhash backfills placeholders for images created before the
+// hash was stored on the pin. Failure is best-effort so thumbnail delivery
+// remains available when an old object is unreadable or the metadata update
+// cannot be saved.
+func (s *Pin) ensureImageBlurhash(ctx context.Context, id uuid.UUID, thumbnail []byte) {
+	if s.obj == nil {
+		return
+	}
+	p, err := s.q.GetPinByID(ctx, id)
+	if err != nil || p == nil || p.ImageBlurhash != nil {
+		return
+	}
+	if len(thumbnail) == 0 {
+		var exists bool
+		thumbnail, exists, err = s.obj.GetIfExists(ctx, PinThumbnailKey(PinKey(id)))
+		if err != nil || !exists {
+			return
+		}
+	}
+	hash, err := image.PinImageBlurhash(thumbnail)
+	if err != nil {
+		return
+	}
+	_, _ = s.q.SetPinImageBlurhash(ctx, id, hash)
+}
+
+func (s *Pin) LatestImageURL(ctx context.Context, id uuid.UUID) (*string, error) {
+	imageURL, _, err := s.LatestImageAndBlurhash(ctx, id)
+	return imageURL, err
+}
+
+// LatestImageAndBlurhash returns metadata for the same selected photo so
+// callers never display a placeholder generated from a different image.
+func (s *Pin) LatestImageAndBlurhash(ctx context.Context, id uuid.UUID) (*string, *string, error) {
+	photos, err := s.q.ListPinPhotos(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(photos) == 0 {
+		p, err := s.q.GetPinByID(ctx, id)
+		if err != nil || p == nil {
+			return nil, nil, err
+		}
+		imageURL, err := s.ImageURL(ctx, id)
+		return imageURL, p.ImageBlurhash, err
+	}
+	latest := photos[len(photos)-1]
+	imageURL, err := s.imageURLForKey(ctx, latest.ImageKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	blurhash := latest.ImageBlurhash
+	if blurhash == nil {
+		blurhash = s.ensurePinPhotoImageBlurhash(ctx, latest)
+	}
+	return imageURL, blurhash, nil
+}
+
+func (s *Pin) ensurePinPhotoImageBlurhash(ctx context.Context, photo db.PinPhoto) *string {
+	if s.obj == nil {
+		return nil
+	}
+	for _, key := range []string{PinThumbnailKey(photo.ImageKey), photo.ImageKey} {
+		content, exists, err := s.obj.GetIfExists(ctx, key)
+		if err != nil || !exists {
+			continue
+		}
+		hash, err := image.PinImageBlurhash(content)
+		if err != nil {
+			continue
+		}
+		_, _ = s.q.SetPinPhotoImageBlurhash(ctx, photo.ID, hash)
+		return &hash
+	}
+	return nil
 }
 
 func (s *Pin) imageURLForKey(ctx context.Context, key string) (*string, error) {
@@ -406,6 +572,14 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 	if err != nil {
 		return nil, apperrors.ErrBadRequest
 	}
+	thumbnail, err := image.CompressPinThumbnailJPEG(compressed)
+	if err != nil {
+		return nil, apperrors.ErrBadRequest
+	}
+	photoBlurhash, err := image.PinImageBlurhash(thumbnail)
+	if err != nil {
+		return nil, apperrors.ErrBadRequest
+	}
 	contributorUsername, err := s.q.GetUsernameByID(ctx, contributorID)
 	if err != nil {
 		return nil, err
@@ -417,21 +591,28 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 		ID: photoID, PinID: pinID, ContributorID: &contributorID,
 		ContributorUsername: contributorUsername, ImageKey: imageKey,
 		IdempotencyKey: &in.IdempotencyKey, RequestHash: requestHash,
-		Caption: caption, ObservedAt: observedAt,
+		Caption: caption, ObservedAt: observedAt, ImageBlurhash: &photoBlurhash,
 	}
-	if err := s.q.StageObjectCleanup(ctx, imageKey); err != nil {
+	imageKeys := []string{imageKey, PinThumbnailKey(imageKey)}
+	if err := s.stageImageCleanups(ctx, imageKeys); err != nil {
 		return nil, err
 	}
 	var putErr error
 	err = s.q.InTx(ctx, func(q *db.Queries) error {
-		locked, err := q.LockStagedObjectCleanup(ctx, imageKey)
-		if err != nil {
-			return err
-		}
-		if !locked {
-			return apperrors.ErrUnavailable
+		for _, key := range imageKeys {
+			locked, err := q.LockStagedObjectCleanup(ctx, key)
+			if err != nil {
+				return err
+			}
+			if !locked {
+				return apperrors.ErrUnavailable
+			}
 		}
 		if err := s.obj.Put(ctx, imageKey, compressed, "image/jpeg"); err != nil {
+			putErr = err
+			return err
+		}
+		if err := s.obj.Put(ctx, PinThumbnailKey(imageKey), thumbnail, "image/jpeg"); err != nil {
 			putErr = err
 			return err
 		}
@@ -445,10 +626,15 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 		if err := q.CreatePinPhoto(ctx, photo); err != nil {
 			return err
 		}
-		return q.DeletePendingObjectCleanup(ctx, imageKey)
+		for _, key := range imageKeys {
+			if err := q.DeletePendingObjectCleanup(ctx, key); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
-		if readyErr := s.releaseStagedObjectCleanup(ctx, imageKey); readyErr != nil {
+		if readyErr := s.releaseStagedObjectCleanups(ctx, imageKeys); readyErr != nil {
 			return nil, errors.Join(err, readyErr)
 		}
 		existing, lookupErr := s.q.GetPinPhotoByIdempotencyKey(ctx, contributorID, in.IdempotencyKey)
@@ -467,12 +653,28 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 }
 
 func (s *Pin) releaseStagedObjectCleanup(ctx context.Context, objectKey string) error {
+	return s.releaseStagedObjectCleanups(ctx, []string{objectKey})
+}
+
+func (s *Pin) releaseStagedObjectCleanups(ctx context.Context, objectKeys []string) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if err := s.q.MarkObjectCleanupReady(cleanupCtx, objectKey); err != nil {
-		return err
+	var cleanupErr error
+	for _, key := range objectKeys {
+		cleanupErr = errors.Join(cleanupErr, s.q.MarkObjectCleanupReady(cleanupCtx, key))
 	}
 	tryObjectCleanup(cleanupCtx, s.q, s.obj)
+	return cleanupErr
+}
+
+func (s *Pin) stageImageCleanups(ctx context.Context, objectKeys []string) error {
+	staged := make([]string, 0, len(objectKeys))
+	for _, key := range objectKeys {
+		if err := s.q.StageObjectCleanup(ctx, key); err != nil {
+			return errors.Join(err, s.releaseStagedObjectCleanups(ctx, staged))
+		}
+		staged = append(staged, key)
+	}
 	return nil
 }
 

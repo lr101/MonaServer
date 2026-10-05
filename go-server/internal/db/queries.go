@@ -1048,6 +1048,7 @@ type Pin struct {
 	GroupID         uuid.UUID
 	StateProvinceID *uuid.UUID
 	IsGone          bool
+	ImageBlurhash   *string
 }
 
 func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
@@ -1068,12 +1069,20 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 		GroupID:         goUUID(r.GroupID),
 		StateProvinceID: sp,
 		IsGone:          r.IsGone,
+		ImageBlurhash:   goText(r.ImageBlurhash),
 	}
 }
 
 func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bool, error) {
 	rows, err := q.g.SetPinGone(ctx, dbgen.SetPinGoneParams{
 		ID: pgUUID(id), IsGone: isGone,
+	})
+	return rows > 0, err
+}
+
+func (q *Queries) SetPinImageBlurhash(ctx context.Context, id uuid.UUID, hash string) (bool, error) {
+	rows, err := q.g.SetPinImageBlurhash(ctx, dbgen.SetPinImageBlurhashParams{
+		ID: pgUUID(id), ImageBlurhash: pgTextS(hash),
 	})
 	return rows > 0, err
 }
@@ -1104,6 +1113,7 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		CreatorID:       pgUUID(p.CreatorID),
 		GroupID:         pgUUID(p.GroupID),
 		StateProvinceID: sp,
+		ImageBlurhash:   pgText(p.ImageBlurhash),
 	})
 	return p.ID, err
 }
@@ -1119,6 +1129,7 @@ type PinPhoto struct {
 	Caption             *string
 	ObservedAt          time.Time
 	IsOriginal          bool
+	ImageBlurhash       *string
 }
 
 func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
@@ -1130,6 +1141,7 @@ func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
 		RequestHash: photo.RequestHash,
 		Caption:     pgText(photo.Caption),
 		ObservedAt:  pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+		ImageBlurhash: pgText(photo.ImageBlurhash),
 	})
 }
 
@@ -1152,7 +1164,7 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhot
 			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
 			RequestHash:    row.RequestHash,
 			Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
-			IsOriginal: row.IsOriginal,
+			IsOriginal: row.IsOriginal, ImageBlurhash: goText(row.ImageBlurhash),
 		})
 	}
 	return photos, nil
@@ -1180,9 +1192,16 @@ func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID
 		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
 		RequestHash:    row.RequestHash,
 		Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
-		IsOriginal: row.IsOriginal,
+		IsOriginal: row.IsOriginal, ImageBlurhash: goText(row.ImageBlurhash),
 	}
 	return &photo, nil
+}
+
+func (q *Queries) SetPinPhotoImageBlurhash(ctx context.Context, photoID uuid.UUID, hash string) (bool, error) {
+	rows, err := q.g.SetPinPhotoImageBlurhash(ctx, dbgen.SetPinPhotoImageBlurhashParams{
+		ID: pgUUID(photoID), ImageBlurhash: pgText(&hash),
+	})
+	return rows > 0, err
 }
 
 func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
@@ -1311,7 +1330,8 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
-			IsGone: r.IsGone,
+			IsGone:        r.IsGone,
+			ImageBlurhash: goText(r.ImageBlurhash),
 		})
 	}
 	return out, nil
@@ -1370,7 +1390,8 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
-			IsGone: r.IsGone,
+			IsGone:        r.IsGone,
+			ImageBlurhash: goText(r.ImageBlurhash),
 		})
 	}
 	return out, nil
@@ -1400,6 +1421,7 @@ func (q *Queries) FindNearbyPins(ctx context.Context, callerID uuid.UUID, latitu
 				CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 				Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 				GroupID: goUUID(r.GroupID), StateProvinceID: boundary, IsGone: r.IsGone,
+				ImageBlurhash: goText(r.ImageBlurhash),
 			},
 			GroupName: r.GroupName, DistanceMeters: r.DistanceMeters,
 		})

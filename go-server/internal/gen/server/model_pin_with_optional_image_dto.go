@@ -28,6 +28,9 @@ type PinWithOptionalImageDto struct {
 
 	Image string `json:"image,omitempty"`
 
+	// Compact BlurHash placeholder for the pin image.
+	ImageBlurhash string `json:"imageBlurhash,omitempty"`
+
 	GroupId string `json:"groupId"`
 
 	Title *string `json:"title,omitempty"`

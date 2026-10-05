@@ -30,6 +30,7 @@ dependencies:
   floating_snackbar:
   flutter:
     sdk: flutter
+  flutter_blurhash: ^0.9.1
   flutter_cache_manager:
   flutter_dotenv:
   flutter_login:
