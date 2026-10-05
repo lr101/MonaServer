@@ -41,7 +41,7 @@ final class GlobalDataServiceProvider
   }
 }
 
-String _$globalDataServiceHash() => r'6f4081425758fd16085323e3f6e8c5ccf45c2352';
+String _$globalDataServiceHash() => r'8a9e61afb8f2d81b1a33413207bea7a14a2b7686';
 
 abstract class _$GlobalDataService extends $Notifier<GlobalDataDto> {
   GlobalDataDto build();
@@ -85,7 +85,7 @@ final class AuthServiceProvider
   AuthService create() => AuthService();
 }
 
-String _$authServiceHash() => r'0717d27eeebae292bf2b1982a8b2a8ef00a624bb';
+String _$authServiceHash() => r'b7e31b09b7b095525de869e2d3f2cc35e8549749';
 
 abstract class _$AuthService extends $AsyncNotifier<bool> {
   FutureOr<bool> build();

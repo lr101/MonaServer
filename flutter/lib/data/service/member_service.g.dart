@@ -50,7 +50,7 @@ final class MemberServiceProvider
   }
 }
 
-String _$memberServiceHash() => r'd610a0ea5d5f591c770ec0cbcda246b921e2b6ca';
+String _$memberServiceHash() => r'6aa69cc189b9b53636941cc1cc85a99aa196c4ea';
 
 final class MemberServiceFamily extends $Family
     with

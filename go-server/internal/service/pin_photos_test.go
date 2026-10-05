@@ -100,6 +100,38 @@ func createPhotoUpdatedTestPin(t *testing.T, ctx context.Context, auth *Auth, pi
 	return userID, groupID, created.ID, PinPhotoKey(created.ID, photo.ID)
 }
 
+func TestPhotoUpdateAwardsContributorXPOnlyOnce(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	creator := createTestUser(t, auth, "photo_xp_creator")
+	contributor := createTestUser(t, auth, "photo_xp_contributor")
+	groupID := createTestGroup(t, group, creator, "photo_xp_group")
+	pinID := createTestPin(t, pin, creator, groupID)
+	pin.obj = &pinPhotoTestObjectStore{objects: map[string][]byte{}}
+	imageBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := q.GetUserByID(ctx, contributor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := AddPinPhotoInput{Image: imageBytes, IdempotencyKey: uuid.New(), Latitude: 48.1, Longitude: 11.6, AccuracyMeters: 5}
+	if _, err := pin.AddPhoto(ctx, pinID, contributor, input); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pin.AddPhoto(ctx, pinID, contributor, input); err != nil {
+		t.Fatal(err)
+	}
+	after, err := q.GetUserByID(ctx, contributor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.XP != before.XP+CreatePinXP {
+		t.Fatalf("contributor XP after update and retry = %d, want %d", after.XP, before.XP+CreatePinXP)
+	}
+}
+
 func assertObjectCleanupQueued(t *testing.T, q *db.Queries, key string) {
 	t.Helper()
 	var queued int

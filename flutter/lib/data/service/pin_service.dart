@@ -124,8 +124,7 @@ class PinUserService extends _$PinUserService {
 
   // update non-user pins
   Future<void> _remoteFetch(List<PinEntity> cachedPins) async {
-    final isUser = this.userId == _userId;
-    if (isUser) return;
+    if (this.userId == _userId) return;
     final session = _session;
     await ref
         .read(pinUserRefreshCoordinatorProvider)

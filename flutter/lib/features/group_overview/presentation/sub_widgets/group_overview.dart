@@ -1,8 +1,10 @@
 import 'package:buff_lisa/data/entity/member_entity.dart';
+import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
@@ -50,6 +52,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
   @override
   Widget build(BuildContext context) {
     final members = ref.watch(memberServiceProvider(widget.groupId));
+    final pins = ref.watch(groupDetailsPinsProvider(widget.groupId));
     final group = widget.details.group;
     final xp = ref.watch(groupProgressionProvider(widget.groupId)).value;
     final progress = xp == null ? null : XpLevelProgress.fromGroupDto(xp);
@@ -69,10 +72,9 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
       ),
       hasBackButton: false,
       actions: widget.actions,
-      profileQuickViewBoxes: _buildQuickStats(members),
+      profileQuickViewBoxes: _buildQuickStats(members, pins),
       bottom: TabBar(
         controller: _tabController,
-        isScrollable: false,
         labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         dividerColor: Colors.transparent,
         tabs: const [
@@ -149,7 +151,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
                 const Center(child: Text("Ups something went wrong")),
             loading: () => const Center(child: CircularProgressIndicator()),
           ),
-          ImageGrid(pinProvider: groupDetailsPinsProvider(widget.groupId)),
+          ImageGrid(pinProvider: groupPinEntriesProvider(widget.groupId)),
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
@@ -161,7 +163,10 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
     );
   }
 
-  Widget _buildQuickStats(AsyncValue<List<MemberEntity>> members) {
+  Widget _buildQuickStats(
+    AsyncValue<List<MemberEntity>> members,
+    AsyncValue<List<PinEntity>?> pins,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -171,9 +176,11 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         ),
         _statItem(
           'Sticks',
-          members.whenOrNull(
-                data: (data) => data
-                    .fold(0, (total, member) => total + member.points)
+          pins.whenOrNull(
+                data: (values) => (values ?? const <PinEntity>[])
+                    .map((entry) => entry.pinId)
+                    .toSet()
+                    .length
                     .toString(),
               ) ??
               '0',

@@ -1,20 +1,22 @@
-import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/features/camera/presentation/camera.dart';
+import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/custom_image_picker.dart';
+import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:openapi/api.dart';
-import 'package:uuid/uuid.dart';
 
 final pinPhotoHistoryProvider =
     FutureProvider.family<List<PinPhotoDto>, String>((ref, pinId) async {
+      // Image URLs are signed for a limited time. Refresh while a detail or
+      // entry list is still listening so displayed images remain available.
+      final expiry = Timer(const Duration(minutes: 45), ref.invalidateSelf);
+      ref.onDispose(expiry.cancel);
       final photos = await ref.watch(pinApiProvider).getPinPhotos(pinId);
       return photos ?? const [];
     });
@@ -64,11 +66,15 @@ class PinPhotoHistoryPanel extends ConsumerStatefulWidget {
     required this.pin,
     required this.userPosition,
     this.showAvailabilityMessage = true,
+    this.iconOnly = false,
+    this.onPhotoAdded,
   });
 
   final PinEntity pin;
   final Position? userPosition;
   final bool showAvailabilityMessage;
+  final bool iconOnly;
+  final VoidCallback? onPhotoAdded;
 
   @override
   ConsumerState<PinPhotoHistoryPanel> createState() =>
@@ -99,6 +105,35 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     final canAdd = canAddPinPhotoHere(widget.userPosition, widget.pin);
     final retryPending = _uploadRetry.pendingRequest != null;
 
+    if (widget.iconOnly)
+      return IconButton(
+        tooltip: retryPending
+            ? 'Retry photo update'
+            : history.hasError
+            ? 'Retry photo history'
+            : canAdd
+            ? 'Add photo update'
+            : 'Add photo update · ${_availabilityMessage(synced: widget.pin.lastSynced != null, nearby: nearby, locationIsAccurate: locationIsAccurate)}',
+        onPressed: _isPreparingOrUploading
+            ? null
+            : retryPending
+            ? _addPhoto
+            : history.hasError
+            ? () => ref.invalidate(pinPhotoHistoryProvider(widget.pin.pinId))
+            : canAdd
+            ? _addPhoto
+            : null,
+        icon: _isPreparingOrUploading
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                retryPending || history.hasError
+                    ? Icons.refresh_rounded
+                    : Icons.add_a_photo_outlined,
+              ),
+      );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -176,69 +211,21 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
   }
 
   Future<void> _addPhoto() async {
-    final pendingRequest = _uploadRetry.pendingRequest;
     if (_isPreparingOrUploading ||
-        (pendingRequest == null &&
-            !canAddPinPhotoHere(widget.userPosition, widget.pin))) {
+        !canAddPinPhotoHere(widget.userPosition, widget.pin))
       return;
-    }
     setState(() => _isPreparingOrUploading = true);
     try {
-      if (pendingRequest == null) {
-        final XFile? picked = await Navigator.of(context).push<XFile>(
-          MaterialPageRoute(builder: (_) => const Camera(pinPhotoMode: true)),
-        );
-        if (!mounted || picked == null) return;
-        final Uint8List? imageBytes = await CustomImagePicker.autoCrop(
-          res: picked,
-        );
-        if (!mounted) return;
-        if (imageBytes == null) {
-          _showMessage('Choose a valid photo to add an update.');
-          return;
-        }
-
-        final caption = await showDialog<String?>(
-          context: context,
-          builder: (context) => _PinPhotoComposer(imageBytes: imageBytes),
-        );
-        if (!mounted || caption == null) return;
-
-        final position = widget.userPosition;
-        if (!canAddPinPhotoHere(position, widget.pin)) {
-          _showMessage('Move closer to the pin and try again.');
-          return;
-        }
-        _uploadRetry.prepare(
-          PinPhotoRequestDto(
-            image: base64Encode(imageBytes),
-            idempotencyKey: const Uuid().v4(),
-            latitude: position!.latitude,
-            longitude: position.longitude,
-            accuracyMeters: position.accuracy,
-            caption: caption.isEmpty ? null : caption,
-          ),
-        );
+      final groups = ref.read(groupOrderServiceProvider);
+      final groupIndex = groups.indexOf(widget.pin.groupId);
+      if (groupIndex >= 0) {
+        ref.read(cameraGroupIndexProvider.notifier).updateIndex(groupIndex);
       }
-
-      await _uploadRetry.submit(
-        (request) =>
-            ref.read(pinApiProvider).addPinPhoto(widget.pin.pinId, request),
-      );
-      if (!mounted) return;
-      ref.invalidate(pinPhotoHistoryProvider(widget.pin.pinId));
-      _showMessage('Photo update added.');
-    } on ApiException catch (error) {
-      _uploadRetry.handleApiFailure(error);
-      if (!mounted) return;
-      _showMessage(
-        error.code == 403
-            ? 'You need to be within 50 m of this pin to add a photo.'
-            : 'Could not add the photo. Please try again.',
-      );
+      await Navigator.of(context)
+          .push<void>(MaterialPageRoute(builder: (_) => const Camera()));
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Could not add the photo. Please try again.');
+      _showMessage('Could not open the camera. Please try again.');
     } finally {
       if (mounted) setState(() => _isPreparingOrUploading = false);
     }
@@ -248,66 +235,4 @@ class _PinPhotoHistoryPanelState extends ConsumerState<PinPhotoHistoryPanel> {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }
-}
-
-class _PinPhotoComposer extends StatefulWidget {
-  const _PinPhotoComposer({required this.imageBytes});
-
-  final Uint8List imageBytes;
-
-  @override
-  State<_PinPhotoComposer> createState() => _PinPhotoComposerState();
-}
-
-class _PinPhotoComposerState extends State<_PinPhotoComposer> {
-  final _captionController = TextEditingController();
-
-  @override
-  void dispose() {
-    _captionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Add photo update'),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.memory(
-              widget.imageBytes,
-              width: 250,
-              height: 250,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _captionController,
-            maxLength: 280,
-            maxLines: 3,
-            minLines: 1,
-            decoration: const InputDecoration(
-              labelText: 'Add a note (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () =>
-            Navigator.of(context).pop(_captionController.text.trim()),
-        child: const Text('Share update'),
-      ),
-    ],
-  );
 }

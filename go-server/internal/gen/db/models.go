@@ -334,6 +334,7 @@ type Like struct {
 	CreationDate pgtype.Timestamptz `json:"creation_date"`
 	UpdateDate   pgtype.Timestamptz `json:"update_date"`
 	LikeAll      bool               `json:"like_all"`
+	PhotoID      pgtype.UUID        `json:"photo_id"`
 }
 
 type Member struct {
@@ -391,6 +392,12 @@ type PinCreateIdempotency struct {
 	RequestHash    []byte             `json:"request_hash"`
 	PinID          pgtype.UUID        `json:"pin_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type PinGoneReport struct {
+	PinID      pgtype.UUID        `json:"pin_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	ReportedAt pgtype.Timestamptz `json:"reported_at"`
 }
 
 type PinPhoto struct {

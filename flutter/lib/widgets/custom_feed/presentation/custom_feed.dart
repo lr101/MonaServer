@@ -96,6 +96,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         itemBuilder: (context, item, index) => ProviderScope(
           key: index == widget.index ? _initialItemKey : null,
           child: ProviderScope(
+            key: ValueKey(item.entryId),
             overrides: [feedItemProvider.overrideWithValue(item)],
             child: const FeedCard(),
           ),
@@ -117,10 +118,12 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       for (final pin in idList) {
         // Hydrate metadata while the page is assembled. Object bytes remain
         // lazy and are fetched only by the image widget that needs them.
-        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+        if (!pin.isPhotoUpdate) {
+          _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+        }
         _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
-        ref.read(userServiceProvider(pin.creator));
-        ref.read(likeServiceProvider(pin.pinId));
+        if (pin.creator.isNotEmpty) ref.read(userServiceProvider(pin.creator));
+        ref.read(likeServiceProvider(pin.entryId));
       }
       _prefetchNextPageMetadata(end, pageSize);
       if (!mounted) return;
@@ -140,10 +143,12 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final pins = _pins.getRange(start, end).toList(growable: false);
     for (final pin in pins) {
       // Metadata only: resolving a URL does not download object bytes.
-      _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+      if (!pin.isPhotoUpdate) {
+        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+      }
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
-      ref.read(userServiceProvider(pin.creator));
-      ref.read(likeServiceProvider(pin.pinId));
+      if (pin.creator.isNotEmpty) ref.read(userServiceProvider(pin.creator));
+      ref.read(likeServiceProvider(pin.entryId));
     }
   }
 

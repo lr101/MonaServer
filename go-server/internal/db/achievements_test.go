@@ -52,6 +52,16 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 			40:  {difficulty: "medium", rewardXP: 0},
 			200: {difficulty: "hard", rewardXP: 0},
 		},
+		"updates": {
+			1:  {difficulty: "easy", rewardXP: 20},
+			10: {difficulty: "medium", rewardXP: 0},
+			50: {difficulty: "hard", rewardXP: 0},
+		},
+		"gone_pins": {
+			1:  {difficulty: "easy", rewardXP: 20},
+			10: {difficulty: "medium", rewardXP: 0},
+			50: {difficulty: "hard", rewardXP: 0},
+		},
 	}
 	got := make(map[string]map[int32]milestone)
 	ids := make(map[int32]bool, len(achievementDefs))
@@ -71,8 +81,8 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 		}
 		got[def.Track][def.Threshold] = milestone{difficulty: def.Difficulty, rewardXP: def.RewardXP}
 	}
-	if len(achievementDefs) != 23 {
-		t.Errorf("active achievement count = %d, want 23", len(achievementDefs))
+	if len(achievementDefs) != 29 {
+		t.Errorf("active achievement count = %d, want 29", len(achievementDefs))
 	}
 	if len(got) != len(want) {
 		t.Fatalf("track count = %d, want %d (%v)", len(got), len(want), got)

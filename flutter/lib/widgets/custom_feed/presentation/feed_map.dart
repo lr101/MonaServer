@@ -10,6 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:openapi/api.dart';
 
+/// Map rendering boundary, overridable when platform tile storage is unavailable.
+final feedMapBuilderProvider = Provider<Widget Function(PinEntity)>(
+  (ref) =>
+      (pin) => FeedMap(item: pin),
+);
+
 class FeedMap extends ConsumerStatefulWidget {
   const FeedMap({super.key, required this.item});
   final PinEntity item;
@@ -33,9 +39,9 @@ class FeedMapState extends ConsumerState<FeedMap> {
 
   @override
   Widget build(BuildContext context) {
-    final isExpanded = !ref.watch(feedMapStateProvider(widget.item.pinId));
+    final isExpanded = !ref.watch(feedMapStateProvider(widget.item.entryId));
     final switchFun = ref
-        .read(feedMapStateProvider(widget.item.pinId).notifier)
+        .read(feedMapStateProvider(widget.item.entryId).notifier)
         .update;
     return Stack(
       children: [
@@ -101,7 +107,7 @@ class FeedMapState extends ConsumerState<FeedMap> {
   void like() {
     final userId = ref.watch(globalDataServiceProvider).userId!;
     ref
-        .read(likeServiceProvider(widget.item.pinId).notifier)
+        .read(likeServiceProvider(widget.item.entryId).notifier)
         .addLike(
           widget.item.creator,
           CreateLikeDto(userId: userId, like: true),

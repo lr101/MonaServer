@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class FeedDescriptionExpandable extends ConsumerWidget {
-  const FeedDescriptionExpandable({
-    super.key,
-    required this.pin,
-  });
+  const FeedDescriptionExpandable({super.key, required this.pin});
 
   final PinEntity pin;
 
@@ -18,19 +15,27 @@ class FeedDescriptionExpandable extends ConsumerWidget {
       fontWeight: FontWeight.bold,
       color: theme.colorScheme.onSurfaceVariant,
     );
-    // NOTE: Ensure feedDescriptionProvider is defined in your state management
-    final isExpanded = ref.watch(feedDescriptionProvider(pin.pinId));
-    final toggleExpansion = ref.watch(feedDescriptionProvider(pin.pinId).notifier);
+    final isExpanded = ref.watch(feedDescriptionProvider(pin.entryId));
+    final toggleExpansion = ref.watch(
+      feedDescriptionProvider(pin.entryId).notifier,
+    );
     final text = pin.description ?? "";
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final defaultStyle = DefaultTextStyle.of(context).style;
-        
-        final textPainterExpanded = getTextPainter(text, defaultStyle, null, constraints.maxWidth);
-        
+
+        final textPainterExpanded = getTextPainter(
+          text,
+          defaultStyle,
+          null,
+          constraints.maxWidth,
+          textScaler: MediaQuery.textScalerOf(context),
+          direction: Directionality.of(context),
+        );
+
         final numLines = textPainterExpanded.computeLineMetrics().length;
-        
+
         // If text is short, just show it
         if (numLines <= 2) {
           return Text(text, style: defaultStyle);
@@ -41,23 +46,25 @@ class FeedDescriptionExpandable extends ConsumerWidget {
           children: [
             // The Description Text
             GestureDetector(
-               onTap: () => toggleExpansion.toggle(),
-               child: Text(
+              onTap: () => toggleExpansion.toggle(),
+              child: Text(
                 text,
                 maxLines: isExpanded ? null : 2,
-                overflow: isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                overflow: isExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
                 style: defaultStyle,
               ),
             ),
-            // The "more/less" button
-            GestureDetector(
-              onTap: toggleExpansion.toggle,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  isExpanded ? '• less' : '• more',
-                  style: showLessOrMoreStyle,
-                ),
+            TextButton(
+              onPressed: toggleExpansion.toggle,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                alignment: Alignment.centerLeft,
+              ),
+              child: Text(
+                isExpanded ? 'Show less' : 'Read more',
+                style: showLessOrMoreStyle,
               ),
             ),
           ],
@@ -66,11 +73,19 @@ class FeedDescriptionExpandable extends ConsumerWidget {
     );
   }
 
-  TextPainter getTextPainter(String text, TextStyle style, int? numLines, double maxWidth) {
+  TextPainter getTextPainter(
+    String text,
+    TextStyle style,
+    int? numLines,
+    double maxWidth, {
+    TextScaler textScaler = TextScaler.noScaling,
+    TextDirection direction = TextDirection.ltr,
+  }) {
     return TextPainter(
       text: TextSpan(text: text, style: style),
       maxLines: numLines,
-      textDirection: TextDirection.ltr,
+      textDirection: direction,
+      textScaler: textScaler,
     )..layout(maxWidth: maxWidth);
   }
 }

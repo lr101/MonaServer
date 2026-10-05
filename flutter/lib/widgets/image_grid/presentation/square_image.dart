@@ -9,6 +9,8 @@ import 'package:transparent_image/transparent_image.dart';
 class SquareImage extends ConsumerStatefulWidget {
   final String pinId;
   final String groupId;
+  final String? photoUrl;
+  final String? photoId;
   final int index;
   final Function(int index) onTap;
 
@@ -17,6 +19,8 @@ class SquareImage extends ConsumerStatefulWidget {
     required this.pinId,
     required this.index,
     required this.groupId,
+    this.photoUrl,
+    this.photoId,
     required this.onTap,
   });
 
@@ -36,12 +40,22 @@ class _SquareImageState extends ConsumerState<SquareImage> {
   @override
   void didUpdateWidget(covariant SquareImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.pinId != widget.pinId) {
+    if (oldWidget.pinId != widget.pinId ||
+        oldWidget.photoUrl != widget.photoUrl ||
+        oldWidget.photoId != widget.photoId) {
       _imageFuture = _fetchImage();
     }
   }
 
   Future<Uint8List?> _fetchImage() {
+    final photoUrl = widget.photoUrl;
+    final photoId = widget.photoId;
+    if (photoUrl != null && photoId != null) {
+      return ref
+          .read(pinImageRepositoryProvider)
+          .fetchImageFromUrl(photoId, photoUrl, false);
+    }
+    if (photoUrl != null) return Future<Uint8List?>.value();
     return ref.read(pinImageRepositoryProvider).fetchImage(widget.pinId, false);
   }
 
@@ -52,20 +66,42 @@ class _SquareImageState extends ConsumerState<SquareImage> {
         future: _imageFuture,
         builder: (context, snapshot) {
           final image = snapshot.data;
-          if (image != null) {
+          final showNetworkFallback =
+              widget.photoUrl != null &&
+              (widget.photoId == null ||
+                  snapshot.connectionState == ConnectionState.done);
+          if (image != null || showNetworkFallback) {
             return GestureDetector(
               onTap: () => widget.onTap(widget.index),
-              child: FadeInImage(
-                fadeInDuration: const Duration(milliseconds: 100),
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                placeholder: MemoryImage(kTransparentImage),
-                image: memoryImageForDisplay(
-                  image,
-                  devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-                  logicalWidth: constraints.maxWidth,
-                  maximumCacheWidth: 720,
-                ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  FadeInImage(
+                    fadeInDuration: const Duration(milliseconds: 100),
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    placeholder: MemoryImage(kTransparentImage),
+                    image: widget.photoUrl == null
+                        ? memoryImageForDisplay(
+                            image!,
+                            devicePixelRatio: MediaQuery.devicePixelRatioOf(
+                              context,
+                            ),
+                            logicalWidth: constraints.maxWidth,
+                            maximumCacheWidth: 720,
+                          )
+                        : image == null
+                        ? NetworkImage(widget.photoUrl!)
+                        : memoryImageForDisplay(
+                            image,
+                            devicePixelRatio: MediaQuery.devicePixelRatioOf(
+                              context,
+                            ),
+                            logicalWidth: constraints.maxWidth,
+                            maximumCacheWidth: 720,
+                          ),
+                  ),
+                ],
               ),
             );
           }

@@ -28,6 +28,11 @@ WHERE contributor_id = $1 AND idempotency_key = $2;
 -- name: ListPinPhotoKeys :many
 SELECT image_key FROM pin_photos WHERE pin_id = $1 ORDER BY image_key;
 
+-- name: GetPinIDForPhoto :one
+SELECT pp.pin_id FROM pin_photos pp
+JOIN pins p ON p.id = pp.pin_id
+WHERE pp.id = $1 AND p.is_deleted = FALSE;
+
 -- name: TouchPinForPhoto :execrows
 UPDATE pins SET update_date = NOW()
 WHERE id = $1 AND is_deleted = FALSE;
@@ -41,10 +46,23 @@ SELECT id, latitude, longitude, creation_date, update_date, title, description,
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE;
 
--- name: SetPinGone :execrows
-UPDATE pins
+-- name: SetPinGoneWithPreviousState :one
+WITH current_pin AS (
+    SELECT is_gone
+    FROM pins
+    WHERE id = $1 AND is_deleted = FALSE
+    FOR UPDATE
+)
+UPDATE pins AS p
 SET is_gone = $2, update_date = NOW()
-WHERE id = $1 AND is_deleted = FALSE;
+FROM current_pin
+WHERE p.id = $1
+RETURNING current_pin.is_gone AS was_gone;
+
+-- name: RecordPinGoneReport :exec
+INSERT INTO pin_gone_reports (pin_id, user_id)
+VALUES ($1, $2)
+ON CONFLICT (pin_id, user_id) DO NOTHING;
 
 -- name: PinExistsForUserAt :one
 SELECT EXISTS (
@@ -103,6 +121,11 @@ WHERE p.is_deleted = FALSE
   AND (
       sqlc.narg('creator_id')::uuid IS NULL
       OR p.creator_id = sqlc.narg('creator_id')::uuid
+      OR EXISTS (
+          SELECT 1 FROM pin_photos pp
+          WHERE pp.pin_id = p.id
+            AND pp.contributor_id = sqlc.narg('creator_id')::uuid
+      )
   )
   AND (
       sqlc.narg('updated_after')::timestamptz IS NULL

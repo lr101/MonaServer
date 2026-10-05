@@ -4,12 +4,12 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
@@ -56,7 +56,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
   @override
   Widget build(BuildContext context) {
     final userId = ref.watch(userIdProvider);
-    final userPins = ref.watch(pinUserServiceProvider(userId));
+    final userPins = ref.watch(userPinEntriesProvider(userId));
     final currentUser = ref.watch(currentUserProvider);
     final likes = ref.watch(userLikeServiceProvider(userId));
     final profileImage = ref.watch(getUserProfileProvider(userId));
@@ -79,7 +79,6 @@ class _UserProfileState extends ConsumerState<UserProfile>
       profileQuickViewBoxes: _buildQuickStats(userPins, likes, ref),
       bottom: TabBar(
         controller: _tabController,
-        isScrollable: false,
         labelPadding: const EdgeInsets.symmetric(horizontal: 8),
         dividerColor: Colors.transparent,
         tabs: const [
@@ -99,7 +98,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
       body: TabBarView(
         controller: _tabController,
         children: [
-          ImageGrid(pinProvider: pinUserServiceProvider(userId)),
+          ImageGrid(pinProvider: userPinEntriesProvider(userId)),
           const UserAchievementsTab(),
         ],
       ),
@@ -151,7 +150,11 @@ class _UserProfileState extends ConsumerState<UserProfile>
       children: [
         _statItem(
           "Sticks",
-          userPins.whenOrNull(data: (d) => d.length.toString()) ?? "---",
+          userPins.whenOrNull(
+                data: (entries) =>
+                    countUniqueContributedSticks(entries).toString(),
+              ) ??
+              "---",
         ),
         _statItem(
           "Groups",

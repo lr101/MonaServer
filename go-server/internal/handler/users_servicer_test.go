@@ -117,14 +117,14 @@ func TestGetUserAchievementsReturnsVersionedTieredCatalog(t *testing.T) {
 	if !ok {
 		t.Fatalf("response body type = %T", resp.Body)
 	}
-	if len(items) != 23 {
-		t.Fatalf("achievement count = %d, want 23", len(items))
+	if len(items) != 29 {
+		t.Fatalf("achievement count = %d, want 29", len(items))
 	}
 	firstStickFound := false
 	for _, item := range items {
 		if item.Name == "Creator" {
 			firstStickFound = true
-			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 7 {
+			if item.Track != "sticks" || item.Difficulty != "easy" || item.RewardXp != 20 || item.DefinitionVersion != 8 {
 				t.Fatalf("first-stick metadata = %+v", item)
 			}
 			if item.Claimed || item.Claimable || item.RewardAvailable == nil || !*item.RewardAvailable || item.CurrentValue != 0 {
@@ -177,8 +177,8 @@ func TestGetUserAchievementsShowsOnlyEarnedAchievementsToOtherUsers(t *testing.T
 	if err != nil {
 		t.Fatalf("get owner's achievements: %v", err)
 	}
-	if got := len(ownerResponse.Body.([]genserver.UserAchievementsDtoInner)); got != 23 {
-		t.Fatalf("owner achievement count = %d, want full catalog of 23", got)
+	if got := len(ownerResponse.Body.([]genserver.UserAchievementsDtoInner)); got != 29 {
+		t.Fatalf("owner achievement count = %d, want full catalog of 29", got)
 	}
 
 	response, err := servicer.GetUserAchievements(

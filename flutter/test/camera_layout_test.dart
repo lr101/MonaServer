@@ -154,7 +154,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('pin update mode captures from preview and returns the file', (
+  testWidgets('legacy pin photo flag keeps the regular camera screen', (
     tester,
   ) async {
     const cameras = [_FakeCameraController.cameraDescription];
@@ -168,7 +168,6 @@ void main() {
       await controller.dispose();
     });
 
-    XFile? captured;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -185,52 +184,14 @@ void main() {
             (ref) => Future.value(controller),
           ),
         ],
-        child: MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () async {
-                  captured = await Navigator.of(context).push<XFile>(
-                    MaterialPageRoute(
-                      builder: (_) => const Camera(pinPhotoMode: true),
-                    ),
-                  );
-                },
-                child: const Text('Open pin camera'),
-              ),
-            ),
-          ),
-        ),
+        child: const MaterialApp(home: Camera(pinPhotoMode: true)),
       ),
     );
-    await tester.tap(find.text('Open pin camera'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Take pin photo'), findsOneWidget);
-    expect(find.byTooltip('Take photo'), findsOneWidget);
-    expect(find.byTooltip('Upload photo'), findsNothing);
-    await tester.tap(find.byTooltip('Take photo'));
-    await tester.pumpAndSettle();
-
-    expect(captured, isNotNull);
-    expect(await captured!.readAsBytes(), [1, 2, 3]);
-    expect(find.text('Open pin camera'), findsOneWidget);
-
-    controller.pendingCapture = Completer<XFile>();
-    await tester.tap(find.text('Open pin camera'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Take photo'));
-    await tester.pump();
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.text('Open pin camera')),
-    );
-    expect(container.read(cameraCapturingProvider), isFalse);
-    controller.pendingCapture!.complete(
-      XFile.fromData(Uint8List.fromList([1, 2, 3])),
-    );
-    await tester.pump();
+    expect(find.text('Take pin photo'), findsNothing);
+    expect(find.byTooltip('Choose from gallery'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('keeps camera controls accessible in a compact side panel', (

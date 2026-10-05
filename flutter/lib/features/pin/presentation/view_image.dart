@@ -22,9 +22,10 @@ import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
 class ViewImage extends ConsumerStatefulWidget {
-  const ViewImage({super.key, required this.pinId});
+  const ViewImage({super.key, required this.pinId, this.initialPhotoId});
 
   final String pinId;
+  final String? initialPhotoId;
 
   @override
   ConsumerState<ViewImage> createState() => _ViewImageState();
@@ -105,6 +106,9 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           if (currentPin == null) {
             return const Center(child: Text('This pin is unavailable.'));
           }
+          final selectedPin = isOriginalSelected || selectedPhoto == null
+              ? currentPin
+              : currentPin.withPhotoUpdate(selectedPhoto);
           final updateEnabled = canAddPinPhotoHere(userPosition, currentPin);
           final presenceEnabled =
               currentPin.lastSynced != null &&
@@ -127,7 +131,19 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      GestureDetector(
+                      PinPhotoCarousel(
+                        key: ValueKey(currentPin.pinId),
+                        originalImage: image,
+                        photos: photos,
+                        initialPhotoId: widget.initialPhotoId,
+                        isOriginalLoading:
+                            (imageState?.isLoading ?? false) ||
+                            (photoHistoryState?.isLoading ?? false),
+                        onPageChanged: (index) {
+                          if (_selectedPhotoIndex != index) {
+                            setState(() => _selectedPhotoIndex = index);
+                          }
+                        },
                         onDoubleTap: () {
                           final userId = ref
                               .read(globalDataServiceProvider)
@@ -135,29 +151,20 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                           if (userId == null) return;
                           ref
                               .read(
-                                likeServiceProvider(currentPin.pinId).notifier,
+                                likeServiceProvider(selectedPin.entryId)
+                                    .notifier,
                               )
                               .addLike(
-                                currentPin.creator,
+                                selectedPin.creator,
                                 CreateLikeDto(userId: userId, like: true),
                               );
                         },
-                        child: PinPhotoCarousel(
-                          key: ValueKey(currentPin.pinId),
-                          originalImage: image,
-                          photos: photos,
-                          isOriginalLoading:
-                              (imageState?.isLoading ?? false) ||
-                              (photoHistoryState?.isLoading ?? false),
-                          onPageChanged: (index) {
-                            if (_selectedPhotoIndex != index) {
-                              setState(() => _selectedPhotoIndex = index);
-                            }
-                          },
-                        ),
                       ),
                       const SizedBox(height: 5),
-                      FeedCardSubtitle(pin: currentPin, showDescription: false),
+                      FeedCardSubtitle(
+                        pin: selectedPin,
+                        showDescription: false,
+                      ),
                       const SizedBox(height: 8),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),

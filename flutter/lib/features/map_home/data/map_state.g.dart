@@ -40,7 +40,7 @@ final class MapStatesProvider extends $NotifierProvider<MapStates, MapState> {
   }
 }
 
-String _$mapStatesHash() => r'026eeb518042f9823570dd45c228554235bc21c9';
+String _$mapStatesHash() => r'7f76dd71a79b42f5e5a0218669c8f72d397bb66b';
 
 abstract class _$MapStates extends $Notifier<MapState> {
   MapState build();
@@ -92,7 +92,7 @@ final class CurrentLocationProvider
   }
 }
 
-String _$currentLocationHash() => r'68c4be51fc8bbef97b0ad33652b722f52fdf37e7';
+String _$currentLocationHash() => r'e163a2dec9c38bcc1dfa40b13cffde7655bcedcb';
 
 @ProviderFor(MapZoomLevel)
 final mapZoomLevelProvider = MapZoomLevelProvider._();

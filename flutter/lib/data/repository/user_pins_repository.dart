@@ -4,18 +4,64 @@ import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/util/core/cache_api.dart';
 import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:drift/drift.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_pins_repository.g.dart';
 
-abstract class IUserPinsRepository implements CacheApi<UserPinsEntity> {}
+abstract class IUserPinsRepository implements CacheApi<UserPinsEntity> {
+  Future<void> replacePinIdWithUploaded(
+    String userId,
+    String pendingPinId,
+    String uploadedPinId,
+  );
+}
 
 class UserPinsRepository extends CacheImpl<UserPinsEntity>
     implements IUserPinsRepository {
   final AppDatabase db;
 
   UserPinsRepository(this.db) : super(ttlDuration: const Duration(minutes: 10));
+
+  @override
+  Future<void> replacePinIdWithUploaded(
+    String userId,
+    String pendingPinId,
+    String uploadedPinId,
+  ) async {
+    await ready;
+    await db.transaction(() async {
+      final row =
+          await (db.select(db.userPinsEntities)
+                ..where((entity) => entity.isarId.equals(cacheIdFor(userId))))
+              .getSingleOrNull();
+      if (row == null) return;
+
+      final profile = _fromDb(row);
+      final pins = List<String>.of(profile.pins)
+        ..removeWhere((pinId) => pinId == pendingPinId);
+      if (!pins.contains(uploadedPinId)) pins.add(uploadedPinId);
+      var unchanged = pins.length == profile.pins.length;
+      for (var i = 0; unchanged && i < pins.length; i++) {
+        unchanged = pins[i] == profile.pins[i];
+      }
+      if (unchanged) return;
+
+      await db
+          .into(db.userPinsEntities)
+          .insertOnConflictUpdate(
+            _toCompanion(
+              UserPinsEntity(
+                userId: profile.userId,
+                pins: pins,
+                keepAlive: profile.keepAlive,
+                hits: profile.hits,
+                ttl: profile.ttl,
+                onlySession: profile.onlySession,
+              ),
+            ),
+          );
+    });
+  }
 
   UserPinsEntitiesCompanion _toCompanion(UserPinsEntity entity) {
     return UserPinsEntitiesCompanion(

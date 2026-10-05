@@ -1071,11 +1071,27 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 	}
 }
 
-func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bool, error) {
-	rows, err := q.g.SetPinGone(ctx, dbgen.SetPinGoneParams{
-		ID: pgUUID(id), IsGone: isGone,
+func (q *Queries) SetPinGone(ctx context.Context, id, userID uuid.UUID, isGone bool) (bool, error) {
+	updated := false
+	err := q.InTx(ctx, func(tx *Queries) error {
+		_, err := tx.g.SetPinGoneWithPreviousState(ctx, dbgen.SetPinGoneWithPreviousStateParams{
+			ID: pgUUID(id), IsGone: isGone,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		updated = true
+		if isGone {
+			return tx.g.RecordPinGoneReport(ctx, dbgen.RecordPinGoneReportParams{
+				PinID: pgUUID(id), UserID: pgUUID(userID),
+			})
+		}
+		return nil
 	})
-	return rows > 0, err
+	return updated, err
 }
 
 func (q *Queries) LockPinForDelete(ctx context.Context, id uuid.UUID) (bool, error) {
@@ -1440,13 +1456,14 @@ func (q *Queries) FindBoundaryForPoint(ctx context.Context, lat, lng float64) (*
 
 type UserLikedPin struct {
 	PinID   uuid.UUID
+	PhotoID uuid.UUID
 	LikeAll bool
 }
 
 type LikeFlags struct{ LikeAll bool }
 
-func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UUID) (*LikeFlags, error) {
-	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
+func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, photoID uuid.UUID) (*LikeFlags, error) {
+	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PhotoID: pgUUID(photoID)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -1456,15 +1473,32 @@ func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UU
 	return &LikeFlags{LikeAll: row.LikeAll}, nil
 }
 
-func (q *Queries) UpsertLike(ctx context.Context, userID, pinID uuid.UUID, f LikeFlags) error {
+// PinIDForLikeTarget accepts an original pin ID or an update photo ID.
+func (q *Queries) PinIDForLikeTarget(ctx context.Context, targetID uuid.UUID) (uuid.UUID, error) {
+	if pinID, err := q.g.GetPinIDForPhoto(ctx, pgUUID(targetID)); err == nil {
+		return goUUID(pinID), nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, err
+	}
+	pin, err := q.GetPinByID(ctx, targetID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if pin == nil {
+		return uuid.Nil, apperrors.ErrNotFound
+	}
+	return targetID, nil
+}
+
+func (q *Queries) UpsertLike(ctx context.Context, userID, pinID, photoID uuid.UUID, f LikeFlags) error {
 	return q.g.UpsertLike(ctx, dbgen.UpsertLikeParams{
-		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), UserID: pgUUID(userID),
+		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), PhotoID: pgUUID(photoID), UserID: pgUUID(userID),
 		LikeAll: f.LikeAll,
 	})
 }
 
-func (q *Queries) DeleteLike(ctx context.Context, userID, pinID uuid.UUID) error {
-	return q.g.DeleteLike(ctx, dbgen.DeleteLikeParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
+func (q *Queries) DeleteLike(ctx context.Context, userID, photoID uuid.UUID) error {
+	return q.g.DeleteLike(ctx, dbgen.DeleteLikeParams{UserID: pgUUID(userID), PhotoID: pgUUID(photoID)})
 }
 
 func (q *Queries) CountPinLikes(ctx context.Context, pinID uuid.UUID) (int64, error) {
@@ -1484,6 +1518,7 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]Us
 	for _, r := range rows {
 		out = append(out, UserLikedPin{
 			PinID:   goUUID(r.PinID),
+			PhotoID: goUUID(r.PhotoID),
 			LikeAll: r.LikeAll,
 		})
 	}

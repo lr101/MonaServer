@@ -5724,6 +5724,277 @@ class UserPinsEntitiesCompanion extends UpdateCompanion<UserPinsDb> {
   }
 }
 
+class $PinPhotoHistoryEntitiesTable extends PinPhotoHistoryEntities
+    with TableInfo<$PinPhotoHistoryEntitiesTable, PinPhotoHistoryDb> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PinPhotoHistoryEntitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _pinIdMeta = const VerificationMeta('pinId');
+  @override
+  late final GeneratedColumn<String> pinId = GeneratedColumn<String>(
+    'pin_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _photosJsonMeta = const VerificationMeta(
+    'photosJson',
+  );
+  @override
+  late final GeneratedColumn<String> photosJson = GeneratedColumn<String>(
+    'photos_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [pinId, photosJson, fetchedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pin_photo_history_entities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PinPhotoHistoryDb> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('pin_id')) {
+      context.handle(
+        _pinIdMeta,
+        pinId.isAcceptableOrUnknown(data['pin_id']!, _pinIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pinIdMeta);
+    }
+    if (data.containsKey('photos_json')) {
+      context.handle(
+        _photosJsonMeta,
+        photosJson.isAcceptableOrUnknown(data['photos_json']!, _photosJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_photosJsonMeta);
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {pinId};
+  @override
+  PinPhotoHistoryDb map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PinPhotoHistoryDb(
+      pinId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pin_id'],
+      )!,
+      photosJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photos_json'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PinPhotoHistoryEntitiesTable createAlias(String alias) {
+    return $PinPhotoHistoryEntitiesTable(attachedDatabase, alias);
+  }
+}
+
+class PinPhotoHistoryDb extends DataClass
+    implements Insertable<PinPhotoHistoryDb> {
+  final String pinId;
+  final String photosJson;
+  final DateTime fetchedAt;
+  const PinPhotoHistoryDb({
+    required this.pinId,
+    required this.photosJson,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['pin_id'] = Variable<String>(pinId);
+    map['photos_json'] = Variable<String>(photosJson);
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  PinPhotoHistoryEntitiesCompanion toCompanion(bool nullToAbsent) {
+    return PinPhotoHistoryEntitiesCompanion(
+      pinId: Value(pinId),
+      photosJson: Value(photosJson),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory PinPhotoHistoryDb.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PinPhotoHistoryDb(
+      pinId: serializer.fromJson<String>(json['pinId']),
+      photosJson: serializer.fromJson<String>(json['photosJson']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'pinId': serializer.toJson<String>(pinId),
+      'photosJson': serializer.toJson<String>(photosJson),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  PinPhotoHistoryDb copyWith({
+    String? pinId,
+    String? photosJson,
+    DateTime? fetchedAt,
+  }) => PinPhotoHistoryDb(
+    pinId: pinId ?? this.pinId,
+    photosJson: photosJson ?? this.photosJson,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  PinPhotoHistoryDb copyWithCompanion(PinPhotoHistoryEntitiesCompanion data) {
+    return PinPhotoHistoryDb(
+      pinId: data.pinId.present ? data.pinId.value : this.pinId,
+      photosJson: data.photosJson.present
+          ? data.photosJson.value
+          : this.photosJson,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PinPhotoHistoryDb(')
+          ..write('pinId: $pinId, ')
+          ..write('photosJson: $photosJson, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(pinId, photosJson, fetchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PinPhotoHistoryDb &&
+          other.pinId == this.pinId &&
+          other.photosJson == this.photosJson &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class PinPhotoHistoryEntitiesCompanion
+    extends UpdateCompanion<PinPhotoHistoryDb> {
+  final Value<String> pinId;
+  final Value<String> photosJson;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const PinPhotoHistoryEntitiesCompanion({
+    this.pinId = const Value.absent(),
+    this.photosJson = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PinPhotoHistoryEntitiesCompanion.insert({
+    required String pinId,
+    required String photosJson,
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : pinId = Value(pinId),
+       photosJson = Value(photosJson),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<PinPhotoHistoryDb> custom({
+    Expression<String>? pinId,
+    Expression<String>? photosJson,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (pinId != null) 'pin_id': pinId,
+      if (photosJson != null) 'photos_json': photosJson,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PinPhotoHistoryEntitiesCompanion copyWith({
+    Value<String>? pinId,
+    Value<String>? photosJson,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return PinPhotoHistoryEntitiesCompanion(
+      pinId: pinId ?? this.pinId,
+      photosJson: photosJson ?? this.photosJson,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (pinId.present) {
+      map['pin_id'] = Variable<String>(pinId.value);
+    }
+    if (photosJson.present) {
+      map['photos_json'] = Variable<String>(photosJson.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PinPhotoHistoryEntitiesCompanion(')
+          ..write('pinId: $pinId, ')
+          ..write('photosJson: $photosJson, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5743,6 +6014,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UserPinsEntitiesTable userPinsEntities = $UserPinsEntitiesTable(
     this,
   );
+  late final $PinPhotoHistoryEntitiesTable pinPhotoHistoryEntities =
+      $PinPhotoHistoryEntitiesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5757,6 +6030,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     userEntities,
     userLikeEntities,
     userPinsEntities,
+    pinPhotoHistoryEntities,
   ];
 }
 
@@ -8533,6 +8807,189 @@ typedef $$UserPinsEntitiesTableProcessedTableManager =
       UserPinsDb,
       PrefetchHooks Function()
     >;
+typedef $$PinPhotoHistoryEntitiesTableCreateCompanionBuilder =
+    PinPhotoHistoryEntitiesCompanion Function({
+      required String pinId,
+      required String photosJson,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$PinPhotoHistoryEntitiesTableUpdateCompanionBuilder =
+    PinPhotoHistoryEntitiesCompanion Function({
+      Value<String> pinId,
+      Value<String> photosJson,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$PinPhotoHistoryEntitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $PinPhotoHistoryEntitiesTable> {
+  $$PinPhotoHistoryEntitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get pinId => $composableBuilder(
+    column: $table.pinId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photosJson => $composableBuilder(
+    column: $table.photosJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PinPhotoHistoryEntitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PinPhotoHistoryEntitiesTable> {
+  $$PinPhotoHistoryEntitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get pinId => $composableBuilder(
+    column: $table.pinId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photosJson => $composableBuilder(
+    column: $table.photosJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PinPhotoHistoryEntitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PinPhotoHistoryEntitiesTable> {
+  $$PinPhotoHistoryEntitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get pinId =>
+      $composableBuilder(column: $table.pinId, builder: (column) => column);
+
+  GeneratedColumn<String> get photosJson => $composableBuilder(
+    column: $table.photosJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$PinPhotoHistoryEntitiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PinPhotoHistoryEntitiesTable,
+          PinPhotoHistoryDb,
+          $$PinPhotoHistoryEntitiesTableFilterComposer,
+          $$PinPhotoHistoryEntitiesTableOrderingComposer,
+          $$PinPhotoHistoryEntitiesTableAnnotationComposer,
+          $$PinPhotoHistoryEntitiesTableCreateCompanionBuilder,
+          $$PinPhotoHistoryEntitiesTableUpdateCompanionBuilder,
+          (
+            PinPhotoHistoryDb,
+            BaseReferences<
+              _$AppDatabase,
+              $PinPhotoHistoryEntitiesTable,
+              PinPhotoHistoryDb
+            >,
+          ),
+          PinPhotoHistoryDb,
+          PrefetchHooks Function()
+        > {
+  $$PinPhotoHistoryEntitiesTableTableManager(
+    _$AppDatabase db,
+    $PinPhotoHistoryEntitiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PinPhotoHistoryEntitiesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$PinPhotoHistoryEntitiesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PinPhotoHistoryEntitiesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> pinId = const Value.absent(),
+                Value<String> photosJson = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PinPhotoHistoryEntitiesCompanion(
+                pinId: pinId,
+                photosJson: photosJson,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String pinId,
+                required String photosJson,
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PinPhotoHistoryEntitiesCompanion.insert(
+                pinId: pinId,
+                photosJson: photosJson,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PinPhotoHistoryEntitiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PinPhotoHistoryEntitiesTable,
+      PinPhotoHistoryDb,
+      $$PinPhotoHistoryEntitiesTableFilterComposer,
+      $$PinPhotoHistoryEntitiesTableOrderingComposer,
+      $$PinPhotoHistoryEntitiesTableAnnotationComposer,
+      $$PinPhotoHistoryEntitiesTableCreateCompanionBuilder,
+      $$PinPhotoHistoryEntitiesTableUpdateCompanionBuilder,
+      (
+        PinPhotoHistoryDb,
+        BaseReferences<
+          _$AppDatabase,
+          $PinPhotoHistoryEntitiesTable,
+          PinPhotoHistoryDb
+        >,
+      ),
+      PinPhotoHistoryDb,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8555,4 +9012,9 @@ class $AppDatabaseManager {
       $$UserLikeEntitiesTableTableManager(_db, _db.userLikeEntities);
   $$UserPinsEntitiesTableTableManager get userPinsEntities =>
       $$UserPinsEntitiesTableTableManager(_db, _db.userPinsEntities);
+  $$PinPhotoHistoryEntitiesTableTableManager get pinPhotoHistoryEntities =>
+      $$PinPhotoHistoryEntitiesTableTableManager(
+        _db,
+        _db.pinPhotoHistoryEntities,
+      );
 }

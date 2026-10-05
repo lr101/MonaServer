@@ -9,10 +9,9 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/like_button_animated.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,12 +42,19 @@ void main() {
       onlySession: false,
     );
     final likes = _PendingLikeService();
+    final updateLikes = _PendingLikeService();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          groupProfilePictureSmallByIdProvider('group')
+              .overrideWith((ref) => Stream.value(kTransparentImage)),
+          feedMapBuilderProvider.overrideWithValue(
+            (pin) => const ColoredBox(color: Colors.grey),
+          ),
           groupMetadataProvider('group')
               .overrideWith((ref) => Stream.value(null)),
           likeServiceProvider('pin').overrideWith(() => likes),
+          likeServiceProvider('update').overrideWith(() => updateLikes),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(
               userId: 'viewer',
@@ -57,6 +63,8 @@ void main() {
             ),
           ),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+          getUserProfileSmallProvider('photo-maker-id')
+              .overrideWith((ref) => Stream.value(kTransparentImage)),
           pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
           pinImageForDetailsProvider('pin')
               .overrideWith((ref) => kTransparentImage),
@@ -88,96 +96,58 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.descendant(of: find.byType(PageView), matching: find.byType(Image)),
-      findsOneWidget,
-    );
-    expect(find.byType(PageView), findsOneWidget);
+    expect(find.byTooltip('Photo information'), findsNothing);
+    expect(find.byTooltip('Show Original'), findsOneWidget);
     expect(find.text('The riverside gate'), findsOneWidget);
     expect(find.text('Original photographer'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is ClickableUser && widget.userId == 'photo-maker-id',
-      ),
-      findsOneWidget,
-    );
-    final originalDate = MaterialLocalizations.of(
-      tester.element(find.text('Original photographer')),
-    ).formatMediumDate(DateTime.utc(2025, 12, 31).toLocal());
-    expect(find.text('· $originalDate'), findsOneWidget);
-    expect(find.text('Map pin'), findsNothing);
-    expect(find.text('50.00000, 8.00000'), findsNothing);
-    expect(find.byType(FeedMap), findsNothing);
-    expect(
-      tester.getTopLeft(find.text('The riverside gate')).dy,
-      greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
-    );
-    final heart = find.byType(LikeButtonAnimated);
-    expect(tester.getTopLeft(heart).dx, lessThan(30));
-    expect(
-      tester.getTopLeft(heart).dy,
-      greaterThanOrEqualTo(tester.getBottomLeft(find.byType(PageView)).dy),
-    );
-    expect(
-      tester.getBottomLeft(heart).dy,
-      lessThanOrEqualTo(tester.getTopLeft(find.text('The riverside gate')).dy),
-    );
+    expect(find.text('A note on this pin'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.byTooltip('Previous photo'), findsOneWidget);
+    expect(find.byTooltip('Next photo'), findsOneWidget);
+    expect(find.text('Update'), findsOneWidget);
+    expect(find.text('Mark as gone'), findsOneWidget);
+    expect(find.text('Waiting for a location fix.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
     await tester.tap(find.byType(PageView));
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.byType(PageView));
     await tester.pump();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
-    expect(likes.request!.like, true);
-    expect(
-      tester.state<LikeButtonAnimatedState>(heart).controller!.isAnimating,
-      true,
-    );
+    expect(likes.request?.like, true);
     likes.pending.complete();
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-    expect(find.text('-1'), findsNothing);
-    expect(find.text('1/2'), findsOneWidget);
-    expect(find.text('ORIGINAL'), findsOneWidget);
-    expect(find.text('UPDATE'), findsNothing);
-    expect(find.text('Original pin photo'), findsNothing);
-    expect(find.text('Update'), findsOneWidget);
-    expect(find.text('Take photo'), findsNothing);
-    expect(find.text('Upload'), findsNothing);
-    expect(find.text('Mark as gone'), findsOneWidget);
-    expect(find.text('A note on this pin'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.widgetWithText(FilledButton, 'Update')).dy,
-      closeTo(
-        tester
-            .getTopLeft(find.widgetWithText(OutlinedButton, 'Mark as gone'))
-            .dy,
-        0.1,
-      ),
-    );
-    expect(
-      tester.getBottomRight(find.text('Update')).dy,
-      lessThanOrEqualTo(tester.view.physicalSize.height),
-    );
 
-    await tester.drag(find.byType(PageView), const Offset(-500, 0));
+    final nextPhotoButton = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == 'Next photo',
+    );
+    await tester.tap(nextPhotoButton);
     await tester.pumpAndSettle();
     final longUsername = List.filled(64, 'walker').join(' ');
+    expect(find.byTooltip('Show Update 1'), findsOneWidget);
     expect(find.text(longUsername), findsOneWidget);
-    final authorText = tester.widget<Text>(find.text(longUsername));
-    expect(authorText.maxLines, 1);
-    expect(authorText.overflow, TextOverflow.ellipsis);
+    expect(
+      tester.widget<Text>(find.text(longUsername)).overflow,
+      TextOverflow.ellipsis,
+    );
     expect(find.byType(ClickableUser), findsNothing);
     expect(find.text('Still here today'), findsOneWidget);
     expect(find.text('A note on this pin'), findsNothing);
-    expect(find.text('Update'), findsOneWidget);
-    expect(find.text('UPDATE'), findsOneWidget);
-    expect(find.text('ORIGINAL'), findsNothing);
     expect(find.text('2/2'), findsOneWidget);
     final updateDate = MaterialLocalizations.of(
       tester.element(find.text(longUsername)),
-    ).formatMediumDate(DateTime.utc(2026, 2).toLocal());
-    expect(find.text('· $updateDate'), findsOneWidget);
+    ).formatFullDate(DateTime.utc(2026, 2).toLocal());
+    expect(find.text('· $updateDate'), findsNothing);
+
+    await tester.tap(find.byType(PageView));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byType(PageView));
+    await tester.pump();
+    expect(updateLikes.request?.like, true);
+    updateLikes.pending.complete();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Photo information'), findsNothing);
+
+    expect(tester.takeException(), isNull);
   });
 }
 

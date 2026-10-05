@@ -342,6 +342,54 @@ func TestAchievementProgressReportsOneTimeRewardAvailability(t *testing.T) {
 	}
 }
 
+func TestPhotoUpdatesCountOnceAsSticksAndUnlockUserAndGroupMilestones(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	creator := createTestUser(t, auth, "photo_update_count_owner")
+	contributor := createTestUser(t, auth, "photo_update_count_contributor")
+	groupID := createTestGroup(t, group, creator, "photo_update_count_group")
+	pinID := createTestPin(t, pin, creator, groupID)
+	for i := 0; i < 2; i++ {
+		photoID := uuid.New()
+		if err := q.CreatePinPhoto(ctx, db.PinPhoto{
+			ID: photoID, PinID: pinID, ContributorID: &contributor,
+			ContributorUsername: "photo_update_count_contributor",
+			ImageKey:            "test/" + photoID.String(), ObservedAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("create photo update %d: %v", i+1, err)
+		}
+	}
+
+	userProgress, err := q.GetAchievementProgress(ctx, contributor)
+	if err != nil {
+		t.Fatalf("get user achievement progress: %v", err)
+	}
+	if got := achievementByID(t, userProgress, 3); got.CurrentValue != 1 {
+		t.Fatalf("unique contributed sticks = %d, want one location", got.CurrentValue)
+	}
+	if got := achievementByID(t, userProgress, 24); got.CurrentValue != 2 || !got.Claimable {
+		t.Fatalf("photo update milestone = %+v, want two updates and claimable", got)
+	}
+
+	groupProgress, err := group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get group achievement progress: %v", err)
+	}
+	var updates GroupAchievementProgress
+	for _, item := range groupProgress {
+		if item.ID == 13 {
+			updates = item
+			break
+		}
+	}
+	if updates.CurrentValue != 2 || !updates.Claimable {
+		t.Fatalf("group photo update milestone = %+v, want two updates and claimable", updates)
+	}
+	if err := group.ClaimAchievement(ctx, groupID, creator, 13); err != nil {
+		t.Fatalf("claim group photo update achievement: %v", err)
+	}
+}
+
 func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	q, auth, _, like, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()

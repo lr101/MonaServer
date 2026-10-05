@@ -177,6 +177,16 @@ class UserPinsEntities extends Table with CacheTable {
   TextColumn get pins => text().map(const StringListConverter())();
 }
 
+@DataClassName('PinPhotoHistoryDb')
+class PinPhotoHistoryEntities extends Table {
+  TextColumn get pinId => text()();
+  TextColumn get photosJson => text()();
+  DateTimeColumn get fetchedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {pinId};
+}
+
 @DriftDatabase(
   tables: [
     GroupEntities,
@@ -188,6 +198,7 @@ class UserPinsEntities extends Table with CacheTable {
     UserEntities,
     UserLikeEntities,
     UserPinsEntities,
+    PinPhotoHistoryEntities,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -196,7 +207,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -272,6 +283,9 @@ class AppDatabase extends _$AppDatabase {
         );
         await m.createTable(pinLikeEntities);
         await m.createTable(userLikeEntities);
+      }
+      if (from < 9) {
+        await m.createTable(pinPhotoHistoryEntities);
       }
     },
   );

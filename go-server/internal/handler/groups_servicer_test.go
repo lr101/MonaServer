@@ -108,10 +108,10 @@ func TestGroupAchievementVisibilityAndClaimRequireMembership(t *testing.T) {
 	if publicProgress.Code != http.StatusOK {
 		t.Fatalf("public group achievements status = %d, want %d", publicProgress.Code, http.StatusOK)
 	}
-	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 12 ||
+	if got := publicProgress.Body.([]genserver.GroupAchievementsDtoInner); len(got) != 18 ||
 		got[0].AchievementId != 1 || got[0].RewardType != "xp" ||
 		got[2].AchievementId != 3 || got[2].RewardType != "badge" {
-		t.Fatalf("public group achievements = %+v, want all twelve pin, contributor, and member rewards", got)
+		t.Fatalf("public group achievements = %+v, want all eighteen achievement rewards", got)
 	}
 	nonMemberClaim, err := servicer.ClaimGroupAchievement(outsiderCtx, publicGroup.ID.String(), 1)
 	if err != nil {
@@ -226,8 +226,8 @@ func TestGroupAchievementClaimIsVisibleToAdminAfterSync(t *testing.T) {
 		t.Fatalf("get achievements for admin: %v", err)
 	}
 	items, ok := progress.Body.([]genserver.GroupAchievementsDtoInner)
-	if !ok || len(items) != 12 {
-		t.Fatalf("admin achievement body = %#v, want twelve rewards", progress.Body)
+	if !ok || len(items) != 18 {
+		t.Fatalf("admin achievement body = %#v, want eighteen rewards", progress.Body)
 	}
 	var firstGathering *genserver.GroupAchievementsDtoInner
 	for i := range items {

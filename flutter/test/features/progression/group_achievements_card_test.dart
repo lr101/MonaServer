@@ -18,6 +18,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  testWidgets('shows photo update and gone pin achievement tracks', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [
+              _achievement(achievementId: 13, track: 'photo_updates'),
+              _achievement(achievementId: 16, track: 'gone_pins'),
+            ],
+            group: _group(),
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Photo updates'), findsOneWidget);
+    expect(find.text('Gone pins'), findsOneWidget);
+  });
+
   testWidgets('shows progress and claims a ready group achievement', (
     tester,
   ) async {
@@ -205,6 +229,7 @@ void main() {
 
 GroupAchievementsDtoInner _achievement({
   int achievementId = 1,
+  String track = 'active_pins',
   bool claimed = false,
   bool claimable = true,
   int currentValue = 10,
@@ -214,7 +239,7 @@ GroupAchievementsDtoInner _achievement({
   achievementId: achievementId,
   name: 'Pins $achievementId',
   description: 'Add active pins to your group',
-  track: 'active_pins',
+  track: track,
   difficulty: GroupAchievementsDtoInnerDifficultyEnum.easy,
   claimed: claimed,
   claimable: claimable,

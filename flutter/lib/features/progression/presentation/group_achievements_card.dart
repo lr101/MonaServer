@@ -97,6 +97,13 @@ class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
                 trackIndex++
               ) ...[
                 if (trackIndex > 0) const SizedBox(height: 12),
+                Text(
+                  tracks[trackIndex].title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 AchievementTierCarousel(
                   key: ValueKey(tracks[trackIndex].id),
                   title: tracks[trackIndex].title,
@@ -209,6 +216,8 @@ const _groupAchievementTracks = <_GroupAchievementTrackDefinition>[
   _GroupAchievementTrackDefinition('active_pins', 'Pins'),
   _GroupAchievementTrackDefinition('contributors', 'Contributors'),
   _GroupAchievementTrackDefinition('members', 'Members'),
+  _GroupAchievementTrackDefinition('photo_updates', 'Photo updates'),
+  _GroupAchievementTrackDefinition('gone_pins', 'Gone pins'),
 ];
 
 class _GroupAchievementTrackDefinition {

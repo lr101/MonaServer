@@ -68,14 +68,50 @@ void main() {
 
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
   });
+
+  testWidgets('uses cached photo bytes for an update square', (tester) async {
+    final bytes = Uint8List.fromList(kTransparentImage);
+    final repository = _ImageRepository(null, updateImage: bytes);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pinImageRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(
+          home: SizedBox.square(
+            dimension: 100,
+            child: SquareImage(
+              pinId: 'place',
+              photoId: 'update-photo',
+              photoUrl: 'https://example.test/update.png',
+              groupId: 'group',
+              index: 0,
+              onTap: _ignoreTap,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedPhotoId, 'update-photo');
+    expect(repository.requestedPhotoUrl, 'https://example.test/update.png');
+    final image = tester.widget<FadeInImage>(find.byType(FadeInImage));
+    expect(image.image, isA<ResizeImage>());
+    expect(
+      ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
+      same(bytes),
+    );
+  });
 }
 
 void _ignoreTap(int index) {}
 
 class _ImageRepository implements IImageRepository {
-  _ImageRepository(this.image);
+  _ImageRepository(this.image, {this.updateImage});
 
   final Uint8List? image;
+  final Uint8List? updateImage;
+  String? requestedPhotoId;
+  String? requestedPhotoUrl;
 
   @override
   ImageType get type => ImageType.pin;
@@ -88,7 +124,11 @@ class _ImageRepository implements IImageRepository {
     String id,
     String url,
     bool keepAlive,
-  ) async => null;
+  ) async {
+    requestedPhotoId = id;
+    requestedPhotoUrl = url;
+    return updateImage;
+  }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}

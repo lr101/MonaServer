@@ -89,6 +89,7 @@ class LikeService extends _$LikeService {
         if (kDebugMode) print(error);
       }
       if (!isCurrentSession(ref, session)) return;
+      if (creatorId.isEmpty) return;
       try {
         await ref
             .read(userLikeServiceProvider(creatorId).notifier)

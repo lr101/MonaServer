@@ -4,6 +4,7 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/camera.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:camera/camera.dart';
@@ -16,14 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image/image.dart' as img;
 // ignore: depend_on_referenced_packages
-import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:openapi/api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('update opens camera and can choose a photo from the gallery', (
-    tester,
-  ) async {
+  testWidgets('update opens the regular camera flow', (tester) async {
     const cameraDescription = CameraDescription(
       name: 'pin-camera',
       lensDirection: CameraLensDirection.back,
@@ -31,20 +29,12 @@ void main() {
     );
     final originalCameraPlatform = CameraPlatform.instance;
     CameraPlatform.instance = _PinCameraPlatform(cameraDescription);
-    final originalPicker = ImagePickerPlatform.instance;
-    final picker = _PinGalleryPlatform(
-      XFile.fromData(
-        Uint8List.fromList(img.encodeJpg(img.Image(width: 8, height: 10))),
-      ),
-    );
-    ImagePickerPlatform.instance = picker;
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
     final controller = _PinCameraController(cameraDescription);
     final api = _FakePinsApi();
     addTearDown(() async {
       CameraPlatform.instance = originalCameraPlatform;
-      ImagePickerPlatform.instance = originalPicker;
       await controller.dispose();
     });
 
@@ -80,15 +70,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Update'));
     await tester.pumpAndSettle();
-    expect(find.text('Take pin photo'), findsOneWidget);
-    await tester.tap(find.byTooltip('Choose from gallery'));
-    await _waitForComposer(tester);
-
-    expect(picker.requestedSource, ImageSource.gallery);
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(Camera), findsOneWidget);
+    expect(find.text('Take pin photo'), findsNothing);
+    expect(find.byTooltip('Choose from gallery'), findsOneWidget);
   });
 
-  testWidgets('captured pin photo opens the existing update composer', (
+  testWidgets('returning from the regular camera keeps photo details usable', (
     tester,
   ) async {
     const cameraDescription = CameraDescription(
@@ -140,24 +127,10 @@ void main() {
 
     await tester.tap(find.text('Update'));
     await tester.pumpAndSettle();
-    expect(find.text('Take pin photo'), findsOneWidget);
-    await tester.tap(find.byTooltip('Take photo'));
-    await _waitForComposer(tester);
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(Camera), findsOneWidget);
+    expect(find.text('Take pin photo'), findsNothing);
 
-    await tester.enterText(find.byType(TextField), 'Still standing');
-    await tester.tap(find.text('Share update'));
-    await tester.pumpAndSettle();
-    expect(api.submittedPinId, 'pin');
-    expect(api.submitted?.caption, 'Still standing');
-    expect(api.submitted?.image, isNotEmpty);
-    expect(api.submitted?.latitude, 50);
-    expect(api.submitted?.longitude, 8);
-    expect(api.submitted?.accuracyMeters, 5);
-
-    await tester.tap(find.text('Update'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Back'));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(
       tester
@@ -165,6 +138,7 @@ void main() {
           .onPressed,
       isNotNull,
     );
+    expect(tester.takeException(), isNull);
   });
 
   test('photo updates require a synced nearby pin and usable accuracy', () {
@@ -295,16 +269,6 @@ void main() {
   );
 }
 
-Future<void> _waitForComposer(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 100; attempt++) {
-    await tester.pump();
-    if (find.byType(AlertDialog).evaluate().isNotEmpty) return;
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-  }
-}
-
 PinEntity _pin({bool synced = true}) => PinEntity(
   pinId: 'pin',
   latitude: 50,
@@ -416,23 +380,4 @@ class _PinCameraController extends CameraController {
     Uint8List.fromList(img.encodeJpg(img.Image(width: 8, height: 10))),
     name: 'pin-update.jpg',
   );
-}
-
-class _PinGalleryPlatform extends ImagePickerPlatform {
-  _PinGalleryPlatform(this.image);
-
-  final XFile image;
-  ImageSource? requestedSource;
-
-  @override
-  Future<LostDataResponse> getLostData() async => LostDataResponse();
-
-  @override
-  Future<XFile?> getImageFromSource({
-    required ImageSource source,
-    ImagePickerOptions options = const ImagePickerOptions(),
-  }) async {
-    requestedSource = source;
-    return image;
-  }
 }

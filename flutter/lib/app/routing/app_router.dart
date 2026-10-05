@@ -30,6 +30,7 @@ import 'package:buff_lisa/features/web/presentation/show_web.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/report_issue/presentation/report_issue_page.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
@@ -37,6 +38,46 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final authStateProvider = StateProvider<bool>((ref) => false);
+
+Uint8List? _cameraImageFromRouteExtra(Object? extra) {
+  if (extra is Uint8List) return extra;
+  if (extra is! List) return null;
+
+  final bytes = <int>[];
+  for (final value in extra) {
+    if (value is! num || value != value.toInt()) return null;
+    final byte = value.toInt();
+    if (byte < 0 || byte > 255) return null;
+    bytes.add(byte);
+  }
+  return bytes.isEmpty ? null : Uint8List.fromList(bytes);
+}
+
+Widget _missingCameraImage(BuildContext context) => Scaffold(
+  appBar: AppBar(title: const Text('Photo unavailable')),
+  body: Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image_outlined, size: 40),
+          const SizedBox(height: 12),
+          const Text(
+            'This captured photo could not be restored. Return to the camera and take it again.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => context.goNamed('home'),
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: const Text('Return to camera'),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
 
 String initialEmailLoginLocation(EmailLinkLaunchData? launch) =>
     launch == null ? '/login' : '/email-login/callback';
@@ -209,7 +250,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/camera/select-location',
         name: 'selectLocation',
         builder: (context, state) {
-          final image = state.extra! as Uint8List;
+          final image = _cameraImageFromRouteExtra(state.extra);
+          if (image == null) return _missingCameraImage(context);
           final lat = state.uri.queryParameters['lat'];
           final long = state.uri.queryParameters['long'];
           final LatLng? latLng;
@@ -225,7 +267,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/camera/upload',
         name: 'imageUpload',
         builder: (context, state) {
-          final image = state.extra! as Uint8List;
+          final image = _cameraImageFromRouteExtra(state.extra);
+          if (image == null) return _missingCameraImage(context);
           return ImageUpload(
             image: image,
             position: LatLng(
@@ -278,8 +321,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/pins/:id',
         name: 'viewImage',
-        builder: (context, state) =>
-            ViewImage(pinId: state.pathParameters['id']!),
+        builder: (context, state) => ViewImage(
+          pinId: state.pathParameters['id']!,
+          initialPhotoId: state.uri.queryParameters['photo'],
+        ),
       ),
 
       // --- SETTINGS & PROFILE ---

@@ -25,6 +25,13 @@ class PinEntity extends CacheEntity {
   final bool isGone;
   final DateTime? lastSynced;
 
+  /// Set only on transient feed/profile entries for later photographs.
+  final String? photoId;
+  final String? photoUrl;
+  final String? contributorUsername;
+  String get entryId => photoId ?? pinId;
+  bool get isPhotoUpdate => photoId != null;
+
   PinEntity({
     required this.pinId,
     required this.latitude,
@@ -37,6 +44,9 @@ class PinEntity extends CacheEntity {
     this.isHidden = false,
     this.isGone = false,
     this.lastSynced,
+    this.photoId,
+    this.photoUrl,
+    this.contributorUsername,
     super.keepAlive,
     super.hits,
     required super.ttl,
@@ -64,6 +74,27 @@ class PinEntity extends CacheEntity {
       ttl: DateTime.now(),
     );
   }
+
+  PinEntity withPhotoUpdate(PinPhotoDto photo) => PinEntity(
+    pinId: pinId,
+    latitude: latitude,
+    longitude: longitude,
+    creationDate: photo.observedAt,
+    title: title,
+    description: photo.caption,
+    creator: photo.contributorId ?? '',
+    groupId: groupId,
+    isHidden: isHidden,
+    isGone: isGone,
+    lastSynced: lastSynced,
+    photoId: photo.id,
+    photoUrl: photo.image,
+    contributorUsername: photo.contributorUsername,
+    keepAlive: keepAlive,
+    hits: hits,
+    ttl: ttl,
+    onlySession: onlySession,
+  );
 
   PinRequestDto toRequestDto(Uint8List image) {
     return PinRequestDto(
@@ -98,6 +129,9 @@ class PinEntity extends CacheEntity {
       isHidden: isHidden,
       isGone: isGone ?? this.isGone,
       lastSynced: lastSynced,
+      photoId: photoId,
+      photoUrl: photoUrl,
+      contributorUsername: contributorUsername,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,
       keepAlive: keepAlive ?? this.keepAlive,

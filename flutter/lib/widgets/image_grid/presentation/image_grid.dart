@@ -54,11 +54,16 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
       builderDelegate: PagedChildBuilderDelegate<PinEntity>(
         itemBuilder: (context, item, index) => SquareImage(
           pinId: item.pinId,
+          photoUrl: item.photoUrl,
+          photoId: item.photoId,
           index: index,
           groupId: item.groupId,
           onTap: (index) => context.pushNamed(
             "viewImage",
             pathParameters: {"id": item.pinId},
+            queryParameters: item.photoId == null
+                ? {}
+                : {"photo": item.photoId},
           ),
         ),
         noItemsFoundIndicatorBuilder: (context) => Center(
@@ -110,7 +115,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         try {
           final coalescer = ref.read(batchReadCoalescerProvider);
           for (final pin in idList) {
-            _prefetchPinImage(coalescer, pin.pinId);
+            if (!pin.isPhotoUpdate) _prefetchPinImage(coalescer, pin.pinId);
           }
         } catch (_) {
           // Prefetch is an optimization and must not fail the page.
