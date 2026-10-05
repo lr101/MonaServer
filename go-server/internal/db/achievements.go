@@ -52,13 +52,13 @@ WHERE p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE
 
 const likesGivenSQL = `SELECT COUNT(*)::int FROM likes l
 JOIN pins p ON p.id=l.pin_id LEFT JOIN pin_photos pp ON pp.id=l.photo_id
-WHERE l.user_id=$1 AND COALESCE(pp.contributor_id,p.creator_id)<>l.user_id
+WHERE l.user_id=$1 AND CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END IS DISTINCT FROM l.user_id
   AND p.is_deleted=FALSE
   AND l.like_all=TRUE`
 
 const likesReceivedSQL = `SELECT COUNT(*)::int FROM likes l
 JOIN pins p ON p.id=l.pin_id LEFT JOIN pin_photos pp ON pp.id=l.photo_id
-WHERE COALESCE(pp.contributor_id,p.creator_id)=$1 AND l.user_id<>$1
+WHERE CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END=$1 AND l.user_id<>$1
   AND p.is_deleted=FALSE
   AND l.like_all=TRUE`
 

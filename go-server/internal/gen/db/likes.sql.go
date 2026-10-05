@@ -16,7 +16,7 @@ SELECT COUNT(*)::bigint AS n
 FROM likes l
 JOIN pins p ON p.id = l.pin_id
 LEFT JOIN pin_photos pp ON pp.id = l.photo_id
-WHERE COALESCE(pp.contributor_id, p.creator_id) = $1
+WHERE CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END = $1
   AND p.is_deleted = FALSE
   AND l.like_all = TRUE
 `

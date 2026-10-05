@@ -130,6 +130,51 @@ void main() {
     );
   });
 
+  test(
+    'one photo history failure does not block current profile publication',
+    () async {
+      final f = await _fixture();
+      f.api.profilePins = [
+        PinWithOptionalImageDto(
+          id: 'history-unavailable',
+          latitude: 48.1,
+          longitude: 11.6,
+          creationDate: DateTime.utc(2026),
+          creationUser: 'alice',
+          groupId: 'public-group',
+        ),
+        PinWithOptionalImageDto(
+          id: 'history-available',
+          latitude: 48.2,
+          longitude: 11.7,
+          creationDate: DateTime.utc(2026, 1, 2),
+          creationUser: 'alice',
+          groupId: 'public-group',
+        ),
+      ];
+      f.api.photoHistoryErrors['history-unavailable'] = StateError(
+        'temporary photo history failure',
+      );
+
+      await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+
+      expect(f.container.read(syncingServiceProvider), SyncState.finished);
+      final profile = await f.container
+          .read(userPinsRepositoryProvider)
+          .get('alice');
+      expect(
+        profile?.pins,
+        containsAll(['history-unavailable', 'history-available']),
+      );
+      expect(
+        await f.container
+            .read(pinRepositoryProvider)
+            .get('history-unavailable'),
+        isNotNull,
+      );
+    },
+  );
+
   test('successful pin upload publishes the synced id without advancing profile watermark', () async {
     final f = await _fixture();
     final watermark = DateTime.utc(2026, 2);
@@ -712,6 +757,7 @@ class _Pins extends PinsApi {
   final photoHistoryRequests = <String>[];
   List<PinWithOptionalImageDto> profilePins = const [];
   final photoHistories = <String, List<PinPhotoDto>>{};
+  final photoHistoryErrors = <String, Object>{};
   int uploadCalls = 0;
   final deleted = <String>[];
   Completer<SyncDto?>? response;
@@ -750,6 +796,8 @@ class _Pins extends PinsApi {
   @override
   Future<List<PinPhotoDto>?> getPinPhotos(String pinId) async {
     photoHistoryRequests.add(pinId);
+    final error = photoHistoryErrors[pinId];
+    if (error != null) throw error;
     return photoHistories[pinId] ?? const [];
   }
 

@@ -301,11 +301,20 @@ class SyncingService extends _$SyncingService {
       final batch = idsToRefresh.skip(start).take(maxConcurrentHistoryRequests);
       final results = await Future.wait(
         batch.map((pinId) async {
-          final photos = await _pinsApi.getPinPhotos(pinId);
-          return MapEntry(pinId, photos ?? const <PinPhotoDto>[]);
+          try {
+            final photos = await _pinsApi.getPinPhotos(pinId);
+            return MapEntry(pinId, photos ?? const <PinPhotoDto>[]);
+          } catch (_) {
+            // Photo history is best-effort for profile publication. Keeping a
+            // failed pin out of this write leaves its cached history intact;
+            // uncached pins will be retried the next time profile sync runs.
+            return null;
+          }
         }),
       );
-      photosByPin.addEntries(results);
+      photosByPin.addEntries(
+        results.whereType<MapEntry<String, List<PinPhotoDto>>>(),
+      );
     }
 
     if (!isCurrent()) return;
