@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **longitude** | **num** |  |
 **creationUser** | **String** |  |
 **image** | **String** |  | [optional]
+**imageBlurhash** | **String** | Compact BlurHash placeholder for the pin image. | [optional]
 **groupId** | **String** |  |
 **title** | **String** |  | [optional]
 **description** | **String** |  | [optional]
