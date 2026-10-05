@@ -43,8 +43,22 @@ class _SquareImageState extends ConsumerState<SquareImage> {
     }
   }
 
-  Future<Uint8List?> _fetchThumbnail() =>
-      ref.read(pinThumbnailRepositoryProvider).fetchImage(widget.pinId, false);
+  Future<Uint8List?> _fetchThumbnail() async {
+    final thumbnailRepository = ref.read(pinThumbnailRepositoryProvider);
+    final fullImageRepository = ref.read(pinImageRepositoryProvider);
+    try {
+      final thumbnail = await thumbnailRepository.fetchImage(
+        widget.pinId,
+        false,
+      );
+      if (thumbnail != null && thumbnail.isNotEmpty) return thumbnail;
+    } catch (_) {
+      // Keep the pin visible when thumbnail generation or delivery fails.
+    }
+
+    final fullImage = await fullImageRepository.fetchImage(widget.pinId, false);
+    return fullImage != null && fullImage.isNotEmpty ? fullImage : null;
+  }
 
   @override
   Widget build(BuildContext context) {

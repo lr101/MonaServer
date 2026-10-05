@@ -159,7 +159,10 @@ class BatchReadCoalescer {
   final Map<BatchReadKey, Completer<BatchReadResult>> _requests = {};
   final Map<BatchReadKey, Completer<BatchReadResult>> _pending = {};
   final Set<Completer<BatchReadResult>> _inFlight = {};
+  final Queue<List<MapEntry<BatchReadKey, Completer<BatchReadResult>>>>
+  _queuedChunks = Queue();
   Timer? _timer;
+  int _activeBatches = 0;
   bool _disposed = false;
 
   Future<BatchReadResult> readKey(BatchReadKey key) {
@@ -192,26 +195,18 @@ class BatchReadCoalescer {
         ),
       );
     }
-    unawaited(_runChunks(chunks));
+    _queuedChunks.addAll(chunks);
+    _pumpChunks();
   }
 
-  Future<void> _runChunks(
-    List<List<MapEntry<BatchReadKey, Completer<BatchReadResult>>>> chunks,
-  ) async {
-    var next = 0;
-    Future<void> worker() async {
-      while (!_disposed && next < chunks.length) {
-        final chunk = chunks[next++];
-        await _readChunk(chunk);
-      }
+  void _pumpChunks() {
+    if (_disposed) return;
+    final limit = maxConcurrentBatches < 1 ? 1 : maxConcurrentBatches;
+    while (_activeBatches < limit && _queuedChunks.isNotEmpty) {
+      final chunk = _queuedChunks.removeFirst();
+      _activeBatches++;
+      unawaited(_readChunk(chunk));
     }
-
-    await Future.wait(
-      List.generate(
-        maxConcurrentBatches.clamp(1, chunks.length),
-        (_) => worker(),
-      ),
-    );
   }
 
   Future<void> _readChunk(
@@ -252,6 +247,8 @@ class BatchReadCoalescer {
       }
     } finally {
       _inFlight.removeAll(chunk.map((entry) => entry.value));
+      _activeBatches--;
+      _pumpChunks();
     }
   }
 
@@ -265,6 +262,7 @@ class BatchReadCoalescer {
       if (!completer.isCompleted) completer.completeError(error);
     }
     _pending.clear();
+    _queuedChunks.clear();
     _inFlight.clear();
     _requests.clear();
   }
