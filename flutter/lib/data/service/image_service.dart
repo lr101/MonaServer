@@ -157,6 +157,7 @@ Stream<Uint8List?> _watchImageStages(
   List<_ImageLoadStage> stages, {
   required bool keepAlive,
   bool emitNullValues = true,
+  bool stopAfterFirstImage = false,
 }) {
   if (stages.isEmpty) return const Stream<Uint8List?>.empty();
 
@@ -209,6 +210,7 @@ Stream<Uint8List?> _watchImageStages(
           if (displayedStage > index) continue;
           try {
             showImage(index, await stages[index].fetch(keepAlive));
+            if (stopAfterFirstImage && displayedImage != null) break;
           } catch (error, stackTrace) {
             if (!cancelled) {
               stageFailed = true;
@@ -250,6 +252,24 @@ final pinThumbnailBytesProvider = StreamProvider.autoDispose
       return _watchImageStages([
         _ImageLoadStage(repository: repo, id: pinId),
       ], keepAlive: false);
+    });
+
+/// Loads a grid thumbnail and falls back to the full image only when the
+/// thumbnail is unavailable. Both stages remain subscribed to the shared
+/// repositories, so bytes added by another consumer appear in the grid too.
+final pinGridImageBytesProvider = StreamProvider.autoDispose
+    .family<Uint8List?, String>((ref, pinId) {
+      final thumbnailRepository = ref.watch(pinThumbnailRepositoryProvider);
+      final imageRepository = ref.watch(pinImageRepositoryProvider);
+      return _watchImageStages(
+        [
+          _ImageLoadStage(repository: thumbnailRepository, id: pinId),
+          _ImageLoadStage(repository: imageRepository, id: pinId),
+        ],
+        keepAlive: false,
+        emitNullValues: false,
+        stopAfterFirstImage: true,
+      );
     });
 
 /// Streams a stored photo thumbnail first, then its full image, using the

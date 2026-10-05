@@ -372,11 +372,13 @@ test('loads pins for a public group opened through group search', async ({ page 
   });
 
   // Metadata and batch reads can supply URLs without per-pin image API calls.
-  // Verify the browser actually downloads every visible pin image.
+  // Verify the browser actually downloads every visible thumbnail or image.
   const loadedObjectImages = new Set<string>();
   page.on('response', (response) => {
     const url = new URL(response.url());
-    const objectMatch = url.pathname.match(/^\/monaserver\/pins\/([^/]+)\.png$/);
+    const objectMatch = url.pathname.match(
+      /^\/monaserver\/pins\/([^/]+)\.png(?:\.thumbnail\.jpg)?$/,
+    );
     if (objectMatch && response.ok()) {
       loadedObjectImages.add(objectMatch[1]);
     }
