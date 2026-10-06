@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/google/uuid"
@@ -42,17 +45,18 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	if cfg.DatabaseURL == "" {
-		return errors.New("DATABASE_URL must be set")
-	}
 	if cfg.RustfsEndpoint == "" {
 		return errors.New("RUSTFS_ENDPOINT must be set")
+	}
+	dsn, err := databaseURL(cfg.DatabaseURL)
+	if err != nil {
+		return err
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
+	pool, err := db.NewPool(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("create database pool: %w", err)
 	}
@@ -145,6 +149,39 @@ func run() error {
 		return fmt.Errorf("thumbnail backfill finished with %d failure(s)", stats.failed)
 	}
 	return nil
+}
+
+func databaseURL(configured string) (string, error) {
+	if dsn := strings.TrimSpace(configured); dsn != "" {
+		return dsn, nil
+	}
+	username := strings.TrimSpace(os.Getenv("POSTGRES_USER"))
+	password := os.Getenv("POSTGRES_PASSWORD")
+	if username == "" || password == "" {
+		return "", errors.New("DATABASE_URL is required, or set POSTGRES_USER and POSTGRES_PASSWORD")
+	}
+	host := strings.TrimSpace(os.Getenv("POSTGRES_HOST"))
+	if host == "" {
+		host = "db"
+	}
+	port := strings.TrimSpace(os.Getenv("POSTGRES_PORT"))
+	if port == "" {
+		port = "5432"
+	}
+	database := strings.TrimSpace(os.Getenv("POSTGRES_DB"))
+	if database == "" {
+		database = "monaserver"
+	}
+	dsn := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(username, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + database,
+	}
+	query := dsn.Query()
+	query.Set("sslmode", "disable")
+	dsn.RawQuery = query.Encode()
+	return dsn.String(), nil
 }
 
 func printStats(stats backfillStats) {

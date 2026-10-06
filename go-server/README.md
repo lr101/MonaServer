@@ -179,7 +179,9 @@ that already exist, leaves original images unchanged, and reports missing
 source images or failures in its final summary. A nonzero exit status indicates
 that at least one image failed to process. User and group profile images use
 separate small-image objects created by their upload flow, so they are outside
-this pin-photo backfill.
+this pin-photo backfill. When `DATABASE_URL` is unset, it builds the Compose
+connection from `POSTGRES_USER` and `POSTGRES_PASSWORD`, with the same defaults
+as `admin-auth`.
 
 ### Admin permissions and superadmins
 
