@@ -95,6 +95,119 @@ func TestPinSyncAppliesVisibilityAndFilters(t *testing.T) {
 	}
 }
 
+func TestMarkingPinsGoneCreditsTheReporterAndGroupOncePerLocation(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	pinSvc := service.NewPin(q, nil)
+	servicer := NewPinsServicer(pinSvc, groupSvc, service.NewGuard(q), q)
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "gone_achievement_owner", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup owner: %v", err)
+	}
+	reporter, err := auth.Signup(ctx, "gone_achievement_reporter", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup reporter: %v", err)
+	}
+	secondReporter, err := auth.Signup(ctx, "gone_achievement_reporter_2", "password123", nil)
+	if err != nil {
+		t.Fatalf("signup second reporter: %v", err)
+	}
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "gone_achievement_group", Visibility: 0, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	pin, err := pinSvc.Create(ctx, service.CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(),
+		UserID: owner.UserID, GroupID: group.ID,
+	})
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+
+	reporterCtx := middleware.WithUser(ctx, reporter.UserID, middleware.RoleUser)
+	for _, state := range []string{"gone", "here", "gone", "gone"} {
+		response, err := servicer.SetPinPresence(
+			reporterCtx, pin.ID.String(), genserver.PinPresenceRequestDto{State: state},
+		)
+		if err != nil || response.Code != http.StatusOK {
+			t.Fatalf("set pin state %q: response=%+v error=%v", state, response, err)
+		}
+	}
+
+	var reportCount int
+	if err := q.Pool().QueryRow(ctx, `
+		SELECT COUNT(*) FROM pin_gone_reports WHERE pin_id = $1 AND user_id = $2`,
+		pin.ID, reporter.UserID,
+	).Scan(&reportCount); err != nil {
+		t.Fatalf("count reporter history: %v", err)
+	}
+	if reportCount != 1 {
+		t.Fatalf("report history rows = %d, want one per reporter and location", reportCount)
+	}
+	secondReporterCtx := middleware.WithUser(ctx, secondReporter.UserID, middleware.RoleUser)
+	response, err := servicer.SetPinPresence(
+		secondReporterCtx, pin.ID.String(), genserver.PinPresenceRequestDto{State: "gone"},
+	)
+	if err != nil || response.Code != http.StatusOK {
+		t.Fatalf("second reporter marks an already-gone pin: response=%+v error=%v", response, err)
+	}
+	secondReporterProgress, err := q.GetAchievementProgress(ctx, secondReporter.UserID)
+	if err != nil {
+		t.Fatalf("get second reporter achievements: %v", err)
+	}
+	secondReporterClaimable := false
+	for _, achievement := range secondReporterProgress {
+		if achievement.ID == 27 {
+			secondReporterClaimable = achievement.CurrentValue == 1 && achievement.Claimable
+			break
+		}
+	}
+	if !secondReporterClaimable {
+		t.Fatalf("second reporter achievements = %+v, want one claimable gone-pin report", secondReporterProgress)
+	}
+
+	userProgress, err := q.GetAchievementProgress(ctx, reporter.UserID)
+	if err != nil {
+		t.Fatalf("get reporter achievements: %v", err)
+	}
+	foundUserAchievement := false
+	for _, achievement := range userProgress {
+		if achievement.ID == 27 {
+			if achievement.CurrentValue != 1 || !achievement.Claimable {
+				t.Fatalf("reporter gone-pin achievement = %+v, want one claimable report", achievement)
+			}
+			foundUserAchievement = true
+			break
+		}
+	}
+	if !foundUserAchievement {
+		t.Fatal("reporter gone-pin achievement 27 is missing")
+	}
+
+	groupAchievements, err := q.GetGroupAchievementProgress(ctx, group.ID)
+	if err != nil {
+		t.Fatalf("get group achievements: %v", err)
+	}
+	foundGroupAchievement := false
+	for _, achievement := range groupAchievements {
+		if achievement.ID == 16 {
+			if achievement.CurrentValue != 1 || !achievement.Claimable {
+				t.Fatalf("group gone-pin achievement = %+v, want one claimable location", achievement)
+			}
+			foundGroupAchievement = true
+			break
+		}
+	}
+	if !foundGroupAchievement {
+		t.Fatal("group gone-pin achievement 16 is missing")
+	}
+}
+
 func TestPinSyncCursorPaginatesSameCreationDate(t *testing.T) {
 	authHandler, auth := setupAuthServicer(t)
 	q := authHandler.q

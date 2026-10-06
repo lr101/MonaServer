@@ -177,6 +177,29 @@ async function ensureUser(apiUrl, user, password) {
   return requireStatus(created, 201, `signup for ${user.username}`);
 }
 
+async function ensureUserProfileImage(apiUrl, user) {
+  const existing = await request(
+    apiUrl,
+    `/api/v2/users/${user.userId}/profile_picture_small`,
+    {
+      token: user.accessToken,
+    },
+  );
+  const profileImageUrl = requireStatus(
+    existing,
+    200,
+    `get profile image for ${user.username}`,
+  );
+  if (typeof profileImageUrl === 'string' && profileImageUrl.length > 0) return;
+
+  const updated = await request(apiUrl, `/api/v2/users/${user.userId}`, {
+    method: 'PUT',
+    token: user.accessToken,
+    body: { image: tinyPng },
+  });
+  requireStatus(updated, 200, `add profile image for ${user.username}`);
+}
+
 async function findGroup(apiUrl, token, name) {
   const query = new URLSearchParams({
     search: name,
@@ -276,7 +299,7 @@ async function ensurePin(apiUrl, creator, group, pin) {
 
 async function ensureLike(apiUrl, user, pin, like) {
   const body = { userId: user.userId };
-  for (const field of ['like', 'likeLocation', 'likePhotography', 'likeArt']) {
+  for (const field of ['like']) {
     if (like[field] !== undefined) body[field] = like[field];
   }
   const result = await request(apiUrl, `/api/v2/pins/${pin.id}/likes`, {
@@ -325,6 +348,9 @@ async function seed() {
   for (const [key, user] of Object.entries(plan.users)) {
     const token = await ensureUser(apiUrl, user, password);
     users[key] = { ...token, username: user.username };
+  }
+  for (const user of Object.values(users)) {
+    await ensureUserProfileImage(apiUrl, user);
   }
 
   const groups = {};

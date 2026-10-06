@@ -19,6 +19,11 @@ properties:
     $ref: '../parameters/id.yaml'
   image:
     $ref: '../parameters/imageUrl.yaml'
+  imageBlurhash:
+    type: string
+    minLength: 16
+    maxLength: 16
+    description: Compact BlurHash placeholder for the pin image.
   groupId:
     $ref: '../parameters/id.yaml'
   title:

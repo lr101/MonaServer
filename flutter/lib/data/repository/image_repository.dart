@@ -10,6 +10,7 @@ import 'package:buff_lisa/util/core/cache_impl.dart';
 import 'package:buff_lisa/util/core/fast_hash.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -20,6 +21,42 @@ Future<http.Response> _defaultImageHttpGet(Uri uri) => http.get(uri);
 class _ImageWriteQueue {
   Future<void> tail = Future<void>.value();
   int pending = 0;
+}
+
+class _ImageDownloadGate {
+  _ImageDownloadGate(int maxConcurrent)
+    : _maxConcurrent = maxConcurrent < 1 ? 1 : maxConcurrent;
+
+  final int _maxConcurrent;
+  final Queue<Completer<void>> _waiters = Queue<Completer<void>>();
+  int _active = 0;
+
+  Future<T> withPermit<T>(Future<T> Function() operation) async {
+    await _acquire();
+    try {
+      return await operation();
+    } finally {
+      _release();
+    }
+  }
+
+  Future<void> _acquire() {
+    if (_active < _maxConcurrent) {
+      _active++;
+      return Future<void>.value();
+    }
+    final waiter = Completer<void>();
+    _waiters.addLast(waiter);
+    return waiter.future;
+  }
+
+  void _release() {
+    if (_waiters.isEmpty) {
+      _active--;
+      return;
+    }
+    _waiters.removeFirst().complete();
+  }
 }
 
 class _ActiveImageRequest {
@@ -39,7 +76,12 @@ class _ActiveImageRequest {
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
   Future<Uint8List?> fetchImage(String id, bool keepAlive);
-  Future<Uint8List?> fetchImageFromUrl(String id, String url, bool keepAlive);
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  });
   Stream<Uint8List?> watchImageBytes(String id);
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive);
   Future<void> addImage(String id, Uint8List image, bool keepAlive);
@@ -56,8 +98,12 @@ class ImageRepository extends CacheImpl<ImageEntity>
   final AppDatabase db;
   final Future<String?> Function(String) getImageUrl;
   final String? Function(String)? getSuppliedImageUrl;
+  final void Function(String, String)? invalidateSuppliedImageUrl;
   final bool Function()? isSessionCurrent;
   final Future<http.Response> Function(Uri) _httpGet;
+  final Duration negativeTtlDuration;
+  final int _maxMemoryCacheItems;
+  final _ImageDownloadGate _downloadGate;
   @override
   final ImageType type;
 
@@ -85,19 +131,24 @@ class ImageRepository extends CacheImpl<ImageEntity>
   final Map<String, int> _activeWatchers = {};
   final LinkedHashMap<String, Uint8List> _bytesCache =
       LinkedHashMap<String, Uint8List>();
-  final int _maxMemoryCacheItems = 50;
   Future<void> _pruneQueue = Future<void>.value();
 
   ImageRepository({
     required this.db,
     required this.getImageUrl,
     this.getSuppliedImageUrl,
+    this.invalidateSuppliedImageUrl,
     this.isSessionCurrent,
     required this.type,
     Future<http.Response> Function(Uri)? httpGet,
+    this.negativeTtlDuration = const Duration(minutes: 2),
+    int maxMemoryCacheItems = 50,
+    int maxConcurrentDownloads = 6,
     super.maxItems,
     super.ttlDuration,
-  }) : _httpGet = httpGet ?? _defaultImageHttpGet {
+  }) : _httpGet = httpGet ?? _defaultImageHttpGet,
+       _maxMemoryCacheItems = maxMemoryCacheItems < 1 ? 1 : maxMemoryCacheItems,
+       _downloadGate = _ImageDownloadGate(maxConcurrentDownloads) {
     db.session?.onRevoke(dispose);
   }
 
@@ -565,8 +616,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async {
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async {
     await ready;
     if (_disposed) return null;
     final cacheKey = _cacheKey(id);
@@ -606,6 +658,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       fallback: fallback,
       imageUrl: url,
       contentVersion: contentVersion,
+      fallbackToEndpoint: fallbackToEndpoint,
     );
   }
 
@@ -616,6 +669,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String? imageUrl,
     ImageEntity? retainedImage,
     required int contentVersion,
+    bool fallbackToEndpoint = true,
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
@@ -637,6 +691,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       requestState,
       fallback: fallback,
       imageUrl: imageUrl,
+      fallbackToEndpoint: fallbackToEndpoint,
     );
     _pendingImageRequests.update(
       cacheKey,
@@ -661,6 +716,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     _ActiveImageRequest requestState, {
     Uint8List? fallback,
     String? imageUrl,
+    bool fallbackToEndpoint = true,
   }) async {
     if (imageUrl != null && imageUrl.isNotEmpty) {
       final image = await _fetchAndCacheFromUrl(
@@ -671,6 +727,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       );
       if (_disposed) return null;
       if (image != null) return image;
+      if (!fallbackToEndpoint) return fallback;
     }
 
     return _fetchAndCacheFromEndpoint(id, requestState, fallback: fallback);
@@ -683,10 +740,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
     int contentVersion,
   ) async {
     try {
-      final response = await _httpGet(Uri.parse(imageUrl))
-          .timeout(const Duration(seconds: 15));
+      final response = await _downloadGate.withPermit(
+        () =>
+            _httpGet(Uri.parse(imageUrl)).timeout(const Duration(seconds: 15)),
+      );
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        if (response.bodyBytes.isEmpty) return null;
+        if (response.bodyBytes.isEmpty) {
+          _invalidateSuppliedImageUrl(id, imageUrl);
+          return null;
+        }
         return await _saveAndPrecacheImage(
           id,
           response.bodyBytes,
@@ -694,13 +756,23 @@ class ImageRepository extends CacheImpl<ImageEntity>
           contentVersion: contentVersion,
         );
       }
+      _invalidateSuppliedImageUrl(id, imageUrl);
       debugPrint(
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
       );
     } catch (_) {
+      _invalidateSuppliedImageUrl(id, imageUrl);
       debugPrint('Network exception fetching image $id from supplied URL.');
     }
     return null;
+  }
+
+  void _invalidateSuppliedImageUrl(String id, String url) {
+    try {
+      invalidateSuppliedImageUrl?.call(id, url);
+    } catch (_) {
+      // Invalidating a cached URL is best-effort; repository fallback continues.
+    }
   }
 
   Future<Uint8List?> _fetchAndCacheFromEndpoint(
@@ -723,8 +795,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
         return _disposed ? null : fallback;
       }
 
-      final response = await _httpGet(Uri.parse(imageUrl))
-          .timeout(const Duration(seconds: 15));
+      final response = await _downloadGate.withPermit(
+        () =>
+            _httpGet(Uri.parse(imageUrl)).timeout(const Duration(seconds: 15)),
+      );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) {
           if (fallback == null) {
@@ -758,7 +832,19 @@ class ImageRepository extends CacheImpl<ImageEntity>
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return _disposed ? null : fallback;
-    } catch (_) {
+    } catch (error) {
+      if (error is BatchReadFailure &&
+          error.status == 404 &&
+          fallback == null) {
+        await _saveAndPrecacheImage(
+          id,
+          Uint8List(0),
+          requestState.initialKeepAlive,
+          contentVersion: requestState.contentVersion,
+          retainedImage: requestState.retainedImage,
+        );
+        return null;
+      }
       debugPrint('Network exception fetching image $id.');
       return _disposed ? null : fallback;
     }
@@ -888,7 +974,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           type: type,
           image: bytes,
           keepAlive: effectiveKeepAlive,
-          ttl: _calculateTtl(),
+          ttl: _calculateTtl(isNegative: bytes.isEmpty),
           onlySession: false,
           lastAccessedAt: DateTime.now(),
         ),
@@ -900,8 +986,11 @@ class ImageRepository extends CacheImpl<ImageEntity>
     }).then((_) => _disposed ? Uint8List(0) : bytes);
   }
 
-  DateTime _calculateTtl() {
-    return DateTime.now().add(ttlDuration ?? const Duration(days: 7));
+  DateTime _calculateTtl({required bool isNegative}) {
+    final ttl = isNegative
+        ? negativeTtlDuration
+        : ttlDuration ?? const Duration(days: 7);
+    return DateTime.now().add(ttl);
   }
 
   Future<void> _enqueuePrune() {
@@ -1077,6 +1166,27 @@ IImageRepository pinImageRepository(Ref ref) {
   ref.onDispose(repository.dispose);
   return repository;
 }
+
+final pinThumbnailRepositoryProvider = Provider<IImageRepository>((ref) {
+  final repository = ImageRepository(
+    db: ref.watch(accountDatabaseProvider),
+    type: ImageType.pinThumbnail,
+    isSessionCurrent: _sessionGuard(ref),
+    getImageUrl: (id) =>
+        _resolveImageUrl(ref, BatchReadKind.pinImageThumbnail, id),
+    getSuppliedImageUrl: (id) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .lookup(BatchReadKind.pinImageThumbnail, id),
+    invalidateSuppliedImageUrl: (id, url) => ref
+        .read(suppliedImageUrlRegistryProvider)
+        .invalidate(BatchReadKind.pinImageThumbnail, id, url),
+    maxItems: 800,
+    maxMemoryCacheItems: 128,
+    ttlDuration: const Duration(days: 14),
+  );
+  ref.onDispose(repository.dispose);
+  return repository;
+});
 
 bool Function() _sessionGuard(Ref ref) {
   final session = watchSession(ref);

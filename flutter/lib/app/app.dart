@@ -2,6 +2,7 @@ import 'package:buff_lisa/app/lifecycle/app_link_lifecycle.dart';
 import 'package:buff_lisa/app/lifecycle/sync_lifecycle.dart';
 import 'package:buff_lisa/app/play_store_update_guard.dart';
 import 'package:buff_lisa/app/routing/app_router.dart';
+import 'package:buff_lisa/features/progression/presentation/xp_gain_banner.dart';
 import 'package:buff_lisa/util/theme/data/material_theme.dart';
 import 'package:buff_lisa/util/theme/service/theme_state.dart';
 import 'package:flutter/foundation.dart';
@@ -29,15 +30,16 @@ class MyApp extends ConsumerWidget {
           theme: theme.light(),
           routerConfig: router,
           builder: (context, child) {
+            final content = XpGainBannerHost(child: child!);
             final appContent = !kIsWeb
-                ? child!
+                ? content
                 : ColoredBox(
                     color: Colors
                         .black, // Background color for web outside the app
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 450),
-                        child: child,
+                        child: content,
                       ),
                     ),
                   );

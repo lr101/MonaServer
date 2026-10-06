@@ -61,6 +61,28 @@ every screen. A form or settings screen should still feel like the same app.
   Keep map controls, attribution, bottom actions, and status messages clear as
   sheets expand or transient messages appear.
 
+### XP feedback and profile identity
+
+User and group profile headers show a circular XP ring around the avatar and a
+visible “Lv” badge at the ring's lower-left. Keep XP progress in the ring rather
+than repeating it in a separate profile section; exact amounts remain available
+from the indicator's tooltip and semantics. Achievement pages contain the
+rewards themselves.
+
+Other users' profiles show their public level progress and earned achievements.
+Keep in-progress totals and unclaimed reward details private; the public
+achievement view is read-only.
+
+Confirmed XP increases use one dismissible, themed notice over the lower part
+of the current route and above the bottom navigation, with separate personal
+and named-group amounts. Keep it inside the system gesture inset and do not
+shift the route when it appears.
+Initial loads,
+repeated server totals, and queued uploads are not reward events. Remove
+redundant success/loading toasts when the content already confirms the change;
+retain actionable failures. If XP cannot be loaded, keep the saved action and
+recover the profile total on refresh without inventing a reward amount.
+
 ## Map, artwork, and progression semantics
 
 The map is the central browsing surface. Individual markers are about 48×56px
@@ -116,3 +138,34 @@ Do **not** infer a design rule from these current exceptions:
 
 These are recorded in the two reviews linked above. A review should distinguish
 an existing implementation, a deliberate design choice, and a proposed fix.
+
+## Pin photo entries
+
+Feed and pin details share the photo metadata layout described in
+[Pin photos and updates](../docs/PIN_ENTRY_DESIGN.md) (4 October 2026).
+Show full photographs using contain fitting, with contributor, group, date,
+caption and photo-specific likes below the image. Keep map previews behind an
+explicit control.
+
+Pin image cards retain the established top overlay with contributor and group
+identity. Place the overlapping user and group profile pictures at its upper
+left, immediately before the profile name. Show the contributor badge without
+the user's level, and a place name when city, state, or country resolves; show
+coordinates only when none resolves. Keep update photos visually consistent
+with original photos; do not show an update label or icon in the feed. When
+multiple photos are available, show a centered dot progress indicator over the
+photo; swiping changes photos.
+The map inset switches with the main view and is the visible way back to the
+photo while the map fills the card.
+Place likes, group name, and photo age under the image, followed by title and
+description. The attribution header reserves the same 48 px height in the feed
+and in pin details, even when the detail view hides the feed options menu. Pin
+details keep the selected photo, contributor, date, caption, photo navigation,
+and likes together. They do not show separate update or mark-gone buttons;
+photo updates and gone reports use the regular camera flow.
+
+Photo updates start in the regular camera approval screen. After capture, let
+people select a synced pin within 50 m from the selected group, or leave the
+new-pin option selected. Show each nearby pin's photo to the left of its title;
+tapping the thumbnail opens pin details. A selected pin can optionally be
+marked gone with the photo, off by default.

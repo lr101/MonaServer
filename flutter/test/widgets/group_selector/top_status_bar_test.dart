@@ -33,8 +33,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('7'), findsOneWidget);
-    expect(find.text('Lv 7'), findsNothing);
+    expect(find.text('Lv 7'), findsOneWidget);
+    expect(find.text('7'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
 
     final ring = tester.widget<CircularProgressIndicator>(
@@ -43,13 +43,16 @@ void main() {
     expect(ring.value, closeTo(200 / 350, 0.0001));
 
     final avatarBounds = tester.getRect(find.byType(UserXpAvatarIndicator));
-    final levelBounds = tester.getRect(find.text('7'));
+    final levelBounds = tester.getRect(find.text('Lv 7'));
     expect(levelBounds.center.dx, lessThan(avatarBounds.center.dx));
     expect(levelBounds.center.dy, greaterThan(avatarBounds.center.dy));
 
     try {
       final levelProgressSemantics = find.semantics.byLabel(
-        RegExp('Level 7, 200 XP into this level, 150 XP to next level'),
+        RegExp(
+          'Level 7, 900 total XP, 200 of 350 XP into this level, '
+          '150 XP to next level',
+        ),
       );
       expect(levelProgressSemantics, findsOneWidget);
       expect(

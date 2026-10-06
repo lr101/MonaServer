@@ -50,7 +50,7 @@ final class UserServiceProvider
   }
 }
 
-String _$userServiceHash() => r'ee46dd1a9dee36ed09cf3c053e71c53ab6f907f8';
+String _$userServiceHash() => r'615072487e59a2aeb4be92b56a62644080fe8e32';
 
 final class UserServiceFamily extends $Family
     with

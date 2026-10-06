@@ -152,7 +152,7 @@ void main() {
     expect(repository.events, ['watch-created', 'watch-listened', 'fetch-url']);
     expect(repository.fetches, isEmpty);
     expect(repository.urlFetches, [
-      ('group-1', 'https://example.com/group-small.png', false),
+      ('group-1', 'https://example.com/group-small.png', false, true),
     ]);
     repository.urlFetchGate!.complete();
   });
@@ -233,6 +233,82 @@ void main() {
       same(error),
     );
   });
+
+  test(
+    'progressive photo load settles when every variant is missing',
+    () async {
+      final thumbnailRepository = _RecordingImageRepository(
+        ImageType.pinThumbnail,
+      );
+      final imageRepository = _RecordingImageRepository(ImageType.pin);
+      final container = ProviderContainer(
+        overrides: [
+          pinThumbnailRepositoryProvider.overrideWithValue(thumbnailRepository),
+          pinImageRepositoryProvider.overrideWithValue(imageRepository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      const photo = (
+        photoId: 'photo-1',
+        thumbnailUrl: 'https://example.com/photo-small.png',
+        imageUrl: 'https://example.com/photo.png',
+      );
+      final provider = pinPhotoProgressiveImageBytesProvider(photo);
+      final subscription = container.listen(
+        provider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await thumbnailRepository.urlFetchStarted.future;
+      await imageRepository.urlFetchStarted.future;
+      expect(await container.read(provider.future), isNull);
+
+      expect(subscription.read(), isA<AsyncData<Uint8List?>>());
+      expect(thumbnailRepository.urlFetches, [
+        ('photo:photo-1', 'https://example.com/photo-small.png', false, false),
+      ]);
+      expect(imageRepository.urlFetches, [
+        ('photo:photo-1', 'https://example.com/photo.png', false, false),
+      ]);
+    },
+  );
+
+  test('progressive photo load preserves a stage fetch error', () async {
+    final error = StateError('thumbnail fetch failed');
+    final thumbnailRepository = _RecordingImageRepository(
+      ImageType.pinThumbnail,
+    )..urlFetchError = error;
+    final imageRepository = _RecordingImageRepository(ImageType.pin);
+    final container = ProviderContainer(
+      overrides: [
+        pinThumbnailRepositoryProvider.overrideWithValue(thumbnailRepository),
+        pinImageRepositoryProvider.overrideWithValue(imageRepository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final provider = pinPhotoProgressiveImageBytesProvider((
+      photoId: 'photo-1',
+      thumbnailUrl: 'https://example.com/photo-small.png',
+      imageUrl: 'https://example.com/photo.png',
+    ));
+    final subscription = container.listen(
+      provider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await thumbnailRepository.urlFetchStarted.future;
+    await imageRepository.urlFetchStarted.future;
+    await container.pump();
+
+    expect(subscription.read(), isA<AsyncError<Uint8List?>>());
+    expect(subscription.read().error, same(error));
+  });
 }
 
 class _FakeUserGroupService extends UserGroupService {
@@ -252,12 +328,13 @@ class _RecordingImageRepository implements IImageRepository {
   final ImageType type;
   final List<(String, bool)> fetches = [];
   final List<(String, String, bool)> overrides = [];
-  final List<(String, String, bool)> urlFetches = [];
+  final List<(String, String, bool, bool)> urlFetches = [];
   final List<String> events = [];
   Completer<void>? fetchGate;
   Object? fetchError;
   Completer<void>? urlFetchGate;
   final urlFetchStarted = Completer<void>();
+  Object? urlFetchError;
   Uint8List? watchedBytes;
 
   @override
@@ -274,12 +351,15 @@ class _RecordingImageRepository implements IImageRepository {
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async {
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async {
     events.add('fetch-url');
-    urlFetches.add((id, url, keepAlive));
+    urlFetches.add((id, url, keepAlive, fallbackToEndpoint));
     if (!urlFetchStarted.isCompleted) urlFetchStarted.complete();
     await urlFetchGate?.future;
+    final error = urlFetchError;
+    if (error != null) throw error;
     return null;
   }
 

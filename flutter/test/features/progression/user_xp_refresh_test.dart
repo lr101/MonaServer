@@ -24,6 +24,7 @@ import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
+import 'package:buff_lisa/features/progression/data/xp_gain_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:drift/native.dart';
@@ -59,6 +60,14 @@ void main() {
 
     expect(fixture.groupProgressionRequests, 2);
     expect(refreshed?.totalXp, 5);
+    expect(
+      fixture.container
+          .read(xpGainsProvider)
+          .where((gain) => gain.isGroup)
+          .single
+          .amount,
+      5,
+    );
   });
 
   test(
@@ -251,6 +260,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Let Drift's query streams finish their zero-delay cancellation after
+    // the approval route unmounts.
+    await tester.pump(const Duration(milliseconds: 1));
     expect(find.text('Root screen'), findsOneWidget);
     expect(find.text('Upload'), findsNothing);
     expect(
@@ -266,6 +278,8 @@ void main() {
       () =>
           fixture.pendingPinRemoved.future.timeout(const Duration(seconds: 2)),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   for (final action in _Mutation.values) {
@@ -290,6 +304,14 @@ void main() {
       await fixture.container.read(userXpProvider('alice').future);
 
       expect(fixture.xpRequests, 2);
+      expect(
+        fixture.container
+            .read(xpGainsProvider)
+            .where((gain) => !gain.isGroup)
+            .single
+            .amount,
+        25,
+      );
       expect(
         fixture.container.read(userXpProvider('alice')).value?.totalXp,
         25,
@@ -324,6 +346,7 @@ void main() {
       await fixture.container.pump();
 
       expect(fixture.xpRequests, 1);
+      expect(fixture.container.read(xpGainsProvider), isEmpty);
     });
 
     test(
@@ -348,6 +371,7 @@ void main() {
         await fixture.container.pump();
 
         expect(fixture.xpRequests, 1);
+        expect(fixture.container.read(xpGainsProvider), isEmpty);
         expect(
           await fixture.container.read(userXpProvider('alice').future),
           isNull,

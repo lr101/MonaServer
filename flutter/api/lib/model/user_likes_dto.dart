@@ -14,43 +14,25 @@ class UserLikesDto {
   /// Returns a new [UserLikesDto] instance.
   UserLikesDto({
     required this.likeCount,
-    required this.likeArtCount,
-    required this.likeLocationCount,
-    required this.likePhotographyCount,
   });
 
   int likeCount;
 
-  int likeArtCount;
-
-  int likeLocationCount;
-
-  int likePhotographyCount;
-
   @override
   bool operator ==(Object other) => identical(this, other) || other is UserLikesDto &&
-    other.likeCount == likeCount &&
-    other.likeArtCount == likeArtCount &&
-    other.likeLocationCount == likeLocationCount &&
-    other.likePhotographyCount == likePhotographyCount;
+    other.likeCount == likeCount;
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
-    (likeCount.hashCode) +
-    (likeArtCount.hashCode) +
-    (likeLocationCount.hashCode) +
-    (likePhotographyCount.hashCode);
+    (likeCount.hashCode);
 
   @override
-  String toString() => 'UserLikesDto[likeCount=$likeCount, likeArtCount=$likeArtCount, likeLocationCount=$likeLocationCount, likePhotographyCount=$likePhotographyCount]';
+  String toString() => 'UserLikesDto[likeCount=$likeCount]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
       json[r'likeCount'] = this.likeCount;
-      json[r'likeArtCount'] = this.likeArtCount;
-      json[r'likeLocationCount'] = this.likeLocationCount;
-      json[r'likePhotographyCount'] = this.likePhotographyCount;
     return json;
   }
 
@@ -74,9 +56,6 @@ class UserLikesDto {
 
       return UserLikesDto(
         likeCount: mapValueOfType<int>(json, r'likeCount')!,
-        likeArtCount: mapValueOfType<int>(json, r'likeArtCount')!,
-        likeLocationCount: mapValueOfType<int>(json, r'likeLocationCount')!,
-        likePhotographyCount: mapValueOfType<int>(json, r'likePhotographyCount')!,
       );
     }
     return null;
@@ -125,9 +104,5 @@ class UserLikesDto {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'likeCount',
-    'likeArtCount',
-    'likeLocationCount',
-    'likePhotographyCount',
   };
 }
-

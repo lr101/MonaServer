@@ -39,6 +39,17 @@ WITH claimed AS (
             WHERE m.group_id = $1
               AND m.is_deleted = FALSE AND m.user_id IS NOT NULL
         )
+        WHEN 'photo_updates' THEN (
+            SELECT COUNT(*) FROM pin_photos pp
+            JOIN pins p ON p.id = pp.pin_id
+            WHERE p.group_id = $1 AND p.is_deleted = FALSE
+              AND pp.is_original = FALSE
+        )
+        WHEN 'gone_pins' THEN (
+            SELECT COUNT(DISTINCT report.pin_id) FROM pin_gone_reports report
+            JOIN pins p ON p.id = report.pin_id
+            WHERE p.group_id = $1 AND p.is_deleted = FALSE
+        )
         ELSE 0
     END >= $6::integer
     ON CONFLICT (group_id, achievement_id) DO NOTHING
@@ -106,7 +117,16 @@ SELECT
      ) qualified_contributors) AS contributors_five_pins,
     (SELECT COUNT(DISTINCT m.user_id)::int
      FROM members m
-     WHERE m.group_id = $1 AND m.is_deleted = FALSE AND m.user_id IS NOT NULL) AS members
+     WHERE m.group_id = $1 AND m.is_deleted = FALSE AND m.user_id IS NOT NULL) AS members,
+    (SELECT COUNT(*)::int
+     FROM pin_photos pp
+     JOIN pins p ON p.id = pp.pin_id
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE
+       AND pp.is_original = FALSE) AS photo_updates,
+    (SELECT COUNT(DISTINCT report.pin_id)::int
+     FROM pin_gone_reports report
+     JOIN pins p ON p.id = report.pin_id
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE) AS gone_pins
 `
 
 type GetGroupAchievementMetricsRow struct {
@@ -115,6 +135,8 @@ type GetGroupAchievementMetricsRow struct {
 	ContributorsThreePins int32 `json:"contributors_three_pins"`
 	ContributorsFivePins  int32 `json:"contributors_five_pins"`
 	Members               int32 `json:"members"`
+	PhotoUpdates          int32 `json:"photo_updates"`
+	GonePins              int32 `json:"gone_pins"`
 }
 
 func (q *Queries) GetGroupAchievementMetrics(ctx context.Context, groupID pgtype.UUID) (GetGroupAchievementMetricsRow, error) {
@@ -126,6 +148,8 @@ func (q *Queries) GetGroupAchievementMetrics(ctx context.Context, groupID pgtype
 		&i.ContributorsThreePins,
 		&i.ContributorsFivePins,
 		&i.Members,
+		&i.PhotoUpdates,
+		&i.GonePins,
 	)
 	return i, err
 }

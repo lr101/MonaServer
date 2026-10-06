@@ -59,7 +59,10 @@ bool _allowed(String file, String target) {
         target == 'lib/app/routing/app_router.dart' ||
         target == 'lib/app/lifecycle/sync_lifecycle.dart' ||
         target == 'lib/app/lifecycle/app_link_lifecycle.dart' ||
-        target == 'lib/app/play_store_update_guard.dart';
+        target == 'lib/app/play_store_update_guard.dart' ||
+        // The app composition root installs the progression feature's global
+        // reward feedback host around every route.
+        target == 'lib/features/progression/presentation/xp_gain_banner.dart';
   }
   if (file.startsWith('lib/core/')) return pure || core;
   if (file.startsWith('lib/shared/')) {

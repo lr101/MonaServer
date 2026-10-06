@@ -12,143 +12,95 @@ import (
 )
 
 const countLikesForCreator = `-- name: CountLikesForCreator :one
-SELECT
-  COALESCE(SUM(CASE WHEN l.like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
-  COALESCE(SUM(CASE WHEN l.like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
-  COALESCE(SUM(CASE WHEN l.like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
-  COALESCE(SUM(CASE WHEN l.like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
+SELECT COUNT(*)::bigint AS n
 FROM likes l
 JOIN pins p ON p.id = l.pin_id
-WHERE p.creator_id = $1 AND p.is_deleted = FALSE
+LEFT JOIN pin_photos pp ON pp.id = l.photo_id
+WHERE CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END = $1
+  AND p.is_deleted = FALSE
+  AND l.like_all = TRUE
 `
 
-type CountLikesForCreatorRow struct {
-	LikeAll         int64 `json:"like_all"`
-	LikeLocation    int64 `json:"like_location"`
-	LikePhotography int64 `json:"like_photography"`
-	LikeArt         int64 `json:"like_art"`
-}
-
-func (q *Queries) CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (CountLikesForCreatorRow, error) {
-	row := q.db.QueryRow(ctx, countLikesForCreator, creatorID)
-	var i CountLikesForCreatorRow
-	err := row.Scan(
-		&i.LikeAll,
-		&i.LikeLocation,
-		&i.LikePhotography,
-		&i.LikeArt,
-	)
-	return i, err
-}
-
-const countPinLikes = `-- name: CountPinLikes :one
-SELECT COUNT(*)::bigint AS n FROM likes WHERE pin_id = $1
-`
-
-func (q *Queries) CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countPinLikes, pinID)
+func (q *Queries) CountLikesForCreator(ctx context.Context, contributorID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLikesForCreator, contributorID)
 	var n int64
 	err := row.Scan(&n)
 	return n, err
 }
 
-const countPinLikesByType = `-- name: CountPinLikesByType :one
-SELECT
-  COALESCE(SUM(CASE WHEN like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
-  COALESCE(SUM(CASE WHEN like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
-  COALESCE(SUM(CASE WHEN like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
-  COALESCE(SUM(CASE WHEN like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
-FROM likes WHERE pin_id = $1
+const countPinLikes = `-- name: CountPinLikes :one
+SELECT COUNT(*)::bigint AS n
+FROM likes
+WHERE photo_id = $1 AND like_all = TRUE
 `
 
-type CountPinLikesByTypeRow struct {
-	LikeAll         int64 `json:"like_all"`
-	LikeLocation    int64 `json:"like_location"`
-	LikePhotography int64 `json:"like_photography"`
-	LikeArt         int64 `json:"like_art"`
-}
-
-func (q *Queries) CountPinLikesByType(ctx context.Context, pinID pgtype.UUID) (CountPinLikesByTypeRow, error) {
-	row := q.db.QueryRow(ctx, countPinLikesByType, pinID)
-	var i CountPinLikesByTypeRow
-	err := row.Scan(
-		&i.LikeAll,
-		&i.LikeLocation,
-		&i.LikePhotography,
-		&i.LikeArt,
-	)
-	return i, err
+func (q *Queries) CountPinLikes(ctx context.Context, photoID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPinLikes, photoID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
 }
 
 const deleteLike = `-- name: DeleteLike :exec
-DELETE FROM likes WHERE user_id = $1 AND pin_id = $2
+DELETE FROM likes WHERE user_id = $1 AND photo_id = $2
 `
 
 type DeleteLikeParams struct {
-	UserID pgtype.UUID `json:"user_id"`
-	PinID  pgtype.UUID `json:"pin_id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	PhotoID pgtype.UUID `json:"photo_id"`
 }
 
 func (q *Queries) DeleteLike(ctx context.Context, arg DeleteLikeParams) error {
-	_, err := q.db.Exec(ctx, deleteLike, arg.UserID, arg.PinID)
+	_, err := q.db.Exec(ctx, deleteLike, arg.UserID, arg.PhotoID)
 	return err
 }
 
 const getLikeByUserAndPin = `-- name: GetLikeByUserAndPin :one
-SELECT id, pin_id, user_id, like_all, like_location, like_photography, like_art
+SELECT id, pin_id, user_id, like_all
 FROM likes
-WHERE user_id = $1 AND pin_id = $2
+WHERE user_id = $1 AND photo_id = $2
 `
 
 type GetLikeByUserAndPinParams struct {
-	UserID pgtype.UUID `json:"user_id"`
-	PinID  pgtype.UUID `json:"pin_id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	PhotoID pgtype.UUID `json:"photo_id"`
 }
 
 type GetLikeByUserAndPinRow struct {
-	ID              pgtype.UUID `json:"id"`
-	PinID           pgtype.UUID `json:"pin_id"`
-	UserID          pgtype.UUID `json:"user_id"`
-	LikeAll         bool        `json:"like_all"`
-	LikeLocation    bool        `json:"like_location"`
-	LikePhotography bool        `json:"like_photography"`
-	LikeArt         bool        `json:"like_art"`
+	ID      pgtype.UUID `json:"id"`
+	PinID   pgtype.UUID `json:"pin_id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	LikeAll bool        `json:"like_all"`
 }
 
 func (q *Queries) GetLikeByUserAndPin(ctx context.Context, arg GetLikeByUserAndPinParams) (GetLikeByUserAndPinRow, error) {
-	row := q.db.QueryRow(ctx, getLikeByUserAndPin, arg.UserID, arg.PinID)
+	row := q.db.QueryRow(ctx, getLikeByUserAndPin, arg.UserID, arg.PhotoID)
 	var i GetLikeByUserAndPinRow
 	err := row.Scan(
 		&i.ID,
 		&i.PinID,
 		&i.UserID,
 		&i.LikeAll,
-		&i.LikeLocation,
-		&i.LikePhotography,
-		&i.LikeArt,
 	)
 	return i, err
 }
 
 const listPinLikes = `-- name: ListPinLikes :many
-SELECT l.id, l.user_id, u.username, l.like_all, l.like_location, l.like_photography, l.like_art
+SELECT l.id, l.user_id, u.username, l.like_all
 FROM likes l JOIN users u ON u.id = l.user_id
-WHERE l.pin_id = $1
+WHERE l.photo_id = $1 AND l.like_all = TRUE
 ORDER BY l.creation_date DESC
 `
 
 type ListPinLikesRow struct {
-	ID              pgtype.UUID `json:"id"`
-	UserID          pgtype.UUID `json:"user_id"`
-	Username        pgtype.Text `json:"username"`
-	LikeAll         bool        `json:"like_all"`
-	LikeLocation    bool        `json:"like_location"`
-	LikePhotography bool        `json:"like_photography"`
-	LikeArt         bool        `json:"like_art"`
+	ID       pgtype.UUID `json:"id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	Username pgtype.Text `json:"username"`
+	LikeAll  bool        `json:"like_all"`
 }
 
-func (q *Queries) ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error) {
-	rows, err := q.db.Query(ctx, listPinLikes, pinID)
+func (q *Queries) ListPinLikes(ctx context.Context, photoID pgtype.UUID) ([]ListPinLikesRow, error) {
+	rows, err := q.db.Query(ctx, listPinLikes, photoID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,9 +113,6 @@ func (q *Queries) ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPi
 			&i.UserID,
 			&i.Username,
 			&i.LikeAll,
-			&i.LikeLocation,
-			&i.LikePhotography,
-			&i.LikeArt,
 		); err != nil {
 			return nil, err
 		}
@@ -176,19 +125,17 @@ func (q *Queries) ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPi
 }
 
 const listUserLikedPins = `-- name: ListUserLikedPins :many
-SELECT l.pin_id, l.like_all, l.like_location, l.like_photography, l.like_art
+SELECT l.pin_id, l.photo_id, l.like_all
 FROM likes l
 JOIN pins p ON p.id = l.pin_id
-WHERE l.user_id = $1 AND p.is_deleted = FALSE
+WHERE l.user_id = $1 AND p.is_deleted = FALSE AND l.like_all = TRUE
 ORDER BY l.creation_date DESC
 `
 
 type ListUserLikedPinsRow struct {
-	PinID           pgtype.UUID `json:"pin_id"`
-	LikeAll         bool        `json:"like_all"`
-	LikeLocation    bool        `json:"like_location"`
-	LikePhotography bool        `json:"like_photography"`
-	LikeArt         bool        `json:"like_art"`
+	PinID   pgtype.UUID `json:"pin_id"`
+	PhotoID pgtype.UUID `json:"photo_id"`
+	LikeAll bool        `json:"like_all"`
 }
 
 func (q *Queries) ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]ListUserLikedPinsRow, error) {
@@ -200,13 +147,7 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]
 	var items []ListUserLikedPinsRow
 	for rows.Next() {
 		var i ListUserLikedPinsRow
-		if err := rows.Scan(
-			&i.PinID,
-			&i.LikeAll,
-			&i.LikeLocation,
-			&i.LikePhotography,
-			&i.LikeArt,
-		); err != nil {
+		if err := rows.Scan(&i.PinID, &i.PhotoID, &i.LikeAll); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -218,35 +159,28 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID pgtype.UUID) ([]
 }
 
 const upsertLike = `-- name: UpsertLike :exec
-INSERT INTO likes (id, pin_id, user_id, like_all, like_location, like_photography, like_art, creation_date, update_date)
-VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-ON CONFLICT (user_id, pin_id) DO UPDATE
+INSERT INTO likes (id, pin_id, photo_id, user_id, like_all, creation_date, update_date)
+VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+ON CONFLICT (user_id, photo_id) DO UPDATE
   SET like_all = EXCLUDED.like_all,
-      like_location = EXCLUDED.like_location,
-      like_photography = EXCLUDED.like_photography,
-      like_art = EXCLUDED.like_art,
       update_date = NOW()
 `
 
 type UpsertLikeParams struct {
-	ID              pgtype.UUID `json:"id"`
-	PinID           pgtype.UUID `json:"pin_id"`
-	UserID          pgtype.UUID `json:"user_id"`
-	LikeAll         bool        `json:"like_all"`
-	LikeLocation    bool        `json:"like_location"`
-	LikePhotography bool        `json:"like_photography"`
-	LikeArt         bool        `json:"like_art"`
+	ID      pgtype.UUID `json:"id"`
+	PinID   pgtype.UUID `json:"pin_id"`
+	PhotoID pgtype.UUID `json:"photo_id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	LikeAll bool        `json:"like_all"`
 }
 
 func (q *Queries) UpsertLike(ctx context.Context, arg UpsertLikeParams) error {
 	_, err := q.db.Exec(ctx, upsertLike,
 		arg.ID,
 		arg.PinID,
+		arg.PhotoID,
 		arg.UserID,
 		arg.LikeAll,
-		arg.LikeLocation,
-		arg.LikePhotography,
-		arg.LikeArt,
 	)
 	return err
 }

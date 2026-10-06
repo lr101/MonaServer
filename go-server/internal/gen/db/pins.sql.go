@@ -14,8 +14,9 @@ import (
 const createPin = `-- name: CreatePin :exec
 
 INSERT INTO pins (id, latitude, longitude, creation_date, update_date,
-                  title, description, creator_id, group_id, state_province_id)
-VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9)
+                  title, description, creator_id, group_id, state_province_id,
+                  image_blurhash)
+VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9, $10)
 `
 
 type CreatePinParams struct {
@@ -28,6 +29,7 @@ type CreatePinParams struct {
 	CreatorID       pgtype.UUID        `json:"creator_id"`
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 // Pin queries.
@@ -42,6 +44,7 @@ func (q *Queries) CreatePin(ctx context.Context, arg CreatePinParams) error {
 		arg.CreatorID,
 		arg.GroupID,
 		arg.StateProvinceID,
+		arg.ImageBlurhash,
 	)
 	return err
 }
@@ -49,9 +52,10 @@ func (q *Queries) CreatePin(ctx context.Context, arg CreatePinParams) error {
 const createPinPhoto = `-- name: CreatePinPhoto :exec
 INSERT INTO pin_photos (
     id, pin_id, contributor_id, contributor_username, image_key,
-    idempotency_key, request_hash, caption, observed_at, is_original
+    idempotency_key, request_hash, caption, observed_at, is_original,
+    image_blurhash
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type CreatePinPhotoParams struct {
@@ -65,6 +69,7 @@ type CreatePinPhotoParams struct {
 	Caption             pgtype.Text        `json:"caption"`
 	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
 	IsOriginal          bool               `json:"is_original"`
+	ImageBlurhash       pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) CreatePinPhoto(ctx context.Context, arg CreatePinPhotoParams) error {
@@ -79,6 +84,7 @@ func (q *Queries) CreatePinPhoto(ctx context.Context, arg CreatePinPhotoParams) 
 		arg.Caption,
 		arg.ObservedAt,
 		arg.IsOriginal,
+		arg.ImageBlurhash,
 	)
 	return err
 }
@@ -107,6 +113,7 @@ func (q *Queries) FindBoundaryForPoint(ctx context.Context, arg FindBoundaryForP
 const findNearbyPins = `-- name: FindNearbyPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
        p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone,
+       p.image_blurhash,
        COALESCE(g.name, '')::text AS group_name,
        ROUND(ST_Distance(
          ST_SetSRID(ST_Point(p.longitude, p.latitude), 4326)::geography,
@@ -157,6 +164,7 @@ type FindNearbyPinsRow struct {
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	IsGone          bool               `json:"is_gone"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 	GroupName       string             `json:"group_name"`
 	DistanceMeters  int32              `json:"distance_meters"`
 }
@@ -187,6 +195,7 @@ func (q *Queries) FindNearbyPins(ctx context.Context, arg FindNearbyPinsParams) 
 			&i.GroupID,
 			&i.StateProvinceID,
 			&i.IsGone,
+			&i.ImageBlurhash,
 			&i.GroupName,
 			&i.DistanceMeters,
 		); err != nil {
@@ -246,7 +255,7 @@ func (q *Queries) FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]Fi
 
 const getPinByID = `-- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, title, description,
-       creator_id, group_id, state_province_id, is_gone
+       creator_id, group_id, state_province_id, is_gone, image_blurhash
 FROM pins
 WHERE id = $1 AND is_deleted = FALSE
 `
@@ -263,6 +272,7 @@ type GetPinByIDRow struct {
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	IsGone          bool               `json:"is_gone"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error) {
@@ -280,13 +290,28 @@ func (q *Queries) GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow
 		&i.GroupID,
 		&i.StateProvinceID,
 		&i.IsGone,
+		&i.ImageBlurhash,
 	)
 	return i, err
 }
 
+const getPinIDForPhoto = `-- name: GetPinIDForPhoto :one
+SELECT pp.pin_id FROM pin_photos pp
+JOIN pins p ON p.id = pp.pin_id
+WHERE pp.id = $1 AND p.is_deleted = FALSE
+`
+
+func (q *Queries) GetPinIDForPhoto(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getPinIDForPhoto, id)
+	var pin_id pgtype.UUID
+	err := row.Scan(&pin_id)
+	return pin_id, err
+}
+
 const getPinPhotoByIdempotencyKey = `-- name: GetPinPhotoByIdempotencyKey :one
 SELECT id, pin_id, contributor_id, contributor_username, image_key,
-       idempotency_key, request_hash, caption, observed_at, is_original
+       idempotency_key, request_hash, caption, observed_at, is_original,
+       image_blurhash
 FROM pin_photos
 WHERE contributor_id = $1 AND idempotency_key = $2
 `
@@ -307,6 +332,7 @@ type GetPinPhotoByIdempotencyKeyRow struct {
 	Caption             pgtype.Text        `json:"caption"`
 	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
 	IsOriginal          bool               `json:"is_original"`
+	ImageBlurhash       pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPhotoByIdempotencyKeyParams) (GetPinPhotoByIdempotencyKeyRow, error) {
@@ -323,6 +349,7 @@ func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPho
 		&i.Caption,
 		&i.ObservedAt,
 		&i.IsOriginal,
+		&i.ImageBlurhash,
 	)
 	return i, err
 }
@@ -412,7 +439,8 @@ func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]st
 
 const listPinPhotos = `-- name: ListPinPhotos :many
 SELECT id, pin_id, contributor_id, contributor_username, image_key,
-       idempotency_key, request_hash, caption, observed_at, is_original
+       idempotency_key, request_hash, caption, observed_at, is_original,
+       image_blurhash
 FROM pin_photos
 WHERE pin_id = $1
 ORDER BY is_original DESC, observed_at ASC, id ASC
@@ -429,6 +457,7 @@ type ListPinPhotosRow struct {
 	Caption             pgtype.Text        `json:"caption"`
 	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
 	IsOriginal          bool               `json:"is_original"`
+	ImageBlurhash       pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListPinPhotosRow, error) {
@@ -451,6 +480,7 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListP
 			&i.Caption,
 			&i.ObservedAt,
 			&i.IsOriginal,
+			&i.ImageBlurhash,
 		); err != nil {
 			return nil, err
 		}
@@ -464,7 +494,7 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListP
 
 const listUpdatedPinsForGroups = `-- name: ListUpdatedPinsForGroups :many
 SELECT id, latitude, longitude, creation_date, update_date, title, description,
-       creator_id, group_id, state_province_id, is_gone
+       creator_id, group_id, state_province_id, is_gone, image_blurhash
 FROM pins
 WHERE is_deleted = FALSE
   AND group_id = ANY($1::uuid[])
@@ -490,6 +520,7 @@ type ListUpdatedPinsForGroupsRow struct {
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	IsGone          bool               `json:"is_gone"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedPinsForGroupsParams) ([]ListUpdatedPinsForGroupsRow, error) {
@@ -513,6 +544,7 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, arg ListUpdatedP
 			&i.GroupID,
 			&i.StateProvinceID,
 			&i.IsGone,
+			&i.ImageBlurhash,
 		); err != nil {
 			return nil, err
 		}
@@ -586,9 +618,26 @@ func (q *Queries) PinExistsForUserAt(ctx context.Context, arg PinExistsForUserAt
 	return exists, err
 }
 
+const recordPinGoneReport = `-- name: RecordPinGoneReport :exec
+INSERT INTO pin_gone_reports (pin_id, user_id)
+VALUES ($1, $2)
+ON CONFLICT (pin_id, user_id) DO NOTHING
+`
+
+type RecordPinGoneReportParams struct {
+	PinID  pgtype.UUID `json:"pin_id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) RecordPinGoneReport(ctx context.Context, arg RecordPinGoneReportParams) error {
+	_, err := q.db.Exec(ctx, recordPinGoneReport, arg.PinID, arg.UserID)
+	return err
+}
+
 const searchPins = `-- name: SearchPins :many
 SELECT p.id, p.latitude, p.longitude, p.creation_date, p.update_date,
-       p.title, p.description, p.creator_id, p.group_id, p.state_province_id, p.is_gone
+       p.title, p.description, p.creator_id, p.group_id, p.state_province_id,
+       p.is_gone, p.image_blurhash
 FROM pins p
 JOIN groups g ON g.id = p.group_id
 WHERE p.is_deleted = FALSE
@@ -614,6 +663,11 @@ WHERE p.is_deleted = FALSE
   AND (
       $4::uuid IS NULL
       OR p.creator_id = $4::uuid
+      OR EXISTS (
+          SELECT 1 FROM pin_photos pp
+          WHERE pp.pin_id = p.id
+            AND pp.contributor_id = $4::uuid
+      )
   )
   AND (
       $5::timestamptz IS NULL
@@ -655,6 +709,7 @@ type SearchPinsRow struct {
 	GroupID         pgtype.UUID        `json:"group_id"`
 	StateProvinceID pgtype.UUID        `json:"state_province_id"`
 	IsGone          bool               `json:"is_gone"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error) {
@@ -688,6 +743,7 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 			&i.GroupID,
 			&i.StateProvinceID,
 			&i.IsGone,
+			&i.ImageBlurhash,
 		); err != nil {
 			return nil, err
 		}
@@ -699,19 +755,64 @@ func (q *Queries) SearchPins(ctx context.Context, arg SearchPinsParams) ([]Searc
 	return items, nil
 }
 
-const setPinGone = `-- name: SetPinGone :execrows
-UPDATE pins
+const setPinGoneWithPreviousState = `-- name: SetPinGoneWithPreviousState :one
+WITH current_pin AS (
+    SELECT is_gone
+    FROM pins
+    WHERE id = $1 AND is_deleted = FALSE
+    FOR UPDATE
+)
+UPDATE pins AS p
 SET is_gone = $2, update_date = NOW()
-WHERE id = $1 AND is_deleted = FALSE
+FROM current_pin
+WHERE p.id = $1
+RETURNING current_pin.is_gone AS was_gone
 `
 
-type SetPinGoneParams struct {
+type SetPinGoneWithPreviousStateParams struct {
 	ID     pgtype.UUID `json:"id"`
 	IsGone bool        `json:"is_gone"`
 }
 
-func (q *Queries) SetPinGone(ctx context.Context, arg SetPinGoneParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setPinGone, arg.ID, arg.IsGone)
+func (q *Queries) SetPinGoneWithPreviousState(ctx context.Context, arg SetPinGoneWithPreviousStateParams) (bool, error) {
+	row := q.db.QueryRow(ctx, setPinGoneWithPreviousState, arg.ID, arg.IsGone)
+	var was_gone bool
+	err := row.Scan(&was_gone)
+	return was_gone, err
+}
+
+const setPinImageBlurhash = `-- name: SetPinImageBlurhash :execrows
+UPDATE pins
+SET image_blurhash = $2, update_date = NOW()
+WHERE id = $1 AND is_deleted = FALSE AND image_blurhash IS NULL
+`
+
+type SetPinImageBlurhashParams struct {
+	ID            pgtype.UUID `json:"id"`
+	ImageBlurhash pgtype.Text `json:"image_blurhash"`
+}
+
+func (q *Queries) SetPinImageBlurhash(ctx context.Context, arg SetPinImageBlurhashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPinImageBlurhash, arg.ID, arg.ImageBlurhash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setPinPhotoImageBlurhash = `-- name: SetPinPhotoImageBlurhash :execrows
+UPDATE pin_photos
+SET image_blurhash = $2
+WHERE id = $1 AND image_blurhash IS NULL
+`
+
+type SetPinPhotoImageBlurhashParams struct {
+	ID            pgtype.UUID `json:"id"`
+	ImageBlurhash pgtype.Text `json:"image_blurhash"`
+}
+
+func (q *Queries) SetPinPhotoImageBlurhash(ctx context.Context, arg SetPinPhotoImageBlurhashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setPinPhotoImageBlurhash, arg.ID, arg.ImageBlurhash)
 	if err != nil {
 		return 0, err
 	}

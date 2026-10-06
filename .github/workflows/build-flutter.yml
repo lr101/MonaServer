@@ -3,7 +3,6 @@ name: Build and test Flutter app
 on:
   push:
     branches: [main, develop]
-    # Promotion requires an image for the exact branch HEAD, even after docs pushes.
   pull_request:
     paths:
       - "flutter/**"
@@ -17,7 +16,7 @@ on:
 permissions:
   contents: read
 
-# Superseded PR checks can stop; publishing/channel promotion must finish.
+# Superseded PR checks can stop; branch image tags publish in order.
 concurrency:
   group: flutter-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -26,12 +25,17 @@ jobs:
   analyze-and-build:
     name: Analyze and test
     runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.release_version.outputs.version }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
 
-      - name: Test container image promotion
-        run: bash .github/scripts/test_promote_image_channel.sh
+      - name: Read current version
+        id: release_version
+        run: |
+          version="$(bash .github/scripts/read_release_version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -237,6 +241,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Read current version
+        id: release_version
+        run: |
+          version="$(bash .github/scripts/read_release_version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Download compiled web app
         uses: actions/download-artifact@v8
         with:
@@ -246,13 +256,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Extract web image metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: stick-it-web
-          tags: type=raw,value=ci
-
       - name: Package compiled web app
         uses: docker/build-push-action@v7
         with:
@@ -261,7 +264,10 @@ jobs:
           push: false
           load: true
           tags: stick-it-web:ci
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release_version.outputs.version }}
           cache-from: type=gha,scope=flutter-web-runtime
           cache-to: type=gha,mode=max,scope=flutter-web-runtime
 
@@ -354,6 +360,9 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
       - name: Download tested web image
         uses: actions/download-artifact@v8
         with:
@@ -370,43 +379,11 @@ jobs:
       - name: Publish tested image without rebuilding
         env:
           IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/stick-it-web
+          RELEASE_VERSION: ${{ needs.analyze-and-build.outputs.release_version }}
         run: |
           docker load --input "$RUNNER_TEMP/flutter-web-image.tar"
-          docker tag stick-it-web:ci "$IMAGE_NAME:$GITHUB_SHA"
-          docker push "$IMAGE_NAME:$GITHUB_SHA"
-
-  promote-web-image:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-    needs: publish-web
-    runs-on: ubuntu-latest
-    concurrency:
-      group: promote-web-image-${{ github.ref_name }}
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Promote current branch image
-        env:
-          GH_TOKEN: ${{ github.token }}
-          WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/stick-it-web
-          SOURCE_BRANCH: ${{ github.ref_name }}
-          CHANNEL_TAG: ${{ github.ref == 'refs/heads/main' && 'main' || 'snapshot' }}
-        run: |
-          bash .github/scripts/promote_image_channel.sh \
-            "$WEB_IMAGE" \
-            "$SOURCE_BRANCH" \
-            "$CHANNEL_TAG"
+          tags="$(bash .github/scripts/release_image_tags.sh "$IMAGE_NAME" "$RELEASE_VERSION" "$GITHUB_REF_NAME")"
+          while IFS= read -r tag; do
+            docker tag stick-it-web:ci "$tag"
+            docker push "$tag"
+          done <<< "$tags"

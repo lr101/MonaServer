@@ -23,11 +23,14 @@ void main() {
   });
   tearDown(dotenv.clean);
 
-  testWidgets('member group copies its invite link from beside the dropdown', (
+  testWidgets('member group shares its invite link from beside the dropdown', (
     tester,
   ) async {
     final group = _memberGroup(inviteUrl: 'a1b2c3');
     String? clipboardText;
+    Map<String, dynamic>? sharedContent;
+    var shareUnavailable = false;
+    const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
       (call) async {
@@ -38,16 +41,34 @@ void main() {
         return null;
       },
     );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      shareChannel,
+      (call) async {
+        if (call.method == 'share') {
+          if (shareUnavailable) {
+            throw PlatformException(code: 'share_unavailable');
+          }
+          sharedContent = Map<String, dynamic>.from(
+            call.arguments as Map<Object?, Object?>,
+          );
+        }
+        return 'dev.fluttercommunity.plus/share/unavailable';
+      },
+    );
     addTearDown(() {
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
+        null,
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        shareChannel,
         null,
       );
     });
 
     await _pumpGroupOverview(tester, group);
 
-    final shareButton = find.byTooltip('Copy share link');
+    final shareButton = find.byTooltip('Share group');
     final dropdownButton = find.byType(PopupMenuButton<int>);
     expect(shareButton, findsOneWidget);
     expect(find.byIcon(Icons.share), findsOneWidget);
@@ -59,11 +80,23 @@ void main() {
     await tester.tap(shareButton);
     await tester.pumpAndSettle();
 
+    expect(sharedContent?['title'], 'Join Public group');
+    expect(
+      sharedContent?['text'],
+      'Join Public group on Stick-It: '
+      'https://preview-api.example.test/#/groups/group-id?invite=a1b2c3',
+    );
+    expect(clipboardText, isNull);
+
+    shareUnavailable = true;
+    await tester.tap(shareButton);
+    await tester.pumpAndSettle();
+
     expect(
       clipboardText,
       'https://preview-api.example.test/#/groups/group-id?invite=a1b2c3',
     );
-    expect(find.text('Share link copied'), findsOneWidget);
+    expect(find.text('Share unavailable. Link copied.'), findsOneWidget);
   });
 
   testWidgets('member group without an invite link hides the share action', (
@@ -71,7 +104,7 @@ void main() {
   ) async {
     await _pumpGroupOverview(tester, _memberGroup());
 
-    expect(find.byTooltip('Copy share link'), findsNothing);
+    expect(find.byTooltip('Share group'), findsNothing);
     expect(find.byType(PopupMenuButton<int>), findsOneWidget);
   });
 }

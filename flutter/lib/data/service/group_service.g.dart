@@ -122,7 +122,7 @@ final class UserGroupServiceProvider
   UserGroupService create() => UserGroupService();
 }
 
-String _$userGroupServiceHash() => r'99f14c863627677fd013de437ad40da6751e4609';
+String _$userGroupServiceHash() => r'c42e0b1641108998848af439edc0ff1a0ee6e779';
 
 abstract class _$UserGroupService extends $StreamNotifier<List<GroupEntity>> {
   Stream<List<GroupEntity>> build();

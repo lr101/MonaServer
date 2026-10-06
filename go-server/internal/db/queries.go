@@ -1048,6 +1048,7 @@ type Pin struct {
 	GroupID         uuid.UUID
 	StateProvinceID *uuid.UUID
 	IsGone          bool
+	ImageBlurhash   *string
 }
 
 func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
@@ -1068,12 +1069,36 @@ func pinFromRow(r dbgen.GetPinByIDRow) *Pin {
 		GroupID:         goUUID(r.GroupID),
 		StateProvinceID: sp,
 		IsGone:          r.IsGone,
+		ImageBlurhash:   goText(r.ImageBlurhash),
 	}
 }
 
-func (q *Queries) SetPinGone(ctx context.Context, id uuid.UUID, isGone bool) (bool, error) {
-	rows, err := q.g.SetPinGone(ctx, dbgen.SetPinGoneParams{
-		ID: pgUUID(id), IsGone: isGone,
+func (q *Queries) SetPinGone(ctx context.Context, id, userID uuid.UUID, isGone bool) (bool, error) {
+	updated := false
+	err := q.InTx(ctx, func(tx *Queries) error {
+		_, err := tx.g.SetPinGoneWithPreviousState(ctx, dbgen.SetPinGoneWithPreviousStateParams{
+			ID: pgUUID(id), IsGone: isGone,
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		updated = true
+		if isGone {
+			return tx.g.RecordPinGoneReport(ctx, dbgen.RecordPinGoneReportParams{
+				PinID: pgUUID(id), UserID: pgUUID(userID),
+			})
+		}
+		return nil
+	})
+	return updated, err
+}
+
+func (q *Queries) SetPinImageBlurhash(ctx context.Context, id uuid.UUID, hash string) (bool, error) {
+	rows, err := q.g.SetPinImageBlurhash(ctx, dbgen.SetPinImageBlurhashParams{
+		ID: pgUUID(id), ImageBlurhash: pgTextS(hash),
 	})
 	return rows > 0, err
 }
@@ -1104,6 +1129,7 @@ func (q *Queries) CreatePin(ctx context.Context, p Pin) (uuid.UUID, error) {
 		CreatorID:       pgUUID(p.CreatorID),
 		GroupID:         pgUUID(p.GroupID),
 		StateProvinceID: sp,
+		ImageBlurhash:   pgText(p.ImageBlurhash),
 	})
 	return p.ID, err
 }
@@ -1119,6 +1145,7 @@ type PinPhoto struct {
 	Caption             *string
 	ObservedAt          time.Time
 	IsOriginal          bool
+	ImageBlurhash       *string
 }
 
 func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
@@ -1130,6 +1157,7 @@ func (q *Queries) CreatePinPhoto(ctx context.Context, photo PinPhoto) error {
 		RequestHash: photo.RequestHash,
 		Caption:     pgText(photo.Caption),
 		ObservedAt:  pgTZ(&photo.ObservedAt), IsOriginal: photo.IsOriginal,
+		ImageBlurhash: pgText(photo.ImageBlurhash),
 	})
 }
 
@@ -1152,7 +1180,7 @@ func (q *Queries) ListPinPhotos(ctx context.Context, pinID uuid.UUID) ([]PinPhot
 			IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
 			RequestHash:    row.RequestHash,
 			Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
-			IsOriginal: row.IsOriginal,
+			IsOriginal: row.IsOriginal, ImageBlurhash: goText(row.ImageBlurhash),
 		})
 	}
 	return photos, nil
@@ -1180,9 +1208,16 @@ func (q *Queries) GetPinPhotoByIdempotencyKey(ctx context.Context, contributorID
 		IdempotencyKey: goUUIDPtr(row.IdempotencyKey),
 		RequestHash:    row.RequestHash,
 		Caption:        goText(row.Caption), ObservedAt: row.ObservedAt.Time,
-		IsOriginal: row.IsOriginal,
+		IsOriginal: row.IsOriginal, ImageBlurhash: goText(row.ImageBlurhash),
 	}
 	return &photo, nil
+}
+
+func (q *Queries) SetPinPhotoImageBlurhash(ctx context.Context, photoID uuid.UUID, hash string) (bool, error) {
+	rows, err := q.g.SetPinPhotoImageBlurhash(ctx, dbgen.SetPinPhotoImageBlurhashParams{
+		ID: pgUUID(photoID), ImageBlurhash: pgText(&hash),
+	})
+	return rows > 0, err
 }
 
 func (q *Queries) ListPinPhotoKeys(ctx context.Context, pinID uuid.UUID) ([]string, error) {
@@ -1311,7 +1346,8 @@ func (q *Queries) ListUpdatedPinsForGroups(ctx context.Context, groupIDs []uuid.
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: sp,
-			IsGone: r.IsGone,
+			IsGone:        r.IsGone,
+			ImageBlurhash: goText(r.ImageBlurhash),
 		})
 	}
 	return out, nil
@@ -1370,7 +1406,8 @@ func (q *Queries) SearchPins(ctx context.Context, s PinSearch) ([]Pin, error) {
 			CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 			Title: goText(r.Title), Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 			GroupID: goUUID(r.GroupID), StateProvinceID: boundary,
-			IsGone: r.IsGone,
+			IsGone:        r.IsGone,
+			ImageBlurhash: goText(r.ImageBlurhash),
 		})
 	}
 	return out, nil
@@ -1400,6 +1437,7 @@ func (q *Queries) FindNearbyPins(ctx context.Context, callerID uuid.UUID, latitu
 				CreationDate: goTZ(r.CreationDate), UpdateDate: goTZ(r.UpdateDate),
 				Description: goText(r.Description), CreatorID: goUUID(r.CreatorID),
 				GroupID: goUUID(r.GroupID), StateProvinceID: boundary, IsGone: r.IsGone,
+				ImageBlurhash: goText(r.ImageBlurhash),
 			},
 			GroupName: r.GroupName, DistanceMeters: r.DistanceMeters,
 		})
@@ -1439,54 +1477,58 @@ func (q *Queries) FindBoundaryForPoint(ctx context.Context, lat, lng float64) (*
 // ---- Likes ----
 
 type UserLikedPin struct {
-	PinID           uuid.UUID
-	LikeAll         bool
-	LikeLocation    bool
-	LikePhotography bool
-	LikeArt         bool
+	PinID   uuid.UUID
+	PhotoID uuid.UUID
+	LikeAll bool
 }
 
-type LikeFlags struct {
-	LikeAll, LikeLocation, LikePhotography, LikeArt bool
-}
+type LikeFlags struct{ LikeAll bool }
 
-func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, pinID uuid.UUID) (*LikeFlags, error) {
-	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PinID: pgUUID(pinID)})
+func (q *Queries) GetLikeByUserAndPin(ctx context.Context, userID, photoID uuid.UUID) (*LikeFlags, error) {
+	row, err := q.g.GetLikeByUserAndPin(ctx, dbgen.GetLikeByUserAndPinParams{UserID: pgUUID(userID), PhotoID: pgUUID(photoID)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &LikeFlags{LikeAll: row.LikeAll, LikeLocation: row.LikeLocation, LikePhotography: row.LikePhotography, LikeArt: row.LikeArt}, nil
+	return &LikeFlags{LikeAll: row.LikeAll}, nil
 }
 
-func (q *Queries) UpsertLike(ctx context.Context, userID, pinID uuid.UUID, f LikeFlags) error {
+// PinIDForLikeTarget accepts an original pin ID or an update photo ID.
+func (q *Queries) PinIDForLikeTarget(ctx context.Context, targetID uuid.UUID) (uuid.UUID, error) {
+	if pinID, err := q.g.GetPinIDForPhoto(ctx, pgUUID(targetID)); err == nil {
+		return goUUID(pinID), nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, err
+	}
+	pin, err := q.GetPinByID(ctx, targetID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if pin == nil {
+		return uuid.Nil, apperrors.ErrNotFound
+	}
+	return targetID, nil
+}
+
+func (q *Queries) UpsertLike(ctx context.Context, userID, pinID, photoID uuid.UUID, f LikeFlags) error {
 	return q.g.UpsertLike(ctx, dbgen.UpsertLikeParams{
-		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), UserID: pgUUID(userID),
-		LikeAll: f.LikeAll, LikeLocation: f.LikeLocation,
-		LikePhotography: f.LikePhotography, LikeArt: f.LikeArt,
+		ID: pgUUID(uuid.New()), PinID: pgUUID(pinID), PhotoID: pgUUID(photoID), UserID: pgUUID(userID),
+		LikeAll: f.LikeAll,
 	})
 }
 
-type LikeCounts struct {
-	LikeAll, LikeLocation, LikePhotography, LikeArt int64
+func (q *Queries) DeleteLike(ctx context.Context, userID, photoID uuid.UUID) error {
+	return q.g.DeleteLike(ctx, dbgen.DeleteLikeParams{UserID: pgUUID(userID), PhotoID: pgUUID(photoID)})
 }
 
-func (q *Queries) CountPinLikesByType(ctx context.Context, pinID uuid.UUID) (LikeCounts, error) {
-	r, err := q.g.CountPinLikesByType(ctx, pgUUID(pinID))
-	if err != nil {
-		return LikeCounts{}, err
-	}
-	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+func (q *Queries) CountPinLikes(ctx context.Context, pinID uuid.UUID) (int64, error) {
+	return q.g.CountPinLikes(ctx, pgUUID(pinID))
 }
 
-func (q *Queries) CountLikesForCreator(ctx context.Context, userID uuid.UUID) (LikeCounts, error) {
-	r, err := q.g.CountLikesForCreator(ctx, pgUUID(userID))
-	if err != nil {
-		return LikeCounts{}, err
-	}
-	return LikeCounts{LikeAll: r.LikeAll, LikeLocation: r.LikeLocation, LikePhotography: r.LikePhotography, LikeArt: r.LikeArt}, nil
+func (q *Queries) CountLikesForCreator(ctx context.Context, userID uuid.UUID) (int64, error) {
+	return q.g.CountLikesForCreator(ctx, pgUUID(userID))
 }
 
 func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]UserLikedPin, error) {
@@ -1497,11 +1539,9 @@ func (q *Queries) ListUserLikedPins(ctx context.Context, userID uuid.UUID) ([]Us
 	out := make([]UserLikedPin, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, UserLikedPin{
-			PinID:           goUUID(r.PinID),
-			LikeAll:         r.LikeAll,
-			LikeLocation:    r.LikeLocation,
-			LikePhotography: r.LikePhotography,
-			LikeArt:         r.LikeArt,
+			PinID:   goUUID(r.PinID),
+			PhotoID: goUUID(r.PhotoID),
+			LikeAll: r.LikeAll,
 		})
 	}
 	return out, nil

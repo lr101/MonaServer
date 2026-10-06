@@ -7,7 +7,22 @@ import (
 	dbgen "github.com/lrprojects/monaserver/internal/gen/db"
 )
 
-const userAchievementDefinitionVersion int32 = 7
+const userAchievementDefinitionVersion int32 = 8
+
+const stickCountSQL = `SELECT COUNT(*)::int FROM (
+  SELECT p.id FROM pins p WHERE p.creator_id=$1 AND p.is_deleted=FALSE
+  UNION
+  SELECT pp.pin_id FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id
+  WHERE pp.contributor_id=$1 AND pp.is_original=FALSE AND p.is_deleted=FALSE
+) contributed_pins`
+
+const photoUpdateCountSQL = `SELECT COUNT(*)::int FROM pin_photos pp
+JOIN pins p ON p.id=pp.pin_id
+WHERE pp.contributor_id=$1 AND pp.is_original=FALSE AND p.is_deleted=FALSE`
+
+const gonePinCountSQL = `SELECT COUNT(DISTINCT report.pin_id)::int
+FROM pin_gone_reports report JOIN pins p ON p.id=report.pin_id
+WHERE report.user_id=$1 AND p.is_deleted=FALSE`
 
 // AchievementDef is a server-owned personal milestone and reward.
 type AchievementDef struct {
@@ -23,27 +38,51 @@ type AchievementDef struct {
 	sql               string
 }
 
+const stickPlacesSQL = `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p
+JOIN admin2_boundaries b ON b.id=p.state_province_id
+WHERE p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''
+  AND (p.creator_id=$1 OR EXISTS (SELECT 1 FROM pin_photos pp
+       WHERE pp.pin_id=p.id AND pp.contributor_id=$1 AND pp.is_original=FALSE))`
+
+const stickGroupsSQL = `SELECT COUNT(DISTINCT p.group_id)::int FROM pins p
+JOIN groups g ON g.id=p.group_id
+WHERE p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE
+  AND (p.creator_id=$1 OR EXISTS (SELECT 1 FROM pin_photos pp
+       WHERE pp.pin_id=p.id AND pp.contributor_id=$1 AND pp.is_original=FALSE))`
+
+const likesGivenSQL = `SELECT COUNT(*)::int FROM likes l
+JOIN pins p ON p.id=l.pin_id LEFT JOIN pin_photos pp ON pp.id=l.photo_id
+WHERE l.user_id=$1 AND CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END IS DISTINCT FROM l.user_id
+  AND p.is_deleted=FALSE
+  AND l.like_all=TRUE`
+
+const likesReceivedSQL = `SELECT COUNT(*)::int FROM likes l
+JOIN pins p ON p.id=l.pin_id LEFT JOIN pin_photos pp ON pp.id=l.photo_id
+WHERE CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END=$1 AND l.user_id<>$1
+  AND p.is_deleted=FALSE
+  AND l.like_all=TRUE`
+
 var achievementDefs = []AchievementDef{
 	{
-		ID: 0, Name: "Two countries", Description: "Add sticks in two different countries.",
+		ID: 0, Name: "Traveler", Description: "Add sticks in two different countries.",
 		Track: "places", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 2, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p JOIN admin2_boundaries b ON b.id=p.state_province_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''`,
+		sql: stickPlacesSQL,
 	},
 	{
-		ID: 2, Name: "Two groups", Description: "Join two groups.",
+		ID: 2, Name: "Joiner", Description: "Join two groups.",
 		Track: "groups", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 2, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
 	},
 	{
-		ID: 3, Name: "Two sticks", Description: "Add two sticks.",
+		ID: 3, Name: "Creator", Description: "Add two sticks.",
 		Track: "sticks", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 2, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+		sql: stickCountSQL,
 	},
 	{
-		ID: 4, Name: "Team regular", Description: "Join five groups.",
+		ID: 4, Name: "Regular", Description: "Join five groups.",
 		Track: "groups", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 5, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT m.group_id)::int FROM members m JOIN groups g ON g.id=m.group_id WHERE m.user_id=$1 AND m.is_deleted=FALSE AND g.is_deleted=FALSE`,
@@ -52,115 +91,151 @@ var achievementDefs = []AchievementDef{
 		ID: 5, Name: "Supporter", Description: "Give likes to twenty sticks from other people.",
 		Track: "likes_given", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 20, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+		sql: likesGivenSQL,
 	},
 	{
-		ID: 6, Name: "Getting noticed", Description: "Receive twenty likes on your sticks.",
+		ID: 6, Name: "Popular", Description: "Receive twenty likes on your sticks.",
 		Track: "likes_received", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 20, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+		sql: likesReceivedSQL,
 	},
 	{
-		ID: 7, Name: "Super supporter", Description: "Give likes to two hundred sticks from other people.",
+		ID: 7, Name: "Advocate", Description: "Give likes to two hundred sticks from other people.",
 		Track: "likes_given", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+		sql: likesGivenSQL,
 	},
 	{
-		ID: 8, Name: "Fan favorite", Description: "Receive 200 likes on your sticks.",
+		ID: 8, Name: "Favorite", Description: "Receive 200 likes on your sticks.",
 		Track: "likes_received", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+		sql: likesReceivedSQL,
 	},
 	{
-		ID: 9, Name: "Stick collector", Description: "Add forty sticks.",
+		ID: 9, Name: "Collector", Description: "Add forty sticks.",
 		Track: "sticks", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 40, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+		sql: stickCountSQL,
 	},
 	{
 		ID: 10, Name: "Explorer", Description: "Add sticks in ten different countries.",
 		Track: "places", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 10, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p JOIN admin2_boundaries b ON b.id=p.state_province_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''`,
+		sql: stickPlacesSQL,
 	},
 	{
-		ID: 11, Name: "Wide-ranging explorer", Description: "Add sticks in 25 different countries.",
+		ID: 11, Name: "Adventurer", Description: "Add sticks in 25 different countries.",
 		Track: "places", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 25, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p JOIN admin2_boundaries b ON b.id=p.state_province_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''`,
+		sql: stickPlacesSQL,
 	},
 	{
-		ID: 12, Name: "Dedicated collector", Description: "Add two hundred sticks.",
+		ID: 12, Name: "Veteran", Description: "Add two hundred sticks.",
 		Track: "sticks", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+		sql: stickCountSQL,
 	},
 	{
-		ID: 13, Name: "Community contributor", Description: "Add sticks in three different groups.",
+		ID: 13, Name: "Contributor", Description: "Add sticks in three different groups.",
 		Track: "contributing_groups", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 3, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT p.group_id)::int FROM pins p JOIN groups g ON g.id=p.group_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE`,
+		sql: stickGroupsSQL,
 	},
 	{
-		ID: 14, Name: "Big supporter", Description: "Give likes to four hundred sticks from other people.",
+		ID: 14, Name: "Champion", Description: "Give likes to four hundred sticks from other people.",
 		Track: "likes_given", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 400, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+		sql: likesGivenSQL,
 	},
 	{
-		ID: 15, Name: "Community favorite", Description: "Receive 400 likes on your sticks.",
+		ID: 15, Name: "Celebrity", Description: "Receive 400 likes on your sticks.",
 		Track: "likes_received", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 400, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+		sql: likesReceivedSQL,
 	},
 	{
-		ID: 16, Name: "Four hundred collector", Description: "Add 400 sticks.",
+		ID: 16, Name: "Legend", Description: "Add 400 sticks.",
 		Track: "sticks", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 400, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM pins WHERE creator_id=$1 AND is_deleted=FALSE`,
+		sql: stickCountSQL,
 	},
 	{
-		ID: 17, Name: "Photo storyteller", Description: "Have photos on two of your sticks.",
+		ID: 17, Name: "Storyteller", Description: "Have photos on two of your sticks.",
 		Track: "photos", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 2, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
 	},
 	{
-		ID: 18, Name: "Album keeper", Description: "Have photos on 40 of your sticks.",
+		ID: 18, Name: "Photographer", Description: "Have photos on 40 of your sticks.",
 		Track: "photos", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 40, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
 	},
 	{
-		ID: 19, Name: "Gallery curator", Description: "Have photos on 200 of your sticks.",
+		ID: 19, Name: "Curator", Description: "Have photos on 200 of your sticks.",
 		Track: "photos", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 200, ThresholdUp: true,
 		sql: `SELECT COUNT(DISTINCT pp.pin_id)::int FROM pin_photos pp JOIN pins p ON p.id=pp.pin_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE`,
 	},
 	{
-		ID: 20, Name: "Seasoned explorer", Description: "Add sticks in 50 different countries.",
+		ID: 20, Name: "Voyager", Description: "Add sticks in 50 different countries.",
 		Track: "places", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 50, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT b.gid_0)::int FROM pins p JOIN admin2_boundaries b ON b.id=p.state_province_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND b.gid_0 IS NOT NULL AND b.gid_0<>''`,
+		sql: stickPlacesSQL,
 	},
 	{
-		ID: 21, Name: "Cross-group builder", Description: "Add sticks in ten different groups.",
+		ID: 21, Name: "Builder", Description: "Add sticks in ten different groups.",
 		Track: "contributing_groups", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 10, ThresholdUp: true,
-		sql: `SELECT COUNT(DISTINCT p.group_id)::int FROM pins p JOIN groups g ON g.id=p.group_id WHERE p.creator_id=$1 AND p.is_deleted=FALSE AND p.is_gone=FALSE AND g.is_deleted=FALSE`,
+		sql: stickGroupsSQL,
 	},
 	{
-		ID: 22, Name: "Generous supporter", Description: "Give likes to 1,000 sticks from other people.",
+		ID: 22, Name: "Patron", Description: "Give likes to 1,000 sticks from other people.",
 		Track: "likes_given", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 1000, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE l.user_id=$1 AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.creator_id<>l.user_id AND p.is_deleted=FALSE`,
+		sql: likesGivenSQL,
 	},
 	{
-		ID: 23, Name: "Crowd favorite", Description: "Receive 1,000 likes on your sticks.",
+		ID: 23, Name: "Icon", Description: "Receive 1,000 likes on your sticks.",
 		Track: "likes_received", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
 		Threshold: 1000, ThresholdUp: true,
-		sql: `SELECT COUNT(*)::int FROM likes l JOIN pins p ON p.id=l.pin_id WHERE p.creator_id=$1 AND l.user_id<>p.creator_id AND (l.like_all=TRUE OR l.like_location=TRUE OR l.like_photography=TRUE OR l.like_art=TRUE) AND p.is_deleted=FALSE`,
+		sql: likesReceivedSQL,
+	},
+	{
+		ID: 24, Name: "Refresher", Description: "Add a photo update to a stick.",
+		Track: "updates", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 1, ThresholdUp: true,
+		sql: photoUpdateCountSQL,
+	},
+	{
+		ID: 25, Name: "Chronicler", Description: "Add 10 photo updates.",
+		Track: "updates", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: photoUpdateCountSQL,
+	},
+	{
+		ID: 26, Name: "Archivist", Description: "Add 50 photo updates.",
+		Track: "updates", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 50, ThresholdUp: true,
+		sql: photoUpdateCountSQL,
+	},
+	{
+		ID: 27, Name: "Spotter", Description: "Mark a stick as gone.",
+		Track: "gone_pins", Difficulty: "easy", RewardXP: 20, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 1, ThresholdUp: true,
+		sql: gonePinCountSQL,
+	},
+	{
+		ID: 28, Name: "Caretaker", Description: "Mark 10 sticks as gone.",
+		Track: "gone_pins", Difficulty: "medium", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 10, ThresholdUp: true,
+		sql: gonePinCountSQL,
+	},
+	{
+		ID: 29, Name: "Steward", Description: "Mark 50 sticks as gone.",
+		Track: "gone_pins", Difficulty: "hard", RewardXP: 0, DefinitionVersion: userAchievementDefinitionVersion,
+		Threshold: 50, ThresholdUp: true,
+		sql: gonePinCountSQL,
 	},
 }
 
@@ -209,6 +284,10 @@ func achievementReward(def AchievementDef) AchievementReward {
 			color = "#FF7B1FA2" // amethyst purple
 		case 18:
 			color = "#FFFF7043" // coral
+		case 25:
+			color = "#FF00897B" // teal
+		case 28:
+			color = "#FF795548" // brown
 		default:
 			return AchievementReward{Type: "color"}
 		}
@@ -306,7 +385,7 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID) 
 	}
 	legacyRewardedSet := make(map[int32]bool, len(legacyRewards))
 	for _, id := range legacyRewards {
-		if def, ok := achievementDefinition(id); ok && (def.Track == "places" || def.Track == "contributing_groups") {
+		if def, ok := achievementDefinition(id); ok && (def.Track == "places" || def.Track == "contributing_groups" || def.Track == "sticks") {
 			continue
 		}
 		legacyRewardedSet[id] = true
@@ -369,6 +448,41 @@ func (q *Queries) GetAchievementProgress(ctx context.Context, userID uuid.UUID) 
 		})
 	}
 	return out, nil
+}
+
+// GetClaimedAchievementProgress returns display data for earned achievements
+// without evaluating live activity progress or reward eligibility.
+func (q *Queries) GetClaimedAchievementProgress(ctx context.Context, userID uuid.UUID) ([]AchievementProgress, error) {
+	claimedIDs, err := q.g.ListCurrentClaimedUserAchievementIDs(ctx, pgUUID(userID))
+	if err != nil {
+		return nil, err
+	}
+	return publicAchievementProgress(claimedIDs), nil
+}
+
+func publicAchievementProgress(claimedIDs []int32) []AchievementProgress {
+	claimedSet := make(map[int32]bool, len(claimedIDs))
+	for _, id := range claimedIDs {
+		claimedSet[id] = true
+	}
+	progress := make([]AchievementProgress, 0, len(claimedSet))
+	for _, def := range achievementDefs {
+		if !claimedSet[def.ID] {
+			continue
+		}
+		progress = append(progress, AchievementProgress{
+			ID:           def.ID,
+			Name:         def.Name,
+			Description:  def.Description,
+			Track:        def.Track,
+			Difficulty:   def.Difficulty,
+			CurrentValue: def.Threshold,
+			Threshold:    def.Threshold,
+			ThresholdUp:  def.ThresholdUp,
+			Claimed:      true,
+		})
+	}
+	return progress
 }
 
 func (q *Queries) CheckAchievementClaimable(ctx context.Context, achievementID int32, userID uuid.UUID) (bool, error) {

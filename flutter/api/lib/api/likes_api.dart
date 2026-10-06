@@ -10,7 +10,6 @@
 
 part of openapi.api;
 
-
 class LikesApi {
   LikesApi([ApiClient? apiClient]) : apiClient = apiClient ?? defaultApiClient;
 
@@ -18,19 +17,22 @@ class LikesApi {
 
   /// Create or update a like
   ///
-  /// Create or update a like
+  /// Create or update a like for the original pin photo or a selected update photo.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
   /// * [String] pinId (required):
+  ///   Original pin ID or update photo ID.
   ///
   /// * [CreateLikeDto] createLikeDto (required):
-  Future<Response> createOrUpdateLikeWithHttpInfo(String pinId, CreateLikeDto createLikeDto,) async {
+  Future<Response> createOrUpdateLikeWithHttpInfo(
+    String pinId,
+    CreateLikeDto createLikeDto,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/likes'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/likes'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody = createLikeDto;
@@ -40,7 +42,6 @@ class LikesApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>['application/json'];
-
 
     return apiClient.invokeAPI(
       path,
@@ -55,41 +56,53 @@ class LikesApi {
 
   /// Create or update a like
   ///
-  /// Create or update a like
+  /// Create or update a like for the original pin photo or a selected update photo.
   ///
   /// Parameters:
   ///
   /// * [String] pinId (required):
+  ///   Original pin ID or update photo ID.
   ///
   /// * [CreateLikeDto] createLikeDto (required):
-  Future<PinLikeDto?> createOrUpdateLike(String pinId, CreateLikeDto createLikeDto,) async {
-    final response = await createOrUpdateLikeWithHttpInfo(pinId, createLikeDto,);
+  Future<PinLikeDto?> createOrUpdateLike(
+    String pinId,
+    CreateLikeDto createLikeDto,
+  ) async {
+    final response = await createOrUpdateLikeWithHttpInfo(
+      pinId,
+      createLikeDto,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinLikeDto',) as PinLikeDto;
-    
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinLikeDto',
+      ) as PinLikeDto;
     }
     return null;
   }
 
   /// Get pin likes
   ///
-  /// Get pin likes
+  /// Get likes for the original pin photo or a selected update photo.
   ///
   /// Note: This method returns the HTTP [Response].
   ///
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<Response> getPinLikesWithHttpInfo(String pinId,) async {
+  ///   Original pin ID or update photo ID.
+  Future<Response> getPinLikesWithHttpInfo(
+    String pinId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/pins/{pinId}/likes'
-      .replaceAll('{pinId}', pinId);
+    final path = r'/api/v2/pins/{pinId}/likes'.replaceAll('{pinId}', pinId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -99,7 +112,6 @@ class LikesApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -114,22 +126,30 @@ class LikesApi {
 
   /// Get pin likes
   ///
-  /// Get pin likes
+  /// Get likes for the original pin photo or a selected update photo.
   ///
   /// Parameters:
   ///
   /// * [String] pinId (required):
-  Future<PinLikeDto?> getPinLikes(String pinId,) async {
-    final response = await getPinLikesWithHttpInfo(pinId,);
+  ///   Original pin ID or update photo ID.
+  Future<PinLikeDto?> getPinLikes(
+    String pinId,
+  ) async {
+    final response = await getPinLikesWithHttpInfo(
+      pinId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'PinLikeDto',) as PinLikeDto;
-    
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'PinLikeDto',
+      ) as PinLikeDto;
     }
     return null;
   }
@@ -141,10 +161,11 @@ class LikesApi {
   /// Parameters:
   ///
   /// * [String] userId (required):
-  Future<Response> getUserLikesWithHttpInfo(String userId,) async {
+  Future<Response> getUserLikesWithHttpInfo(
+    String userId,
+  ) async {
     // ignore: prefer_const_declarations
-    final path = r'/api/v2/users/{userId}/likes'
-      .replaceAll('{userId}', userId);
+    final path = r'/api/v2/users/{userId}/likes'.replaceAll('{userId}', userId);
 
     // ignore: prefer_final_locals
     Object? postBody;
@@ -154,7 +175,6 @@ class LikesApi {
     final formParams = <String, String>{};
 
     const contentTypes = <String>[];
-
 
     return apiClient.invokeAPI(
       path,
@@ -172,17 +192,24 @@ class LikesApi {
   /// Parameters:
   ///
   /// * [String] userId (required):
-  Future<UserLikesDto?> getUserLikes(String userId,) async {
-    final response = await getUserLikesWithHttpInfo(userId,);
+  Future<UserLikesDto?> getUserLikes(
+    String userId,
+  ) async {
+    final response = await getUserLikesWithHttpInfo(
+      userId,
+    );
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(response.statusCode, await _decodeBodyBytes(response));
     }
     // When a remote server returns no body with a status of 204, we shall not decode it.
     // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
     // FormatException when trying to decode an empty string.
-    if (response.body.isNotEmpty && response.statusCode != HttpStatus.noContent) {
-      return await apiClient.deserializeAsync(await _decodeBodyBytes(response), 'UserLikesDto',) as UserLikesDto;
-    
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return await apiClient.deserializeAsync(
+        await _decodeBodyBytes(response),
+        'UserLikesDto',
+      ) as UserLikesDto;
     }
     return null;
   }

@@ -103,14 +103,12 @@
     {
       "pin": "member-public-viewer-pin",
       "user": "member",
-      "like": true,
-      "likeLocation": true
+      "like": true
     },
     {
       "pin": "public-unjoined-owner-pin",
       "user": "viewer",
-      "like": true,
-      "likeArt": true
+      "like": true
     }
   ]
 }

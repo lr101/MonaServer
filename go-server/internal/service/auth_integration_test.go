@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lrprojects/monaserver/internal/apperrors"
 	"github.com/lrprojects/monaserver/internal/config"
 	"github.com/lrprojects/monaserver/internal/db"
 	"github.com/lrprojects/monaserver/internal/token"
@@ -174,6 +175,10 @@ func TestRefreshRejectsAndDeletesExpiredToken(t *testing.T) {
 
 	if _, err := auth.Refresh(ctx, pair.RefreshToken, pair.UserID); err == nil {
 		t.Fatal("expired refresh token should be rejected")
+	} else if got := apperrors.HTTPStatus(err); got != 410 {
+		t.Fatalf("expired refresh token status = %d, want 410", got)
+	} else if got := apperrors.Message(err); got != "refresh token expired" {
+		t.Fatalf("expired refresh token message = %q, want token-expired marker", got)
 	}
 	var count int
 	if err := q.Pool().QueryRow(ctx,

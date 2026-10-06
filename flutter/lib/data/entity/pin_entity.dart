@@ -14,6 +14,7 @@ class PinEntity extends CacheEntity {
   final DateTime creationDate;
   final String? title;
   final String? description;
+  final String? imageBlurhash;
 
   int get creatorFastId => fastHash(creator);
   final String creator; // Assuming this is a userId
@@ -25,6 +26,14 @@ class PinEntity extends CacheEntity {
   final bool isGone;
   final DateTime? lastSynced;
 
+  /// Set only on transient feed/profile entries for later photographs.
+  final String? photoId;
+  final String? photoUrl;
+  final String? photoThumbnailUrl;
+  final String? contributorUsername;
+  String get entryId => photoId ?? pinId;
+  bool get isPhotoUpdate => photoId != null;
+
   PinEntity({
     required this.pinId,
     required this.latitude,
@@ -32,11 +41,16 @@ class PinEntity extends CacheEntity {
     required this.creationDate,
     this.title,
     this.description,
+    this.imageBlurhash,
     required this.creator,
     required this.groupId,
     this.isHidden = false,
     this.isGone = false,
     this.lastSynced,
+    this.photoId,
+    this.photoUrl,
+    this.photoThumbnailUrl,
+    this.contributorUsername,
     super.keepAlive,
     super.hits,
     required super.ttl,
@@ -57,6 +71,7 @@ class PinEntity extends CacheEntity {
       groupId: pinDto.groupId,
       title: pinDto.title,
       description: pinDto.description,
+      imageBlurhash: pinDto.imageBlurhash,
       isGone: pinDto.isGone ?? false,
       lastSynced: DateTime.now(),
       keepAlive: keepAlive,
@@ -64,6 +79,29 @@ class PinEntity extends CacheEntity {
       ttl: DateTime.now(),
     );
   }
+
+  PinEntity withPhotoUpdate(PinPhotoDto photo) => PinEntity(
+    pinId: pinId,
+    latitude: latitude,
+    longitude: longitude,
+    creationDate: photo.observedAt,
+    title: title,
+    description: photo.caption,
+    imageBlurhash: photo.imageBlurhash,
+    creator: photo.contributorId ?? '',
+    groupId: groupId,
+    isHidden: isHidden,
+    isGone: isGone,
+    lastSynced: lastSynced,
+    photoId: photo.id,
+    photoUrl: photo.image,
+    photoThumbnailUrl: photo.imageThumbnail,
+    contributorUsername: photo.contributorUsername,
+    keepAlive: keepAlive,
+    hits: hits,
+    ttl: ttl,
+    onlySession: onlySession,
+  );
 
   PinRequestDto toRequestDto(Uint8List image) {
     return PinRequestDto(
@@ -85,6 +123,7 @@ class PinEntity extends CacheEntity {
     bool? keepAlive,
     bool? onlySession,
     bool? isGone,
+    String? imageBlurhash,
   }) {
     return PinEntity(
       pinId: pinId,
@@ -93,11 +132,16 @@ class PinEntity extends CacheEntity {
       creationDate: creationDate,
       title: title,
       description: description,
+      imageBlurhash: imageBlurhash ?? this.imageBlurhash,
       creator: creator,
       groupId: groupId,
       isHidden: isHidden,
       isGone: isGone ?? this.isGone,
       lastSynced: lastSynced,
+      photoId: photoId,
+      photoUrl: photoUrl,
+      photoThumbnailUrl: photoThumbnailUrl,
+      contributorUsername: contributorUsername,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,
       keepAlive: keepAlive ?? this.keepAlive,

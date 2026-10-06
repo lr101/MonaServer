@@ -192,15 +192,41 @@ func (s *UsersServicer) GetUserAchievements(ctx context.Context, userID string) 
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
-	if caller != id {
-		return genserver.Response(http.StatusForbidden, nil), nil
+	existingUser, err := s.q.GetUserByID(ctx, id)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
 	}
-	items, err := s.q.GetAchievementProgress(ctx, id)
+	if existingUser == nil {
+		return genserver.Response(http.StatusNotFound, nil), nil
+	}
+	isOwner := caller == id
+	var items []db.AchievementProgress
+	if isOwner {
+		items, err = s.q.GetAchievementProgress(ctx, id)
+	} else {
+		items, err = s.q.GetClaimedAchievementProgress(ctx, id)
+	}
 	if err != nil {
 		return serviceErrResp(ctx, err), nil
 	}
 	dtos := make([]genserver.UserAchievementsDtoInner, 0, len(items))
 	for _, a := range items {
+		if !isOwner {
+			// Public profiles show earned achievements only. Hide live activity
+			// progress and reward details from other users.
+			dtos = append(dtos, genserver.UserAchievementsDtoInner{
+				AchievementId:  a.ID,
+				Name:           a.Name,
+				Description:    a.Description,
+				Track:          a.Track,
+				Difficulty:     a.Difficulty,
+				Claimed:        true,
+				ThresholdValue: a.Threshold,
+				CurrentValue:   a.Threshold,
+				ThresholdUp:    true,
+			})
+			continue
+		}
 		rewardType := a.RewardType
 		dtos = append(dtos, genserver.UserAchievementsDtoInner{
 			AchievementId:     a.ID,

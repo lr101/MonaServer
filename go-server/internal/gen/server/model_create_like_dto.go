@@ -13,12 +13,6 @@ package genserver
 type CreateLikeDto struct {
 	Like *bool `json:"like,omitempty"`
 
-	LikeLocation *bool `json:"likeLocation,omitempty"`
-
-	LikePhotography *bool `json:"likePhotography,omitempty"`
-
-	LikeArt *bool `json:"likeArt,omitempty"`
-
 	UserId string `json:"userId"`
 }
 

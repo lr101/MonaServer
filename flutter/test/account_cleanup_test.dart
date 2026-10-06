@@ -145,13 +145,7 @@ PinLikeEntity like() => PinLikeEntity(
   onlySession: false,
   id: 'pin',
   likeCount: 1,
-  likePhotographyCount: 0,
-  likeLocationCount: 0,
-  likeArtCount: 0,
   hasLike: true,
-  hasLikePhotography: false,
-  hasLikeLocation: false,
-  hasLikeArt: false,
 );
 
 void main() {
@@ -187,9 +181,9 @@ void main() {
       () => MockClient((request) async {
         if (request.url.path.contains('refresh')) {
           return http.Response(
-            '{}',
-            401,
-            headers: {'content-type': 'application/json'},
+            'refresh token expired',
+            410,
+            headers: {'content-type': 'text/plain'},
           );
         }
         protectedSends++;

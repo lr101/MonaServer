@@ -11,14 +11,23 @@ import 'package:openapi/api.dart';
 
 class FeedCardSubtitle extends ConsumerWidget {
   final PinEntity pin;
+  final bool showDescription;
+  final bool showContext;
+  final bool animateLikeChanges;
 
-  const FeedCardSubtitle({super.key, required this.pin});
+  const FeedCardSubtitle({
+    super.key,
+    required this.pin,
+    this.showDescription = true,
+    this.showContext = true,
+    this.animateLikeChanges = true,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final pinLike = ref.watch(likeServiceProvider(pin.pinId));
-    final userId = ref.watch(globalDataServiceProvider).userId!;
+    final pinLike = ref.watch(likeServiceProvider(pin.entryId));
+    final userId = ref.watch(globalDataServiceProvider).userId;
     // Watch the group data to display the name
     final groupAsync = ref.watch(groupMetadataProvider(pin.groupId));
 
@@ -29,7 +38,7 @@ class FeedCardSubtitle extends ConsumerWidget {
         Row(
           children: [
             LikeButtonAnimated(
-              isLikedProvider: likeServiceProvider(pin.pinId)
+              isLikedProvider: likeServiceProvider(pin.entryId)
                   .select((e) => e.value?.likedByUser),
               isLiked: pinLike.value?.likedByUser ?? false,
               likeBuilder: (isLiked) {
@@ -40,88 +49,97 @@ class FeedCardSubtitle extends ConsumerWidget {
                 );
               },
               likeCount: pinLike.value?.likeCount ?? 0,
-              onTap: (isLiked) async {
-                try {
-                  final service = ref.read(
-                    likeServiceProvider(pin.pinId).notifier,
-                  );
-                  if (isLiked) {
-                    await service.addLike(
-                      pin.creator,
-                      CreateLikeDto(userId: userId, like: false),
-                    );
-                  } else {
-                    await service.addLike(
-                      pin.creator,
-                      CreateLikeDto(userId: userId, like: true),
-                    );
-                  }
-                } catch (e) {
-                  return false;
-                }
-                return true;
-              },
+              animateLikeChanges: animateLikeChanges,
+              mainAxisAlignment: MainAxisAlignment.start,
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              onTap: userId == null || !pinLike.hasValue
+                  ? null
+                  : (isLiked) async {
+                      try {
+                        final service = ref.read(
+                          likeServiceProvider(pin.entryId).notifier,
+                        );
+                        if (isLiked) {
+                          await service.addLike(
+                            pin.creator,
+                            CreateLikeDto(userId: userId, like: false),
+                          );
+                        } else {
+                          await service.addLike(
+                            pin.creator,
+                            CreateLikeDto(userId: userId, like: true),
+                          );
+                        }
+                      } catch (e) {
+                        return false;
+                      }
+                      return true;
+                    },
             ),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                "•",
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-
-            Flexible(
-              child: groupAsync.when(
-                data: (group) => ClickableGroup(
-                  groupId: group?.groupId ?? "",
-                  child: Text(
-                    group?.name ?? "",
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+            if (showContext) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  "•",
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
                   ),
                 ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => Text(
-                  "Unknown Group",
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              ),
+
+              Flexible(
+                child: groupAsync.when(
+                  data: (group) => ClickableGroup(
+                    groupId: group?.groupId ?? "",
+                    child: Text(
+                      group?.name ?? "",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => Text(
+                    "Unknown Group",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  ),
                 ),
               ),
-            ),
 
-            // Separator dot
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                "•",
-                style: TextStyle(
+              // Separator dot
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  "•",
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+
+              // Time Ago
+              Text(
+                _formatTimeAgo(pin.creationDate),
+                style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
-            ),
-
-            // Time Ago
-            Text(
-              _formatTimeAgo(pin.creationDate),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
+            ],
           ],
         ),
-        if (pin.description != null && pin.description!.isNotEmpty)
+        if (showDescription &&
+            pin.description != null &&
+            pin.description!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: FeedDescriptionExpandable(pin: pin),

@@ -12,21 +12,12 @@ package genserver
 
 type UserLikesDto struct {
 	LikeCount int32 `json:"likeCount"`
-
-	LikeArtCount int32 `json:"likeArtCount"`
-
-	LikeLocationCount int32 `json:"likeLocationCount"`
-
-	LikePhotographyCount int32 `json:"likePhotographyCount"`
 }
 
 // AssertUserLikesDtoRequired checks if the required fields are not zero-ed
 func AssertUserLikesDtoRequired(obj UserLikesDto) error {
 	elements := map[string]interface{}{
-		"likeCount":            obj.LikeCount,
-		"likeArtCount":         obj.LikeArtCount,
-		"likeLocationCount":    obj.LikeLocationCount,
-		"likePhotographyCount": obj.LikePhotographyCount,
+		"likeCount": obj.LikeCount,
 	}
 	for name, el := range elements {
 		if isZero := IsZeroValue(el); isZero {

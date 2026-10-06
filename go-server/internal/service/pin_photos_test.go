@@ -100,6 +100,38 @@ func createPhotoUpdatedTestPin(t *testing.T, ctx context.Context, auth *Auth, pi
 	return userID, groupID, created.ID, PinPhotoKey(created.ID, photo.ID)
 }
 
+func TestPhotoUpdateAwardsContributorXPOnlyOnce(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	creator := createTestUser(t, auth, "photo_xp_creator")
+	contributor := createTestUser(t, auth, "photo_xp_contributor")
+	groupID := createTestGroup(t, group, creator, "photo_xp_group")
+	pinID := createTestPin(t, pin, creator, groupID)
+	pin.obj = &pinPhotoTestObjectStore{objects: map[string][]byte{}}
+	imageBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := q.GetUserByID(ctx, contributor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := AddPinPhotoInput{Image: imageBytes, IdempotencyKey: uuid.New(), Latitude: 48.1, Longitude: 11.6, AccuracyMeters: 5}
+	if _, err := pin.AddPhoto(ctx, pinID, contributor, input); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pin.AddPhoto(ctx, pinID, contributor, input); err != nil {
+		t.Fatal(err)
+	}
+	after, err := q.GetUserByID(ctx, contributor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.XP != before.XP+CreatePinXP {
+		t.Fatalf("contributor XP after update and retry = %d, want %d", after.XP, before.XP+CreatePinXP)
+	}
+}
+
 func assertObjectCleanupQueued(t *testing.T, q *db.Queries, key string) {
 	t.Helper()
 	var queued int
@@ -351,8 +383,8 @@ func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) 
 	if err == nil {
 		t.Fatal("add photo update succeeded after its upload cancelled the request")
 	}
-	if len(store.objects) != 1 {
-		t.Fatalf("stored objects after cancelled photo create = %d, want uploaded object retained for retry", len(store.objects))
+	if len(store.objects) != 2 {
+		t.Fatalf("stored objects after cancelled photo create = %d, want original and thumbnail retained for retry", len(store.objects))
 	}
 	key := store.lastPutKey
 	if key == "" {
@@ -361,6 +393,7 @@ func TestCancelledPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *testing.T) 
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, strings.TrimSuffix(key, ".thumbnail.jpg"))
 	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry object cleanup: %v", err)
@@ -396,12 +429,13 @@ func TestCancelledOriginalPinPhotoCreateKeepsUploadedObjectQueuedForRetry(t *tes
 		t.Fatal("pin creation succeeded after its original photo upload cancelled the request")
 	}
 	key := store.lastPutKey
-	if key == "" || store.objectCount() != 1 {
-		t.Fatalf("original photo upload key %q, stored object count %d; want one uploaded object", key, store.objectCount())
+	if key == "" || store.objectCount() != 2 {
+		t.Fatalf("original photo upload key %q, stored object count %d; want original and thumbnail", key, store.objectCount())
 	}
 	assertObjectCleanupQueued(t, q, key)
 
 	store.failRemoveAll = false
+	makeObjectCleanupEligible(t, q, strings.TrimSuffix(key, ".thumbnail.jpg"))
 	makeObjectCleanupEligible(t, q, key)
 	if err := NewObjectCleanup(q, store).RunOnce(context.Background()); err != nil {
 		t.Fatalf("retry original photo object cleanup: %v", err)
@@ -631,8 +665,8 @@ func TestDeletingPinRemovesItsPhotoUpdateObjects(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add photo update: %v", err)
 	}
-	if len(store.objects) != 2 {
-		t.Fatalf("stored pin photo objects = %d, want original plus update", len(store.objects))
+	if len(store.objects) != 4 {
+		t.Fatalf("stored pin photo objects = %d, want original and update images plus thumbnails", len(store.objects))
 	}
 	if err := pin.Delete(ctx, created.ID); err != nil {
 		t.Fatalf("delete pin: %v", err)

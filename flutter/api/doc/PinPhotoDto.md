@@ -13,6 +13,8 @@ Name | Type | Description | Notes
 **contributorId** | **String** |  | [optional]
 **contributorUsername** | **String** |  |
 **image** | **String** |  | [optional]
+**imageThumbnail** | **String** | Signed URL for the small server-generated photo preview. | [optional]
+**imageBlurhash** | **String** | Low-detail placeholder hash generated from the photo preview. | [optional]
 **caption** | **String** |  | [optional]
 **observedAt** | [**DateTime**](DateTime.md) |  |
 **isOriginal** | **bool** |  |

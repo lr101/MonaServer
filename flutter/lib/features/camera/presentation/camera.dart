@@ -20,9 +20,15 @@ import 'package:mutex/mutex.dart';
 import 'package:native_exif/native_exif.dart';
 
 class Camera extends ConsumerStatefulWidget {
-  const Camera({super.key, this.pinPhotoMode = false, this.isActive = true});
+  const Camera({
+    super.key,
+    @Deprecated('Photo updates now use the regular camera approval flow.')
+    this.pinPhotoMode = false,
+    this.isActive = true,
+  });
 
-  /// Captures a photo for an existing pin and returns it to the calling page.
+  /// Kept for compatibility with older callers. It no longer changes the UI.
+  @Deprecated('Photo updates now use the regular camera approval flow.')
   final bool pinPhotoMode;
   final bool isActive;
 
@@ -45,7 +51,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
   bool _discoveringCameras = false;
   bool _discoveryInProgress = false;
   bool _hasDiscoveredCameras = false;
-  bool _pinCapturing = false;
   Object? _discoveryError;
 
   @override
@@ -105,27 +110,13 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
 
   Widget _cameraDiscoveryStatus(Widget child) {
     return Scaffold(
-      appBar: _pinPhotoAppBar(),
       body: SafeArea(child: Center(child: child)),
     );
   }
 
-  PreferredSizeWidget? _pinPhotoAppBar() => widget.pinPhotoMode
-      ? AppBar(
-          title: const Text('Take pin photo'),
-          actions: [
-            IconButton(
-              tooltip: 'Choose from gallery',
-              onPressed: choosePinPhotoFromGallery,
-              icon: const Icon(Icons.photo_library_outlined),
-            ),
-          ],
-        )
-      : null;
-
   @override
   void dispose() {
-    if (!widget.pinPhotoMode) _capturingNotifier.setCapturing(false);
+    _capturingNotifier.clearAfterFrame();
     WidgetsBinding.instance.removeObserver(this);
     pageController.dispose();
     super.dispose();
@@ -220,9 +211,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     );
     final cameraFlashMode = ref.watch(cameraTorchProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final groupIds = widget.pinPhotoMode
-        ? <String>[]
-        : ref.watch(groupOrderServiceProvider);
+    final groupIds = ref.watch(groupOrderServiceProvider);
     final selectedGroupIndex =
         cameraIndexForLength(
           ref.watch(cameraGroupIndexProvider),
@@ -231,7 +220,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
         0;
     if (cameras.isEmpty) {
       return Scaffold(
-        appBar: _pinPhotoAppBar(),
         body: const SafeArea(
           child: Center(
             child: Text('No cameras are available on this device.'),
@@ -277,7 +265,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
             ),
           ),
         ),
-        if (!widget.pinPhotoMode && ref.watch(cameraCapturingProvider))
+        if (ref.watch(cameraCapturingProvider))
           Positioned(
             bottom: 16,
             left: 0,
@@ -287,7 +275,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       ],
     );
     return Scaffold(
-      appBar: _pinPhotoAppBar(),
       backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: LayoutBuilder(
@@ -296,8 +283,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
             final selectorHeight = groupIds.isEmpty
                 ? 0.0
                 : cameraGroupSelectorHeight(screenSize.height);
-            final portraitContentHeight =
-                (widget.pinPhotoMode ? 92.0 : 64.0) + 12 + selectorHeight + 5;
+            final portraitContentHeight = 64.0 + 12 + selectorHeight + 5;
             final compactLayout =
                 constraints.maxHeight <
                 portraitContentHeight + _minimumPortraitPreviewHeight;
@@ -316,8 +302,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
               cameras: cameras,
               cameraIndex: cameraIndex,
               cameraFlashMode: cameraFlashMode,
-              controllerReady:
-                  controllerAsync.value?.value.isInitialized == true,
               compact: compactLayout,
             );
             final groupSelector = groupIds.isEmpty
@@ -390,15 +374,11 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     required List<CameraDescription> cameras,
     required int cameraIndex,
     required bool cameraFlashMode,
-    required bool controllerReady,
     required bool compact,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isPinPhotoMode = widget.pinPhotoMode;
-    final railHeight = isPinPhotoMode
-        ? (compact ? 88.0 : 92.0)
-        : (compact ? 60.0 : 64.0);
+    final railHeight = compact ? 60.0 : 64.0;
     final maxMenuHeight = (MediaQuery.sizeOf(context).height - 300).clamp(
       0.0,
       240.0,
@@ -415,9 +395,7 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           ),
         ),
       ),
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? (isPinPhotoMode ? 1 : 8) : 16,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 16),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -437,11 +415,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                     : () => handleFlashChange(!cameraFlashMode),
               ),
               const Spacer(),
-              if (isPinPhotoMode)
-                _pinPhotoShutterButton(
-                  enabled: controllerReady && !_pinCapturing,
-                ),
-              const Spacer(),
               CameraSelectorButton(
                 cameras: cameras,
                 selectedIndex: cameraIndex,
@@ -449,14 +422,12 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
                 maxMenuHeight: maxMenuHeight,
                 preferDialog: true,
               ),
-              if (!isPinPhotoMode) ...[
-                const SizedBox(width: 8),
-                _cameraControlButton(
-                  tooltip: 'Choose from gallery',
-                  icon: Icons.photo_library_outlined,
-                  onPressed: uploadFileImage,
-                ),
-              ],
+              const SizedBox(width: 8),
+              _cameraControlButton(
+                tooltip: 'Choose from gallery',
+                icon: Icons.photo_library_outlined,
+                onPressed: uploadFileImage,
+              ),
             ],
           ),
         ),
@@ -491,59 +462,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
           ),
         ),
         child: SizedBox.square(dimension: 30, child: Icon(icon, size: 18)),
-      ),
-    );
-  }
-
-  Widget _pinPhotoShutterButton({required bool enabled}) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: 'Take photo',
-      child: Tooltip(
-        message: 'Take photo',
-        child: Material(
-          color: colorScheme.surfaceContainerHighest,
-          shape: CircleBorder(
-            side: BorderSide(color: colorScheme.onSurface, width: 2),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: enabled ? capturePinPhoto : null,
-            customBorder: const CircleBorder(),
-            child: SizedBox.square(
-              dimension: 80,
-              child: Center(
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: colorScheme.primary,
-                    shape: const CircleBorder(),
-                  ),
-                  child: SizedBox.square(
-                    dimension: 60,
-                    child: Center(
-                      child: _pinCapturing
-                          ? SizedBox.square(
-                              dimension: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: colorScheme.onPrimary,
-                              ),
-                            )
-                          : Icon(
-                              Icons.camera_alt,
-                              size: 30,
-                              color: colorScheme.onPrimary,
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -671,36 +589,6 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
       if (mounted) {
         _capturingNotifier.setCapturing(false);
       }
-    }
-  }
-
-  Future<void> capturePinPhoto() async {
-    final controller = ref.read(cameraControllerProvider).value;
-    if (_m.isLocked || controller == null || !controller.value.isInitialized) {
-      return;
-    }
-    await _m.acquire();
-    setState(() => _pinCapturing = true);
-    try {
-      final image = await controller.takePicture();
-      if (mounted) Navigator.of(context).pop(image);
-    } catch (error) {
-      if (mounted) {
-        CustomErrorSnackBar.message(
-          message: 'Could not take photo. Try again.',
-        );
-      }
-      debugPrint('Could not take pin photo: $error');
-    } finally {
-      _m.release();
-      if (mounted) setState(() => _pinCapturing = false);
-    }
-  }
-
-  Future<void> choosePinPhotoFromGallery() async {
-    final pickedFile = await CustomImagePicker.pick(context: context);
-    if (pickedFile != null && mounted) {
-      Navigator.of(context).pop(pickedFile);
     }
   }
 

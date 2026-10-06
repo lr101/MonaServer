@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
+import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -10,6 +14,7 @@ import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
@@ -20,6 +25,74 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
+  testWidgets(
+    'profile counts contributed locations once and hides update text',
+    (tester) async {
+      final pin = PinEntity(
+        pinId: 'location',
+        latitude: 48.1,
+        longitude: 11.6,
+        creationDate: DateTime.utc(2026),
+        creator: 'alice',
+        groupId: 'group',
+        ttl: DateTime.utc(2027),
+        onlySession: false,
+      );
+      final update = pin.withPhotoUpdate(
+        PinPhotoDto(
+          id: 'update-photo',
+          pinId: 'location',
+          contributorId: 'alice',
+          contributorUsername: 'Alice',
+          observedAt: DateTime.utc(2026, 2),
+          isOriginal: false,
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            userIdProvider.overrideWithValue('alice'),
+            userXpProvider('alice').overrideWith((ref) => null),
+            userByIdSelectedBatchProvider('alice').overrideWith((ref) => null),
+            currentUserProvider.overrideWith(
+              (ref) => UserEntity(
+                userId: 'alice',
+                username: 'Alice',
+                ttl: DateTime(2025),
+                onlySession: false,
+              ),
+            ),
+            userPinEntriesProvider('alice')
+                .overrideWith((ref) => Stream.value([pin, update])),
+            userLikeServiceProvider('alice')
+                .overrideWith(_EmptyUserLikeService.new),
+            getUserProfileProvider('alice')
+                .overrideWith((ref) => Stream.value(null)),
+            userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+            pinImageRepositoryProvider.overrideWithValue(
+              _ProfilePinImageRepository(),
+            ),
+            achievementsProvider.overrideWith(_TestAchievements.new),
+            defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+          ],
+          child: const MaterialApp(home: UserProfile()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final sticksStat = find
+          .ancestor(of: find.text('Sticks'), matching: find.byType(Column))
+          .first;
+      expect(
+        find.descendant(of: sticksStat, matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(find.text('UPDATE'), findsNothing);
+      expect(find.text('Update'), findsNothing);
+    },
+  );
+
   testWidgets('shows achievements in a separate signed-in profile tab', (
     tester,
   ) async {
@@ -42,9 +115,11 @@ void main() {
           ),
           pinUserServiceProvider('alice')
               .overrideWith(_EmptyPinUserService.new),
+          userPinEntriesProvider('alice')
+              .overrideWith((ref) => Stream.value([])),
           userLikeServiceProvider('alice')
               .overrideWith(_EmptyUserLikeService.new),
-          getUserProfileProvider('alice')
+          getUserProfileProgressiveProvider('alice')
               .overrideWith((ref) => Stream.value(null)),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
@@ -58,34 +133,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Achievements'), findsOneWidget);
-    expect(find.text('Two sticks'), findsNothing);
+    expect(find.text('Creator'), findsNothing);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Photo updates'), findsOneWidget);
+    expect(find.text('Gone pins'), findsOneWidget);
+    expect(find.text('Fresh perspective'), findsOneWidget);
+    expect(find.text('Good catch'), findsOneWidget);
     expect(find.text('0/3 earned'), findsNothing);
-    expect(find.text('Two sticks'), findsOneWidget);
+    expect(find.text('Creator'), findsOneWidget);
     expect(find.text('Claim 20 XP'), findsNothing);
-    expect(find.text('1/1'), findsNothing);
+    expect(find.text('1/1'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNothing);
 
-    await tester.tap(find.text('Two sticks'));
+    await tester.tap(find.text('Creator'));
     await tester.pumpAndSettle();
     expect(usersApi.claimedId, 3);
 
     // Claiming the first milestone advances this track to its next unclaimed
     // tier without moving through other achievement categories.
-    expect(find.text('Stick collector'), findsOneWidget);
+    expect(find.text('Collector'), findsOneWidget);
     expect(find.text('3/40'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
-    await tester.fling(
-      find.text('Stick collector'),
-      const Offset(-500, 0),
-      1000,
-    );
+    await tester.fling(find.text('Collector'), const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
-    expect(find.text('Dedicated collector').first, findsOneWidget);
+    expect(find.text('Veteran').first, findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);
   });
 }
@@ -104,7 +179,7 @@ class _TestAchievements extends Achievements {
   Future<List<UserAchievementsDtoInner>> build() => Future.value([
     UserAchievementsDtoInner(
       achievementId: 3,
-      name: 'Two sticks',
+      name: 'Creator',
       description: 'Add two sticks.',
       track: 'sticks',
       difficulty: 'easy',
@@ -119,7 +194,7 @@ class _TestAchievements extends Achievements {
     ),
     UserAchievementsDtoInner(
       achievementId: 9,
-      name: 'Stick collector',
+      name: 'Collector',
       description: 'Add forty sticks.',
       claimed: false,
       track: 'sticks',
@@ -132,7 +207,7 @@ class _TestAchievements extends Achievements {
     ),
     UserAchievementsDtoInner(
       achievementId: 12,
-      name: 'Dedicated collector',
+      name: 'Veteran',
       description: 'Add two hundred sticks.',
       track: 'sticks',
       difficulty: 'hard',
@@ -145,6 +220,33 @@ class _TestAchievements extends Achievements {
       currentValue: 200,
       thresholdUp: true,
     ),
+    UserAchievementsDtoInner(
+      achievementId: 24,
+      name: 'Fresh perspective',
+      description: 'Add a photo update to a stick.',
+      track: 'updates',
+      difficulty: 'easy',
+      rewardType: UserAchievementsDtoInnerRewardTypeEnum.xp,
+      claimed: false,
+      rewardXp: 20,
+      claimable: true,
+      thresholdValue: 1,
+      currentValue: 1,
+      thresholdUp: true,
+    ),
+    UserAchievementsDtoInner(
+      achievementId: 27,
+      name: 'Good catch',
+      description: 'Mark a stick as gone.',
+      track: 'gone_pins',
+      difficulty: 'easy',
+      rewardType: UserAchievementsDtoInnerRewardTypeEnum.xp,
+      claimed: false,
+      rewardXp: 20,
+      thresholdValue: 1,
+      currentValue: 0,
+      thresholdUp: true,
+    ),
   ]);
 }
 
@@ -155,15 +257,22 @@ class _EmptyPinUserService extends PinUserService {
 
 class _EmptyUserLikeService extends UserLikeService {
   @override
-  Future<UserLikesDto> build(String userId) async => UserLikesDto(
-    likeCount: 0,
-    likeArtCount: 0,
-    likeLocationCount: 0,
-    likePhotographyCount: 0,
-  );
+  Future<UserLikesDto> build(String userId) async => UserLikesDto(likeCount: 0);
 }
 
 class _EmptyUserGroupService extends UserGroupService {
   @override
   Stream<List<GroupEntity>> build() => Stream.value([]);
+}
+
+class _ProfilePinImageRepository implements IImageRepository {
+  @override
+  ImageType get type => ImageType.pin;
+
+  @override
+  Future<Uint8List?> fetchImage(String id, bool keepAlive) async =>
+      Uint8List.fromList(kTransparentImage);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -21,21 +21,6 @@ void main() {
       // TODO
     });
 
-    // int likeArtCount
-    test('to test the property `likeArtCount`', () async {
-      // TODO
-    });
-
-    // int likeLocationCount
-    test('to test the property `likeLocationCount`', () async {
-      // TODO
-    });
-
-    // int likePhotographyCount
-    test('to test the property `likePhotographyCount`', () async {
-      // TODO
-    });
-
 
   });
 

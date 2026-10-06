@@ -342,6 +342,54 @@ func TestAchievementProgressReportsOneTimeRewardAvailability(t *testing.T) {
 	}
 }
 
+func TestPhotoUpdatesCountOnceAsSticksAndUnlockUserAndGroupMilestones(t *testing.T) {
+	q, auth, _, _, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	creator := createTestUser(t, auth, "photo_update_count_owner")
+	contributor := createTestUser(t, auth, "photo_update_count_contributor")
+	groupID := createTestGroup(t, group, creator, "photo_update_count_group")
+	pinID := createTestPin(t, pin, creator, groupID)
+	for i := 0; i < 2; i++ {
+		photoID := uuid.New()
+		if err := q.CreatePinPhoto(ctx, db.PinPhoto{
+			ID: photoID, PinID: pinID, ContributorID: &contributor,
+			ContributorUsername: "photo_update_count_contributor",
+			ImageKey:            "test/" + photoID.String(), ObservedAt: time.Now(),
+		}); err != nil {
+			t.Fatalf("create photo update %d: %v", i+1, err)
+		}
+	}
+
+	userProgress, err := q.GetAchievementProgress(ctx, contributor)
+	if err != nil {
+		t.Fatalf("get user achievement progress: %v", err)
+	}
+	if got := achievementByID(t, userProgress, 3); got.CurrentValue != 1 {
+		t.Fatalf("unique contributed sticks = %d, want one location", got.CurrentValue)
+	}
+	if got := achievementByID(t, userProgress, 24); got.CurrentValue != 2 || !got.Claimable {
+		t.Fatalf("photo update milestone = %+v, want two updates and claimable", got)
+	}
+
+	groupProgress, err := group.AchievementProgress(ctx, groupID)
+	if err != nil {
+		t.Fatalf("get group achievement progress: %v", err)
+	}
+	var updates GroupAchievementProgress
+	for _, item := range groupProgress {
+		if item.ID == 13 {
+			updates = item
+			break
+		}
+	}
+	if updates.CurrentValue != 2 || !updates.Claimable {
+		t.Fatalf("group photo update milestone = %+v, want two updates and claimable", updates)
+	}
+	if err := group.ClaimAchievement(ctx, groupID, creator, 13); err != nil {
+		t.Fatalf("claim group photo update achievement: %v", err)
+	}
+}
+
 func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	q, auth, _, like, pin, group, _, _, _ := setupServices(t)
 	ctx := context.Background()
@@ -357,17 +405,7 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 		}
 		likeInput := CreateLikeInput{UserID: likerID}
 		liked := true
-		switch i % 4 {
-		case 0:
-			likeInput.Like = &liked
-			likeInput.LikeArt = &liked
-		case 1:
-			likeInput.LikeLocation = &liked
-		case 2:
-			likeInput.LikePhotography = &liked
-		case 3:
-			likeInput.LikeArt = &liked
-		}
+		likeInput.Like = &liked
 		if _, err := like.CreateOrUpdate(ctx, created.ID, likeInput); err != nil {
 			t.Fatalf("like pin %d: %v", i, err)
 		}
@@ -393,6 +431,94 @@ func TestLikeMilestonesCountLikesGivenAndReceivedSeparately(t *testing.T) {
 	}
 	if got := achievementByID(t, ownerProgress, 5); got.CurrentValue != 0 || got.Claimable {
 		t.Fatalf("likes-given milestone for pin owner = %+v, want zero", got)
+	}
+}
+
+func TestLikesOnDeletedUpdateContributorAreNotCreditedToPinOwner(t *testing.T) {
+	q, auth, _, like, pin, group, _, _, _ := setupServices(t)
+	ctx := context.Background()
+	ownerID := createTestUser(t, auth, "deleted_update_pin_owner")
+	contributorID := createTestUser(t, auth, "deleted_update_contributor")
+	likerID := createTestUser(t, auth, "deleted_update_liker")
+	groupID := createTestGroup(t, group, ownerID, "deleted_update_likes_group")
+	created, err := pin.Create(ctx, CreatePinInput{
+		Latitude: 48.1, Longitude: 11.6, CreationDate: time.Now(), UserID: ownerID, GroupID: groupID,
+	})
+	if err != nil {
+		t.Fatalf("create pin: %v", err)
+	}
+
+	updatePhotoID := uuid.New()
+	if _, err := q.Pool().Exec(ctx, `
+		INSERT INTO pin_photos (
+			id, pin_id, contributor_id, contributor_username, image_key,
+			observed_at, is_original
+		) VALUES ($1, $2, $3, 'former contributor', $4, NOW(), FALSE)`,
+		updatePhotoID, created.ID, contributorID, "pins/"+updatePhotoID.String()+".png",
+	); err != nil {
+		t.Fatalf("insert update photo: %v", err)
+	}
+	liked := true
+	if _, err := like.CreateOrUpdate(ctx, created.ID, CreateLikeInput{UserID: likerID, Like: &liked}); err != nil {
+		t.Fatalf("like original photo: %v", err)
+	}
+	if _, err := like.CreateOrUpdate(ctx, updatePhotoID, CreateLikeInput{UserID: likerID, Like: &liked}); err != nil {
+		t.Fatalf("like update photo: %v", err)
+	}
+	for i := 1; i < 20; i++ {
+		photoID := uuid.New()
+		if _, err := q.Pool().Exec(ctx, `
+			INSERT INTO pin_photos (
+				id, pin_id, contributor_id, contributor_username, image_key,
+				observed_at, is_original
+			) VALUES ($1, $2, $3, 'former contributor', $4, NOW(), FALSE)`,
+			photoID, created.ID, contributorID, "pins/"+photoID.String()+".png",
+		); err != nil {
+			t.Fatalf("insert update photo %d: %v", i+1, err)
+		}
+		if _, err := like.CreateOrUpdate(ctx, photoID, CreateLikeInput{UserID: likerID, Like: &liked}); err != nil {
+			t.Fatalf("like update photo %d: %v", i+1, err)
+		}
+	}
+
+	if _, err := q.Pool().Exec(ctx, `DELETE FROM users WHERE id = $1`, contributorID); err != nil {
+		t.Fatalf("delete update contributor: %v", err)
+	}
+	var contributorWasCleared bool
+	if err := q.Pool().QueryRow(ctx, `SELECT contributor_id IS NULL FROM pin_photos WHERE id = $1`, updatePhotoID).Scan(&contributorWasCleared); err != nil {
+		t.Fatalf("read deleted contributor: %v", err)
+	}
+	if !contributorWasCleared {
+		t.Fatal("deleted contributor_id was not cleared")
+	}
+
+	ownerLikes, err := like.UserLikes(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("count owner likes: %v", err)
+	}
+	if ownerLikes.LikeCount != 1 {
+		t.Fatalf("owner like count = %d, want only the original photo's like", ownerLikes.LikeCount)
+	}
+	ownerProgress, err := q.GetAchievementProgress(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("get owner achievement progress: %v", err)
+	}
+	if got := achievementByID(t, ownerProgress, 6); got.CurrentValue != 1 {
+		t.Fatalf("owner likes-received progress = %+v, want one like on the original photo", got)
+	}
+	likerProgress, err := q.GetAchievementProgress(ctx, likerID)
+	if err != nil {
+		t.Fatalf("get liker achievement progress: %v", err)
+	}
+	if got := achievementByID(t, likerProgress, 5); got.CurrentValue != 21 || !got.Claimable {
+		t.Fatalf("liker likes-given progress = %+v, want all 21 likes to count", got)
+	}
+	var achievementIsCurrent bool
+	if err := q.Pool().QueryRow(ctx, `SELECT user_achievement_is_current($1, 5)`, likerID).Scan(&achievementIsCurrent); err != nil {
+		t.Fatalf("check persisted achievement eligibility: %v", err)
+	}
+	if !achievementIsCurrent {
+		t.Fatal("persisted likes-given achievement eligibility should include deleted contributors' photos")
 	}
 }
 

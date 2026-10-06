@@ -16,5 +16,15 @@ post:
         application/json:
           schema:
             $ref: '../schemas/tokenResponseDto.yaml'
+    '400':
+      description: Refresh credentials are invalid or revoked
     '403':
-      description: Invalid refresh token try logging in again
+      description: The account email is not confirmed
+    '410':
+      description: The refresh token has expired
+      content:
+        text/plain:
+          schema:
+            type: string
+            enum:
+              - refresh token expired

@@ -10,9 +10,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 class PopUpMenuFeed extends ConsumerWidget {
-  const PopUpMenuFeed({super.key, required this.pinDto});
+  const PopUpMenuFeed({
+    super.key,
+    required this.pinDto,
+    this.onDownloadPhoto,
+    this.isDownloadingPhoto = false,
+    this.tooltip = 'Post options',
+  });
 
   final PinEntity pinDto;
+  final VoidCallback? onDownloadPhoto;
+  final bool isDownloadingPhoto;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,15 +30,22 @@ class PopUpMenuFeed extends ConsumerWidget {
         .watch(groupMetadataProvider(pinDto.groupId))
         .whenOrNull(data: (d) => d?.groupAdmin);
     final bool isNotCreator = userId != pinDto.creator;
-    return PopupMenuButton(
+    return PopupMenuButton<int>(
+      tooltip: tooltip,
       itemBuilder: (context) {
         return [
-          if (isNotCreator)
+          if (onDownloadPhoto != null)
             CustomMenuItem<int>(
-              value: 0,
-              title: "Hide post",
-              icon: Icons.hide_image,
+              value: 5,
+              title: isDownloadingPhoto ? 'Downloading…' : 'Download photo',
+              icon: Icons.download_outlined,
+              enabled: !isDownloadingPhoto,
             ),
+          CustomMenuItem<int>(
+            value: 0,
+            title: "Hide post",
+            icon: Icons.hide_image_outlined,
+          ),
           if (isNotCreator)
             CustomMenuItem<int>(
               value: 1,
@@ -40,7 +56,7 @@ class PopUpMenuFeed extends ConsumerWidget {
             CustomMenuItem<int>(
               value: 2,
               title: "Hide user",
-              icon: Icons.hide_source,
+              icon: Icons.person_off_outlined,
             ),
           if (isNotCreator)
             CustomMenuItem<int>(
@@ -48,16 +64,20 @@ class PopUpMenuFeed extends ConsumerWidget {
               title: "Report user",
               icon: Icons.report,
             ),
-          if (userId == adminId || !isNotCreator)
+          if (!pinDto.isPhotoUpdate && (userId == adminId || !isNotCreator))
             CustomMenuItem<int>(value: 4, title: "Delete", icon: Icons.delete),
         ];
       },
       onSelected: (value) {
         switch (value) {
           case 0:
-            ref
-                .read(hiddenPostsServiceProvider.notifier)
-                .addHiddenPost(pinDto.pinId);
+            final posts = ref.read(hiddenPostsServiceProvider.notifier);
+            posts.addHiddenPost(pinDto.pinId);
+            _showHiddenFeedback(
+              context,
+              'Post hidden. Restore it in Settings → Hidden posts.',
+              () => posts.removeHiddenPost(pinDto.pinId),
+            );
           case 1:
             context.pushNamed(
               "report",
@@ -65,9 +85,13 @@ class PopUpMenuFeed extends ConsumerWidget {
               extra: ["Report post"],
             );
           case 2:
-            ref
-                .read(hiddenUserServiceProvider.notifier)
-                .addHiddenUser(pinDto.creator);
+            final users = ref.read(hiddenUserServiceProvider.notifier);
+            users.addHiddenUser(pinDto.creator);
+            _showHiddenFeedback(
+              context,
+              'User hidden. Restore their posts in Settings → Hidden users.',
+              () => users.removeHiddenUser(pinDto.creator),
+            );
           case 3:
             context.pushNamed(
               "report",
@@ -76,9 +100,26 @@ class PopUpMenuFeed extends ConsumerWidget {
             );
           case 4:
             _deleteStick(ref, context, ref.read(pinServiceProvider));
+          case 5:
+            onDownloadPhoto?.call();
         }
       },
     );
+  }
+
+  void _showHiddenFeedback(
+    BuildContext context,
+    String message,
+    VoidCallback undo,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: SnackBarAction(label: 'Undo', onPressed: undo),
+        ),
+      );
   }
 
   Future<void> _deleteStick(
@@ -96,6 +137,7 @@ class PopUpMenuFeed extends ConsumerWidget {
           pinDto.pinId,
           showPrompt: true,
         );
+        if (!context.mounted) return;
         if (result == null && Navigator.canPop(context)) {
           Navigator.pop(context);
         }

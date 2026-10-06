@@ -1,51 +1,41 @@
 -- name: GetLikeByUserAndPin :one
-SELECT id, pin_id, user_id, like_all, like_location, like_photography, like_art
+SELECT id, pin_id, user_id, like_all
 FROM likes
-WHERE user_id = $1 AND pin_id = $2;
+WHERE user_id = $1 AND photo_id = $2;
 
 -- name: UpsertLike :exec
-INSERT INTO likes (id, pin_id, user_id, like_all, like_location, like_photography, like_art, creation_date, update_date)
-VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-ON CONFLICT (user_id, pin_id) DO UPDATE
+INSERT INTO likes (id, pin_id, photo_id, user_id, like_all, creation_date, update_date)
+VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+ON CONFLICT (user_id, photo_id) DO UPDATE
   SET like_all = EXCLUDED.like_all,
-      like_location = EXCLUDED.like_location,
-      like_photography = EXCLUDED.like_photography,
-      like_art = EXCLUDED.like_art,
       update_date = NOW();
 
 -- name: DeleteLike :exec
-DELETE FROM likes WHERE user_id = $1 AND pin_id = $2;
+DELETE FROM likes WHERE user_id = $1 AND photo_id = $2;
 
 -- name: CountPinLikes :one
-SELECT COUNT(*)::bigint AS n FROM likes WHERE pin_id = $1;
+SELECT COUNT(*)::bigint AS n
+FROM likes
+WHERE photo_id = $1 AND like_all = TRUE;
 
 -- name: ListPinLikes :many
-SELECT l.id, l.user_id, u.username, l.like_all, l.like_location, l.like_photography, l.like_art
+SELECT l.id, l.user_id, u.username, l.like_all
 FROM likes l JOIN users u ON u.id = l.user_id
-WHERE l.pin_id = $1
+WHERE l.photo_id = $1 AND l.like_all = TRUE
 ORDER BY l.creation_date DESC;
 
--- name: CountPinLikesByType :one
-SELECT
-  COALESCE(SUM(CASE WHEN like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
-  COALESCE(SUM(CASE WHEN like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
-  COALESCE(SUM(CASE WHEN like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
-  COALESCE(SUM(CASE WHEN like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
-FROM likes WHERE pin_id = $1;
-
 -- name: CountLikesForCreator :one
-SELECT
-  COALESCE(SUM(CASE WHEN l.like_all         THEN 1 ELSE 0 END), 0)::bigint AS like_all,
-  COALESCE(SUM(CASE WHEN l.like_location    THEN 1 ELSE 0 END), 0)::bigint AS like_location,
-  COALESCE(SUM(CASE WHEN l.like_photography THEN 1 ELSE 0 END), 0)::bigint AS like_photography,
-  COALESCE(SUM(CASE WHEN l.like_art         THEN 1 ELSE 0 END), 0)::bigint AS like_art
+SELECT COUNT(*)::bigint AS n
 FROM likes l
 JOIN pins p ON p.id = l.pin_id
-WHERE p.creator_id = $1 AND p.is_deleted = FALSE;
+LEFT JOIN pin_photos pp ON pp.id = l.photo_id
+WHERE CASE WHEN pp.id IS NULL THEN p.creator_id ELSE pp.contributor_id END = sqlc.arg('contributor_id')
+  AND p.is_deleted = FALSE
+  AND l.like_all = TRUE;
 
 -- name: ListUserLikedPins :many
-SELECT l.pin_id, l.like_all, l.like_location, l.like_photography, l.like_art
+SELECT l.pin_id, l.photo_id, l.like_all
 FROM likes l
 JOIN pins p ON p.id = l.pin_id
-WHERE l.user_id = $1 AND p.is_deleted = FALSE
+WHERE l.user_id = $1 AND p.is_deleted = FALSE AND l.like_all = TRUE
 ORDER BY l.creation_date DESC;

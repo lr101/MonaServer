@@ -10,9 +10,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class TopStatusBar extends ConsumerWidget {
-  const TopStatusBar({super.key, this.showProfileProgression = true});
+  const TopStatusBar({
+    super.key,
+    this.showProfileProgression = true,
+    this.showUserLevel = true,
+  });
 
   final bool showProfileProgression;
+  final bool showUserLevel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +52,7 @@ class TopStatusBar extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: innerPadding),
           child: Row(
             children: [
-              if (showProfileProgression)
+              if (showUserLevel && showProfileProgression)
                 UserXpAvatarPanel(userId: userId, imageCallback: profileImage)
               else
                 RoundImage(size: 20, imageCallback: profileImage),
@@ -76,7 +81,7 @@ class TopStatusBar extends ConsumerWidget {
                   ],
                 ),
               ),
-              if (!showProfileProgression) ...[
+              if (showUserLevel && !showProfileProgression) ...[
                 const SizedBox(width: 8),
                 UserXpCompactPanel(userId: userId),
               ],

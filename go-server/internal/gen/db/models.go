@@ -328,15 +328,13 @@ type GroupsSeason struct {
 }
 
 type Like struct {
-	ID              pgtype.UUID        `json:"id"`
-	PinID           pgtype.UUID        `json:"pin_id"`
-	UserID          pgtype.UUID        `json:"user_id"`
-	CreationDate    pgtype.Timestamptz `json:"creation_date"`
-	UpdateDate      pgtype.Timestamptz `json:"update_date"`
-	LikeAll         bool               `json:"like_all"`
-	LikeLocation    bool               `json:"like_location"`
-	LikePhotography bool               `json:"like_photography"`
-	LikeArt         bool               `json:"like_art"`
+	ID           pgtype.UUID        `json:"id"`
+	PinID        pgtype.UUID        `json:"pin_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	CreationDate pgtype.Timestamptz `json:"creation_date"`
+	UpdateDate   pgtype.Timestamptz `json:"update_date"`
+	LikeAll      bool               `json:"like_all"`
+	PhotoID      pgtype.UUID        `json:"photo_id"`
 }
 
 type Member struct {
@@ -386,6 +384,7 @@ type Pin struct {
 	Description     pgtype.Text        `json:"description"`
 	IsGone          bool               `json:"is_gone"`
 	Title           pgtype.Text        `json:"title"`
+	ImageBlurhash   pgtype.Text        `json:"image_blurhash"`
 }
 
 type PinCreateIdempotency struct {
@@ -394,6 +393,12 @@ type PinCreateIdempotency struct {
 	RequestHash    []byte             `json:"request_hash"`
 	PinID          pgtype.UUID        `json:"pin_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type PinGoneReport struct {
+	PinID      pgtype.UUID        `json:"pin_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	ReportedAt pgtype.Timestamptz `json:"reported_at"`
 }
 
 type PinPhoto struct {
@@ -408,6 +413,7 @@ type PinPhoto struct {
 	ObservedAt          pgtype.Timestamptz `json:"observed_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	IsOriginal          bool               `json:"is_original"`
+	ImageBlurhash       pgtype.Text        `json:"image_blurhash"`
 }
 
 type RateLimitBucket struct {

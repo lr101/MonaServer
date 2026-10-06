@@ -969,8 +969,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/tokenResponseDto"
           description: Successfully applied new access token
+        "400":
+          description: Refresh credentials are invalid or revoked
         "403":
-          description: Invalid refresh token try logging in again
+          description: The account email is not confirmed
+        "410":
+          content:
+            text/plain:
+              schema:
+                enum:
+                - refresh token expired
+                type: string
+          description: The refresh token has expired
       summary: Request a new access token
       tags:
       - auth
@@ -1454,10 +1464,11 @@ paths:
       - pins
   /api/v2/pins/{pinId}/likes:
     get:
-      description: Get pin likes
+      description: Get likes for the original pin photo or a selected update photo.
       operationId: getPinLikes
       parameters:
-      - explode: false
+      - description: Original pin ID or update photo ID.
+        explode: false
         in: path
         name: pinId
         required: true
@@ -1485,10 +1496,12 @@ paths:
       tags:
       - likes
     post:
-      description: Create or update a like
+      description: Create or update a like for the original pin photo or a selected
+        update photo.
       operationId: createOrUpdateLike
       parameters:
-      - explode: false
+      - description: Original pin ID or update photo ID.
+        explode: false
         in: path
         name: pinId
         required: true
@@ -1781,11 +1794,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/userAchievementsDto"
-          description: Successfully returned user's achievements
+          description: Returns all progress to the owner and earned achievements to
+            other authenticated users
         "404":
           description: User not found
-        "403":
-          description: Token not of requested user
       security:
       - token: []
       summary: Get user's achievements
@@ -7179,6 +7191,7 @@ components:
         kind:
           enum:
           - pinImage
+          - pinImageThumbnail
           - userImageSmall
           - userImage
           - groupImageSmall
@@ -7245,6 +7258,7 @@ components:
         kind:
           enum:
           - pinImage
+          - pinImageThumbnail
           - userImageSmall
           - userImage
           - groupImageSmall
@@ -7749,6 +7763,7 @@ components:
     pinPhotoDto:
       example:
         image: http://example.com/aeiou
+        imageBlurhash: imageBlurhash
         isOriginal: true
         contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         contributorUsername: contributorUsername
@@ -7756,6 +7771,7 @@ components:
         caption: caption
         id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        imageThumbnail: http://example.com/aeiou
       properties:
         id:
           format: uuid
@@ -7771,6 +7787,15 @@ components:
           type: string
         image:
           format: url
+          nullable: true
+          type: string
+        imageThumbnail:
+          description: Signed URL for the small server-generated photo preview.
+          format: url
+          nullable: true
+          type: string
+        imageBlurhash:
+          description: Low-detail placeholder hash generated from the photo preview.
           nullable: true
           type: string
         caption:
@@ -7822,6 +7847,11 @@ components:
         image:
           example: https://storage.example.com/stick-it/1/1.png
           format: url
+          type: string
+        imageBlurhash:
+          description: Compact BlurHash placeholder for the pin image.
+          maxLength: 16
+          minLength: 16
           type: string
         groupId:
           format: uuid
@@ -7953,44 +7983,17 @@ components:
       type: object
     pinLikeDto:
       example:
-        likedLocationByUser: true
-        likeLocationCount: 1
         likedByUser: true
-        likeArtCount: 6
-        likePhotographyCount: 5
         likeCount: 0
-        likedArtByUser: true
-        likedPhotographyByUser: true
       properties:
         likeCount:
           type: integer
-        likeArtCount:
-          type: integer
-        likeLocationCount:
-          type: integer
-        likePhotographyCount:
-          type: integer
         likedByUser:
-          type: boolean
-        likedArtByUser:
-          type: boolean
-        likedLocationByUser:
-          type: boolean
-        likedPhotographyByUser:
           type: boolean
       type: object
     createLikeDto:
       properties:
         like:
-          nullable: true
-          type: boolean
-        likeLocation:
-          nullable: true
-          type: boolean
-        likePhotography:
-          nullable: true
-          type: boolean
-        likeArt:
           nullable: true
           type: boolean
         userId:
@@ -8001,24 +8004,12 @@ components:
       type: object
     userLikesDto:
       example:
-        likeLocationCount: 1
-        likeArtCount: 6
-        likePhotographyCount: 5
         likeCount: 0
       properties:
         likeCount:
           type: integer
-        likeArtCount:
-          type: integer
-        likeLocationCount:
-          type: integer
-        likePhotographyCount:
-          type: integer
       required:
-      - likeArtCount
       - likeCount
-      - likeLocationCount
-      - likePhotographyCount
       type: object
     infoDto:
       example:

@@ -1,47 +1,101 @@
-import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'dart:typed_data';
+
+import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
-import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/features/map_home/data/map_state.dart';
-import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
+import 'package:buff_lisa/features/pin/platform/pin_photo_saver.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
-import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
-import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
-import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_user.dart';
-import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/like_button_animated.dart';
+import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
 class ViewImage extends ConsumerStatefulWidget {
-  const ViewImage({super.key, required this.pinId});
+  const ViewImage({super.key, required this.pinId, this.initialPhotoId});
 
   final String pinId;
+  final String? initialPhotoId;
 
   @override
   ConsumerState<ViewImage> createState() => _ViewImageState();
 }
 
 class _ViewImageState extends ConsumerState<ViewImage> {
-  bool _isSavingPresence = false;
-  int _selectedPhotoIndex = 0;
+  bool _isDownloadingPhoto = false;
+  String? _selectedPhotoId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPhotoId = widget.initialPhotoId;
+  }
+
+  @override
+  void didUpdateWidget(covariant ViewImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pinId != widget.pinId ||
+        oldWidget.initialPhotoId != widget.initialPhotoId) {
+      _selectedPhotoId = widget.initialPhotoId;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final pin = ref.watch(pinByIdProvider(widget.pinId));
-    final userPosition = ref
-        .watch(currentLocationProvider)
-        .whenOrNull(data: (position) => position);
     final toolbarPin = pin.whenOrNull(data: (value) => value);
+    final currentUserId = ref.watch(userIdProvider);
+    final imageState = toolbarPin == null
+        ? null
+        : ref.watch(pinImageForDetailsProvider(toolbarPin.pinId));
+    final photoHistoryState = toolbarPin == null
+        ? null
+        : ref.watch(pinPhotoHistoryProvider(toolbarPin.pinId));
+    final image = imageState?.value;
+    final photos = photoHistoryState?.value ?? const <PinPhotoDto>[];
+    final originalPhoto = photos.where((photo) => photo.isOriginal).firstOrNull;
+    final selectedPhoto = _selectedPhotoId == null
+        ? originalPhoto
+        : photos.where((photo) => photo.id == _selectedPhotoId).firstOrNull;
+    final isOriginalSelected =
+        _selectedPhotoId == null || selectedPhoto?.isOriginal == true;
+    final originalContributorId = selectedPhoto?.contributorId;
+    final selectedPhotoContributor = isOriginalSelected
+        ? originalContributorId == null || originalContributorId.isEmpty
+              ? toolbarPin?.creator
+              : originalContributorId
+        : selectedPhoto?.contributorId;
+    final hasSelectedPhotoBytes = isOriginalSelected
+        ? image?.isNotEmpty == true || selectedPhoto?.image?.isNotEmpty == true
+        : selectedPhoto?.image?.isNotEmpty == true;
+    final canDownloadSelectedPhoto =
+        supportsPinPhotoDownload &&
+        currentUserId.isNotEmpty &&
+        currentUserId == selectedPhotoContributor &&
+        hasSelectedPhotoBytes;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pin details'),
-        actions: [if (toolbarPin != null) PopUpMenuFeed(pinDto: toolbarPin)],
+        actions: [
+          if (toolbarPin != null)
+            PopUpMenuFeed(
+              pinDto: toolbarPin,
+              onDownloadPhoto: canDownloadSelectedPhoto
+                  ? () => _downloadPhoto(
+                      pinId: toolbarPin.pinId,
+                      pinCreatorId: toolbarPin.creator,
+                      photo: selectedPhoto,
+                      isOriginal: isOriginalSelected,
+                      originalImage: image,
+                    )
+                  : null,
+              isDownloadingPhoto: _isDownloadingPhoto,
+              tooltip: 'Pin options',
+            ),
+        ],
       ),
       body: pin.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -50,40 +104,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           if (currentPin == null) {
             return const Center(child: Text('This pin is unavailable.'));
           }
-          final creatorName = ref.watch(
-            userByIdUsernameProvider(currentPin.creator),
-          );
-          final imageState = ref.watch(
-            pinImageForDetailsProvider(currentPin.pinId),
-          );
-          final photoHistoryState = ref.watch(
-            pinPhotoHistoryProvider(currentPin.pinId),
-          );
-          final image = imageState.value;
-          final photos = photoHistoryState.value ?? const <PinPhotoDto>[];
-          final updates = photos.where((photo) => !photo.isOriginal).toList();
-          final selectedUpdate =
-              _selectedPhotoIndex > 0 && _selectedPhotoIndex <= updates.length
-              ? updates[_selectedPhotoIndex - 1]
-              : null;
-          final originalPhoto = photos
-              .where((photo) => photo.isOriginal)
-              .firstOrNull;
-          final selectedPhoto = selectedUpdate ?? originalPhoto;
-          final isOriginalSelected = selectedUpdate == null;
-          final updateEnabled = canAddPinPhotoHere(userPosition, currentPin);
-          final presenceEnabled =
-              currentPin.lastSynced != null &&
-              isPinWithinPresenceRange(userPosition, currentPin);
-          final availabilityMessage = _availabilityMessage(
-            pin: currentPin,
-            userPosition: userPosition,
-            updateEnabled: updateEnabled,
-            presenceEnabled: presenceEnabled,
-          );
-          final title = currentPin.title?.trim();
-          final description = currentPin.description?.trim();
-
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             children: [
@@ -93,70 +113,26 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      PinPhotoCarousel(
-                        key: ValueKey(currentPin.pinId),
-                        originalImage: image,
-                        photos: photos,
-                        isOriginalLoading:
-                            imageState.isLoading || photoHistoryState.isLoading,
-                        onPageChanged: (index) {
-                          if (_selectedPhotoIndex != index) {
-                            setState(() => _selectedPhotoIndex = index);
-                          }
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final width = constraints.maxWidth;
+                          return FeedCardImage(
+                            key: ValueKey(currentPin.pinId),
+                            item: currentPin,
+                            maxWidth: width,
+                            maxHeight: width * 4 / 3,
+                            initialPhotoId: widget.initialPhotoId,
+                            isDetail: true,
+                            onPhotoChanged: (photo) {
+                              if (_selectedPhotoId != photo.photoId) {
+                                setState(
+                                  () => _selectedPhotoId = photo.photoId,
+                                );
+                              }
+                            },
+                          );
                         },
                       ),
-                      const SizedBox(height: 12),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        child: _selectedPhotoDetails(
-                          key: ValueKey(selectedPhoto?.id ?? 'original'),
-                          photo: selectedPhoto,
-                          isOriginal: isOriginalSelected,
-                          title: title == null || title.isEmpty ? null : title,
-                          description:
-                              description == null || description.isEmpty
-                              ? null
-                              : description,
-                          creatorId: currentPin.creator,
-                          creatorName: creatorName.value ?? 'Pin creator',
-                          pin: currentPin,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _PinLikeButton(pin: currentPin),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: PinPresenceControl(
-                              pin: currentPin,
-                              userPosition: userPosition,
-                              isSaving: _isSavingPresence,
-                              showStatusMessage: false,
-                              onToggle: () => _updatePresence(currentPin),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: PinPhotoHistoryPanel(
-                              pin: currentPin,
-                              userPosition: userPosition,
-                              showAvailabilityMessage: false,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (availabilityMessage != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          availabilityMessage,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -168,172 +144,129 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     );
   }
 
-  Widget _selectedPhotoDetails({
-    required Key key,
+  Future<void> _downloadPhoto({
+    required String pinId,
+    required String pinCreatorId,
     required PinPhotoDto? photo,
     required bool isOriginal,
-    required String? title,
-    required String? description,
-    required String creatorId,
-    required String creatorName,
-    required PinEntity pin,
-  }) {
-    final date = photo?.observedAt ?? pin.creationDate;
-    final author = photo?.contributorUsername ?? creatorName;
-    final authorText = Text(
-      author,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.bodySmall,
-    );
-    final contributorId = photo?.contributorId;
-    final Widget authorWidget;
-    if (isOriginal) {
-      authorWidget = ClickableUser(
-        userId: contributorId ?? creatorId,
-        child: authorText,
-      );
-    } else if (contributorId != null && contributorId.isNotEmpty) {
-      authorWidget = ClickableUser(userId: contributorId, child: authorText);
-    } else {
-      authorWidget = authorText;
-    }
-    final dateLabel = MaterialLocalizations.of(context)
-        .formatMediumDate(date.toLocal());
-    final detailsText = photo?.caption?.trim();
-    final body = isOriginal ? description : detailsText;
-
-    return Column(
-      key: key,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (isOriginal && title != null)
-          Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        if (!isOriginal)
-          Text(
-            'Update',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primaryOnSurface,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        Row(
-          children: [
-            Icon(
-              Icons.person_outline,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 4),
-            Flexible(child: authorWidget),
-            const SizedBox(width: 6),
-            Text(
-              '· $dateLabel',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        if (body != null && body.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(body, maxLines: 3, overflow: TextOverflow.ellipsis),
-        ],
-      ],
-    );
-  }
-
-  String? _availabilityMessage({
-    required PinEntity pin,
-    required Position? userPosition,
-    required bool updateEnabled,
-    required bool presenceEnabled,
-  }) {
-    if (updateEnabled && presenceEnabled) return null;
-    if (pin.lastSynced == null) return 'Sync this pin before updating it.';
-    if (userPosition == null) return 'Waiting for a location fix.';
-    if (!isPinWithinPresenceRange(userPosition, pin)) {
-      return 'Get within 50 m of this pin to update it.';
-    }
-    if (!updateEnabled) {
-      return 'Location accuracy must be 50 m or better to add a photo update.';
-    }
-    return null;
-  }
-
-  Future<void> _updatePresence(PinEntity pin) async {
-    setState(() => _isSavingPresence = true);
+    required Uint8List? originalImage,
+  }) async {
+    if (_isDownloadingPhoto) return;
+    setState(() => _isDownloadingPhoto = true);
+    _showMessage('Downloading photo…', duration: const Duration(seconds: 25));
     try {
-      final error = await ref
-          .read(pinServiceProvider)
-          .setPinGone(pin.pinId, !pin.isGone);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error ?? (pin.isGone ? 'Marked still here' : 'Marked gone'),
-          ),
-        ),
+      final bytes = await _loadPhotoBytes(
+        photo: photo,
+        pinId: pinId,
+        pinCreatorId: pinCreatorId,
+        isOriginal: isOriginal,
+        originalImage: originalImage,
       );
+      final name = _photoFileName(pinId, photo?.id ?? 'original');
+      await savePinPhoto(bytes, name: name);
+      if (mounted) _showMessage('Photo saved to your device.');
+    } on _PinPhotoDownloadException {
+      if (mounted) {
+        _showMessage('Could not download this photo. Check your connection.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Could not save this photo. Check photo access and device storage.',
+        );
+      }
     } finally {
-      if (mounted) setState(() => _isSavingPresence = false);
+      if (mounted) setState(() => _isDownloadingPhoto = false);
     }
+  }
+
+  Future<Uint8List> _loadPhotoBytes({
+    required String pinId,
+    required String pinCreatorId,
+    required PinPhotoDto? photo,
+    required bool isOriginal,
+    required Uint8List? originalImage,
+  }) async {
+    if (isOriginal) {
+      final bytes = originalImage;
+      if (bytes != null && bytes.isNotEmpty) return bytes;
+    }
+
+    var photoToDownload = photo;
+    if (photo != null) {
+      try {
+        final photos = await ref
+            .read(pinApiProvider)
+            .getPinPhotos(pinId)
+            .timeout(const Duration(seconds: 20));
+        photoToDownload = photos
+            ?.where(
+              (candidate) =>
+                  candidate.id == photo.id &&
+                  candidate.pinId == pinId &&
+                  candidate.isOriginal == isOriginal,
+            )
+            .firstOrNull;
+        if (photoToDownload == null) {
+          throw const _PinPhotoDownloadException();
+        }
+
+        final contributorId = photoToDownload.contributorId;
+        final ownerId =
+            isOriginal && (contributorId == null || contributorId.isEmpty)
+            ? pinCreatorId
+            : contributorId;
+        final currentUserId = ref.read(userIdProvider);
+        if (currentUserId.isEmpty || currentUserId != ownerId) {
+          throw const _PinPhotoDownloadException();
+        }
+      } on _PinPhotoDownloadException {
+        rethrow;
+      } catch (_) {
+        throw const _PinPhotoDownloadException();
+      }
+    }
+
+    final imageUrl = photoToDownload?.image;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      throw const _PinPhotoDownloadException();
+    }
+
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      throw const _PinPhotoDownloadException();
+    }
+    try {
+      final response = await http.get(uri).timeout(const Duration(seconds: 20));
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          response.bodyBytes.isEmpty) {
+        throw const _PinPhotoDownloadException();
+      }
+      return response.bodyBytes;
+    } on _PinPhotoDownloadException {
+      rethrow;
+    } catch (_) {
+      throw const _PinPhotoDownloadException();
+    }
+  }
+
+  String _photoFileName(String pinId, String photoId) {
+    final safePinId = pinId.replaceAll(RegExp('[^A-Za-z0-9_-]'), '_');
+    final safePhotoId = photoId.replaceAll(RegExp('[^A-Za-z0-9_-]'), '_');
+    return 'stick-it-$safePinId-$safePhotoId';
+  }
+
+  void _showMessage(
+    String message, {
+    Duration duration = const Duration(seconds: 4),
+  }) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), duration: duration));
   }
 }
 
-class _PinLikeButton extends ConsumerWidget {
-  const _PinLikeButton({required this.pin});
-
-  final PinEntity pin;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final like = ref.watch(likeServiceProvider(pin.pinId));
-    final liked = like.value?.likedByUser ?? false;
-    final userId = ref.watch(
-      globalDataServiceProvider.select((data) => data.userId),
-    );
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Semantics(
-        label: '${like.value?.likeCount ?? 0} likes',
-        child: LikeButtonAnimated(
-          isLikedProvider: likeServiceProvider(pin.pinId)
-              .select((state) => state.value?.likedByUser),
-          isLiked: liked,
-          size: 28,
-          likeCount: like.value?.likeCount ?? 0,
-          likeBuilder: (isLiked) => Icon(
-            isLiked ? Icons.favorite : Icons.favorite_border,
-            color: isLiked
-                ? Colors.red
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-            size: 24,
-          ),
-          onTap: userId == null
-              ? null
-              : (isLiked) async {
-                  try {
-                    await ref
-                        .read(likeServiceProvider(pin.pinId).notifier)
-                        .addLike(
-                          pin.creator,
-                          CreateLikeDto(userId: userId, like: !isLiked),
-                        );
-                    return true;
-                  } catch (_) {
-                    return false;
-                  }
-                },
-        ),
-      ),
-    );
-  }
+class _PinPhotoDownloadException implements Exception {
+  const _PinPhotoDownloadException();
 }

@@ -1,12 +1,14 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
+import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_card.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design_provider.dart';
@@ -16,6 +18,62 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 
 void main() {
+  testWidgets('shows photo update and gone pin achievement tracks', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [
+              _achievement(achievementId: 13, track: 'photo_updates'),
+              _achievement(achievementId: 16, track: 'gone_pins'),
+            ],
+            group: _group(),
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Photo updates'), findsOneWidget);
+    expect(find.text('Gone pins'), findsOneWidget);
+  });
+
+  testWidgets('group hard achievement rewards are labeled Legendary', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GroupAchievementsCard(
+            achievements: [
+              _achievement(
+                achievementId: 18,
+                track: 'gone_pins',
+                name: 'Steward',
+                difficulty: GroupAchievementsDtoInnerDifficultyEnum.hard,
+                rewardType: GroupAchievementsDtoInnerRewardTypeEnum.badge,
+                thresholdValue: 50,
+                currentValue: 0,
+                claimable: false,
+              ),
+            ],
+            group: _group(),
+            currentUserId: 'member-1',
+            onClaimAchievement: (_) async {},
+            onPinStyleSelected: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    final semantics = tester.getSemantics(find.byType(AchievementCard));
+    expect(semantics.label, contains('unlocks Legendary Moss badge design'));
+  });
+
   testWidgets('shows progress and claims a ready group achievement', (
     tester,
   ) async {
@@ -159,6 +217,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
+          groupProgressionProvider('group-1').overrideWith((ref) => null),
           userIdProvider.overrideWithValue('member-1'),
           groupApiProvider.overrideWithValue(groupsApi),
           groupProfilePictureSmallByIdProvider('group-1')
@@ -201,6 +261,14 @@ void main() {
 
 GroupAchievementsDtoInner _achievement({
   int achievementId = 1,
+  String track = 'active_pins',
+  String? name,
+  GroupAchievementsDtoInnerDifficultyEnum difficulty =
+      GroupAchievementsDtoInnerDifficultyEnum.easy,
+  GroupAchievementsDtoInnerRewardTypeEnum? rewardType =
+      GroupAchievementsDtoInnerRewardTypeEnum.xp,
+  int? rewardXp,
+  int? thresholdValue,
   bool claimed = false,
   bool claimable = true,
   int currentValue = 10,
@@ -208,29 +276,33 @@ GroupAchievementsDtoInner _achievement({
       GroupAchievementsDtoInnerRewardPinStyleEnum.moss,
 }) => GroupAchievementsDtoInner(
   achievementId: achievementId,
-  name: 'Pins $achievementId',
+  name: name ?? 'Pins $achievementId',
   description: 'Add active pins to your group',
-  track: 'active_pins',
-  difficulty: GroupAchievementsDtoInnerDifficultyEnum.easy,
+  track: track,
+  difficulty: difficulty,
   claimed: claimed,
   claimable: claimable,
-  thresholdValue: switch (achievementId) {
-    1 => 40,
-    2 => 100,
-    3 => 200,
-    4 => 2,
-    5 => 400,
-    6 => 1000,
-    7 => 2,
-    8 => 20,
-    9 => 60,
-    10 => 10,
-    11 => 60,
-    12 => 200,
-    _ => 2,
-  },
+  thresholdValue:
+      thresholdValue ??
+      switch (achievementId) {
+        1 => 40,
+        2 => 100,
+        3 => 200,
+        4 => 2,
+        5 => 400,
+        6 => 1000,
+        7 => 2,
+        8 => 20,
+        9 => 60,
+        10 => 10,
+        11 => 60,
+        12 => 200,
+        _ => 2,
+      },
   currentValue: currentValue,
   thresholdUp: true,
+  rewardType: rewardType,
+  rewardXp: rewardXp,
   rewardPinStyle: rewardPinStyle,
 );
 

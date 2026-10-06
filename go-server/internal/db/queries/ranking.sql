@@ -1,21 +1,29 @@
 -- Ranking and map queries (PostGIS).
 
 -- name: GetUserRanking :many
-SELECT p.creator_id, u.username, u.description, u.selected_batch_color,
-       COUNT(p.creator_id)::int AS points,
+SELECT post.creator_id, u.username, u.description, u.selected_batch_color,
+       COUNT(post.creator_id)::int AS points,
        ua.achievement_id
-FROM pins p
-JOIN users u ON p.creator_id = u.id
+FROM (
+    SELECT p.creator_id, p.state_province_id, p.creation_date AS occurred_at
+    FROM pins p WHERE p.is_deleted = FALSE
+    UNION ALL
+    SELECT pp.contributor_id AS creator_id, p.state_province_id,
+           pp.observed_at AS occurred_at
+    FROM pin_photos pp JOIN pins p ON p.id = pp.pin_id
+    WHERE p.is_deleted = FALSE AND pp.is_original = FALSE
+      AND pp.contributor_id IS NOT NULL
+) AS post
+JOIN users u ON post.creator_id = u.id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
     AND ua.claimed = TRUE
     AND user_achievement_is_current(u.id, ua.achievement_id)
-JOIN admin2_boundaries b ON p.state_province_id = b.id
-WHERE p.is_deleted = FALSE
-  AND (sqlc.narg('gid0')::text IS NULL OR b.gid_0 = sqlc.narg('gid0')::text)
+JOIN admin2_boundaries b ON post.state_province_id = b.id
+WHERE (sqlc.narg('gid0')::text IS NULL OR b.gid_0 = sqlc.narg('gid0')::text)
   AND (sqlc.narg('gid1')::text IS NULL OR b.gid_1 = sqlc.narg('gid1')::text)
   AND (sqlc.narg('gid2')::text IS NULL OR b.gid_2 = sqlc.narg('gid2')::text)
-  AND (sqlc.narg('since')::timestamptz IS NULL OR p.creation_date > sqlc.narg('since')::timestamptz)
-GROUP BY p.creator_id, u.username, u.description, u.selected_batch_color, ua.achievement_id
+  AND (sqlc.narg('since')::timestamptz IS NULL OR post.occurred_at > sqlc.narg('since')::timestamptz)
+GROUP BY post.creator_id, u.username, u.description, u.selected_batch_color, ua.achievement_id
 ORDER BY points DESC, u.username
 LIMIT sqlc.arg('lim') OFFSET sqlc.arg('off');
 

@@ -9,6 +9,7 @@ import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
+import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +18,9 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets('keeps group progression in its own profile tab', (tester) async {
+  testWidgets('keeps XP in the profile header while achievements change tabs', (
+    tester,
+  ) async {
     final group = GroupEntity(
       groupId: 'group-id',
       name: 'Group',
@@ -38,7 +41,7 @@ void main() {
             (ref) => [
               GroupAchievementsDtoInner(
                 achievementId: 1,
-                name: 'First gathering',
+                name: 'Gatherer',
                 description: 'Add group pins.',
                 track: 'active_pins',
                 claimed: false,
@@ -57,14 +60,26 @@ void main() {
           groupProgressionProvider('group-id').overrideWith(
             (ref) => GroupProgressionDto(
               groupId: 'group-id',
-              totalXp: 140,
+              totalXp: 70,
               currentLevel: 2,
               currentLevelXp: 40,
               nextLevelXp: 100,
             ),
           ),
-          groupDetailsPinsProvider('group-id')
-              .overrideWith((ref) => const AsyncData<List<PinEntity>?>([])),
+          groupDetailsPinsProvider('group-id').overrideWith(
+            (ref) => AsyncData<List<PinEntity>?>([
+              PinEntity(
+                pinId: 'place',
+                latitude: 48.1,
+                longitude: 11.6,
+                creationDate: DateTime.utc(2026),
+                creator: 'alice',
+                groupId: 'group-id',
+                ttl: DateTime.utc(2027),
+                onlySession: false,
+              ),
+            ]),
+          ),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: MaterialApp(
@@ -81,15 +96,34 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('First gathering'), findsNothing);
-    expect(find.text('Group level 2'), findsNothing);
+    expect(find.text('Gatherer'), findsNothing);
+    expect(find.text('Group level 2 · 70 XP'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Achievements'), findsOneWidget);
+    expect(tester.getTopLeft(find.byType(UserXpAvatarIndicator)).dx, 17);
+    expect(
+      tester
+          .widget<CircularProgressIndicator>(
+            find.byType(CircularProgressIndicator),
+          )
+          .value,
+      0.5,
+    );
+    expect(
+      find.byTooltip(
+        'Level 2, 70 total XP, 30 of 60 XP into this level, '
+        '30 XP to next level',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Sticks'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
-    expect(find.text('First gathering'), findsOneWidget);
-    expect(find.text('Group level 2'), findsOneWidget);
+    expect(find.text('Gatherer'), findsOneWidget);
+    expect(find.text('Group level 2 · 70 XP'), findsNothing);
   });
 }
 

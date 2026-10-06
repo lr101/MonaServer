@@ -1,10 +1,8 @@
 import 'dart:math';
 
-import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
-import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
 import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/util/types/achievement.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -26,7 +24,6 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
   @override
   Widget build(BuildContext context) {
     final achievements = ref.watch(achievementsProvider);
-    final userId = ref.watch(userIdProvider);
     return achievements.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(
@@ -43,14 +40,11 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
           ],
         ),
       ),
-      data: (items) => _buildAchievementTracks(items, userId),
+      data: (items) => _buildAchievementTracks(items),
     );
   }
 
-  Widget _buildAchievementTracks(
-    List<UserAchievementsDtoInner> items,
-    String userId,
-  ) {
+  Widget _buildAchievementTracks(List<UserAchievementsDtoInner> items) {
     final tracks = _personalAchievementTracks
         .map(
           (track) => _PersonalAchievementTrack(
@@ -81,30 +75,39 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
         child: ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 12),
-          itemCount: tracks.isEmpty ? 2 : tracks.length + 1,
+          itemCount: tracks.isEmpty ? 1 : tracks.length,
           separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, itemIndex) {
-            if (itemIndex == 0) {
-              return UserXpProfilePanel(userId: userId);
-            }
             if (tracks.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Center(child: Text('No achievements yet.')),
               );
             }
-            final track = tracks[itemIndex - 1];
-            return AchievementTierCarousel(
-              key: ValueKey(track.id),
-              title: track.title,
-              tierCount: track.achievements.length,
-              initialPage: activeAchievementTierIndex(
-                track.achievements,
-                (achievement) => achievement.claimed,
-              ),
-              itemBuilder: (context, tierIndex) => _AchievementMilestoneCard(
-                achievement: track.achievements[tierIndex],
-              ),
+            final track = tracks[itemIndex];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                AchievementTierCarousel(
+                  key: ValueKey(track.id),
+                  title: track.title,
+                  tierCount: track.achievements.length,
+                  initialPage: activeAchievementTierIndex(
+                    track.achievements,
+                    (achievement) => achievement.claimed,
+                  ),
+                  itemBuilder: (context, tierIndex) =>
+                      _AchievementMilestoneCard(
+                        achievement: track.achievements[tierIndex],
+                      ),
+                ),
+              ],
             );
           },
         ),
@@ -116,6 +119,8 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
 const _personalAchievementTracks = <_PersonalAchievementTrackDefinition>[
   _PersonalAchievementTrackDefinition('sticks', 'Pins'),
   _PersonalAchievementTrackDefinition('photos', 'Photos'),
+  _PersonalAchievementTrackDefinition('updates', 'Photo updates'),
+  _PersonalAchievementTrackDefinition('gone_pins', 'Gone pins'),
   _PersonalAchievementTrackDefinition('places', 'Countries'),
   _PersonalAchievementTrackDefinition('groups', 'Groups'),
   _PersonalAchievementTrackDefinition(
@@ -197,6 +202,7 @@ class _AchievementMilestoneCard extends ConsumerWidget {
     if (result == null && !reduceMotion) {
       await HapticFeedback.lightImpact();
     }
+    if (result == null && rewardType == 'xp' && rewardAvailable) return;
     CustomErrorSnackBar.message(
       message: message,
       type: result == null

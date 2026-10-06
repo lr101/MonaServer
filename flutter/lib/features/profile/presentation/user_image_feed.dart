@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
@@ -52,6 +53,7 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
               );
           return CustomScrollView(
             controller: _scrollController,
+            scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
             slivers: [
               CustomFeed(
                 pinProvider: widget.userPinNotifier,

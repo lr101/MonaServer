@@ -119,6 +119,7 @@ class PinEntities extends Table with CacheTable {
   DateTimeColumn get creationDate => dateTime()();
   TextColumn get title => text().nullable()();
   TextColumn get description => text().nullable()();
+  TextColumn get imageBlurhash => text().nullable()();
   TextColumn get creator => text()();
   TextColumn get groupId => text()();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
@@ -151,13 +152,7 @@ class PendingPinCreates extends Table {
 class PinLikeEntities extends Table with CacheTable {
   TextColumn get id => text()();
   IntColumn get likeCount => integer()();
-  IntColumn get likePhotographyCount => integer()();
-  IntColumn get likeLocationCount => integer()();
-  IntColumn get likeArtCount => integer()();
   BoolColumn get hasLike => boolean()();
-  BoolColumn get hasLikePhotography => boolean()();
-  BoolColumn get hasLikeLocation => boolean()();
-  BoolColumn get hasLikeArt => boolean()();
 }
 
 @DataClassName('UserDb')
@@ -175,15 +170,22 @@ class UserEntities extends Table with CacheTable {
 class UserLikeEntities extends Table with CacheTable {
   TextColumn get userId => text()();
   IntColumn get likeCount => integer()();
-  IntColumn get likePhotographyCount => integer()();
-  IntColumn get likeLocationCount => integer()();
-  IntColumn get likeArtCount => integer()();
 }
 
 @DataClassName('UserPinsDb')
 class UserPinsEntities extends Table with CacheTable {
   TextColumn get userId => text()();
   TextColumn get pins => text().map(const StringListConverter())();
+}
+
+@DataClassName('PinPhotoHistoryDb')
+class PinPhotoHistoryEntities extends Table {
+  TextColumn get pinId => text()();
+  TextColumn get photosJson => text()();
+  DateTimeColumn get fetchedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {pinId};
 }
 
 @DriftDatabase(
@@ -197,6 +199,7 @@ class UserPinsEntities extends Table with CacheTable {
     UserEntities,
     UserLikeEntities,
     UserPinsEntities,
+    PinPhotoHistoryEntities,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -205,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -271,6 +274,28 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await m.createTable(pendingPinCreates);
+      }
+      if (from < 9) {
+        await m.database.customStatement(
+          'DROP TABLE IF EXISTS pin_like_entities',
+        );
+        await m.database.customStatement(
+          'DROP TABLE IF EXISTS user_like_entities',
+        );
+        await m.createTable(pinLikeEntities);
+        await m.createTable(userLikeEntities);
+        final pinColumns = await m.database
+            .customSelect('PRAGMA table_info(pin_entities)')
+            .get();
+        final hasImageBlurhash = pinColumns.any(
+          (column) => column.read<String>('name') == 'image_blurhash',
+        );
+        if (pinColumns.isNotEmpty && !hasImageBlurhash) {
+          await m.addColumn(pinEntities, pinEntities.imageBlurhash);
+        }
+      }
+      if (from < 10) {
+        await m.createTable(pinPhotoHistoryEntities);
       }
     },
   );

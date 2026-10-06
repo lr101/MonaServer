@@ -54,6 +54,11 @@ func (s *memoryPinObjectStore) Remove(_ context.Context, key string) error {
 	return nil
 }
 
+func (s *memoryPinObjectStore) GetIfExists(_ context.Context, key string) ([]byte, bool, error) {
+	data, ok := s.objects[key]
+	return bytes.Clone(data), ok, nil
+}
+
 func (s *memoryPinObjectStore) PresignedGet(_ context.Context, key string) (string, error) {
 	if _, ok := s.objects[key]; !ok {
 		return "", nil
@@ -526,7 +531,7 @@ func decode(t *testing.T, resp *http.Response, v any) {
 // --- tests ---
 
 func TestEndpointAuth(t *testing.T) {
-	srv := buildTestServer(t)
+	srv, q := buildTestServerWithQuery(t)
 	defer srv.Close()
 	c := &apiClient{base: srv.URL}
 
@@ -579,6 +584,38 @@ func TestEndpointAuth(t *testing.T) {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("refresh: expected 200, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("expired refresh identifies token expiry", func(t *testing.T) {
+		ar := c.signup(t, "expired_refresh_route", "pw123")
+		refreshToken, err := uuid.Parse(ar.RefreshToken)
+		if err != nil {
+			t.Fatalf("parse refresh token: %v", err)
+		}
+		if _, err := q.Pool().Exec(context.Background(),
+			`UPDATE refresh_token SET last_active_date = NOW() - INTERVAL '2 hours' WHERE token = $1`, refreshToken,
+		); err != nil {
+			t.Fatalf("expire refresh token: %v", err)
+		}
+
+		resp := c.do(t, http.MethodPost, "/api/v2/public/refresh", map[string]string{
+			"refreshToken": ar.RefreshToken,
+			"userId":       ar.UserID,
+		})
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusGone {
+			t.Fatalf("expired refresh status = %d, want %d", resp.StatusCode, http.StatusGone)
+		}
+		if contentType := resp.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain") {
+			t.Fatalf("expired refresh content type = %q, want text/plain", contentType)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("read expired refresh response: %v", err)
+		}
+		if string(body) != "refresh token expired" {
+			t.Fatalf("expired refresh body = %q, want marker", body)
 		}
 	})
 
@@ -753,7 +790,7 @@ func TestBatchReadResourcesAndPerItemAuthorization(t *testing.T) {
 	privatePinID := createPin(privateGroupID)
 
 	like := ownerClient.do(t, http.MethodPost, "/api/v2/pins/"+publicPinID+"/likes", map[string]any{
-		"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false, "userId": owner.UserID,
+		"like": true, "userId": owner.UserID,
 	})
 	like.Body.Close()
 	if like.StatusCode != http.StatusCreated {
@@ -970,6 +1007,27 @@ func TestEndpointUsers(t *testing.T) {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("GET /api/v2/users/{id}/achievements — public earned achievements", func(t *testing.T) {
+		other := anon.signup(t, "achievement_viewer", "pw123")
+		viewer := &apiClient{base: srv.URL, bearer: other.AccessToken}
+		resp := viewer.do(t, "GET", "/api/v2/users/"+uid+"/achievements", nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 for authenticated viewer, got %d", resp.StatusCode)
+		}
+		var earned []map[string]any
+		decode(t, resp, &earned)
+		if len(earned) != 0 {
+			t.Fatalf("new user's public achievements = %v, want empty earned list", earned)
+		}
+
+		missing := viewer.do(t, "GET", "/api/v2/users/"+uuid.NewString()+"/achievements", nil)
+		defer missing.Body.Close()
+		if missing.StatusCode != http.StatusNotFound {
+			t.Fatalf("missing user's public achievements status = %d, want 404", missing.StatusCode)
 		}
 	})
 
@@ -1829,7 +1887,7 @@ func TestEndpointLikes(t *testing.T) {
 
 	t.Run("POST /api/v2/pins/{id}/likes — like pin", func(t *testing.T) {
 		resp := c.do(t, "POST", "/api/v2/pins/"+pid+"/likes", map[string]any{
-			"like": true, "likeLocation": false, "likePhotography": false, "likeArt": false,
+			"like":   true,
 			"userId": ar.UserID,
 		})
 		defer resp.Body.Close()

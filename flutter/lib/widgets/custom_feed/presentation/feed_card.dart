@@ -6,24 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class FeedCard extends ConsumerWidget {
   const FeedCard({super.key});
 
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final item = ref.watch(feedItemProvider);
-
-    return LayoutBuilder(builder: (context, constraints) {
-      double maxWidth = constraints.maxWidth;
-      double maxHeight = constraints.maxHeight;
-      if (maxWidth / maxHeight > 3 / 4) {
-        maxWidth = maxHeight * 3 / 4;
-      } else {
-        maxHeight = maxWidth * 4 / 3;
-      }
-      return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 9),
-      child: FeedCardImage(item: item, maxHeight: maxHeight, maxWidth: maxWidth ),
-    );},);
-  }
-
-
+  Widget build(BuildContext context, WidgetRef ref) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: LayoutBuilder(
+      builder: (context, constraints) => FeedCardImage(
+        item: ref.watch(feedItemProvider),
+        maxWidth: constraints.maxWidth,
+        maxHeight: constraints.maxWidth * 4 / 3,
+      ),
+    ),
+  );
 }

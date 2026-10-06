@@ -63,7 +63,7 @@ final class UserXpProvider
   }
 }
 
-String _$userXpHash() => r'0304c791ad9a0d7af372888407be218489bda532';
+String _$userXpHash() => r'e70caf000563e2bfac10a566c4720b8acc36c86a';
 
 final class UserXpFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<UserXpDto?>, String> {

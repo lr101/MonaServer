@@ -53,6 +53,8 @@
 		<string>Stick-It needs access to your location, when in use, to show the users current location on the map and to create a post linked to your location</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Stick-It needs access to the gallery so that profile and group images can be picked</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>Stick-It saves your pin photos to your photo library when you choose Download photo</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
         <string>Stick-It needs access to your location, to show the users current location live on the map</string>
 		<key>SKAdNetworkItems</key>
@@ -274,7 +276,6 @@
 		<false/>
 		<key>UISupportedInterfaceOrientations</key>
 		<array>
-			<string>UIInterfaceOrientationPortrait</string>
 			<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		</array>
 		<key>UISupportedInterfaceOrientations~ipad</key>

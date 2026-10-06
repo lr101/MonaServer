@@ -1,8 +1,8 @@
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_like_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
-import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mutex/mutex.dart';
 import 'package:openapi/api.dart';
@@ -27,10 +27,10 @@ class LikeService extends _$LikeService {
       final pinLikeRepo = ref.watch(pinLikeRepositoryProvider);
       final pinLike = await pinLikeRepo.get(pinId);
       if (pinLike != null) {
-        return pinLike.toDto();
+        return _nonNegative(pinLike.toDto());
       } else {
         try {
-          final pinLikeDto = await _fetchLike(pinId);
+          final pinLikeDto = _nonNegative(await _fetchLike(pinId));
           if (!isCurrentSession(ref, session)) {
             return PinLikeDto();
           }
@@ -60,65 +60,71 @@ class LikeService extends _$LikeService {
     final pinLikeRepo = ref.read(pinLikeRepositoryProvider);
     final session = _session;
     await _mutex.acquire();
-    final currentState = state.value ?? PinLikeDto();
+    final currentState = _nonNegative(state.value ?? PinLikeDto());
     try {
       final pinDto = PinLikeDto(
-        likePhotographyCount: _likeUpdate(
-          createLikeDto.likePhotography,
-          currentState.likedPhotographyByUser,
-          currentState.likePhotographyCount ?? 0,
-        ),
-        likeArtCount: _likeUpdate(
-          createLikeDto.likeArt,
-          currentState.likedArtByUser,
-          currentState.likeArtCount ?? 0,
-        ),
-        likeLocationCount: _likeUpdate(
-          createLikeDto.likeLocation,
-          currentState.likedLocationByUser,
-          currentState.likeLocationCount ?? 0,
-        ),
         likeCount: _likeUpdate(
           createLikeDto.like,
           currentState.likedByUser,
           currentState.likeCount ?? 0,
         ),
-        likedArtByUser:
-            createLikeDto.likeArt ?? currentState.likedArtByUser ?? false,
-        likedPhotographyByUser:
-            createLikeDto.likePhotography ??
-            currentState.likedPhotographyByUser ??
-            false,
-        likedLocationByUser:
-            createLikeDto.likeLocation ??
-            currentState.likedLocationByUser ??
-            false,
         likedByUser: createLikeDto.like ?? currentState.likedByUser ?? false,
       );
       if (!isCurrentSession(ref, session)) return;
       state = AsyncData(pinDto);
-      await pinLikeRepo.put(PinLikeEntity.fromDto(pinDto, pinId));
+      final PinLikeDto confirmed;
+      try {
+        confirmed = _nonNegative(
+          await _likesApi.createOrUpdateLike(pinId, createLikeDto) ?? pinDto,
+        );
+      } catch (_) {
+        if (isCurrentSession(ref, session)) state = AsyncData(currentState);
+        return;
+      }
       if (!isCurrentSession(ref, session)) return;
-      await _likesApi.createOrUpdateLike(pinId, createLikeDto);
+      state = AsyncData(confirmed);
+      try {
+        await pinLikeRepo.put(PinLikeEntity.fromDto(confirmed, pinId));
+      } catch (error) {
+        if (kDebugMode) print(error);
+      }
       if (!isCurrentSession(ref, session)) return;
-      ref
-          .read(userLikeServiceProvider(creatorId).notifier)
-          .updateLikeCount(createLikeDto);
-    } on ApiException catch (_) {
-      if (!isCurrentSession(ref, session)) return;
-      state = AsyncData(currentState);
+      if (creatorId.isEmpty) return;
+      try {
+        await ref
+            .read(userLikeServiceProvider(creatorId).notifier)
+            .updateLikeCount(
+              CreateLikeDto(
+                userId: createLikeDto.userId,
+                like: _changed(currentState.likedByUser, confirmed.likedByUser),
+              ),
+            );
+      } catch (error) {
+        if (kDebugMode) print(error);
+      }
     } finally {
       _mutex.release();
     }
   }
 
+  PinLikeDto _nonNegative(PinLikeDto likes) => PinLikeDto(
+    likeCount: _count(likes.likeCount),
+    likedByUser: likes.likedByUser,
+  );
+
+  int? _count(int? value) => value == null || value >= 0 ? value : 0;
+
+  bool? _changed(bool? before, bool? after) =>
+      (before ?? false) == (after ?? false) ? null : after ?? false;
+
   int _likeUpdate(bool? like, bool? likeCurrent, int current) {
-    if (like == true && likeCurrent == false) {
-      return current + 1;
+    final count = current < 0 ? 0 : current;
+    if (like == true && likeCurrent != true) {
+      return count + 1;
     } else if (like == false && likeCurrent == true) {
-      return current - 1;
+      return count > 0 ? count - 1 : 0;
     } else {
-      return current;
+      return count;
     }
   }
 }

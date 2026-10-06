@@ -37,8 +37,9 @@ downloads at `/monaserver/` on the same public origin.
    links use the same public hostname as the consumer web app.
 3. Run `docker compose pull app db rustfs` followed by
    `docker compose up -d --wait`. CI publishes the combined app image to
-   `ghcr.io/lr101/monaserver-app:develop`; set `APP_IMAGE` to an exact commit
-   tag when a fixed release is needed. To build locally, run
+   `ghcr.io/lr101/monaserver-app:develop`; main publishes the current version
+   tag and `latest`. Set `APP_IMAGE` to a version tag for a fixed release. To
+   build locally, run
    `docker compose up --build -d --wait`. The first local build downloads the
    pinned Flutter SDK and compiles the Wasm and JavaScript web variants.
 4. Open `https://app.lr-projects.de` publicly and
