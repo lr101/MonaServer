@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
@@ -11,34 +14,49 @@ void main() {
     tester,
   ) async {
     var selectedIndex = -1;
+    final updateBytes = Uint8List.fromList(kTransparentImage);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: Center(
-              child: SizedBox(
-                width: 320,
-                child: PinPhotoCarousel(
-                  originalImage: Uint8List.fromList(kTransparentImage),
-                  onPageChanged: (index) => selectedIndex = index,
-                  photos: [
-                    PinPhotoDto(
-                      id: 'original',
-                      pinId: 'pin',
-                      contributorUsername: 'maker',
-                      observedAt: DateTime.utc(2026),
-                      isOriginal: true,
-                    ),
-                    PinPhotoDto(
-                      id: 'update',
-                      pinId: 'pin',
-                      contributorUsername: 'walker',
-                      image: 'https://example.test/update.png',
-                      caption: 'Still here today',
-                      observedAt: DateTime.utc(2026, 2),
-                      isOriginal: false,
-                    ),
-                  ],
+      ProviderScope(
+        overrides: [
+          pinPhotoProgressiveImageBytesProvider((
+            photoId: 'update',
+            thumbnailUrl: null,
+            imageUrl: 'https://example.test/update.png',
+          )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
+          pinPhotoThumbnailBytesProvider((
+            photoId: 'update',
+            thumbnailUrl: null,
+            imageUrl: 'https://example.test/update.png',
+          )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Center(
+                child: SizedBox(
+                  width: 320,
+                  child: PinPhotoCarousel(
+                    originalImage: Uint8List.fromList(kTransparentImage),
+                    onPageChanged: (index) => selectedIndex = index,
+                    photos: [
+                      PinPhotoDto(
+                        id: 'original',
+                        pinId: 'pin',
+                        contributorUsername: 'maker',
+                        observedAt: DateTime.utc(2026),
+                        isOriginal: true,
+                      ),
+                      PinPhotoDto(
+                        id: 'update',
+                        pinId: 'pin',
+                        contributorUsername: 'walker',
+                        image: 'https://example.test/update.png',
+                        caption: 'Still here today',
+                        observedAt: DateTime.utc(2026, 2),
+                        isOriginal: false,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -74,10 +92,10 @@ void main() {
           .descendant(of: find.byType(PageView), matching: find.byType(Image))
           .last,
     );
-    expect(updateImage.image, isA<NetworkImage>());
+    final updateProvider = updateImage.image as ResizeImage;
     expect(
-      (updateImage.image as NetworkImage).url,
-      'https://example.test/update.png',
+      (updateProvider.imageProvider as MemoryImage).bytes,
+      same(updateBytes),
     );
   });
 
@@ -125,7 +143,6 @@ void main() {
         id: 'update',
         pinId: 'pin',
         contributorUsername: 'walker',
-        image: 'https://example.test/update.png',
         observedAt: DateTime.utc(2026, 2),
         isOriginal: false,
       ),

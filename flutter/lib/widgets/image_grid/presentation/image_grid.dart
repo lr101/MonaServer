@@ -104,8 +104,9 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           builderDelegate: PagedChildBuilderDelegate<PinEntity>(
             itemBuilder: (context, item, index) => SquareImage(
               pinId: item.pinId,
-              imageBlurhash: item.isPhotoUpdate ? null : item.imageBlurhash,
+              imageBlurhash: item.imageBlurhash,
               photoUrl: item.photoUrl,
+              photoThumbnailUrl: item.photoThumbnailUrl,
               photoId: item.photoId,
               index: index,
               groupId: item.groupId,

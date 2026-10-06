@@ -29,6 +29,7 @@ class PinEntity extends CacheEntity {
   /// Set only on transient feed/profile entries for later photographs.
   final String? photoId;
   final String? photoUrl;
+  final String? photoThumbnailUrl;
   final String? contributorUsername;
   String get entryId => photoId ?? pinId;
   bool get isPhotoUpdate => photoId != null;
@@ -48,6 +49,7 @@ class PinEntity extends CacheEntity {
     this.lastSynced,
     this.photoId,
     this.photoUrl,
+    this.photoThumbnailUrl,
     this.contributorUsername,
     super.keepAlive,
     super.hits,
@@ -85,6 +87,7 @@ class PinEntity extends CacheEntity {
     creationDate: photo.observedAt,
     title: title,
     description: photo.caption,
+    imageBlurhash: photo.imageBlurhash,
     creator: photo.contributorId ?? '',
     groupId: groupId,
     isHidden: isHidden,
@@ -92,6 +95,7 @@ class PinEntity extends CacheEntity {
     lastSynced: lastSynced,
     photoId: photo.id,
     photoUrl: photo.image,
+    photoThumbnailUrl: photo.imageThumbnail,
     contributorUsername: photo.contributorUsername,
     keepAlive: keepAlive,
     hits: hits,
@@ -136,6 +140,7 @@ class PinEntity extends CacheEntity {
       lastSynced: lastSynced,
       photoId: photoId,
       photoUrl: photoUrl,
+      photoThumbnailUrl: photoThumbnailUrl,
       contributorUsername: contributorUsername,
       hits: hits ?? this.hits,
       ttl: ttl ?? this.ttl,

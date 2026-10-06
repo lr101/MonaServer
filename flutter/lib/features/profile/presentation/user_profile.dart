@@ -59,7 +59,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
     final userPins = ref.watch(userPinEntriesProvider(userId));
     final currentUser = ref.watch(currentUserProvider);
     final likes = ref.watch(userLikeServiceProvider(userId));
-    final profileImage = ref.watch(getUserProfileProvider(userId));
+    final profileImage = ref.watch(getUserProfileProgressiveProvider(userId));
 
     final xp = ref.watch(userXpProvider(userId)).value;
     final progress = xp == null ? null : XpLevelProgress.fromDto(xp);

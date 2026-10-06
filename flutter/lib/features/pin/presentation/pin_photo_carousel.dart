@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
 /// The original pin picture followed by its later photo updates.
@@ -10,6 +13,8 @@ class PinPhotoCarousel extends StatefulWidget {
   const PinPhotoCarousel({
     super.key,
     this.originalImage,
+    this.thumbnailImage,
+    this.originalImageBlurhash,
     this.isOriginalLoading = false,
     required this.photos,
     this.initialPhotoId,
@@ -20,6 +25,8 @@ class PinPhotoCarousel extends StatefulWidget {
   });
 
   final Uint8List? originalImage;
+  final Uint8List? thumbnailImage;
+  final String? originalImageBlurhash;
   final bool isOriginalLoading;
   final List<PinPhotoDto> photos;
   final String? initialPhotoId;
@@ -115,7 +122,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
               },
               itemBuilder: (context, index) => index == 0
                   ? _originalPhoto(context)
-                  : _networkPhoto(context, updates[index - 1].image),
+                  : _networkPhoto(context, updates[index - 1]),
             ),
           ),
           widget.overlayBuilder!(
@@ -178,7 +185,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                 },
                 itemBuilder: (context, index) => index == 0
                     ? _originalPhoto(context)
-                    : _networkPhoto(context, updates[index - 1].image),
+                    : _networkPhoto(context, updates[index - 1]),
               ),
             ),
           ),
@@ -226,7 +233,8 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                                       ? _originalPhoto(context)
                                       : _networkPhoto(
                                           context,
-                                          updates[index - 1].image,
+                                          updates[index - 1],
+                                          thumbnailOnly: true,
                                         ),
                                 ),
                               ),
@@ -268,11 +276,14 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
     final original = widget.photos
         .where((photo) => photo.isOriginal)
         .firstOrNull;
-    final url = original?.image;
+    final blurhash = widget.originalImageBlurhash ?? original?.imageBlurhash;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bytes = widget.originalImage;
+        final fullImage = widget.originalImage;
+        final bytes = fullImage != null && fullImage.isNotEmpty
+            ? fullImage
+            : widget.thumbnailImage;
         final ImageProvider<Object>? imageProvider;
         if (bytes != null && bytes.isNotEmpty) {
           imageProvider = memoryImageForDisplay(
@@ -281,40 +292,90 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
             logicalWidth: math.min(constraints.maxWidth, 720),
             maximumCacheWidth: 720,
           );
-        } else if (url != null && url.isNotEmpty) {
-          imageProvider = NetworkImage(url);
         } else {
           imageProvider = null;
         }
 
         if (imageProvider == null) {
-          return widget.isOriginalLoading
-              ? _loadingPhoto(context)
-              : _unavailablePhoto(context);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              _photoPlaceholder(context, blurhash),
+              if (!widget.isOriginalLoading) _unavailablePhoto(context),
+            ],
+          );
         }
 
         return _photoImage(
           context,
           imageProvider,
           showUnavailableOnError: !widget.isOriginalLoading,
+          blurhash: blurhash,
         );
       },
     );
   }
 
-  Widget _networkPhoto(BuildContext context, String? url) =>
-      url == null || url.isEmpty
-      ? _unavailablePhoto(context)
-      : _photoImage(context, NetworkImage(url), showUnavailableOnError: true);
+  Widget _networkPhoto(
+    BuildContext context,
+    PinPhotoDto photo, {
+    bool thumbnailOnly = false,
+  }) {
+    if ((photo.image == null || photo.image!.isEmpty) &&
+        (photo.imageThumbnail == null || photo.imageThumbnail!.isEmpty)) {
+      return _unavailablePhoto(context);
+    }
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final photoImage = (
+          photoId: photo.id,
+          thumbnailUrl: photo.imageThumbnail,
+          imageUrl: photo.image,
+        );
+        final imageProvider = thumbnailOnly
+            ? pinPhotoThumbnailBytesProvider(photoImage)
+            : pinPhotoProgressiveImageBytesProvider(photoImage);
+        final imageState = ref.watch(imageProvider);
+        final bytes = imageState.value;
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (bytes == null || bytes.isEmpty) {
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _photoPlaceholder(context, photo.imageBlurhash),
+                  if (imageState.hasError || imageState.hasValue)
+                    _unavailablePhoto(context),
+                ],
+              );
+            }
+            return _photoImage(
+              context,
+              memoryImageForDisplay(
+                bytes,
+                devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                logicalWidth: math.min(constraints.maxWidth, 720),
+                maximumCacheWidth: 720,
+              ),
+              showUnavailableOnError: true,
+              blurhash: photo.imageBlurhash,
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _photoImage(
     BuildContext context,
     ImageProvider<Object> imageProvider, {
     required bool showUnavailableOnError,
+    String? blurhash,
   }) => Stack(
     fit: StackFit.expand,
     children: [
-      ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+      _photoPlaceholder(context, blurhash),
       Image(
         image: imageProvider,
         fit: BoxFit.contain,
@@ -332,6 +393,15 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
       ),
     ],
   );
+
+  Widget _photoPlaceholder(BuildContext context, String? blurhash) {
+    if (blurhash != null && blurhash.length == 16) {
+      return PinImagePlaceholder(blurhash: blurhash);
+    }
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    );
+  }
 
   Widget _loadingPhoto(BuildContext context) =>
       ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest);

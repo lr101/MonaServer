@@ -5530,6 +5530,15 @@ components:
           format: url
           nullable: true
           type: string
+        imageThumbnail:
+          description: Signed URL for the small server-generated photo preview.
+          format: url
+          nullable: true
+          type: string
+        imageBlurhash:
+          description: Low-detail placeholder hash generated from the photo preview.
+          nullable: true
+          type: string
         caption:
           nullable: true
           type: string

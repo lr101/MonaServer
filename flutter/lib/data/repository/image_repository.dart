@@ -76,7 +76,12 @@ class _ActiveImageRequest {
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
   Future<Uint8List?> fetchImage(String id, bool keepAlive);
-  Future<Uint8List?> fetchImageFromUrl(String id, String url, bool keepAlive);
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  });
   Stream<Uint8List?> watchImageBytes(String id);
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive);
   Future<void> addImage(String id, Uint8List image, bool keepAlive);
@@ -611,8 +616,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async {
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async {
     await ready;
     if (_disposed) return null;
     final cacheKey = _cacheKey(id);
@@ -652,6 +658,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       fallback: fallback,
       imageUrl: url,
       contentVersion: contentVersion,
+      fallbackToEndpoint: fallbackToEndpoint,
     );
   }
 
@@ -662,6 +669,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String? imageUrl,
     ImageEntity? retainedImage,
     required int contentVersion,
+    bool fallbackToEndpoint = true,
   }) async {
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
@@ -683,6 +691,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       requestState,
       fallback: fallback,
       imageUrl: imageUrl,
+      fallbackToEndpoint: fallbackToEndpoint,
     );
     _pendingImageRequests.update(
       cacheKey,
@@ -707,6 +716,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     _ActiveImageRequest requestState, {
     Uint8List? fallback,
     String? imageUrl,
+    bool fallbackToEndpoint = true,
   }) async {
     if (imageUrl != null && imageUrl.isNotEmpty) {
       final image = await _fetchAndCacheFromUrl(
@@ -717,6 +727,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
       );
       if (_disposed) return null;
       if (image != null) return image;
+      if (!fallbackToEndpoint) return fallback;
     }
 
     return _fetchAndCacheFromEndpoint(id, requestState, fallback: fallback);

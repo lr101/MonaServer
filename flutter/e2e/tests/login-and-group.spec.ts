@@ -372,11 +372,13 @@ test('loads pins for a public group opened through group search', async ({ page 
   });
 
   // Metadata and batch reads can supply URLs without per-pin image API calls.
-  // Verify the browser actually downloads every visible pin image.
+  // Verify the browser actually downloads every visible thumbnail or image.
   const loadedObjectImages = new Set<string>();
   page.on('response', (response) => {
     const url = new URL(response.url());
-    const objectMatch = url.pathname.match(/^\/monaserver\/pins\/([^/]+)\.png$/);
+    const objectMatch = url.pathname.match(
+      /^\/monaserver\/pins\/([^/]+)\.png(?:\.thumbnail\.jpg)?$/,
+    );
     if (objectMatch && response.ok()) {
       loadedObjectImages.add(objectMatch[1]);
     }
@@ -401,9 +403,21 @@ test('loads pins for a public group opened through group search', async ({ page 
       { timeout: 30_000 },
     )
     .toBe(pinIds.size);
-  await expect(
-    page.locator('[role="tabpanel"]').last().getByRole('button'),
-  ).toHaveCount(pinIds.size);
+  const pinsPanel = page.locator('[role="tabpanel"]').last();
+  const panelBounds = await pinsPanel.boundingBox();
+  const viewport = page.viewportSize();
+  if (!panelBounds || !viewport) {
+    throw new Error('pin grid panel or browser viewport is unavailable');
+  }
+  // Flutter paints the grid on its canvas, so send a pointer event to the
+  // center of the first square tile instead of targeting an ARIA role.
+  await page.mouse.click(
+    viewport.width / 6,
+    panelBounds.y + viewport.width / 6,
+  );
+  await expect(page.getByText('Pin details', { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 async function login(

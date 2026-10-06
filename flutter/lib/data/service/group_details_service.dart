@@ -84,7 +84,10 @@ final groupDetailsProvider = StreamProvider.autoDispose
         pins = next;
         emit();
       }, fireImmediately: true);
-      ref.listen(groupProfilePictureByIdProvider(groupId), (_, next) {
+      ref.listen(groupProfilePictureProgressiveByIdProvider(groupId), (
+        _,
+        next,
+      ) {
         profileImage = next;
         emit();
       }, fireImmediately: true);

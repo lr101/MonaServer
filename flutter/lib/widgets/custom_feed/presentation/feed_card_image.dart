@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
@@ -10,6 +12,7 @@ import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_heade
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_description.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,11 +76,14 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
           contributorUsername: widget.item.contributorUsername ?? 'Former user',
           observedAt: widget.item.creationDate,
           image: widget.item.photoUrl,
+          imageThumbnail: widget.item.photoThumbnailUrl,
+          imageBlurhash: widget.item.imageBlurhash,
           caption: widget.item.description,
           isOriginal: false,
         ),
       );
     }
+    final originalPhoto = photos.where((photo) => photo.isOriginal).firstOrNull;
     final updates = photos.where((p) => !p.isOriginal).toList();
     final initialId = widget.initialPhotoId ?? widget.item.photoId;
     final selectedPhoto = _selectedIndex == null
@@ -98,6 +104,15 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
 
     final preview = ref.watch(pinThumbnailBytesProvider(parent.pinId));
     final image = ref.watch(pinImageForDetailsProvider(parent.pinId));
+    final selectedPhotoImage = selected.photoId == null
+        ? null
+        : ref.watch(
+            pinPhotoProgressiveImageBytesProvider((
+              photoId: selected.photoId!,
+              thumbnailUrl: selected.photoThumbnailUrl,
+              imageUrl: selected.photoUrl,
+            )),
+          );
     final showPhoto = ref.watch(feedMapStateProvider(widget.item.entryId));
     final overlayTheme = Theme.of(context).copyWith(
       colorScheme: const ColorScheme.dark(),
@@ -122,7 +137,10 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
             borderRadius: BorderRadius.circular(10),
             child: PinPhotoCarousel(
               key: ValueKey(widget.item.entryId),
-              originalImage: image.value ?? preview.value,
+              originalImage: image.value,
+              thumbnailImage: preview.value,
+              originalImageBlurhash:
+                  parent.imageBlurhash ?? originalPhoto?.imageBlurhash,
               isOriginalLoading:
                   (image.isLoading && preview.isLoading) || history.isLoading,
               photos: photos,
@@ -194,14 +212,10 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                                   )
                                 : Tooltip(
                                     message: 'Show photo',
-                                    child: selected.photoUrl != null
-                                        ? Image.network(
-                                            selected.photoUrl!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, _, _) =>
-                                                const Icon(
-                                                  Icons.photo_library_outlined,
-                                                ),
+                                    child: selected.photoId != null
+                                        ? _photoUpdatePreview(
+                                            selected,
+                                            selectedPhotoImage,
                                           )
                                         : image.value != null ||
                                               preview.value != null
@@ -238,6 +252,24 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
           ),
         if (selected.description?.trim().isNotEmpty ?? false)
           FeedDescriptionExpandable(pin: selected),
+      ],
+    );
+  }
+
+  Widget _photoUpdatePreview(
+    PinEntity photo,
+    AsyncValue<Uint8List?>? imageState,
+  ) {
+    final bytes = imageState?.value;
+    if (bytes != null && bytes.isNotEmpty) {
+      return Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PinImagePlaceholder(blurhash: photo.imageBlurhash),
+        if (imageState?.hasError == true || imageState?.hasValue == true)
+          const Center(child: Icon(Icons.photo_library_outlined)),
       ],
     );
   }

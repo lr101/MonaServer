@@ -278,6 +278,8 @@ void main() {
       () =>
           fixture.pendingPinRemoved.future.timeout(const Duration(seconds: 2)),
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
   });
 
   for (final action in _Mutation.values) {

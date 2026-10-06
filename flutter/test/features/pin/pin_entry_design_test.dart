@@ -190,6 +190,7 @@ void main() {
             }
           });
           await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 200));
           expect(tester.takeException(), isNull);
           expect(
             tester.getSize(find.byType(FeedCardImageHeader)).height,
