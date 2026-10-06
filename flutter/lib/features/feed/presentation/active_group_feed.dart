@@ -1,5 +1,5 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/top_status_bar.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +14,12 @@ class ActiveGroupFeed extends ConsumerStatefulWidget {
   ConsumerState<ActiveGroupFeed> createState() => _ActiveGroupFeedState();
 }
 
-class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed> with AutomaticKeepAliveClientMixin {
-  final PagingController<int, PinEntity> _pagingController =
-      PagingController(firstPageKey: 0, invisibleItemsThreshold: 5);
+class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
+    with AutomaticKeepAliveClientMixin {
+  final PagingController<int, PinEntity> _pagingController = PagingController(
+    firstPageKey: 0,
+    invisibleItemsThreshold: 5,
+  );
 
   @override
   void dispose() {
@@ -27,9 +30,9 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed> with Automati
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    
-    ref.listen(sortedActivatedPinsProvider, (previous, next) {
-         _pagingController.refresh();
+
+    ref.listen(activePinEntriesProvider, (previous, next) {
+      _pagingController.refresh();
     });
 
     return SafeArea(
@@ -38,26 +41,24 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed> with Automati
         scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
         slivers: [
           const SliverAppBar(
-            backgroundColor: Colors.transparent, 
+            backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             floating: true,
             snap: true,
             automaticallyImplyLeading: false,
-            toolbarHeight: 60, 
+            toolbarHeight: 60,
             flexibleSpace: Padding(
               padding: EdgeInsets.all(4),
-              child: TopStatusBar(),
+              child: TopStatusBar(showUserLevel: false),
             ),
           ),
 
-
           CustomFeed(
-              pinProvider: sortedActivatedPinsProvider, 
-              pagingController: _pagingController
+            pinProvider: activePinEntriesProvider,
+            pagingController: _pagingController,
           ),
-  
         ],
       ),
     );

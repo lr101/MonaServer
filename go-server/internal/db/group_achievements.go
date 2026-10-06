@@ -71,6 +71,30 @@ var groupAchievementDefs = []GroupAchievementDef{
 		ID: 12, Track: "members", Name: "Society", Description: "Grow this group to 200 active members.",
 		Difficulty: "hard", Threshold: 200, RewardType: "badge", RewardPinStyle: "midnight",
 	},
+	{
+		ID: 13, Track: "photo_updates", Name: "Refresher", Description: "Add 2 photo updates to this group.",
+		Difficulty: "easy", Threshold: 2, RewardType: "xp", RewardXP: 50,
+	},
+	{
+		ID: 14, Track: "photo_updates", Name: "Chroniclers", Description: "Add 20 photo updates to this group.",
+		Difficulty: "medium", Threshold: 20, RewardType: "color", RewardColor: "#77A88A", RewardPinStyle: "seafoam",
+	},
+	{
+		ID: 15, Track: "photo_updates", Name: "Archivists", Description: "Add 100 photo updates to this group.",
+		Difficulty: "hard", Threshold: 100, RewardType: "badge", RewardPinStyle: "glacier",
+	},
+	{
+		ID: 16, Track: "gone_pins", Name: "Spotter", Description: "Mark 1 stick in this group as gone.",
+		Difficulty: "easy", Threshold: 1, RewardType: "xp", RewardXP: 50,
+	},
+	{
+		ID: 17, Track: "gone_pins", Name: "Caretakers", Description: "Mark 10 sticks in this group as gone.",
+		Difficulty: "medium", Threshold: 10, RewardType: "color", RewardColor: "#BD8054", RewardPinStyle: "copper",
+	},
+	{
+		ID: 18, Track: "gone_pins", Name: "Stewards", Description: "Mark 50 sticks in this group as gone.",
+		Difficulty: "hard", Threshold: 50, RewardType: "badge", RewardPinStyle: "moss",
+	},
 }
 
 var groupPinStyleOrder = []string{
@@ -168,6 +192,10 @@ func groupMetricValue(metrics dbgen.GetGroupAchievementMetricsRow, def GroupAchi
 		}
 	case "members":
 		return metrics.Members
+	case "photo_updates":
+		return metrics.PhotoUpdates
+	case "gone_pins":
+		return metrics.GonePins
 	default:
 		return 0
 	}

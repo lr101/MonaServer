@@ -52,6 +52,16 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 			40:  {difficulty: "medium", rewardXP: 0},
 			200: {difficulty: "hard", rewardXP: 0},
 		},
+		"updates": {
+			1:  {difficulty: "easy", rewardXP: 20},
+			10: {difficulty: "medium", rewardXP: 0},
+			50: {difficulty: "hard", rewardXP: 0},
+		},
+		"gone_pins": {
+			1:  {difficulty: "easy", rewardXP: 20},
+			10: {difficulty: "medium", rewardXP: 0},
+			50: {difficulty: "hard", rewardXP: 0},
+		},
 	}
 	got := make(map[string]map[int32]milestone)
 	ids := make(map[int32]bool, len(achievementDefs))
@@ -71,8 +81,8 @@ func TestAchievementCatalogHasTieredMilestonesForEveryPersonalTrack(t *testing.T
 		}
 		got[def.Track][def.Threshold] = milestone{difficulty: def.Difficulty, rewardXP: def.RewardXP}
 	}
-	if len(achievementDefs) != 23 {
-		t.Errorf("active achievement count = %d, want 23", len(achievementDefs))
+	if len(achievementDefs) != 29 {
+		t.Errorf("active achievement count = %d, want 29", len(achievementDefs))
 	}
 	if len(got) != len(want) {
 		t.Fatalf("track count = %d, want %d (%v)", len(got), len(want), got)
@@ -136,6 +146,44 @@ func TestAchievementNamesAreSingleWordAndDifficultyMatchesTrackProgress(t *testi
 				t.Errorf("%s difficulty drops at threshold %d: %q", track, milestone.threshold, milestone.difficulty)
 			}
 			lastRank = currentRank
+		}
+	}
+}
+
+func TestPhotoUpdateAndGonePinMilestonesReachTheLegendaryRewardTier(t *testing.T) {
+	want := map[int32]struct {
+		track       string
+		threshold   int32
+		difficulty  string
+		rewardType  string
+		rewardXP    int32
+		rewardColor string
+	}{
+		24: {track: "updates", threshold: 1, difficulty: "easy", rewardType: "xp", rewardXP: 20},
+		25: {track: "updates", threshold: 10, difficulty: "medium", rewardType: "color", rewardColor: "#FF00897B"},
+		26: {track: "updates", threshold: 50, difficulty: "hard", rewardType: "badge"},
+		27: {track: "gone_pins", threshold: 1, difficulty: "easy", rewardType: "xp", rewardXP: 20},
+		28: {track: "gone_pins", threshold: 10, difficulty: "medium", rewardType: "color", rewardColor: "#FF795548"},
+		29: {track: "gone_pins", threshold: 50, difficulty: "hard", rewardType: "badge"},
+	}
+
+	for id, expected := range want {
+		def, ok := achievementDefinition(id)
+		if !ok {
+			t.Errorf("achievement %d is missing", id)
+			continue
+		}
+		reward := achievementReward(def)
+		gotColor := ""
+		if reward.Color != nil {
+			gotColor = *reward.Color
+		}
+		if def.Track != expected.track || def.Threshold != expected.threshold ||
+			def.Difficulty != expected.difficulty || reward.Type != expected.rewardType ||
+			def.RewardXP != expected.rewardXP || gotColor != expected.rewardColor {
+			t.Errorf("achievement %d = (%s, %d, %s, %s, %d, %s), want (%s, %d, %s, %s, %d, %s)",
+				id, def.Track, def.Threshold, def.Difficulty, reward.Type, def.RewardXP, gotColor,
+				expected.track, expected.threshold, expected.difficulty, expected.rewardType, expected.rewardXP, expected.rewardColor)
 		}
 	}
 }

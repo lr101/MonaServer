@@ -260,6 +260,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Let Drift's query streams finish their zero-delay cancellation after
+    // the approval route unmounts.
+    await tester.pump(const Duration(milliseconds: 1));
     expect(find.text('Root screen'), findsOneWidget);
     expect(find.text('Upload'), findsNothing);
     expect(

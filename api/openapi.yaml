@@ -1239,11 +1239,12 @@ paths:
       - pins
   /api/v2/pins/{pinId}/likes:
     get:
-      description: Get pin likes
+      description: Get likes for the original pin photo or a selected update photo.
       operationId: getPinLikes
       parameters:
       - in: path
         name: pinId
+        description: Original pin ID or update photo ID.
         required: true
         schema:
           $ref: "#/components/schemas/id"
@@ -1268,11 +1269,12 @@ paths:
       tags:
       - likes
     post:
-      description: Create or update a like
+      description: Create or update a like for the original pin photo or a selected update photo.
       operationId: createOrUpdateLike
       parameters:
       - in: path
         name: pinId
+        description: Original pin ID or update photo ID.
         required: true
         schema:
           $ref: "#/components/schemas/id"

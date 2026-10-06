@@ -85,17 +85,29 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
               );
             }
             final track = tracks[itemIndex];
-            return AchievementTierCarousel(
-              key: ValueKey(track.id),
-              title: track.title,
-              tierCount: track.achievements.length,
-              initialPage: activeAchievementTierIndex(
-                track.achievements,
-                (achievement) => achievement.claimed,
-              ),
-              itemBuilder: (context, tierIndex) => _AchievementMilestoneCard(
-                achievement: track.achievements[tierIndex],
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                AchievementTierCarousel(
+                  key: ValueKey(track.id),
+                  title: track.title,
+                  tierCount: track.achievements.length,
+                  initialPage: activeAchievementTierIndex(
+                    track.achievements,
+                    (achievement) => achievement.claimed,
+                  ),
+                  itemBuilder: (context, tierIndex) =>
+                      _AchievementMilestoneCard(
+                        achievement: track.achievements[tierIndex],
+                      ),
+                ),
+              ],
             );
           },
         ),
@@ -107,6 +119,8 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
 const _personalAchievementTracks = <_PersonalAchievementTrackDefinition>[
   _PersonalAchievementTrackDefinition('sticks', 'Pins'),
   _PersonalAchievementTrackDefinition('photos', 'Photos'),
+  _PersonalAchievementTrackDefinition('updates', 'Photo updates'),
+  _PersonalAchievementTrackDefinition('gone_pins', 'Gone pins'),
   _PersonalAchievementTrackDefinition('places', 'Countries'),
   _PersonalAchievementTrackDefinition('groups', 'Groups'),
   _PersonalAchievementTrackDefinition(

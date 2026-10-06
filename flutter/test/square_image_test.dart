@@ -42,7 +42,7 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as ResizeImage;
@@ -74,9 +74,45 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
+  });
+
+  testWidgets('uses cached photo bytes for an update square', (tester) async {
+    final bytes = Uint8List.fromList(kTransparentImage);
+    final repository = _ImageRepository(
+      null,
+      ImageType.pin,
+      updateImage: bytes,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pinImageRepositoryProvider.overrideWithValue(repository)],
+        child: const MaterialApp(
+          home: SizedBox.square(
+            dimension: 100,
+            child: SquareImage(
+              pinId: 'place',
+              photoId: 'update-photo',
+              photoUrl: 'https://example.test/update.png',
+              groupId: 'group',
+              index: 0,
+              onTap: _ignoreTap,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedPhotoId, 'update-photo');
+    expect(repository.requestedPhotoUrl, 'https://example.test/update.png');
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(
+      ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
+      same(bytes),
+    );
   });
 
   testWidgets(
@@ -126,9 +162,12 @@ void main() {
 void _ignoreTap(int index) {}
 
 class _ImageRepository implements IImageRepository {
-  _ImageRepository(this.image, this.type);
+  _ImageRepository(this.image, this.type, {this.updateImage});
 
   final Uint8List? image;
+  final Uint8List? updateImage;
+  String? requestedPhotoId;
+  String? requestedPhotoUrl;
 
   @override
   final ImageType type;
@@ -141,7 +180,11 @@ class _ImageRepository implements IImageRepository {
     String id,
     String url,
     bool keepAlive,
-  ) async => null;
+  ) async {
+    requestedPhotoId = id;
+    requestedPhotoUrl = url;
+    return updateImage;
+  }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}

@@ -1,7 +1,7 @@
 post:
   operationId: createOrUpdateLike
   summary: Create or update a like
-  description: Create or update a like
+  description: Create or update a like for the original pin photo or a selected update photo.
   security:
     - token: [ ]
   tags:
@@ -9,6 +9,7 @@ post:
   parameters:
     - name: pinId
       in: path
+      description: Original pin ID or update photo ID.
       required: true
       schema:
         $ref: '../parameters/id.yaml'
@@ -37,7 +38,7 @@ post:
 get:
   operationId: getPinLikes
   summary: Get pin likes
-  description: Get pin likes
+  description: Get likes for the original pin photo or a selected update photo.
   security:
     - token: [ ]
   tags:
@@ -45,6 +46,7 @@ get:
   parameters:
     - name: pinId
       in: path
+      description: Original pin ID or update photo ID.
       required: true
       schema:
         $ref: '../parameters/id.yaml'

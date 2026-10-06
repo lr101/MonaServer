@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/lrprojects/monaserver/internal/db"
+
 	genserver "github.com/lrprojects/monaserver/internal/gen/server"
 	"github.com/lrprojects/monaserver/internal/middleware"
 	"github.com/lrprojects/monaserver/internal/service"
@@ -90,5 +93,58 @@ func TestNormalLikeCanBeRemoved(t *testing.T) {
 	}
 	if got.LikeCount != 0 || got.LikedByUser {
 		t.Fatalf("unlike produced %+v", got)
+	}
+}
+
+func TestPhotoLikeUsesParentPinVisibility(t *testing.T) {
+	authHandler, auth := setupAuthServicer(t)
+	q := authHandler.q
+	ctx := context.Background()
+	owner, err := auth.Signup(ctx, "private_photo_owner", "password123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outsider, err := auth.Signup(ctx, "private_photo_outsider", "password123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userSvc := service.NewUser(q, nil, nil, auth, nil)
+	groupSvc := service.NewGroup(q, nil, userSvc)
+	group, err := groupSvc.Create(ctx, service.CreateGroupInput{
+		Name: "private_photo_group", Visibility: 1, GroupAdmin: owner.UserID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, err := service.NewPin(q, nil).Create(ctx, service.CreatePinInput{
+		Latitude: 1, Longitude: 1, CreationDate: time.Now(), UserID: owner.UserID, GroupID: group.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	photoID := uuid.New()
+	if err := q.CreatePinPhoto(ctx, db.PinPhoto{
+		ID: photoID, PinID: pin.ID, ContributorID: &owner.UserID,
+		ContributorUsername: "private_photo_owner", ImageKey: "test/" + photoID.String(),
+		ObservedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	likes := NewLikesServicer(service.NewLike(q), service.NewGuard(q))
+	outsiderCtx := middleware.WithUser(ctx, outsider.UserID, middleware.RoleUser)
+	response, err := likes.GetPinLikes(outsiderCtx, photoID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("outsider status = %d, want 403", response.Code)
+	}
+	ownerCtx := middleware.WithUser(ctx, owner.UserID, middleware.RoleUser)
+	response, err = likes.GetPinLikes(ownerCtx, photoID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK {
+		t.Fatalf("owner status = %d, want 200", response.Code)
 	}
 }

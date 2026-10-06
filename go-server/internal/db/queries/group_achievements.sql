@@ -34,7 +34,16 @@ SELECT
      ) qualified_contributors) AS contributors_five_pins,
     (SELECT COUNT(DISTINCT m.user_id)::int
      FROM members m
-     WHERE m.group_id = $1 AND m.is_deleted = FALSE AND m.user_id IS NOT NULL) AS members;
+     WHERE m.group_id = $1 AND m.is_deleted = FALSE AND m.user_id IS NOT NULL) AS members,
+    (SELECT COUNT(*)::int
+     FROM pin_photos pp
+     JOIN pins p ON p.id = pp.pin_id
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE
+       AND pp.is_original = FALSE) AS photo_updates,
+    (SELECT COUNT(DISTINCT report.pin_id)::int
+     FROM pin_gone_reports report
+     JOIN pins p ON p.id = report.pin_id
+     WHERE p.group_id = $1 AND p.is_deleted = FALSE) AS gone_pins;
 
 -- name: ListGroupAchievementClaims :many
 SELECT achievement_id
@@ -69,6 +78,17 @@ WITH claimed AS (
             SELECT COUNT(DISTINCT m.user_id) FROM members m
             WHERE m.group_id = sqlc.arg(group_id)
               AND m.is_deleted = FALSE AND m.user_id IS NOT NULL
+        )
+        WHEN 'photo_updates' THEN (
+            SELECT COUNT(*) FROM pin_photos pp
+            JOIN pins p ON p.id = pp.pin_id
+            WHERE p.group_id = sqlc.arg(group_id) AND p.is_deleted = FALSE
+              AND pp.is_original = FALSE
+        )
+        WHEN 'gone_pins' THEN (
+            SELECT COUNT(DISTINCT report.pin_id) FROM pin_gone_reports report
+            JOIN pins p ON p.id = report.pin_id
+            WHERE p.group_id = sqlc.arg(group_id) AND p.is_deleted = FALSE
         )
         ELSE 0
     END >= sqlc.arg(threshold)::integer

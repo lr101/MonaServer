@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
@@ -158,6 +159,10 @@ class PendingPinUploader {
       if (!isCurrent()) return null;
       await images.addImage(synced.pinId, row.image, true);
       if (synced.pinId != row.pinId) await images.delete(row.pinId);
+      if (!isCurrent()) return null;
+      await ref
+          .read(userPinsRepositoryProvider)
+          .replacePinIdWithUploaded(owner, row.pinId, synced.pinId);
       if (!isCurrent()) return null;
       await pending.remove(row.pinId);
       unawaited(

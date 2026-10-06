@@ -175,6 +175,48 @@ enum Achievement {
     "Receive 1,000 likes on your sticks.",
     "assets/achievements/art.jpeg",
     Colors.red,
+  ),
+  photoRefresher(
+    24,
+    "Refresher",
+    "Add a photo update to a stick.",
+    "assets/achievements/fresh.jpeg",
+    Colors.teal,
+  ),
+  photoChronicler(
+    25,
+    "Chronicler",
+    "Add 10 photo updates.",
+    "assets/achievements/photography.jpeg",
+    Colors.deepOrange,
+  ),
+  photoArchivist(
+    26,
+    "Archivist",
+    "Add 50 photo updates.",
+    "assets/achievements/amazing.jpeg",
+    Colors.deepPurple,
+  ),
+  goneSpotter(
+    27,
+    "Spotter",
+    "Mark a stick as gone.",
+    "assets/achievements/local-contributor.jpeg",
+    Colors.teal,
+  ),
+  goneCaretaker(
+    28,
+    "Caretaker",
+    "Mark 10 sticks as gone.",
+    "assets/achievements/regional-hero.jpeg",
+    Colors.deepOrange,
+  ),
+  goneSteward(
+    29,
+    "Steward",
+    "Mark 50 sticks as gone.",
+    "assets/achievements/country-hero.jpeg",
+    Colors.deepPurple,
   );
 
   const Achievement(

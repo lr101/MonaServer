@@ -10,6 +10,8 @@ class SquareImage extends ConsumerStatefulWidget {
   final String pinId;
   final String? imageBlurhash;
   final String groupId;
+  final String? photoUrl;
+  final String? photoId;
   final int index;
   final Function(int index) onTap;
 
@@ -19,6 +21,8 @@ class SquareImage extends ConsumerStatefulWidget {
     this.imageBlurhash,
     required this.index,
     required this.groupId,
+    this.photoUrl,
+    this.photoId,
     required this.onTap,
   });
 
@@ -32,18 +36,35 @@ class _SquareImageState extends ConsumerState<SquareImage> {
   @override
   void initState() {
     super.initState();
-    _imageFuture = _fetchThumbnail();
+    _imageFuture = _fetchImage();
   }
 
   @override
   void didUpdateWidget(covariant SquareImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.pinId != widget.pinId) {
-      _imageFuture = _fetchThumbnail();
+    if (oldWidget.pinId != widget.pinId ||
+        oldWidget.photoUrl != widget.photoUrl ||
+        oldWidget.photoId != widget.photoId) {
+      _imageFuture = _fetchImage();
     }
   }
 
-  Future<Uint8List?> _fetchThumbnail() async {
+  Future<Uint8List?> _fetchImage() async {
+    final photoUrl = widget.photoUrl;
+    if (photoUrl != null) {
+      final photoId = widget.photoId;
+      if (photoId == null) return null;
+      try {
+        final bytes = await ref
+            .read(pinImageRepositoryProvider)
+            .fetchImageFromUrl(photoId, photoUrl, false);
+        return bytes != null && bytes.isNotEmpty ? bytes : null;
+      } catch (_) {
+        // A direct network image below still gives the update a chance to load.
+        return null;
+      }
+    }
+
     final thumbnailRepository = ref.read(pinThumbnailRepositoryProvider);
     final fullImageRepository = ref.read(pinImageRepositoryProvider);
     try {
@@ -56,8 +77,15 @@ class _SquareImageState extends ConsumerState<SquareImage> {
       // Keep the pin visible when thumbnail generation or delivery fails.
     }
 
-    final fullImage = await fullImageRepository.fetchImage(widget.pinId, false);
-    return fullImage != null && fullImage.isNotEmpty ? fullImage : null;
+    try {
+      final fullImage = await fullImageRepository.fetchImage(
+        widget.pinId,
+        false,
+      );
+      return fullImage != null && fullImage.isNotEmpty ? fullImage : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -68,9 +96,12 @@ class _SquareImageState extends ConsumerState<SquareImage> {
         builder: (context, snapshot) {
           final isReady = snapshot.connectionState == ConnectionState.done;
           final image = isReady ? snapshot.data : null;
+          final showNetworkFallback =
+              widget.photoUrl != null && (widget.photoId == null || isReady);
+          final canOpen = image != null || showNetworkFallback;
 
           return GestureDetector(
-            onTap: image == null ? null : () => widget.onTap(widget.index),
+            onTap: canOpen ? () => widget.onTap(widget.index) : null,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -96,14 +127,27 @@ class _SquareImageState extends ConsumerState<SquareImage> {
                                   : 0,
                               child: child,
                             ),
+                  )
+                else if (showNetworkFallback)
+                  Image.network(
+                    widget.photoUrl!,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => _unavailableImage(),
+                    frameBuilder:
+                        (context, child, frame, wasSynchronouslyLoaded) =>
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              opacity: wasSynchronouslyLoaded || frame != null
+                                  ? 1
+                                  : 0,
+                              child: child,
+                            ),
                   ),
-                if (isReady && image == null && widget.imageBlurhash == null)
-                  const ColoredBox(
-                    color: Colors.black12,
-                    child: Center(
-                      child: Icon(Icons.image_not_supported_outlined),
-                    ),
-                  ),
+                if (isReady && image == null && !showNetworkFallback)
+                  _unavailableImage(),
               ],
             ),
           );
@@ -111,4 +155,9 @@ class _SquareImageState extends ConsumerState<SquareImage> {
       ),
     );
   }
+
+  Widget _unavailableImage() => const ColoredBox(
+    color: Colors.black12,
+    child: Center(child: Icon(Icons.image_not_supported_outlined)),
+  );
 }

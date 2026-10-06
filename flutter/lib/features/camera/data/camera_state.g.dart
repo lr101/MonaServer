@@ -40,7 +40,7 @@ final class CameraIndexProvider extends $NotifierProvider<CameraIndex, int> {
   }
 }
 
-String _$cameraIndexHash() => r'1586261879e9dbbace237e964af490a507397937';
+String _$cameraIndexHash() => r'8a0eaa3268d0232e1a7e5c39dc50dcf79ec4ce96';
 
 abstract class _$CameraIndex extends $Notifier<int> {
   int build();
@@ -84,7 +84,7 @@ final class CameraValuesProvider
   CameraValues create() => CameraValues();
 }
 
-String _$cameraValuesHash() => r'52a21170a1267379621b67872fc9ff5d1b615790';
+String _$cameraValuesHash() => r'f08c714f77d9d8cb05fe54ab17f627181cae3e86';
 
 abstract class _$CameraValues extends $AsyncNotifier<CameraState> {
   FutureOr<CameraState> build();
@@ -141,7 +141,7 @@ final class CameraControllerProvider
   }
 }
 
-String _$cameraControllerHash() => r'babeccea41cd9c8976ba0f674841adbd0548ab87';
+String _$cameraControllerHash() => r'60cc285a1211d7e40f8ec8eb75c0640d42fd4ed4';
 
 @ProviderFor(CameraGroupIndex)
 final cameraGroupIndexProvider = CameraGroupIndexProvider._();
@@ -175,7 +175,7 @@ final class CameraGroupIndexProvider
   }
 }
 
-String _$cameraGroupIndexHash() => r'c4af013786fcd5c4ccd6b06e8abc6500005a9107';
+String _$cameraGroupIndexHash() => r'd75b1e9bd1a665a05a1153cefc52f6a37569bf3b';
 
 abstract class _$CameraGroupIndex extends $Notifier<int> {
   int build();
@@ -233,7 +233,7 @@ final class CameraSelectedGroupProvider
 }
 
 String _$cameraSelectedGroupHash() =>
-    r'25fe15f4c2b72eebd84a4523a311324e0d5cae5f';
+    r'c78a5f88963363bfd5bdd6bc9a5a4541681c448b';
 
 @ProviderFor(CameraCapturing)
 final cameraCapturingProvider = CameraCapturingProvider._();

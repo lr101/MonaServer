@@ -274,7 +274,7 @@ func (s *PinsServicer) SetPinPresence(ctx context.Context, pinID string, request
 	if !visible {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	if err := s.pin.SetGone(ctx, id, isGone); err != nil {
+	if err := s.pin.SetGone(ctx, id, userID, isGone); err != nil {
 		return serviceErrResp(ctx, err), nil
 	}
 	result, err := s.pin.Get(ctx, id)

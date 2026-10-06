@@ -29,6 +29,12 @@ void main() {
       21,
       22,
       23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
     ];
 
     for (final id in activeIds) {
@@ -54,5 +60,21 @@ void main() {
       const MaterialApp(home: Scaffold(body: Batch(batchId: 11))),
     );
     expect(find.byKey(const ValueKey('capstone-badge-mark')), findsNothing);
+  });
+
+  testWidgets('photo update and gone pin badges have legendary capstones', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(children: [Batch(batchId: 26), Batch(batchId: 29)]),
+        ),
+      ),
+    );
+
+    expect(find.text('Archivist'), findsOneWidget);
+    expect(find.text('Steward'), findsOneWidget);
+    expect(find.byKey(const ValueKey('capstone-badge-mark')), findsNWidgets(2));
   });
 }

@@ -137,12 +137,18 @@ SELECT COUNT(*)::bigint FROM members WHERE group_id = $1;
 
 -- name: GetGroupRanking :many
 SELECT m.user_id, u.username, u.selected_batch_color,
-       COUNT(pg.creator_id)::int AS points,
+       COUNT(pg.user_id)::int AS points,
        ua.achievement_id
 FROM members m
 LEFT JOIN (
-    SELECT p.id, p.creator_id FROM pins p WHERE p.group_id = $1 AND p.is_deleted = FALSE
-) AS pg ON pg.creator_id = m.user_id
+    SELECT p.group_id, p.creator_id AS user_id
+    FROM pins p WHERE p.group_id = $1 AND p.is_deleted = FALSE
+    UNION ALL
+    SELECT p.group_id, pp.contributor_id AS user_id
+    FROM pin_photos pp JOIN pins p ON p.id = pp.pin_id
+    WHERE p.group_id = $1 AND p.is_deleted = FALSE
+      AND pp.is_original = FALSE AND pp.contributor_id IS NOT NULL
+) AS pg ON pg.group_id = m.group_id AND pg.user_id = m.user_id
 JOIN users u ON u.id = m.user_id
 LEFT JOIN user_achievement ua ON u.selected_batch = ua.id
     AND ua.claimed = TRUE
