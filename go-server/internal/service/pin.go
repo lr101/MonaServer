@@ -353,21 +353,50 @@ func (s *Pin) ThumbnailImageURL(ctx context.Context, id uuid.UUID) (*string, err
 	}
 	imageKey := PinKey(id)
 	thumbnailKey := PinThumbnailKey(imageKey)
-	existingThumbnail, exists, err := s.obj.GetIfExists(ctx, thumbnailKey)
+	thumbnail, available, _, err := s.ensurePinThumbnail(ctx, id, imageKey, false)
 	if err != nil {
 		return nil, err
 	}
+	if !available {
+		return nil, nil
+	}
+	s.ensureImageBlurhash(ctx, id, thumbnail)
+	return s.imageURLForKey(ctx, thumbnailKey)
+}
+
+// BackfillThumbnail creates a missing thumbnail for an existing pin image.
+// It returns (created, available), skipping pins deleted during the backfill.
+func (s *Pin) BackfillThumbnail(ctx context.Context, pinID uuid.UUID, imageKey string) (created, available bool, err error) {
+	if s.obj == nil {
+		return false, false, nil
+	}
+	thumbnail, available, created, err := s.ensurePinThumbnail(ctx, pinID, imageKey, true)
+	if err != nil {
+		return false, false, err
+	}
+	if available && imageKey == PinKey(pinID) {
+		s.ensureImageBlurhash(ctx, pinID, thumbnail)
+	}
+	return created, available, nil
+}
+
+func (s *Pin) ensurePinThumbnail(ctx context.Context, pinID uuid.UUID, imageKey string, ignoreMissingPin bool) ([]byte, bool, bool, error) {
+	thumbnailKey := PinThumbnailKey(imageKey)
+	existingThumbnail, exists, err := s.obj.GetIfExists(ctx, thumbnailKey)
+	if err != nil {
+		return nil, false, false, err
+	}
 	if exists {
-		s.ensureImageBlurhash(ctx, id, existingThumbnail)
-		return s.imageURLForKey(ctx, thumbnailKey)
+		return existingThumbnail, true, false, nil
 	}
 	if err := s.q.StageObjectCleanup(ctx, thumbnailKey); err != nil {
-		return nil, err
+		return nil, false, false, err
 	}
 	var available bool
+	var created bool
 	var thumbnail []byte
 	err = s.q.InTx(ctx, func(q *db.Queries) error {
-		locked, err := q.LockPinForDelete(ctx, id)
+		locked, err := q.LockPinForDelete(ctx, pinID)
 		if err != nil {
 			return err
 		}
@@ -379,18 +408,24 @@ func (s *Pin) ThumbnailImageURL(ctx context.Context, id uuid.UUID) (*string, err
 			return err
 		}
 		if !staged {
-			if _, exists, err := s.obj.GetIfExists(ctx, thumbnailKey); err != nil {
+			existing, exists, err := s.obj.GetIfExists(ctx, thumbnailKey)
+			if err != nil {
 				return err
-			} else if exists {
+			}
+			if exists {
 				available = true
+				thumbnail = existing
 				return nil
 			}
 			return apperrors.ErrUnavailable
 		}
-		if _, exists, err := s.obj.GetIfExists(ctx, thumbnailKey); err != nil {
+		existing, exists, err := s.obj.GetIfExists(ctx, thumbnailKey)
+		if err != nil {
 			return err
-		} else if exists {
+		}
+		if exists {
 			available = true
+			thumbnail = existing
 			return q.DeletePendingObjectCleanup(ctx, thumbnailKey)
 		}
 		original, exists, err := s.obj.GetIfExists(ctx, imageKey)
@@ -408,19 +443,19 @@ func (s *Pin) ThumbnailImageURL(ctx context.Context, id uuid.UUID) (*string, err
 			return err
 		}
 		available = true
+		created = true
 		return q.DeletePendingObjectCleanup(ctx, thumbnailKey)
 	})
 	if err != nil {
 		if readyErr := s.releaseStagedObjectCleanup(ctx, thumbnailKey); readyErr != nil {
-			return nil, errors.Join(err, readyErr)
+			return nil, false, false, errors.Join(err, readyErr)
 		}
-		return nil, err
+		if ignoreMissingPin && errors.Is(err, apperrors.ErrNotFound) {
+			return nil, false, false, nil
+		}
+		return nil, false, false, err
 	}
-	if !available {
-		return nil, nil
-	}
-	s.ensureImageBlurhash(ctx, id, thumbnail)
-	return s.imageURLForKey(ctx, thumbnailKey)
+	return thumbnail, available, created, nil
 }
 
 // ensureImageBlurhash backfills placeholders for images created before the
