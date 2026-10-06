@@ -14,9 +14,10 @@ import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class ImageGrid extends ConsumerStatefulWidget {
-  const ImageGrid({super.key, required this.pinProvider});
+  const ImageGrid({super.key, required this.pinProvider, this.onTap});
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
+  final ValueChanged<int>? onTap;
 
   @override
   ConsumerState<ImageGrid> createState() => _ImageGridState();
@@ -27,8 +28,6 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     firstPageKey: 0,
     invisibleItemsThreshold: 12,
   );
-  final ScrollController _scrollController = ScrollController();
-
   static const int _pageSize = 18;
   static const int _prefetchCount = 6;
   static const int _columns = 3;
@@ -41,6 +40,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   double _tileLogicalWidth = 120;
   double _devicePixelRatio = 1;
   int? _lastPrefetchCacheWidth;
+  ScrollMetrics? _lastScrollMetrics;
   ScrollDirection _lastScrollDirection = ScrollDirection.reverse;
 
   bool isInitial = true;
@@ -51,7 +51,6 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     super.initState();
     _pageRequestListener = (pageKey) => unawaited(_fetchPage(pageKey));
     _pagingController.addPageRequestListener(_pageRequestListener);
-    _scrollController.addListener(_handleGridScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _applyProviderValue(ref.read(widget.pinProvider));
@@ -62,8 +61,6 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   void dispose() {
     _thumbnailPrefetchTargets.clear();
     _thumbnailPrefetchCoordinator?.cancelWindow(this);
-    _scrollController.removeListener(_handleGridScroll);
-    _scrollController.dispose();
     _pagingController.removePageRequestListener(_pageRequestListener);
     _pagingController.dispose();
     super.dispose();
@@ -88,48 +85,60 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         _devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
         if (oldCacheWidth != _prefetchCacheWidth) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _updatePrefetchWindowForScroll();
+            if (!mounted) return;
+            final metrics = _lastScrollMetrics;
+            if (metrics != null) _updatePrefetchWindowForMetrics(metrics);
           });
         }
         final cacheExtent = constraints.maxHeight.isFinite
             ? constraints.maxHeight * 0.5
             : 400.0;
 
-        return PagedGridView<int, PinEntity>(
-          pagingController: _pagingController,
-          scrollController: _scrollController,
-          padding: padding,
-          cacheExtent: cacheExtent,
-          showNewPageProgressIndicatorAsGridChild: false,
-          builderDelegate: PagedChildBuilderDelegate<PinEntity>(
-            itemBuilder: (context, item, index) => SquareImage(
-              pinId: item.pinId,
-              imageBlurhash: item.imageBlurhash,
-              photoUrl: item.photoUrl,
-              photoThumbnailUrl: item.photoThumbnailUrl,
-              photoId: item.photoId,
-              index: index,
-              groupId: item.groupId,
-              onTap: (index) => context.pushNamed(
-                "viewImage",
-                pathParameters: {"id": item.pinId},
-                queryParameters: item.photoId == null
-                    ? {}
-                    : {"photo": item.photoId},
+        return NotificationListener<ScrollNotification>(
+          onNotification: _handleGridScroll,
+          child: PagedGridView<int, PinEntity>(
+            pagingController: _pagingController,
+            primary: true,
+            padding: padding,
+            cacheExtent: cacheExtent,
+            showNewPageProgressIndicatorAsGridChild: false,
+            builderDelegate: PagedChildBuilderDelegate<PinEntity>(
+              itemBuilder: (context, item, index) => SquareImage(
+                pinId: item.pinId,
+                imageBlurhash: item.imageBlurhash,
+                photoUrl: item.photoUrl,
+                photoThumbnailUrl: item.photoThumbnailUrl,
+                photoId: item.photoId,
+                index: index,
+                groupId: item.groupId,
+                onTap: (index) {
+                  final onTap = widget.onTap;
+                  if (onTap != null) {
+                    onTap(index);
+                    return;
+                  }
+                  context.pushNamed(
+                    "viewImage",
+                    pathParameters: {"id": item.pinId},
+                    queryParameters: item.photoId == null
+                        ? {}
+                        : {"photo": item.photoId},
+                  );
+                },
+              ),
+              noItemsFoundIndicatorBuilder: (context) => Center(
+                child: isInitial
+                    ? const CircularProgressIndicator()
+                    : _errorMessage != null
+                    ? Text(_errorMessage!)
+                    : const Text("No images found"),
               ),
             ),
-            noItemsFoundIndicatorBuilder: (context) => Center(
-              child: isInitial
-                  ? const CircularProgressIndicator()
-                  : _errorMessage != null
-                  ? Text(_errorMessage!)
-                  : const Text("No images found"),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _columns,
+              crossAxisSpacing: _crossAxisSpacing,
+              mainAxisSpacing: _crossAxisSpacing,
             ),
-          ),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _columns,
-            crossAxisSpacing: _crossAxisSpacing,
-            mainAxisSpacing: _crossAxisSpacing,
           ),
         );
       },
@@ -209,29 +218,33 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     );
   }
 
-  void _handleGridScroll() {
-    if (!_scrollController.hasClients) return;
-    final direction = _scrollController.position.userScrollDirection;
-    if (direction != ScrollDirection.idle) {
-      _lastScrollDirection = direction;
+  bool _handleGridScroll(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    _lastScrollMetrics = notification.metrics;
+    if (notification is UserScrollNotification &&
+        notification.direction != ScrollDirection.idle) {
+      _lastScrollDirection = notification.direction;
     }
-    _updatePrefetchWindowForScroll();
+    if (notification is ScrollUpdateNotification ||
+        notification is UserScrollNotification) {
+      _updatePrefetchWindowForMetrics(notification.metrics);
+    }
+    return false;
   }
 
-  void _updatePrefetchWindowForScroll() {
-    if (!mounted || !_scrollController.hasClients) return;
+  void _updatePrefetchWindowForMetrics(ScrollMetrics metrics) {
+    if (!mounted) return;
     final loadedPins = _pagingController.itemList ?? const <PinEntity>[];
     if (loadedPins.isEmpty) return;
 
-    final position = _scrollController.position;
     final topPadding = MediaQuery.paddingOf(context).top;
     final rowExtent = _tileLogicalWidth + _crossAxisSpacing;
-    final contentOffset = (position.pixels - topPadding).clamp(
+    final contentOffset = (metrics.pixels - topPadding).clamp(
       0.0,
       double.infinity,
     );
     final firstVisibleRow = (contentOffset / rowExtent).floor();
-    final visibleRowCount = (position.viewportDimension / rowExtent).ceil();
+    final visibleRowCount = (metrics.viewportDimension / rowExtent).ceil();
     final lastLoadedRow = (loadedPins.length - 1) ~/ _columns;
     final firstPrefetchRow = _lastScrollDirection == ScrollDirection.forward
         ? (firstVisibleRow - 2).clamp(0, lastLoadedRow)

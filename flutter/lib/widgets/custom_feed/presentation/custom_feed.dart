@@ -21,12 +21,14 @@ class CustomFeed extends ConsumerStatefulWidget {
     this.index,
     required this.pagingController,
     this.scrollController,
+    this.thumbnailsOnly = false,
   });
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
   final PagingController<int, PinEntity> pagingController;
   final int? index;
   final ScrollController? scrollController;
+  final bool thumbnailsOnly;
 
   @override
   ConsumerState<CustomFeed> createState() => _CustomFeedState();
@@ -108,7 +110,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
           child: ProviderScope(
             key: ValueKey(item.entryId),
             overrides: [feedItemProvider.overrideWithValue(item)],
-            child: const FeedCard(),
+            child: FeedCard(thumbnailsOnly: widget.thumbnailsOnly),
           ),
         ),
       ),
@@ -129,7 +131,9 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         // Hydrate metadata while the page is assembled. Object bytes remain
         // lazy and are fetched only by the image widget that needs them.
         if (!pin.isPhotoUpdate) {
-          _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+          if (!widget.thumbnailsOnly) {
+            _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+          }
           _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
         }
         _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
@@ -218,7 +222,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final coalescer = ref.read(batchReadCoalescerProvider);
     final pins = _pins.getRange(start, end).toList(growable: false);
     for (final pin in pins) {
-      if (!pin.isPhotoUpdate) {
+      if (!pin.isPhotoUpdate && !widget.thumbnailsOnly) {
         _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
       }
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
