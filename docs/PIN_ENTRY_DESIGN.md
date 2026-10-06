@@ -14,7 +14,9 @@ locations.
 
 User Images and Group Images lists show only a thumbnail for each photo entry,
 without the author overlay, likes row, title, or description. The thumbnail is
-clickable and opens pin details with the tapped photo selected.
+clickable and opens pin details with the tapped photo selected. Selecting a
+photo in a Profile Pins or Group Pins grid opens the corresponding image list
+at that entry.
 
 ## Main-feed image card
 

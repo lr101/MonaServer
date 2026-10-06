@@ -144,10 +144,11 @@ an existing implementation, a deliberate design choice, and a proposed fix.
 The main Feed and pin details use the photo layout described in
 [Pin photos and updates](../docs/PIN_ENTRY_DESIGN.md) (6 October 2026). The
 User Images and Group Images lists show each entry as a tappable thumbnail;
-tapping it opens pin details with that photo selected. Show full photographs
-in the main Feed and pin details using contain fitting, with contributor,
-group, date, caption and photo-specific likes below the image. Keep map
-previews behind an explicit control.
+tapping it opens pin details with that photo selected. Selecting a photo in a
+Profile Pins or Group Pins grid opens the corresponding image list at that
+entry. Show full photographs in the main Feed and pin details using contain
+fitting, with contributor, group, date, caption and photo-specific likes below
+the image. Keep map previews behind an explicit control.
 
 Main Feed image cards retain the established top overlay with contributor and
 group identity. Place the overlapping user and group profile pictures at its

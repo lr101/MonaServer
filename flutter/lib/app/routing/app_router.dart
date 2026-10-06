@@ -11,13 +11,16 @@ import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/features/email_login/presentation/email_login_screens.dart';
 import 'package:buff_lisa/features/group_create/presentation/group_create.dart';
 import 'package:buff_lisa/features/group_edit/presentation/group_edit.dart';
+import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_image_feed.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/features/group_search/presentation/group_search.dart';
 import 'package:buff_lisa/features/map_home/presentation/osm_copyright.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/navigation/presentation/navigation.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
 import 'package:buff_lisa/features/profile/presentation/other_user_profile.dart';
+import 'package:buff_lisa/features/profile/presentation/user_image_feed.dart';
 import 'package:buff_lisa/features/profile/presentation/user_profile.dart';
 import 'package:buff_lisa/features/settings/presentation/settings.dart';
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/change_email.dart';
@@ -303,6 +306,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/groups/:id/images/:index',
+        name: 'groupImageFeed',
+        builder: (context, state) => GroupImageFeed(
+          groupId: state.pathParameters['id']!,
+          index: int.tryParse(state.pathParameters['index'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
         path: '/groups/:id/edit', // Passing DTO via extra
         name: 'groupEdit',
         builder: (context, state) =>
@@ -315,6 +326,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'userProfile',
         builder: (context, state) =>
             OtherUserProfile(userId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/users/:id/images/:index',
+        name: 'userImageFeed',
+        builder: (context, state) {
+          final userId = state.pathParameters['id']!;
+          return UserImageFeed(
+            userId: userId,
+            index: int.tryParse(state.pathParameters['index'] ?? '') ?? 0,
+            userPinNotifier: userPinEntriesProvider(userId),
+          );
+        },
       ),
 
       // --- PINS / IMAGES ---
