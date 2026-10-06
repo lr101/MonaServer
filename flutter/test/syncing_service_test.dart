@@ -210,6 +210,7 @@ void main() {
       final f = await _fixture(recordProfileImages: true);
       final imageBytes = Completer<Uint8List?>();
       f.profileImages!.imageResponse = imageBytes;
+      f.profileThumbnailImages!.imageResponse = imageBytes;
       f.api.profilePins = [
         PinWithOptionalImageDto(
           id: 'updated-location',
@@ -227,6 +228,7 @@ void main() {
           contributorId: 'alice',
           contributorUsername: 'Alice',
           image: 'https://example.test/update.png',
+          imageThumbnail: 'https://example.test/update-small.png',
           observedAt: DateTime.utc(2026, 2),
           isOriginal: false,
         ),
@@ -235,19 +237,28 @@ void main() {
       final sync = f.container
           .read(syncingServiceProvider.notifier)
           .syncToBackend();
-      await f.profileImages!.imageRequestStarted.future.timeout(
-        const Duration(seconds: 5),
-      );
+      await Future.any([
+        f.profileImages!.imageRequestStarted.future,
+        f.profileThumbnailImages!.imageRequestStarted.future,
+      ]).timeout(const Duration(seconds: 5));
       expect(
         await f.container.read(userPinsRepositoryProvider).get('alice'),
         isNull,
       );
-      expect(f.profileImages!.imageUrls, {
-        'update-photo': 'https://example.test/update.png',
-      });
+      final thumbnailRequests = Map.of(f.profileThumbnailImages!.imageUrls);
+      final thumbnailFallbacks = Map.of(
+        f.profileThumbnailImages!.endpointFallbacks,
+      );
+      final fullImageRequests = Map.of(f.profileImages!.imageUrls);
 
       imageBytes.complete(Uint8List.fromList([1, 2, 3]));
       await sync;
+
+      expect(thumbnailRequests, {
+        'photo:update-photo': 'https://example.test/update-small.png',
+      });
+      expect(thumbnailFallbacks, {'photo:update-photo': false});
+      expect(fullImageRequests, isEmpty);
       expect(
         (await f.container.read(userPinsRepositoryProvider).get('alice'))?.pins,
         ['updated-location'],
@@ -877,6 +888,7 @@ Future<
     _Groups groups,
     PendingPinRepository pending,
     _RecordingProfileImageRepository? profileImages,
+    _RecordingProfileImageRepository? profileThumbnailImages,
   })
 >
 _fixture({
@@ -895,7 +907,10 @@ _fixture({
       ? _DelayedCancelRepository(db)
       : PendingPinRepository(db);
   final profileImages = recordProfileImages
-      ? _RecordingProfileImageRepository(db)
+      ? _RecordingProfileImageRepository(db, ImageType.pin)
+      : null;
+  final profileThumbnailImages = recordProfileImages
+      ? _RecordingProfileImageRepository(db, ImageType.pinThumbnail)
       : null;
   final container = ProviderContainer(
     overrides: [
@@ -911,6 +926,10 @@ _fixture({
         ),
       if (profileImages != null)
         pinImageRepositoryProvider.overrideWithValue(profileImages),
+      if (profileThumbnailImages != null)
+        pinThumbnailRepositoryProvider.overrideWithValue(
+          profileThumbnailImages,
+        ),
       globalDataOnceProvider.overrideWithValue(
         const GlobalDataDto(
           userId: 'alice',
@@ -933,14 +952,16 @@ _fixture({
     groups: groups,
     pending: pending,
     profileImages: profileImages,
+    profileThumbnailImages: profileThumbnailImages,
   );
 }
 
 class _RecordingProfileImageRepository extends ImageRepository {
-  _RecordingProfileImageRepository(AppDatabase db)
-    : super(db: db, getImageUrl: (_) async => null, type: ImageType.pin);
+  _RecordingProfileImageRepository(AppDatabase db, ImageType type)
+    : super(db: db, getImageUrl: (_) async => null, type: type);
 
   final imageUrls = <String, String>{};
+  final endpointFallbacks = <String, bool>{};
   final imageRequestStarted = Completer<void>();
   Completer<Uint8List?>? imageResponse;
 
@@ -952,6 +973,7 @@ class _RecordingProfileImageRepository extends ImageRepository {
     bool fallbackToEndpoint = true,
   }) {
     imageUrls[id] = url;
+    endpointFallbacks[id] = fallbackToEndpoint;
     if (!imageRequestStarted.isCompleted) imageRequestStarted.complete();
     return imageResponse?.future ?? Future.value(Uint8List.fromList([1]));
   }

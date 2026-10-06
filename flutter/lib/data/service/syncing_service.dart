@@ -371,27 +371,43 @@ class SyncingService extends _$SyncingService {
     required Map<String, List<PinPhotoDto>> historiesByPin,
     required bool Function() isCurrent,
   }) async {
-    final candidates = <String, ({String url, DateTime date})>{};
+    final thumbnailRepository = ref.read(pinThumbnailRepositoryProvider);
+    final imageRepository = ref.read(pinImageRepositoryProvider);
+    final candidates =
+        <
+          String,
+          ({
+            String url,
+            DateTime date,
+            IImageRepository repository,
+            bool fallbackToEndpoint,
+          })
+        >{};
     for (final pinId in pinIds) {
       final pin = pinsById[pinId];
       for (final photo in historiesByPin[pinId] ?? const <PinPhotoDto>[]) {
         final isOwnUpdate = !photo.isOriginal && photo.contributorId == userId;
         final isOwnOriginal = photo.isOriginal && pin?.creator == userId;
         final imageUrl = photo.image;
-        if ((!isOwnUpdate && !isOwnOriginal) ||
-            imageUrl == null ||
-            imageUrl.isEmpty) {
+        final thumbnailUrl = photo.imageThumbnail;
+        final hasThumbnail = thumbnailUrl?.isNotEmpty == true;
+        final url = hasThumbnail ? thumbnailUrl : imageUrl;
+        if ((!isOwnUpdate && !isOwnOriginal) || url == null || url.isEmpty) {
           continue;
         }
-        final imageId = isOwnOriginal ? pinId : photo.id;
-        candidates[imageId] = (url: imageUrl, date: photo.observedAt);
+        final imageId = isOwnUpdate ? 'photo:${photo.id}' : pinId;
+        candidates[imageId] = (
+          url: url,
+          date: photo.observedAt,
+          repository: hasThumbnail ? thumbnailRepository : imageRepository,
+          fallbackToEndpoint: !isOwnUpdate,
+        );
       }
     }
     if (candidates.isEmpty || !isCurrent()) return;
 
     final ordered = candidates.entries.toList()
       ..sort((a, b) => b.value.date.compareTo(a.value.date));
-    final imageRepository = ref.read(pinImageRepositoryProvider);
     const pageSize = 18;
     const maxConcurrent = 6;
     for (
@@ -405,10 +421,11 @@ class SyncingService extends _$SyncingService {
         batch.map((entry) async {
           if (!isCurrent()) return;
           try {
-            await imageRepository.fetchImageFromUrl(
+            await entry.value.repository.fetchImageFromUrl(
               entry.key,
               entry.value.url,
               false,
+              fallbackToEndpoint: entry.value.fallbackToEndpoint,
             );
           } catch (_) {
             // Photo byte prefetch is best-effort; the stored URL remains usable.
