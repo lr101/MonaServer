@@ -98,6 +98,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           onNotification: _handleGridScroll,
           child: PagedGridView<int, PinEntity>(
             pagingController: _pagingController,
+            primary: true,
             padding: padding,
             cacheExtent: cacheExtent,
             showNewPageProgressIndicatorAsGridChild: false,
