@@ -141,28 +141,31 @@ an existing implementation, a deliberate design choice, and a proposed fix.
 
 ## Pin photo entries
 
-Feed and pin details share the photo metadata layout described in
-[Pin photos and updates](../docs/PIN_ENTRY_DESIGN.md) (4 October 2026).
-Show full photographs using contain fitting, with contributor, group, date,
-caption and photo-specific likes below the image. Keep map previews behind an
-explicit control.
+The main Feed and pin details use the photo layout described in
+[Pin photos and updates](../docs/PIN_ENTRY_DESIGN.md) (6 October 2026). The
+User Images and Group Images lists show each entry as a tappable thumbnail;
+tapping it opens pin details with that photo selected. Selecting a photo in a
+Profile Pins or Group Pins grid opens the corresponding image list at that
+entry. Show full photographs in the main Feed and pin details using contain
+fitting, with contributor, group, date, caption and photo-specific likes below
+the image. Keep map previews behind an explicit control.
 
-Pin image cards retain the established top overlay with contributor and group
-identity. Place the overlapping user and group profile pictures at its upper
-left, immediately before the profile name. Show the contributor badge without
-the user's level, and a place name when city, state, or country resolves; show
-coordinates only when none resolves. Keep update photos visually consistent
-with original photos; do not show an update label or icon in the feed. When
-multiple photos are available, show a centered dot progress indicator over the
-photo; swiping changes photos.
+Main Feed image cards retain the established top overlay with contributor and
+group identity. Place the overlapping user and group profile pictures at its
+upper left, immediately before the profile name. Show the contributor badge
+without the user's level, and a place name when city, state, or country
+resolves; show coordinates only when none resolves. Keep update photos
+visually consistent with original photos; do not show an update label or icon
+in the feed. When multiple photos are available, show a centered dot progress
+indicator over the photo; swiping changes photos.
 The map inset switches with the main view and is the visible way back to the
 photo while the map fills the card.
 Place likes, group name, and photo age under the image, followed by title and
-description. The attribution header reserves the same 48 px height in the feed
-and in pin details, even when the detail view hides the feed options menu. Pin
-details keep the selected photo, contributor, date, caption, photo navigation,
-and likes together. They do not show separate update or mark-gone buttons;
-photo updates and gone reports use the regular camera flow.
+description. The attribution header reserves the same 48 px height in the main
+feed and in pin details, even when the detail view hides the feed options menu.
+Pin details keep the selected photo, contributor, date, caption, photo
+navigation, and likes together. They do not show separate update or mark-gone
+buttons; photo updates and gone reports use the regular camera flow.
 
 Photo updates start in the regular camera approval screen. After capture, let
 people select a synced pin within 50 m from the selected group, or leave the

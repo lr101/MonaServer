@@ -55,6 +55,7 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
                 index: widget.index,
                 pagingController: pagingController,
                 scrollController: _scrollController,
+                thumbnailsOnly: true,
               ),
             ],
           );

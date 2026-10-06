@@ -14,6 +14,7 @@ import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/member_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class GroupOverview extends ConsumerStatefulWidget {
   const GroupOverview({
@@ -151,7 +152,13 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
                 const Center(child: Text("Ups something went wrong")),
             loading: () => const Center(child: CircularProgressIndicator()),
           ),
-          ImageGrid(pinProvider: groupPinEntriesProvider(widget.groupId)),
+          ImageGrid(
+            pinProvider: groupPinEntriesProvider(widget.groupId),
+            onTap: (index) => context.pushNamed(
+              'groupImageFeed',
+              pathParameters: {'id': widget.groupId, 'index': '$index'},
+            ),
+          ),
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [

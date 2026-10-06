@@ -85,6 +85,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
     return Scaffold(
       body: NestedScrollView(
         controller: controller,
+        floatHeaderSlivers: true,
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
             floating: true,
