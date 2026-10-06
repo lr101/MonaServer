@@ -9,6 +9,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'user_pins_repository.g.dart';
 
 abstract class IUserPinsRepository implements CacheApi<UserPinsEntity> {
+  Future<void> ensurePinIndexed(String userId, String pinId);
+
   Future<void> replacePinIdWithUploaded(
     String userId,
     String pendingPinId,
@@ -21,6 +23,42 @@ class UserPinsRepository extends CacheImpl<UserPinsEntity>
   final AppDatabase db;
 
   UserPinsRepository(this.db) : super(ttlDuration: const Duration(minutes: 10));
+
+  @override
+  Future<void> ensurePinIndexed(String userId, String pinId) async {
+    await ready;
+    await db.transaction(() async {
+      final row =
+          await (db.select(db.userPinsEntities)
+                ..where((entity) => entity.isarId.equals(cacheIdFor(userId))))
+              .getSingleOrNull();
+      final profile = row == null
+          ? UserPinsEntity(
+              userId: userId,
+              pins: const [],
+              keepAlive: true,
+              ttl: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+              onlySession: false,
+            )
+          : _fromDb(row);
+      if (profile.pins.contains(pinId)) return;
+
+      await db
+          .into(db.userPinsEntities)
+          .insertOnConflictUpdate(
+            _toCompanion(
+              UserPinsEntity(
+                userId: profile.userId,
+                pins: [...profile.pins, pinId],
+                keepAlive: profile.keepAlive,
+                hits: profile.hits,
+                ttl: profile.ttl,
+                onlySession: profile.onlySession,
+              ),
+            ),
+          );
+    });
+  }
 
   @override
   Future<void> replacePinIdWithUploaded(

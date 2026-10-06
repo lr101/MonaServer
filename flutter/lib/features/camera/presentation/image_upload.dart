@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
+import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
@@ -465,7 +467,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
           (request) => ref.read(pinApiProvider).addPinPhoto(pin.pinId, request),
         );
         try {
-          await _cacheUploadedPhotoHistory(pin.pinId, uploadedPhoto);
+          await _cacheSuccessfulPhotoUpdate(pin, uploadedPhoto);
         } catch (_) {
           // The server accepted the photo; profile cache refresh is best-effort.
         }
@@ -525,24 +527,36 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     _returnToFeed();
   }
 
-  Future<void> _cacheUploadedPhotoHistory(
-    String pinId,
+  Future<void> _cacheSuccessfulPhotoUpdate(
+    PinEntity pin,
     PinPhotoDto? uploadedPhoto,
   ) async {
     final repository = ref.read(pinPhotoHistoryRepositoryProvider);
+    final pinRepository = ref.read(pinRepositoryProvider);
+    final userPinsRepository = ref.read(userPinsRepositoryProvider);
+
     if (uploadedPhoto == null) {
-      final history = await ref.read(pinApiProvider).getPinPhotos(pinId);
-      if (history != null) await repository.putMultiple({pinId: history});
-      return;
+      final history = await ref.read(pinApiProvider).getPinPhotos(pin.pinId);
+      if (history != null) await repository.putMultiple({pin.pinId: history});
+    } else {
+      final cachedHistory = await repository.get(pin.pinId);
+      final photosById = <String, PinPhotoDto>{
+        for (final photo in cachedHistory?.photos ?? const <PinPhotoDto>[])
+          photo.id: photo,
+        uploadedPhoto.id: uploadedPhoto,
+      };
+      await repository.putMultiple({pin.pinId: photosById.values.toList()});
     }
 
-    final cachedHistory = await repository.get(pinId);
-    final photosById = <String, PinPhotoDto>{
-      for (final photo in cachedHistory?.photos ?? const <PinPhotoDto>[])
-        photo.id: photo,
-      uploadedPhoto.id: uploadedPhoto,
-    };
-    await repository.putMultiple({pinId: photosById.values.toList()});
+    final cachedPin = await pinRepository.get(pin.pinId);
+    await pinRepository.put(
+      (cachedPin ?? pin).copyWith(keepAlive: true, onlySession: false)
+          as PinEntity,
+    );
+    final userId = ref.read(userIdProvider);
+    if (userId.isNotEmpty) {
+      await userPinsRepository.ensurePinIndexed(userId, pin.pinId);
+    }
   }
 
   Future<void> _saveNewPin(String groupId) async {

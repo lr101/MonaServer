@@ -208,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   AccountSession? get session => null;
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -294,7 +294,7 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(pinEntities, pinEntities.imageBlurhash);
         }
       }
-      if (from < 9) {
+      if (from < 10) {
         await m.createTable(pinPhotoHistoryEntities);
       }
     },
