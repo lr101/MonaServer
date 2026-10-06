@@ -60,6 +60,7 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
                 index: widget.index,
                 pagingController: pagingController,
                 scrollController: _scrollController,
+                thumbnailsOnly: true,
               ),
             ],
           );

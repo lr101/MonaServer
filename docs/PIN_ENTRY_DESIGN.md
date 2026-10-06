@@ -1,6 +1,6 @@
 # Pin photos and updates
 
-Implemented design, 5 October 2026.
+Implemented design, 6 October 2026.
 
 ## Content model
 
@@ -10,7 +10,13 @@ date, caption, and photo-specific likes. The map continues to show one marker
 for the place. Personal sticks count photos; group sticks count distinct
 locations.
 
-## Image card
+## User and group image feeds
+
+User Images and Group Images lists show only a thumbnail for each photo entry,
+without the author overlay, likes row, title, or description. The thumbnail is
+clickable and opens pin details with the tapped photo selected.
+
+## Main-feed image card
 
 The established feed image card keeps its dark translucent attribution overlay
 at the top. It shows the photo author, the user's badge, and the place label.
