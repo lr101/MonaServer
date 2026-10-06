@@ -29,7 +29,9 @@ void main() {
     pinId: 'pin',
     latitude: 50.11,
     longitude: 8.68,
-    creationDate: DateTime.utc(2026, 10),
+    // The card renders relative age, so keep this fixture four days old at
+    // render time instead of letting the golden change with the calendar.
+    creationDate: DateTime.now().subtract(const Duration(days: 4)),
     creator: 'artist',
     contributorUsername: 'Mara',
     groupId: 'group',
