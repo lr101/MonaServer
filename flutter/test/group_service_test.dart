@@ -1445,8 +1445,9 @@ class _FakeImageRepository implements IImageRepository {
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async => null;
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async => null;
 
   @override
   Future<ImageEntity?> get(String id) async => null;

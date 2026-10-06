@@ -31,7 +31,7 @@ class SquareImage extends ConsumerWidget {
     final imageState = photoId == null
         ? ref.watch(pinGridImageBytesProvider(pinId))
         : ref.watch(
-            pinPhotoProgressiveImageBytesProvider((
+            pinPhotoThumbnailBytesProvider((
               photoId: photoId!,
               thumbnailUrl: photoThumbnailUrl,
               imageUrl: photoUrl,

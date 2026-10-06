@@ -234,6 +234,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                                       : _networkPhoto(
                                           context,
                                           updates[index - 1],
+                                          thumbnailOnly: true,
                                         ),
                                 ),
                               ),
@@ -315,7 +316,11 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
     );
   }
 
-  Widget _networkPhoto(BuildContext context, PinPhotoDto photo) {
+  Widget _networkPhoto(
+    BuildContext context,
+    PinPhotoDto photo, {
+    bool thumbnailOnly = false,
+  }) {
     if ((photo.image == null || photo.image!.isEmpty) &&
         (photo.imageThumbnail == null || photo.imageThumbnail!.isEmpty)) {
       return _unavailablePhoto(context);
@@ -323,13 +328,15 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
 
     return Consumer(
       builder: (context, ref, _) {
-        final imageState = ref.watch(
-          pinPhotoProgressiveImageBytesProvider((
-            photoId: photo.id,
-            thumbnailUrl: photo.imageThumbnail,
-            imageUrl: photo.image,
-          )),
+        final photoImage = (
+          photoId: photo.id,
+          thumbnailUrl: photo.imageThumbnail,
+          imageUrl: photo.image,
         );
+        final imageProvider = thumbnailOnly
+            ? pinPhotoThumbnailBytesProvider(photoImage)
+            : pinPhotoProgressiveImageBytesProvider(photoImage);
+        final imageState = ref.watch(imageProvider);
         final bytes = imageState.value;
         return LayoutBuilder(
           builder: (context, constraints) {

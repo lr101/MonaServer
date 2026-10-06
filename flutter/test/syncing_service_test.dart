@@ -945,7 +945,12 @@ class _RecordingProfileImageRepository extends ImageRepository {
   Completer<Uint8List?>? imageResponse;
 
   @override
-  Future<Uint8List?> fetchImageFromUrl(String id, String url, bool keepAlive) {
+  Future<Uint8List?> fetchImageFromUrl(
+    String id,
+    String url,
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) {
     imageUrls[id] = url;
     if (!imageRequestStarted.isCompleted) imageRequestStarted.complete();
     return imageResponse?.future ?? Future.value(Uint8List.fromList([1]));

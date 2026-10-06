@@ -23,6 +23,11 @@ void main() {
             thumbnailUrl: null,
             imageUrl: 'https://example.test/update.png',
           )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
+          pinPhotoThumbnailBytesProvider((
+            photoId: 'update',
+            thumbnailUrl: null,
+            imageUrl: 'https://example.test/update.png',
+          )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
         ],
         child: MaterialApp(
           home: Scaffold(

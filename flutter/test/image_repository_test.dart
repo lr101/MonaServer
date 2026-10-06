@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:drift/drift.dart'
     show ApplyInterceptor, QueryExecutor, QueryInterceptor;
 import 'package:drift/native.dart';
@@ -214,6 +215,73 @@ void main() {
       expect(requestedPaths, ['/search']);
       expect(endpointLookups, 0);
       expect((await repository.get('group-1'))!.keepAlive, isTrue);
+    },
+  );
+
+  test(
+    'an expired photo URL cannot poison a concurrent pin batch read',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final expiredUrlStarted = Completer<void>();
+      final releaseExpiredUrl = Completer<void>();
+      final batches = <List<BatchReadItem>>[];
+      final batchReads = BatchReadCoalescer(
+        window: const Duration(milliseconds: 200),
+        read: (items) async {
+          batches.add(items);
+          if (items.any((item) => item.id.startsWith('photo:'))) {
+            throw StateError('The pin image endpoint rejects photo ids.');
+          }
+          return [
+            for (final item in items)
+              BatchReadResult(
+                kind: batchResultKind(item.kind),
+                id: item.id,
+                status: 200,
+                imageUrl: 'https://example.com/pin-thumbnail',
+              ),
+          ];
+        },
+      );
+      addTearDown(batchReads.dispose);
+
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.pinThumbnail,
+        getImageUrl: (id) async => (await batchReads.readKey(
+          BatchReadKey(BatchReadKind.pinImageThumbnail, id),
+        )).imageUrl,
+        httpGet: (uri) async {
+          if (uri.path == '/expired-photo') {
+            expiredUrlStarted.complete();
+            await releaseExpiredUrl.future;
+            return http.Response.bytes([], 403);
+          }
+          return http.Response.bytes([9], 200);
+        },
+      );
+      await repository.ready;
+
+      final photoFetch = repository.fetchImageFromUrl(
+        'photo:update-1',
+        'https://example.com/expired-photo',
+        false,
+        fallbackToEndpoint: false,
+      );
+      await expiredUrlStarted.future;
+      final pinFetch = repository.fetchImage('pin-1', false);
+      releaseExpiredUrl.complete();
+
+      final results = await Future.wait([photoFetch, pinFetch]);
+
+      expect(results, [
+        null,
+        [9],
+      ]);
+      expect(batches, hasLength(1));
+      expect(batches.single.map((item) => item.id), ['pin-1']);
     },
   );
 

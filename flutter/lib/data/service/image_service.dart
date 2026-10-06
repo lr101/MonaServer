@@ -129,19 +129,26 @@ class _ImageLoadStage {
     required this.id,
     this.imageUrl,
     this.fetchEndpointWhenUrlMissing = true,
+    this.fallbackToEndpointAfterUrlFailure = true,
   });
 
   final IImageRepository repository;
   final String id;
   final String? imageUrl;
   final bool fetchEndpointWhenUrlMissing;
+  final bool fallbackToEndpointAfterUrlFailure;
 
   bool get shouldLoad =>
       imageUrl?.isNotEmpty == true || fetchEndpointWhenUrlMissing;
 
   Future<Uint8List?> fetch(bool keepAlive) {
     if (imageUrl case final url? when url.isNotEmpty) {
-      return repository.fetchImageFromUrl(id, url, keepAlive);
+      return repository.fetchImageFromUrl(
+        id,
+        url,
+        keepAlive,
+        fallbackToEndpoint: fallbackToEndpointAfterUrlFailure,
+      );
     }
     if (fetchEndpointWhenUrlMissing) {
       return repository.fetchImage(id, keepAlive);
@@ -291,6 +298,7 @@ final pinPhotoProgressiveImageBytesProvider = StreamProvider.autoDispose
               id: cacheId,
               imageUrl: thumbnailUrl,
               fetchEndpointWhenUrlMissing: false,
+              fallbackToEndpointAfterUrlFailure: false,
             ),
           if (photo.imageUrl case final imageUrl? when imageUrl.isNotEmpty)
             _ImageLoadStage(
@@ -298,10 +306,42 @@ final pinPhotoProgressiveImageBytesProvider = StreamProvider.autoDispose
               id: cacheId,
               imageUrl: imageUrl,
               fetchEndpointWhenUrlMissing: false,
+              fallbackToEndpointAfterUrlFailure: false,
             ),
         ],
         keepAlive: false,
         emitNullValues: false,
+      );
+    });
+
+/// Loads a photo thumbnail for a grid or selector tile. When a thumbnail URL
+/// exists, only that image is fetched; the full image is used only when the
+/// thumbnail URL is absent. Both paths still use the shared repository cache.
+final pinPhotoThumbnailBytesProvider = StreamProvider.autoDispose
+    .family<
+      Uint8List?,
+      ({String photoId, String? thumbnailUrl, String? imageUrl})
+    >((ref, photo) {
+      final thumbnailRepository = ref.watch(pinThumbnailRepositoryProvider);
+      final imageRepository = ref.watch(pinImageRepositoryProvider);
+      final hasThumbnail = photo.thumbnailUrl?.isNotEmpty == true;
+      final repository = hasThumbnail ? thumbnailRepository : imageRepository;
+      final imageUrl = hasThumbnail ? photo.thumbnailUrl : photo.imageUrl;
+      final cacheId = 'photo:${photo.photoId}';
+      return _watchImageStages(
+        [
+          if (imageUrl case final url? when url.isNotEmpty)
+            _ImageLoadStage(
+              repository: repository,
+              id: cacheId,
+              imageUrl: url,
+              fetchEndpointWhenUrlMissing: false,
+              fallbackToEndpointAfterUrlFailure: false,
+            ),
+        ],
+        keepAlive: false,
+        emitNullValues: false,
+        stopAfterFirstImage: true,
       );
     });
 

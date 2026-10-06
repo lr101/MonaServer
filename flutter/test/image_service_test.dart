@@ -152,7 +152,7 @@ void main() {
     expect(repository.events, ['watch-created', 'watch-listened', 'fetch-url']);
     expect(repository.fetches, isEmpty);
     expect(repository.urlFetches, [
-      ('group-1', 'https://example.com/group-small.png', false),
+      ('group-1', 'https://example.com/group-small.png', false, true),
     ]);
     repository.urlFetchGate!.complete();
   });
@@ -249,7 +249,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-    const photo = (
+      const photo = (
         photoId: 'photo-1',
         thumbnailUrl: 'https://example.com/photo-small.png',
         imageUrl: 'https://example.com/photo.png',
@@ -268,10 +268,10 @@ void main() {
 
       expect(subscription.read(), isA<AsyncData<Uint8List?>>());
       expect(thumbnailRepository.urlFetches, [
-        ('photo:photo-1', 'https://example.com/photo-small.png', false),
+        ('photo:photo-1', 'https://example.com/photo-small.png', false, false),
       ]);
       expect(imageRepository.urlFetches, [
-        ('photo:photo-1', 'https://example.com/photo.png', false),
+        ('photo:photo-1', 'https://example.com/photo.png', false, false),
       ]);
     },
   );
@@ -328,7 +328,7 @@ class _RecordingImageRepository implements IImageRepository {
   final ImageType type;
   final List<(String, bool)> fetches = [];
   final List<(String, String, bool)> overrides = [];
-  final List<(String, String, bool)> urlFetches = [];
+  final List<(String, String, bool, bool)> urlFetches = [];
   final List<String> events = [];
   Completer<void>? fetchGate;
   Object? fetchError;
@@ -351,10 +351,11 @@ class _RecordingImageRepository implements IImageRepository {
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async {
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async {
     events.add('fetch-url');
-    urlFetches.add((id, url, keepAlive));
+    urlFetches.add((id, url, keepAlive, fallbackToEndpoint));
     if (!urlFetchStarted.isCompleted) urlFetchStarted.complete();
     await urlFetchGate?.future;
     final error = urlFetchError;

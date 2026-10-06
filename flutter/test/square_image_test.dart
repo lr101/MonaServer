@@ -80,20 +80,26 @@ void main() {
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
   });
 
-  testWidgets('uses cached photo bytes for an update square', (tester) async {
-    final bytes = Uint8List.fromList(kTransparentImage);
-    final repository = _ImageRepository(
+  testWidgets('uses the photo thumbnail without fetching its full image', (
+    tester,
+  ) async {
+    final thumbnailBytes = Uint8List.fromList(kTransparentImage);
+    final fullImageBytes = Uint8List.fromList(kTransparentImage);
+    final thumbnailRepository = _ImageRepository(
+      null,
+      ImageType.pinThumbnail,
+      updateImage: thumbnailBytes,
+    );
+    final fullImageRepository = _ImageRepository(
       null,
       ImageType.pin,
-      updateImage: bytes,
+      updateImage: fullImageBytes,
     );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(
-            _ImageRepository(null, ImageType.pinThumbnail),
-          ),
-          pinImageRepositoryProvider.overrideWithValue(repository),
+          pinThumbnailRepositoryProvider.overrideWithValue(thumbnailRepository),
+          pinImageRepositoryProvider.overrideWithValue(fullImageRepository),
         ],
         child: const MaterialApp(
           home: SizedBox.square(
@@ -102,6 +108,7 @@ void main() {
               pinId: 'place',
               photoId: 'update-photo',
               photoUrl: 'https://example.test/update.png',
+              photoThumbnailUrl: 'https://example.test/update-small.png',
               groupId: 'group',
               index: 0,
               onTap: _ignoreTap,
@@ -112,12 +119,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(repository.requestedPhotoId, 'photo:update-photo');
-    expect(repository.requestedPhotoUrl, 'https://example.test/update.png');
+    expect(thumbnailRepository.requestedPhotoId, 'photo:update-photo');
+    expect(
+      thumbnailRepository.requestedPhotoUrl,
+      'https://example.test/update-small.png',
+    );
+    expect(fullImageRepository.requestedPhotoUrl, isNull);
     final image = tester.widget<Image>(find.byType(Image));
     expect(
       ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
-      same(bytes),
+      same(thumbnailBytes),
     );
   });
 
@@ -234,8 +245,9 @@ class _ImageRepository implements IImageRepository {
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
-    bool keepAlive,
-  ) async {
+    bool keepAlive, {
+    bool fallbackToEndpoint = true,
+  }) async {
     requestedPhotoId = id;
     requestedPhotoUrl = url;
     return updateImage;
