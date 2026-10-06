@@ -159,6 +159,30 @@ keys there and keep them stable. Set all three `ADMIN_BOOTSTRAP_*` values
 together for first enrollment, then remove them after the admin account is
 created.
 
+### Backfill pin image thumbnails
+
+New pin images include a small preview when uploaded. Older pin images get one
+when first requested. To create previews for all active pin images in a batch,
+run the bundled command with the same `DATABASE_URL` and `RUSTFS_*` settings as
+the server:
+
+```bash
+# From the repository root
+docker compose exec app /app/backfill-thumbnails
+
+# Or from go-server when running locally
+go run ./cmd/backfill-thumbnails
+```
+
+The command scans legacy pin images and all pin photos. It skips thumbnails
+that already exist, leaves original images unchanged, and reports missing
+source images or failures in its final summary. A nonzero exit status indicates
+that at least one image failed to process. User and group profile images use
+separate small-image objects created by their upload flow, so they are outside
+this pin-photo backfill. When `DATABASE_URL` is unset, it builds the Compose
+connection from `POSTGRES_USER` and `POSTGRES_PASSWORD`, with the same defaults
+as `admin-auth`.
+
 ### Admin permissions and superadmins
 
 The `superadmin` permission grants every current and future admin capability.
