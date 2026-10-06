@@ -106,6 +106,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         itemBuilder: (context, item, index) => ProviderScope(
           key: index == widget.index ? _initialItemKey : null,
           child: ProviderScope(
+            key: ValueKey(item.entryId),
             overrides: [feedItemProvider.overrideWithValue(item)],
             child: const FeedCard(),
           ),
@@ -125,11 +126,15 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       final idList = _pins.getRange(pageKey, end).toList();
       final coalescer = ref.read(batchReadCoalescerProvider);
       for (final pin in idList) {
-        // Hydrate current-page metadata while the page is assembled.
-        _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
+        // Hydrate metadata while the page is assembled. Object bytes remain
+        // lazy and are fetched only by the image widget that needs them.
+        if (!pin.isPhotoUpdate) {
+          _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+          _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
+        }
         _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
-        ref.read(userServiceProvider(pin.creator));
-        ref.read(likeServiceProvider(pin.pinId));
+        if (pin.creator.isNotEmpty) ref.read(userServiceProvider(pin.creator));
+        ref.read(likeServiceProvider(pin.entryId));
       }
       _prefetchNextPageMetadata(end, pageSize);
       _prefetchNextPageThumbnails(end, pageSize);
@@ -151,6 +156,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     );
     final lookAheadIds = _pins
         .getRange(start, end)
+        .where((pin) => !pin.isPhotoUpdate)
         .map((pin) => pin.pinId)
         .toSet();
 
@@ -208,26 +214,16 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   }
 
   void _prefetchNextPageMetadata(int start, int pageSize) {
-    final thumbnailEnd = (start + pageSize * _thumbnailPrefetchPageCount).clamp(
-      0,
-      _pins.length,
-    );
+    final end = (start + pageSize).clamp(0, _pins.length);
     final coalescer = ref.read(batchReadCoalescerProvider);
-    final thumbnailPins = _pins
-        .getRange(start, thumbnailEnd)
-        .toList(growable: false);
-    for (final pin in thumbnailPins) {
-      _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
-    }
-
-    final metadataEnd = (start + pageSize).clamp(0, _pins.length);
-    final metadataPins = _pins
-        .getRange(start, metadataEnd)
-        .toList(growable: false);
-    for (final pin in metadataPins) {
+    final pins = _pins.getRange(start, end).toList(growable: false);
+    for (final pin in pins) {
+      if (!pin.isPhotoUpdate) {
+        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+      }
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
-      ref.read(userServiceProvider(pin.creator));
-      ref.read(likeServiceProvider(pin.pinId));
+      if (pin.creator.isNotEmpty) ref.read(userServiceProvider(pin.creator));
+      ref.read(likeServiceProvider(pin.entryId));
     }
   }
 

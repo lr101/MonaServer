@@ -21,12 +21,14 @@ class PinPresenceControl extends StatelessWidget {
     required this.isSaving,
     required this.onToggle,
     this.showStatusMessage = true,
+    this.iconOnly = false,
   });
 
   final PinEntity pin;
   final Position? userPosition;
   final bool isSaving;
   final bool showStatusMessage;
+  final bool iconOnly;
   final VoidCallback onToggle;
 
   @override
@@ -42,6 +44,22 @@ class PinPresenceControl extends StatelessWidget {
         : nearby
         ? 'Marked as still here'
         : 'Get within 50 m to update this pin';
+    if (iconOnly)
+      return IconButton(
+        tooltip:
+            '${pin.isGone ? 'Mark as here' : 'Mark as gone'}${canUpdate ? '' : ' · $statusText'}',
+        onPressed: canUpdate ? onToggle : null,
+        icon: isSaving
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                pin.isGone
+                    ? Icons.location_on_outlined
+                    : Icons.location_off_outlined,
+              ),
+      );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

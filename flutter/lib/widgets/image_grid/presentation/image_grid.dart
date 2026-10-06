@@ -105,11 +105,17 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
             itemBuilder: (context, item, index) => SquareImage(
               pinId: item.pinId,
               imageBlurhash: item.imageBlurhash,
+              photoUrl: item.photoUrl,
+              photoThumbnailUrl: item.photoThumbnailUrl,
+              photoId: item.photoId,
               index: index,
               groupId: item.groupId,
               onTap: (index) => context.pushNamed(
                 "viewImage",
                 pathParameters: {"id": item.pinId},
+                queryParameters: item.photoId == null
+                    ? {}
+                    : {"photo": item.photoId},
               ),
             ),
             noItemsFoundIndicatorBuilder: (context) => Center(
@@ -165,7 +171,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         try {
           final coalescer = ref.read(batchReadCoalescerProvider);
           for (final pin in idList) {
-            _prefetchPinImage(coalescer, pin.pinId);
+            if (!pin.isPhotoUpdate) _prefetchPinImage(coalescer, pin.pinId);
           }
         } catch (_) {
           // Prefetch is an optimization and must not fail the page.
@@ -198,7 +204,9 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   }
 
   void _prefetchPageThumbnails(List<PinEntity> pins) {
-    _setThumbnailPrefetchWindow(pins.take(_prefetchCount));
+    _setThumbnailPrefetchWindow(
+      pins.where((pin) => !pin.isPhotoUpdate).take(_prefetchCount),
+    );
   }
 
   void _handleGridScroll() {
@@ -234,12 +242,18 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
       return;
     }
     _setThumbnailPrefetchWindow(
-      loadedPins.skip(firstIndex).take(_prefetchCount),
+      loadedPins
+          .skip(firstIndex)
+          .where((pin) => !pin.isPhotoUpdate)
+          .take(_prefetchCount),
     );
   }
 
   void _setThumbnailPrefetchWindow(Iterable<PinEntity> pins) {
-    final pagePins = pins.take(_prefetchCount).toList(growable: false);
+    final pagePins = pins
+        .where((pin) => !pin.isPhotoUpdate)
+        .take(_prefetchCount)
+        .toList(growable: false);
     final targetIds = pagePins.map((pin) => pin.pinId).toSet();
     final logicalWidth = _tileLogicalWidth.clamp(1.0, double.infinity);
     final devicePixelRatio = _devicePixelRatio;

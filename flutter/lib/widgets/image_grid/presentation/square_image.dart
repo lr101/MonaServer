@@ -5,31 +5,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SquareImage extends ConsumerWidget {
-  final String pinId;
-  final String? imageBlurhash;
-  final String groupId;
-  final int index;
-  final Function(int index) onTap;
-
   const SquareImage({
     super.key,
     required this.pinId,
     this.imageBlurhash,
-    required this.index,
     required this.groupId,
+    this.photoUrl,
+    this.photoThumbnailUrl,
+    this.photoId,
+    required this.index,
     required this.onTap,
   });
 
+  final String pinId;
+  final String? imageBlurhash;
+  final String groupId;
+  final String? photoUrl;
+  final String? photoThumbnailUrl;
+  final String? photoId;
+  final int index;
+  final Function(int index) onTap;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final imageState = ref.watch(pinGridImageBytesProvider(pinId));
+    final imageState = photoId == null
+        ? ref.watch(pinGridImageBytesProvider(pinId))
+        : ref.watch(
+            pinPhotoProgressiveImageBytesProvider((
+              photoId: photoId!,
+              thumbnailUrl: photoThumbnailUrl,
+              imageUrl: photoUrl,
+            )),
+          );
     final image = imageState.value;
     final imageUnavailable =
         image == null && (imageState.hasValue || imageState.hasError);
+    final canOpen =
+        image != null ||
+        photoUrl?.isNotEmpty == true ||
+        photoThumbnailUrl?.isNotEmpty == true;
 
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
-        onTap: image == null ? null : () => onTap(index),
+        onTap: canOpen ? () => onTap(index) : null,
         child: Stack(
           fit: StackFit.expand,
           children: [

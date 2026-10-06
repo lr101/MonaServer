@@ -1,9 +1,9 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/other_user_achievements_tab.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/profile/presentation/pop_up_menu_other_user.dart';
 import 'package:buff_lisa/features/progression/data/public_user_progression_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
@@ -22,7 +22,7 @@ class OtherUserProfile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userPins = ref.watch(pinUserServiceProvider(userId));
+    final userPins = ref.watch(userPinEntriesProvider(userId));
     final username = ref.watch(userByIdUsernameProvider(userId));
     final description = ref.watch(userByIdDescriptionProvider(userId));
     final bestSeason = ref.watch(userByIdBestSeasonProvider(userId));
@@ -94,7 +94,7 @@ class OtherUserProfile extends ConsumerWidget {
         ],
         body: TabBarView(
           children: [
-            ImageGrid(pinProvider: pinUserServiceProvider(userId)),
+            ImageGrid(pinProvider: userPinEntriesProvider(userId)),
             OtherUserAchievementsTab(userId: userId),
           ],
         ),
@@ -111,7 +111,11 @@ class OtherUserProfile extends ConsumerWidget {
       children: [
         _statItem(
           'Sticks',
-          userPins.whenOrNull(data: (pins) => pins.length.toString()) ?? '---',
+          userPins.whenOrNull(
+                data: (entries) =>
+                    countUniqueContributedSticks(entries).toString(),
+              ) ??
+              '---',
         ),
         _statItem('Likes', likes.value?.likeCount.toString() ?? '-'),
       ],

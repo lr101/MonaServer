@@ -7,14 +7,18 @@ import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
+import 'package:buff_lisa/data/entity/user_pins_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
+import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
+import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
@@ -55,6 +59,199 @@ void main() {
       await f.container.read(syncingServiceProvider.notifier).syncToBackend();
       expect(f.api.calls, 1);
       expect(f.container.read(syncingServiceProvider), SyncState.finished);
+    },
+  );
+
+  test('sync warms photo histories for the current profile', () async {
+    final f = await _fixture();
+    f.api.profilePins = [
+      PinWithOptionalImageDto(
+        id: 'updated-location',
+        latitude: 48.1,
+        longitude: 11.6,
+        creationDate: DateTime.utc(2026),
+        creationUser: 'original-author',
+        groupId: 'public-group',
+      ),
+    ];
+    f.api.photoHistories['updated-location'] = [
+      PinPhotoDto(
+        id: 'update-photo',
+        pinId: 'updated-location',
+        contributorId: 'alice',
+        contributorUsername: 'Alice',
+        observedAt: DateTime.utc(2026, 2),
+        isOriginal: false,
+      ),
+    ];
+
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+
+    expect(f.api.profilePinQueries, 1);
+    expect(f.api.photoHistoryRequests, ['updated-location']);
+    expect(f.api.profileUpdateWatermarks.single, isNull);
+
+    final profile = await f.container
+        .read(userPinsRepositoryProvider)
+        .get('alice');
+    expect(profile?.pins, ['updated-location']);
+    expect(profile?.keepAlive, isTrue);
+    final cachedPin = await f.container
+        .read(pinRepositoryProvider)
+        .get('updated-location');
+    expect(cachedPin?.creator, 'original-author');
+    final cachedHistory = await f.container
+        .read(pinPhotoHistoryRepositoryProvider)
+        .get('updated-location');
+    expect(cachedHistory?.photos.single.id, 'update-photo');
+
+    f.api.profilePins = const [];
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+    expect(f.api.profilePinQueries, 2);
+    expect(f.api.profileUpdateWatermarks.last, isNotNull);
+    expect(f.api.photoHistoryRequests, ['updated-location']);
+
+    final deleteResponse = Completer<SyncDto?>();
+    f.api.response = deleteResponse;
+    final deleteSync = f.container
+        .read(syncingServiceProvider.notifier)
+        .syncToBackend();
+    deleteResponse.complete(SyncDto(deletedPins: ['updated-location']));
+    await deleteSync;
+    expect(
+      (await f.container.read(userPinsRepositoryProvider).get('alice'))?.pins,
+      isEmpty,
+    );
+    expect(
+      await f.container
+          .read(pinPhotoHistoryRepositoryProvider)
+          .get('updated-location'),
+      isNull,
+    );
+  });
+
+  test(
+    'one photo history failure does not block current profile publication',
+    () async {
+      final f = await _fixture();
+      f.api.profilePins = [
+        PinWithOptionalImageDto(
+          id: 'history-unavailable',
+          latitude: 48.1,
+          longitude: 11.6,
+          creationDate: DateTime.utc(2026),
+          creationUser: 'alice',
+          groupId: 'public-group',
+        ),
+        PinWithOptionalImageDto(
+          id: 'history-available',
+          latitude: 48.2,
+          longitude: 11.7,
+          creationDate: DateTime.utc(2026, 1, 2),
+          creationUser: 'alice',
+          groupId: 'public-group',
+        ),
+      ];
+      f.api.photoHistoryErrors['history-unavailable'] = StateError(
+        'temporary photo history failure',
+      );
+
+      await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+
+      expect(f.container.read(syncingServiceProvider), SyncState.finished);
+      final profile = await f.container
+          .read(userPinsRepositoryProvider)
+          .get('alice');
+      expect(
+        profile?.pins,
+        containsAll(['history-unavailable', 'history-available']),
+      );
+      expect(
+        await f.container
+            .read(pinRepositoryProvider)
+            .get('history-unavailable'),
+        isNotNull,
+      );
+    },
+  );
+
+  test('successful pin upload publishes the synced id without advancing profile watermark', () async {
+    final f = await _fixture();
+    final watermark = DateTime.utc(2026, 2);
+    await f.container
+        .read(userPinsRepositoryProvider)
+        .put(
+          UserPinsEntity(
+            userId: 'alice',
+            pins: const [],
+            ttl: watermark,
+            onlySession: false,
+            keepAlive: true,
+          ),
+        );
+    await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+    f.api.upload = Completer<PinWithOptionalImageDto?>();
+
+    final upload = f.container.read(pendingPinUploaderProvider).upload('draft');
+    await f.api.uploadStarted.future.timeout(const Duration(seconds: 2));
+    f.api.upload!.complete(_createdPin());
+    await upload;
+
+    final profile = await f.container
+        .read(userPinsRepositoryProvider)
+        .get('alice');
+    expect(profile?.pins, ['server-pin']);
+    expect(profile?.ttl.isAtSameMomentAs(watermark), isTrue);
+  });
+
+  test(
+    'sync preloads current profile update images before publishing the index',
+    () async {
+      final f = await _fixture(recordProfileImages: true);
+      final imageBytes = Completer<Uint8List?>();
+      f.profileImages!.imageResponse = imageBytes;
+      f.api.profilePins = [
+        PinWithOptionalImageDto(
+          id: 'updated-location',
+          latitude: 48.1,
+          longitude: 11.6,
+          creationDate: DateTime.utc(2026),
+          creationUser: 'original-author',
+          groupId: 'public-group',
+        ),
+      ];
+      f.api.photoHistories['updated-location'] = [
+        PinPhotoDto(
+          id: 'update-photo',
+          pinId: 'updated-location',
+          contributorId: 'alice',
+          contributorUsername: 'Alice',
+          image: 'https://example.test/update.png',
+          observedAt: DateTime.utc(2026, 2),
+          isOriginal: false,
+        ),
+      ];
+
+      final sync = f.container
+          .read(syncingServiceProvider.notifier)
+          .syncToBackend();
+      await f.profileImages!.imageRequestStarted.future.timeout(
+        const Duration(seconds: 5),
+      );
+      expect(
+        await f.container.read(userPinsRepositoryProvider).get('alice'),
+        isNull,
+      );
+      expect(f.profileImages!.imageUrls, {
+        'update-photo': 'https://example.test/update.png',
+      });
+
+      imageBytes.complete(Uint8List.fromList([1, 2, 3]));
+      await sync;
+      expect(
+        (await f.container.read(userPinsRepositoryProvider).get('alice'))?.pins,
+        ['updated-location'],
+      );
     },
   );
 
@@ -555,6 +752,12 @@ class _NoUser extends UserService {
 
 class _Pins extends PinsApi {
   int calls = 0;
+  int profilePinQueries = 0;
+  final profileUpdateWatermarks = <DateTime?>[];
+  final photoHistoryRequests = <String>[];
+  List<PinWithOptionalImageDto> profilePins = const [];
+  final photoHistories = <String, List<PinPhotoDto>>{};
+  final photoHistoryErrors = <String, Object>{};
   int uploadCalls = 0;
   final deleted = <String>[];
   Completer<SyncDto?>? response;
@@ -567,6 +770,37 @@ class _Pins extends PinsApi {
   final uploadStarted = Completer<void>();
   final secondUploadStarted = Completer<void>();
   final deleteStarted = Completer<void>();
+
+  @override
+  Future<PinsSyncDto?> getPinImagesByIds({
+    List<String>? ids,
+    String? groupId,
+    String? userId,
+    bool? withImage,
+    int? compression,
+    int? height,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+    DateTime? beforeCreationDate,
+    String? beforeId,
+  }) async {
+    if (userId != null) {
+      profilePinQueries++;
+      profileUpdateWatermarks.add(updatedAfter);
+      return PinsSyncDto(items: profilePins);
+    }
+    return PinsSyncDto();
+  }
+
+  @override
+  Future<List<PinPhotoDto>?> getPinPhotos(String pinId) async {
+    photoHistoryRequests.add(pinId);
+    final error = photoHistoryErrors[pinId];
+    if (error != null) throw error;
+    return photoHistories[pinId] ?? const [];
+  }
+
   @override
   Future<PinWithOptionalImageDto?> createPin(
     PinRequestDto request, {
@@ -642,12 +876,14 @@ Future<
     _Pins api,
     _Groups groups,
     PendingPinRepository pending,
+    _RecordingProfileImageRepository? profileImages,
   })
 >
 _fixture({
   bool delayedCancel = false,
   bool failPinCacheWrites = false,
   bool failPinCacheDeletes = false,
+  bool recordProfileImages = false,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -658,6 +894,9 @@ _fixture({
   final pending = delayedCancel
       ? _DelayedCancelRepository(db)
       : PendingPinRepository(db);
+  final profileImages = recordProfileImages
+      ? _RecordingProfileImageRepository(db)
+      : null;
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
@@ -670,6 +909,8 @@ _fixture({
             failDeletes: failPinCacheDeletes,
           ),
         ),
+      if (profileImages != null)
+        pinImageRepositoryProvider.overrideWithValue(profileImages),
       globalDataOnceProvider.overrideWithValue(
         const GlobalDataDto(
           userId: 'alice',
@@ -691,7 +932,24 @@ _fixture({
     api: api,
     groups: groups,
     pending: pending,
+    profileImages: profileImages,
   );
+}
+
+class _RecordingProfileImageRepository extends ImageRepository {
+  _RecordingProfileImageRepository(AppDatabase db)
+    : super(db: db, getImageUrl: (_) async => null, type: ImageType.pin);
+
+  final imageUrls = <String, String>{};
+  final imageRequestStarted = Completer<void>();
+  Completer<Uint8List?>? imageResponse;
+
+  @override
+  Future<Uint8List?> fetchImageFromUrl(String id, String url, bool keepAlive) {
+    imageUrls[id] = url;
+    if (!imageRequestStarted.isCompleted) imageRequestStarted.complete();
+    return imageResponse?.future ?? Future.value(Uint8List.fromList([1]));
+  }
 }
 
 class _DelayedCancelRepository extends PendingPinRepository {

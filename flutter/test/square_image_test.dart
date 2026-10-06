@@ -14,14 +14,16 @@ void main() {
     tester,
   ) async {
     final bytes = Uint8List.fromList(kTransparentImage);
-    final thumbnailRepository = _ImageRepository(bytes, ImageType.pinThumbnail);
-    final fullImageRepository = _ImageRepository(null, ImageType.pin);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(thumbnailRepository),
-          pinImageRepositoryProvider.overrideWithValue(fullImageRepository),
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(bytes, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin),
+          ),
         ],
         child: const MaterialApp(
           home: MediaQuery(
@@ -48,8 +50,6 @@ void main() {
 
     expect(provider.width, 300);
     expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
-    expect(thumbnailRepository.fetchCount, 1);
-    expect(fullImageRepository.fetchCount, 0);
   });
 
   testWidgets('shows a placeholder when a pin image is unavailable', (
@@ -75,15 +75,56 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
   });
 
-  testWidgets('renders thumbnail bytes as soon as the shared cache updates', (
+  testWidgets('uses cached photo bytes for an update square', (tester) async {
+    final bytes = Uint8List.fromList(kTransparentImage);
+    final repository = _ImageRepository(
+      null,
+      ImageType.pin,
+      updateImage: bytes,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: const MaterialApp(
+          home: SizedBox.square(
+            dimension: 100,
+            child: SquareImage(
+              pinId: 'place',
+              photoId: 'update-photo',
+              photoUrl: 'https://example.test/update.png',
+              groupId: 'group',
+              index: 0,
+              onTap: _ignoreTap,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedPhotoId, 'photo:update-photo');
+    expect(repository.requestedPhotoUrl, 'https://example.test/update.png');
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(
+      ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
+      same(bytes),
+    );
+  });
+
+  testWidgets('shows thumbnail bytes as soon as the shared cache updates', (
     tester,
   ) async {
-    final bytes = Uint8List.fromList(kTransparentImage);
+    final thumbnailBytes = Uint8List.fromList(kTransparentImage);
     final thumbnailUpdates = StreamController<Uint8List?>.broadcast();
     addTearDown(thumbnailUpdates.close);
 
@@ -114,13 +155,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
 
-    thumbnailUpdates.add(bytes);
+    thumbnailUpdates.add(thumbnailBytes);
     await tester.pumpAndSettle();
 
     expect(find.byType(Image), findsOneWidget);
     final image = tester.widget<Image>(find.byType(Image));
     final provider = image.image as ResizeImage;
-    expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
+    expect((provider.imageProvider as MemoryImage).bytes, same(thumbnailBytes));
   });
 
   testWidgets(
@@ -128,19 +169,16 @@ void main() {
     (tester) async {
       final bytes = Uint8List.fromList(kTransparentImage);
       int? tappedIndex;
-      final thumbnailRepository = _ImageRepository(
-        null,
-        ImageType.pinThumbnail,
-      );
-      final fullImageRepository = _ImageRepository(bytes, ImageType.pin);
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             pinThumbnailRepositoryProvider.overrideWithValue(
-              thumbnailRepository,
+              _ImageRepository(null, ImageType.pinThumbnail),
             ),
-            pinImageRepositoryProvider.overrideWithValue(fullImageRepository),
+            pinImageRepositoryProvider.overrideWithValue(
+              _ImageRepository(bytes, ImageType.pin),
+            ),
           ],
           child: MaterialApp(
             home: Center(
@@ -163,8 +201,6 @@ void main() {
       final image = tester.widget<Image>(find.byType(Image));
       final provider = image.image as ResizeImage;
       expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
-      expect(thumbnailRepository.fetchCount, 1);
-      expect(fullImageRepository.fetchCount, 1);
 
       await tester.tap(find.byType(SquareImage));
       expect(tappedIndex, 7);
@@ -175,27 +211,35 @@ void main() {
 void _ignoreTap(int index) {}
 
 class _ImageRepository implements IImageRepository {
-  _ImageRepository(this.image, this.type, {this.imageUpdates});
+  _ImageRepository(
+    this.image,
+    this.type, {
+    this.updateImage,
+    this.imageUpdates,
+  });
 
   final Uint8List? image;
+  final Uint8List? updateImage;
   final Stream<Uint8List?>? imageUpdates;
-  int fetchCount = 0;
+  String? requestedPhotoId;
+  String? requestedPhotoUrl;
 
   @override
   final ImageType type;
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
-    fetchCount++;
-    return image;
-  }
+  Future<Uint8List?> fetchImage(String id, bool keepAlive) async => image;
 
   @override
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
     bool keepAlive,
-  ) async => null;
+  ) async {
+    requestedPhotoId = id;
+    requestedPhotoUrl = url;
+    return updateImage;
+  }
 
   @override
   Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}

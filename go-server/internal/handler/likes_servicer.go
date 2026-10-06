@@ -29,7 +29,11 @@ func (s *LikesServicer) GetPinLikes(ctx context.Context, pinID string) (genserve
 	if !ok {
 		return genserver.Response(http.StatusUnauthorized, nil), nil
 	}
-	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, pid, uid); !ok2 {
+	parentID, err := s.like.ParentPinID(ctx, pid)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, parentID, uid); !ok2 {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	dto, err := s.like.CountByPin(ctx, pid, uid)
@@ -55,7 +59,11 @@ func (s *LikesServicer) CreateOrUpdateLike(ctx context.Context, pinID string, dt
 	if !ctxIsAdmin(ctx) && requestUserID != uid {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
-	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, pid, uid); !ok2 {
+	parentID, err := s.like.ParentPinID(ctx, pid)
+	if err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+	if ok2, _ := s.guard.IsPinPublicOrMember(ctx, parentID, uid); !ok2 {
 		return genserver.Response(http.StatusForbidden, nil), nil
 	}
 	result, err := s.like.CreateOrUpdate(ctx, pid, service.CreateLikeInput{

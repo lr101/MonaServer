@@ -206,7 +206,7 @@ func TestPinPresenceCanBeMarkedHereOrGoneWithoutDeletingPin(t *testing.T) {
 		t.Fatal("new pin should be active")
 	}
 
-	if err := pin.SetGone(ctx, pinID, true); err != nil {
+	if err := pin.SetGone(ctx, pinID, userID, true); err != nil {
 		t.Fatalf("mark pin gone: %v", err)
 	}
 	afterGone, err := pin.Get(ctx, pinID)
@@ -229,7 +229,7 @@ func TestPinPresenceCanBeMarkedHereOrGoneWithoutDeletingPin(t *testing.T) {
 		t.Fatalf("synced pins = %+v, want one gone pin", updated)
 	}
 
-	if err := pin.SetGone(ctx, pinID, false); err != nil {
+	if err := pin.SetGone(ctx, pinID, userID, false); err != nil {
 		t.Fatalf("mark pin here: %v", err)
 	}
 	backHere, err := pin.Get(ctx, pinID)
@@ -243,7 +243,7 @@ func TestPinPresenceCanBeMarkedHereOrGoneWithoutDeletingPin(t *testing.T) {
 
 func TestPinSetGoneRejectsMissingPin(t *testing.T) {
 	_, _, _, _, pin, _, _, _, _ := setupServices(t)
-	if err := pin.SetGone(context.Background(), uuid.New(), true); err == nil {
+	if err := pin.SetGone(context.Background(), uuid.New(), uuid.New(), true); err == nil {
 		t.Fatal("marking a missing pin gone should fail")
 	}
 }

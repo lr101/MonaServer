@@ -77,8 +77,8 @@ type Querier interface {
 	CountAdminRuntimeReports(ctx context.Context, arg CountAdminRuntimeReportsParams) (int64, error)
 	CountAudienceSnapshotMembers(ctx context.Context, snapshotID pgtype.UUID) (CountAudienceSnapshotMembersRow, error)
 	CountGroupMembers(ctx context.Context, groupID pgtype.UUID) (int64, error)
-	CountLikesForCreator(ctx context.Context, creatorID pgtype.UUID) (int64, error)
-	CountPinLikes(ctx context.Context, pinID pgtype.UUID) (int64, error)
+	CountLikesForCreator(ctx context.Context, contributorID pgtype.UUID) (int64, error)
+	CountPinLikes(ctx context.Context, photoID pgtype.UUID) (int64, error)
 	// Action tokens -------------------------------------------------------------
 	CreateAccountActionToken(ctx context.Context, arg CreateAccountActionTokenParams) error
 	// Admin jobs and recipient items --------------------------------------------
@@ -174,6 +174,7 @@ type Querier interface {
 	GetOutboxEvent(ctx context.Context, id pgtype.UUID) (OutboxEvent, error)
 	GetPinByID(ctx context.Context, id pgtype.UUID) (GetPinByIDRow, error)
 	GetPinCreateIdempotencyForUpdate(ctx context.Context, arg GetPinCreateIdempotencyForUpdateParams) (GetPinCreateIdempotencyForUpdateRow, error)
+	GetPinIDForPhoto(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	GetPinPhotoByIdempotencyKey(ctx context.Context, arg GetPinPhotoByIdempotencyKeyParams) (GetPinPhotoByIdempotencyKeyRow, error)
 	GetReport(ctx context.Context, id pgtype.UUID) (Report, error)
 	GetReportByRequestID(ctx context.Context, requestID pgtype.Text) (Report, error)
@@ -239,7 +240,7 @@ type Querier interface {
 	ListGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersRow, error)
 	ListGroupPinIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListPinIDsRemovedWithUser(ctx context.Context, creatorID pgtype.UUID) ([]pgtype.UUID, error)
-	ListPinLikes(ctx context.Context, pinID pgtype.UUID) ([]ListPinLikesRow, error)
+	ListPinLikes(ctx context.Context, photoID pgtype.UUID) ([]ListPinLikesRow, error)
 	ListPinPhotoKeys(ctx context.Context, pinID pgtype.UUID) ([]string, error)
 	ListPinPhotos(ctx context.Context, pinID pgtype.UUID) ([]ListPinPhotosRow, error)
 	ListReportNotes(ctx context.Context, arg ListReportNotesParams) ([]ReportNote, error)
@@ -288,6 +289,7 @@ type Querier interface {
 	PurgeExpiredAdminChallenges(ctx context.Context, arg PurgeExpiredAdminChallengesParams) error
 	PurgeRateLimitBuckets(ctx context.Context, windowEnd pgtype.Timestamptz) error
 	ReconcileUserAchievementClaim(ctx context.Context, arg ReconcileUserAchievementClaimParams) error
+	RecordPinGoneReport(ctx context.Context, arg RecordPinGoneReportParams) error
 	ReleaseAdminJobItemLease(ctx context.Context, arg ReleaseAdminJobItemLeaseParams) (pgtype.UUID, error)
 	ReleaseDurableJobLease(ctx context.Context, arg ReleaseDurableJobLeaseParams) (pgtype.UUID, error)
 	ReleaseOutboxEventLease(ctx context.Context, arg ReleaseOutboxEventLeaseParams) (pgtype.UUID, error)
@@ -314,7 +316,7 @@ type Querier interface {
 	SearchPins(ctx context.Context, arg SearchPinsParams) ([]SearchPinsRow, error)
 	SetEmailLoginClaim(ctx context.Context, arg SetEmailLoginClaimParams) error
 	SetGroupInviteUrl(ctx context.Context, arg SetGroupInviteUrlParams) error
-	SetPinGone(ctx context.Context, arg SetPinGoneParams) (int64, error)
+	SetPinGoneWithPreviousState(ctx context.Context, arg SetPinGoneWithPreviousStateParams) (bool, error)
 	SetPinImageBlurhash(ctx context.Context, arg SetPinImageBlurhashParams) (int64, error)
 	SetPinPhotoImageBlurhash(ctx context.Context, arg SetPinPhotoImageBlurhashParams) (int64, error)
 	SetUserDeletionUrl(ctx context.Context, arg SetUserDeletionUrlParams) error

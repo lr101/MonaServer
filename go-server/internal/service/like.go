@@ -14,6 +14,10 @@ type Like struct{ q *db.Queries }
 
 func NewLike(q *db.Queries) *Like { return &Like{q: q} }
 
+func (s *Like) ParentPinID(ctx context.Context, photoID uuid.UUID) (uuid.UUID, error) {
+	return s.q.PinIDForLikeTarget(ctx, photoID)
+}
+
 // CreateLikeInput mirrors CreateLikeDto.
 type CreateLikeInput struct {
 	UserID uuid.UUID `json:"userId"`
@@ -32,9 +36,13 @@ type UserLikesDTO struct {
 }
 
 func (s *Like) CreateOrUpdate(ctx context.Context, pinID uuid.UUID, in CreateLikeInput) (*PinLikeDTO, error) {
+	parentPinID, err := s.ParentPinID(ctx, pinID)
+	if err != nil {
+		return nil, err
+	}
 	if in.Like != nil {
 		if *in.Like {
-			if err := s.q.UpsertLike(ctx, in.UserID, pinID, db.LikeFlags{LikeAll: true}); err != nil {
+			if err := s.q.UpsertLike(ctx, in.UserID, parentPinID, pinID, db.LikeFlags{LikeAll: true}); err != nil {
 				return nil, err
 			}
 		} else if err := s.q.DeleteLike(ctx, in.UserID, pinID); err != nil {

@@ -66,8 +66,20 @@ void main() {
               nextLevelXp: 100,
             ),
           ),
-          groupDetailsPinsProvider('group-id')
-              .overrideWith((ref) => const AsyncData<List<PinEntity>?>([])),
+          groupDetailsPinsProvider('group-id').overrideWith(
+            (ref) => AsyncData<List<PinEntity>?>([
+              PinEntity(
+                pinId: 'place',
+                latitude: 48.1,
+                longitude: 11.6,
+                creationDate: DateTime.utc(2026),
+                creator: 'alice',
+                groupId: 'group-id',
+                ttl: DateTime.utc(2027),
+                onlySession: false,
+              ),
+            ]),
+          ),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: MaterialApp(
@@ -104,6 +116,8 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(find.text('Sticks'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
 
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();

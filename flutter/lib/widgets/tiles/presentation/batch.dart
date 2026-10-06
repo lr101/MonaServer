@@ -18,7 +18,7 @@ class Batch extends StatelessWidget {
   Widget build(BuildContext context) {
     final double padding = fontSize != null && fontSize! < 8.0 ? 1 : 2;
     final achievement = Achievement.getById(batchId);
-    final isCapstone = const {16, 19, 20, 21, 22, 23}.contains(batchId);
+    final isCapstone = const {16, 19, 20, 21, 22, 23, 26, 29}.contains(batchId);
     final color = colorOverride == null || colorOverride == 'default'
         ? achievement.color
         : Color(int.parse(colorOverride!.substring(1), radix: 16));

@@ -294,15 +294,8 @@ func (s *Pin) Get(ctx context.Context, id uuid.UUID) (*PinDTO, error) {
 	return s.toDTO(ctx, p, true), nil
 }
 
-func (s *Pin) SetGone(ctx context.Context, id uuid.UUID, isGone bool) error {
-	p, err := s.q.GetPinByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if p == nil {
-		return apperrors.ErrNotFound
-	}
-	updated, err := s.q.SetPinGone(ctx, id, isGone)
+func (s *Pin) SetGone(ctx context.Context, id, userID uuid.UUID, isGone bool) error {
+	updated, err := s.q.SetPinGone(ctx, id, userID, isGone)
 	if err != nil {
 		return err
 	}
@@ -626,6 +619,9 @@ func (s *Pin) AddPhoto(ctx context.Context, pinID, contributorID uuid.UUID, in A
 			return apperrors.ErrNotFound
 		}
 		if err := q.CreatePinPhoto(ctx, photo); err != nil {
+			return err
+		}
+		if err := q.AddUserXp(ctx, contributorID, CreatePinXP); err != nil {
 			return err
 		}
 		for _, key := range imageKeys {

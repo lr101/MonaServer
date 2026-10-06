@@ -220,4 +220,10 @@ class CameraCapturing extends _$CameraCapturing {
   void setCapturing(bool value) {
     state = value;
   }
+
+  void clearAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.mounted) state = false;
+    });
+  }
 }

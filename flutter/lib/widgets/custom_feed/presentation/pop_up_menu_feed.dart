@@ -64,7 +64,7 @@ class PopUpMenuFeed extends ConsumerWidget {
               title: "Report user",
               icon: Icons.report,
             ),
-          if (userId == adminId || !isNotCreator)
+          if (!pinDto.isPhotoUpdate && (userId == adminId || !isNotCreator))
             CustomMenuItem<int>(value: 4, title: "Delete", icon: Icons.delete),
         ];
       },

@@ -66,7 +66,7 @@ final class GroupProgressionProvider
   }
 }
 
-String _$groupProgressionHash() => r'f0c2d7f3f859cbd456f2f597c7ead16defc3609a';
+String _$groupProgressionHash() => r'44bbe4945d8a12f288415735eb53ed93dc9f85cd';
 
 final class GroupProgressionFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<GroupProgressionDto?>, String> {
