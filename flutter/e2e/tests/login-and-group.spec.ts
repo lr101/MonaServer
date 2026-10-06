@@ -70,24 +70,23 @@ test('email-code sign-in remains the default and can switch to password', async 
 
 test('password sign-in publishes browser autofill metadata', async ({ page }) => {
   await page.goto('/');
-  await page.waitForFunction(
-    () => document.querySelector('#splash-screen') === null,
-    undefined,
-    { timeout: 30_000 },
-  );
+  await enableAccessibility(page);
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
 
-  // Use the normal Flutter text input bridge. Enabling accessibility switches
-  // to proxy inputs whose autocomplete attributes are intentionally disabled.
-  await page.mouse.click(130, 532);
-  await page.waitForTimeout(400);
-  await page.mouse.click(200, 365);
-
-  const username = page.locator('flt-text-editing-host input[name="username"]');
-  const password = page.locator(
-    'flt-text-editing-host input[name="current-password"]',
-  );
+  const username = page.locator('#stick-it-login-username');
+  const password = page.locator('#stick-it-login-password');
   await expect(username).toHaveAttribute('autocomplete', 'username');
+  await expect(username).toHaveAttribute('name', 'username');
   await expect(password).toHaveAttribute('autocomplete', 'current-password');
+  await expect(password).toHaveAttribute('name', 'password');
+  await expect(username).toBeVisible();
+  await expect(password).toBeVisible();
+  expect(
+    await username.evaluate((input: HTMLInputElement) => input.form?.id),
+  ).toBe('stick-it-login-autofill-form');
+  expect(
+    await password.evaluate((input: HTMLInputElement) => input.form?.id),
+  ).toBe('stick-it-login-autofill-form');
 });
 
 test('secondary auth actions retain 48-pixel hit areas', async ({ page }) => {
