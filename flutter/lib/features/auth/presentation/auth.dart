@@ -1,6 +1,7 @@
 import 'package:buff_lisa/core/session/session_status.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/auth/data/login_service.dart';
+import 'package:buff_lisa/features/auth/presentation/auth_autofill_field.dart';
 import 'package:buff_lisa/features/email_login/data/email_login_providers.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/features/email_login/domain/email_login_use_cases.dart';
@@ -24,8 +25,10 @@ class _AuthState extends ConsumerState<Auth> {
   final _loginFormKey = GlobalKey<FormState>();
   final _verificationFormKey = GlobalKey<FormState>();
   final _identifier = TextEditingController();
+  final _identifierFocusNode = FocusNode();
   final _username = TextEditingController();
   final _password = TextEditingController();
+  final _passwordFocusNode = FocusNode();
   final _email = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _showPassword = false;
@@ -39,8 +42,10 @@ class _AuthState extends ConsumerState<Auth> {
   @override
   void dispose() {
     _identifier.dispose();
+    _identifierFocusNode.dispose();
     _username.dispose();
     _password.dispose();
+    _passwordFocusNode.dispose();
     _email.dispose();
     super.dispose();
   }
@@ -201,6 +206,18 @@ class _AuthState extends ConsumerState<Auth> {
     _error = null;
   });
 
+  void _togglePasswordSignIn() {
+    // The password field is only mounted in password mode. Drop the active
+    // connection before rebuilding so autofill sees the fields in the new mode
+    // instead of a stale, partial field list.
+    FocusScope.of(context).unfocus();
+    final showPassword = !_showPassword;
+    setState(() {
+      _showPassword = showPassword;
+      _error = null;
+    });
+  }
+
   void _openLegal(String path, String title) {
     final host = ref.read(globalDataServiceProvider).host;
     context.pushNamed(
@@ -315,6 +332,7 @@ class _AuthState extends ConsumerState<Auth> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const AuthAutofillFormElement(),
         _brand(
           theme,
           title: 'Sign in',
@@ -322,10 +340,13 @@ class _AuthState extends ConsumerState<Auth> {
               ? 'Your session expired. Sign in again to continue.'
               : null,
         ),
-        TextField(
+        AuthAutofillField(
           key: const Key('auth-identifier'),
           controller: _identifier,
+          focusNode: _identifierFocusNode,
           enabled: !_busy,
+          name: 'username',
+          autocomplete: 'username',
           autofillHints: const [AutofillHints.username],
           keyboardType: _showPassword
               ? TextInputType.text
@@ -333,7 +354,10 @@ class _AuthState extends ConsumerState<Auth> {
           textInputAction: _showPassword
               ? TextInputAction.next
               : TextInputAction.done,
-          onSubmitted: (_) => _showPassword ? null : _requestEmailLink(),
+          obscureText: false,
+          onSubmitted: (_) => _showPassword
+              ? _passwordFocusNode.requestFocus()
+              : _requestEmailLink(),
           decoration: InputDecoration(
             labelText: _showPassword ? 'Username' : 'Email or username',
             helperText: _showPassword ? 'Use your account username.' : null,
@@ -349,12 +373,16 @@ class _AuthState extends ConsumerState<Auth> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_showPassword) ...[
-                TextField(
+                AuthAutofillField(
                   key: const Key('auth-password'),
                   controller: _password,
+                  focusNode: _passwordFocusNode,
                   enabled: !_busy,
                   obscureText: true,
+                  name: 'password',
+                  autocomplete: 'current-password',
                   autofillHints: const [AutofillHints.password],
+                  keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _loginWithPassword(),
                   decoration: const InputDecoration(labelText: 'Password'),
@@ -398,12 +426,7 @@ class _AuthState extends ConsumerState<Auth> {
           alignment: Alignment.centerLeft,
           child: TextButton(
             key: const Key('auth-toggle-signin-method'),
-            onPressed: _busy
-                ? null
-                : () => setState(() {
-                    _showPassword = !_showPassword;
-                    _error = null;
-                  }),
+            onPressed: _busy ? null : _togglePasswordSignIn,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 8),
               minimumSize: const Size(0, 48),
