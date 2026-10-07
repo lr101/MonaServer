@@ -1435,7 +1435,12 @@ class _FakeImageRepository implements IImageRepository {
   Future<void> deleteOldestItems() async {}
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  }) async {
     fetchIds.add(id);
     if (error != null) throw error!;
     return _completion?.future;
@@ -1447,6 +1452,8 @@ class _FakeImageRepository implements IImageRepository {
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   }) async => null;
 
   @override

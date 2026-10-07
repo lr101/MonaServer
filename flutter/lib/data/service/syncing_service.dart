@@ -426,6 +426,7 @@ class SyncingService extends _$SyncingService {
               entry.value.url,
               false,
               fallbackToEndpoint: entry.value.fallbackToEndpoint,
+              priority: ImageRequestPriority.background,
             );
           } catch (_) {
             // Photo byte prefetch is best-effort; the stored URL remains usable.

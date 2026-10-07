@@ -270,8 +270,12 @@ class _ProfilePinImageRepository implements IImageRepository {
   ImageType get type => ImageType.pin;
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async =>
-      Uint8List.fromList(kTransparentImage);
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  }) async => Uint8List.fromList(kTransparentImage);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
