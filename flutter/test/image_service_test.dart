@@ -338,7 +338,12 @@ class _RecordingImageRepository implements IImageRepository {
   Uint8List? watchedBytes;
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  }) async {
     events.add('fetch');
     fetches.add((id, keepAlive));
     await fetchGate?.future;
@@ -353,6 +358,8 @@ class _RecordingImageRepository implements IImageRepository {
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   }) async {
     events.add('fetch-url');
     urlFetches.add((id, url, keepAlive, fallbackToEndpoint));

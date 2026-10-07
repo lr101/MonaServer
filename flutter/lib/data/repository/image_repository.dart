@@ -16,47 +16,167 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'image_repository.g.dart';
 
-Future<http.Response> _defaultImageHttpGet(Uri uri) => http.get(uri);
+Future<http.Response> _defaultImageHttpGet(
+  Uri uri,
+  ImageRequestCancellation? cancellation,
+) async {
+  final client = http.Client();
+  try {
+    final request = http.AbortableRequest(
+      'GET',
+      uri,
+      abortTrigger: cancellation?.whenCancelled,
+    );
+    return await http.Response.fromStream(await client.send(request));
+  } finally {
+    client.close();
+  }
+}
+
+/// A visible or look-ahead owner cancels this when its image is no longer needed.
+class ImageRequestCancellation {
+  final Completer<void> _completion = Completer<void>();
+  final Set<void Function()> _listeners = {};
+
+  bool get isCancelled => _completion.isCompleted;
+  Future<void> get whenCancelled => _completion.future;
+
+  void addListener(void Function() listener) {
+    if (isCancelled) {
+      listener();
+    } else {
+      _listeners.add(listener);
+    }
+  }
+
+  void removeListener(void Function() listener) => _listeners.remove(listener);
+
+  void cancel() {
+    if (isCancelled) return;
+    _completion.complete();
+    for (final listener in _listeners.toList(growable: false)) {
+      listener();
+    }
+    _listeners.clear();
+  }
+}
+
+class _ImageRequestCancelled implements Exception {
+  const _ImageRequestCancelled();
+}
 
 class _ImageWriteQueue {
   Future<void> tail = Future<void>.value();
   int pending = 0;
 }
 
-class _ImageDownloadGate {
-  _ImageDownloadGate(int maxConcurrent)
+enum ImageRequestPriority { foreground, background }
+
+/// Bounds object downloads shared by every image repository in one session.
+/// Visible requests take the next free permit before look-ahead work.
+class ImageDownloadScheduler {
+  ImageDownloadScheduler({int maxConcurrent = 6})
     : _maxConcurrent = maxConcurrent < 1 ? 1 : maxConcurrent;
 
   final int _maxConcurrent;
-  final Queue<Completer<void>> _waiters = Queue<Completer<void>>();
+  final Queue<_ImageDownloadWaiter> _foreground = Queue();
+  final Queue<_ImageDownloadWaiter> _background = Queue();
+  final Map<Object, _ImageDownloadWaiter> _queuedByRequest = {};
   int _active = 0;
 
-  Future<T> withPermit<T>(Future<T> Function() operation) async {
-    await _acquire();
+  Future<T> run<T>(
+    Future<T> Function() operation, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    Object? request,
+    ImageRequestCancellation? cancellation,
+  }) async {
+    await _acquire(priority, request, cancellation);
     try {
+      if (cancellation?.isCancelled == true) {
+        throw const _ImageRequestCancelled();
+      }
       return await operation();
     } finally {
       _release();
     }
   }
 
-  Future<void> _acquire() {
-    if (_active < _maxConcurrent) {
+  void reprioritize(Object request, ImageRequestPriority priority) {
+    final waiter = _queuedByRequest[request];
+    if (waiter == null ||
+        waiter.ready.isCompleted ||
+        waiter.priority == priority) {
+      return;
+    }
+    final previousQueue = waiter.priority == ImageRequestPriority.foreground
+        ? _foreground
+        : _background;
+    if (!previousQueue.remove(waiter)) return;
+    waiter.priority = priority;
+    (priority == ImageRequestPriority.foreground ? _foreground : _background)
+        .addLast(waiter);
+  }
+
+  Future<void> _acquire(
+    ImageRequestPriority priority,
+    Object? request,
+    ImageRequestCancellation? cancellation,
+  ) {
+    if (cancellation?.isCancelled == true) {
+      return Future<void>.error(const _ImageRequestCancelled());
+    }
+    if (_active < _maxConcurrent &&
+        _foreground.isEmpty &&
+        _background.isEmpty) {
       _active++;
       return Future<void>.value();
     }
-    final waiter = Completer<void>();
-    _waiters.addLast(waiter);
-    return waiter.future;
+    final waiter = _ImageDownloadWaiter(priority);
+    if (request != null) _queuedByRequest[request] = waiter;
+    (priority == ImageRequestPriority.foreground ? _foreground : _background)
+        .addLast(waiter);
+    void cancelWaiter() {
+      if (waiter.ready.isCompleted) return;
+      if (_foreground.remove(waiter) || _background.remove(waiter)) {
+        waiter.ready.completeError(const _ImageRequestCancelled());
+      }
+    }
+
+    cancellation?.addListener(cancelWaiter);
+    return waiter.ready.future.whenComplete(() {
+      cancellation?.removeListener(cancelWaiter);
+      if (request != null && identical(_queuedByRequest[request], waiter)) {
+        _queuedByRequest.remove(request);
+      }
+    });
   }
 
   void _release() {
-    if (_waiters.isEmpty) {
+    final waiter = _foreground.isNotEmpty
+        ? _foreground.removeFirst()
+        : _background.isNotEmpty
+        ? _background.removeFirst()
+        : null;
+    if (waiter == null) {
       _active--;
       return;
     }
-    _waiters.removeFirst().complete();
+    waiter.ready.complete();
   }
+}
+
+class _ImageDownloadWaiter {
+  _ImageDownloadWaiter(this.priority);
+
+  ImageRequestPriority priority;
+  final Completer<void> ready = Completer<void>();
+}
+
+class _ImageRequestConsumer {
+  _ImageRequestConsumer(this.priority, this.detach);
+
+  ImageRequestPriority priority;
+  final void Function() detach;
 }
 
 class _ActiveImageRequest {
@@ -64,23 +184,99 @@ class _ActiveImageRequest {
     this.initialKeepAlive, {
     required this.contentVersion,
     this.retainedImage,
+    required this.priority,
   }) : keepAlive = initialKeepAlive;
 
   final bool initialKeepAlive;
   final int contentVersion;
   final ImageEntity? retainedImage;
   bool keepAlive;
+  ImageRequestPriority priority;
+  final ImageRequestCancellation abort = ImageRequestCancellation();
+  final Map<ImageRequestCancellation, _ImageRequestConsumer> _consumers = {};
+  bool _hasUncancelledConsumer = false;
+  bool _hasUncancelledForegroundConsumer = false;
   late final Future<Uint8List?> future;
+
+  bool get isCancelled => abort.isCancelled;
+
+  void addConsumer(
+    ImageRequestCancellation? cancellation,
+    ImageRequestPriority consumerPriority,
+    void Function() onUnobserved,
+    void Function(ImageRequestPriority) onPriorityChanged,
+  ) {
+    if (cancellation == null) {
+      _hasUncancelledConsumer = true;
+      if (consumerPriority == ImageRequestPriority.foreground) {
+        _hasUncancelledForegroundConsumer = true;
+      }
+      _recomputePriority(onPriorityChanged);
+      return;
+    }
+    final existing = _consumers[cancellation];
+    if (existing != null) {
+      if (consumerPriority == ImageRequestPriority.foreground) {
+        existing.priority = consumerPriority;
+        _recomputePriority(onPriorityChanged);
+      }
+      return;
+    }
+    void detach() {
+      final consumer = _consumers.remove(cancellation);
+      if (consumer != null) cancellation.removeListener(consumer.detach);
+      if (!_hasUncancelledConsumer && _consumers.isEmpty) {
+        abort.cancel();
+        onUnobserved();
+      } else {
+        _recomputePriority(onPriorityChanged);
+      }
+    }
+
+    _consumers[cancellation] = _ImageRequestConsumer(consumerPriority, detach);
+    cancellation.addListener(detach);
+    _recomputePriority(onPriorityChanged);
+  }
+
+  void _recomputePriority(
+    void Function(ImageRequestPriority) onPriorityChanged,
+  ) {
+    final next =
+        _hasUncancelledForegroundConsumer ||
+            _consumers.values.any(
+              (consumer) =>
+                  consumer.priority == ImageRequestPriority.foreground,
+            )
+        ? ImageRequestPriority.foreground
+        : ImageRequestPriority.background;
+    if (priority == next) return;
+    priority = next;
+    onPriorityChanged(next);
+  }
+
+  void clearConsumers() {
+    for (final entry in _consumers.entries) {
+      entry.key.removeListener(entry.value.detach);
+    }
+    _consumers.clear();
+  }
 }
 
 abstract class IImageRepository implements CacheApi<ImageEntity> {
   ImageType get type;
-  Future<Uint8List?> fetchImage(String id, bool keepAlive);
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  });
   Future<Uint8List?> fetchImageFromUrl(
     String id,
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   });
   Stream<Uint8List?> watchImageBytes(String id);
   Future<Uint8List> overrideUrl(String id, String url, bool keepAlive);
@@ -100,18 +296,29 @@ class ImageRepository extends CacheImpl<ImageEntity>
   final String? Function(String)? getSuppliedImageUrl;
   final void Function(String, String)? invalidateSuppliedImageUrl;
   final bool Function()? isSessionCurrent;
-  final Future<http.Response> Function(Uri) _httpGet;
+  final Future<http.Response> Function(Uri, ImageRequestCancellation?) _httpGet;
+  final Duration httpTimeout;
   final Duration negativeTtlDuration;
   final int _maxMemoryCacheItems;
-  final _ImageDownloadGate _downloadGate;
+  final ImageDownloadScheduler _downloadScheduler;
   @override
   final ImageType type;
 
   bool _disposed = false;
 
+  bool get _canFetchRemote =>
+      !_disposed && (isSessionCurrent == null || isSessionCurrent!());
+
+  bool _canContinue(_ActiveImageRequest request) =>
+      _canFetchRemote && !request.isCancelled;
+
   void dispose() {
     _disposed = true;
     db.session?.removeListener(dispose);
+    for (final request in _activeRequests.values) {
+      request.abort.cancel();
+      request.clearConsumers();
+    }
     _bytesCache.clear();
     _activeRequests.clear();
     _imageContentVersions.clear();
@@ -141,15 +348,47 @@ class ImageRepository extends CacheImpl<ImageEntity>
     this.isSessionCurrent,
     required this.type,
     Future<http.Response> Function(Uri)? httpGet,
+    this.httpTimeout = const Duration(seconds: 15),
     this.negativeTtlDuration = const Duration(minutes: 2),
     int maxMemoryCacheItems = 50,
     int maxConcurrentDownloads = 6,
+    ImageDownloadScheduler? downloadScheduler,
     super.maxItems,
     super.ttlDuration,
-  }) : _httpGet = httpGet ?? _defaultImageHttpGet,
+  }) : _httpGet = httpGet == null
+           ? _defaultImageHttpGet
+           : ((uri, _) => httpGet(uri)),
        _maxMemoryCacheItems = maxMemoryCacheItems < 1 ? 1 : maxMemoryCacheItems,
-       _downloadGate = _ImageDownloadGate(maxConcurrentDownloads) {
+       _downloadScheduler =
+           downloadScheduler ??
+           ImageDownloadScheduler(maxConcurrent: maxConcurrentDownloads) {
     db.session?.onRevoke(dispose);
+  }
+
+  Future<http.Response> _getHttpResponse(
+    Uri uri,
+    ImageRequestCancellation? cancellation,
+  ) async {
+    // Abort the transport on either owner cancellation or timeout. Awaiting
+    // transport completion keeps the scheduler permit occupied until it stops.
+    final attempt = ImageRequestCancellation();
+    void cancelAttempt() => attempt.cancel();
+    cancellation?.addListener(cancelAttempt);
+    var timedOut = false;
+    final timer = Timer(httpTimeout, () {
+      timedOut = true;
+      attempt.cancel();
+    });
+    try {
+      if (attempt.isCancelled) throw const _ImageRequestCancelled();
+      final response = await _httpGet(uri, attempt);
+      if (timedOut) throw TimeoutException('Image download timed out.');
+      if (attempt.isCancelled) throw const _ImageRequestCancelled();
+      return response;
+    } finally {
+      timer.cancel();
+      cancellation?.removeListener(cancelAttempt);
+    }
   }
 
   String _cacheKey(String id) => '${type.name}:$id';
@@ -240,6 +479,27 @@ class ImageRepository extends CacheImpl<ImageEntity>
   bool _isProtected(String cacheKey) {
     return _activeWatchers.containsKey(cacheKey) ||
         _activeRequests.containsKey(cacheKey);
+  }
+
+  Future<Uint8List?> _joinActiveRequest(
+    String id,
+    String cacheKey,
+    _ActiveImageRequest request,
+    bool keepAlive,
+    ImageRequestPriority priority,
+    ImageRequestCancellation? cancellation,
+  ) async {
+    if (cancellation?.isCancelled == true) return null;
+    request.addConsumer(cancellation, priority, () {
+      if (identical(_activeRequests[cacheKey], request)) {
+        _activeRequests.remove(cacheKey);
+      }
+    }, (priority) => _downloadScheduler.reprioritize(request, priority));
+    request.keepAlive = request.keepAlive || keepAlive;
+    final image = await request.future;
+    if (cancellation?.isCancelled == true || _disposed) return null;
+    if (request.keepAlive) await _promoteKeepAlive(id);
+    return image;
   }
 
   Future<T> _enqueueWrite<T>(String cacheKey, Future<T> Function() write) {
@@ -554,18 +814,28 @@ class ImageRepository extends CacheImpl<ImageEntity>
   // --- NETWORK AND DB CACHE OPERATIONS ---
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async {
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  }) async {
     await ready;
-    if (_disposed) return null;
+    if (_disposed || cancellation?.isCancelled == true) return null;
     final cacheKey = _cacheKey(id);
     final contentVersion = _contentVersion(cacheKey);
     final activeRequest = _activeRequests[cacheKey];
     if (activeRequest != null &&
+        !activeRequest.isCancelled &&
         activeRequest.contentVersion == contentVersion) {
-      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
-      final image = await activeRequest.future;
-      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return _disposed ? null : image;
+      return _joinActiveRequest(
+        id,
+        cacheKey,
+        activeRequest,
+        keepAlive,
+        priority,
+        cancellation,
+      );
     }
 
     final now = DateTime.now();
@@ -586,6 +856,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
           imageUrl: getSuppliedImageUrl?.call(id),
           retainedImage: retainedImage,
           contentVersion: contentVersion,
+          priority: priority,
+          cancellation: cancellation,
         );
       }
 
@@ -599,6 +871,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
           imageUrl: suppliedUrl,
           retainedImage: retainedImage,
           contentVersion: contentVersion,
+          priority: priority,
+          cancellation: cancellation,
         );
       }
     }
@@ -609,6 +883,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       imageUrl: getSuppliedImageUrl?.call(id),
       retainedImage: retainedImage,
       contentVersion: contentVersion,
+      priority: priority,
+      cancellation: cancellation,
     );
   }
 
@@ -618,18 +894,25 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   }) async {
     await ready;
-    if (_disposed) return null;
+    if (_disposed || cancellation?.isCancelled == true) return null;
     final cacheKey = _cacheKey(id);
     final contentVersion = _contentVersion(cacheKey);
     final activeRequest = _activeRequests[cacheKey];
     if (activeRequest != null &&
+        !activeRequest.isCancelled &&
         activeRequest.contentVersion == contentVersion) {
-      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
-      final image = await activeRequest.future;
-      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return _disposed ? null : image;
+      return _joinActiveRequest(
+        id,
+        cacheKey,
+        activeRequest,
+        keepAlive,
+        priority,
+        cancellation,
+      );
     }
 
     final now = DateTime.now();
@@ -659,6 +942,8 @@ class ImageRepository extends CacheImpl<ImageEntity>
       imageUrl: url,
       contentVersion: contentVersion,
       fallbackToEndpoint: fallbackToEndpoint,
+      priority: priority,
+      cancellation: cancellation,
     );
   }
 
@@ -670,22 +955,36 @@ class ImageRepository extends CacheImpl<ImageEntity>
     ImageEntity? retainedImage,
     required int contentVersion,
     bool fallbackToEndpoint = true,
+    required ImageRequestPriority priority,
+    ImageRequestCancellation? cancellation,
   }) async {
+    if (cancellation?.isCancelled == true) return null;
     final cacheKey = _cacheKey(id);
     final activeRequest = _activeRequests[cacheKey];
     if (activeRequest != null &&
+        !activeRequest.isCancelled &&
         activeRequest.contentVersion == contentVersion) {
-      activeRequest.keepAlive = activeRequest.keepAlive || keepAlive;
-      final image = await activeRequest.future;
-      if (activeRequest.keepAlive) await _promoteKeepAlive(id);
-      return _disposed ? null : image;
+      return _joinActiveRequest(
+        id,
+        cacheKey,
+        activeRequest,
+        keepAlive,
+        priority,
+        cancellation,
+      );
     }
 
     final requestState = _ActiveImageRequest(
       keepAlive,
       contentVersion: contentVersion,
       retainedImage: retainedImage,
+      priority: priority,
     );
+    requestState.addConsumer(cancellation, priority, () {
+      if (identical(_activeRequests[cacheKey], requestState)) {
+        _activeRequests.remove(cacheKey);
+      }
+    }, (priority) => _downloadScheduler.reprioritize(requestState, priority));
     final request = _fetchAndCacheImage(
       id,
       requestState,
@@ -702,12 +1001,13 @@ class ImageRepository extends CacheImpl<ImageEntity>
     _activeRequests[cacheKey] = requestState;
     try {
       final bytes = await request;
-      return _disposed ? null : bytes;
+      return _disposed || cancellation?.isCancelled == true ? null : bytes;
     } finally {
       if (identical(_activeRequests[cacheKey], requestState)) {
         _activeRequests.remove(cacheKey);
       }
       _finishImageRequest(cacheKey);
+      requestState.clearConsumers();
     }
   }
 
@@ -718,14 +1018,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
     String? imageUrl,
     bool fallbackToEndpoint = true,
   }) async {
+    if (!_canContinue(requestState)) return null;
     if (imageUrl != null && imageUrl.isNotEmpty) {
-      final image = await _fetchAndCacheFromUrl(
-        id,
-        imageUrl,
-        requestState.initialKeepAlive,
-        requestState.contentVersion,
-      );
-      if (_disposed) return null;
+      final image = await _fetchAndCacheFromUrl(id, imageUrl, requestState);
+      if (!_canContinue(requestState)) return null;
       if (image != null) return image;
       if (!fallbackToEndpoint) return fallback;
     }
@@ -736,14 +1032,18 @@ class ImageRepository extends CacheImpl<ImageEntity>
   Future<Uint8List?> _fetchAndCacheFromUrl(
     String id,
     String imageUrl,
-    bool keepAlive,
-    int contentVersion,
+    _ActiveImageRequest requestState,
   ) async {
     try {
-      final response = await _downloadGate.withPermit(
-        () =>
-            _httpGet(Uri.parse(imageUrl)).timeout(const Duration(seconds: 15)),
+      final response = await _downloadScheduler.run<http.Response?>(
+        () => _canContinue(requestState)
+            ? _getHttpResponse(Uri.parse(imageUrl), requestState.abort)
+            : Future<http.Response?>.value(),
+        priority: requestState.priority,
+        request: requestState,
+        cancellation: requestState.abort,
       );
+      if (response == null || !_canContinue(requestState)) return null;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) {
           _invalidateSuppliedImageUrl(id, imageUrl);
@@ -752,8 +1052,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
         return await _saveAndPrecacheImage(
           id,
           response.bodyBytes,
-          keepAlive,
-          contentVersion: contentVersion,
+          requestState.initialKeepAlive,
+          contentVersion: requestState.contentVersion,
+          cancellation: requestState.abort,
         );
       }
       _invalidateSuppliedImageUrl(id, imageUrl);
@@ -761,6 +1062,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
         'HTTP error fetching image $id from supplied URL: ${response.statusCode}',
       );
     } catch (_) {
+      if (!_canContinue(requestState)) return null;
       _invalidateSuppliedImageUrl(id, imageUrl);
       debugPrint('Network exception fetching image $id from supplied URL.');
     }
@@ -781,7 +1083,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
     Uint8List? fallback,
   }) async {
     try {
+      if (!_canContinue(requestState)) return null;
       final imageUrl = await getImageUrl(id);
+      if (!_canContinue(requestState)) return null;
       if (imageUrl == null) {
         if (fallback == null) {
           await _saveAndPrecacheImage(
@@ -790,15 +1094,21 @@ class ImageRepository extends CacheImpl<ImageEntity>
             requestState.initialKeepAlive,
             contentVersion: requestState.contentVersion,
             retainedImage: requestState.retainedImage,
+            cancellation: requestState.abort,
           );
         }
         return _disposed ? null : fallback;
       }
 
-      final response = await _downloadGate.withPermit(
-        () =>
-            _httpGet(Uri.parse(imageUrl)).timeout(const Duration(seconds: 15)),
+      final response = await _downloadScheduler.run<http.Response?>(
+        () => _canContinue(requestState)
+            ? _getHttpResponse(Uri.parse(imageUrl), requestState.abort)
+            : Future<http.Response?>.value(),
+        priority: requestState.priority,
+        request: requestState,
+        cancellation: requestState.abort,
       );
+      if (response == null || !_canContinue(requestState)) return null;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (response.bodyBytes.isEmpty) {
           if (fallback == null) {
@@ -808,6 +1118,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
               requestState.initialKeepAlive,
               contentVersion: requestState.contentVersion,
               retainedImage: requestState.retainedImage,
+              cancellation: requestState.abort,
             );
           }
           return _disposed ? null : fallback;
@@ -818,6 +1129,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           requestState.initialKeepAlive,
           contentVersion: requestState.contentVersion,
           retainedImage: requestState.retainedImage,
+          cancellation: requestState.abort,
         );
       }
 
@@ -828,11 +1140,13 @@ class ImageRepository extends CacheImpl<ImageEntity>
           requestState.initialKeepAlive,
           contentVersion: requestState.contentVersion,
           retainedImage: requestState.retainedImage,
+          cancellation: requestState.abort,
         );
       }
       debugPrint('HTTP error fetching image $id: ${response.statusCode}');
       return _disposed ? null : fallback;
     } catch (error) {
+      if (!_canContinue(requestState)) return null;
       if (error is BatchReadFailure &&
           error.status == 404 &&
           fallback == null) {
@@ -842,6 +1156,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
           requestState.initialKeepAlive,
           contentVersion: requestState.contentVersion,
           retainedImage: requestState.retainedImage,
+          cancellation: requestState.abort,
         );
         return null;
       }
@@ -866,8 +1181,13 @@ class ImageRepository extends CacheImpl<ImageEntity>
     try {
       final http.Response response;
       try {
-        response = await _httpGet(Uri.parse(url))
-            .timeout(const Duration(seconds: 15));
+        final scheduled = await _downloadScheduler.run<http.Response?>(
+          () => _canFetchRemote
+              ? _getHttpResponse(Uri.parse(url), null)
+              : Future<http.Response?>.value(),
+        );
+        if (scheduled == null) return Uint8List(0);
+        response = scheduled;
       } catch (_) {
         // The exception can include the full presigned URI. Some callers do
         // not await this cache refresh, so only propagate a sanitized error.
@@ -932,6 +1252,7 @@ class ImageRepository extends CacheImpl<ImageEntity>
     int? contentVersion,
     int? replacementVersion,
     ImageEntity? retainedImage,
+    ImageRequestCancellation? cancellation,
   }) {
     final cacheKey = _cacheKey(id);
     assert((contentVersion == null) != (replacementVersion == null));
@@ -939,7 +1260,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
       // A request can outlive logout or an account switch. Return the
       // downloaded bytes to its caller, but never let an old session repopulate
       // the shared byte/database cache after the session has changed.
-      if (_disposed || (isSessionCurrent != null && !isSessionCurrent!())) {
+      if (_disposed ||
+          cancellation?.isCancelled == true ||
+          (isSessionCurrent != null && !isSessionCurrent!())) {
         return;
       }
       if (contentVersion != null &&
@@ -965,7 +1288,9 @@ class ImageRepository extends CacheImpl<ImageEntity>
           effectiveKeepAlive = true;
         }
       }
-      if (_disposed || (isSessionCurrent != null && !isSessionCurrent!())) {
+      if (_disposed ||
+          cancellation?.isCancelled == true ||
+          (isSessionCurrent != null && !isSessionCurrent!())) {
         return;
       }
       await put(
@@ -983,7 +1308,10 @@ class ImageRepository extends CacheImpl<ImageEntity>
         _committedReplacementVersions[cacheKey] = replacementVersion;
         _imageContentVersions[cacheKey] = _contentVersion(cacheKey) + 1;
       }
-    }).then((_) => _disposed ? Uint8List(0) : bytes);
+    }).then(
+      (_) =>
+          _disposed || cancellation?.isCancelled == true ? Uint8List(0) : bytes,
+    );
   }
 
   DateTime _calculateTtl({required bool isNegative}) {
@@ -1063,9 +1391,15 @@ class ImageRepository extends CacheImpl<ImageEntity>
 
 // --- PROVIDERS ---
 
+final imageDownloadSchedulerProvider = Provider<ImageDownloadScheduler>((ref) {
+  watchSession(ref);
+  return ImageDownloadScheduler();
+});
+
 @Riverpod(keepAlive: true)
 IImageRepository groupProfileRepo(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.group,
     isSessionCurrent: _sessionGuard(ref),
@@ -1083,6 +1417,7 @@ IImageRepository groupProfileRepo(Ref ref) {
 @Riverpod(keepAlive: true)
 IImageRepository groupProfileSmallRepo(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupSmall,
     isSessionCurrent: _sessionGuard(ref),
@@ -1101,6 +1436,7 @@ IImageRepository groupProfileSmallRepo(Ref ref) {
 @Riverpod(keepAlive: true)
 IImageRepository groupPinImageRepo(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.groupPin,
     isSessionCurrent: _sessionGuard(ref),
@@ -1118,6 +1454,7 @@ IImageRepository groupPinImageRepo(Ref ref) {
 @Riverpod(keepAlive: true)
 IImageRepository userImageSmallRepo(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.userSmall,
     isSessionCurrent: _sessionGuard(ref),
@@ -1136,6 +1473,7 @@ IImageRepository userImageSmallRepo(Ref ref) {
 @Riverpod(keepAlive: true)
 IImageRepository userImageRepo(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.user,
     isSessionCurrent: _sessionGuard(ref),
@@ -1153,6 +1491,7 @@ IImageRepository userImageRepo(Ref ref) {
 @Riverpod(keepAlive: true)
 IImageRepository pinImageRepository(Ref ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.pin,
     isSessionCurrent: _sessionGuard(ref),
@@ -1169,6 +1508,7 @@ IImageRepository pinImageRepository(Ref ref) {
 
 final pinThumbnailRepositoryProvider = Provider<IImageRepository>((ref) {
   final repository = ImageRepository(
+    downloadScheduler: ref.watch(imageDownloadSchedulerProvider),
     db: ref.watch(accountDatabaseProvider),
     type: ImageType.pinThumbnail,
     isSessionCurrent: _sessionGuard(ref),

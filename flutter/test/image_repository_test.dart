@@ -7,17 +7,650 @@ import 'package:buff_lisa/data/entity/image_entity.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_thumbnail_prefetch_coordinator.dart';
 import 'package:drift/drift.dart'
     show ApplyInterceptor, QueryExecutor, QueryInterceptor;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:openapi/api.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('image repositories share one limit for object downloads', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final container = ProviderContainer(
+      overrides: [accountDatabaseProvider.overrideWithValue(database)],
+    );
+    addTearDown(container.dispose);
+    final started = Completer<void>();
+    final release = Completer<void>();
+    var active = 0;
+    var maximumActive = 0;
+
+    await http.runWithClient(
+      () async {
+        final thumbnails = container.read(pinThumbnailRepositoryProvider);
+        final originals = container.read(pinImageRepositoryProvider);
+        final requests = <Future<Object?>>[
+          for (var index = 0; index < 4; index++)
+            thumbnails.fetchImageFromUrl(
+              'thumbnail-$index',
+              'https://images.example/thumbnail-$index',
+              false,
+            ),
+          for (var index = 0; index < 4; index++)
+            originals.fetchImageFromUrl(
+              'original-$index',
+              'https://images.example/original-$index',
+              false,
+            ),
+          originals.overrideUrl(
+            'replacement',
+            'https://images.example/replacement',
+            false,
+          ),
+        ];
+        await started.future.timeout(const Duration(seconds: 3));
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        final beforeRelease = maximumActive;
+        release.complete();
+        await Future.wait(requests);
+
+        expect(beforeRelease, lessThanOrEqualTo(6));
+        expect(maximumActive, lessThanOrEqualTo(6));
+      },
+      () => MockClient((_) async {
+        active++;
+        if (active > maximumActive) maximumActive = active;
+        if (maximumActive >= 6 && !started.isCompleted) started.complete();
+        await release.future;
+        active--;
+        return http.Response.bytes([1], 200);
+      }),
+    );
+  });
+
+  test('a visible thumbnail starts before queued look-ahead images', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final started = <String>[];
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      maxConcurrentDownloads: 1,
+      getImageUrl: (id) async => 'https://images.example/$id',
+      httpGet: (uri) async {
+        started.add(uri.pathSegments.single);
+        if (uri.pathSegments.single == 'ahead-1') {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return http.Response.bytes([1], 200);
+      },
+    );
+    final coordinator = PinThumbnailPrefetchCoordinator(repository: repository);
+    addTearDown(coordinator.dispose);
+    coordinator.updateWindow(Object(), {
+      'ahead-1': (_) async {},
+      'ahead-2': (_) async {},
+    });
+    await firstStarted.future.timeout(const Duration(seconds: 3));
+    final visible = repository.fetchImageFromUrl(
+      'visible',
+      'https://images.example/visible',
+      false,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    releaseFirst.complete();
+    await visible;
+
+    expect(started.take(2), ['ahead-1', 'visible']);
+  });
+
+  test('a visible consumer promotes its queued look-ahead request', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final started = <String>[];
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      maxConcurrentDownloads: 1,
+      getImageUrl: (id) async => 'https://images.example/$id',
+      httpGet: (uri) async {
+        started.add(uri.pathSegments.single);
+        if (uri.pathSegments.single == 'ahead-1') {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return http.Response.bytes([1], 200);
+      },
+    );
+    final coordinator = PinThumbnailPrefetchCoordinator(
+      repository: repository,
+      maxConcurrentRequests: 3,
+    );
+    addTearDown(coordinator.dispose);
+    coordinator.updateWindow(Object(), {
+      'ahead-1': (_) async {},
+      'ahead-2': (_) async {},
+      'target': (_) async {},
+    });
+    await firstStarted.future.timeout(const Duration(seconds: 3));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final visible = repository.fetchImage('target', false);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    releaseFirst.complete();
+    await visible;
+
+    expect(started.take(2), ['ahead-1', 'target']);
+  });
+
+  test(
+    'a queued prefetch loses foreground priority when its tile leaves',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final firstStarted = Completer<void>();
+      final releaseFirst = Completer<void>();
+      final started = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.pinThumbnail,
+        maxConcurrentDownloads: 1,
+        getImageUrl: (id) async => 'https://images.example/$id',
+        httpGet: (uri) async {
+          started.add(uri.pathSegments.single);
+          if (uri.pathSegments.single == 'first') {
+            firstStarted.complete();
+            await releaseFirst.future;
+          }
+          return http.Response.bytes([1], 200);
+        },
+      );
+      final coordinator = PinThumbnailPrefetchCoordinator(
+        repository: repository,
+      );
+      addTearDown(coordinator.dispose);
+      final first = repository.fetchImage('first', false);
+      await firstStarted.future.timeout(const Duration(seconds: 3));
+      coordinator.updateWindow(Object(), {'shared': (_) async {}});
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final visibleCancellation = ImageRequestCancellation();
+      final visible = repository.fetchImage(
+        'shared',
+        false,
+        cancellation: visibleCancellation,
+      );
+      await Future<void>.delayed(Duration.zero);
+      visibleCancellation.cancel();
+      final nextVisible = repository.fetchImage('next-visible', false);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      releaseFirst.complete();
+      await Future.wait([first, visible, nextVisible]);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(started, ['first', 'next-visible', 'shared']);
+    },
+  );
+
+  test(
+    'disposing a repository drops downloads still waiting for a permit',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final firstStarted = Completer<void>();
+      final releaseFirst = Completer<void>();
+      final requested = <String>[];
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.pinThumbnail,
+        maxConcurrentDownloads: 1,
+        getImageUrl: (_) async => null,
+        httpGet: (uri) async {
+          requested.add(uri.pathSegments.single);
+          if (uri.pathSegments.single == 'first') {
+            firstStarted.complete();
+            await releaseFirst.future;
+          }
+          return http.Response.bytes([1], 200);
+        },
+      );
+      final first = repository.fetchImageFromUrl(
+        'first',
+        'https://images.example/first',
+        false,
+      );
+      await firstStarted.future.timeout(const Duration(seconds: 3));
+      final queued = repository.fetchImageFromUrl(
+        'queued',
+        'https://images.example/queued',
+        false,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      repository.dispose();
+      releaseFirst.complete();
+      await Future.wait([first, queued]);
+
+      expect(requested, ['first']);
+    },
+  );
+
+  test('a removed grid tile drops its queued thumbnail download', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final requested = <String>[];
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      maxConcurrentDownloads: 1,
+      getImageUrl: (id) async => 'https://images.example/$id',
+      httpGet: (uri) async {
+        requested.add(uri.pathSegments.single);
+        if (uri.pathSegments.single == 'first') {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return http.Response.bytes([1], 200);
+      },
+    );
+    final first = repository.fetchImage('first', false);
+    await firstStarted.future.timeout(const Duration(seconds: 3));
+
+    final container = ProviderContainer(
+      overrides: [pinThumbnailRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    final tile = container.listen(
+      pinThumbnailBytesProvider('tile'),
+      (_, _) {},
+      fireImmediately: true,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    tile.close();
+    await container.pump();
+    releaseFirst.complete();
+    await first;
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    expect(requested, ['first']);
+  });
+
+  test('a replaced prefetch window drops its queued thumbnail', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final requested = <String>[];
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      maxConcurrentDownloads: 1,
+      getImageUrl: (id) async => 'https://images.example/$id',
+      httpGet: (uri) async {
+        requested.add(uri.pathSegments.single);
+        if (uri.pathSegments.single == 'first') {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return http.Response.bytes([1], 200);
+      },
+    );
+    final coordinator = PinThumbnailPrefetchCoordinator(repository: repository);
+    addTearDown(coordinator.dispose);
+    final owner = Object();
+    coordinator.updateWindow(owner, {
+      'first': (_) async {},
+      'queued': (_) async {},
+    });
+    await firstStarted.future.timeout(const Duration(seconds: 3));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    coordinator.cancelWindow(owner);
+    releaseFirst.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(requested, ['first']);
+  });
+
+  test('an active canceled prefetch holds its slot until it settles', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    final secondStarted = Completer<void>();
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      getImageUrl: (id) async {
+        if (id == 'first') {
+          firstStarted.complete();
+          await releaseFirst.future;
+        } else if (!secondStarted.isCompleted) {
+          secondStarted.complete();
+        }
+        return null;
+      },
+    );
+    final coordinator = PinThumbnailPrefetchCoordinator(
+      repository: repository,
+      maxConcurrentRequests: 1,
+    );
+    addTearDown(coordinator.dispose);
+    final owner = Object();
+    coordinator.updateWindow(owner, {'first': (_) async {}});
+    await firstStarted.future.timeout(const Duration(seconds: 3));
+    coordinator.updateWindow(owner, {'second': (_) async {}});
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(secondStarted.isCompleted, isFalse);
+
+    releaseFirst.complete();
+    await secondStarted.future.timeout(const Duration(seconds: 3));
+  });
+
+  test(
+    'a restarted prefetch waits for its canceled request to settle',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final firstStarted = Completer<void>();
+      final releaseFirst = Completer<void>();
+      final secondStarted = Completer<void>();
+      var calls = 0;
+      final repository = ImageRepository(
+        db: database,
+        type: ImageType.pinThumbnail,
+        getImageUrl: (_) async {
+          calls++;
+          if (calls == 1) {
+            firstStarted.complete();
+            await releaseFirst.future;
+          } else {
+            secondStarted.complete();
+          }
+          return null;
+        },
+      );
+      final coordinator = PinThumbnailPrefetchCoordinator(
+        repository: repository,
+      );
+      addTearDown(coordinator.dispose);
+      final owner = Object();
+      coordinator.updateWindow(owner, {'same': (_) async {}});
+      await firstStarted.future.timeout(const Duration(seconds: 3));
+      coordinator.cancelWindow(owner);
+      coordinator.updateWindow(owner, {'same': (_) async {}});
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(calls, 1);
+
+      releaseFirst.complete();
+      await secondStarted.future.timeout(const Duration(seconds: 3));
+      expect(calls, 2);
+    },
+  );
+
+  test('removing a tile aborts its active image HTTP request', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final started = Completer<http.BaseRequest>();
+    final responseBody = StreamController<List<int>>();
+    addTearDown(responseBody.close);
+
+    await http.runWithClient(
+      () async {
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.pinThumbnail,
+          getImageUrl: (_) async => 'https://images.example/active',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            pinThumbnailRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+        addTearDown(container.dispose);
+        final tile = container.listen(
+          pinThumbnailBytesProvider('active'),
+          (_, _) {},
+          fireImmediately: true,
+        );
+        final request = await started.future.timeout(
+          const Duration(seconds: 3),
+        );
+        tile.close();
+        await container.pump();
+
+        expect(request, isA<http.Abortable>());
+        await (request as http.Abortable).abortTrigger!.timeout(
+          const Duration(seconds: 1),
+        );
+      },
+      () => MockClient.streaming((request, _) async {
+        started.complete(request);
+        return http.StreamedResponse(responseBody.stream, 200);
+      }),
+    );
+  });
+
+  test('canceling a prefetch window aborts its active HTTP request', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final started = Completer<http.BaseRequest>();
+    final responseBody = StreamController<List<int>>();
+    addTearDown(responseBody.close);
+
+    await http.runWithClient(
+      () async {
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.pinThumbnail,
+          getImageUrl: (_) async => 'https://images.example/ahead',
+        );
+        final coordinator = PinThumbnailPrefetchCoordinator(
+          repository: repository,
+        );
+        addTearDown(coordinator.dispose);
+        final owner = Object();
+        coordinator.updateWindow(owner, {'ahead': (_) async {}});
+        final request = await started.future.timeout(
+          const Duration(seconds: 3),
+        );
+        coordinator.cancelWindow(owner);
+
+        expect(request, isA<http.Abortable>());
+        await (request as http.Abortable).abortTrigger!.timeout(
+          const Duration(seconds: 1),
+        );
+      },
+      () => MockClient.streaming((request, _) async {
+        started.complete(request);
+        return http.StreamedResponse(responseBody.stream, 200);
+      }),
+    );
+  });
+
+  test('a shared download continues until its last owner leaves', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final started = Completer<http.BaseRequest>();
+    final responseBody = StreamController<List<int>>();
+    addTearDown(responseBody.close);
+
+    await http.runWithClient(
+      () async {
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.pinThumbnail,
+          getImageUrl: (_) async => 'https://images.example/shared',
+        );
+        final lookAhead = ImageRequestCancellation();
+        final visible = ImageRequestCancellation();
+        final background = repository.fetchImage(
+          'shared',
+          false,
+          priority: ImageRequestPriority.background,
+          cancellation: lookAhead,
+        );
+        final request = await started.future.timeout(
+          const Duration(seconds: 3),
+        );
+        final foreground = repository.fetchImage(
+          'shared',
+          false,
+          cancellation: visible,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        var aborted = false;
+        final abortTrigger = (request as http.Abortable).abortTrigger!;
+        abortTrigger.then((_) => aborted = true);
+        lookAhead.cancel();
+        await Future<void>.delayed(Duration.zero);
+        expect(aborted, isFalse);
+
+        visible.cancel();
+        await abortTrigger.timeout(const Duration(seconds: 1));
+        responseBody.close();
+        expect(await Future.wait([background, foreground]), [null, null]);
+      },
+      () => MockClient.streaming((request, _) async {
+        started.complete(request);
+        return http.StreamedResponse(responseBody.stream, 200);
+      }),
+    );
+  });
+
+  test('an abandoned image response cannot populate the cache', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final repository = ImageRepository(
+      db: database,
+      type: ImageType.pinThumbnail,
+      getImageUrl: (_) async => 'https://images.example/abandoned',
+      httpGet: (_) async {
+        started.complete();
+        await release.future;
+        return http.Response.bytes([1], 200);
+      },
+    );
+    final cancellation = ImageRequestCancellation();
+    final fetch = repository.fetchImage(
+      'abandoned',
+      false,
+      cancellation: cancellation,
+    );
+    await started.future.timeout(const Duration(seconds: 3));
+    cancellation.cancel();
+    release.complete();
+
+    expect(await fetch, isNull);
+    expect(await repository.get('abandoned'), isNull);
+  });
+
+  test('timed-out transport keeps its slot until abort settles', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final slowStarted = Completer<http.BaseRequest>();
+    final releaseAbort = Completer<void>();
+    final fastStarted = Completer<void>();
+
+    await http.runWithClient(
+      () async {
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.pinThumbnail,
+          getImageUrl: (_) async => null,
+          maxConcurrentDownloads: 1,
+          httpTimeout: const Duration(milliseconds: 25),
+        );
+        final slow = repository.fetchImageFromUrl(
+          'slow',
+          'https://images.example/slow',
+          false,
+          fallbackToEndpoint: false,
+        );
+        final request = await slowStarted.future.timeout(
+          const Duration(seconds: 3),
+        );
+        await (request as http.Abortable).abortTrigger!.timeout(
+          const Duration(seconds: 1),
+        );
+
+        final fast = repository.fetchImageFromUrl(
+          'fast',
+          'https://images.example/fast',
+          false,
+          fallbackToEndpoint: false,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        expect(fastStarted.isCompleted, isFalse);
+        releaseAbort.complete();
+        expect(await slow, isNull);
+        expect(await fast, [1]);
+      },
+      () => MockClient.streaming((request, _) async {
+        if (request.url.pathSegments.single == 'slow') {
+          slowStarted.complete(request);
+          await (request as http.Abortable).abortTrigger!;
+          await releaseAbort.future;
+          throw StateError('transport aborted');
+        }
+        fastStarted.complete();
+        return http.StreamedResponse(Stream.value([1]), 200);
+      }),
+    );
+  });
+
+  test('a timed-out replacement request aborts its transport', () async {
+    final database = AppDatabase(NativeDatabase.memory());
+    addTearDown(database.close);
+    final started = Completer<http.BaseRequest>();
+
+    await http.runWithClient(
+      () async {
+        final repository = ImageRepository(
+          db: database,
+          type: ImageType.pinThumbnail,
+          getImageUrl: (_) async => null,
+          httpTimeout: const Duration(milliseconds: 25),
+        );
+        final replacement = repository.overrideUrl(
+          'replacement',
+          'https://images.example/replacement',
+          false,
+        );
+        final replacementExpectation = expectLater(
+          replacement,
+          throwsA(isA<Exception>()),
+        );
+        final request = await started.future.timeout(
+          const Duration(seconds: 3),
+        );
+        await (request as http.Abortable).abortTrigger!.timeout(
+          const Duration(seconds: 1),
+        );
+        await replacementExpectation;
+      },
+      () => MockClient.streaming((request, _) async {
+        started.complete(request);
+        await (request as http.Abortable).abortTrigger!;
+        throw StateError('transport aborted');
+      }),
+    );
+  });
 
   test('image repository providers use four times the cache capacity', () {
     final database = AppDatabase(NativeDatabase.memory());

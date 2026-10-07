@@ -239,7 +239,12 @@ class _ImageRepository implements IImageRepository {
   final ImageType type;
 
   @override
-  Future<Uint8List?> fetchImage(String id, bool keepAlive) async => image;
+  Future<Uint8List?> fetchImage(
+    String id,
+    bool keepAlive, {
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
+  }) async => image;
 
   @override
   Future<Uint8List?> fetchImageFromUrl(
@@ -247,6 +252,8 @@ class _ImageRepository implements IImageRepository {
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   }) async {
     requestedPhotoId = id;
     requestedPhotoUrl = url;
