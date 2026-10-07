@@ -971,6 +971,8 @@ class _RecordingProfileImageRepository extends ImageRepository {
     String url,
     bool keepAlive, {
     bool fallbackToEndpoint = true,
+    ImageRequestPriority priority = ImageRequestPriority.foreground,
+    ImageRequestCancellation? cancellation,
   }) {
     imageUrls[id] = url;
     endpointFallbacks[id] = fallbackToEndpoint;

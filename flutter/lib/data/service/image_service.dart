@@ -141,17 +141,21 @@ class _ImageLoadStage {
   bool get shouldLoad =>
       imageUrl?.isNotEmpty == true || fetchEndpointWhenUrlMissing;
 
-  Future<Uint8List?> fetch(bool keepAlive) {
+  Future<Uint8List?> fetch(
+    bool keepAlive,
+    ImageRequestCancellation cancellation,
+  ) {
     if (imageUrl case final url? when url.isNotEmpty) {
       return repository.fetchImageFromUrl(
         id,
         url,
         keepAlive,
         fallbackToEndpoint: fallbackToEndpointAfterUrlFailure,
+        cancellation: cancellation,
       );
     }
     if (fetchEndpointWhenUrlMissing) {
-      return repository.fetchImage(id, keepAlive);
+      return repository.fetchImage(id, keepAlive, cancellation: cancellation);
     }
     return Future<Uint8List?>.value();
   }
@@ -174,6 +178,7 @@ Stream<Uint8List?> _watchImageStages(
   Uint8List? displayedImage;
   var stageFailed = false;
   var cancelled = false;
+  final requestCancellation = ImageRequestCancellation();
 
   void showImage(int stage, Uint8List? bytes) {
     if (cancelled || stage < displayedStage) return;
@@ -216,7 +221,10 @@ Stream<Uint8List?> _watchImageStages(
           if (cancelled) return;
           if (displayedStage > index) continue;
           try {
-            showImage(index, await stages[index].fetch(keepAlive));
+            showImage(
+              index,
+              await stages[index].fetch(keepAlive, requestCancellation),
+            );
             if (stopAfterFirstImage && displayedImage != null) break;
           } catch (error, stackTrace) {
             if (!cancelled) {
@@ -236,6 +244,7 @@ Stream<Uint8List?> _watchImageStages(
     },
     onCancel: () async {
       cancelled = true;
+      requestCancellation.cancel();
       for (final watcher in watchers) {
         await watcher.cancel();
       }
@@ -352,9 +361,11 @@ final pinPhotoThumbnailBytesProvider = StreamProvider.autoDispose
 /// that distinction to avoid showing a missing-image state during loading.
 final pinImageForDetailsProvider = FutureProvider.autoDispose
     .family<Uint8List?, String>((ref, pinId) async {
+      final cancellation = ImageRequestCancellation();
+      ref.onDispose(cancellation.cancel);
       final repo = ref.watch(pinImageRepositoryProvider);
       final cachedImage = await ref.watch(pinImageBytesProvider(pinId).future);
       if (cachedImage != null) return cachedImage;
 
-      return repo.fetchImage(pinId, false);
+      return repo.fetchImage(pinId, false, cancellation: cancellation);
     });
