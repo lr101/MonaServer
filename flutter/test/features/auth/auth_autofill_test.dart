@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/features/auth/presentation/auth.dart';
+import 'package:buff_lisa/features/auth/presentation/auth_autofill_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,28 +29,28 @@ void main() {
     await tester.tap(find.byKey(const Key('auth-toggle-signin-method')));
     await tester.pumpAndSettle();
 
+    final usernameField = find.byWidgetPredicate(
+      (widget) => widget is AuthAutofillField && widget.name == 'username',
+    );
+    final passwordField = find.byWidgetPredicate(
+      (widget) => widget is AuthAutofillField && widget.name == 'password',
+    );
     final username = tester.widget<TextField>(
-      find.byKey(const Key('auth-identifier')),
+      find.descendant(of: usernameField, matching: find.byType(TextField)),
     );
     final password = tester.widget<TextField>(
-      find.byKey(const Key('auth-password')),
+      find.descendant(of: passwordField, matching: find.byType(TextField)),
     );
 
     expect(username.autofillHints, [AutofillHints.username]);
     expect(password.autofillHints, [AutofillHints.password]);
     expect(find.byType(AutofillGroup), findsOneWidget);
     expect(
-      find.ancestor(
-        of: find.byKey(const Key('auth-identifier')),
-        matching: find.byType(AutofillGroup),
-      ),
+      find.ancestor(of: usernameField, matching: find.byType(AutofillGroup)),
       findsOneWidget,
     );
     expect(
-      find.ancestor(
-        of: find.byKey(const Key('auth-password')),
-        matching: find.byType(AutofillGroup),
-      ),
+      find.ancestor(of: passwordField, matching: find.byType(AutofillGroup)),
       findsOneWidget,
     );
 
