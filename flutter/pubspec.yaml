@@ -17,7 +17,7 @@ dependencies:
   camera_web: 0.3.5+5
   camera_platform_interface: ^2.12.0
   web: ^1.1.1
-  camera_avfoundation: ^0.10.2
+  camera_avfoundation: ^0.11.0
   choice:
   collection:
   connectivity_plus:
