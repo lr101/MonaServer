@@ -40,14 +40,11 @@ class SquareImage extends ConsumerWidget {
     final image = imageState.value;
     final imageUnavailable =
         image == null && (imageState.hasValue || imageState.hasError);
-    final canOpen =
-        image != null ||
-        photoUrl?.isNotEmpty == true ||
-        photoThumbnailUrl?.isNotEmpty == true;
 
     return LayoutBuilder(
       builder: (context, constraints) => GestureDetector(
-        onTap: canOpen ? () => onTap(index) : null,
+        onTap: () => onTap(index),
+        behavior: HitTestBehavior.opaque,
         child: Stack(
           fit: StackFit.expand,
           children: [

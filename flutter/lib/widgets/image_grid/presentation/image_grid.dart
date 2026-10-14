@@ -11,7 +11,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class ImageGrid extends ConsumerStatefulWidget {
   const ImageGrid({super.key, required this.pinProvider, this.onTap});
@@ -24,53 +23,43 @@ class ImageGrid extends ConsumerStatefulWidget {
 }
 
 class _ImageGridState extends ConsumerState<ImageGrid> {
-  final PagingController<int, PinEntity> _pagingController = PagingController(
-    firstPageKey: 0,
-    invisibleItemsThreshold: 12,
-  );
-  static const int _pageSize = 18;
-  static const int _prefetchCount = 6;
   static const int _columns = 3;
-  static const double _crossAxisSpacing = 5;
+  static const int _prefetchRows = 2;
+  static const double _spacing = 5;
 
-  late final PageRequestListener<int> _pageRequestListener;
-  List<PinEntity> _images = [];
+  List<PinEntity> _images = const [];
   final Set<String> _thumbnailPrefetchTargets = {};
   PinThumbnailPrefetchCoordinator? _thumbnailPrefetchCoordinator;
-  double _tileLogicalWidth = 120;
-  double _devicePixelRatio = 1;
-  int? _lastPrefetchCacheWidth;
   ScrollMetrics? _lastScrollMetrics;
   ScrollDirection _lastScrollDirection = ScrollDirection.reverse;
-
-  bool isInitial = true;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageRequestListener = (pageKey) => unawaited(_fetchPage(pageKey));
-    _pagingController.addPageRequestListener(_pageRequestListener);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _applyProviderValue(ref.read(widget.pinProvider));
-    });
-  }
+  double _tileLogicalWidth = 120;
+  int? _lastPrefetchCacheWidth;
+  int? _lastThumbnailPrefetchCacheWidth;
 
   @override
   void dispose() {
     _thumbnailPrefetchTargets.clear();
     _thumbnailPrefetchCoordinator?.cancelWindow(this);
-    _pagingController.removePageRequestListener(_pageRequestListener);
-    _pagingController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(widget.pinProvider, (previous, next) {
-      _applyProviderValue(next);
-    });
+    final state = ref.watch(widget.pinProvider);
+    if (state.hasValue) {
+      _images = state.value ?? const <PinEntity>[];
+    }
+    if (_images.isEmpty) {
+      _cancelThumbnailPrefetches();
+      return Center(
+        child: state.hasError
+            ? const Text('Unable to load images')
+            : state.isLoading
+            ? const CircularProgressIndicator()
+            : const Text('No images found'),
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final padding = MediaQuery.paddingOf(context);
@@ -78,66 +67,72 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           1.0,
           double.infinity,
         );
-        final oldCacheWidth = _prefetchCacheWidth;
         _tileLogicalWidth =
-            ((contentWidth - _crossAxisSpacing * (_columns - 1)) / _columns)
-                .clamp(1.0, double.infinity);
-        _devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-        if (oldCacheWidth != _prefetchCacheWidth) {
+            ((contentWidth - _spacing * (_columns - 1)) / _columns).clamp(
+              1.0,
+              double.infinity,
+            );
+        final cacheWidth = _prefetchCacheWidth;
+        if (_lastPrefetchCacheWidth != cacheWidth) {
+          _lastPrefetchCacheWidth = cacheWidth;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
             final metrics = _lastScrollMetrics;
-            if (metrics != null) _updatePrefetchWindowForMetrics(metrics);
+            if (mounted && metrics != null) {
+              _updatePrefetchWindowForMetrics(metrics);
+            }
           });
         }
-        final cacheExtent = constraints.maxHeight.isFinite
-            ? constraints.maxHeight * 0.5
-            : 400.0;
 
-        return NotificationListener<ScrollNotification>(
-          onNotification: _handleGridScroll,
-          child: PagedGridView<int, PinEntity>(
-            pagingController: _pagingController,
-            primary: true,
-            padding: padding,
-            cacheExtent: cacheExtent,
-            showNewPageProgressIndicatorAsGridChild: false,
-            builderDelegate: PagedChildBuilderDelegate<PinEntity>(
-              itemBuilder: (context, item, index) => SquareImage(
-                pinId: item.pinId,
-                imageBlurhash: item.imageBlurhash,
-                photoUrl: item.photoUrl,
-                photoThumbnailUrl: item.photoThumbnailUrl,
-                photoId: item.photoId,
-                index: index,
-                groupId: item.groupId,
-                onTap: (index) {
-                  final onTap = widget.onTap;
-                  if (onTap != null) {
-                    onTap(index);
-                    return;
-                  }
-                  context.pushNamed(
-                    "viewImage",
-                    pathParameters: {"id": item.pinId},
-                    queryParameters: item.photoId == null
-                        ? {}
-                        : {"photo": item.photoId},
-                  );
-                },
+        return NotificationListener<ScrollMetricsNotification>(
+          onNotification: _handleMetrics,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handleScroll,
+            child: GridView.builder(
+              primary: true,
+              padding: padding,
+              // Retain loaded neighbors through small reversals. Image streams
+              // stay attached, preventing placeholders from flashing back in.
+              scrollCacheExtent: const ScrollCacheExtent.viewport(1),
+              itemCount: _images.length,
+              findChildIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final index = _images.indexWhere(
+                  (pin) => pin.entryId == key.value,
+                );
+                return index < 0 ? null : index;
+              },
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: _columns,
+                crossAxisSpacing: _spacing,
+                mainAxisSpacing: _spacing,
               ),
-              noItemsFoundIndicatorBuilder: (context) => Center(
-                child: isInitial
-                    ? const CircularProgressIndicator()
-                    : _errorMessage != null
-                    ? Text(_errorMessage!)
-                    : const Text("No images found"),
-              ),
-            ),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: _columns,
-              crossAxisSpacing: _crossAxisSpacing,
-              mainAxisSpacing: _crossAxisSpacing,
+              itemBuilder: (context, index) {
+                final item = _images[index];
+                return SquareImage(
+                  key: ValueKey(item.entryId),
+                  pinId: item.pinId,
+                  imageBlurhash: item.imageBlurhash,
+                  photoUrl: item.photoUrl,
+                  photoThumbnailUrl: item.photoThumbnailUrl,
+                  photoId: item.photoId,
+                  index: index,
+                  groupId: item.groupId,
+                  onTap: (index) {
+                    final tap = widget.onTap;
+                    if (tap != null) {
+                      tap(index);
+                      return;
+                    }
+                    context.pushNamed(
+                      'viewImage',
+                      pathParameters: {'id': item.pinId},
+                      queryParameters: item.photoId == null
+                          ? {}
+                          : {'photo': item.photoId},
+                    );
+                  },
+                );
+              },
             ),
           ),
         );
@@ -145,80 +140,14 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     );
   }
 
-  void _applyProviderValue(AsyncValue<List<PinEntity>?> next) {
-    if (next.hasError) {
-      isInitial = false;
-      if (_images.isEmpty) {
-        _errorMessage = "Unable to load images";
-      }
-      _cancelThumbnailPrefetches();
-      _pagingController.refresh();
-      return;
-    }
-
-    final data = next.value;
-    if (data == null) return;
-
-    _errorMessage = null;
-    _images = data;
-    isInitial = false;
-    _cancelThumbnailPrefetches();
-    _pagingController.refresh();
+  bool _handleMetrics(ScrollMetricsNotification notification) {
+    if (notification.depth != 0) return false;
+    _lastScrollMetrics = notification.metrics;
+    _updatePrefetchWindowForMetrics(notification.metrics);
+    return false;
   }
 
-  Future<void> _fetchPage(int pageKey) async {
-    try {
-      int end;
-      final images = _images;
-      if (pageKey + _pageSize > images.length) {
-        end = images.length;
-      } else {
-        end = pageKey + _pageSize;
-      }
-      final idList = images.getRange(pageKey, end).toList();
-      if (idList.isNotEmpty) {
-        try {
-          final coalescer = ref.read(batchReadCoalescerProvider);
-          for (final pin in idList) {
-            if (!pin.isPhotoUpdate) _prefetchPinImage(coalescer, pin.pinId);
-          }
-        } catch (_) {
-          // Prefetch is an optimization and must not fail the page.
-        }
-        _prefetchPageThumbnails(idList);
-      }
-      if (end == images.length) {
-        _pagingController.appendLastPage(idList);
-      } else {
-        _pagingController.appendPage(idList, pageKey + _pageSize);
-      }
-    } catch (error) {
-      _pagingController.error = error;
-    }
-  }
-
-  void _prefetchPinImage(BatchReadCoalescer coalescer, String pinId) {
-    try {
-      final suppliedUrl = ref
-          .read(suppliedImageUrlRegistryProvider)
-          .lookup(BatchReadKind.pinImageThumbnail, pinId);
-      if (suppliedUrl != null) return;
-      final future = coalescer.readKey(
-        BatchReadKey(BatchReadKind.pinImageThumbnail, pinId),
-      );
-      unawaited(future.then<void>((_) {}, onError: (_, _) {}));
-    } catch (_) {
-      // Prefetch is an optimization and must not turn into a page error.
-    }
-  }
-
-  void _prefetchPageThumbnails(List<PinEntity> pins) {
-    _setThumbnailPrefetchWindow(
-      pins.where((pin) => !pin.isPhotoUpdate).take(_prefetchCount),
-    );
-  }
-
-  bool _handleGridScroll(ScrollNotification notification) {
+  bool _handleScroll(ScrollNotification notification) {
     if (notification.depth != 0) return false;
     _lastScrollMetrics = notification.metrics;
     if (notification is UserScrollNotification &&
@@ -233,63 +162,86 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   }
 
   void _updatePrefetchWindowForMetrics(ScrollMetrics metrics) {
-    if (!mounted) return;
-    final loadedPins = _pagingController.itemList ?? const <PinEntity>[];
-    if (loadedPins.isEmpty) return;
+    if (!mounted || _images.isEmpty) return;
 
-    final topPadding = MediaQuery.paddingOf(context).top;
-    final rowExtent = _tileLogicalWidth + _crossAxisSpacing;
-    final contentOffset = (metrics.pixels - topPadding).clamp(
+    final padding = MediaQuery.paddingOf(context);
+    final rowExtent = _tileLogicalWidth + _spacing;
+    final contentOffset = (metrics.pixels - padding.top).clamp(
       0.0,
       double.infinity,
     );
     final firstVisibleRow = (contentOffset / rowExtent).floor();
-    final visibleRowCount = (metrics.viewportDimension / rowExtent).ceil();
-    final lastLoadedRow = (loadedPins.length - 1) ~/ _columns;
+    final visibleRowCount = (metrics.viewportDimension / rowExtent)
+        .ceil()
+        .clamp(1, (_images.length + _columns - 1) ~/ _columns);
+    final rowCount = (_images.length + _columns - 1) ~/ _columns;
+
+    // Resolve the current screen and two rows in its travel direction together.
+    // This turns per-tile URL lookups into one small authenticated batch before
+    // the bounded byte prefetch starts.
+    final metadataStartRow = (firstVisibleRow - 1).clamp(0, rowCount);
+    final metadataEndRow = (firstVisibleRow + visibleRowCount + _prefetchRows)
+        .clamp(metadataStartRow, rowCount);
+    final metadataPins = _images
+        .skip(metadataStartRow * _columns)
+        .take((metadataEndRow - metadataStartRow) * _columns)
+        .where((pin) => !pin.isPhotoUpdate);
+    _prefetchImageUrls(metadataPins);
+
     final firstPrefetchRow = _lastScrollDirection == ScrollDirection.forward
-        ? (firstVisibleRow - 2).clamp(0, lastLoadedRow)
-        : firstVisibleRow + visibleRowCount;
-    final firstIndex = firstPrefetchRow * _columns;
-    if (firstIndex >= loadedPins.length) {
-      _setThumbnailPrefetchWindow(const <PinEntity>[]);
-      return;
-    }
-    _setThumbnailPrefetchWindow(
-      loadedPins
-          .skip(firstIndex)
-          .where((pin) => !pin.isPhotoUpdate)
-          .take(_prefetchCount),
-    );
+        ? (firstVisibleRow - _prefetchRows).clamp(0, rowCount)
+        : (firstVisibleRow + visibleRowCount).clamp(0, rowCount);
+    final startIndex = firstPrefetchRow * _columns;
+    final lookAhead = _images
+        .skip(startIndex)
+        .where((pin) => !pin.isPhotoUpdate)
+        .take(_columns * _prefetchRows)
+        .toList(growable: false);
+    _setThumbnailPrefetchWindow(lookAhead);
   }
 
-  void _setThumbnailPrefetchWindow(Iterable<PinEntity> pins) {
-    final pagePins = pins
-        .where((pin) => !pin.isPhotoUpdate)
-        .take(_prefetchCount)
-        .toList(growable: false);
-    final targetIds = pagePins.map((pin) => pin.pinId).toSet();
-    final logicalWidth = _tileLogicalWidth.clamp(1.0, double.infinity);
-    final devicePixelRatio = _devicePixelRatio;
+  void _prefetchImageUrls(Iterable<PinEntity> pins) {
+    try {
+      final registry = ref.read(suppliedImageUrlRegistryProvider);
+      final coalescer = ref.read(batchReadCoalescerProvider);
+      const imageKinds = [
+        BatchReadKind.pinImageThumbnail,
+        BatchReadKind.pinImage,
+      ];
+      for (final pin in pins) {
+        for (final kind in imageKinds) {
+          if (registry.lookup(kind, pin.pinId) != null) continue;
+          _ignorePrefetchError(
+            coalescer.readKey(BatchReadKey(kind, pin.pinId)),
+          );
+        }
+      }
+    } catch (_) {
+      // Metadata look-ahead is an optimization; visible tiles can still load.
+    }
+  }
+
+  void _setThumbnailPrefetchWindow(List<PinEntity> pins) {
+    final targetIds = pins.map((pin) => pin.pinId).toSet();
     final cacheWidth = _prefetchCacheWidth;
-    final previousCoordinator = _thumbnailPrefetchCoordinator;
-    final coordinator = _currentPrefetchCoordinator();
-    final coordinatorChanged = !identical(previousCoordinator, coordinator);
-    final sameTargets =
-        targetIds.length == _thumbnailPrefetchTargets.length &&
-        targetIds.containsAll(_thumbnailPrefetchTargets);
-    if (!coordinatorChanged &&
-        sameTargets &&
-        cacheWidth == _lastPrefetchCacheWidth) {
+    if (targetIds.length == _thumbnailPrefetchTargets.length &&
+        targetIds.containsAll(_thumbnailPrefetchTargets) &&
+        cacheWidth == _lastThumbnailPrefetchCacheWidth) {
       return;
     }
 
     _thumbnailPrefetchTargets
       ..clear()
       ..addAll(targetIds);
-    _lastPrefetchCacheWidth = cacheWidth;
+    _lastThumbnailPrefetchCacheWidth = cacheWidth;
+    final coordinator = _currentPrefetchCoordinator();
+    if (coordinator == null) return;
+
+    final logicalWidth = _tileLogicalWidth.clamp(1.0, double.infinity);
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final imageSize = Size(logicalWidth, logicalWidth);
-    final requests = <String, PinThumbnailWarmer>{
-      for (final pin in pagePins)
+    coordinator.updateWindow(this, {
+      for (final pin in pins)
         pin.pinId: (bytes) => _precacheThumbnail(
           pin.pinId,
           bytes,
@@ -297,12 +249,21 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           devicePixelRatio: devicePixelRatio,
           imageSize: imageSize,
         ),
-    };
-    coordinator.updateWindow(this, requests);
+    });
   }
 
-  int get _prefetchCacheWidth =>
-      (_tileLogicalWidth * _devicePixelRatio).ceil().clamp(1, 720);
+  PinThumbnailPrefetchCoordinator? _currentPrefetchCoordinator() {
+    try {
+      final current = ref.read(pinThumbnailPrefetchCoordinatorProvider);
+      if (!identical(current, _thumbnailPrefetchCoordinator)) {
+        _thumbnailPrefetchCoordinator?.cancelWindow(this);
+        _thumbnailPrefetchCoordinator = current;
+      }
+      return current;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> _precacheThumbnail(
     String pinId,
@@ -331,12 +292,13 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     _thumbnailPrefetchCoordinator?.cancelWindow(this);
   }
 
-  PinThumbnailPrefetchCoordinator _currentPrefetchCoordinator() {
-    final current = ref.read(pinThumbnailPrefetchCoordinatorProvider);
-    if (!identical(current, _thumbnailPrefetchCoordinator)) {
-      _thumbnailPrefetchCoordinator?.cancelWindow(this);
-      _thumbnailPrefetchCoordinator = current;
-    }
-    return current;
+  void _ignorePrefetchError(Future<Object?> future) {
+    unawaited(future.then<void>((_) {}, onError: (_, _) {}));
   }
+
+  int get _prefetchCacheWidth =>
+      (_tileLogicalWidth * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(
+        1,
+        720,
+      );
 }

@@ -98,13 +98,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
       body: TabBarView(
         controller: _tabController,
         children: [
-          ImageGrid(
-            pinProvider: userPinEntriesProvider(userId),
-            onTap: (index) => context.pushNamed(
-              'userImageFeed',
-              pathParameters: {'id': userId, 'index': '$index'},
-            ),
-          ),
+          ImageGrid(pinProvider: userPinEntriesProvider(userId)),
           const UserAchievementsTab(),
         ],
       ),

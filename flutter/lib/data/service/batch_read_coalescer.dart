@@ -287,16 +287,33 @@ class SuppliedImageUrlRegistry {
   final Duration urlTtl;
   final LinkedHashMap<BatchReadKey, _SuppliedImageUrl> _urls = LinkedHashMap();
 
-  void register(BatchReadKind kind, String id, String? url) {
+  final _changes = StreamController<BatchReadKey>.broadcast();
+
+  Stream<BatchReadKey> get changes => _changes.stream;
+
+  void dispose() => unawaited(_changes.close());
+
+  /// Publishes new metadata URLs so mounted consumers can retry. Endpoint
+  /// results are already consumed by their requesting image load and pass
+  /// [notify] as false to avoid recursively retrying a failed download.
+  void register(
+    BatchReadKind kind,
+    String id,
+    String? url, {
+    bool notify = true,
+  }) {
     final key = BatchReadKey(kind, id);
     if (url == null || url.isEmpty) {
       _urls.remove(key);
       return;
     }
-    _urls.remove(key);
+    final previous = _urls.remove(key);
     _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl));
     while (_urls.length > maxEntries) {
       _urls.remove(_urls.keys.first);
+    }
+    if (notify && previous?.value != url && !_changes.isClosed) {
+      _changes.add(key);
     }
   }
 
@@ -331,7 +348,7 @@ final batchReadCoalescerProvider = Provider<BatchReadCoalescer>((ref) {
       return transport.call(items);
     },
     onResult: (key, result) =>
-        suppliedUrls.register(key.kind, key.id, result.imageUrl),
+        suppliedUrls.register(key.kind, key.id, result.imageUrl, notify: false),
   );
   ref.onDispose(coalescer.dispose);
   return coalescer;
@@ -343,7 +360,9 @@ final suppliedImageUrlRegistryProvider = Provider<SuppliedImageUrlRegistry>((
   // A URL is an authenticated, short-lived credential. Rebuild the registry
   // whenever the account session changes so it cannot cross account bounds.
   watchSession(ref);
-  return SuppliedImageUrlRegistry();
+  final registry = SuppliedImageUrlRegistry();
+  ref.onDispose(registry.dispose);
+  return registry;
 });
 
 /// Watches the authenticated session and safely falls back to the user ID in
@@ -438,6 +457,31 @@ void registerPinImageUrl(Object reader, PinWithOptionalImageDto pin) {
     return;
   }
   registry.register(BatchReadKind.pinImage, pin.id, pin.image);
+}
+
+/// Original photographs use pin cache keys, while later photos use their own
+/// photo keys. Profile photo histories can supply URLs without a feed read.
+void registerOriginalPinPhotoImageUrls(
+  Object reader,
+  String pinId,
+  Iterable<PinPhotoDto> photos,
+) {
+  final original = photos
+      .where((photo) => photo.isOriginal && photo.pinId == pinId)
+      .firstOrNull;
+  if (original == null) return;
+  final registry = _readSuppliedImageUrlRegistry(reader);
+  if (registry == null) return;
+  if (original.image?.isNotEmpty == true) {
+    registry.register(BatchReadKind.pinImage, pinId, original.image);
+  }
+  if (original.imageThumbnail?.isNotEmpty == true) {
+    registry.register(
+      BatchReadKind.pinImageThumbnail,
+      pinId,
+      original.imageThumbnail,
+    );
+  }
 }
 
 void registerGroupImageUrls(Object reader, GroupDto group) {

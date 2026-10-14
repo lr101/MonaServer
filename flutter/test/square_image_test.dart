@@ -132,6 +132,45 @@ void main() {
     );
   });
 
+  testWidgets('falls back to a photo full image after a failed thumbnail', (
+    tester,
+  ) async {
+    final bytes = Uint8List.fromList(kTransparentImage);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinThumbnailRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pinThumbnail),
+          ),
+          pinImageRepositoryProvider.overrideWithValue(
+            _ImageRepository(null, ImageType.pin, updateImage: bytes),
+          ),
+        ],
+        child: const MaterialApp(
+          home: SizedBox.square(
+            dimension: 100,
+            child: SquareImage(
+              pinId: 'pin',
+              photoId: 'photo',
+              groupId: 'group',
+              index: 0,
+              photoThumbnailUrl: 'https://example.test/missing.png',
+              photoUrl: 'https://example.test/full.png',
+              onTap: _ignoreTap,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(Image), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(
+      ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
+      same(bytes),
+    );
+  });
+
   testWidgets('shows thumbnail bytes as soon as the shared cache updates', (
     tester,
   ) async {

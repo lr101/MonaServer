@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/entity/user_pins_entity.dart';
 import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
@@ -97,6 +98,7 @@ Stream<List<PinEntity>> _entries(
     final (index, history) = await Future.any(pending.values);
     pending.remove(index);
     photos[visiblePins[index].pinId] = history;
+    registerOriginalPinPhotoImageUrls(ref, visiblePins[index].pinId, history);
   }
   // Keep profile and feed grids stable while histories are loading. Emitting
   // after each request completes made update photos appear a few at a time and
@@ -183,8 +185,9 @@ Stream<List<PinEntity>> _currentUserEntries(
 
   Future<List<PinEntity>> project(UserPinsEntity profile) async {
     final profilePinsById = {
-      for (final pin in localPins)
-        if (pin.lastSynced == null) pin.pinId: pin,
+      // Feed/map sync can cache current-user pins before the profile index is
+      // refreshed. Keep those rows visible while the index catches up.
+      for (final pin in localPins) pin.pinId: pin,
     };
     const batchSize = 500;
     for (var start = 0; start < profile.pins.length; start += batchSize) {
@@ -199,6 +202,9 @@ Stream<List<PinEntity>> _currentUserEntries(
     final photosByPin = {
       for (final entry in histories.entries) entry.key: entry.value.photos,
     };
+    for (final entry in photosByPin.entries) {
+      registerOriginalPinPhotoImageUrls(ref, entry.key, entry.value);
+    }
     return buildPinEntries(
       visible(profilePinsById.values.toList()),
       photosByPin,

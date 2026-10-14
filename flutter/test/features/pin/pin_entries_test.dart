@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
@@ -8,16 +9,252 @@ import 'package:buff_lisa/data/repository/drift_repo.dart';
 import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:openapi/api.dart';
+import 'package:transparent_image/transparent_image.dart';
 
 void main() {
+  test(
+    'a cold profile downloads original thumbnails from its own photo metadata',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final batches = BatchReadCoalescer(
+        read: (_) async => throw StateError('URL lookup unavailable'),
+      );
+      addTearDown(batches.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          batchReadCoalescerProvider.overrideWithValue(batches),
+          accountDatabaseProvider.overrideWithValue(db),
+          userIdProvider.overrideWithValue('original-author'),
+          pinUserServiceProvider('original-author')
+              .overrideWith(_EmptyPins.new),
+          hiddenUserServiceProvider.overrideWithValue(const []),
+          hiddenPostsServiceProvider.overrideWithValue(const []),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(pinRepositoryProvider)
+          .put(PinEntity.fromDto(_pinDto('place'), false));
+      await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
+        'place': [
+          PinPhotoDto(
+            id: 'original-photo',
+            pinId: 'place',
+            contributorId: 'original-author',
+            contributorUsername: 'original-author',
+            observedAt: DateTime.utc(2026),
+            isOriginal: true,
+            image: 'https://images.example/original.jpg',
+            imageThumbnail: 'https://images.example/thumbnail.jpg',
+          ),
+        ],
+      });
+      await container
+          .read(userPinsRepositoryProvider)
+          .put(
+            UserPinsEntity(
+              userId: 'original-author',
+              pins: ['place'],
+              ttl: DateTime.now(),
+              onlySession: false,
+            ),
+          );
+      final entries = await _waitForEntries(
+        container,
+        userPinEntriesProvider('original-author'),
+        (entries, _) => entries.isNotEmpty,
+      );
+      final bytes = Uint8List.fromList(kTransparentImage);
+      await http.runWithClient(
+        () async {
+          final provider = pinGridImageBytesProvider(entries.single.pinId);
+          final subscription = container.listen(provider, (_, _) {});
+          addTearDown(subscription.close);
+          final image = await container
+              .read(provider.future)
+              .timeout(const Duration(seconds: 5));
+          expect(image, orderedEquals(bytes));
+        },
+        () => MockClient((request) async {
+          if (request.url.toString() ==
+              'https://images.example/thumbnail.jpg') {
+            return http.Response.bytes(bytes, 200);
+          }
+          return http.Response('', 503);
+        }),
+      );
+    },
+  );
+
+  test(
+    'a failed endpoint image URL does not trigger an automatic retry loop',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final registry = SuppliedImageUrlRegistry();
+      addTearDown(registry.dispose);
+      var batchRequests = 0;
+      final batches = BatchReadCoalescer(
+        read: (items) async {
+          batchRequests++;
+          return [
+            for (final item in items)
+              BatchReadResult(
+                kind: item.kind == BatchReadItemKindEnum.pinImageThumbnail
+                    ? BatchReadResultKindEnum.pinImageThumbnail
+                    : BatchReadResultKindEnum.pinImage,
+                id: item.id,
+                status: 200,
+                imageUrl: 'https://images.example/expired.jpg',
+              ),
+          ];
+        },
+        onResult: (key, result) =>
+            registry.register(key.kind, key.id, result.imageUrl, notify: false),
+      );
+      addTearDown(batches.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          batchReadCoalescerProvider.overrideWithValue(batches),
+          suppliedImageUrlRegistryProvider.overrideWithValue(registry),
+          accountDatabaseProvider.overrideWithValue(db),
+          userIdProvider.overrideWithValue('viewer'),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await http.runWithClient(() async {
+        final provider = pinGridImageBytesProvider('place');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
+        expect(
+          await container
+              .read(provider.future)
+              .timeout(const Duration(seconds: 5)),
+          isNull,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(batchRequests, 2);
+      }, () => MockClient((_) async => http.Response('', 403)));
+    },
+  );
+
+  test(
+    'a mounted cold profile retries when original photo metadata arrives',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final batches = BatchReadCoalescer(
+        read: (_) async => throw StateError('URL lookup unavailable'),
+      );
+      addTearDown(batches.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          batchReadCoalescerProvider.overrideWithValue(batches),
+          accountDatabaseProvider.overrideWithValue(db),
+          userIdProvider.overrideWithValue('original-author'),
+          pinUserServiceProvider('original-author')
+              .overrideWith(_EmptyPins.new),
+          hiddenUserServiceProvider.overrideWithValue(const []),
+          hiddenPostsServiceProvider.overrideWithValue(const []),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container
+          .read(pinRepositoryProvider)
+          .put(PinEntity.fromDto(_pinDto('place'), false));
+
+      await container
+          .read(userPinsRepositoryProvider)
+          .put(
+            UserPinsEntity(
+              userId: 'original-author',
+              pins: ['place'],
+              ttl: DateTime.now(),
+              onlySession: false,
+            ),
+          );
+      final profileSubscription = container.listen(
+        userPinEntriesProvider('original-author'),
+        (_, _) {},
+      );
+      addTearDown(profileSubscription.close);
+      final entries = await _waitForEntries(
+        container,
+        userPinEntriesProvider('original-author'),
+        (entries, _) => entries.isNotEmpty,
+      );
+      final bytes = Uint8List.fromList(kTransparentImage);
+      var imageRequests = 0;
+      await http.runWithClient(
+        () async {
+          final provider = pinGridImageBytesProvider(entries.single.pinId);
+          final subscription = container.listen(provider, (_, _) {});
+          addTearDown(subscription.close);
+          expect(await container.read(provider.future), isNull);
+          final loaded = Completer<Uint8List>();
+          final imageListener = container.listen(provider, (_, value) {
+            final bytes = value.value;
+            if (bytes != null && !loaded.isCompleted) loaded.complete(bytes);
+          });
+          addTearDown(imageListener.close);
+          await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
+            'place': [
+              PinPhotoDto(
+                id: 'original-photo',
+                pinId: 'place',
+                contributorId: 'original-author',
+                contributorUsername: 'original-author',
+                observedAt: DateTime.utc(2026),
+                isOriginal: true,
+                image: 'https://images.example/original.jpg',
+                imageThumbnail: 'https://images.example/thumbnail.jpg',
+              ),
+            ],
+          });
+          final image = await loaded.future.timeout(const Duration(seconds: 5));
+          expect(image, orderedEquals(bytes));
+          final requestsAfterLoad = imageRequests;
+          final registry = container.read(suppliedImageUrlRegistryProvider);
+          registry.register(
+            BatchReadKind.pinImageThumbnail,
+            'place',
+            'https://images.example/renewed-thumbnail.jpg',
+          );
+          registry.register(
+            BatchReadKind.pinImage,
+            'place',
+            'https://images.example/renewed-original.jpg',
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          expect(subscription.read().value, same(image));
+          expect(imageRequests, requestsAfterLoad);
+        },
+        () => MockClient((request) async {
+          imageRequests++;
+          if (request.url.toString() ==
+              'https://images.example/thumbnail.jpg') {
+            return http.Response.bytes(bytes, 200);
+          }
+          return http.Response('', 503);
+        }),
+      );
+    },
+  );
+
   test(
     'contributor profile includes an update on another user’s location',
     () async {
@@ -183,6 +420,75 @@ void main() {
       const Duration(seconds: 5),
     );
     expect(entries.map((entry) => entry.pinId).toSet(), {'first', 'new-pin'});
+  });
+
+  test('current user profile includes synced cached pins while its index lags', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final container = ProviderContainer(
+      overrides: [
+        accountDatabaseProvider.overrideWithValue(db),
+        userIdProvider.overrideWithValue('updater'),
+        pinUserServiceProvider('updater').overrideWith(_CachedUserPins.new),
+        pinApiProvider.overrideWithValue(_ContributorPinsApi()),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final pins = container.read(pinRepositoryProvider);
+    await pins.put(_profilePin('first'));
+    await container
+        .read(userPinsRepositoryProvider)
+        .put(
+          UserPinsEntity(
+            userId: 'updater',
+            pins: ['first'],
+            ttl: DateTime.utc(2026, 2),
+            onlySession: false,
+            keepAlive: true,
+          ),
+        );
+
+    final firstEmission = Completer<List<PinEntity>>();
+    final cachedPinEmission = Completer<List<PinEntity>>();
+    final subscription = container.listen(userPinEntriesProvider('updater'), (
+      _,
+      next,
+    ) {
+      if (next case AsyncData<List<PinEntity>>(:final value)) {
+        if (!firstEmission.isCompleted) firstEmission.complete(value);
+        if (value.any((pin) => pin.pinId == 'new-synced-pin') &&
+            !cachedPinEmission.isCompleted) {
+          cachedPinEmission.complete(value);
+        }
+      } else if (next case AsyncError<List<PinEntity>>(:final error)) {
+        if (!firstEmission.isCompleted) firstEmission.completeError(error);
+        if (!cachedPinEmission.isCompleted) {
+          cachedPinEmission.completeError(error);
+        }
+      }
+    });
+    addTearDown(subscription.close);
+
+    expect(
+      (await firstEmission.future.timeout(const Duration(seconds: 5)))
+          .map((pin) => pin.pinId),
+      ['first'],
+    );
+
+    // Feed/map sync has cached this pin, while the profile index write has not
+    // arrived yet. The synced flag alone should not hide it from the profile.
+    await pins.put(_profilePin('new-synced-pin'));
+
+    final entries = await cachedPinEmission.future.timeout(
+      const Duration(seconds: 5),
+    );
+    expect(entries.map((pin) => pin.pinId).toSet(), {
+      'first',
+      'new-synced-pin',
+    });
   });
 
   test('current user profile emits newly cached photo updates', () async {
@@ -523,6 +829,13 @@ Future<List<PinEntity>> _waitForEntries(
 class _EmptyPins extends PinUserService {
   @override
   Stream<List<PinEntity>> build(String userId) => Stream.value([]);
+}
+
+class _CachedUserPins extends PinUserService {
+  @override
+  Stream<List<PinEntity>> build(String userId) {
+    return ref.watch(pinRepositoryProvider).getPinsByUser(userId);
+  }
 }
 
 class _DraftPins extends PinUserService {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -169,6 +170,7 @@ Stream<Uint8List?> _watchImageStages(
   required bool keepAlive,
   bool emitNullValues = true,
   bool stopAfterFirstImage = false,
+  Stream<BatchReadKey>? refreshes,
 }) {
   if (stages.isEmpty) return const Stream<Uint8List?>.empty();
 
@@ -178,6 +180,9 @@ Stream<Uint8List?> _watchImageStages(
   Uint8List? displayedImage;
   var stageFailed = false;
   var cancelled = false;
+  var fetching = false;
+  var refreshQueued = false;
+  StreamSubscription<BatchReadKey>? refreshSubscription;
   final requestCancellation = ImageRequestCancellation();
 
   void showImage(int stage, Uint8List? bytes) {
@@ -193,6 +198,46 @@ Stream<Uint8List?> _watchImageStages(
     displayedStage = stage;
     displayedImage = bytes;
     controller.add(bytes);
+  }
+
+  Future<void> fetchStages() async {
+    if (cancelled || displayedImage != null && stopAfterFirstImage) return;
+    if (fetching) {
+      refreshQueued = true;
+      return;
+    }
+    fetching = true;
+    try {
+      do {
+        refreshQueued = false;
+        for (var index = 0; index < stages.length; index++) {
+          if (cancelled) return;
+          if (displayedStage > index) continue;
+          try {
+            showImage(
+              index,
+              await stages[index].fetch(keepAlive, requestCancellation),
+            );
+            if (stopAfterFirstImage && displayedImage != null) break;
+          } catch (error, stackTrace) {
+            if (!cancelled) {
+              stageFailed = true;
+              controller.addError(error, stackTrace);
+            }
+          }
+        }
+
+        if (!refreshQueued &&
+            !cancelled &&
+            !emitNullValues &&
+            displayedImage == null &&
+            !stageFailed) {
+          controller.add(null);
+        }
+      } while (refreshQueued && !cancelled && displayedImage == null);
+    } finally {
+      fetching = false;
+    }
   }
 
   controller = StreamController<Uint8List?>(
@@ -216,35 +261,15 @@ Stream<Uint8List?> _watchImageStages(
         );
       }
 
-      unawaited(() async {
-        for (var index = 0; index < stages.length; index++) {
-          if (cancelled) return;
-          if (displayedStage > index) continue;
-          try {
-            showImage(
-              index,
-              await stages[index].fetch(keepAlive, requestCancellation),
-            );
-            if (stopAfterFirstImage && displayedImage != null) break;
-          } catch (error, stackTrace) {
-            if (!cancelled) {
-              stageFailed = true;
-              controller.addError(error, stackTrace);
-            }
-          }
-        }
-
-        if (!cancelled &&
-            !emitNullValues &&
-            displayedImage == null &&
-            !stageFailed) {
-          controller.add(null);
-        }
-      }());
+      refreshSubscription = refreshes?.listen((_) {
+        if (displayedImage == null) unawaited(fetchStages());
+      });
+      unawaited(fetchStages());
     },
     onCancel: () async {
       cancelled = true;
       requestCancellation.cancel();
+      await refreshSubscription?.cancel();
       for (final watcher in watchers) {
         await watcher.cancel();
       }
@@ -277,6 +302,7 @@ final pinGridImageBytesProvider = StreamProvider.autoDispose
     .family<Uint8List?, String>((ref, pinId) {
       final thumbnailRepository = ref.watch(pinThumbnailRepositoryProvider);
       final imageRepository = ref.watch(pinImageRepositoryProvider);
+      final suppliedUrls = ref.watch(suppliedImageUrlRegistryProvider);
       return _watchImageStages(
         [
           _ImageLoadStage(repository: thumbnailRepository, id: pinId),
@@ -285,6 +311,12 @@ final pinGridImageBytesProvider = StreamProvider.autoDispose
         keepAlive: false,
         emitNullValues: false,
         stopAfterFirstImage: true,
+        refreshes: suppliedUrls.changes.where(
+          (key) =>
+              key.id == pinId &&
+              (key.kind == BatchReadKind.pinImage ||
+                  key.kind == BatchReadKind.pinImageThumbnail),
+        ),
       );
     });
 
@@ -323,9 +355,8 @@ final pinPhotoProgressiveImageBytesProvider = StreamProvider.autoDispose
       );
     });
 
-/// Loads a photo thumbnail for a grid or selector tile. When a thumbnail URL
-/// exists, only that image is fetched; the full image is used only when the
-/// thumbnail URL is absent. Both paths still use the shared repository cache.
+/// Loads a photo thumbnail for a grid or selector tile, falling back to the
+/// full photo only when the thumbnail is missing or fails to load.
 final pinPhotoThumbnailBytesProvider = StreamProvider.autoDispose
     .family<
       Uint8List?,
@@ -333,15 +364,20 @@ final pinPhotoThumbnailBytesProvider = StreamProvider.autoDispose
     >((ref, photo) {
       final thumbnailRepository = ref.watch(pinThumbnailRepositoryProvider);
       final imageRepository = ref.watch(pinImageRepositoryProvider);
-      final hasThumbnail = photo.thumbnailUrl?.isNotEmpty == true;
-      final repository = hasThumbnail ? thumbnailRepository : imageRepository;
-      final imageUrl = hasThumbnail ? photo.thumbnailUrl : photo.imageUrl;
       final cacheId = 'photo:${photo.photoId}';
       return _watchImageStages(
         [
-          if (imageUrl case final url? when url.isNotEmpty)
+          if (photo.thumbnailUrl case final url? when url.isNotEmpty)
             _ImageLoadStage(
-              repository: repository,
+              repository: thumbnailRepository,
+              id: cacheId,
+              imageUrl: url,
+              fetchEndpointWhenUrlMissing: false,
+              fallbackToEndpointAfterUrlFailure: false,
+            ),
+          if (photo.imageUrl case final url? when url.isNotEmpty)
+            _ImageLoadStage(
+              repository: imageRepository,
               id: cacheId,
               imageUrl: url,
               fetchEndpointWhenUrlMissing: false,
