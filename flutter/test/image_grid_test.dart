@@ -184,6 +184,84 @@ void main() {
     },
   );
 
+  testWidgets('throttles missing image URL lookups while scrolling', (
+    tester,
+  ) async {
+    final requests = <(BatchReadItemKindEnum, String), int>{};
+    final registry = SuppliedImageUrlRegistry();
+    addTearDown(registry.dispose);
+    final coalescer = BatchReadCoalescer(
+      window: Duration.zero,
+      read: (items) async {
+        return items.map((item) {
+          final key = (item.kind, item.id);
+          requests.update(key, (count) => count + 1, ifAbsent: () => 1);
+          return BatchReadResult(
+            kind: batchResultKind(item.kind),
+            id: item.id,
+            // Cover both a successful response with no image URL and a
+            // missing resource. Neither result should be re-requested on each
+            // scroll notification.
+            status: item.id == 'pin-1' ? 404 : 200,
+          );
+        }).toList();
+      },
+      onResult: (key, result) =>
+          registry.register(key.kind, key.id, result.imageUrl, notify: false),
+    );
+    addTearDown(coalescer.dispose);
+    final pins = Provider<AsyncValue<List<PinEntity>?>>(
+      (ref) => AsyncData(_pins()),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinGridImageBytesProvider.overrideWith(
+            (ref, id) => const Stream.empty(),
+          ),
+          batchReadCoalescerProvider.overrideWithValue(coalescer),
+          suppliedImageUrlRegistryProvider.overrideWithValue(registry),
+          pinThumbnailPrefetchCoordinatorProvider.overrideWithValue(
+            PinThumbnailPrefetchCoordinator(
+              repository: _PrefetchRepository({}),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 300,
+                height: 300,
+                child: ImageGrid(pinProvider: pins),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.pumpAndSettle();
+
+    const missingThumbnail = (BatchReadItemKindEnum.pinImageThumbnail, 'pin-0');
+    const failedThumbnail = (BatchReadItemKindEnum.pinImageThumbnail, 'pin-1');
+    expect(requests[missingThumbnail], 1);
+    expect(requests[failedThumbnail], 1);
+
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    for (final offset in [100.0, 0.0, 100.0, 0.0]) {
+      position.jumpTo(offset);
+      await tester.pumpAndSettle();
+    }
+
+    expect(requests[missingThumbnail], 1);
+    expect(requests[failedThumbnail], 1);
+  });
+
   testWidgets('keeps loaded edge tiles stable during a short scroll reversal', (
     tester,
   ) async {

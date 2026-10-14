@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
@@ -26,9 +27,14 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   static const int _columns = 3;
   static const int _prefetchRows = 2;
   static const double _spacing = 5;
+  static const Duration _imageUrlRetryDelay = Duration(seconds: 30);
+  static const int _maxRememberedImageUrlRequests = 2000;
 
   List<PinEntity> _images = const [];
   final Set<String> _thumbnailPrefetchTargets = {};
+  final LinkedHashMap<BatchReadKey, DateTime> _imageUrlRetryAfter =
+      LinkedHashMap();
+  SuppliedImageUrlRegistry? _imageUrlRegistry;
   PinThumbnailPrefetchCoordinator? _thumbnailPrefetchCoordinator;
   ScrollMetrics? _lastScrollMetrics;
   ScrollDirection _lastScrollDirection = ScrollDirection.reverse;
@@ -204,16 +210,33 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     try {
       final registry = ref.read(suppliedImageUrlRegistryProvider);
       final coalescer = ref.read(batchReadCoalescerProvider);
+      if (!identical(registry, _imageUrlRegistry)) {
+        _imageUrlRegistry = registry;
+        _imageUrlRetryAfter.clear();
+      }
       const imageKinds = [
         BatchReadKind.pinImageThumbnail,
         BatchReadKind.pinImage,
       ];
+      final now = DateTime.now();
+      while (_imageUrlRetryAfter.isNotEmpty &&
+          !_imageUrlRetryAfter.values.first.isAfter(now)) {
+        _imageUrlRetryAfter.remove(_imageUrlRetryAfter.keys.first);
+      }
       for (final pin in pins) {
         for (final kind in imageKinds) {
           if (registry.lookup(kind, pin.pinId) != null) continue;
-          _ignorePrefetchError(
-            coalescer.readKey(BatchReadKey(kind, pin.pinId)),
-          );
+          final key = BatchReadKey(kind, pin.pinId);
+          final retryAt = _imageUrlRetryAfter[key];
+          if (retryAt?.isAfter(now) == true) {
+            continue;
+          }
+          _imageUrlRetryAfter.remove(key);
+          _imageUrlRetryAfter[key] = now.add(_imageUrlRetryDelay);
+          while (_imageUrlRetryAfter.length > _maxRememberedImageUrlRequests) {
+            _imageUrlRetryAfter.remove(_imageUrlRetryAfter.keys.first);
+          }
+          _ignorePrefetchError(coalescer.readKey(key));
         }
       }
     } catch (_) {
