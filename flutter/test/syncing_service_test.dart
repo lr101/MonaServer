@@ -205,7 +205,7 @@ void main() {
   });
 
   test(
-    'sync preloads current profile update images before publishing the index',
+    'profile metadata publishes without waiting for image downloads',
     () async {
       final f = await _fixture(recordProfileImages: true);
       final imageBytes = Completer<Uint8List?>();
@@ -237,28 +237,14 @@ void main() {
       final sync = f.container
           .read(syncingServiceProvider.notifier)
           .syncToBackend();
-      await Future.any([
-        f.profileImages!.imageRequestStarted.future,
-        f.profileThumbnailImages!.imageRequestStarted.future,
-      ]).timeout(const Duration(seconds: 5));
-      expect(
-        await f.container.read(userPinsRepositoryProvider).get('alice'),
-        isNull,
-      );
-      final thumbnailRequests = Map.of(f.profileThumbnailImages!.imageUrls);
-      final thumbnailFallbacks = Map.of(
-        f.profileThumbnailImages!.endpointFallbacks,
-      );
-      final fullImageRequests = Map.of(f.profileImages!.imageUrls);
-
-      imageBytes.complete(Uint8List.fromList([1, 2, 3]));
-      await sync;
-
-      expect(thumbnailRequests, {
-        'photo:update-photo': 'https://example.test/update-small.png',
-      });
-      expect(thumbnailFallbacks, {'photo:update-photo': false});
-      expect(fullImageRequests, isEmpty);
+      try {
+        await sync.timeout(const Duration(seconds: 2));
+        expect(f.profileThumbnailImages!.imageUrls, isEmpty);
+        expect(f.profileImages!.imageUrls, isEmpty);
+      } finally {
+        imageBytes.complete(null);
+        await sync;
+      }
       expect(
         (await f.container.read(userPinsRepositoryProvider).get('alice'))?.pins,
         ['updated-location'],

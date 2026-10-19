@@ -334,23 +334,6 @@ class SyncingService extends _$SyncingService {
     await historyRepository.deleteMultiple(profileDeletedPinIds);
     if (!isCurrent()) return;
 
-    final profilePinsById = {
-      for (final pin in cachedProfilePins) pin.pinId: pin,
-      for (final pin in pinsToCache) pin.pinId: pin,
-    };
-    final profileHistoriesByPin = {
-      for (final entry in photoCache.entries) entry.key: entry.value.photos,
-      ...photosByPin,
-    };
-    await _prefetchCurrentProfileImages(
-      userId: userId,
-      pinIds: profilePinIds,
-      pinsById: profilePinsById,
-      historiesByPin: profileHistoriesByPin,
-      isCurrent: isCurrent,
-    );
-    if (!isCurrent()) return;
-
     // Publishing the index last prevents a profile opened during sync from
     // seeing a partially cached set of photos and metadata.
     await profileRepository.put(
@@ -362,78 +345,6 @@ class SyncingService extends _$SyncingService {
         onlySession: false,
       ),
     );
-  }
-
-  Future<void> _prefetchCurrentProfileImages({
-    required String userId,
-    required Set<String> pinIds,
-    required Map<String, PinEntity> pinsById,
-    required Map<String, List<PinPhotoDto>> historiesByPin,
-    required bool Function() isCurrent,
-  }) async {
-    final thumbnailRepository = ref.read(pinThumbnailRepositoryProvider);
-    final imageRepository = ref.read(pinImageRepositoryProvider);
-    final candidates =
-        <
-          String,
-          ({
-            String url,
-            DateTime date,
-            IImageRepository repository,
-            bool fallbackToEndpoint,
-          })
-        >{};
-    for (final pinId in pinIds) {
-      final pin = pinsById[pinId];
-      for (final photo in historiesByPin[pinId] ?? const <PinPhotoDto>[]) {
-        final isOwnUpdate = !photo.isOriginal && photo.contributorId == userId;
-        final isOwnOriginal = photo.isOriginal && pin?.creator == userId;
-        final imageUrl = photo.image;
-        final thumbnailUrl = photo.imageThumbnail;
-        final hasThumbnail = thumbnailUrl?.isNotEmpty == true;
-        final url = hasThumbnail ? thumbnailUrl : imageUrl;
-        if ((!isOwnUpdate && !isOwnOriginal) || url == null || url.isEmpty) {
-          continue;
-        }
-        final imageId = isOwnUpdate ? 'photo:${photo.id}' : pinId;
-        candidates[imageId] = (
-          url: url,
-          date: photo.observedAt,
-          repository: hasThumbnail ? thumbnailRepository : imageRepository,
-          fallbackToEndpoint: !isOwnUpdate,
-        );
-      }
-    }
-    if (candidates.isEmpty || !isCurrent()) return;
-
-    final ordered = candidates.entries.toList()
-      ..sort((a, b) => b.value.date.compareTo(a.value.date));
-    const pageSize = 18;
-    const maxConcurrent = 6;
-    for (
-      var start = 0;
-      start < ordered.length && start < pageSize;
-      start += maxConcurrent
-    ) {
-      if (!isCurrent()) return;
-      final batch = ordered.skip(start).take(maxConcurrent).toList();
-      await Future.wait(
-        batch.map((entry) async {
-          if (!isCurrent()) return;
-          try {
-            await entry.value.repository.fetchImageFromUrl(
-              entry.key,
-              entry.value.url,
-              false,
-              fallbackToEndpoint: entry.value.fallbackToEndpoint,
-              priority: ImageRequestPriority.background,
-            );
-          } catch (_) {
-            // Photo byte prefetch is best-effort; the stored URL remains usable.
-          }
-        }),
-      );
-    }
   }
 
   Future<void> _syncOfflinePins(bool Function() isCurrent) async {

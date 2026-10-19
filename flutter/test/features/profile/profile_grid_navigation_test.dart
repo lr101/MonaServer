@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/profile/presentation/other_user_profile.dart';
@@ -21,7 +22,16 @@ import 'package:go_router/go_router.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
+import '../../support/pin_image_test_cache.dart';
+
 void main() {
+  late PinImageTestCache cache;
+  setUp(() {
+    cache = PinImageTestCache()..install();
+  });
+  tearDown(() async {
+    await cache.dispose();
+  });
   for (final ownProfile in [true, false]) {
     for (final kind in ['loading', 'thumbnail', 'photo thumbnail']) {
       testWidgets(
@@ -40,9 +50,6 @@ void main() {
             ttl: DateTime(2026),
             onlySession: true,
           );
-          Stream<Uint8List?> image() => kind == 'loading'
-              ? const Stream.empty()
-              : Stream.value(Uint8List.fromList(kTransparentImage));
           final router = GoRouter(
             initialLocation: '/profile',
             routes: [
@@ -89,16 +96,26 @@ void main() {
                     .overrideWith((ref) => null),
                 getUserProfileProgressiveProvider(userId)
                     .overrideWith((ref) => Stream.value(null)),
-                pinGridImageBytesProvider.overrideWith((ref, id) => image()),
-                pinPhotoThumbnailBytesProvider.overrideWith(
-                  (ref, photo) => image(),
+                pinImageSourceProvider.overrideWith(
+                  (ref, request) => kind == 'loading'
+                      ? Completer<PinImageSource?>().future
+                      : const PinImageSource(
+                          url: 'https://images.test/photo.png',
+                          cacheKey: 'profile-photo',
+                        ),
                 ),
                 defaultErrorImageProvider.overrideWithValue(kTransparentImage),
               ],
               child: MaterialApp.router(routerConfig: router),
             ),
           );
-          await tester.pumpAndSettle();
+          for (var i = 0; i < 10; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump(const Duration(milliseconds: 200));
+          }
+          await tester.pump(const Duration(seconds: 11));
           await tester.tap(find.byType(SquareImage));
           await tester.pumpAndSettle();
           expect(
