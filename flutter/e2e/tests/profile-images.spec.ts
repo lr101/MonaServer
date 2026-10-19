@@ -86,6 +86,7 @@ test('100-photo profile loads a bounded window and survives fast scroll reversal
   await profile(page);
   await expect.poll(() => new Set(photos).size, { timeout: 15_000 }).toBeGreaterThanOrEqual(12);
   expect(new Set(photos).size, 'distant photos should remain unloaded').toBeLessThan(45);
+  const initialDownloads = photos.length;
   await page.screenshot({ path: info.outputPath('profile-initial.png') });
   await page.mouse.move(220, 650);
   for (let i = 0; i < 8; i++) {
@@ -101,6 +102,7 @@ test('100-photo profile loads a bounded window and survives fast scroll reversal
   }
   await page.waitForTimeout(1000);
   expect(photos.length - downloaded, 'reversals should reuse loaded objects').toBeLessThan(20);
+  await info.attach('network-summary', { body: JSON.stringify({ initialDownloads, uniqueAfterScrolling: new Set(photos).size, requestsDuringReversal: photos.length - downloaded }), contentType: 'application/json' });
   expect(errors).toEqual([]);
   await page.screenshot({ path: info.outputPath('profile-returned.png') });
 });
@@ -139,13 +141,60 @@ test('expired photo URLs renew and load instead of leaving placeholders', async 
 
 test('a still-loading profile photo opens the selected detail photo', async ({ page }, info) => {
   test.setTimeout(90_000);
+  let pending = 0;
   await page.route('**/*', async (route) => {
-    if (isPhoto(route.request().url())) await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (isPhoto(route.request().url())) {
+      pending++;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      pending--;
+    }
     await route.continue();
   });
   await profile(page);
-  // Tap the first tile in the app's three-column profile grid while downloading.
-  await page.mouse.click(75, 300);
-  await expect(page).toHaveURL(/photo=/, { timeout: 15_000 });
+  const tile = page.getByRole('tabpanel').getByRole('button').first();
+  await tile.waitFor({ state: 'visible' });
+  await expect.poll(() => pending).toBeGreaterThan(0);
+  await tile.click();
+  await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible();
   await page.screenshot({ path: info.outputPath('photo-detail.png') });
+});
+
+test('missing thumbnails fall back to full photos without renewing metadata', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  let missing = 0;
+  let histories = 0;
+  const full = new Set<string>();
+  await page.route('**/*', async (route) => {
+    const url = route.request().url();
+    if (isPhoto(url) && new URL(url).pathname.endsWith('.thumbnail.jpg')) {
+      missing++;
+      return route.fulfill({ status: 404, body: 'Missing thumbnail', headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+    await route.continue();
+  });
+  page.on('response', (response) => {
+    if (response.url().includes(`/api/v2/pins/${pinId}/photos`)) histories++;
+    if (isPhoto(response.url()) && !new URL(response.url()).pathname.endsWith('.thumbnail.jpg') && response.status() === 200) {
+      full.add(new URL(response.url()).pathname);
+    }
+  });
+  await profile(page);
+  await expect.poll(() => full.size, { timeout: 20_000 }).toBeGreaterThanOrEqual(12);
+  expect(missing).toBeGreaterThan(0);
+  expect(histories).toBe(1);
+  await page.screenshot({ path: info.outputPath('profile-full-fallback.png') });
+});
+
+test('wide profile renders network images in dark mode', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const loaded = new Set<string>();
+  page.on('response', (response) => {
+    if (isPhoto(response.url()) && response.status() === 200) loaded.add(new URL(response.url()).pathname);
+  });
+  await profile(page);
+  await expect.poll(() => loaded.size, { timeout: 15_000 }).toBeGreaterThanOrEqual(12);
+  await page.screenshot({ path: info.outputPath('profile-wide-dark.png') });
 });

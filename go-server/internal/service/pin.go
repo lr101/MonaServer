@@ -721,19 +721,19 @@ func (s *Pin) resolveIdempotentPhoto(ctx context.Context, existing *db.PinPhoto,
 func (s *Pin) photoDTO(ctx context.Context, photo db.PinPhoto) (*PinPhotoDTO, error) {
 	var imageURL, thumbnailURL *string
 	if s.obj != nil {
-		url, err := s.obj.PresignedGet(ctx, photo.ImageKey)
+		fullURL, err := s.obj.PresignedGet(ctx, photo.ImageKey)
 		if err != nil {
 			return nil, err
 		}
-		if url != "" {
-			imageURL = &url
+		if fullURL != "" {
+			imageURL = &fullURL
 		}
-		url, err = s.obj.PresignedGet(ctx, PinThumbnailKey(photo.ImageKey))
+		thumbnail, err := s.obj.PresignedGet(ctx, PinThumbnailKey(photo.ImageKey))
 		if err != nil {
 			return nil, err
 		}
-		if url != "" {
-			thumbnailURL = &url
+		if thumbnail != "" {
+			thumbnailURL = &thumbnail
 		}
 	}
 	blurhash := photo.ImageBlurhash

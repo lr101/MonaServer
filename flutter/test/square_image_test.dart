@@ -212,4 +212,32 @@ void main() {
       'https://example.test/thumb.png',
     ]);
   });
+  testWidgets(
+    'renews a failed object when thumbnail and full URLs share its cache key',
+    (tester) async {
+      const expired = 'https://example.test/shared.png?signature=expired';
+      const renewed = 'https://example.test/shared.png?signature=renewed';
+      cache.statuses[expired] = 403;
+      sources = PinImageSources(
+        registry: registry,
+        batch: batch,
+        namespace: 'session',
+        getPhotos: (id) async => [
+          PinPhotoDto(
+            id: 'photo',
+            pinId: id,
+            contributorUsername: 'a',
+            observedAt: DateTime(2026),
+            image: renewed,
+            imageThumbnail: renewed,
+            isOriginal: false,
+          ),
+        ],
+      );
+      await mount(tester, photoId: 'photo', thumb: expired, full: expired);
+      expect(cache.urls, contains(renewed));
+      expect(find.byIcon(Icons.image_not_supported_outlined), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
+    },
+  );
 }
