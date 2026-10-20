@@ -256,51 +256,142 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
   }
 }
 
-class _PhotoProgressDots extends StatelessWidget {
+class _PhotoProgressDots extends StatefulWidget {
   const _PhotoProgressDots({required this.index, required this.count});
 
   static const _maximumVisibleDots = 10;
+  static const _dotSlotWidth = 9.0;
 
   final int index;
   final int count;
 
   @override
-  Widget build(BuildContext context) {
-    final visibleCount = count < _maximumVisibleDots
-        ? count
-        : _maximumVisibleDots;
+  State<_PhotoProgressDots> createState() => _PhotoProgressDotsState();
+}
+
+class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
+  late int _previousFirstVisibleIndex;
+  late int _previousVisibleCount;
+  var _hasPreviousWindow = false;
+  var _entryDirection = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousFirstVisibleIndex = _firstVisibleIndex(widget.index, widget.count);
+    _previousVisibleCount = _visibleCount(widget.count);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PhotoProgressDots oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _previousFirstVisibleIndex = _firstVisibleIndex(
+      oldWidget.index,
+      oldWidget.count,
+    );
+    _previousVisibleCount = _visibleCount(oldWidget.count);
+    _hasPreviousWindow = true;
+
+    final nextFirstVisibleIndex = _firstVisibleIndex(
+      widget.index,
+      widget.count,
+    );
+    if (nextFirstVisibleIndex > _previousFirstVisibleIndex) {
+      _entryDirection = 1;
+    } else if (nextFirstVisibleIndex < _previousFirstVisibleIndex) {
+      _entryDirection = -1;
+    } else {
+      _entryDirection = widget.index >= oldWidget.index ? 1 : -1;
+    }
+  }
+
+  static int _visibleCount(int count) =>
+      count < _PhotoProgressDots._maximumVisibleDots
+      ? count
+      : _PhotoProgressDots._maximumVisibleDots;
+
+  static int _firstVisibleIndex(int index, int count) {
+    final visibleCount = _visibleCount(count);
+    if (visibleCount == 0 || index < visibleCount) return 0;
     final maximumStart = count - visibleCount;
-    final centeredStart = index - visibleCount ~/ 2;
-    final firstVisibleIndex = centeredStart.clamp(0, maximumStart);
+    final firstVisibleIndex = index - visibleCount + 1;
+    return firstVisibleIndex > maximumStart ? maximumStart : firstVisibleIndex;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleCount = _visibleCount(widget.count);
+    final firstVisibleIndex = _firstVisibleIndex(widget.index, widget.count);
     final lastVisibleIndex = firstVisibleIndex + visibleCount - 1;
     final farthestDistance =
-        (index - firstVisibleIndex) > (lastVisibleIndex - index)
-        ? index - firstVisibleIndex
-        : lastVisibleIndex - index;
+        (widget.index - firstVisibleIndex) > (lastVisibleIndex - widget.index)
+        ? widget.index - firstVisibleIndex
+        : lastVisibleIndex - widget.index;
 
     return Semantics(
-      label: 'Photo ${index + 1} of $count',
+      label: 'Photo ${widget.index + 1} of ${widget.count}',
       child: ExcludeSemantics(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var slot = 0; slot < visibleCount; slot++) ...[
-              if (slot > 0) const SizedBox(width: 4),
-              _dot(firstVisibleIndex + slot, farthestDistance),
-            ],
-          ],
+        child: SizedBox(
+          width:
+              visibleCount * _PhotoProgressDots._dotSlotWidth +
+              (visibleCount > 0 ? 3 : 0),
+          height: 9,
+          child: ClipRect(
+            child: Stack(
+              children: [
+                for (var slot = 0; slot < visibleCount; slot++) ...[
+                  _positionedDot(
+                    slot: slot,
+                    dotIndex: firstVisibleIndex + slot,
+                    farthestDistance: farthestDistance,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _positionedDot({
+    required int slot,
+    required int dotIndex,
+    required int farthestDistance,
+  }) {
+    final wasVisible =
+        _hasPreviousWindow &&
+        dotIndex >= _previousFirstVisibleIndex &&
+        dotIndex < _previousFirstVisibleIndex + _previousVisibleCount;
+
+    return AnimatedPositioned(
+      key: ValueKey(dotIndex),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      left: slot * _PhotoProgressDots._dotSlotWidth,
+      top: 2,
+      width: _PhotoProgressDots._dotSlotWidth,
+      height: 5,
+      child: _PhotoDotEntrance(
+        animate: _hasPreviousWindow && !wasVisible,
+        direction: _entryDirection,
+        width: _PhotoProgressDots._dotSlotWidth,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _dot(dotIndex, farthestDistance),
         ),
       ),
     );
   }
 
   Widget _dot(int dotIndex, int farthestDistance) {
-    final isSelected = dotIndex == index;
-    final distance = (dotIndex - index).abs();
-    final opacity = isSelected ? 1.0 : 1 - .72 * distance / farthestDistance;
+    final isSelected = dotIndex == widget.index;
+    final distance = (dotIndex - widget.index).abs();
+    final opacity = isSelected || farthestDistance == 0
+        ? 1.0
+        : 1 - .72 * distance / farthestDistance;
 
     return AnimatedOpacity(
-      key: ValueKey(dotIndex),
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
       opacity: opacity,
@@ -317,4 +408,59 @@ class _PhotoProgressDots extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PhotoDotEntrance extends StatefulWidget {
+  const _PhotoDotEntrance({
+    required this.animate,
+    required this.direction,
+    required this.width,
+    required this.child,
+  });
+
+  final bool animate;
+  final int direction;
+  final double width;
+  final Widget child;
+
+  @override
+  State<_PhotoDotEntrance> createState() => _PhotoDotEntranceState();
+}
+
+class _PhotoDotEntranceState extends State<_PhotoDotEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: widget.animate ? 0 : 1,
+    );
+    if (widget.animate) _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    child: SizedBox(width: widget.width, height: 5, child: widget.child),
+    builder: (context, child) => Opacity(
+      opacity: _controller.value,
+      child: Transform.translate(
+        offset: Offset(
+          widget.direction * (1 - _controller.value) * widget.width,
+          0,
+        ),
+        child: child,
+      ),
+    ),
+  );
 }
