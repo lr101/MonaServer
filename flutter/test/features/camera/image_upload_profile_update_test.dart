@@ -13,6 +13,7 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/camera/presentation/image_upload.dart';
@@ -24,6 +25,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
+
+import '../../support/pin_image_test_cache.dart';
+
 // ignore: depend_on_referenced_packages
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
 import 'package:latlong2/latlong.dart';
@@ -63,6 +67,7 @@ void main() {
       final api = _PhotoUploadApi();
       final container = ProviderContainer(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           accountDatabaseProvider.overrideWithValue(database),
           userIdProvider.overrideWithValue('updater'),
           pinApiProvider.overrideWithValue(api),
@@ -70,8 +75,7 @@ void main() {
           groupOrderServiceProvider.overrideWithValue(const ['group-id']),
           groupDetailsPinsProvider('group-id')
               .overrideWithValue(AsyncData<List<PinEntity>?>([pin])),
-          pinImageForDetailsProvider('place')
-              .overrideWith((_) => Future<Uint8List?>.value()),
+
           groupProfilePictureSmallByIdProvider('group-id')
               .overrideWith((_) => Stream.value(kTransparentImage)),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),

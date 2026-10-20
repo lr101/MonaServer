@@ -4,6 +4,7 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
@@ -14,12 +15,15 @@ import 'package:buff_lisa/features/settings/presentation/sub_widgets/edit_hidden
 import 'package:buff_lisa/features/settings/presentation/sub_widgets/edit_hidden_users.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:transparent_image/transparent_image.dart';
+
+import 'support/pin_image_test_cache.dart';
 
 PinEntity pin(String id, String creator) => PinEntity(
   pinId: id,
@@ -42,6 +46,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           sharedPreferencesProvider.overrideWithValue(prefs),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(
@@ -53,8 +58,7 @@ void main() {
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
           pinByIdProvider('artwork')
               .overrideWith((ref) => Stream.value(pin('artwork', 'artist'))),
-          pinImageForDetailsProvider('artwork')
-              .overrideWith((ref) => kTransparentImage),
+
           userByIdUsernameProvider('artist')
               .overrideWith((ref) => Future.value('Artist')),
           groupMetadataProvider('group')
@@ -87,7 +91,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(ListTile),
-          matching: find.byType(Image),
+          matching: find.byType(RemotePinImage),
         ),
         findsOneWidget,
       );
@@ -97,7 +101,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(PageView),
-          matching: find.byType(Image),
+          matching: find.byType(RemotePinImage),
         ),
         findsOneWidget,
       );
@@ -125,6 +129,7 @@ void main() {
         final artwork = pin('artwork', 'artist');
         final container = ProviderContainer(
           overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
             sharedPreferencesProvider.overrideWithValue(prefs),
             defaultErrorImageProvider.overrideWithValue(kTransparentImage),
             globalDataServiceProvider.overrideWithValue(
@@ -237,6 +242,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(
               userId: 'viewer',

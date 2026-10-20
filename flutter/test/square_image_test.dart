@@ -66,7 +66,10 @@ void main() {
   }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [pinImageSourcesProvider.overrideWithValue(sources)],
+        overrides: [
+          pinImageSourcesProvider.overrideWithValue(sources),
+          imageSessionNamespaceProvider.overrideWithValue(sources.namespace),
+        ],
         child: MaterialApp(
           home: MediaQuery(
             data: const MediaQueryData(devicePixelRatio: 3),
@@ -88,11 +91,14 @@ void main() {
         ),
       ),
     );
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 50; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );
       await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(RawImage).evaluate().isNotEmpty ||
+          find.byIcon(Icons.image_not_supported_outlined).evaluate().isNotEmpty)
+        break;
     }
     await tester.pump(const Duration(seconds: 11));
   }
@@ -109,7 +115,7 @@ void main() {
       expect(find.byType(CachedNetworkImage), findsOneWidget);
       expect(cache.urls, ['https://example.test/thumb.png']);
       final provider =
-          tester.widget<Image>(find.byType(Image)).image as ResizeImage;
+          tester.widget<Image>(find.byType(Image).last).image as ResizeImage;
       expect(provider.width, 300);
       expect(provider.imageProvider, isA<CachedNetworkImageProvider>());
     },
@@ -140,7 +146,7 @@ void main() {
       'https://example.test/thumb.png',
       'https://example.test/full.png',
     ]);
-    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(RawImage), findsOneWidget);
     expect(historyRequests, 0);
   });
   testWidgets('renews expired photo metadata and displays the new image', (
@@ -160,7 +166,7 @@ void main() {
       'https://example.test/renewed.png',
     ]);
     expect(historyRequests, 1);
-    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(RawImage), findsOneWidget);
   });
   testWidgets('stops automatic retries and keeps a missing tile tappable', (
     tester,
@@ -237,7 +243,7 @@ void main() {
       await mount(tester, photoId: 'photo', thumb: expired, full: expired);
       expect(cache.urls, contains(renewed));
       expect(find.byIcon(Icons.image_not_supported_outlined), findsNothing);
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(RawImage), findsOneWidget);
     },
   );
 }

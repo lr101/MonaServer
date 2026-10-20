@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/user_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
@@ -106,6 +107,14 @@ class UserService extends _$UserService {
         await repo.put(userDto);
         if (!isCurrent()) return null;
         if (profilePicture != null) {
+          await replaceRemoteImage(
+            operationRef,
+            kind: RemoteImageKind.user,
+            id: this.userId,
+            thumbnailUrl: result.profileImageSmall,
+            imageUrl: result.profileImage,
+          );
+          if (!operationRef.mounted || !isCurrent()) return null;
           images.overrideUrl(this.userId, result.profileImage!, true);
           smallImages.overrideUrl(this.userId, result.profileImageSmall!, true);
         }

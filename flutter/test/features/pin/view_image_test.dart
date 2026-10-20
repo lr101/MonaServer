@@ -5,6 +5,7 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
@@ -19,6 +20,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
+
+import '../../support/pin_image_test_cache.dart';
 
 void main() {
   testWidgets(
@@ -47,6 +50,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
             groupProfilePictureSmallByIdProvider('group')
                 .overrideWith((ref) => Stream.value(kTransparentImage)),
             feedMapBuilderProvider.overrideWithValue(
@@ -63,15 +67,7 @@ void main() {
               ),
             ),
             defaultErrorImageProvider.overrideWithValue(kTransparentImage),
-            getUserProfileSmallProvider('photo-maker-id')
-                .overrideWith((ref) => Stream.value(kTransparentImage)),
-            getUserProfileSmallProvider('maker')
-                .overrideWith((ref) => Stream.value(kTransparentImage)),
             pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
-            pinImageForDetailsProvider('pin')
-                .overrideWith((ref) => kTransparentImage),
-            pinThumbnailBytesProvider('pin')
-                .overrideWith((ref) => Stream.value(kTransparentImage)),
             currentLocationProvider.overrideWith((ref) => const Stream.empty()),
             pinPhotoHistoryProvider('pin').overrideWith(
               (ref) => Future.value([

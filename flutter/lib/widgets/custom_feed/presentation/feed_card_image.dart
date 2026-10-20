@@ -1,8 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
@@ -12,7 +9,7 @@ import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_heade
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_description.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
-import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -102,17 +99,6 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
       selected = widget.item;
     }
 
-    final preview = ref.watch(pinThumbnailBytesProvider(parent.pinId));
-    final image = ref.watch(pinImageForDetailsProvider(parent.pinId));
-    final selectedPhotoImage = selected.photoId == null
-        ? null
-        : ref.watch(
-            pinPhotoProgressiveImageBytesProvider((
-              photoId: selected.photoId!,
-              thumbnailUrl: selected.photoThumbnailUrl,
-              imageUrl: selected.photoUrl,
-            )),
-          );
     final showPhoto = ref.watch(feedMapStateProvider(widget.item.entryId));
     final overlayTheme = Theme.of(context).copyWith(
       colorScheme: const ColorScheme.dark(),
@@ -137,12 +123,10 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
             borderRadius: BorderRadius.circular(10),
             child: PinPhotoCarousel(
               key: ValueKey(widget.item.entryId),
-              originalImage: image.value,
-              thumbnailImage: preview.value,
+              pinId: parent.pinId,
               originalImageBlurhash:
                   parent.imageBlurhash ?? originalPhoto?.imageBlurhash,
-              isOriginalLoading:
-                  (image.isLoading && preview.isLoading) || history.isLoading,
+
               photos: photos,
               initialPhotoId: initialId,
               onPageChanged: (index) => _selectPhoto(index, parent, updates),
@@ -212,21 +196,17 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                                   )
                                 : Tooltip(
                                     message: 'Show photo',
-                                    child: selected.photoId != null
-                                        ? _photoUpdatePreview(
-                                            selected,
-                                            selectedPhotoImage,
-                                          )
-                                        : image.value != null ||
-                                              preview.value != null
-                                        ? Image.memory(
-                                            image.value ?? preview.value!,
-                                            fit: BoxFit.cover,
-                                            gaplessPlayback: true,
-                                          )
-                                        : const Icon(
-                                            Icons.photo_library_outlined,
-                                          ),
+                                    child: RemotePinImage(
+                                      pinId: parent.pinId,
+                                      photoId: selected.photoId,
+                                      thumbnailUrl:
+                                          selected.photoThumbnailUrl ??
+                                          originalPhoto?.imageThumbnail,
+                                      imageUrl:
+                                          selected.photoUrl ??
+                                          originalPhoto?.image,
+                                      blurhash: selected.imageBlurhash,
+                                    ),
                                   ),
                           ),
                         ),
@@ -256,24 +236,6 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
     );
   }
 
-  Widget _photoUpdatePreview(
-    PinEntity photo,
-    AsyncValue<Uint8List?>? imageState,
-  ) {
-    final bytes = imageState?.value;
-    if (bytes != null && bytes.isNotEmpty) {
-      return Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        PinImagePlaceholder(blurhash: photo.imageBlurhash),
-        if (imageState?.hasError == true || imageState?.hasValue == true)
-          const Center(child: Icon(Icons.photo_library_outlined)),
-      ],
-    );
-  }
-
   void _selectPhoto(int index, PinEntity parent, List<PinPhotoDto> updates) {
     setState(() => _selectedIndex = index);
     final selectedPhoto = index == 0 || index > updates.length
@@ -297,33 +259,62 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
 class _PhotoProgressDots extends StatelessWidget {
   const _PhotoProgressDots({required this.index, required this.count});
 
+  static const _maximumVisibleDots = 10;
+
   final int index;
   final int count;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Photo ${index + 1} of $count',
-    child: ExcludeSemantics(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var dot = 0; dot < count; dot++)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              width: dot == index ? 12 : 5,
-              height: 5,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: dot == index ? 1 : .55),
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black54, blurRadius: 2),
-                ],
-              ),
-            ),
-        ],
+  Widget build(BuildContext context) {
+    final visibleCount = count < _maximumVisibleDots
+        ? count
+        : _maximumVisibleDots;
+    final maximumStart = count - visibleCount;
+    final centeredStart = index - visibleCount ~/ 2;
+    final firstVisibleIndex = centeredStart.clamp(0, maximumStart);
+    final lastVisibleIndex = firstVisibleIndex + visibleCount - 1;
+    final farthestDistance =
+        (index - firstVisibleIndex) > (lastVisibleIndex - index)
+        ? index - firstVisibleIndex
+        : lastVisibleIndex - index;
+
+    return Semantics(
+      label: 'Photo ${index + 1} of $count',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var slot = 0; slot < visibleCount; slot++) ...[
+              if (slot > 0) const SizedBox(width: 4),
+              _dot(firstVisibleIndex + slot, farthestDistance),
+            ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _dot(int dotIndex, int farthestDistance) {
+    final isSelected = dotIndex == index;
+    final distance = (dotIndex - index).abs();
+    final opacity = isSelected ? 1.0 : 1 - .72 * distance / farthestDistance;
+
+    return AnimatedOpacity(
+      key: ValueKey(dotIndex),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      opacity: opacity,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: isSelected ? 12 : 5,
+        height: 5,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: isSelected ? 1 : .55),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+        ),
+      ),
+    );
+  }
 }

@@ -24,9 +24,8 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(widget.pinProvider);
-    if (state.hasValue) {
-      _images = state.value ?? const <PinEntity>[];
-    }
+    if (state.hasValue) _images = state.value ?? const <PinEntity>[];
+
     if (_images.isEmpty) {
       return Center(
         child: state.hasError
@@ -48,8 +47,8 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         return GridView.builder(
           primary: true,
           padding: padding,
-          // Let Flutter mount a small nearby window. The package deduplicates
-          // downloads and reuses decoded frames through ImageCache.
+          // Keep nearby rows mounted; each tile loads and fades in its image as
+          // it approaches the view. RemoteImage shares downloads and cache.
           scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
           itemCount: _images.length,
           findChildIndexCallback: (key) {

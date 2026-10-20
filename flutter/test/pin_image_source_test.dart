@@ -145,6 +145,22 @@ void main() {
     expect(image, isNull);
     expect(reads, isEmpty);
   });
+  test('a failed registry photo URL is bypassed during renewal', () async {
+    registry.register(
+      BatchReadKind.pinImageThumbnail,
+      'photo:pin:update',
+      'https://storage.test/expired',
+    );
+    final image = await sources.resolve((
+      pinId: 'pin',
+      photoId: 'update',
+      thumbnailUrl: 'https://storage.test/expired',
+      imageUrl: null,
+      attempt: 2,
+    ));
+    expect(image?.url, 'https://storage.test/thumb');
+    expect(histories, 1);
+  });
   test('failed history renewal can recover on a later request', () async {
     var calls = 0;
     final recovering = PinImageSources(

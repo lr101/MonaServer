@@ -1,6 +1,6 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/other_user_achievements_tab.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
@@ -22,7 +22,7 @@ class OtherUserProfile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userPins = ref.watch(userPinEntriesProvider(userId));
+    final userPins = ref.watch(profileGridEntriesProvider(userId));
     final username = ref.watch(userByIdUsernameProvider(userId));
     final description = ref.watch(userByIdDescriptionProvider(userId));
     final bestSeason = ref.watch(userByIdBestSeasonProvider(userId));
@@ -33,7 +33,6 @@ class OtherUserProfile extends ConsumerWidget {
             userServiceProvider(userId)
                 .select((user) => user.value?.selectedBatchColor),
           );
-    final profileImage = ref.watch(getUserProfileProgressiveProvider(userId));
     final likes = ref.watch(userLikeServiceProvider(userId));
     final progression = ref.watch(publicUserProgressionProvider(userId)).value;
     return DefaultTabController(
@@ -47,7 +46,10 @@ class OtherUserProfile extends ConsumerWidget {
                 avatar: avatar,
                 radius: 40,
               ),
-        avatar: AsyncData(profileImage.value),
+        remoteAvatar: RemoteImageReference(
+          kind: RemoteImageKind.user,
+          id: userId,
+        ),
         title: Row(
           children: [
             Text(
@@ -94,7 +96,7 @@ class OtherUserProfile extends ConsumerWidget {
         ],
         body: TabBarView(
           children: [
-            ImageGrid(pinProvider: userPinEntriesProvider(userId)),
+            ImageGrid(pinProvider: profileGridEntriesProvider(userId)),
             OtherUserAchievementsTab(userId: userId),
           ],
         ),

@@ -12,6 +12,7 @@ class SquareImage extends StatelessWidget {
     this.photoId,
     required this.index,
     required this.onTap,
+    this.preparedImage,
   });
 
   final String pinId;
@@ -22,17 +23,20 @@ class SquareImage extends StatelessWidget {
   final String? photoId;
   final int index;
   final Function(int index) onTap;
+  final Widget? preparedImage;
 
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: () => onTap(index),
     behavior: HitTestBehavior.opaque,
-    child: RemotePinImage(
-      pinId: pinId,
-      photoId: photoId,
-      thumbnailUrl: photoThumbnailUrl,
-      imageUrl: photoUrl,
-      blurhash: imageBlurhash,
-    ),
+    child:
+        preparedImage ??
+        RemotePinImage(
+          pinId: pinId,
+          photoId: photoId,
+          thumbnailUrl: photoThumbnailUrl,
+          imageUrl: photoUrl,
+          blurhash: imageBlurhash,
+        ),
   );
 }

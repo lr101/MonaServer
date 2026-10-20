@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -174,7 +174,6 @@ class _PinImagePreview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final image = ref.watch(pinThumbnailBytesProvider(pin.pinId)).value;
     final title = pin.title?.trim();
     final label = title == null || title.isEmpty ? 'Open pin' : 'Open $title';
     final colorScheme = Theme.of(context).colorScheme;
@@ -195,35 +194,11 @@ class _PinImagePreview extends ConsumerWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onTap,
-            child: image == null || image.isEmpty
-                ? _previewPlaceholder(context)
-                : Image.memory(
-                    image,
-                    fit: BoxFit.cover,
-                    cacheWidth:
-                        (PinClusterPreviewMarker._previewDiameter *
-                                MediaQuery.devicePixelRatioOf(context))
-                            .round(),
-                    gaplessPlayback: true,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _previewPlaceholder(context),
-                  ),
+            child: RemotePinImage(
+              pinId: pin.pinId,
+              blurhash: pin.imageBlurhash,
+            ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _previewPlaceholder(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox.square(
-      dimension: PinClusterPreviewMarker._previewDiameter,
-      child: ColoredBox(
-        color: colorScheme.surfaceContainerHighest,
-        child: Icon(
-          Icons.photo_outlined,
-          size: 14,
-          color: colorScheme.onSurfaceVariant,
         ),
       ),
     );

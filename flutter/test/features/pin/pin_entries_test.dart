@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/database/database.dart';
@@ -12,16 +11,15 @@ import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/group_details_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:openapi/api.dart';
-import 'package:transparent_image/transparent_image.dart';
 
 void main() {
   test(
@@ -77,97 +75,37 @@ void main() {
         userPinEntriesProvider('original-author'),
         (entries, _) => entries.isNotEmpty,
       );
-      final bytes = Uint8List.fromList(kTransparentImage);
-      await http.runWithClient(
-        () async {
-          final provider = pinGridImageBytesProvider(entries.single.pinId);
-          final subscription = container.listen(provider, (_, _) {});
-          addTearDown(subscription.close);
-          final image = await container
-              .read(provider.future)
-              .timeout(const Duration(seconds: 5));
-          expect(image, orderedEquals(bytes));
-        },
-        () => MockClient((request) async {
-          if (request.url.toString() ==
-              'https://images.example/thumbnail.jpg') {
-            return http.Response.bytes(bytes, 200);
-          }
-          return http.Response('', 503);
-        }),
-      );
+      final source = await container.read(pinImageSourcesProvider).resolve((
+        pinId: entries.single.pinId,
+        photoId: null,
+        thumbnailUrl: null,
+        imageUrl: null,
+        attempt: 0,
+      ));
+      expect(source?.url, 'https://images.example/thumbnail.jpg');
     },
   );
 
   test(
-    'a failed endpoint image URL does not trigger an automatic retry loop',
+    'original metadata arriving later becomes available to the shared resolver',
     () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);
       final registry = SuppliedImageUrlRegistry();
-      addTearDown(registry.dispose);
-      var batchRequests = 0;
-      final batches = BatchReadCoalescer(
-        read: (items) async {
-          batchRequests++;
-          return [
-            for (final item in items)
-              BatchReadResult(
-                kind: item.kind == BatchReadItemKindEnum.pinImageThumbnail
-                    ? BatchReadResultKindEnum.pinImageThumbnail
-                    : BatchReadResultKindEnum.pinImage,
-                id: item.id,
-                status: 200,
-                imageUrl: 'https://images.example/expired.jpg',
-              ),
-          ];
-        },
-        onResult: (key, result) =>
-            registry.register(key.kind, key.id, result.imageUrl, notify: false),
-      );
-      addTearDown(batches.dispose);
-      final container = ProviderContainer(
-        overrides: [
-          batchReadCoalescerProvider.overrideWithValue(batches),
-          suppliedImageUrlRegistryProvider.overrideWithValue(registry),
-          accountDatabaseProvider.overrideWithValue(db),
-          userIdProvider.overrideWithValue('viewer'),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      await http.runWithClient(() async {
-        final provider = pinGridImageBytesProvider('place');
-        final subscription = container.listen(provider, (_, _) {});
-        addTearDown(subscription.close);
-        expect(
-          await container
-              .read(provider.future)
-              .timeout(const Duration(seconds: 5)),
-          isNull,
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        expect(batchRequests, 2);
-      }, () => MockClient((_) async => http.Response('', 403)));
-    },
-  );
-
-  test(
-    'a mounted cold profile retries when original photo metadata arrives',
-    () async {
-      final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(db.close);
-      final batches = BatchReadCoalescer(
+      final batch = BatchReadCoalescer(
+        window: Duration.zero,
         read: (_) async => throw StateError('URL lookup unavailable'),
       );
-      addTearDown(batches.dispose);
+      addTearDown(registry.dispose);
+      addTearDown(batch.dispose);
       final container = ProviderContainer(
         overrides: [
-          batchReadCoalescerProvider.overrideWithValue(batches),
           accountDatabaseProvider.overrideWithValue(db),
           userIdProvider.overrideWithValue('original-author'),
           pinUserServiceProvider('original-author')
               .overrideWith(_EmptyPins.new),
+          batchReadCoalescerProvider.overrideWithValue(batch),
+          suppliedImageUrlRegistryProvider.overrideWithValue(registry),
           hiddenUserServiceProvider.overrideWithValue(const []),
           hiddenPostsServiceProvider.overrideWithValue(const []),
         ],
@@ -176,7 +114,6 @@ void main() {
       await container
           .read(pinRepositoryProvider)
           .put(PinEntity.fromDto(_pinDto('place'), false));
-
       await container
           .read(userPinsRepositoryProvider)
           .put(
@@ -187,70 +124,45 @@ void main() {
               onlySession: false,
             ),
           );
-      final profileSubscription = container.listen(
-        userPinEntriesProvider('original-author'),
-        (_, _) {},
-      );
-      addTearDown(profileSubscription.close);
-      final entries = await _waitForEntries(
+      await _waitForEntries(
         container,
         userPinEntriesProvider('original-author'),
         (entries, _) => entries.isNotEmpty,
       );
-      final bytes = Uint8List.fromList(kTransparentImage);
-      var imageRequests = 0;
-      await http.runWithClient(
-        () async {
-          final provider = pinGridImageBytesProvider(entries.single.pinId);
-          final subscription = container.listen(provider, (_, _) {});
-          addTearDown(subscription.close);
-          expect(await container.read(provider.future), isNull);
-          final loaded = Completer<Uint8List>();
-          final imageListener = container.listen(provider, (_, value) {
-            final bytes = value.value;
-            if (bytes != null && !loaded.isCompleted) loaded.complete(bytes);
-          });
-          addTearDown(imageListener.close);
-          await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
-            'place': [
-              PinPhotoDto(
-                id: 'original-photo',
-                pinId: 'place',
-                contributorId: 'original-author',
-                contributorUsername: 'original-author',
-                observedAt: DateTime.utc(2026),
-                isOriginal: true,
-                image: 'https://images.example/original.jpg',
-                imageThumbnail: 'https://images.example/thumbnail.jpg',
-              ),
-            ],
-          });
-          final image = await loaded.future.timeout(const Duration(seconds: 5));
-          expect(image, orderedEquals(bytes));
-          final requestsAfterLoad = imageRequests;
-          final registry = container.read(suppliedImageUrlRegistryProvider);
-          registry.register(
-            BatchReadKind.pinImageThumbnail,
-            'place',
-            'https://images.example/renewed-thumbnail.jpg',
-          );
-          registry.register(
-            BatchReadKind.pinImage,
-            'place',
-            'https://images.example/renewed-original.jpg',
-          );
-          await Future<void>.delayed(const Duration(milliseconds: 50));
-          expect(subscription.read().value, same(image));
-          expect(imageRequests, requestsAfterLoad);
-        },
-        () => MockClient((request) async {
-          imageRequests++;
-          if (request.url.toString() ==
-              'https://images.example/thumbnail.jpg') {
-            return http.Response.bytes(bytes, 200);
-          }
-          return http.Response('', 503);
-        }),
+      const request = (
+        pinId: 'place',
+        photoId: null,
+        thumbnailUrl: null,
+        imageUrl: null,
+        attempt: 0,
+      );
+      await expectLater(
+        container.read(pinImageSourcesProvider).resolve(request),
+        throwsStateError,
+      );
+      await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
+        'place': [
+          PinPhotoDto(
+            id: 'original-photo',
+            pinId: 'place',
+            contributorId: 'original-author',
+            contributorUsername: 'original-author',
+            observedAt: DateTime.utc(2026),
+            isOriginal: true,
+            image: 'https://images.example/original.jpg',
+            imageThumbnail: 'https://images.example/thumbnail.jpg',
+          ),
+        ],
+      });
+      await _waitForEntries(
+        container,
+        userPinEntriesProvider('original-author'),
+        (entries, _) =>
+            registry.lookup(BatchReadKind.pinImageThumbnail, 'place') != null,
+      );
+      expect(
+        (await container.read(pinImageSourcesProvider).resolve(request))?.url,
+        'https://images.example/thumbnail.jpg',
       );
     },
   );
@@ -351,6 +263,258 @@ void main() {
       expect(api.photoRequests, isEmpty);
     },
   );
+
+  test('group snapshot waits for every pin page and update history', () async {
+    final history = Completer<List<PinPhotoDto>>();
+    final historyStarted = Completer<void>();
+    final firstPage = List.generate(100, (index) => _pinDto('page-$index'));
+    final api = _ContributorPinsApi(
+      pages: [
+        firstPage,
+        [_pinDto('last-page')],
+      ],
+      photoHistory: (pinId) {
+        if (pinId != 'last-page') return Future.value([]);
+        if (!historyStarted.isCompleted) historyStarted.complete();
+        return history.future;
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        pinApiProvider.overrideWithValue(api),
+        groupDetailsPinsProvider('group')
+            .overrideWithValue(AsyncData([_profilePin('cached')])),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    final snapshots = <List<PinEntity>>[];
+    final ready = Completer<List<PinEntity>>();
+    final subscription = container.listen(groupPinEntriesProvider('group'), (
+      _,
+      next,
+    ) {
+      if (next case AsyncData<List<PinEntity>>(:final value)) {
+        snapshots.add(value);
+        if (!ready.isCompleted) ready.complete(value);
+      }
+    });
+    addTearDown(subscription.close);
+    try {
+      await historyStarted.future.timeout(const Duration(seconds: 5));
+      expect(
+        snapshots,
+        isEmpty,
+        reason: 'The group must not reveal cached originals or early pages',
+      );
+      expect(api.queriedGroups, ['group', 'group']);
+      expect(api.photoRequests, contains('last-page'));
+      history.complete([_photoUpdate('last-update', 'last-page')]);
+      final entries = await ready.future.timeout(const Duration(seconds: 5));
+      expect(
+        entries.map((entry) => entry.entryId),
+        containsAll(['last-page', 'last-update']),
+      );
+      expect(
+        entries.where((entry) => entry.pinId.startsWith('page-')),
+        hasLength(100),
+      );
+      expect(snapshots, hasLength(1));
+    } finally {
+      if (!history.isCompleted) history.complete([]);
+    }
+  });
+
+  test(
+    'group snapshot excludes blocked parents, posts and update contributors',
+    () async {
+      final api = _ContributorPinsApi(
+        items: [
+          _pinDto('visible'),
+          _pinDto('blocked-parent')..creationUser = 'blocked',
+          _pinDto('hidden-post'),
+        ],
+        photoHistory: (_) async => [
+          _photoUpdate('allowed-update', 'visible'),
+          _photoUpdate('blocked-update', 'visible')..contributorId = 'blocked',
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: [
+          pinApiProvider.overrideWithValue(api),
+          groupDetailsPinsProvider('group')
+              .overrideWithValue(const AsyncData([])),
+          hiddenUserServiceProvider.overrideWithValue(const ['blocked']),
+          hiddenPostsServiceProvider.overrideWithValue(const ['hidden-post']),
+        ],
+      );
+      addTearDown(container.dispose);
+      final entries = await _waitForEntries(
+        container,
+        groupPinEntriesProvider('group'),
+        (_, _) => true,
+      );
+      expect(entries.map((entry) => entry.entryId).toSet(), {
+        'visible',
+        'allowed-update',
+      });
+      expect(api.photoRequests, ['visible']);
+    },
+  );
+
+  test('group metadata loading does not publish an empty gallery', () async {
+    final api = _ContributorPinsApi();
+    final container = ProviderContainer(
+      overrides: [
+        pinApiProvider.overrideWithValue(api),
+        groupDetailsPinsProvider('group')
+            .overrideWithValue(const AsyncLoading()),
+      ],
+    );
+    addTearDown(container.dispose);
+    final states = <AsyncValue<List<PinEntity>>>[];
+    final subscription = container.listen(
+      groupPinEntriesProvider('group'),
+      (_, next) => states.add(next),
+    );
+    addTearDown(subscription.close);
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(groupPinEntriesProvider('group')).isLoading, isTrue);
+    expect(states.where((state) => state.hasValue), isEmpty);
+    expect(api.pinQueries, 0);
+  });
+
+  test('own profile waits for newly discovered update histories before its first snapshot', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final history = Completer<List<PinPhotoDto>>();
+    final historyStarted = Completer<void>();
+    final api = _ContributorPinsApi(
+      items: [
+        _pinDto('place')..creationUser = 'updater',
+        _pinDto('update-place'),
+      ],
+      photoHistory: (pinId) {
+        if (pinId != 'update-place') return Future.value([]);
+        if (!historyStarted.isCompleted) historyStarted.complete();
+        return history.future;
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        accountDatabaseProvider.overrideWithValue(db),
+        userIdProvider.overrideWithValue('updater'),
+        syncingServiceProvider.overrideWith(_FinishedSync.new),
+        pinUserServiceProvider('updater').overrideWith(_CachedUserPins.new),
+        pinApiProvider.overrideWithValue(api),
+        hiddenUserServiceProvider.overrideWithValue(const []),
+        hiddenPostsServiceProvider.overrideWithValue(const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(pinRepositoryProvider).put(_profilePin('place'));
+    await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
+      'place': [],
+    });
+    await container
+        .read(userPinsRepositoryProvider)
+        .put(
+          UserPinsEntity(
+            userId: 'updater',
+            pins: ['place'],
+            ttl: DateTime.now(),
+            onlySession: false,
+            keepAlive: true,
+          ),
+        );
+    final snapshots = <List<PinEntity>>[];
+    final ready = Completer<List<PinEntity>>();
+    final subscription = container.listen(
+      profileGridEntriesProvider('updater'),
+      (_, state) {
+        if (state case AsyncData<List<PinEntity>>(:final value)) {
+          snapshots.add(value);
+          if (!ready.isCompleted) ready.complete(value);
+        }
+      },
+    );
+    addTearDown(subscription.close);
+    try {
+      await historyStarted.future.timeout(const Duration(seconds: 5));
+      expect(
+        snapshots,
+        isEmpty,
+        reason: 'Cached originals must wait for update discovery',
+      );
+      expect(api.photoRequests, containsAll(['place', 'update-place']));
+      history.complete([_photoUpdate('new-update', 'update-place')]);
+      final entries = await ready.future.timeout(const Duration(seconds: 5));
+      expect(entries.map((entry) => entry.entryId).toSet(), {
+        'place',
+        'new-update',
+      });
+      expect(snapshots, hasLength(1));
+      expect(
+        api.pinQueries,
+        1,
+        reason: 'Initial cache subscriptions must not restart discovery',
+      );
+    } finally {
+      if (!history.isCompleted) history.complete([]);
+    }
+  });
+
+  for (final failure in ['index', 'history']) {
+    test(
+      'own profile retains cached updates when the $failure refresh fails',
+      () async {
+        final db = AppDatabase(NativeDatabase.memory());
+        addTearDown(db.close);
+        final api = _ContributorPinsApi(
+          items: [_pinDto('place')..creationUser = 'updater'],
+          queryError: failure == 'index' ? StateError('Offline') : null,
+          photoHistory: (_) async => throw StateError('Offline'),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            accountDatabaseProvider.overrideWithValue(db),
+            userIdProvider.overrideWithValue('updater'),
+            syncingServiceProvider.overrideWith(_FinishedSync.new),
+            pinUserServiceProvider('updater').overrideWith(_CachedUserPins.new),
+            pinApiProvider.overrideWithValue(api),
+            hiddenUserServiceProvider.overrideWithValue(const []),
+            hiddenPostsServiceProvider.overrideWithValue(const []),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(pinRepositoryProvider).put(_profilePin('place'));
+        await container.read(pinPhotoHistoryRepositoryProvider).putMultiple({
+          'place': [_photoUpdate('cached-update', 'place')],
+        });
+        await container
+            .read(userPinsRepositoryProvider)
+            .put(
+              UserPinsEntity(
+                userId: 'updater',
+                pins: ['place'],
+                ttl: DateTime.now(),
+                onlySession: false,
+                keepAlive: true,
+              ),
+            );
+        final entries = await _waitForEntries(
+          container,
+          profileGridEntriesProvider('updater'),
+          (entries, _) => entries.isNotEmpty,
+        );
+        expect(entries.map((entry) => entry.entryId).toSet(), {
+          'place',
+          'cached-update',
+        });
+      },
+    );
+  }
 
   test('current user profile emits newly indexed pins with the same sync watermark', () async {
     final db = AppDatabase(NativeDatabase.memory());
@@ -603,74 +767,82 @@ void main() {
     history.complete([]);
   });
 
-  test(
-    'profile update entries are emitted together after photo history loads',
-    () async {
-      final histories = {
-        'place-a': Completer<List<PinPhotoDto>>(),
-        'place-b': Completer<List<PinPhotoDto>>(),
-      };
-      final requestsStarted = Completer<void>();
-      var startedCount = 0;
-      final api = _ContributorPinsApi(
-        items: [_pinDto('place-a'), _pinDto('place-b')],
-        photoHistory: (pinId) {
-          startedCount++;
-          if (startedCount == histories.length &&
-              !requestsStarted.isCompleted) {
-            requestsStarted.complete();
-          }
-          return histories[pinId]!.future;
-        },
-      );
-      final container = ProviderContainer(
-        overrides: [
-          userIdProvider.overrideWithValue('current-user'),
-          pinUserServiceProvider('updater').overrideWith(_EmptyPins.new),
-          pinApiProvider.overrideWithValue(api),
-          hiddenUserServiceProvider.overrideWithValue(const []),
-          hiddenPostsServiceProvider.overrideWithValue(const []),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      final emittedUpdateIds = <Set<String>>[];
-      final allUpdatesEmitted = Completer<void>();
-      final subscription = container.listen(userPinEntriesProvider('updater'), (
-        _,
-        next,
-      ) {
-        if (next case AsyncData<List<PinEntity>>(:final value)) {
-          final updateIds = value
-              .where((entry) => entry.isPhotoUpdate)
-              .map((entry) => entry.entryId)
-              .toSet();
-          if (updateIds.isNotEmpty) {
-            emittedUpdateIds.add(updateIds);
-            if (updateIds.length == histories.length &&
-                !allUpdatesEmitted.isCompleted) {
-              allUpdatesEmitted.complete();
+  for (final completeOnly in [false, true]) {
+    test(
+      'profile entries wait for photo history (complete snapshot: $completeOnly)',
+      () async {
+        final histories = {
+          'place-a': Completer<List<PinPhotoDto>>(),
+          'place-b': Completer<List<PinPhotoDto>>(),
+        };
+        final requestsStarted = Completer<void>();
+        var startedCount = 0;
+        final api = _ContributorPinsApi(
+          items: [_pinDto('place-a'), _pinDto('place-b')],
+          photoHistory: (pinId) {
+            startedCount++;
+            if (startedCount == histories.length &&
+                !requestsStarted.isCompleted) {
+              requestsStarted.complete();
             }
-          }
-        }
-      });
-      addTearDown(subscription.close);
+            return histories[pinId]!.future;
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            userIdProvider.overrideWithValue('current-user'),
+            pinUserServiceProvider('updater').overrideWith(_EmptyPins.new),
+            pinApiProvider.overrideWithValue(api),
+            hiddenUserServiceProvider.overrideWithValue(const []),
+            hiddenPostsServiceProvider.overrideWithValue(const []),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      // Wait until both requests have been started by the profile provider.
-      await requestsStarted.future.timeout(const Duration(seconds: 5));
+        final emittedUpdateIds = <Set<String>>[];
+        final snapshots = <List<PinEntity>>[];
+        final allUpdatesEmitted = Completer<void>();
+        final subscription = container.listen(
+          completeOnly
+              ? profileGridEntriesProvider('updater')
+              : userPinEntriesProvider('updater'),
+          (_, next) {
+            if (next case AsyncData<List<PinEntity>>(:final value)) {
+              snapshots.add(value);
+              final updateIds = value
+                  .where((entry) => entry.isPhotoUpdate)
+                  .map((entry) => entry.entryId)
+                  .toSet();
+              if (updateIds.isNotEmpty) {
+                emittedUpdateIds.add(updateIds);
+                if (updateIds.length == histories.length &&
+                    !allUpdatesEmitted.isCompleted) {
+                  allUpdatesEmitted.complete();
+                }
+              }
+            }
+          },
+        );
+        addTearDown(subscription.close);
 
-      histories['place-a']!.complete([_photoUpdate('update-a', 'place-a')]);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
-      expect(emittedUpdateIds, isEmpty);
+        // Wait until both requests have been started by the profile provider.
+        await requestsStarted.future.timeout(const Duration(seconds: 5));
 
-      histories['place-b']!.complete([_photoUpdate('update-b', 'place-b')]);
-      await allUpdatesEmitted.future.timeout(const Duration(seconds: 5));
-      expect(emittedUpdateIds, [
-        {'update-a', 'update-b'},
-      ]);
-    },
-  );
+        histories['place-a']!.complete([_photoUpdate('update-a', 'place-a')]);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        expect(emittedUpdateIds, isEmpty);
+        if (completeOnly) expect(snapshots, isEmpty);
+
+        histories['place-b']!.complete([_photoUpdate('update-b', 'place-b')]);
+        await allUpdatesEmitted.future.timeout(const Duration(seconds: 5));
+        if (completeOnly) expect(snapshots, hasLength(1));
+        expect(emittedUpdateIds, [
+          {'update-a', 'update-b'},
+        ]);
+      },
+    );
+  }
 
   test('remote refresh preserves an unsynced local draft', () async {
     final container = ProviderContainer(
@@ -855,9 +1027,17 @@ class _DraftPins extends PinUserService {
 }
 
 class _ContributorPinsApi extends PinsApi {
-  _ContributorPinsApi({this.items, this.photoHistory}) : super(ApiClient());
+  _ContributorPinsApi({
+    this.items,
+    this.pages,
+    this.photoHistory,
+    this.queryError,
+  }) : super(ApiClient());
 
   final List<PinWithOptionalImageDto>? items;
+  final List<List<PinWithOptionalImageDto>>? pages;
+  final queriedGroups = <String?>[];
+  final Object? queryError;
   final Future<List<PinPhotoDto>?> Function(String)? photoHistory;
   int pinQueries = 0;
   final photoRequests = <String>[];
@@ -883,6 +1063,11 @@ class _ContributorPinsApi extends PinsApi {
     String? beforeId,
   }) async {
     pinQueries++;
+    queriedGroups.add(groupId);
+    if (pages != null) {
+      return PinsSyncDto(items: pages![beforeId == null ? 0 : 1]);
+    }
+    if (queryError != null) throw queryError!;
     return PinsSyncDto(
       items:
           items ??
@@ -931,3 +1116,8 @@ PinPhotoDto _photoUpdate(String id, String pinId) => PinPhotoDto(
   observedAt: DateTime.utc(2026, 2),
   isOriginal: false,
 );
+
+class _FinishedSync extends SyncingService {
+  @override
+  SyncState build() => SyncState.finished;
+}

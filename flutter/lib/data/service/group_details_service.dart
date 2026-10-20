@@ -1,32 +1,20 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum GroupMediaStatus { loading, available, unavailable, failed }
-
+/// Metadata and pin state are independent of widget-owned image loading.
 class GroupDetailsState {
-  const GroupDetailsState({
-    required this.group,
-    required this.pins,
-    required this.profileImage,
-  });
-
+  const GroupDetailsState({required this.group, required this.pins});
   final GroupEntity? group;
   final AsyncValue<List<PinEntity>> pins;
-  final AsyncValue<Uint8List?> profileImage;
-
-  GroupMediaStatus get mediaStatus {
-    if (profileImage.isLoading) return GroupMediaStatus.loading;
-    if (profileImage.hasError) return GroupMediaStatus.failed;
-    if (profileImage.value == null) return GroupMediaStatus.unavailable;
-    return GroupMediaStatus.available;
-  }
+  RemoteImageReference? get profileImage => group == null
+      ? null
+      : RemoteImageReference(kind: RemoteImageKind.group, id: group!.groupId);
 }
 
 AsyncValue<List<PinEntity>> _selectGroupPins(
@@ -51,17 +39,10 @@ final groupDetailsProvider = StreamProvider.autoDispose
       var metadataReady = false;
       var metadataFailed = false;
       AsyncValue<List<PinEntity>> pins = const AsyncLoading();
-      AsyncValue<Uint8List?> profileImage = const AsyncLoading();
 
       void emit() {
         if (!metadataReady || metadataFailed || controller.isClosed) return;
-        controller.add(
-          GroupDetailsState(
-            group: group,
-            pins: pins,
-            profileImage: profileImage,
-          ),
-        );
+        controller.add(GroupDetailsState(group: group, pins: pins));
       }
 
       ref.listen(groupMetadataProvider(groupId), (_, next) {
@@ -84,14 +65,6 @@ final groupDetailsProvider = StreamProvider.autoDispose
         pins = next;
         emit();
       }, fireImmediately: true);
-      ref.listen(groupProfilePictureProgressiveByIdProvider(groupId), (
-        _,
-        next,
-      ) {
-        profileImage = next;
-        emit();
-      }, fireImmediately: true);
-
       ref.onDispose(() {
         unawaited(controller.close());
       });

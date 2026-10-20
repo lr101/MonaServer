@@ -269,10 +269,11 @@ class BatchReadCoalescer {
 }
 
 class _SuppliedImageUrl {
-  const _SuppliedImageUrl(this.value, this.expiresAt);
+  const _SuppliedImageUrl(this.value, this.expiresAt, this.renewed);
 
   final String value;
   final DateTime expiresAt;
+  final bool renewed;
 }
 
 /// A small LRU registry for short-lived URLs supplied with sync/list DTOs.
@@ -301,6 +302,7 @@ class SuppliedImageUrlRegistry {
     String id,
     String? url, {
     bool notify = true,
+    bool renewed = false,
   }) {
     final key = BatchReadKey(kind, id);
     if (url == null || url.isEmpty) {
@@ -308,7 +310,7 @@ class SuppliedImageUrlRegistry {
       return;
     }
     final previous = _urls.remove(key);
-    _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl));
+    _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl), renewed);
     while (_urls.length > maxEntries) {
       _urls.remove(_urls.keys.first);
     }
@@ -317,12 +319,13 @@ class SuppliedImageUrlRegistry {
     }
   }
 
-  String? lookup(BatchReadKind kind, String id) {
+  String? lookup(BatchReadKind kind, String id, {bool renewedOnly = false}) {
     final key = BatchReadKey(kind, id);
     final entry = _urls.remove(key);
     if (entry == null) return null;
     if (!entry.expiresAt.isAfter(DateTime.now())) return null;
     _urls[key] = entry;
+    if (renewedOnly && !entry.renewed) return null;
     return entry.value;
   }
 

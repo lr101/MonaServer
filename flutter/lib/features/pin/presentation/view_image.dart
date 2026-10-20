@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/pin/platform/pin_photo_saver.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
@@ -47,13 +47,9 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     final pin = ref.watch(pinByIdProvider(widget.pinId));
     final toolbarPin = pin.whenOrNull(data: (value) => value);
     final currentUserId = ref.watch(userIdProvider);
-    final imageState = toolbarPin == null
-        ? null
-        : ref.watch(pinImageForDetailsProvider(toolbarPin.pinId));
     final photoHistoryState = toolbarPin == null
         ? null
         : ref.watch(pinPhotoHistoryProvider(toolbarPin.pinId));
-    final image = imageState?.value;
     final photos = photoHistoryState?.value ?? const <PinPhotoDto>[];
     final originalPhoto = photos.where((photo) => photo.isOriginal).firstOrNull;
     final selectedPhoto = _selectedPhotoId == null
@@ -68,7 +64,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
               : originalContributorId
         : selectedPhoto?.contributorId;
     final hasSelectedPhotoBytes = isOriginalSelected
-        ? image?.isNotEmpty == true || selectedPhoto?.image?.isNotEmpty == true
+        ? toolbarPin != null
         : selectedPhoto?.image?.isNotEmpty == true;
     final canDownloadSelectedPhoto =
         supportsPinPhotoDownload &&
@@ -89,7 +85,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
                       pinCreatorId: toolbarPin.creator,
                       photo: selectedPhoto,
                       isOriginal: isOriginalSelected,
-                      originalImage: image,
                     )
                   : null,
               isDownloadingPhoto: _isDownloadingPhoto,
@@ -149,7 +144,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     required String pinCreatorId,
     required PinPhotoDto? photo,
     required bool isOriginal,
-    required Uint8List? originalImage,
   }) async {
     if (_isDownloadingPhoto) return;
     setState(() => _isDownloadingPhoto = true);
@@ -160,7 +154,6 @@ class _ViewImageState extends ConsumerState<ViewImage> {
         pinId: pinId,
         pinCreatorId: pinCreatorId,
         isOriginal: isOriginal,
-        originalImage: originalImage,
       );
       final name = _photoFileName(pinId, photo?.id ?? 'original');
       await savePinPhoto(bytes, name: name);
@@ -185,13 +178,7 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     required String pinCreatorId,
     required PinPhotoDto? photo,
     required bool isOriginal,
-    required Uint8List? originalImage,
   }) async {
-    if (isOriginal) {
-      final bytes = originalImage;
-      if (bytes != null && bytes.isNotEmpty) return bytes;
-    }
-
     var photoToDownload = photo;
     if (photo != null) {
       try {
@@ -227,7 +214,20 @@ class _ViewImageState extends ConsumerState<ViewImage> {
       }
     }
 
-    final imageUrl = photoToDownload?.image;
+    final imageUrl =
+        photoToDownload?.image ??
+        (isOriginal
+            ? (await ref
+                      .read(remoteImageSourcesProvider)
+                      .resolve(
+                        RemoteImageReference(
+                          kind: RemoteImageKind.pin,
+                          id: pinId,
+                        ),
+                        attempt: 3,
+                      ))
+                  ?.url
+            : null);
     if (imageUrl == null || imageUrl.isEmpty) {
       throw const _PinPhotoDownloadException();
     }

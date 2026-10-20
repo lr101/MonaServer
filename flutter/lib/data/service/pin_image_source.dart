@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
@@ -39,7 +40,28 @@ class PinImageSources {
   final String namespace;
   final Map<String, Future<List<PinPhotoDto>>> _renewals = {};
 
-  Future<PinImageSource?> resolve(PinImageRequest request) async {
+  FutureOr<PinImageSource?> resolve(PinImageRequest request) {
+    if (request.attempt < 2) {
+      final small = request.attempt.isEven;
+      final kind = small
+          ? BatchReadKind.pinImageThumbnail
+          : BatchReadKind.pinImage;
+      final url =
+          (request.photoId == null
+              ? registry.lookup(kind, request.pinId)
+              : null) ??
+          (small ? request.thumbnailUrl : request.imageUrl);
+      if (url != null && url.isNotEmpty) return _source(url);
+    }
+    return _resolveRemote(request);
+  }
+
+  PinImageSource _source(String url) {
+    final object = Uri.parse(url).replace(query: '', fragment: '');
+    return PinImageSource(url: url, cacheKey: '$namespace:$object');
+  }
+
+  Future<PinImageSource?> _resolveRemote(PinImageRequest request) async {
     final thumbnail = request.attempt.isEven;
     final renew = request.attempt >= 2;
     String? url;
@@ -49,7 +71,7 @@ class PinImageSources {
         final kind = thumbnail
             ? BatchReadKind.pinImageThumbnail
             : BatchReadKind.pinImage;
-        url = registry.lookup(kind, cacheId);
+        url = registry.lookup(kind, cacheId, renewedOnly: true);
         if (url == null) {
           final photos = await _renewals.putIfAbsent(request.pinId, () async {
             try {
@@ -61,12 +83,14 @@ class PinImageSources {
                   id,
                   photo.imageThumbnail,
                   notify: false,
+                  renewed: true,
                 );
                 registry.register(
                   BatchReadKind.pinImage,
                   id,
                   photo.image,
                   notify: false,
+                  renewed: true,
                 );
               }
               return photos;
@@ -102,25 +126,28 @@ class PinImageSources {
     if (url == null || url.isEmpty) return null;
     // A signed URL rotation is metadata, not new pixels. The object path
     // changes when an image is replaced; signatures only change its query.
-    final object = Uri.parse(url).replace(query: '', fragment: '');
-    return PinImageSource(url: url, cacheKey: '$namespace:$object');
+    return _source(url);
   }
 }
 
-final pinImageSourcesProvider = Provider<PinImageSources>((ref) {
+final imageSessionNamespaceProvider = Provider<String>((ref) {
   final session = watchSession(ref);
+  // Persisted logins reuse native disk entries across restarts. A new login
+  // gets a different namespace; credentials never appear in cache keys.
+  return session.userId != null && session.refreshToken != null
+      ? sha256
+            .convert(utf8.encode('${session.userId}:${session.refreshToken}'))
+            .toString()
+      : const Uuid().v4();
+});
+
+final pinImageSourcesProvider = Provider<PinImageSources>((ref) {
   return PinImageSources(
     registry: ref.watch(suppliedImageUrlRegistryProvider),
     batch: ref.watch(batchReadCoalescerProvider),
     getPhotos: (id) async =>
         await ref.read(pinApiProvider).getPinPhotos(id) ?? [],
-    // Persisted logins reuse native disk entries across restarts. A new login
-    // gets a different namespace; credentials never appear in cache keys.
-    namespace: session.userId != null && session.refreshToken != null
-        ? sha256
-              .convert(utf8.encode('${session.userId}:${session.refreshToken}'))
-              .toString()
-        : const Uuid().v4(),
+    namespace: ref.watch(imageSessionNamespaceProvider),
   );
 });
 

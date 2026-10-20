@@ -9,7 +9,6 @@ import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/camera/data/app_review_state.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
@@ -19,6 +18,7 @@ import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -657,7 +657,6 @@ class _NearbyPinImagePreview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final image = ref.watch(pinImageForDetailsProvider(pin.pinId));
     final name = pin.title?.trim().isNotEmpty == true
         ? pin.title!.trim()
         : 'Untitled place';
@@ -678,21 +677,9 @@ class _NearbyPinImagePreview extends ConsumerWidget {
                 'viewImage',
                 pathParameters: {'id': pin.pinId},
               ),
-              child: image.when(
-                data: (bytes) => bytes == null
-                    ? _placeholder(context)
-                    : Image.memory(
-                        bytes,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _placeholder(context),
-                      ),
-                error: (_, _) => _placeholder(context),
-                loading: () => const Center(
-                  child: SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
+              child: RemotePinImage(
+                pinId: pin.pinId,
+                blurhash: pin.imageBlurhash,
               ),
             ),
           ),
@@ -700,11 +687,4 @@ class _NearbyPinImagePreview extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _placeholder(BuildContext context) => Center(
-    child: Icon(
-      Icons.photo_outlined,
-      color: Theme.of(context).colorScheme.onSurfaceVariant,
-    ),
-  );
 }

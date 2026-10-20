@@ -2,9 +2,9 @@ import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
-import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/progression/presentation/group_achievements_panel.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
@@ -66,7 +66,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
               radius: 40,
             ),
       floatingActionButton: widget.floatingActionButton,
-      avatar: widget.details.profileImage,
+      remoteAvatar: widget.details.profileImage,
       title: Text(
         group?.name ?? "",
         style: const TextStyle(fontWeight: FontWeight.bold),

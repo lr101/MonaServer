@@ -11,6 +11,7 @@ import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -373,7 +374,8 @@ class UserGroupService extends _$UserGroupService {
 
         if (!isCurrent()) return "Session ended";
         if (data.profileImage != null) {
-          _refreshGroupImagesInBackground(ref, result);
+          await _refreshGroupImagesInBackground(ref, result);
+          if (!isCurrent()) return "Session ended";
         }
         prefetchGroupMediaInBackground(ref, result, keepAlive: true);
       } else {
@@ -386,7 +388,24 @@ class UserGroupService extends _$UserGroupService {
   }
 }
 
-void _refreshGroupImagesInBackground(Ref ref, GroupDto groupDto) {
+Future<void> _refreshGroupImagesInBackground(Ref ref, GroupDto groupDto) async {
+  final isCurrent = accountOperation(ref);
+  await replaceRemoteImage(
+    ref,
+    kind: RemoteImageKind.group,
+    id: groupDto.id,
+    thumbnailUrl: groupDto.profileImageSmall,
+    imageUrl: groupDto.profileImage,
+  );
+  if (!ref.mounted || !isCurrent()) return;
+  await replaceRemoteImage(
+    ref,
+    kind: RemoteImageKind.groupPin,
+    id: groupDto.id,
+    thumbnailUrl: groupDto.pinImage,
+    imageUrl: groupDto.pinImage,
+  );
+  if (!ref.mounted || !isCurrent()) return;
   final imageSources = <(IImageRepository, String?)>[
     (ref.read(groupProfileRepoProvider), groupDto.profileImage),
     (ref.read(groupProfileSmallRepoProvider), groupDto.profileImageSmall),

@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
@@ -27,6 +27,7 @@ import '../../support/pin_image_test_cache.dart';
 void main() {
   late PinImageTestCache cache;
   setUp(() {
+    PaintingBinding.instance.imageCache.clear();
     cache = PinImageTestCache()..install();
   });
   tearDown(() async {
@@ -39,6 +40,15 @@ void main() {
         (tester) async {
           final userId = ownProfile ? 'viewer' : 'alice';
           final photoId = kind == 'photo thumbnail' ? 'update-photo' : null;
+          final gate = Completer<void>();
+          if (kind == 'loading')
+            cache.gates['https://images.test/photo.png'] = gate;
+          final sources = createTestImageSources();
+          sources.registry.register(
+            BatchReadKind.pinImageThumbnail,
+            'pin',
+            'https://images.test/photo.png',
+          );
           final entry = PinEntity(
             pinId: 'pin',
             latitude: 0,
@@ -47,6 +57,7 @@ void main() {
             creationDate: DateTime(2026),
             groupId: 'group',
             photoId: photoId,
+            photoThumbnailUrl: 'https://images.test/photo.png',
             ttl: DateTime(2026),
             onlySession: true,
           );
@@ -80,8 +91,9 @@ void main() {
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
+                pinImageSourcesProvider.overrideWithValue(sources),
                 userIdProvider.overrideWithValue('viewer'),
-                userPinEntriesProvider(userId)
+                profileGridEntriesProvider(userId)
                     .overrideWith((ref) => Stream.value([entry])),
                 userLikeServiceProvider(userId).overrideWith(_EmptyLikes.new),
                 userGroupServiceProvider.overrideWith(_EmptyGroups.new),
@@ -94,16 +106,7 @@ void main() {
                 userByIdBestSeasonProvider(userId).overrideWith((ref) => null),
                 publicUserProgressionProvider(userId)
                     .overrideWith((ref) => null),
-                getUserProfileProgressiveProvider(userId)
-                    .overrideWith((ref) => Stream.value(null)),
-                pinImageSourceProvider.overrideWith(
-                  (ref, request) => kind == 'loading'
-                      ? Completer<PinImageSource?>().future
-                      : const PinImageSource(
-                          url: 'https://images.test/photo.png',
-                          cacheKey: 'profile-photo',
-                        ),
-                ),
+
                 defaultErrorImageProvider.overrideWithValue(kTransparentImage),
               ],
               child: MaterialApp.router(routerConfig: router),
@@ -114,6 +117,12 @@ void main() {
               () => Future<void>.delayed(const Duration(milliseconds: 10)),
             );
             await tester.pump(const Duration(milliseconds: 200));
+          }
+          if (kind == 'loading') {
+            expect(find.byType(CircularProgressIndicator), findsOneWidget);
+            expect(find.byType(SquareImage).hitTestable(), findsNothing);
+            gate.complete();
+            await pumpImageLoads(tester);
           }
           await tester.pump(const Duration(seconds: 11));
           await tester.tap(find.byType(SquareImage));

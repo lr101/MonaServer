@@ -1,11 +1,10 @@
-import 'dart:typed_data';
-
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
@@ -16,6 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
+
+import '../../support/pin_image_test_cache.dart';
 
 void main() {
   testWidgets('keeps XP in the profile header while achievements change tabs', (
@@ -34,6 +35,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           userIdProvider.overrideWithValue('alice'),
           memberServiceProvider('group-id')
               .overrideWith(_EmptyMemberService.new),
@@ -88,7 +90,6 @@ void main() {
             details: GroupDetailsState(
               group: group,
               pins: const AsyncData<List<PinEntity>>([]),
-              profileImage: const AsyncData<Uint8List?>(null),
             ),
           ),
         ),

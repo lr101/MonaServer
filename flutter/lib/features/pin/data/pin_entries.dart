@@ -11,6 +11,7 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/syncing_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
@@ -55,6 +56,8 @@ Stream<List<PinEntity>> _entries(
   Ref ref,
   List<PinEntity> pins, {
   String? contributorId,
+  bool waitForHistory = false,
+  Map<String, List<PinPhotoDto>> cachedPhotos = const {},
 }) async* {
   final hiddenPosts = ref.watch(hiddenPostsServiceProvider);
   final hiddenUserIds = ref.watch(hiddenUserServiceProvider).toSet();
@@ -73,17 +76,21 @@ Stream<List<PinEntity>> _entries(
     hiddenUserIds: hiddenUserIds,
   );
 
-  yield project();
+  if (!waitForHistory) yield project();
   Future<(int, List<PinPhotoDto>)> load(int index) async {
     try {
       return (
         index,
         await ref.read(pinApiProvider).getPinPhotos(visiblePins[index].pinId) ??
+            cachedPhotos[visiblePins[index].pinId] ??
             const <PinPhotoDto>[],
       );
     } catch (_) {
       // A photo-history failure should not hide an existing pin.
-      return (index, const <PinPhotoDto>[]);
+      return (
+        index,
+        cachedPhotos[visiblePins[index].pinId] ?? const <PinPhotoDto>[],
+      );
     }
   }
 
@@ -91,11 +98,13 @@ Stream<List<PinEntity>> _entries(
   final pending = <int, Future<(int, List<PinPhotoDto>)>>{};
   var nextIndex = 0;
   while (nextIndex < visiblePins.length || pending.isNotEmpty) {
+    if (!ref.mounted) return;
     while (nextIndex < visiblePins.length && pending.length < maxConcurrent) {
       pending[nextIndex] = load(nextIndex);
       nextIndex++;
     }
     final (index, history) = await Future.any(pending.values);
+    if (!ref.mounted) return;
     pending.remove(index);
     photos[visiblePins[index].pinId] = history;
     registerOriginalPinPhotoImageUrls(ref, visiblePins[index].pinId, history);
@@ -106,63 +115,125 @@ Stream<List<PinEntity>> _entries(
   yield project();
 }
 
-final userPinEntriesProvider = StreamProvider.family<List<PinEntity>, String>((
-  ref,
-  userId,
-) async* {
+final userPinEntriesProvider = StreamProvider.family<List<PinEntity>, String>(
+  (ref, userId) => _userEntries(ref, userId),
+);
+
+/// Profiles request one completed metadata snapshot before displaying tiles.
+/// Sync's cache can omit histories that failed or changed since its last pass.
+/// Discover the full contribution index and await its histories before emitting.
+final profileGridEntriesProvider =
+    StreamProvider.family<List<PinEntity>, String>((ref, userId) {
+      if (userId == ref.watch(userIdProvider)) {
+        final sync = ref.watch(syncingServiceProvider);
+        if (sync == SyncState.init || sync == SyncState.syncing) {
+          return const Stream<List<PinEntity>>.empty();
+        }
+      }
+      return _userEntries(ref, userId, completeOnly: true);
+    });
+
+/// Refresh the complete index before projecting photos, sharing pagination and
+/// local-draft retention between user and group profiles.
+Future<Map<String, PinEntity>> _refreshPinIndex(
+  Ref ref,
+  Iterable<PinEntity> cached, {
+  String? userId,
+  String? groupId,
+}) async {
+  final pins = {for (final pin in cached) pin.pinId: pin};
+  final api = ref.read(pinApiProvider);
+  final remotePins = <String, PinEntity>{};
+  const pageSize = 100;
+  DateTime? beforeDate;
+  String? beforeId;
+  while (true) {
+    final result = await api.getPinImagesByIds(
+      userId: userId,
+      groupId: groupId,
+      withImage: false,
+      page: 0,
+      size: pageSize,
+      beforeCreationDate: beforeDate,
+      beforeId: beforeId,
+    );
+    if (!ref.mounted) throw StateError('Pin discovery cancelled');
+    if (result == null) throw StateError('Pin search returned no response');
+    final items = result.items;
+    for (final item in items) {
+      remotePins[item.id] = PinEntity.fromDto(item, true);
+    }
+    if (items.length < pageSize) break;
+    final last = items.last;
+    if (beforeDate == last.creationDate && beforeId == last.id) break;
+    beforeDate = last.creationDate;
+    beforeId = last.id;
+  }
+  pins.removeWhere((_, pin) => pin.lastSynced != null);
+  pins.addAll(remotePins);
+  return pins;
+}
+
+Stream<List<PinEntity>> _userEntries(
+  Ref ref,
+  String userId, {
+  bool completeOnly = false,
+}) async* {
   final currentUserId = ref.watch(userIdProvider);
   final isCurrentUser = userId == currentUserId;
-  if (isCurrentUser) ref.watch(profilePhotoHistoryRevisionProvider);
-  final cached = ref.watch(pinUserServiceProvider(userId)).value ?? [];
   if (isCurrentUser) {
+    final history = ref.watch(profilePhotoHistoryRevisionProvider);
+    if (completeOnly && history.isLoading) return;
+  }
+  final cachedState = ref.watch(pinUserServiceProvider(userId));
+  // Subscribe first and wait for the initial cache event. Otherwise those
+  // initial events cancel and restart an already-running discovery request.
+  if (completeOnly && cachedState.isLoading) return;
+  final cached = cachedState.value ?? [];
+  if (isCurrentUser && !completeOnly) {
     yield* _currentUserEntries(ref, userId, cached);
     return;
   }
 
-  final pins = {for (final pin in cached) pin.pinId: pin};
-  yield buildPinEntries(
-    cached
-        .where(
-          (pin) => !ref.read(hiddenPostsServiceProvider).contains(pin.pinId),
-        )
-        .toList(),
-    const {},
-    contributorId: userId,
-    hiddenUserIds: ref.read(hiddenUserServiceProvider).toSet(),
-  );
+  var pins = {for (final pin in cached) pin.pinId: pin};
+  if (!completeOnly) {
+    yield buildPinEntries(
+      cached
+          .where(
+            (pin) => !ref.read(hiddenPostsServiceProvider).contains(pin.pinId),
+          )
+          .toList(),
+      const {},
+      contributorId: userId,
+      hiddenUserIds: ref.read(hiddenUserServiceProvider).toSet(),
+    );
+  }
   try {
-    final api = ref.read(pinApiProvider);
-    final remotePins = <String, PinEntity>{};
-    const pageSize = 100;
-    DateTime? beforeDate;
-    String? beforeId;
-    while (true) {
-      final result = await api.getPinImagesByIds(
-        userId: userId,
-        withImage: false,
-        page: 0,
-        size: pageSize,
-        beforeCreationDate: beforeDate,
-        beforeId: beforeId,
-      );
-      if (result == null) throw StateError('Pin search returned no response');
-      final items = result.items;
-      for (final item in items) {
-        remotePins[item.id] = PinEntity.fromDto(item, true);
-      }
-      if (items.length < pageSize) break;
-      final last = items.last;
-      if (beforeDate == last.creationDate && beforeId == last.id) break;
-      beforeDate = last.creationDate;
-      beforeId = last.id;
-    }
-    pins.removeWhere((_, pin) => pin.lastSynced != null);
-    pins.addAll(remotePins);
+    pins = await _refreshPinIndex(ref, cached, userId: userId);
   } catch (_) {
+    if (!ref.mounted) return;
+    if (isCurrentUser && completeOnly) {
+      yield* _currentUserEntries(ref, userId, cached);
+      return;
+    }
     // Offline profiles still show cached original pins.
   }
-  yield* _entries(ref, pins.values.toList(), contributorId: userId);
-});
+  if (!ref.mounted) return;
+  final cachedHistories = isCurrentUser && completeOnly
+      ? await ref.read(pinPhotoHistoryRepositoryProvider).getMultiple(pins.keys)
+      : const <String, CachedPinPhotoHistory>{};
+  if (!ref.mounted) return;
+  yield* _entries(
+    ref,
+    pins.values.toList(),
+    contributorId: userId,
+    waitForHistory: completeOnly,
+    cachedPhotos: {
+      for (final entry in cachedHistories.entries)
+        entry.key: entry.value.photos,
+    },
+  );
+}
 
 Stream<List<PinEntity>> _currentUserEntries(
   Ref ref,
@@ -202,6 +273,7 @@ Stream<List<PinEntity>> _currentUserEntries(
     final photosByPin = {
       for (final entry in histories.entries) entry.key: entry.value.photos,
     };
+    if (!ref.mounted) return const [];
     for (final entry in photosByPin.entries) {
       registerOriginalPinPhotoImageUrls(ref, entry.key, entry.value);
     }
@@ -244,10 +316,33 @@ Stream<List<PinEntity>> _currentUserEntries(
   }
 }
 
-final groupPinEntriesProvider = StreamProvider.family<List<PinEntity>, String>(
-  (ref, groupId) =>
-      _entries(ref, ref.watch(groupDetailsPinsProvider(groupId)).value ?? []),
-);
+final groupPinEntriesProvider = StreamProvider.family<List<PinEntity>, String>((
+  ref,
+  groupId,
+) async* {
+  final state = ref.watch(groupDetailsPinsProvider(groupId));
+  if (state.isLoading) return;
+  if (state.hasError) {
+    Error.throwWithStackTrace(
+      state.error!,
+      state.stackTrace ?? StackTrace.current,
+    );
+  }
+  final cached = state.value ?? const <PinEntity>[];
+  var pins = {for (final pin in cached) pin.pinId: pin};
+  try {
+    pins = await _refreshPinIndex(ref, cached, groupId: groupId);
+  } catch (_) {
+    // Offline groups can still prepare their cached pins and photo histories.
+  }
+  if (!ref.mounted) return;
+  final hiddenUsers = ref.watch(hiddenUserServiceProvider).toSet();
+  yield* _entries(
+    ref,
+    pins.values.where((pin) => !hiddenUsers.contains(pin.creator)).toList(),
+    waitForHistory: true,
+  );
+});
 
 final activePinEntriesProvider = StreamProvider<List<PinEntity>>(
   (ref) => _entries(ref, ref.watch(sortedActivatedPinsProvider).value ?? []),

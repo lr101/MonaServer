@@ -6,7 +6,9 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/map_home/data/map_state.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
 import 'package:buff_lisa/features/pin/presentation/view_image.dart';
@@ -24,7 +26,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
+import '../../support/pin_image_test_cache.dart';
+
 void main() {
+  late PinImageTestCache imageCache;
+  setUp(() {
+    imageCache = PinImageTestCache()..install();
+    PaintingBinding.instance.imageCache.clear();
+  });
+  tearDown(() async => imageCache.dispose());
   final pin = PinEntity(
     pinId: 'pin',
     latitude: 50.11,
@@ -65,6 +75,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+          remoteImageSourceProvider.overrideWith(
+            (ref, request) async => PinImageSource(
+              url: 'https://fixture.test/photo.jpg',
+              cacheKey:
+                  'fixture:${request.image.kind}:${request.image.id}:${request.attempt % 2}',
+            ),
+          ),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(userId: null, refreshToken: null, cameras: []),
           ),
@@ -95,12 +113,23 @@ void main() {
           addTearDown(tester.view.resetDevicePixelRatio);
           final bytes = File('assets/achievements/photography.jpeg')
               .readAsBytesSync();
+          imageCache.defaultBytes = bytes;
           final theme = MaterialTheme(
             ThemeData.light().textTheme.apply(fontFamily: 'Signika'),
           );
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
+                pinImageSourcesProvider.overrideWithValue(
+                  createTestImageSources(),
+                ),
+                remoteImageSourceProvider.overrideWith(
+                  (ref, request) async => PinImageSource(
+                    url: 'https://fixture.test/photo.jpg',
+                    cacheKey:
+                        'fixture:${request.image.kind}:${request.image.id}:${request.attempt % 2}',
+                  ),
+                ),
                 defaultErrorImageProvider.overrideWithValue(bytes),
                 getUserProfileSmallProvider('artist')
                     .overrideWith((ref) => Stream.value(bytes)),
@@ -137,7 +166,7 @@ void main() {
                 pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
                 pinImageBytesProvider('pin')
                     .overrideWith((ref) => Stream.value(bytes)),
-                pinImageForDetailsProvider('pin').overrideWith((ref) => bytes),
+
                 currentLocationProvider.overrideWith(
                   (ref) => const Stream.empty(),
                 ),
@@ -183,7 +212,8 @@ void main() {
               ),
             ),
           );
-          await tester.pumpAndSettle();
+          await pumpImageLoads(tester);
+          await tester.pump(const Duration(seconds: 11));
           await tester.runAsync(() async {
             for (final element in find.byType(Image).evaluate()) {
               await precacheImage((element.widget as Image).image, element);
@@ -191,6 +221,8 @@ void main() {
           });
           await tester.pumpAndSettle();
           await tester.pump(const Duration(milliseconds: 200));
+          await pumpImageLoads(tester);
+          await tester.pump(const Duration(seconds: 11));
           expect(tester.takeException(), isNull);
           expect(
             tester.getSize(find.byType(FeedCardImageHeader)).height,
@@ -215,14 +247,21 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+            remoteImageSourceProvider.overrideWith(
+              (ref, request) async => PinImageSource(
+                url: 'https://fixture.test/photo.jpg',
+                cacheKey:
+                    'fixture:${request.image.kind}:${request.image.id}:${request.attempt % 2}',
+              ),
+            ),
             defaultErrorImageProvider.overrideWithValue(kTransparentImage),
             groupProfilePictureSmallByIdProvider('group')
                 .overrideWith((ref) => Stream.value(kTransparentImage)),
             feedMapBuilderProvider.overrideWithValue(
               (pin) => const ColoredBox(color: Colors.grey),
             ),
-            pinImageForDetailsProvider('pin')
-                .overrideWith((ref) => kTransparentImage),
+
             pinPhotoHistoryProvider('pin').overrideWith((ref) => []),
             currentLocationProvider.overrideWith((ref) => const Stream.empty()),
             groupMetadataProvider('group')
@@ -254,9 +293,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await pumpImageLoads(tester);
+      await tester.pump(const Duration(seconds: 11));
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('Photo information'), findsNothing);
       expect(find.textContaining('50.1100'), findsOneWidget);
+      await pumpImageLoads(tester);
+      await tester.pump(const Duration(seconds: 11));
       expect(tester.takeException(), isNull);
     });
   }

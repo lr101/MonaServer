@@ -1,11 +1,11 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
-import 'package:buff_lisa/util/image/memory_image_provider.dart';
-import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+/// Image-only profile-list card, with a thumbnail preview and full-size upgrade.
 class FeedCardThumbnail extends ConsumerWidget {
   const FeedCardThumbnail({
     super.key,
@@ -20,17 +20,6 @@ class FeedCardThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final imageState = item.isPhotoUpdate
-        ? ref.watch(
-            pinPhotoThumbnailBytesProvider((
-              photoId: item.photoId!,
-              thumbnailUrl: item.photoThumbnailUrl,
-              imageUrl: item.photoUrl,
-            )),
-          )
-        : ref.watch(pinThumbnailBytesProvider(item.pinId));
-    final image = imageState.value;
-
     return Semantics(
       button: true,
       label: 'Open photo details',
@@ -49,32 +38,13 @@ class FeedCardThumbnail extends ConsumerWidget {
                   if (item.photoId != null) 'photo': item.photoId!,
                 },
               ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  PinImagePlaceholder(blurhash: item.imageBlurhash),
-                  if (image != null && image.isNotEmpty)
-                    Image(
-                      image: memoryImageForDisplay(
-                        image,
-                        devicePixelRatio: MediaQuery.devicePixelRatioOf(
-                          context,
-                        ),
-                        logicalWidth: maxWidth,
-                        maximumCacheWidth: 720,
-                      ),
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                      gaplessPlayback: true,
-                    ),
-                  if ((image == null || image.isEmpty) && imageState.hasError)
-                    const ColoredBox(
-                      color: Colors.black12,
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      ),
-                    ),
-                ],
+              child: RemotePinImage(
+                pinId: item.pinId,
+                photoId: item.photoId,
+                thumbnailUrl: item.photoThumbnailUrl,
+                imageUrl: item.photoUrl,
+                blurhash: item.imageBlurhash,
+                policy: RemoteImagePolicy.previewThenFull,
               ),
             ),
           ),

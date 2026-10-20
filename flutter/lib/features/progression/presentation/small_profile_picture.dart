@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
+import 'package:buff_lisa/widgets/remote_image/remote_round_image.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_cached_image.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
@@ -51,8 +52,19 @@ class SmallProfilePicture extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final image = imageCallback ?? _watchImage(ref);
-    final avatar = _buildAvatar(image);
+    final avatar = imageCallback != null || !loadImage
+        ? _buildAvatar(imageCallback ?? const AsyncData(null))
+        : RemoteRoundImage(
+            image: RemoteImageReference(
+              kind: userId != null
+                  ? RemoteImageKind.user
+                  : RemoteImageKind.group,
+              id: userId ?? groupId!,
+              thumbnailUrl: imageUrl,
+            ),
+            radius: radius + 3,
+            child: child,
+          );
     if (userId == null && groupId == null) return avatar;
 
     if (userId case final id?) {
@@ -75,20 +87,6 @@ class SmallProfilePicture extends ConsumerWidget {
     }
 
     return avatar;
-  }
-
-  AsyncValue<Uint8List?> _watchImage(WidgetRef ref) {
-    if (!loadImage) return const AsyncData(null);
-    if (userId case final id?) {
-      return ref.watch(getUserProfileSmallProvider(id));
-    }
-    final id = groupId!;
-    if (imageUrl case final url? when url.isNotEmpty) {
-      return ref.watch(
-        groupProfilePictureSmallByUrlProvider((groupId: id, url: url)),
-      );
-    }
-    return ref.watch(groupProfilePictureSmallByIdProvider(id));
   }
 
   Widget _buildAvatar(AsyncValue<Uint8List?> image) {

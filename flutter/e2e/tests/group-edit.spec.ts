@@ -45,9 +45,8 @@ test('editing a group refreshes its cached picture in the overview', async ({ pa
   try {
     await expect(page.locator('body')).toContainText(groupName, { timeout: 30_000 });
     const groupRow = page.getByRole('button', { name: new RegExp(escapeRegExp(groupName)) });
-    await groupRow.click();
-
     const initialImageResponsePromise = waitForGroupImage(page, group.id, 'group_profile.png');
+    await groupRow.click();
     const initialImageResponse = await initialImageResponsePromise;
     const initialImageHash = hash(await initialImageResponse.body());
     await page.waitForTimeout(500);
@@ -114,8 +113,14 @@ async function login(page: Page, data: E2eData): Promise<void> {
   await page.keyboard.press('Enter');
 
   await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
-  await typeFlutterField(page, 'Username', data.username);
-  await typeFlutterField(page, 'Password', data.password);
+  // Password sign-in uses native browser inputs for autofill.
+  for (const [id, value] of [['username', data.username], ['password', data.password]]) {
+    const field = page.locator(`#stick-it-login-${id}`);
+    await field.waitFor({ state: 'visible' });
+    await field.click();
+    await page.waitForTimeout(150);
+    await field.fill(value);
+  }
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(/#\/home/, { timeout: 30_000 });
 }

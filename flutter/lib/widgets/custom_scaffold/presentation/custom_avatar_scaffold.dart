@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/service/remote_image_source.dart';
+import 'package:buff_lisa/widgets/remote_image/remote_round_image.dart';
 import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +17,8 @@ const double _bottomContentSpacing = 12;
 class CustomAvatarScaffold extends ConsumerStatefulWidget {
   const CustomAvatarScaffold({
     super.key,
-    required this.avatar,
+    this.avatar = const AsyncData(null),
+    this.remoteAvatar,
     required this.title,
     this.boxes,
     this.avatarBuilder,
@@ -30,6 +33,7 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
   });
 
   final AsyncValue<Uint8List?> avatar;
+  final RemoteImageReference? remoteAvatar;
   final Widget title;
   final Widget Function(Widget avatar)? avatarBuilder;
   final List<SliverToBoxAdapter>? boxes;
@@ -63,10 +67,13 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
   }
 
   Widget _buildAvatar() {
-    final avatar = RoundImage(
-      imageCallback: widget.avatar,
-      size: _avatarImageRadius,
-    );
+    final avatar = widget.remoteAvatar != null
+        ? RemoteRoundImage(
+            image: widget.remoteAvatar!,
+            radius: _avatarImageRadius,
+            progressive: true,
+          )
+        : RoundImage(imageCallback: widget.avatar, size: _avatarImageRadius);
     return widget.avatarBuilder?.call(avatar) ?? avatar;
   }
 

@@ -143,7 +143,8 @@ an existing implementation, a deliberate design choice, and a proposed fix.
 
 The main Feed and pin details use the photo layout described in
 [Pin photos and updates](../docs/PIN_ENTRY_DESIGN.md) (6 October 2026). The
-User Images and Group Images lists show each entry as a tappable thumbnail;
+User Images and Group Images lists show each entry as a tappable photograph,
+starting with its thumbnail and fading to full resolution as it loads;
 tapping it opens pin details with that photo selected. Selecting a photo in a Profile Pins grid opens pin details with that
 photo selected, including while its thumbnail is loading or unavailable.
 Selecting a Group Pins grid photo opens the corresponding image list at that
