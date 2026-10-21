@@ -106,6 +106,8 @@ Class | Method | HTTP request | Description
 *AuthApi* | [**requestPasswordRecovery**](doc//AuthApi.md#requestpasswordrecovery) | **GET** /api/v2/public/recover | Request password recovery
 *AuthApi* | [**userLogin**](doc//AuthApi.md#userlogin) | **POST** /api/v2/public/login | User login
 *BatchApi* | [**batchRead**](doc//BatchApi.md#batchread) | **POST** /api/v3/batch | Read several authenticated resources in one request
+*GalleryApi* | [**getGalleryPhotos**](doc//GalleryApi.md#getgalleryphotos) | **GET** /api/v2/gallery/photos | Discover visible original and update photos in stable observedAt/id descending order
+*GalleryApi* | [**resolvePhotos**](doc//GalleryApi.md#resolvephotos) | **POST** /api/v2/photos/resolve | Resolve signed URLs for up to 100 photos with per-item authorization
 *GroupPinDesignsApi* | [**getGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#getgrouppindesigncatalog) | **GET** /api/v2/groups/{groupId}/pin-designs | Get the pin designs available for a group
 *GroupPinDesignsApi* | [**updateGroupPinDesignCatalog**](doc//GroupPinDesignsApi.md#updategrouppindesigncatalog) | **PUT** /api/v2/groups/{groupId}/pin-designs | Update a group's earned pin design
 *GroupsApi* | [**addGroup**](doc//GroupsApi.md#addgroup) | **POST** /api/v2/groups | Create a new group
@@ -236,6 +238,8 @@ Class | Method | HTTP request | Description
  - [EmailLinkRequestDto](doc//EmailLinkRequestDto.md)
  - [EmailLoginCodeExchangeRequestDto](doc//EmailLoginCodeExchangeRequestDto.md)
  - [FilterAudience](doc//FilterAudience.md)
+ - [GalleryPhotoDto](doc//GalleryPhotoDto.md)
+ - [GalleryPhotoPageDto](doc//GalleryPhotoPageDto.md)
  - [GroupAchievementsDtoInner](doc//GroupAchievementsDtoInner.md)
  - [GroupDto](doc//GroupDto.md)
  - [GroupPinDesignBadge](doc//GroupPinDesignBadge.md)
@@ -254,6 +258,9 @@ Class | Method | HTTP request | Description
  - [NearbyPinDto](doc//NearbyPinDto.md)
  - [NearbyPinsDto](doc//NearbyPinsDto.md)
  - [NotificationDto](doc//NotificationDto.md)
+ - [PhotoResolveItemDto](doc//PhotoResolveItemDto.md)
+ - [PhotoResolveRequestDto](doc//PhotoResolveRequestDto.md)
+ - [PhotoResolveResponseDto](doc//PhotoResolveResponseDto.md)
  - [PinLikeDto](doc//PinLikeDto.md)
  - [PinPhotoDto](doc//PinPhotoDto.md)
  - [PinPhotoRequestDto](doc//PinPhotoRequestDto.md)
