@@ -6,6 +6,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transparent_image/transparent_image.dart';
+
+import '../../support/pin_image_test_cache.dart';
 
 void main() {
   setUp(() {
@@ -103,9 +106,14 @@ void main() {
     tester,
   ) async {
     await _pumpGroupOverview(tester, _memberGroup());
+    for (var i = 0; i < 10; i++) {
+      await tester.pump();
+    }
 
     expect(find.byTooltip('Share group'), findsNothing);
     expect(find.byType(PopupMenuButton<int>), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 20));
   });
 }
 
@@ -124,6 +132,7 @@ Future<void> _pumpGroupOverview(WidgetTester tester, GroupEntity group) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
         globalDataServiceProvider.overrideWithValue(
           const GlobalDataDto(userId: 'alice', refreshToken: null, cameras: []),
         ),
@@ -141,11 +150,8 @@ Future<void> _pumpGroupOverview(WidgetTester tester, GroupEntity group) async {
   await tester.pump();
 }
 
-GroupDetailsState _details(GroupEntity group) => GroupDetailsState(
-  group: group,
-  pins: const AsyncData<List<PinEntity>>([]),
-  profileImage: const AsyncData<Uint8List?>(null),
-);
+GroupDetailsState _details(GroupEntity group) =>
+    GroupDetailsState(group: group, pins: const AsyncData<List<PinEntity>>([]));
 
 class _EmptyUserGroupService extends UserGroupService {
   @override

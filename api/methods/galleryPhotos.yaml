@@ -1,0 +1,48 @@
+get:
+  operationId: "getGalleryPhotos"
+  tags:
+    - "gallery"
+  security:
+    -
+      token: []
+  summary: "Discover visible original and update photos in stable observedAt/id descending order"
+  description: "Exactly one of userId or groupId is required. User scope selects the contributor of each photograph. Cursor is opaque; use nextCursor until absent. Deleted pins and groups and inaccessible groups are excluded."
+  parameters:
+    -
+      in: "query"
+      name: "userId"
+      schema:
+        type: "string"
+        format: "uuid"
+    -
+      in: "query"
+      name: "groupId"
+      schema:
+        type: "string"
+        format: "uuid"
+    -
+      in: "query"
+      name: "cursor"
+      schema:
+        type: "string"
+    -
+      in: "query"
+      name: "limit"
+      schema:
+        type: "integer"
+        minimum: 1
+        maximum: 100
+        default: 100
+  responses:
+    "200":
+      description: "Photo page"
+      content:
+        "application/json":
+          schema:
+            $ref: "../schemas/galleryPhotoPageDto.yaml"
+    "400":
+      description: "Invalid scope, cursor or limit"
+    "401":
+      description: "Authentication required"
+    "403":
+      description: "Group is not visible"

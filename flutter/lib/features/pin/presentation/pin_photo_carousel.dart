@@ -1,17 +1,18 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 
 /// The original pin picture followed by its later photo updates.
 class PinPhotoCarousel extends StatefulWidget {
   const PinPhotoCarousel({
     super.key,
+    this.pinId,
     this.originalImage,
     this.thumbnailImage,
     this.originalImageBlurhash,
@@ -24,6 +25,7 @@ class PinPhotoCarousel extends StatefulWidget {
     this.overlayBuilder,
   });
 
+  final String? pinId;
   final Uint8List? originalImage;
   final Uint8List? thumbnailImage;
   final String? originalImageBlurhash;
@@ -230,7 +232,10 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: ExcludeSemantics(
                                   child: index == 0
-                                      ? _originalPhoto(context)
+                                      ? _originalPhoto(
+                                          context,
+                                          thumbnailOnly: true,
+                                        )
                                       : _networkPhoto(
                                           context,
                                           updates[index - 1],
@@ -272,12 +277,25 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
     );
   }
 
-  Widget _originalPhoto(BuildContext context) {
+  Widget _originalPhoto(BuildContext context, {bool thumbnailOnly = false}) {
     final original = widget.photos
         .where((photo) => photo.isOriginal)
         .firstOrNull;
     final blurhash = widget.originalImageBlurhash ?? original?.imageBlurhash;
 
+    if (widget.pinId case final pinId?) {
+      return RemotePinImage(
+        pinId: pinId,
+        thumbnailUrl: original?.imageThumbnail,
+        imageUrl: original?.image,
+        blurhash: blurhash,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        policy: thumbnailOnly
+            ? RemoteImagePolicy.thumbnail
+            : RemoteImagePolicy.previewThenFull,
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final fullImage = widget.originalImage;
@@ -321,49 +339,17 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
     PinPhotoDto photo, {
     bool thumbnailOnly = false,
   }) {
-    if ((photo.image == null || photo.image!.isEmpty) &&
-        (photo.imageThumbnail == null || photo.imageThumbnail!.isEmpty)) {
-      return _unavailablePhoto(context);
-    }
-
-    return Consumer(
-      builder: (context, ref, _) {
-        final photoImage = (
-          photoId: photo.id,
-          thumbnailUrl: photo.imageThumbnail,
-          imageUrl: photo.image,
-        );
-        final imageProvider = thumbnailOnly
-            ? pinPhotoThumbnailBytesProvider(photoImage)
-            : pinPhotoProgressiveImageBytesProvider(photoImage);
-        final imageState = ref.watch(imageProvider);
-        final bytes = imageState.value;
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            if (bytes == null || bytes.isEmpty) {
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  _photoPlaceholder(context, photo.imageBlurhash),
-                  if (imageState.hasError || imageState.hasValue)
-                    _unavailablePhoto(context),
-                ],
-              );
-            }
-            return _photoImage(
-              context,
-              memoryImageForDisplay(
-                bytes,
-                devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-                logicalWidth: math.min(constraints.maxWidth, 720),
-                maximumCacheWidth: 720,
-              ),
-              showUnavailableOnError: true,
-              blurhash: photo.imageBlurhash,
-            );
-          },
-        );
-      },
+    return RemotePinImage(
+      pinId: widget.pinId ?? photo.pinId,
+      photoId: photo.id,
+      thumbnailUrl: photo.imageThumbnail,
+      imageUrl: photo.image,
+      blurhash: photo.imageBlurhash,
+      fit: BoxFit.contain,
+      alignment: Alignment.center,
+      policy: thumbnailOnly
+          ? RemoteImagePolicy.thumbnail
+          : RemoteImagePolicy.previewThenFull,
     );
   }
 

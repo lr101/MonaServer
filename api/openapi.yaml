@@ -51,6 +51,82 @@ tags:
 - description: Permission-filtered administrative audit history
   name: adminAudit
 paths:
+  "/api/v2/gallery/photos":
+    get:
+      operationId: "getGalleryPhotos"
+      tags:
+        - "gallery"
+      security:
+        -
+          token: []
+      summary: "Discover visible original and update photos in stable observedAt/id descending order"
+      description: "Exactly one of userId or groupId is required. User scope selects the contributor of each photograph. Cursor is opaque; use nextCursor until absent. Deleted pins and groups and inaccessible groups are excluded."
+      parameters:
+        -
+          in: "query"
+          name: "userId"
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          in: "query"
+          name: "groupId"
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          in: "query"
+          name: "cursor"
+          schema:
+            type: "string"
+        -
+          in: "query"
+          name: "limit"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        "200":
+          description: "Photo page"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/galleryPhotoPageDto"
+        "400":
+          description: "Invalid scope, cursor or limit"
+        "401":
+          description: "Authentication required"
+        "403":
+          description: "Group is not visible"
+  "/api/v2/photos/resolve":
+    post:
+      operationId: "resolvePhotos"
+      tags:
+        - "gallery"
+      security:
+        -
+          token: []
+      summary: "Resolve signed URLs for up to 100 photos with per-item authorization"
+      description: "Items preserve request order. An inaccessible or missing photograph returns status 404 without metadata. Each successful item contains both URL variants."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/photoResolveRequestDto"
+      responses:
+        "200":
+          description: "Per-photo results"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/photoResolveResponseDto"
+        "400":
+          description: "Invalid request size"
+        "401":
+          description: "Authentication required"
   /api/v3/batch:
     post:
       operationId: batchRead
@@ -5512,6 +5588,60 @@ components:
       - longitude
       - accuracyMeters
       type: object
+    galleryPhotoDto:
+      type: "object"
+      required:
+        - "pin"
+        - "photo"
+      properties:
+        pin:
+          $ref: "#/components/schemas/pinWithOptionalImageDto"
+        photo:
+          $ref: "#/components/schemas/pinPhotoDto"
+    galleryPhotoPageDto:
+      type: "object"
+      required:
+        - "items"
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/galleryPhotoDto"
+        nextCursor:
+          type: "string"
+    photoResolveRequestDto:
+      type: "object"
+      required:
+        - "photoIds"
+      properties:
+        photoIds:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            type: "string"
+            format: "uuid"
+    photoResolveItemDto:
+      type: "object"
+      required:
+        - "photoId"
+        - "status"
+      properties:
+        photoId:
+          type: "string"
+        status:
+          type: "integer"
+        photo:
+          $ref: "#/components/schemas/pinPhotoDto"
+    photoResolveResponseDto:
+      type: "object"
+      required:
+        - "items"
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/photoResolveItemDto"
     pinPhotoDto:
       properties:
         id:

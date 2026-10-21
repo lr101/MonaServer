@@ -136,6 +136,7 @@ type Querier interface {
 	FinishJobItem(ctx context.Context, arg FinishJobItemParams) (pgtype.UUID, error)
 	FinishOutboxEvent(ctx context.Context, arg FinishOutboxEventParams) (pgtype.UUID, error)
 	FinishPinCreateIdempotency(ctx context.Context, arg FinishPinCreateIdempotencyParams) (int64, error)
+	GalleryPhotos(ctx context.Context, arg GalleryPhotosParams) ([]GalleryPhotosRow, error)
 	GetAccountActionTokenByHash(ctx context.Context, tokenHash []byte) (AccountActionToken, error)
 	GetAccountActionTokenByID(ctx context.Context, id pgtype.UUID) (AccountActionToken, error)
 	GetAdminJob(ctx context.Context, id pgtype.UUID) (AdminJob, error)

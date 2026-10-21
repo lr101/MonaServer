@@ -1,3 +1,5 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
+
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
@@ -98,6 +100,8 @@ class PendingPinUploader {
     if (matches.isEmpty || !isCurrent()) return null;
     final row = matches.single;
     final pins = ref.read(pinRepositoryProvider);
+    final library = ref.read(photoLibraryProvider);
+    final writeStarted = library.beginWrite();
     final images = ref.read(pinImageRepositoryProvider);
     final draft = PinEntity(
       pinId: row.pinId,
@@ -112,13 +116,26 @@ class PendingPinUploader {
       onlySession: false,
       ttl: DateTime.now(),
     );
+    bool writeIsCurrent() =>
+        isCurrent() && library.canWrite(draft, writeStarted);
+    String? uploadedPinId;
+    PinEntity? uploadedPin;
     // Keep the local cache warm without making cache latency hold up the POST.
     // A successful response waits for this projection before replacing the
     // draft with the server entity. On failure, the durable outbox is enough to
     // restore it again on the next attempt.
     final cacheRestore = row.cancelRequested
         ? Future<void>.value()
-        : _restoreCachedDraft(row, draft, pins, images, pending, isCurrent);
+        : _restoreCachedDraft(
+            row,
+            draft,
+            pins,
+            images,
+            pending,
+            writeIsCurrent,
+            library,
+            writeStarted,
+          );
     try {
       await pending.markAttempted(row.pinId);
       if (!isCurrent()) return null;
@@ -144,8 +161,11 @@ class PendingPinUploader {
       }
       if (!isCurrent()) return null;
       if (result == null) throw StateError('Pin create returned no pin');
+      uploadedPinId = result.id;
+      uploadedPin = PinEntity.fromDto(result, false, keepAlive: true);
       await cacheRestore;
       if (!isCurrent()) return null;
+      if (!writeIsCurrent()) return result.id;
       final latest = await pending.get(row.pinId);
       if (!isCurrent()) return null;
       if (latest?.cancelRequested == true) {
@@ -155,15 +175,35 @@ class PendingPinUploader {
       }
       if (latest == null) return null;
       final synced = PinEntity.fromDto(result, false, keepAlive: true);
+      if (!writeIsCurrent()) return result.id;
       await pins.replacePin(row.pinId, synced);
       if (!isCurrent()) return null;
+      if (!writeIsCurrent()) return result.id;
+      final accepted = await library.accept(
+        synced,
+        PinPhotoDto(
+          id: synced.pinId,
+          pinId: synced.pinId,
+          contributorId: synced.creator,
+          contributorUsername: '',
+          observedAt: synced.creationDate,
+          isOriginal: true,
+          image: result.image,
+          imageBlurhash: result.imageBlurhash,
+        ),
+        startedAt: writeStarted,
+      );
+      if (!isCurrent()) return null;
+      if (!accepted || !writeIsCurrent()) return result.id;
       await images.addImage(synced.pinId, row.image, true);
       if (synced.pinId != row.pinId) await images.delete(row.pinId);
       if (!isCurrent()) return null;
+      if (!writeIsCurrent()) return result.id;
       await ref
           .read(userPinsRepositoryProvider)
           .replacePinIdWithUploaded(owner, row.pinId, synced.pinId);
       if (!isCurrent()) return null;
+      if (!writeIsCurrent()) return result.id;
       await pending.remove(row.pinId);
       unawaited(
         readXpBestEffort(ref, owner, groupId: row.groupId, refresh: true),
@@ -179,6 +219,41 @@ class PendingPinUploader {
       // Discard waits for this upload future before deleting the local draft.
       // Do not let an earlier best-effort cache write recreate it afterward.
       await cacheRestore;
+      if (isCurrent() && !library.canWrite(draft, writeStarted)) {
+        // An access change can race an already-started cache write. Remove its
+        // result before completing this operation; the accepted server post
+        // stays on the server and is rediscovered after authorized rejoining.
+        final ids = {row.pinId, if (uploadedPinId != null) uploadedPinId};
+        bool hasFreshState(String id) =>
+            library.parent(id) != null ||
+            (id == uploadedPinId &&
+                library.groupAccessRestoredSince(row.groupId, writeStarted));
+        for (final id in ids) {
+          // New authorized metadata after a rejoin belongs to a newer
+          // operation. Never tombstone or delete that owner's state.
+          if (hasFreshState(id)) continue;
+          await pins.delete(id);
+          final replacement =
+              library.parent(id) ?? (hasFreshState(id) ? uploadedPin : null);
+          if (replacement != null) {
+            await pins.put(replacement);
+            continue;
+          }
+          await images.delete(id);
+        }
+        final profiles = ref.read(userPinsRepositoryProvider);
+        final profile = await profiles.get(owner);
+        if (profile != null) {
+          profile.pins = profile.pins
+              .where((id) => !ids.contains(id) || hasFreshState(id))
+              .toList();
+          await profiles.put(profile);
+          for (final id in ids) {
+            if (hasFreshState(id)) await profiles.ensurePinIndexed(owner, id);
+          }
+        }
+        if (uploadedPinId != null) await pending.remove(row.pinId);
+      }
     }
   }
 
@@ -189,9 +264,11 @@ class PendingPinUploader {
     IImageRepository images,
     PendingPinRepository pending,
     bool Function() isCurrent,
+    PhotoLibrary library,
+    int writeStarted,
   ) async {
     try {
-      if (!isCurrent()) return;
+      if (!isCurrent() || !library.canWrite(draft, writeStarted)) return;
       if (await pins.get(row.pinId) == null) {
         final latest = await pending.get(row.pinId);
         if (!isCurrent() || latest == null || latest.cancelRequested) return;
@@ -199,8 +276,21 @@ class PendingPinUploader {
       }
       if (!isCurrent()) return;
       final latest = await pending.get(row.pinId);
-      if (latest == null || latest.cancelRequested) return;
+      if (!isCurrent() || latest == null || latest.cancelRequested) return;
       await images.addImage(row.pinId, row.image, true);
+      if (!isCurrent()) return;
+      await library.accept(
+        draft,
+        PinPhotoDto(
+          id: draft.pinId,
+          pinId: draft.pinId,
+          contributorId: draft.creator,
+          contributorUsername: '',
+          observedAt: draft.creationDate,
+          isOriginal: true,
+        ),
+        startedAt: writeStarted,
+      );
     } catch (_) {
       // Cache writes are best effort; durable outbox bytes remain available.
     }

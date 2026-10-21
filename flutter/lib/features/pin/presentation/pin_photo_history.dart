@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/features/camera/presentation/camera.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
+import 'package:buff_lisa/features/camera/presentation/camera.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_presence_control.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter/material.dart';
@@ -12,14 +12,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:openapi/api.dart';
 
 final pinPhotoHistoryProvider =
-    FutureProvider.family<List<PinPhotoDto>, String>((ref, pinId) async {
-      // Image URLs are signed for a limited time. Refresh while a detail or
-      // entry list is still listening so displayed images remain available.
-      final expiry = Timer(const Duration(minutes: 45), ref.invalidateSelf);
-      ref.onDispose(expiry.cancel);
-      final photos = await ref.watch(pinApiProvider).getPinPhotos(pinId);
-      return photos ?? const [];
-    });
+    StreamProvider.family<List<PinPhotoDto>, String>(
+      (ref, pinId) => ref.watch(photoLibraryProvider).watchHistory(pinId),
+      retry: (_, _) => null,
+    );
 
 bool canAddPinPhotoHere(Position? userPosition, PinEntity pin) {
   return pin.lastSynced != null &&

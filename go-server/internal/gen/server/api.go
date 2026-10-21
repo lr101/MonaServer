@@ -423,3 +423,13 @@ type PublicAuthAPIServicer interface {
 type SessionAuthAPIServicer interface {
 	RevokeOwnSession(context.Context, SessionRevokeRequestDto) (ImplResponse, error)
 }
+
+// Gallery APIs are additive to the preserved compatibility interface adapter.
+type GalleryAPIRouter interface {
+	GetGalleryPhotos(http.ResponseWriter, *http.Request)
+	ResolvePhotos(http.ResponseWriter, *http.Request)
+}
+type GalleryAPIServicer interface {
+	GetGalleryPhotos(context.Context, string, string, string, int32) (ImplResponse, error)
+	ResolvePhotos(context.Context, PhotoResolveRequestDto) (ImplResponse, error)
+}

@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/repository/global_data_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/features/group_search/presentation/group_search.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -16,16 +16,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
+import 'support/pin_image_test_cache.dart';
+
 void main() {
   testWidgets('search rows reuse thumbnail URLs from the page response', (
     tester,
   ) async {
     final groupsApi = _RecordingGroupsApi();
-    var thumbnailProviderBuilds = 0;
+    final images = PinImageTestCache()..install();
+    final sources = createTestImageSources();
+    addTearDown(images.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(sources),
+          suppliedImageUrlRegistryProvider.overrideWithValue(sources.registry),
           globalDataOnceProvider.overrideWithValue(
             const GlobalDataDto(
               userId: 'user-id',
@@ -35,10 +41,6 @@ void main() {
           ),
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           groupApiProvider.overrideWithValue(groupsApi),
-          groupProfilePictureSmallByIdProvider('group-id').overrideWith((ref) {
-            thumbnailProviderBuilds++;
-            return Stream<Uint8List?>.value(Uint8List.fromList([1]));
-          }),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: const MaterialApp(home: GroupSearch()),
@@ -53,7 +55,10 @@ void main() {
 
     expect(find.text('Public group'), findsOneWidget);
     expect(groupsApi.requestedWithImages, [true]);
-    expect(thumbnailProviderBuilds, 1);
+    await pumpImageLoads(tester);
+    expect(images.urls, ['https://example.com/group-small.png']);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 11));
   });
 
   testWidgets('search results fall back when image URL generation fails', (
@@ -64,6 +69,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           globalDataServiceProvider.overrideWithValue(
             const GlobalDataDto(
               userId: 'user-id',
@@ -85,6 +91,8 @@ void main() {
 
     expect(find.text('Public group'), findsOneWidget);
     expect(groupsApi.requestedWithImages, [true, false]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 20));
   });
 }
 

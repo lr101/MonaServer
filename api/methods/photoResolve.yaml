@@ -1,0 +1,26 @@
+post:
+  operationId: "resolvePhotos"
+  tags:
+    - "gallery"
+  security:
+    -
+      token: []
+  summary: "Resolve signed URLs for up to 100 photos with per-item authorization"
+  description: "Items preserve request order. An inaccessible or missing photograph returns status 404 without metadata. Each successful item contains both URL variants."
+  requestBody:
+    required: true
+    content:
+      "application/json":
+        schema:
+          $ref: "../schemas/photoResolveRequestDto.yaml"
+  responses:
+    "200":
+      description: "Per-photo results"
+      content:
+        "application/json":
+          schema:
+            $ref: "../schemas/photoResolveResponseDto.yaml"
+    "400":
+      description: "Invalid request size"
+    "401":
+      description: "Authentication required"

@@ -48,7 +48,7 @@ class UserGroupOverview extends ConsumerWidget {
               inviteUrl: inviteUrl,
               key: Key("no-user-group-join-$groupId"),
             ),
-            avatar: details.profileImage,
+            remoteAvatar: details.profileImage,
             title: Text(
               group.name,
               style: const TextStyle(fontWeight: FontWeight.bold),

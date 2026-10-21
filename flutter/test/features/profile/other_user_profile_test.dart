@@ -1,9 +1,9 @@
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
-import 'package:buff_lisa/data/service/pin_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/profile/presentation/other_user_profile.dart';
@@ -15,6 +15,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
+import '../../support/pin_image_test_cache.dart';
+
 void main() {
   testWidgets('shows a public level ring and earned achievements', (
     tester,
@@ -22,9 +24,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           accountSessionProvider.overrideWithValue(AccountSession(true)),
           userIdProvider.overrideWithValue('viewer'),
-          pinUserServiceProvider('alice').overrideWith(_EmptyPins.new),
+          profileGridEntriesProvider('alice')
+              .overrideWith((ref) => Stream.value(<PinEntity>[])),
           userLikeServiceProvider('alice').overrideWith(_EmptyLikes.new),
           userByIdUsernameProvider('alice')
               .overrideWith((ref) async => 'alice'),
@@ -33,8 +37,7 @@ void main() {
           userByIdDescriptionProvider('alice')
               .overrideWith((ref) async => null),
           userByIdBestSeasonProvider('alice').overrideWith((ref) async => null),
-          getUserProfileProgressiveProvider('alice')
-              .overrideWith((ref) => Stream.value(null)),
+
           publicUserProgressionProvider('alice').overrideWith(
             (ref) async => ProfileProgressionDto(level: 4, fraction: 0.6),
           ),
@@ -81,11 +84,6 @@ void main() {
     expect(find.text('In progress'), findsNothing);
     expect(find.text('Claim'), findsNothing);
   });
-}
-
-class _EmptyPins extends PinUserService {
-  @override
-  Stream<List<PinEntity>> build(String userId) => Stream.value([]);
 }
 
 class _EmptyLikes extends UserLikeService {

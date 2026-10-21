@@ -1,0 +1,11 @@
+type: "object"
+required:
+  - "photoId"
+  - "status"
+properties:
+  photoId:
+    type: "string"
+  status:
+    type: "integer"
+  photo:
+    $ref: "./pinPhotoDto.yaml"

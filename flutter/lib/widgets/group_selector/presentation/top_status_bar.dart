@@ -1,10 +1,8 @@
 import 'package:buff_lisa/data/service/global_data_service.dart'; // Adjust path
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/navigation/data/navigation_provider.dart';
 import 'package:buff_lisa/features/progression/presentation/user_xp_card.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/group_filter.dart';
-import 'package:buff_lisa/widgets/round_image/presentation/round_image.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +26,6 @@ class TopStatusBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final userId = ref.watch(userIdProvider);
     final user = ref.watch(currentUserProvider).value;
-    final profileImage = ref.watch(getUserProfileSmallProvider(userId));
 
     return GestureDetector(
       onTap: () => ref.read(navigationStateProvider.notifier).setIndex(4),
@@ -53,9 +50,9 @@ class TopStatusBar extends ConsumerWidget {
           child: Row(
             children: [
               if (showUserLevel && showProfileProgression)
-                UserXpAvatarPanel(userId: userId, imageCallback: profileImage)
+                UserXpAvatarPanel(userId: userId)
               else
-                RoundImage(size: 20, imageCallback: profileImage),
+                SmallProfilePicture.user(userId: userId, radius: 17),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

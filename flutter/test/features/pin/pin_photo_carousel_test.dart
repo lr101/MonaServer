@@ -1,33 +1,25 @@
-import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
+import '../../support/pin_image_test_cache.dart';
+
 void main() {
   testWidgets('shows one photo at a time and swipes to the next update', (
     tester,
   ) async {
     var selectedIndex = -1;
-    final updateBytes = Uint8List.fromList(kTransparentImage);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinPhotoProgressiveImageBytesProvider((
-            photoId: 'update',
-            thumbnailUrl: null,
-            imageUrl: 'https://example.test/update.png',
-          )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
-          pinPhotoThumbnailBytesProvider((
-            photoId: 'update',
-            thumbnailUrl: null,
-            imageUrl: 'https://example.test/update.png',
-          )).overrideWith((ref) => Stream<Uint8List?>.value(updateBytes)),
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -87,16 +79,11 @@ void main() {
     expect(find.text('Original'), findsOneWidget);
     expect(find.text('Update 1'), findsOneWidget);
     expect(selectedIndex, 1);
-    final updateImage = tester.widget<Image>(
-      find
-          .descendant(of: find.byType(PageView), matching: find.byType(Image))
-          .last,
-    );
-    final updateProvider = updateImage.image as ResizeImage;
-    expect(
-      (updateProvider.imageProvider as MemoryImage).bytes,
-      same(updateBytes),
-    );
+    final update = tester
+        .widgetList<RemotePinImage>(find.byType(RemotePinImage))
+        .where((image) => image.photoId == 'update');
+    expect(update, isNotEmpty);
+    expect(update.first.pinId, 'pin');
   });
 
   testWidgets('shows one original photo when history has no updates', (
@@ -121,15 +108,19 @@ void main() {
     tester,
   ) async {
     List<PinPhotoDto> photos = [];
-    Widget carousel() => MaterialApp(
-      home: Scaffold(
-        body: SingleChildScrollView(
-          child: SizedBox(
-            width: 320,
-            child: PinPhotoCarousel(
-              initialPhotoId: 'update',
-              photos: photos,
-              originalImage: Uint8List.fromList(kTransparentImage),
+    final sources = createTestImageSources();
+    Widget carousel() => ProviderScope(
+      overrides: [pinImageSourcesProvider.overrideWithValue(sources)],
+      child: MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 320,
+              child: PinPhotoCarousel(
+                initialPhotoId: 'update',
+                photos: photos,
+                originalImage: Uint8List.fromList(kTransparentImage),
+              ),
             ),
           ),
         ),

@@ -10,6 +10,7 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
@@ -23,6 +24,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
+
+import '../../support/pin_image_test_cache.dart';
 
 void main() {
   testWidgets(
@@ -52,6 +55,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
             userIdProvider.overrideWithValue('alice'),
             userXpProvider('alice').overrideWith((ref) => null),
             userByIdSelectedBatchProvider('alice').overrideWith((ref) => null),
@@ -63,7 +67,7 @@ void main() {
                 onlySession: false,
               ),
             ),
-            userPinEntriesProvider('alice')
+            profileGridEntriesProvider('alice')
                 .overrideWith((ref) => Stream.value([pin, update])),
             userLikeServiceProvider('alice')
                 .overrideWith(_EmptyUserLikeService.new),
@@ -100,6 +104,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
           userApiProvider.overrideWithValue(usersApi),
           userIdProvider.overrideWithValue('alice'),
           userXpProvider('alice').overrideWith((ref) => null),
@@ -115,12 +120,11 @@ void main() {
           ),
           pinUserServiceProvider('alice')
               .overrideWith(_EmptyPinUserService.new),
-          userPinEntriesProvider('alice')
+          profileGridEntriesProvider('alice')
               .overrideWith((ref) => Stream.value([])),
           userLikeServiceProvider('alice')
               .overrideWith(_EmptyUserLikeService.new),
-          getUserProfileProgressiveProvider('alice')
-              .overrideWith((ref) => Stream.value(null)),
+
           userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],

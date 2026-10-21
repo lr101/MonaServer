@@ -7,9 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class GroupImageFeed extends ConsumerStatefulWidget {
-  const GroupImageFeed({super.key, required this.index, required this.groupId});
+  const GroupImageFeed({
+    super.key,
+    required this.index,
+    this.entryId,
+    required this.groupId,
+  });
 
   final int index;
+  final String? entryId;
   final String groupId;
 
   @override
@@ -33,9 +39,14 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
     return Scaffold(
       appBar: AppBar(title: const Text("Group images")),
       body: pins.when(
+        skipError: pins.hasValue,
         data: (data) {
           final items = data;
-          final initialItems = items.take(widget.index + 1).toList();
+          final selected = items.indexWhere(
+            (item) => item.entryId == widget.entryId,
+          );
+          final initialIndex = selected < 0 ? widget.index : selected;
+          final initialItems = items.take(initialIndex + 1).toList();
           final pagingController = _pagingController ??=
               PagingController.fromValue(
                 PagingState<int, PinEntity>(
@@ -52,7 +63,8 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
             slivers: [
               CustomFeed(
                 pinProvider: groupPinEntriesProvider(widget.groupId),
-                index: widget.index,
+                index: initialIndex,
+                entryId: widget.entryId,
                 pagingController: pagingController,
                 scrollController: _scrollController,
                 thumbnailsOnly: true,

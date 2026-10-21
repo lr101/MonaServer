@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/dto/global_data_dto.dart';
 import 'package:buff_lisa/data/entity/group_entity.dart';
@@ -393,7 +392,6 @@ void main() {
               const GroupDetailsState(
                 group: null,
                 pins: AsyncData<List<PinEntity>>([]),
-                profileImage: AsyncData<Uint8List?>(null),
               ),
             ),
           ),
@@ -409,11 +407,8 @@ void main() {
   });
 }
 
-GroupDetailsState _details(GroupEntity group) => GroupDetailsState(
-  group: group,
-  pins: const AsyncData<List<PinEntity>>([]),
-  profileImage: const AsyncData<Uint8List?>(null),
-);
+GroupDetailsState _details(GroupEntity group) =>
+    GroupDetailsState(group: group, pins: const AsyncData<List<PinEntity>>([]));
 
 class _EmptyUserGroupService extends UserGroupService {
   @override

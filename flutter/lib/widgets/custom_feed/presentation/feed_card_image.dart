@@ -1,8 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_carousel.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
@@ -12,7 +9,7 @@ import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image_heade
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_description.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_map.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/like_buttons.dart';
-import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -102,17 +99,6 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
       selected = widget.item;
     }
 
-    final preview = ref.watch(pinThumbnailBytesProvider(parent.pinId));
-    final image = ref.watch(pinImageForDetailsProvider(parent.pinId));
-    final selectedPhotoImage = selected.photoId == null
-        ? null
-        : ref.watch(
-            pinPhotoProgressiveImageBytesProvider((
-              photoId: selected.photoId!,
-              thumbnailUrl: selected.photoThumbnailUrl,
-              imageUrl: selected.photoUrl,
-            )),
-          );
     final showPhoto = ref.watch(feedMapStateProvider(widget.item.entryId));
     final overlayTheme = Theme.of(context).copyWith(
       colorScheme: const ColorScheme.dark(),
@@ -137,12 +123,10 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
             borderRadius: BorderRadius.circular(10),
             child: PinPhotoCarousel(
               key: ValueKey(widget.item.entryId),
-              originalImage: image.value,
-              thumbnailImage: preview.value,
+              pinId: parent.pinId,
               originalImageBlurhash:
                   parent.imageBlurhash ?? originalPhoto?.imageBlurhash,
-              isOriginalLoading:
-                  (image.isLoading && preview.isLoading) || history.isLoading,
+
               photos: photos,
               initialPhotoId: initialId,
               onPageChanged: (index) => _selectPhoto(index, parent, updates),
@@ -212,21 +196,17 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                                   )
                                 : Tooltip(
                                     message: 'Show photo',
-                                    child: selected.photoId != null
-                                        ? _photoUpdatePreview(
-                                            selected,
-                                            selectedPhotoImage,
-                                          )
-                                        : image.value != null ||
-                                              preview.value != null
-                                        ? Image.memory(
-                                            image.value ?? preview.value!,
-                                            fit: BoxFit.cover,
-                                            gaplessPlayback: true,
-                                          )
-                                        : const Icon(
-                                            Icons.photo_library_outlined,
-                                          ),
+                                    child: RemotePinImage(
+                                      pinId: parent.pinId,
+                                      photoId: selected.photoId,
+                                      thumbnailUrl:
+                                          selected.photoThumbnailUrl ??
+                                          originalPhoto?.imageThumbnail,
+                                      imageUrl:
+                                          selected.photoUrl ??
+                                          originalPhoto?.image,
+                                      blurhash: selected.imageBlurhash,
+                                    ),
                                   ),
                           ),
                         ),
@@ -256,24 +236,6 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
     );
   }
 
-  Widget _photoUpdatePreview(
-    PinEntity photo,
-    AsyncValue<Uint8List?>? imageState,
-  ) {
-    final bytes = imageState?.value;
-    if (bytes != null && bytes.isNotEmpty) {
-      return Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true);
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        PinImagePlaceholder(blurhash: photo.imageBlurhash),
-        if (imageState?.hasError == true || imageState?.hasValue == true)
-          const Center(child: Icon(Icons.photo_library_outlined)),
-      ],
-    );
-  }
-
   void _selectPhoto(int index, PinEntity parent, List<PinPhotoDto> updates) {
     setState(() => _selectedIndex = index);
     final selectedPhoto = index == 0 || index > updates.length
@@ -294,35 +256,219 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
   }
 }
 
-class _PhotoProgressDots extends StatelessWidget {
+class _PhotoProgressDots extends StatefulWidget {
   const _PhotoProgressDots({required this.index, required this.count});
+
+  static const _maximumVisibleDots = 10;
+  static const _dotSlotWidth = 9.0;
+  static const _selectedExtraWidth = 7.0;
 
   final int index;
   final int count;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Photo ${index + 1} of $count',
-    child: ExcludeSemantics(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var dot = 0; dot < count; dot++)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              width: dot == index ? 12 : 5,
-              height: 5,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: dot == index ? 1 : .55),
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black54, blurRadius: 2),
+  State<_PhotoProgressDots> createState() => _PhotoProgressDotsState();
+}
+
+class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
+  late int _previousFirstVisibleIndex;
+  late int _previousVisibleCount;
+  var _hasPreviousWindow = false;
+  var _entryDirection = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousFirstVisibleIndex = _firstVisibleIndex(widget.index, widget.count);
+    _previousVisibleCount = _visibleCount(widget.count);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PhotoProgressDots oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _previousFirstVisibleIndex = _firstVisibleIndex(
+      oldWidget.index,
+      oldWidget.count,
+    );
+    _previousVisibleCount = _visibleCount(oldWidget.count);
+    _hasPreviousWindow = true;
+
+    final nextFirstVisibleIndex = _firstVisibleIndex(
+      widget.index,
+      widget.count,
+    );
+    if (nextFirstVisibleIndex > _previousFirstVisibleIndex) {
+      _entryDirection = 1;
+    } else if (nextFirstVisibleIndex < _previousFirstVisibleIndex) {
+      _entryDirection = -1;
+    } else {
+      _entryDirection = widget.index >= oldWidget.index ? 1 : -1;
+    }
+  }
+
+  static int _visibleCount(int count) =>
+      count < _PhotoProgressDots._maximumVisibleDots
+      ? count
+      : _PhotoProgressDots._maximumVisibleDots;
+
+  static int _firstVisibleIndex(int index, int count) {
+    final visibleCount = _visibleCount(count);
+    if (visibleCount == 0 || index < visibleCount) return 0;
+    final maximumStart = count - visibleCount;
+    final firstVisibleIndex = index - visibleCount + 1;
+    return firstVisibleIndex > maximumStart ? maximumStart : firstVisibleIndex;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleCount = _visibleCount(widget.count);
+    final firstVisibleIndex = _firstVisibleIndex(widget.index, widget.count);
+    final lastVisibleIndex = firstVisibleIndex + visibleCount - 1;
+    final farthestDistance =
+        (widget.index - firstVisibleIndex) > (lastVisibleIndex - widget.index)
+        ? widget.index - firstVisibleIndex
+        : lastVisibleIndex - widget.index;
+
+    return Semantics(
+      label: 'Photo ${widget.index + 1} of ${widget.count}',
+      child: ExcludeSemantics(
+        child: SizedBox(
+          width:
+              visibleCount * _PhotoProgressDots._dotSlotWidth +
+              (visibleCount > 0 ? _PhotoProgressDots._selectedExtraWidth : 0),
+          height: 9,
+          child: ClipRect(
+            child: Stack(
+              children: [
+                for (var slot = 0; slot < visibleCount; slot++) ...[
+                  _positionedDot(
+                    slot: slot,
+                    dotIndex: firstVisibleIndex + slot,
+                    farthestDistance: farthestDistance,
+                  ),
                 ],
-              ),
+              ],
             ),
-        ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _positionedDot({
+    required int slot,
+    required int dotIndex,
+    required int farthestDistance,
+  }) {
+    final wasVisible =
+        _hasPreviousWindow &&
+        dotIndex >= _previousFirstVisibleIndex &&
+        dotIndex < _previousFirstVisibleIndex + _previousVisibleCount;
+
+    final slotWidth =
+        _PhotoProgressDots._dotSlotWidth +
+        (dotIndex == widget.index ? _PhotoProgressDots._selectedExtraWidth : 0);
+    return AnimatedPositioned(
+      key: ValueKey(dotIndex),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      // Reserve the pill's extra width before laying out its neighbors.
+      left:
+          slot * _PhotoProgressDots._dotSlotWidth +
+          (dotIndex > widget.index
+              ? _PhotoProgressDots._selectedExtraWidth
+              : 0),
+      top: 2,
+      width: slotWidth,
+      height: 5,
+      child: _PhotoDotEntrance(
+        animate: _hasPreviousWindow && !wasVisible,
+        direction: _entryDirection,
+        width: slotWidth,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _dot(dotIndex, farthestDistance),
+        ),
+      ),
+    );
+  }
+
+  Widget _dot(int dotIndex, int farthestDistance) {
+    final isSelected = dotIndex == widget.index;
+    final distance = (dotIndex - widget.index).abs();
+    final opacity = isSelected || farthestDistance == 0
+        ? 1.0
+        : 1 - .72 * distance / farthestDistance;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      opacity: opacity,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: isSelected ? 12 : 5,
+        height: 5,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: isSelected ? 1 : .55),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoDotEntrance extends StatefulWidget {
+  const _PhotoDotEntrance({
+    required this.animate,
+    required this.direction,
+    required this.width,
+    required this.child,
+  });
+
+  final bool animate;
+  final int direction;
+  final double width;
+  final Widget child;
+
+  @override
+  State<_PhotoDotEntrance> createState() => _PhotoDotEntranceState();
+}
+
+class _PhotoDotEntranceState extends State<_PhotoDotEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: widget.animate ? 0 : 1,
+    );
+    if (widget.animate) _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    child: SizedBox(width: widget.width, height: 5, child: widget.child),
+    builder: (context, child) => Opacity(
+      opacity: _controller.value,
+      child: Transform.translate(
+        offset: Offset(
+          widget.direction * (1 - _controller.value) * widget.width,
+          0,
+        ),
+        child: child,
       ),
     ),
   );
