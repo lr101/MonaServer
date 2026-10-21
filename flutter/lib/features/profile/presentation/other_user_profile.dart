@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
@@ -96,7 +97,13 @@ class OtherUserProfile extends ConsumerWidget {
         ],
         body: TabBarView(
           children: [
-            ImageGrid(pinProvider: profileGridEntriesProvider(userId)),
+            ImageGrid(
+              pinProvider: profileGridEntriesProvider(userId),
+              userId: userId,
+              onRefresh: () => ref
+                  .read(photoLibraryProvider)
+                  .refreshGallery(PhotoScope(userId: userId)),
+            ),
             OtherUserAchievementsTab(userId: userId),
           ],
         ),

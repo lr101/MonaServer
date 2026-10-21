@@ -73,6 +73,50 @@ void main() {
       expect(histories, 0);
     },
   );
+  for (final attempt in [0, 1]) {
+    test('update attempt $attempt uses fresh shared photo metadata', () async {
+      final kind = attempt == 0
+          ? BatchReadKind.pinImageThumbnail
+          : BatchReadKind.pinImage;
+      registry.register(
+        kind,
+        'photo:pin:update',
+        'https://storage.test/fresh?signature=new',
+      );
+      final image = await sources.resolve((
+        pinId: 'pin',
+        photoId: 'update',
+        thumbnailUrl: 'https://storage.test/expired?signature=old',
+        imageUrl: 'https://storage.test/expired-full?signature=old',
+        attempt: attempt,
+      ));
+      expect(image?.url, 'https://storage.test/fresh?signature=new');
+      expect(histories, 0);
+      expect(reads, isEmpty);
+    });
+  }
+
+  test('returning grid reuses URLs renewed while viewing details', () async {
+    const stale = (
+      pinId: 'pin',
+      photoId: 'update',
+      thumbnailUrl: 'https://storage.test/expired-thumb',
+      imageUrl: 'https://storage.test/expired-full',
+      attempt: 0,
+    );
+    // The detail display renews the history without replacing the grid's DTO.
+    await sources.resolve((
+      pinId: stale.pinId,
+      photoId: stale.photoId,
+      thumbnailUrl: stale.thumbnailUrl,
+      imageUrl: stale.imageUrl,
+      attempt: 3,
+    ));
+    expect((await sources.resolve(stale))?.url, 'https://storage.test/thumb');
+    expect(histories, 1);
+    expect(reads, isEmpty);
+  });
+
   test('full fallback resolves only the full variant', () async {
     final image = await sources.resolve((
       pinId: 'pin',

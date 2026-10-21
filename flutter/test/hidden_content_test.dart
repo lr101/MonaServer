@@ -65,7 +65,7 @@ void main() {
               .overrideWith((ref) => Stream.value(null)),
           currentLocationProvider.overrideWith((ref) => const Stream.empty()),
           pinPhotoHistoryProvider('artwork')
-              .overrideWith((ref) => Future.value([])),
+              .overrideWith((ref) => Stream.value([])),
         ],
       );
       addTearDown(container.dispose);

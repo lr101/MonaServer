@@ -7,10 +7,18 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
 class ImageGrid extends ConsumerStatefulWidget {
-  const ImageGrid({super.key, required this.pinProvider, this.onTap});
+  const ImageGrid({
+    super.key,
+    required this.pinProvider,
+    this.onTap,
+    this.userId,
+    this.onRefresh,
+  });
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
   final ValueChanged<int>? onTap;
+  final String? userId;
+  final Future<void> Function()? onRefresh;
 
   @override
   ConsumerState<ImageGrid> createState() => _ImageGridState();
@@ -29,14 +37,24 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
     if (_images.isEmpty) {
       return Center(
         child: state.hasError
-            ? const Text('Unable to load images')
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Unable to load images'),
+                  if (widget.onRefresh != null)
+                    TextButton(
+                      onPressed: widget.onRefresh,
+                      child: const Text('Retry'),
+                    ),
+                ],
+              )
             : state.isLoading
             ? const CircularProgressIndicator()
             : const Text('No images found'),
       );
     }
 
-    return LayoutBuilder(
+    final grid = LayoutBuilder(
       builder: (context, constraints) {
         final padding = MediaQuery.paddingOf(context);
         final contentWidth = (constraints.maxWidth - padding.horizontal).clamp(
@@ -45,6 +63,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         );
         final tileWidth = (contentWidth - _spacing * (_columns - 1)) / _columns;
         return GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           primary: true,
           padding: padding,
           // Keep nearby rows mounted; each tile loads and fades in its image as
@@ -78,6 +97,16 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
                   tap(index);
                   return;
                 }
+                if (widget.userId != null) {
+                  context.pushNamed(
+                    'userPhotoFeed',
+                    pathParameters: {
+                      'id': widget.userId!,
+                      'entryId': item.entryId,
+                    },
+                  );
+                  return;
+                }
                 context.pushNamed(
                   'viewImage',
                   pathParameters: {'id': item.pinId},
@@ -91,5 +120,8 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         );
       },
     );
+    return widget.onRefresh == null
+        ? grid
+        : RefreshIndicator(onRefresh: widget.onRefresh!, child: grid);
   }
 }

@@ -171,7 +171,7 @@ void main() {
                   (ref) => const Stream.empty(),
                 ),
                 pinPhotoHistoryProvider('pin').overrideWith(
-                  (ref) => [
+                  (ref) => Stream.value([
                     PinPhotoDto(
                       id: 'original',
                       pinId: 'pin',
@@ -188,7 +188,7 @@ void main() {
                       observedAt: DateTime.utc(2026, 10, 3),
                       isOriginal: false,
                     ),
-                  ],
+                  ]),
                 ),
               ],
               child: MaterialApp(
@@ -262,7 +262,8 @@ void main() {
               (pin) => const ColoredBox(color: Colors.grey),
             ),
 
-            pinPhotoHistoryProvider('pin').overrideWith((ref) => []),
+            pinPhotoHistoryProvider('pin')
+                .overrideWith((ref) => Stream.value([])),
             currentLocationProvider.overrideWith((ref) => const Stream.empty()),
             groupMetadataProvider('group')
                 .overrideWith((ref) => Stream.value(null)),

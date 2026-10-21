@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:buff_lisa/core/sync/sync_coordinator.dart';
 import 'package:buff_lisa/data/database/account_session.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,7 +42,12 @@ class _AppSyncLifecycleState extends ConsumerState<AppSyncLifecycle> {
       );
     }, fireImmediately: true);
     _lifecycle = AppLifecycleListener(
-      onResume: () => _automatically(_coordinator.resume()),
+      onResume: () {
+        _automatically(_coordinator.resume());
+        if (ref.exists(photoLibraryProvider)) {
+          _automatically(ref.read(photoLibraryProvider).refreshActive());
+        }
+      },
     );
   }
 

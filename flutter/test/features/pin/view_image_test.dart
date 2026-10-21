@@ -70,7 +70,7 @@ void main() {
             pinByIdProvider('pin').overrideWith((ref) => Stream.value(pin)),
             currentLocationProvider.overrideWith((ref) => const Stream.empty()),
             pinPhotoHistoryProvider('pin').overrideWith(
-              (ref) => Future.value([
+              (ref) => Stream.value([
                 PinPhotoDto(
                   id: 'original',
                   pinId: 'pin',

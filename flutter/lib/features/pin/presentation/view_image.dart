@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
@@ -183,11 +183,11 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     if (photo != null) {
       try {
         final photos = await ref
-            .read(pinApiProvider)
-            .getPinPhotos(pinId)
+            .read(photoLibraryProvider)
+            .refreshHistory(pinId)
             .timeout(const Duration(seconds: 20));
         photoToDownload = photos
-            ?.where(
+            .where(
               (candidate) =>
                   candidate.id == photo.id &&
                   candidate.pinId == pinId &&

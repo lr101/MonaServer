@@ -31,24 +31,30 @@ disables both thumbnail and replacement fades.
 
 ## Resolution and identity
 
-User and group profiles wait for complete pin and update-photo metadata before
-showing the grid. Once metadata arrives, `ImageGrid` mounts visible tiles and a
-small nearby cache window. Each tile uses the shared resolver's
-thumbnail/full fallback and renewal policy, then fades in as its image arrives.
-The gallery remains interactive while slow images load, and refreshes keep the
-previous grid visible until replacement metadata arrives.
+`PhotoLibrary` owns stable original/update photo IDs and persisted last-good
+metadata. It hydrates cached records before starting gallery refreshes, and
+profile and group views share those records instead of loading photo history
+separately for each pin. Gallery discovery uses the authenticated cursor
+endpoint and publishes a complete, deterministically sorted snapshot. A failed
+refresh leaves the previous snapshot intact. `ImageGrid` mounts visible tiles
+and a small nearby cache window, so photo bytes load only as images approach
+the viewport. Pull to refresh retries a cold or stale gallery without
+remounting the screen. Failed sync discovery scopes are retained for app-resume
+retry even when only the map or active feed is mounted.
 
-Group profiles use the same complete index pagination and wait for every pin's
-update-photo history before publishing a snapshot. Their grid and opened group
-feed share that completed, sorted snapshot, keeping the selected tile index
-stable. Missing images finish as tappable unavailable tiles, and late metadata
-can retry them.
+When a signed URL expires, image consumers request renewal by photo ID. The
+owner coalesces concurrent requests, resolves at most 100 URLs per call, and
+publishes new URL metadata without changing decoded-image identity. Detail
+history and accepted uploads update the same owner, so an older gallery
+response cannot remove a newly accepted photo. Confirmed deletion or group
+access loss clears the affected persisted records and original/update URL
+registry entries. Group removal fences older pages, including previously
+unknown pins, so a late response cannot republish a departed group's photos.
 
 `remoteImageSourceProvider` supplies URL/cache-key pairs. Known URL metadata
 resolves synchronously so remounting a cached tile does not flash a placeholder.
-Pin originals use the
-existing batch coalescer and supplied-URL registry. Pin photo updates renew with
-one shared in-flight history read per pin. User, group, and group-pin artwork
+Pin originals and updates use the shared supplied-URL registry. Update photos
+renew by stable photo ID through the batched resolver. User, group, and group-pin artwork
 adapt their corresponding batch kinds. All displays share the existing package
 cache; `remoteImageProvider(source, cacheWidth: ...)` exposes the same provider
 identity for consumers that need an `ImageProvider`.

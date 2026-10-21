@@ -22,7 +22,7 @@ import '../../support/pin_image_test_cache.dart';
 
 void main() {
   testWidgets(
-    'group pins wait for every thumbnail and keep the selected feed index',
+    'group photos stay tappable while loading and navigate by stable entry ID',
     (tester) async {
       final cache = PinImageTestCache()..install();
       addTearDown(cache.dispose);
@@ -65,11 +65,11 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/feed/:id/:index',
-            name: 'groupImageFeed',
+            path: '/feed/:id/:entryId',
+            name: 'groupPhotoFeed',
             builder: (_, state) => Scaffold(
               body: Text(
-                'Selected ${state.pathParameters['id']} ${state.pathParameters['index']}',
+                'Selected ${state.pathParameters['id']} ${state.pathParameters['entryId']}',
               ),
             ),
           ),
@@ -96,11 +96,8 @@ void main() {
       await tester.tap(find.widgetWithText(Tab, 'Pins'));
       await tester.pump(const Duration(milliseconds: 500));
       await pumpImageLoads(tester);
-      expect(
-        find.byType(CircularProgressIndicator).hitTestable(),
-        findsOneWidget,
-      );
-      expect(find.byType(SquareImage).hitTestable(), findsNothing);
+      expect(find.byType(SquareImage).hitTestable(), findsOneWidget);
+      expect(find.byType(SquareImage).hitTestable(), findsOneWidget);
       slow.complete();
       await pumpImageLoads(tester);
       await tester.pump(const Duration(seconds: 1));
@@ -119,7 +116,7 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('update')));
       await tester.pumpAndSettle();
-      expect(find.text('Selected group 0'), findsOneWidget);
+      expect(find.text('Selected group update'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 11));
     },

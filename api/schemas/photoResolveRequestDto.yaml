@@ -1,0 +1,11 @@
+type: "object"
+required:
+  - "photoIds"
+properties:
+  photoIds:
+    type: "array"
+    minItems: 1
+    maxItems: 100
+    items:
+      type: "string"
+      format: "uuid"

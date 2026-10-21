@@ -220,3 +220,20 @@ ORDER BY
   ST_Contains(geom, ST_SetSRID(ST_Point($1, $2), 4326)) DESC,
   geom <-> ST_SetSRID(ST_Point($1, $2), 4326)
 LIMIT 1;
+
+-- name: GalleryPhotos :many
+SELECT sqlc.embed(pp), sqlc.embed(p)
+FROM pin_photos pp
+JOIN pins p ON p.id = pp.pin_id
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE AND g.is_deleted = FALSE
+  AND (g.visibility = 0 OR EXISTS (
+    SELECT 1 FROM members m WHERE m.group_id = g.id
+      AND m.user_id = sqlc.arg('caller_id')::uuid AND m.is_deleted = FALSE))
+  AND (sqlc.narg('group_id')::uuid IS NULL OR p.group_id = sqlc.narg('group_id')::uuid)
+  AND (sqlc.narg('contributor_id')::uuid IS NULL OR pp.contributor_id = sqlc.narg('contributor_id')::uuid)
+  AND (cardinality(sqlc.arg('photo_ids')::uuid[]) = 0 OR pp.id = ANY(sqlc.arg('photo_ids')::uuid[]))
+  AND (sqlc.narg('before_date')::timestamptz IS NULL OR
+    (pp.observed_at, pp.id) < (sqlc.narg('before_date')::timestamptz, sqlc.narg('before_id')::uuid))
+ORDER BY pp.observed_at DESC, pp.id DESC
+LIMIT sqlc.arg('lim');

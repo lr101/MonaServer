@@ -1,3 +1,5 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
+
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
@@ -517,6 +519,7 @@ class PinService {
         await ref.read(pendingPinRepositoryProvider).remove(pinId);
       }
       await _pinRepository.delete(pin?.pinId ?? pinId);
+      await ref.read(photoLibraryProvider).removePins([pin?.pinId ?? pinId]);
       if (pin != null) {
         ref.invalidate(groupAchievementsProvider(pin.groupId));
       }

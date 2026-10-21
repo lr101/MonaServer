@@ -7,7 +7,7 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/repository/group_repository.dart';
 import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pending_pin_repository.dart';
-import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
@@ -120,6 +120,8 @@ class SyncingService extends _$SyncingService {
       response,
     )) {
       if (!isCurrent()) return const {};
+      await ref.read(photoLibraryProvider).removeGroup(groupId);
+      if (!isCurrent()) return const {};
       await groupRepository.delete(groupId);
       if (!isCurrent()) return const {};
       await pinRepository.updateKeepAlive(groupId, false, true);
@@ -135,6 +137,8 @@ class SyncingService extends _$SyncingService {
         if (deletedPin != null) affectedGroups.add(deletedPin.groupId);
       }
       await pinRepository.deleteMultiple(response.deletedPins);
+      if (!isCurrent()) return const {};
+      await ref.read(photoLibraryProvider).removePins(response.deletedPins);
       for (final groupId in affectedGroups) {
         ref.invalidate(groupAchievementsProvider(groupId));
       }
@@ -176,6 +180,14 @@ class SyncingService extends _$SyncingService {
               .map((pin) => PinEntity.fromDto(pin, false))
               .toList(),
         );
+        if (!isCurrent()) return const {};
+        await ref
+            .read(photoLibraryProvider)
+            .ingestOriginals(groupUpdate.pinsAdded);
+        if (!isCurrent()) return const {};
+        await ref
+            .read(photoLibraryProvider)
+            .refreshGallery(PhotoScope(groupId: groupDto.id));
         final creatorIds = groupUpdate.pinsAdded
             .map((pin) => pin.creationUser)
             .toSet();
@@ -201,7 +213,7 @@ class SyncingService extends _$SyncingService {
     if (userId.isEmpty) return;
 
     final profileRepository = ref.read(userPinsRepositoryProvider);
-    final historyRepository = ref.read(pinPhotoHistoryRepositoryProvider);
+    final photoLibrary = ref.read(photoLibraryProvider);
     final existingProfile = await profileRepository.get(userId);
     if (!isCurrent()) return;
     final cachedProfilePins = <PinEntity>[];
@@ -276,48 +288,6 @@ class SyncingService extends _$SyncingService {
     profilePinIds.removeAll(profileDeletedPinIds);
 
     if (!isCurrent()) return;
-    final now = DateTime.now().toUtc();
-    final photoCache = await historyRepository.getMultiple(profilePinIds);
-    if (!isCurrent()) return;
-    final historyIdsToRefresh = <String>{...changedPins.keys};
-    for (final pinId in profilePinIds) {
-      final cachedHistory = photoCache[pinId];
-      if (cachedHistory == null ||
-          now.difference(cachedHistory.fetchedAt) >=
-              const Duration(minutes: 45)) {
-        historyIdsToRefresh.add(pinId);
-      }
-    }
-
-    final photosByPin = <String, List<PinPhotoDto>>{};
-    final idsToRefresh = historyIdsToRefresh.toList();
-    const maxConcurrentHistoryRequests = 8;
-    for (
-      var start = 0;
-      start < idsToRefresh.length;
-      start += maxConcurrentHistoryRequests
-    ) {
-      if (!isCurrent()) return;
-      final batch = idsToRefresh.skip(start).take(maxConcurrentHistoryRequests);
-      final results = await Future.wait(
-        batch.map((pinId) async {
-          try {
-            final photos = await _pinsApi.getPinPhotos(pinId);
-            return MapEntry(pinId, photos ?? const <PinPhotoDto>[]);
-          } catch (_) {
-            // Photo history is best-effort for profile publication. Keeping a
-            // failed pin out of this write leaves its cached history intact;
-            // uncached pins will be retried the next time profile sync runs.
-            return null;
-          }
-        }),
-      );
-      photosByPin.addEntries(
-        results.whereType<MapEntry<String, List<PinPhotoDto>>>(),
-      );
-    }
-
-    if (!isCurrent()) return;
     final pinsToCache = changedPins.values
         .where((pin) => !profileDeletedPinIds.contains(pin.id))
         .map((pin) => PinEntity.fromDto(pin, false, keepAlive: true))
@@ -329,9 +299,9 @@ class SyncingService extends _$SyncingService {
         .toList();
     await _pinRepository.deleteMultiple(additionalDeletedPinIds);
     if (!isCurrent()) return;
-    await historyRepository.putMultiple(photosByPin);
+    await photoLibrary.removePins(profileDeletedPinIds);
     if (!isCurrent()) return;
-    await historyRepository.deleteMultiple(profileDeletedPinIds);
+    await photoLibrary.refreshGallery(PhotoScope(userId: userId));
     if (!isCurrent()) return;
 
     // Publishing the index last prevents a profile opened during sync from

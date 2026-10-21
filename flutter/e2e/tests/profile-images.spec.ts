@@ -49,6 +49,7 @@ test.beforeAll(async () => {
 async function login(page: Page) {
   const data = JSON.parse(readFileSync(dataPath(), 'utf8'));
   await page.goto('/');
+  await page.waitForFunction(() => document.querySelector('#splash-screen') === null, undefined, { timeout: 30_000 });
   const semantics = page.locator('flt-semantics-placeholder');
   await semantics.waitFor({ state: 'attached', timeout: 60_000 });
   await page.waitForTimeout(500);
@@ -129,43 +130,35 @@ test('profile shows the grid immediately and loads nearby thumbnails as it scrol
   await page.screenshot({ path: info.outputPath('profile-returned.png') });
 });
 
-test('cached originals stay hidden until newly discovered update histories finish', async ({ page }, info) => {
+test('profile galleries discover updates without one history request per pin', async ({ page }, info) => {
   test.setTimeout(90_000);
-  let histories = 0;
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const data = JSON.parse(readFileSync(dataPath(), 'utf8'));
+  let galleryPages = 0;
+  let pinHistoryRequests = 0;
   const loaded = new Set<string>();
-  await page.route(`**/api/v2/pins/${pinId}/photos`, async (route) => {
-    histories++;
-    const response = await route.fetch();
-    if (histories === 1) {
-      const photos = await response.json();
-      // Model a sync cache containing originals but no discovered updates yet.
-      return route.fulfill({ response, json: photos.filter((photo: { isOriginal: boolean }) => photo.isOriginal) });
+  await page.route('**/api/v2/gallery/photos**', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('userId') === data.userId) {
+      galleryPages++;
     }
-    await gate;
-    await route.fulfill({ response });
+    await route.continue();
+  });
+  await page.route(`**/api/v2/pins/${pinId}/photos`, async (route) => {
+    pinHistoryRequests++;
+    await route.continue();
   });
   page.on('response', (response) => {
     if (isPhoto(response.url()) && response.status() === 200) loaded.add(new URL(response.url()).pathname);
   });
-  try {
-    await profile(page);
-    await expect.poll(() => histories, { timeout: 20_000 }).toBeGreaterThan(1);
-    await expect(page.getByRole('tabpanel').getByRole('button')).toHaveCount(0);
-    expect(loaded.size).toBe(0);
-    await page.screenshot({ path: info.outputPath('profile-waiting-for-update-history.png') });
-    release();
-    await expect(page.getByRole('tabpanel').getByRole('button').first()).toBeVisible({ timeout: 30_000 });
-    await expect.poll(() => loaded.size).toBeGreaterThan(0);
-    expect(loaded.size).toBeLessThan(100);
-    await page.screenshot({ path: info.outputPath('profile-with-all-updates.png') });
-  } finally {
-    release();
-  }
+  await profile(page);
+  await expect(page.getByRole('tabpanel').getByRole('button').first()).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => galleryPages).toBeGreaterThan(0);
+  await expect.poll(() => loaded.size).toBeGreaterThan(0);
+  expect(pinHistoryRequests, 'gallery discovery must not fan out to per-pin history').toBe(0);
+  expect(loaded.size, 'gallery metadata must not eagerly download every photo').toBeLessThan(100);
+  await page.screenshot({ path: info.outputPath('profile-gallery-no-history-n-plus-one.png') });
 });
 
-test('group profile waits for update histories then loads nearby thumbnails progressively', async ({ page }, info) => {
+test('group profile loads a complete gallery snapshot then fetches visible thumbnails progressively', async ({ page }, info) => {
   test.setTimeout(90_000);
   const data = JSON.parse(readFileSync(dataPath(), 'utf8'));
   const entries = await request(`/api/v2/pins/${pinId}/photos`);
@@ -178,19 +171,15 @@ test('group profile waits for update histories then loads nearby thumbnails prog
   let releaseImage!: () => void;
   const historyGate = new Promise<void>((resolve) => { releaseHistory = resolve; });
   const imageGate = new Promise<void>((resolve) => { releaseImage = resolve; });
-  let histories = 0;
-  let groupDiscovery = false;
+  let galleryPages = 0;
   let imageBlocked = false;
   const photos: string[] = [];
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
-    if (path === '/api/v2/pins' && url.searchParams.get('groupId') === data.groupId && url.searchParams.get('size') === '100') {
-      groupDiscovery = true;
-    }
-    // Let login sync finish; hold the group snapshot's own history request.
-    if (groupDiscovery && path === `/api/v2/pins/${pinId}/photos`) {
-      histories++;
+    // Hold the group page's complete gallery snapshot until its grid is mounted.
+    if (path === '/api/v2/gallery/photos' && url.searchParams.get('groupId') === data.groupId) {
+      galleryPages++;
       await historyGate;
     }
     if (path === blockedPath) {
@@ -207,13 +196,14 @@ test('group profile waits for update histories then loads nearby thumbnails prog
     }
   });
   try {
+    // Gate any background group refresh as well as the page's initial read.
+    // This fixture uses a fresh browser context and isolated preview database.
     await login(page);
     await page.getByRole('tab', { name: 'Groups', exact: true }).click();
     await page.getByRole('button', { name: new RegExp(data.groupName) }).click();
     await page.getByRole('tab', { name: 'Pins', exact: true }).click();
-    await expect.poll(() => histories, { timeout: 20_000 }).toBeGreaterThan(0);
-    await expect(page.getByRole('tabpanel').getByRole('button')).toHaveCount(0);
-    await page.screenshot({ path: info.outputPath('group-waiting-for-histories.png') });
+    await expect.poll(() => galleryPages, { timeout: 20_000 }).toBeGreaterThan(0);
+    await page.screenshot({ path: info.outputPath('group-gallery-loading.png') });
     releaseHistory();
     const tile = page.getByRole('tabpanel').getByRole('button').first();
     await expect(tile).toBeVisible({ timeout: 30_000 });
@@ -251,20 +241,29 @@ test('group profile waits for update histories then loads nearby thumbnails prog
 
 test('expired photo URLs renew and load instead of leaving placeholders', async ({ page }, info) => {
   test.setTimeout(90_000);
-  let histories = 0;
+  const data = JSON.parse(readFileSync(dataPath(), 'utf8'));
+  let galleryPages = 0;
+  let resolveCalls = 0;
   let expired = 0;
   const loaded = new Set<string>();
-  await page.route(`**/api/v2/pins/${pinId}/photos`, async (route) => {
-    histories++;
+  await page.route('**/api/v2/gallery/photos**', async (route) => {
     const response = await route.fetch();
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('userId') !== data.userId) return route.fulfill({ response });
+    galleryPages++;
     if (expired > 0) return route.fulfill({ response });
-    const photos = await response.json();
-    for (const photo of photos) {
+    const gallery = await response.json();
+    for (const item of gallery.items) {
+      const photo = item.photo;
       if (photo.isOriginal) continue;
       if (photo.image) photo.image += '&browser_expired=1';
       if (photo.imageThumbnail) photo.imageThumbnail += '&browser_expired=1';
     }
-    await route.fulfill({ response, json: photos });
+    await route.fulfill({ response, json: gallery });
+  });
+  await page.route('**/api/v2/photos/resolve', async (route) => {
+    resolveCalls++;
+    await route.continue();
   });
   await page.route('**/*browser_expired=1', async (route) => {
     expired++;
@@ -276,8 +275,9 @@ test('expired photo URLs renew and load instead of leaving placeholders', async 
   await profile(page);
   await expect.poll(() => loaded.size, { timeout: 20_000 }).toBeGreaterThanOrEqual(12);
   expect(expired).toBeGreaterThan(0);
-  expect(histories).toBeGreaterThan(1);
-  expect(histories, 'renewal should be shared by nearby tiles').toBeLessThan(6);
+  expect(galleryPages).toBeGreaterThan(0);
+  expect(resolveCalls, 'nearby URL renewals should share bounded batches').toBeLessThan(6);
+  expect(resolveCalls).toBeGreaterThan(0);
   await expect(page.getByRole('tabpanel').getByRole('button').first()).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath('profile-renewed.png') });
 });
@@ -285,8 +285,12 @@ test('expired photo URLs renew and load instead of leaving placeholders', async 
 test('a profile photo opens its selected detail while the full image loads', async ({ page }, info) => {
   test.setTimeout(90_000);
   const photos = await request(`/api/v2/pins/${pinId}/photos`);
-  const selected = photos.find((photo: { caption?: string }) => photo.caption === 'Browser image 99')?.id;
+  const selectedPhoto = photos.find((photo: { caption?: string }) => photo.caption === 'Browser image 99');
+  const selected = selectedPhoto?.id;
   expect(selected).toBeTruthy();
+  const thumbnailPath = new URL(selectedPhoto.imageThumbnail).pathname;
+  let thumbnailReady = false;
+  page.on('response', response => { if (new URL(response.url()).pathname === thumbnailPath && response.ok()) thumbnailReady = true; });
   let pending = 0;
   const fullPhotos = new Map<string, number>();
   page.on('response', (response) => {
@@ -304,10 +308,13 @@ test('a profile photo opens its selected detail while the full image loads', asy
     await route.continue();
   });
   await profile(page);
+  await expect.poll(() => thumbnailReady, { timeout: 20_000 }).toBe(true);
   const tile = page.getByRole('tabpanel').getByRole('button').first();
   await tile.waitFor({ state: 'visible' });
   await tile.click();
+  await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
   await expect.poll(() => pending).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible();
   await expect.poll(() => [...fullPhotos.keys()].some((path) => path.endsWith(`/photos/${selected}.jpg`)), {
@@ -319,8 +326,10 @@ test('a profile photo opens its selected detail while the full image loads', asy
 
 test('missing thumbnails fall back to full photos without renewing metadata', async ({ page }, info) => {
   test.setTimeout(90_000);
+  const photos = await request(`/api/v2/pins/${pinId}/photos`);
+  const updateIds = new Set(photos.filter((photo: { isOriginal: boolean }) => !photo.isOriginal).map((photo: { id: string }) => photo.id));
   let missing = 0;
-  let histories = 0;
+  let resolveCalls = 0;
   const full = new Set<string>();
   await page.route('**/*', async (route) => {
     const url = route.request().url();
@@ -331,7 +340,10 @@ test('missing thumbnails fall back to full photos without renewing metadata', as
     await route.continue();
   });
   page.on('response', (response) => {
-    if (response.url().includes(`/api/v2/pins/${pinId}/photos`)) histories++;
+    // Startup may resolve an original pin before its gallery metadata arrives.
+    // Missing update thumbnails already have full URLs and need no renewal.
+    if (new URL(response.url()).pathname === '/api/v2/photos/resolve' &&
+        response.request().postDataJSON().photoIds.some((id: string) => updateIds.has(id))) resolveCalls++;
     if (isPhoto(response.url()) && !new URL(response.url()).pathname.endsWith('.thumbnail.jpg') && response.status() === 200) {
       full.add(new URL(response.url()).pathname);
     }
@@ -339,7 +351,7 @@ test('missing thumbnails fall back to full photos without renewing metadata', as
   await profile(page);
   await expect.poll(() => full.size, { timeout: 20_000 }).toBeGreaterThanOrEqual(12);
   expect(missing).toBeGreaterThan(0);
-  expect(histories).toBe(2);
+  expect(resolveCalls).toBe(0);
   await expect(page.getByRole('tabpanel').getByRole('button').first()).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath('profile-full-fallback.png') });
 });
@@ -394,8 +406,16 @@ test('carousel keeps full photos available after traversing a long update histor
     const path = new URL(response.url()).pathname;
     if (isPhoto(response.url()) && !path.endsWith('.thumbnail.jpg') && response.status() === 200) loaded.set(path, (loaded.get(path) ?? 0) + 1);
   });
+  const photos = await request(`/api/v2/pins/${pinId}/photos`);
+  const selected = photos.find((photo: { caption?: string }) => photo.caption === 'Browser image 99');
+  const thumbnailPath = new URL(selected.imageThumbnail).pathname;
+  let thumbnailReady = false;
+  page.on('response', response => { if (new URL(response.url()).pathname === thumbnailPath && response.ok()) thumbnailReady = true; });
   await profile(page);
+  await expect.poll(() => thumbnailReady, { timeout: 20_000 }).toBe(true);
   await page.getByRole('tabpanel').getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath('carousel-initial.png') });
@@ -413,4 +433,45 @@ test('carousel keeps full photos available after traversing a long update histor
   await expect(page.getByRole('group', { name: /Photo 2 of 101/ })).toBeVisible();
   await page.screenshot({ path: info.outputPath('carousel-photo-after-return.png') });
   await touch.detach();
+});
+
+test('profile update photo pixels survive opening details and returning', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const appBack = () => page.getByRole('button', { name: 'Back', exact: true })
+    .or(page.getByRole('button').filter({ hasText: 'Back' })).first().click();
+  const loaded = new Set<string>();
+  page.on('response', response => {
+    if (isPhoto(response.url()) && response.ok()) loaded.add(response.url());
+  });
+  const photos = await request(`/api/v2/pins/${pinId}/photos`);
+  const selected = photos.find((photo: { caption?: string }) => photo.caption === 'Browser image 99');
+  const thumbnailPath = new URL(selected.imageThumbnail).pathname;
+  let thumbnailReady = false;
+  page.on('response', response => { if (new URL(response.url()).pathname === thumbnailPath && response.ok()) thumbnailReady = true; });
+  await profile(page);
+  await expect.poll(() => thumbnailReady, { timeout: 20_000 }).toBe(true);
+  const tile = page.getByRole('tabpanel').getByRole('button').first();
+  await expect(tile).toBeVisible();
+  await expect.poll(() => loaded.size).toBeGreaterThan(0);
+  // Let the thumbnail finish its fade before comparing the displayed pixels.
+  await page.waitForTimeout(800);
+  const before = await tile.screenshot();
+  expect(before.length, 'fixture photograph must be visible before navigation').toBeGreaterThan(2000);
+  for (let visit = 0; visit < 2; visit++) {
+    await tile.click();
+    await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
+    await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
+    if (visit === 0) await appBack();
+    else await page.goBack();
+    await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
+    if (visit === 0) await appBack();
+    else await page.goBack();
+    await expect(tile).toBeVisible();
+    await expect.poll(async () => (await tile.screenshot()).equals(before), {
+      message: 'returning to the profile must restore the same photograph',
+      timeout: 10_000,
+    }).toBe(true);
+  }
+  await page.screenshot({ path: info.outputPath('profile-after-details.png') });
 });

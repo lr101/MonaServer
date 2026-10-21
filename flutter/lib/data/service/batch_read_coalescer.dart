@@ -333,6 +333,22 @@ class SuppliedImageUrlRegistry {
     final key = BatchReadKey(kind, id);
     if (_urls[key]?.value == url) _urls.remove(key);
   }
+
+  /// Drops every cached original/update URL associated with pins whose group
+  /// access was revoked. Update keys use the `photo:<pinId>:<photoId>` form.
+  void invalidatePinPhotos(Iterable<String> pinIds) {
+    final ids = pinIds.toSet();
+    if (ids.isEmpty) return;
+    _urls.removeWhere((key, _) {
+      if (key.kind != BatchReadKind.pinImage &&
+          key.kind != BatchReadKind.pinImageThumbnail) {
+        return false;
+      }
+      return ids.any(
+        (pinId) => key.id == pinId || key.id.startsWith('photo:$pinId:'),
+      );
+    });
+  }
 }
 
 final batchReadCoalescerProvider = Provider<BatchReadCoalescer>((ref) {
@@ -469,21 +485,18 @@ void registerOriginalPinPhotoImageUrls(
   String pinId,
   Iterable<PinPhotoDto> photos,
 ) {
-  final original = photos
-      .where((photo) => photo.isOriginal && photo.pinId == pinId)
-      .firstOrNull;
-  if (original == null) return;
   final registry = _readSuppliedImageUrlRegistry(reader);
   if (registry == null) return;
-  if (original.image?.isNotEmpty == true) {
-    registry.register(BatchReadKind.pinImage, pinId, original.image);
-  }
-  if (original.imageThumbnail?.isNotEmpty == true) {
-    registry.register(
-      BatchReadKind.pinImageThumbnail,
-      pinId,
-      original.imageThumbnail,
-    );
+  for (final photo in photos) {
+    final ids = ['photo:$pinId:${photo.id}', if (photo.isOriginal) pinId];
+    for (final id in ids) {
+      registry.register(BatchReadKind.pinImage, id, photo.image);
+      registry.register(
+        BatchReadKind.pinImageThumbnail,
+        id,
+        photo.imageThumbnail,
+      );
+    }
   }
 }
 

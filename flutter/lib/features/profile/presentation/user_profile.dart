@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
@@ -100,7 +101,13 @@ class _UserProfileState extends ConsumerState<UserProfile>
       body: TabBarView(
         controller: _tabController,
         children: [
-          ImageGrid(pinProvider: profileGridEntriesProvider(userId)),
+          ImageGrid(
+            pinProvider: profileGridEntriesProvider(userId),
+            userId: userId,
+            onRefresh: () => ref
+                .read(photoLibraryProvider)
+                .refreshGallery(PhotoScope(userId: userId)),
+          ),
           const UserAchievementsTab(),
         ],
       ),

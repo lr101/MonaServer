@@ -18,6 +18,42 @@ void main() {
   });
   tearDown(() => cache.dispose());
 
+  testWidgets('cold gallery failure offers an explicit retry without remount', (
+    tester,
+  ) async {
+    final controller = StreamController<List<PinEntity>>.broadcast();
+    final provider = StreamProvider<List<PinEntity>>(
+      (ref) => controller.stream,
+    );
+    final container = ProviderContainer();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ImageGrid(
+              pinProvider: provider,
+              onRefresh: () async {
+                controller.add([]);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    controller.addError(StateError('offline'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Unable to load images'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('No images found'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+    unawaited(controller.close());
+  });
+
   List<PinEntity> entries(int count) => [
     for (var index = 0; index < count; index++)
       PinEntity(

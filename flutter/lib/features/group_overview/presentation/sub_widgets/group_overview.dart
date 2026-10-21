@@ -1,3 +1,4 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
@@ -154,9 +155,18 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           ),
           ImageGrid(
             pinProvider: groupPinEntriesProvider(widget.groupId),
+            onRefresh: () => ref
+                .read(photoLibraryProvider)
+                .refreshGallery(PhotoScope(groupId: widget.groupId)),
             onTap: (index) => context.pushNamed(
-              'groupImageFeed',
-              pathParameters: {'id': widget.groupId, 'index': '$index'},
+              'groupPhotoFeed',
+              pathParameters: {
+                'id': widget.groupId,
+                'entryId': ref
+                    .read(groupPinEntriesProvider(widget.groupId))
+                    .requireValue[index]
+                    .entryId,
+              },
             ),
           ),
           ListView(

@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
@@ -463,11 +463,18 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       }
 
       try {
+        final library = ref.read(photoLibraryProvider);
+        final writeStarted = library.beginWrite();
         final uploadedPhoto = await _photoUploadRetry.submit(
           (request) => ref.read(pinApiProvider).addPinPhoto(pin.pinId, request),
         );
         try {
-          await _cacheSuccessfulPhotoUpdate(pin, uploadedPhoto);
+          await _cacheSuccessfulPhotoUpdate(
+            pin,
+            uploadedPhoto,
+            library,
+            writeStarted,
+          );
         } catch (_) {
           // The server accepted the photo; profile cache refresh is best-effort.
         }
@@ -476,9 +483,6 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
         } else {
           _uploadedUpdatePinId = pin.pinId;
         }
-        ref.invalidate(pinPhotoHistoryProvider(pin.pinId));
-        ref.invalidate(groupPinEntriesProvider(pin.groupId));
-        ref.invalidate(activePinEntriesProvider);
       } on ApiException catch (error) {
         _photoUploadRetry.handleApiFailure(error);
         _approvalStarted = false;
@@ -518,7 +522,9 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     }
 
     if (!mounted) return;
-    ref.invalidate(groupPinEntriesProvider(pin.groupId));
+    if (_markSelectedPinGone && !pin.isGone) {
+      ref.invalidate(groupPinEntriesProvider(pin.groupId));
+    }
     CustomErrorSnackBar.message(
       message: _markSelectedPinGone && !pin.isGone
           ? 'Photo updated and place marked gone.'
@@ -530,29 +536,27 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
   Future<void> _cacheSuccessfulPhotoUpdate(
     PinEntity pin,
     PinPhotoDto? uploadedPhoto,
+    PhotoLibrary repository,
+    int writeStarted,
   ) async {
-    final repository = ref.read(pinPhotoHistoryRepositoryProvider);
+    if (!mounted || !repository.canWrite(pin, writeStarted)) return;
     final pinRepository = ref.read(pinRepositoryProvider);
     final userPinsRepository = ref.read(userPinsRepositoryProvider);
 
     if (uploadedPhoto == null) {
-      final history = await ref.read(pinApiProvider).getPinPhotos(pin.pinId);
-      if (history != null) await repository.putMultiple({pin.pinId: history});
+      await repository.refreshHistory(pin.pinId);
     } else {
-      final cachedHistory = await repository.get(pin.pinId);
-      final photosById = <String, PinPhotoDto>{
-        for (final photo in cachedHistory?.photos ?? const <PinPhotoDto>[])
-          photo.id: photo,
-        uploadedPhoto.id: uploadedPhoto,
-      };
-      await repository.putMultiple({pin.pinId: photosById.values.toList()});
+      if (!await repository.accept(pin, uploadedPhoto, startedAt: writeStarted))
+        return;
     }
 
     final cachedPin = await pinRepository.get(pin.pinId);
+    if (!mounted || !repository.canWrite(pin, writeStarted)) return;
     await pinRepository.put(
       (cachedPin ?? pin).copyWith(keepAlive: true, onlySession: false)
           as PinEntity,
     );
+    if (!mounted || !repository.canWrite(pin, writeStarted)) return;
     final userId = ref.read(userIdProvider);
     if (userId.isNotEmpty) {
       await userPinsRepository.ensurePinIndexed(userId, pin.pinId);

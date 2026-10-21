@@ -1,3 +1,5 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -35,123 +37,151 @@ import 'package:openapi/api.dart';
 import 'package:transparent_image/transparent_image.dart';
 
 void main() {
-  testWidgets(
-    'adding a photo to another user’s pin immediately publishes it on profile',
-    (tester) async {
-      final previousGeolocator = GeolocatorPlatform.instance;
-      GeolocatorPlatform.instance = _FixedGeolocator(_nearbyPosition());
-      addTearDown(() => GeolocatorPlatform.instance = previousGeolocator);
+  for (final loseAccessDuringUpload in [false, true]) {
+    testWidgets(
+      loseAccessDuringUpload
+          ? 'a delayed upload response cannot republish a departed group photo'
+          : 'adding a photo to another user’s pin immediately publishes it on profile',
+      (tester) async {
+        final previousGeolocator = GeolocatorPlatform.instance;
+        GeolocatorPlatform.instance = _FixedGeolocator(_nearbyPosition());
+        addTearDown(() => GeolocatorPlatform.instance = previousGeolocator);
 
-      final database = AppDatabase(NativeDatabase.memory());
-      final profileRepository = UserPinsRepository(database);
-      final syncWatermark = DateTime.utc(2026, 2);
-      await profileRepository.put(
-        UserPinsEntity(
-          userId: 'updater',
-          pins: const [],
-          ttl: syncWatermark,
-          keepAlive: true,
+        final database = AppDatabase(NativeDatabase.memory());
+        final profileRepository = UserPinsRepository(database);
+        final syncWatermark = DateTime.utc(2026, 2);
+        await profileRepository.put(
+          UserPinsEntity(
+            userId: 'updater',
+            pins: const [],
+            ttl: syncWatermark,
+            keepAlive: true,
+            onlySession: false,
+          ),
+        );
+
+        final pin = _originalPin();
+        final group = GroupEntity(
+          groupId: 'group-id',
+          name: 'Sample group',
+          visibility: 0,
+          userIsMember: true,
+          ttl: DateTime.utc(2027),
           onlySession: false,
-        ),
-      );
+        );
+        final api = _PhotoUploadApi();
+        if (loseAccessDuringUpload) api.uploadGate = Completer<void>();
+        final container = ProviderContainer(
+          overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+            accountDatabaseProvider.overrideWithValue(database),
+            userIdProvider.overrideWithValue('updater'),
+            pinApiProvider.overrideWithValue(api),
+            photoApiProvider.overrideWithValue(_GalleryApi()),
+            cameraSelectedGroupProvider.overrideWith(
+              (_) => Future.value(group),
+            ),
+            groupOrderServiceProvider.overrideWithValue(const ['group-id']),
+            groupDetailsPinsProvider('group-id')
+                .overrideWithValue(AsyncData<List<PinEntity>?>([pin])),
 
-      final pin = _originalPin();
-      final group = GroupEntity(
-        groupId: 'group-id',
-        name: 'Sample group',
-        visibility: 0,
-        userIsMember: true,
-        ttl: DateTime.utc(2027),
-        onlySession: false,
-      );
-      final api = _PhotoUploadApi();
-      final container = ProviderContainer(
-        overrides: [
-          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
-          accountDatabaseProvider.overrideWithValue(database),
-          userIdProvider.overrideWithValue('updater'),
-          pinApiProvider.overrideWithValue(api),
-          cameraSelectedGroupProvider.overrideWith((_) => Future.value(group)),
-          groupOrderServiceProvider.overrideWithValue(const ['group-id']),
-          groupDetailsPinsProvider('group-id')
-              .overrideWithValue(AsyncData<List<PinEntity>?>([pin])),
+            groupProfilePictureSmallByIdProvider('group-id')
+                .overrideWith((_) => Stream.value(kTransparentImage)),
+            defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+            pinUserServiceProvider('updater').overrideWith(_EmptyPins.new),
+            hiddenUserServiceProvider.overrideWithValue(const []),
+            hiddenPostsServiceProvider.overrideWithValue(const []),
+          ],
+        );
 
-          groupProfilePictureSmallByIdProvider('group-id')
-              .overrideWith((_) => Stream.value(kTransparentImage)),
-          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
-          pinUserServiceProvider('updater').overrideWith(_EmptyPins.new),
-          hiddenUserServiceProvider.overrideWithValue(const []),
-          hiddenPostsServiceProvider.overrideWithValue(const []),
-        ],
-      );
+        final profileUpdate = Completer<List<PinEntity>>();
+        final profileSubscription = container.listen(
+          userPinEntriesProvider('updater'),
+          (_, next) {
+            if (next case AsyncData<List<PinEntity>>(:final value)
+                when value.any((entry) => entry.entryId == 'photo-update')) {
+              if (!profileUpdate.isCompleted) profileUpdate.complete(value);
+            } else if (next case AsyncError<List<PinEntity>>(:final error)) {
+              if (!profileUpdate.isCompleted)
+                profileUpdate.completeError(error);
+            }
+          },
+        );
 
-      final profileUpdate = Completer<List<PinEntity>>();
-      final profileSubscription = container.listen(
-        userPinEntriesProvider('updater'),
-        (_, next) {
-          if (next case AsyncData<List<PinEntity>>(:final value)
-              when value.any((entry) => entry.entryId == 'photo-update')) {
-            if (!profileUpdate.isCompleted) profileUpdate.complete(value);
-          } else if (next case AsyncError<List<PinEntity>>(:final error)) {
-            if (!profileUpdate.isCompleted) profileUpdate.completeError(error);
-          }
-        },
-      );
+        addTearDown(() async {
+          profileSubscription.close();
+          container.dispose();
+          await database.close();
+          GeolocatorPlatform.instance = previousGeolocator;
+        });
 
-      addTearDown(() async {
-        profileSubscription.close();
-        container.dispose();
-        await database.close();
-        GeolocatorPlatform.instance = previousGeolocator;
-      });
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            home: ImageUpload(
-              image: Uint8List.fromList(kTransparentImage),
-              position: const LatLng(50, 8),
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: ImageUpload(
+                image: Uint8List.fromList(kTransparentImage),
+                position: const LatLng(50, 8),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+        );
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Old place'), findsOneWidget);
-      await tester.tap(find.text('Old place'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('Add photo update'), findsOneWidget);
+        expect(find.text('Old place'), findsOneWidget);
+        await tester.tap(find.text('Old place'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.text('Add photo update'), findsOneWidget);
 
-      await tester.tap(find.text('Add photo update'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+        await tester.tap(find.text('Add photo update'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
 
-      expect(api.uploadedPinIds, ['place']);
-      final entries = (await tester.runAsync(
-        () => profileUpdate.future.timeout(const Duration(seconds: 5)),
-      ))!;
-      final update = entries.singleWhere(
-        (entry) => entry.entryId == 'photo-update',
-      );
-      expect(update.pinId, 'place');
-      expect(update.creator, 'updater');
-      expect(update.photoUrl, 'https://example.test/photo-update.png');
-      expect(
-        await container.read(pinRepositoryProvider).get('place'),
-        isNotNull,
-      );
+        expect(api.uploadedPinIds, ['place']);
+        if (loseAccessDuringUpload) {
+          final library = container.read(photoLibraryProvider);
+          final removal = library.removeGroup('group-id');
+          await tester.pump();
+          await removal;
+          api.uploadGate!.complete();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(library.history('place'), isEmpty);
+          expect(profileUpdate.isCompleted, isFalse);
+          final profile = await tester.runAsync(
+            () => profileRepository.get('updater'),
+          );
+          expect(profile?.pins, isEmpty);
+          return;
+        }
+        final entries = (await tester.runAsync(
+          () => profileUpdate.future.timeout(const Duration(seconds: 5)),
+        ))!;
+        final update = entries.singleWhere(
+          (entry) => entry.entryId == 'photo-update',
+        );
+        expect(update.pinId, 'place');
+        expect(update.creator, 'updater');
+        expect(update.photoUrl, 'https://example.test/photo-update.png');
+        expect(
+          await container.read(pinRepositoryProvider).get('place'),
+          isNotNull,
+        );
 
-      final indexedProfile = await profileRepository.get('updater');
-      expect(indexedProfile?.pins, ['place']);
-      expect(
-        indexedProfile?.ttl.millisecondsSinceEpoch,
-        syncWatermark.millisecondsSinceEpoch,
-      );
-    },
-  );
+        final indexedProfile = await profileRepository.get('updater');
+        expect(indexedProfile?.pins, ['place']);
+        expect(
+          indexedProfile?.ttl.millisecondsSinceEpoch,
+          syncWatermark.millisecondsSinceEpoch,
+        );
+      },
+    );
+  }
 }
 
 class _FixedGeolocator extends GeolocatorPlatform {
@@ -169,6 +199,7 @@ class _PhotoUploadApi extends PinsApi {
   _PhotoUploadApi() : super(ApiClient());
 
   final uploadedPinIds = <String>[];
+  Completer<void>? uploadGate;
 
   @override
   Future<PinPhotoDto?> addPinPhoto(
@@ -176,6 +207,7 @@ class _PhotoUploadApi extends PinsApi {
     PinPhotoRequestDto pinPhotoRequestDto,
   ) async {
     uploadedPinIds.add(pinId);
+    await uploadGate?.future;
     return PinPhotoDto(
       id: 'photo-update',
       pinId: pinId,
@@ -232,3 +264,10 @@ Position _nearbyPosition() => Position(
   speed: 0,
   speedAccuracy: 1,
 );
+
+class _GalleryApi extends PhotoApi {
+  _GalleryApi() : super(ApiClient());
+  @override
+  Future<GalleryPhotoPage> gallery(PhotoScope scope, String? cursor) async =>
+      const GalleryPhotoPage(items: []);
+}

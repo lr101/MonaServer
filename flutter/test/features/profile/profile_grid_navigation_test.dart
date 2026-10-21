@@ -36,7 +36,7 @@ void main() {
   for (final ownProfile in [true, false]) {
     for (final kind in ['loading', 'thumbnail', 'photo thumbnail']) {
       testWidgets(
-        '${ownProfile ? 'own' : 'other'} profile opens details for a $kind tile',
+        '${ownProfile ? 'own' : 'other'} profile opens selected photo feed for a $kind tile',
         (tester) async {
           final userId = ownProfile ? 'viewer' : 'alice';
           final photoId = kind == 'photo thumbnail' ? 'update-photo' : null;
@@ -80,10 +80,11 @@ void main() {
                 ),
               ),
               GoRoute(
-                name: 'userImageFeed',
-                path: '/feed/:id/:index',
-                builder: (context, state) =>
-                    const Scaffold(body: Text('User feed')),
+                name: 'userPhotoFeed',
+                path: '/feed/:id/:entryId',
+                builder: (context, state) => Scaffold(
+                  body: Text('Photo ${state.pathParameters['entryId']}'),
+                ),
               ),
             ],
           );
@@ -119,18 +120,15 @@ void main() {
             await tester.pump(const Duration(milliseconds: 200));
           }
           if (kind == 'loading') {
-            expect(find.byType(CircularProgressIndicator), findsOneWidget);
-            expect(find.byType(SquareImage).hitTestable(), findsNothing);
+            expect(find.byType(SquareImage).hitTestable(), findsOneWidget);
+            expect(find.byType(SquareImage).hitTestable(), findsOneWidget);
             gate.complete();
             await pumpImageLoads(tester);
           }
           await tester.pump(const Duration(seconds: 11));
           await tester.tap(find.byType(SquareImage));
           await tester.pumpAndSettle();
-          expect(
-            find.text('Details pin ${photoId ?? 'original'}'),
-            findsOneWidget,
-          );
+          expect(find.text('Photo ${photoId ?? 'pin'}'), findsOneWidget);
           expect(find.text('User feed'), findsNothing);
         },
       );

@@ -1,3 +1,5 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -20,6 +22,10 @@ import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/filter_service.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/syncing_service.dart';
@@ -88,7 +94,7 @@ void main() {
     await f.container.read(syncingServiceProvider.notifier).syncToBackend();
 
     expect(f.api.profilePinQueries, 1);
-    expect(f.api.photoHistoryRequests, ['updated-location']);
+    expect(f.api.photoHistoryRequests, isEmpty);
     expect(f.api.profileUpdateWatermarks.single, isNull);
 
     final profile = await f.container
@@ -109,7 +115,7 @@ void main() {
     await f.container.read(syncingServiceProvider.notifier).syncToBackend();
     expect(f.api.profilePinQueries, 2);
     expect(f.api.profileUpdateWatermarks.last, isNotNull);
-    expect(f.api.photoHistoryRequests, ['updated-location']);
+    expect(f.api.photoHistoryRequests, isEmpty);
 
     final deleteResponse = Completer<SyncDto?>();
     f.api.response = deleteResponse;
@@ -126,7 +132,7 @@ void main() {
       await f.container
           .read(pinPhotoHistoryRepositoryProvider)
           .get('updated-location'),
-      isNull,
+      isA<CachedPinPhotoHistory>().having((h) => h.photos, 'photos', isEmpty),
     );
   });
 
@@ -203,6 +209,72 @@ void main() {
     expect(profile?.pins, ['server-pin']);
     expect(profile?.ttl.isAtSameMomentAs(watermark), isTrue);
   });
+
+  for (final rejoin in [false, true]) {
+    test(
+      rejoin
+          ? 'old pending cleanup preserves fresh authorized photo state after rejoining'
+          : 'pending creation cannot restore caches or profile index after group removal',
+      () async {
+        final f = await _fixture();
+        await f.container
+            .read(userPinsRepositoryProvider)
+            .put(
+              UserPinsEntity(
+                userId: 'alice',
+                pins: const [],
+                ttl: DateTime.utc(2026),
+                onlySession: false,
+              ),
+            );
+        await f.pending.enqueue(_draft(), Uint8List.fromList([1, 2, 3]));
+        f.api.upload = Completer<PinWithOptionalImageDto?>();
+        final upload = f.container
+            .read(pendingPinUploaderProvider)
+            .upload('draft');
+        await f.api.uploadStarted.future;
+        final library = f.container.read(photoLibraryProvider);
+        await library.removeGroup('group');
+        if (rejoin) {
+          f.api.groupPins = [_createdPin()];
+          final groups = f.container.listen(
+            userGroupServiceProvider,
+            (_, _) {},
+          );
+          addTearDown(groups.close);
+          await f.container.read(userGroupServiceProvider.future);
+          expect(
+            await f.container
+                .read(userGroupServiceProvider.notifier)
+                .joinGroup('group'),
+            isNull,
+          );
+          expect(
+            library.parent('server-pin'),
+            isNull,
+            reason: 'the actual group join caches parent rows before gallery discovery',
+          );
+        }
+        f.api.upload!.complete(_createdPin());
+        await upload;
+        expect(
+          await f.container.read(pinRepositoryProvider).get('server-pin'),
+          rejoin ? isNotNull : isNull,
+        );
+        expect(
+          await f.container.read(pinRepositoryProvider).get('draft'),
+          isNull,
+        );
+        expect(
+          (await f.container.read(userPinsRepositoryProvider).get('alice'))
+              ?.pins,
+          rejoin ? ['server-pin'] : isEmpty,
+        );
+        expect(library.history('server-pin'), isEmpty);
+        expect(await f.db.select(f.db.pendingPinCreates).get(), isEmpty);
+      },
+    );
+  }
 
   test(
     'profile metadata publishes without waiting for image downloads',
@@ -740,6 +812,184 @@ void main() {
 
     expect(removedUserGroupIds(['kept', 'removed'], response), {'removed'});
   });
+
+  for (final explicitLeave in [true, false]) {
+    test(
+      '${explicitLeave ? 'explicit group leave' : 'remote membership removal'} purges cached photos and URLs before offline reads',
+      () async {
+        final f = await _fixture();
+        final owner = f.container.read(photoLibraryProvider);
+        final cachedPin = PinEntity.fromDto(_createdPin(), false);
+        await f.container
+            .read(groupRepositoryProvider)
+            .put(
+              GroupEntity(
+                groupId: 'group',
+                name: 'Private group',
+                visibility: 1,
+                userIsMember: true,
+                ttl: DateTime.utc(2099),
+                onlySession: false,
+              ),
+            );
+        final update = PinPhotoDto(
+          id: 'update',
+          pinId: cachedPin.pinId,
+          contributorId: 'alice',
+          contributorUsername: 'Alice',
+          observedAt: DateTime.utc(2026, 2),
+          isOriginal: false,
+          image: 'https://images.test/update',
+          imageThumbnail: 'https://images.test/update-small',
+        );
+        await owner.accept(cachedPin, update);
+        final registry = f.container.read(suppliedImageUrlRegistryProvider);
+        registry.register(
+          BatchReadKind.pinImage,
+          cachedPin.pinId,
+          'https://images.test/original',
+        );
+        expect(
+          registry.lookup(BatchReadKind.pinImage, 'photo:server-pin:update'),
+          isNotNull,
+        );
+        // No later gallery request can mask a missing purge by clearing metadata.
+        f.api.galleryErrors[const PhotoScope(userId: 'alice')] = ApiException(
+          503,
+          'offline',
+        );
+        f.api.galleryErrors[const PhotoScope(groupId: 'group')] = ApiException(
+          503,
+          'offline',
+        );
+        f.api.photoHistoryErrors[cachedPin.pinId] = ApiException(
+          503,
+          'offline',
+        );
+
+        if (explicitLeave) {
+          final subscription = f.container.listen(
+            userGroupServiceProvider,
+            (_, _) {},
+          );
+          addTearDown(subscription.close);
+          await f.container.read(userGroupServiceProvider.future);
+          expect(
+            await f.container
+                .read(userGroupServiceProvider.notifier)
+                .leaveGroup('group'),
+            isNull,
+          );
+        } else {
+          await f.container
+              .read(syncingServiceProvider.notifier)
+              .syncToBackend();
+        }
+
+        await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+        expect(
+          owner.gallery(const PhotoScope(userId: 'alice')).photos,
+          isEmpty,
+        );
+        expect(owner.history(cachedPin.pinId), isEmpty);
+        expect(
+          (await f.container
+                  .read(pinPhotoHistoryRepositoryProvider)
+                  .get(cachedPin.pinId))
+              ?.photos,
+          isEmpty,
+        );
+        for (final kind in [
+          BatchReadKind.pinImage,
+          BatchReadKind.pinImageThumbnail,
+        ]) {
+          expect(registry.lookup(kind, cachedPin.pinId), isNull);
+          expect(registry.lookup(kind, 'photo:server-pin:update'), isNull);
+        }
+        await expectLater(
+          owner.refreshHistory(cachedPin.pinId),
+          throwsA(isA<ApiException>()),
+        );
+        expect(owner.history(cachedPin.pinId), isEmpty);
+      },
+    );
+  }
+
+  test('a failed sync gallery is retried on resume after a sync with no changed pins', () async {
+    final f = await _fixture();
+    const scope = PhotoScope(groupId: 'group');
+    final update = PinPhotoDto(
+      id: 'remote-update',
+      pinId: 'server-pin',
+      contributorId: 'bob',
+      contributorUsername: 'Bob',
+      observedAt: DateTime.utc(2026, 2),
+      isOriginal: false,
+    );
+    f.api.profilePins = [_createdPin()];
+    f.api.photoHistories['server-pin'] = [update];
+    f.api.galleryErrors[scope] = ApiException(503, 'offline');
+    f.api.response = Completer<SyncDto?>()
+      ..complete(
+        SyncDto(
+          groupUpdates: [
+            SyncDtoGroupUpdatesInner(
+              group: GroupDto(id: 'group', name: 'Group', visibility: 0),
+              pinsAdded: [_createdPin()],
+            ),
+          ],
+        ),
+      );
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+    final owner = f.container.read(photoLibraryProvider);
+    final feedContainer = ProviderContainer(
+      overrides: [
+        photoLibraryProvider.overrideWithValue(owner),
+        sortedActivatedPinsProvider.overrideWith(
+          (ref) => AsyncData([PinEntity.fromDto(_createdPin(), false)]),
+        ),
+        hiddenPostsServiceProvider.overrideWithValue([]),
+        hiddenUserServiceProvider.overrideWithValue([]),
+      ],
+    );
+    addTearDown(feedContainer.dispose);
+    final feed = feedContainer.listen(activePinEntriesProvider, (_, _) {});
+    addTearDown(feed.close);
+    await feedContainer.read(activePinEntriesProvider.future);
+    expect(
+      owner.history('server-pin').map((photo) => photo.id),
+      isNot(contains(update.id)),
+    );
+    f.api.galleryErrors.remove(scope);
+    f.api.response = Completer<SyncDto?>()
+      ..complete(
+        SyncDto(
+          groupUpdates: [
+            SyncDtoGroupUpdatesInner(
+              group: GroupDto(id: 'group', name: 'Group', visibility: 0),
+            ),
+          ],
+        ),
+      );
+    await f.container.read(syncingServiceProvider.notifier).syncToBackend();
+    expect(f.api.galleryCalls[scope], 1);
+
+    await owner.refreshActive();
+
+    expect(f.api.galleryCalls[scope], 2);
+    expect(
+      owner.history('server-pin').map((photo) => photo.id),
+      contains(update.id),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(
+      feedContainer
+          .read(activePinEntriesProvider)
+          .requireValue
+          .map((entry) => entry.entryId),
+      contains(update.id),
+    );
+  });
 }
 
 class _NoUser extends UserService {
@@ -753,8 +1003,11 @@ class _Pins extends PinsApi {
   final profileUpdateWatermarks = <DateTime?>[];
   final photoHistoryRequests = <String>[];
   List<PinWithOptionalImageDto> profilePins = const [];
+  List<PinWithOptionalImageDto> groupPins = const [];
   final photoHistories = <String, List<PinPhotoDto>>{};
   final photoHistoryErrors = <String, Object>{};
+  final galleryErrors = <PhotoScope, Object>{};
+  final galleryCalls = <PhotoScope, int>{};
   int uploadCalls = 0;
   final deleted = <String>[];
   Completer<SyncDto?>? response;
@@ -787,7 +1040,7 @@ class _Pins extends PinsApi {
       profileUpdateWatermarks.add(updatedAfter);
       return PinsSyncDto(items: profilePins);
     }
-    return PinsSyncDto();
+    return PinsSyncDto(items: groupPins);
   }
 
   @override
@@ -828,6 +1081,17 @@ class _Pins extends PinsApi {
     if (response != null) return response!.future;
     return SyncDto(groupUpdates: []);
   }
+}
+
+class _Members extends MembersApi {
+  @override
+  Future<void> deleteMemberFromGroup(String groupId, String userId) async {}
+  @override
+  Future<GroupDto?> joinGroup(
+    String groupId,
+    String userId, {
+    String? inviteUrl,
+  }) async => GroupDto(id: groupId, name: 'Rejoined group', visibility: 1);
 }
 
 class _Groups extends GroupsApi {
@@ -924,9 +1188,11 @@ _fixture({
         ),
       ),
       pinApiProvider.overrideWithValue(api),
+      photoApiProvider.overrideWithValue(_GalleryApi(api)),
       userApiProvider.overrideWithValue(_Users()),
       pendingPinRepositoryProvider.overrideWithValue(pending),
       groupApiProvider.overrideWithValue(groups),
+      memberApiProvider.overrideWithValue(_Members()),
       userServiceProvider('alice').overrideWith(_NoUser.new),
     ],
   );
@@ -1025,3 +1291,22 @@ PinWithOptionalImageDto _createdPin() => PinWithOptionalImageDto(
   creationUser: 'alice',
   groupId: 'group',
 );
+
+class _GalleryApi extends PhotoApi {
+  _GalleryApi(this.api) : super(ApiClient());
+  final _Pins api;
+  @override
+  Future<GalleryPhotoPage> gallery(PhotoScope scope, String? cursor) async {
+    api.galleryCalls.update(scope, (count) => count + 1, ifAbsent: () => 1);
+    final error = api.galleryErrors[scope];
+    if (error != null) throw error;
+    return GalleryPhotoPage(
+      items: [
+        for (final pin in api.profilePins)
+          for (final photo in api.photoHistories[pin.id] ?? <PinPhotoDto>[])
+            if (scope.contains(PinEntity.fromDto(pin, false), photo))
+              GalleryPhotoRecord(PinEntity.fromDto(pin, false), photo),
+      ],
+    );
+  }
+}

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,12 +32,14 @@ class PinImageSources {
     required this.batch,
     required this.getPhotos,
     required this.namespace,
+    this.renewPhoto,
   });
 
   final SuppliedImageUrlRegistry registry;
   final BatchReadCoalescer batch;
   final Future<List<PinPhotoDto>> Function(String) getPhotos;
   final String namespace;
+  final Future<PinPhotoDto?> Function(String)? renewPhoto;
   final Map<String, Future<List<PinPhotoDto>>> _renewals = {};
 
   FutureOr<PinImageSource?> resolve(PinImageRequest request) {
@@ -46,10 +48,13 @@ class PinImageSources {
       final kind = small
           ? BatchReadKind.pinImageThumbnail
           : BatchReadKind.pinImage;
+      final cacheId = request.photoId == null
+          ? request.pinId
+          : 'photo:${request.pinId}:${request.photoId}';
+      // A neighbouring display may already have renewed this photo. Prefer
+      // its shared URL to the older snapshot retained by a grid entry.
       final url =
-          (request.photoId == null
-              ? registry.lookup(kind, request.pinId)
-              : null) ??
+          registry.lookup(kind, cacheId) ??
           (small ? request.thumbnailUrl : request.imageUrl);
       if (url != null && url.isNotEmpty) return _source(url);
     }
@@ -65,6 +70,38 @@ class PinImageSources {
     final thumbnail = request.attempt.isEven;
     final renew = request.attempt >= 2;
     String? url;
+    if (renewPhoto != null) {
+      final cacheId = request.photoId == null
+          ? request.pinId
+          : 'photo:${request.pinId}:${request.photoId}';
+      final kind = thumbnail
+          ? BatchReadKind.pinImageThumbnail
+          : BatchReadKind.pinImage;
+      var shared = registry.lookup(kind, cacheId, renewedOnly: renew);
+      if (shared == null) {
+        final photo = await renewPhoto!(request.photoId ?? request.pinId);
+        if (photo == null) return null;
+        for (final id in [
+          'photo:${photo.pinId}:${photo.id}',
+          if (photo.isOriginal) photo.pinId,
+        ]) {
+          registry.register(
+            BatchReadKind.pinImage,
+            id,
+            photo.image,
+            renewed: true,
+          );
+          registry.register(
+            BatchReadKind.pinImageThumbnail,
+            id,
+            photo.imageThumbnail,
+            renewed: true,
+          );
+        }
+        shared = thumbnail ? photo.imageThumbnail : photo.image;
+      }
+      return shared == null || shared.isEmpty ? null : _source(shared);
+    }
     if (request.photoId != null) {
       if (renew) {
         final cacheId = 'photo:${request.pinId}:${request.photoId}';
@@ -145,8 +182,8 @@ final pinImageSourcesProvider = Provider<PinImageSources>((ref) {
   return PinImageSources(
     registry: ref.watch(suppliedImageUrlRegistryProvider),
     batch: ref.watch(batchReadCoalescerProvider),
-    getPhotos: (id) async =>
-        await ref.read(pinApiProvider).getPinPhotos(id) ?? [],
+    getPhotos: ref.watch(photoLibraryProvider).refreshHistory,
+    renewPhoto: ref.watch(photoLibraryProvider).renew,
     namespace: ref.watch(imageSessionNamespaceProvider),
   );
 });

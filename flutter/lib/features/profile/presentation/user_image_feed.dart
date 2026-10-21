@@ -10,11 +10,13 @@ class UserImageFeed extends ConsumerStatefulWidget {
   const UserImageFeed({
     super.key,
     required this.index,
+    this.entryId,
     required this.userId,
     required this.userPinNotifier,
   });
 
   final int index;
+  final String? entryId;
   final String userId;
   final ProviderListenable<AsyncValue<List<PinEntity>>> userPinNotifier;
 
@@ -39,8 +41,13 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
     return Scaffold(
       appBar: AppBar(title: const Text("User images")),
       body: pins.when(
+        skipError: pins.hasValue,
         data: (data) {
-          final initialItems = data.take(widget.index + 1).toList();
+          final selected = data.indexWhere(
+            (item) => item.entryId == widget.entryId,
+          );
+          final initialIndex = selected < 0 ? widget.index : selected;
+          final initialItems = data.take(initialIndex + 1).toList();
           final pagingController = _pagingController ??=
               PagingController.fromValue(
                 PagingState<int, PinEntity>(
@@ -57,7 +64,8 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
             slivers: [
               CustomFeed(
                 pinProvider: widget.userPinNotifier,
-                index: widget.index,
+                index: initialIndex,
+                entryId: widget.entryId,
                 pagingController: pagingController,
                 scrollController: _scrollController,
                 thumbnailsOnly: true,

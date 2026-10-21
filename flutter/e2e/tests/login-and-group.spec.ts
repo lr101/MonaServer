@@ -53,8 +53,8 @@ test('email-code sign-in remains the default and can switch to password', async 
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
-  await expect(page.locator('input[aria-label="Username"]')).toBeVisible();
-  await expect(page.locator('input[aria-label="Password"]')).toBeVisible();
+  await expect(page.locator('#stick-it-login-username')).toBeVisible();
+  await expect(page.locator('#stick-it-login-password')).toBeVisible();
   await page.getByRole('button', { name: 'Use email code instead', exact: true }).click();
   await expect(identifier).toBeVisible();
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
@@ -454,7 +454,7 @@ async function submitLogin(page: Page, data: E2eData): Promise<void> {
 }
 
 async function enterFlutterText(page: Page, label: string, value: string): Promise<void> {
-  const input = page.locator(`input[aria-label="${label}"]`);
+  const input = page.locator(label === 'Username' ? '#stick-it-login-username' : label === 'Password' ? '#stick-it-login-password' : `input[aria-label="${label}"]`);
   await input.click();
   await expect(input).toBeFocused();
   // Flutter attaches its editing client after DOM focus. Typing in that same
