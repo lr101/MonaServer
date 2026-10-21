@@ -238,6 +238,97 @@ void main() {
       );
     }
   }
+  testWidgets('many photo indicators keep a gap around the selected pill', (
+    tester,
+  ) async {
+    final photos = List.generate(
+      19,
+      (index) => PinPhotoDto(
+        id: 'update-$index',
+        pinId: 'pin',
+        contributorUsername: 'Mara',
+        observedAt: DateTime.utc(2026),
+        isOriginal: false,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+          remoteImageSourceProvider.overrideWith(
+            (ref, request) => PinImageSource(
+              url: 'https://fixture.test/photo.jpg',
+              cacheKey:
+                  'fixture:${request.image.kind}:${request.image.id}:${request.attempt % 2}',
+            ),
+          ),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+          groupProfilePictureSmallByIdProvider('group')
+              .overrideWith((ref) => Stream.value(kTransparentImage)),
+          feedMapBuilderProvider.overrideWithValue(
+            (pin) => const ColoredBox(color: Colors.grey),
+          ),
+
+          pinPhotoHistoryProvider('pin')
+              .overrideWith((ref) => Stream.value(photos)),
+          currentLocationProvider.overrideWith((ref) => const Stream.empty()),
+          groupMetadataProvider('group')
+              .overrideWith((ref) => Stream.value(null)),
+          likeServiceProvider('pin').overrideWith(_Likes.new),
+          globalDataServiceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'viewer',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: FeedCardImage(item: pin, maxWidth: 358, maxHeight: 477),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dots = find.byWidgetPredicate(
+      (widget) =>
+          widget is AnimatedContainer && widget.constraints?.maxHeight == 5,
+    );
+    void checkGaps() {
+      final rects =
+          dots
+              .evaluate()
+              .map((element) => tester.getRect(find.byWidget(element.widget)))
+              .toList()
+            ..sort((a, b) => a.left.compareTo(b.left));
+      expect(rects, hasLength(10));
+      for (var i = 1; i < rects.length; i++) {
+        expect(
+          rects[i].left - rects[i - 1].right,
+          greaterThanOrEqualTo(3.9),
+          reason: 'Dots $i and ${i + 1} must stay separate',
+        );
+      }
+    }
+
+    checkGaps();
+    final controller = tester
+        .widget<PageView>(find.byType(PageView))
+        .controller!;
+    for (final page in [4, 5, 10, 11, 10, 4, 0]) {
+      controller.jumpToPage(page);
+      await tester.pump();
+      for (var frame = 0; frame < 15; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        checkGaps();
+      }
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 11));
+  });
   for (final width in [320.0, 800.0]) {
     testWidgets('metadata fits $width with large text', (tester) async {
       tester.view.physicalSize = Size(width, 1600);

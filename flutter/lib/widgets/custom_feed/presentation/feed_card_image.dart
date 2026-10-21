@@ -261,6 +261,7 @@ class _PhotoProgressDots extends StatefulWidget {
 
   static const _maximumVisibleDots = 10;
   static const _dotSlotWidth = 9.0;
+  static const _selectedExtraWidth = 7.0;
 
   final int index;
   final int count;
@@ -334,7 +335,7 @@ class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
         child: SizedBox(
           width:
               visibleCount * _PhotoProgressDots._dotSlotWidth +
-              (visibleCount > 0 ? 3 : 0),
+              (visibleCount > 0 ? _PhotoProgressDots._selectedExtraWidth : 0),
           height: 9,
           child: ClipRect(
             child: Stack(
@@ -364,18 +365,26 @@ class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
         dotIndex >= _previousFirstVisibleIndex &&
         dotIndex < _previousFirstVisibleIndex + _previousVisibleCount;
 
+    final slotWidth =
+        _PhotoProgressDots._dotSlotWidth +
+        (dotIndex == widget.index ? _PhotoProgressDots._selectedExtraWidth : 0);
     return AnimatedPositioned(
       key: ValueKey(dotIndex),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      left: slot * _PhotoProgressDots._dotSlotWidth,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      // Reserve the pill's extra width before laying out its neighbors.
+      left:
+          slot * _PhotoProgressDots._dotSlotWidth +
+          (dotIndex > widget.index
+              ? _PhotoProgressDots._selectedExtraWidth
+              : 0),
       top: 2,
-      width: _PhotoProgressDots._dotSlotWidth,
+      width: slotWidth,
       height: 5,
       child: _PhotoDotEntrance(
         animate: _hasPreviousWindow && !wasVisible,
         direction: _entryDirection,
-        width: _PhotoProgressDots._dotSlotWidth,
+        width: slotWidth,
         child: Align(
           alignment: Alignment.centerLeft,
           child: _dot(dotIndex, farthestDistance),
