@@ -51,6 +51,93 @@ tags:
 - description: Permission-filtered administrative audit history
   name: adminAudit
 paths:
+  /api/v2/gallery/photos:
+    get:
+      description: Exactly one of userId or groupId is required. User scope selects
+        the contributor of each photograph. Cursor is opaque; use nextCursor until
+        absent. Deleted pins and groups and inaccessible groups are excluded.
+      operationId: getGalleryPhotos
+      parameters:
+      - explode: true
+        in: query
+        name: userId
+        required: false
+        schema:
+          format: uuid
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: groupId
+        required: false
+        schema:
+          format: uuid
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/galleryPhotoPageDto"
+          description: Photo page
+        "400":
+          description: "Invalid scope, cursor or limit"
+        "401":
+          description: Authentication required
+        "403":
+          description: Group is not visible
+      security:
+      - token: []
+      summary: Discover visible original and update photos in stable observedAt/id
+        descending order
+      tags:
+      - gallery
+  /api/v2/photos/resolve:
+    post:
+      description: Items preserve request order. An inaccessible or missing photograph
+        returns status 404 without metadata. Each successful item contains both URL
+        variants.
+      operationId: resolvePhotos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/photoResolveRequestDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/photoResolveResponseDto"
+          description: Per-photo results
+        "400":
+          description: Invalid request size
+        "401":
+          description: Authentication required
+      security:
+      - token: []
+      summary: Resolve signed URLs for up to 100 photos with per-item authorization
+      tags:
+      - gallery
   /api/v3/batch:
     post:
       operationId: batchRead
@@ -7759,6 +7846,172 @@ components:
       - image
       - latitude
       - longitude
+      type: object
+    galleryPhotoDto:
+      example:
+        pin:
+          image: https://storage.example.com/stick-it/1/1.png
+          creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          latitude: -75.5850925717018
+          groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          description: description
+          title: A familiar place
+          isGone: false
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          creationDate: 2017-01-10T14:55:32+01:00
+          longitude: 36.988422590534526
+        photo:
+          image: http://example.com/aeiou
+          imageBlurhash: imageBlurhash
+          isOriginal: true
+          contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          contributorUsername: contributorUsername
+          observedAt: 2000-01-23T04:56:07.000+00:00
+          caption: caption
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          imageThumbnail: http://example.com/aeiou
+      properties:
+        pin:
+          $ref: "#/components/schemas/pinWithOptionalImageDto"
+        photo:
+          $ref: "#/components/schemas/pinPhotoDto"
+      required:
+      - photo
+      - pin
+      type: object
+    galleryPhotoPageDto:
+      example:
+        nextCursor: nextCursor
+        items:
+        - pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            title: A familiar place
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          photo:
+            image: http://example.com/aeiou
+            imageBlurhash: imageBlurhash
+            isOriginal: true
+            contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            contributorUsername: contributorUsername
+            observedAt: 2000-01-23T04:56:07.000+00:00
+            caption: caption
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            imageThumbnail: http://example.com/aeiou
+        - pin:
+            image: https://storage.example.com/stick-it/1/1.png
+            creationUser: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            latitude: -75.5850925717018
+            groupId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            description: description
+            title: A familiar place
+            isGone: false
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            creationDate: 2017-01-10T14:55:32+01:00
+            longitude: 36.988422590534526
+          photo:
+            image: http://example.com/aeiou
+            imageBlurhash: imageBlurhash
+            isOriginal: true
+            contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            contributorUsername: contributorUsername
+            observedAt: 2000-01-23T04:56:07.000+00:00
+            caption: caption
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            imageThumbnail: http://example.com/aeiou
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/galleryPhotoDto"
+          type: array
+        nextCursor:
+          type: string
+      required:
+      - items
+      type: object
+    photoResolveRequestDto:
+      properties:
+        photoIds:
+          items:
+            format: uuid
+            type: string
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+      - photoIds
+      type: object
+    photoResolveItemDto:
+      example:
+        photoId: photoId
+        photo:
+          image: http://example.com/aeiou
+          imageBlurhash: imageBlurhash
+          isOriginal: true
+          contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          contributorUsername: contributorUsername
+          observedAt: 2000-01-23T04:56:07.000+00:00
+          caption: caption
+          id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          imageThumbnail: http://example.com/aeiou
+        status: 0
+      properties:
+        photoId:
+          type: string
+        status:
+          type: integer
+        photo:
+          $ref: "#/components/schemas/pinPhotoDto"
+      required:
+      - photoId
+      - status
+      type: object
+    photoResolveResponseDto:
+      example:
+        items:
+        - photoId: photoId
+          photo:
+            image: http://example.com/aeiou
+            imageBlurhash: imageBlurhash
+            isOriginal: true
+            contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            contributorUsername: contributorUsername
+            observedAt: 2000-01-23T04:56:07.000+00:00
+            caption: caption
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            imageThumbnail: http://example.com/aeiou
+          status: 0
+        - photoId: photoId
+          photo:
+            image: http://example.com/aeiou
+            imageBlurhash: imageBlurhash
+            isOriginal: true
+            contributorId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            contributorUsername: contributorUsername
+            observedAt: 2000-01-23T04:56:07.000+00:00
+            caption: caption
+            id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            pinId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+            imageThumbnail: http://example.com/aeiou
+          status: 0
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/photoResolveItemDto"
+          type: array
+      required:
+      - items
       type: object
     pinPhotoDto:
       example:

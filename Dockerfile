@@ -30,7 +30,7 @@ RUN flutter build web --wasm --release --no-pub --dart-define=API_HOST_FROM_PAGE
     dart run tool/generate_offline_web.dart build/web && \
     test -s build/web/main.dart.js && test -s build/web/main.dart.mjs && test -s build/web/main.dart.wasm
 
-FROM nginx:1.28-alpine
+FROM nginx:1.31-alpine
 RUN mkdir -p /tmp/nginx/client /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi && \
     chown -R nginx:nginx /tmp/nginx
 COPY --from=api-build /out/monaserver /app/monaserver

@@ -1,303 +1,249 @@
-import 'dart:async';
-import 'dart:typed_data';
-
-import 'package:buff_lisa/data/entity/image_entity.dart';
-import 'package:buff_lisa/data/repository/image_repository.dart';
+import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
+import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/square_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:transparent_image/transparent_image.dart';
+import 'package:openapi/api.dart';
+
+import 'support/pin_image_test_cache.dart';
 
 void main() {
-  testWidgets('decodes grid images at their physical display width', (
-    tester,
-  ) async {
-    final bytes = Uint8List.fromList(kTransparentImage);
+  late PinImageTestCache cache;
+  late SuppliedImageUrlRegistry registry;
+  late BatchReadCoalescer batch;
+  late PinImageSources sources;
+  var historyRequests = 0;
+  setUp(() {
+    PaintingBinding.instance.imageCache.clear();
+    cache = PinImageTestCache()..install();
+    registry = SuppliedImageUrlRegistry();
+    batch = BatchReadCoalescer(
+      window: Duration.zero,
+      read: (items) async => [
+        for (final item in items)
+          BatchReadResult(
+            kind: batchResultKind(item.kind),
+            id: item.id,
+            status: 404,
+          ),
+      ],
+    );
+    historyRequests = 0;
+    sources = PinImageSources(
+      registry: registry,
+      batch: batch,
+      namespace: 'session',
+      getPhotos: (id) async {
+        historyRequests++;
+        return [
+          PinPhotoDto(
+            id: 'photo',
+            pinId: id,
+            contributorUsername: 'a',
+            observedAt: DateTime(2026),
+            imageThumbnail: 'https://example.test/renewed.png',
+            image: 'https://example.test/full.png',
+            isOriginal: false,
+          ),
+        ];
+      },
+    );
+  });
+  tearDown(() async {
+    registry.dispose();
+    batch.dispose();
+    await cache.dispose();
+  });
 
+  Future<void> mount(
+    WidgetTester tester, {
+    String? photoId,
+    String? thumb,
+    String? full,
+    void Function(int)? onTap,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(
-            _ImageRepository(bytes, ImageType.pinThumbnail),
-          ),
-          pinImageRepositoryProvider.overrideWithValue(
-            _ImageRepository(null, ImageType.pin),
-          ),
+          pinImageSourcesProvider.overrideWithValue(sources),
+          imageSessionNamespaceProvider.overrideWithValue(sources.namespace),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           home: MediaQuery(
-            data: MediaQueryData(devicePixelRatio: 3),
+            data: const MediaQueryData(devicePixelRatio: 3),
             child: Center(
               child: SizedBox.square(
                 dimension: 100,
                 child: SquareImage(
                   pinId: 'pin-1',
-                  groupId: 'group-1',
-                  index: 0,
-                  onTap: _ignoreTap,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final image = tester.widget<Image>(find.byType(Image));
-    final provider = image.image as ResizeImage;
-
-    expect(provider.width, 300);
-    expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
-  });
-
-  testWidgets('shows a placeholder when a pin image is unavailable', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(
-            _ImageRepository(null, ImageType.pinThumbnail),
-          ),
-          pinImageRepositoryProvider.overrideWithValue(
-            _ImageRepository(null, ImageType.pin),
-          ),
-        ],
-        child: const MaterialApp(
-          home: SquareImage(
-            pinId: 'pin-1',
-            groupId: 'group-1',
-            index: 0,
-            onTap: _ignoreTap,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
-  });
-
-  testWidgets('uses the photo thumbnail without fetching its full image', (
-    tester,
-  ) async {
-    final thumbnailBytes = Uint8List.fromList(kTransparentImage);
-    final fullImageBytes = Uint8List.fromList(kTransparentImage);
-    final thumbnailRepository = _ImageRepository(
-      null,
-      ImageType.pinThumbnail,
-      updateImage: thumbnailBytes,
-    );
-    final fullImageRepository = _ImageRepository(
-      null,
-      ImageType.pin,
-      updateImage: fullImageBytes,
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(thumbnailRepository),
-          pinImageRepositoryProvider.overrideWithValue(fullImageRepository),
-        ],
-        child: const MaterialApp(
-          home: SizedBox.square(
-            dimension: 100,
-            child: SquareImage(
-              pinId: 'place',
-              photoId: 'update-photo',
-              photoUrl: 'https://example.test/update.png',
-              photoThumbnailUrl: 'https://example.test/update-small.png',
-              groupId: 'group',
-              index: 0,
-              onTap: _ignoreTap,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(thumbnailRepository.requestedPhotoId, 'photo:update-photo');
-    expect(
-      thumbnailRepository.requestedPhotoUrl,
-      'https://example.test/update-small.png',
-    );
-    expect(fullImageRepository.requestedPhotoUrl, isNull);
-    final image = tester.widget<Image>(find.byType(Image));
-    expect(
-      ((image.image as ResizeImage).imageProvider as MemoryImage).bytes,
-      same(thumbnailBytes),
-    );
-  });
-
-  testWidgets('shows thumbnail bytes as soon as the shared cache updates', (
-    tester,
-  ) async {
-    final thumbnailBytes = Uint8List.fromList(kTransparentImage);
-    final thumbnailUpdates = StreamController<Uint8List?>.broadcast();
-    addTearDown(thumbnailUpdates.close);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          pinThumbnailRepositoryProvider.overrideWithValue(
-            _ImageRepository(
-              null,
-              ImageType.pinThumbnail,
-              imageUpdates: thumbnailUpdates.stream,
-            ),
-          ),
-          pinImageRepositoryProvider.overrideWithValue(
-            _ImageRepository(null, ImageType.pin),
-          ),
-        ],
-        child: const MaterialApp(
-          home: SquareImage(
-            pinId: 'pin-1',
-            groupId: 'group-1',
-            index: 0,
-            onTap: _ignoreTap,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
-
-    thumbnailUpdates.add(thumbnailBytes);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(Image), findsOneWidget);
-    final image = tester.widget<Image>(find.byType(Image));
-    final provider = image.image as ResizeImage;
-    expect((provider.imageProvider as MemoryImage).bytes, same(thumbnailBytes));
-  });
-
-  testWidgets(
-    'falls back to the full image when the thumbnail is unavailable',
-    (tester) async {
-      final bytes = Uint8List.fromList(kTransparentImage);
-      int? tappedIndex;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            pinThumbnailRepositoryProvider.overrideWithValue(
-              _ImageRepository(null, ImageType.pinThumbnail),
-            ),
-            pinImageRepositoryProvider.overrideWithValue(
-              _ImageRepository(bytes, ImageType.pin),
-            ),
-          ],
-          child: MaterialApp(
-            home: Center(
-              child: SizedBox.square(
-                dimension: 100,
-                child: SquareImage(
-                  pinId: 'pin-1',
-                  groupId: 'group-1',
+                  photoId: photoId,
+                  photoThumbnailUrl: thumb,
+                  photoUrl: full,
+                  groupId: 'group',
                   index: 7,
-                  onTap: (index) => tappedIndex = index,
+                  onTap: onTap ?? (_) {},
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+    for (var i = 0; i < 50; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
       );
-      await tester.pumpAndSettle();
-
-      expect(find.byType(Image), findsOneWidget);
-      final image = tester.widget<Image>(find.byType(Image));
-      final provider = image.image as ResizeImage;
-      expect((provider.imageProvider as MemoryImage).bytes, same(bytes));
-
-      await tester.tap(find.byType(SquareImage));
-      expect(tappedIndex, 7);
-    },
-  );
-}
-
-void _ignoreTap(int index) {}
-
-class _ImageRepository implements IImageRepository {
-  _ImageRepository(
-    this.image,
-    this.type, {
-    this.updateImage,
-    this.imageUpdates,
-  });
-
-  final Uint8List? image;
-  final Uint8List? updateImage;
-  final Stream<Uint8List?>? imageUpdates;
-  String? requestedPhotoId;
-  String? requestedPhotoUrl;
-
-  @override
-  final ImageType type;
-
-  @override
-  Future<Uint8List?> fetchImage(
-    String id,
-    bool keepAlive, {
-    ImageRequestPriority priority = ImageRequestPriority.foreground,
-    ImageRequestCancellation? cancellation,
-  }) async => image;
-
-  @override
-  Future<Uint8List?> fetchImageFromUrl(
-    String id,
-    String url,
-    bool keepAlive, {
-    bool fallbackToEndpoint = true,
-    ImageRequestPriority priority = ImageRequestPriority.foreground,
-    ImageRequestCancellation? cancellation,
-  }) async {
-    requestedPhotoId = id;
-    requestedPhotoUrl = url;
-    return updateImage;
+      await tester.pump(const Duration(milliseconds: 200));
+      if (find.byType(RawImage).evaluate().isNotEmpty ||
+          find.byIcon(Icons.image_not_supported_outlined).evaluate().isNotEmpty)
+        break;
+    }
+    await tester.pump(const Duration(seconds: 11));
   }
 
-  @override
-  Future<void> addImage(String id, Uint8List image, bool keepAlive) async {}
-
-  @override
-  Future<void> delete(String id) async {}
-
-  @override
-  Future<void> deleteAll() async {}
-
-  @override
-  Future<void> deleteMultiple(List<String> ids) async {}
-
-  @override
-  Future<void> deleteOldestItems() async {}
-
-  @override
-  Future<ImageEntity?> get(String id) async => null;
-
-  @override
-  Future<List<ImageEntity>> getAll() async => [];
-
-  @override
-  Future<List<ImageEntity?>> getList(List<String> ids) async => [];
-
-  @override
-  Future<Uint8List> overrideUrl(String id, String url, bool keepAlive) async =>
-      Uint8List(0);
-
-  @override
-  Future<void> put(ImageEntity item) async {}
-
-  @override
-  Future<void> putMultiple(List<ImageEntity> items) async {}
-
-  @override
-  Stream<ImageEntity?> watchById(String id) => Stream.value(null);
-
-  @override
-  Stream<Uint8List?> watchImageBytes(String id) =>
-      imageUpdates ?? Stream.value(null);
+  testWidgets(
+    'loads a supplied URL through the package without waiting for byte storage',
+    (tester) async {
+      registry.register(
+        BatchReadKind.pinImageThumbnail,
+        'pin-1',
+        'https://example.test/thumb.png',
+      );
+      await mount(tester);
+      expect(find.byType(CachedNetworkImage), findsOneWidget);
+      expect(cache.urls, ['https://example.test/thumb.png']);
+      final provider =
+          tester.widget<Image>(find.byType(Image).last).image as ResizeImage;
+      expect(provider.width, 300);
+      expect(provider.imageProvider, isA<CachedNetworkImageProvider>());
+    },
+  );
+  testWidgets('does not download a full photo when the thumbnail succeeds', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png',
+      full: 'https://example.test/full.png',
+    );
+    expect(cache.urls, ['https://example.test/thumb.png']);
+    expect(historyRequests, 0);
+  });
+  testWidgets('falls back from a failed thumbnail to the full photo', (
+    tester,
+  ) async {
+    cache.statuses['https://example.test/thumb.png'] = 404;
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png',
+      full: 'https://example.test/full.png',
+    );
+    expect(cache.urls, [
+      'https://example.test/thumb.png',
+      'https://example.test/full.png',
+    ]);
+    expect(find.byType(RawImage), findsOneWidget);
+    expect(historyRequests, 0);
+  });
+  testWidgets('renews expired photo metadata and displays the new image', (
+    tester,
+  ) async {
+    cache.statuses['https://example.test/expired-thumb.png'] = 403;
+    cache.statuses['https://example.test/expired-full.png'] = 403;
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/expired-thumb.png',
+      full: 'https://example.test/expired-full.png',
+    );
+    expect(cache.urls, [
+      'https://example.test/expired-thumb.png',
+      'https://example.test/expired-full.png',
+      'https://example.test/renewed.png',
+    ]);
+    expect(historyRequests, 1);
+    expect(find.byType(RawImage), findsOneWidget);
+  });
+  testWidgets('stops automatic retries and keeps a missing tile tappable', (
+    tester,
+  ) async {
+    var tapped = -1;
+    await mount(tester, onTap: (i) => tapped = i);
+    expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
+    await tester.tap(find.byType(SquareImage), warnIfMissed: false);
+    expect(tapped, 7);
+    await tester.pump(const Duration(seconds: 30));
+    expect(cache.urls, isEmpty);
+  });
+  testWidgets('a metadata-only URL rotation reuses the decoded image', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png?signature=old',
+    );
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png?signature=new',
+    );
+    expect(cache.urls, ['https://example.test/thumb.png?signature=old']);
+  });
+  testWidgets('a new session cannot reuse a previous session decoded frame', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png',
+    );
+    sources = PinImageSources(
+      registry: registry,
+      batch: batch,
+      namespace: 'new-session',
+      getPhotos: (_) async => [],
+    );
+    await mount(
+      tester,
+      photoId: 'photo',
+      thumb: 'https://example.test/thumb.png',
+    );
+    expect(cache.urls, [
+      'https://example.test/thumb.png',
+      'https://example.test/thumb.png',
+    ]);
+  });
+  testWidgets(
+    'renews a failed object when thumbnail and full URLs share its cache key',
+    (tester) async {
+      const expired = 'https://example.test/shared.png?signature=expired';
+      const renewed = 'https://example.test/shared.png?signature=renewed';
+      cache.statuses[expired] = 403;
+      sources = PinImageSources(
+        registry: registry,
+        batch: batch,
+        namespace: 'session',
+        getPhotos: (id) async => [
+          PinPhotoDto(
+            id: 'photo',
+            pinId: id,
+            contributorUsername: 'a',
+            observedAt: DateTime(2026),
+            image: renewed,
+            imageThumbnail: renewed,
+            isOriginal: false,
+          ),
+        ],
+      );
+      await mount(tester, photoId: 'photo', thumb: expired, full: expired);
+      expect(cache.urls, contains(renewed));
+      expect(find.byIcon(Icons.image_not_supported_outlined), findsNothing);
+      expect(find.byType(RawImage), findsOneWidget);
+    },
+  );
 }

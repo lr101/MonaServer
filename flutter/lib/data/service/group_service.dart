@@ -11,6 +11,8 @@ import 'package:buff_lisa/data/repository/image_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,6 +242,10 @@ class UserGroupService extends _$UserGroupService {
     final pinsApi = _pinsApi;
     // update group entity
     final groupId = groupDto.id;
+    final library = ref.exists(photoLibraryProvider)
+        ? ref.read(photoLibraryProvider)
+        : null;
+    final writeStarted = library?.beginWrite();
     registerGroupImageUrls(ref, groupDto);
     final groupEntity = GroupEntity.fromGroupDto(
       groupDto,
@@ -265,6 +271,8 @@ class UserGroupService extends _$UserGroupService {
     }
 
     if (!isCurrent()) return;
+    if (library != null)
+      library.restoreGroupAccess(groupId, startedAt: writeStarted!);
     // Media is an offline cache concern, not part of the join transaction.
     prefetchGroupMediaInBackground(ref, groupDto, keepAlive: true);
   }
@@ -274,7 +282,10 @@ class UserGroupService extends _$UserGroupService {
     if (!isCurrent()) return;
     final groupRepository = _groupRepository;
     final pinRepository = _pinRepository;
+    await ref.read(photoLibraryProvider).removeGroup(groupId);
+    if (!isCurrent()) return;
     await groupRepository.delete(groupId);
+    if (!isCurrent()) return;
     // make group pins not keepAlive and onlySession
     await pinRepository.updateKeepAlive(groupId, false, true);
   }
@@ -373,7 +384,8 @@ class UserGroupService extends _$UserGroupService {
 
         if (!isCurrent()) return "Session ended";
         if (data.profileImage != null) {
-          _refreshGroupImagesInBackground(ref, result);
+          await _refreshGroupImagesInBackground(ref, result);
+          if (!isCurrent()) return "Session ended";
         }
         prefetchGroupMediaInBackground(ref, result, keepAlive: true);
       } else {
@@ -386,7 +398,24 @@ class UserGroupService extends _$UserGroupService {
   }
 }
 
-void _refreshGroupImagesInBackground(Ref ref, GroupDto groupDto) {
+Future<void> _refreshGroupImagesInBackground(Ref ref, GroupDto groupDto) async {
+  final isCurrent = accountOperation(ref);
+  await replaceRemoteImage(
+    ref,
+    kind: RemoteImageKind.group,
+    id: groupDto.id,
+    thumbnailUrl: groupDto.profileImageSmall,
+    imageUrl: groupDto.profileImage,
+  );
+  if (!ref.mounted || !isCurrent()) return;
+  await replaceRemoteImage(
+    ref,
+    kind: RemoteImageKind.groupPin,
+    id: groupDto.id,
+    thumbnailUrl: groupDto.pinImage,
+    imageUrl: groupDto.pinImage,
+  );
+  if (!ref.mounted || !isCurrent()) return;
   final imageSources = <(IImageRepository, String?)>[
     (ref.read(groupProfileRepoProvider), groupDto.profileImage),
     (ref.read(groupProfileSmallRepoProvider), groupDto.profileImageSmall),

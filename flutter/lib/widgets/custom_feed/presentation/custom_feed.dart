@@ -1,3 +1,5 @@
+import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -19,6 +21,7 @@ class CustomFeed extends ConsumerStatefulWidget {
     super.key,
     required this.pinProvider,
     this.index,
+    this.entryId,
     required this.pagingController,
     this.scrollController,
     this.thumbnailsOnly = false,
@@ -27,6 +30,7 @@ class CustomFeed extends ConsumerStatefulWidget {
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
   final PagingController<int, PinEntity> pagingController;
   final int? index;
+  final String? entryId;
   final ScrollController? scrollController;
   final bool thumbnailsOnly;
 
@@ -39,6 +43,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   static const int _thumbnailPrefetchPageCount = 2;
 
   List<PinEntity> _pins = [];
+  String? _initialEntryId;
   final GlobalKey _initialItemKey = GlobalKey();
   final Set<String> _thumbnailPrefetchTargets = {};
   PinThumbnailPrefetchCoordinator? _thumbnailPrefetchCoordinator;
@@ -47,10 +52,21 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   @override
   void initState() {
     super.initState();
+    _pins = ref.read(widget.pinProvider).value ?? [];
+    _initialEntryId =
+        widget.entryId ??
+        (widget.index != null && widget.index! < _pins.length
+            ? _pins[widget.index!].entryId
+            : null);
     _pageRequestListener = (pageKey) => _fetchPage(pageKey);
     widget.pagingController.addPageRequestListener(_pageRequestListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(widget.pinProvider).whenData((data) => _pins = data ?? []);
+      _initialEntryId =
+          widget.entryId ??
+          (widget.index != null && widget.index! < _pins.length
+              ? _pins[widget.index!].entryId
+              : null);
       if (widget.index != null) {
         _scrollToInitialItem();
       } else {
@@ -95,10 +111,19 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   @override
   Widget build(BuildContext context) {
     ref.listen(widget.pinProvider, (previous, next) {
-      _pins = next.value ?? [];
-      _thumbnailPrefetchTargets.clear();
-      _thumbnailPrefetchCoordinator?.cancelWindow(this);
-      widget.pagingController.refresh();
+      if (!next.hasValue || next.isLoading || next.hasError) return;
+      final incoming = next.value ?? <PinEntity>[];
+      final loaded = widget.pagingController.itemList?.length ?? 0;
+      _pins = reconcileFeedEntries(_pins, incoming, loaded);
+      if (loaded == 0) {
+        widget.pagingController.refresh();
+      } else {
+        final count = loaded.clamp(0, _pins.length);
+        widget.pagingController.value = PagingState(
+          itemList: _pins.take(count).toList(),
+          nextPageKey: count < _pins.length ? count : null,
+        );
+      }
     });
     return PagedSliverList<int, PinEntity>(
       pagingController: widget.pagingController,
@@ -106,7 +131,9 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       builderDelegate: PagedChildBuilderDelegate<PinEntity>(
         animateTransitions: true,
         itemBuilder: (context, item, index) => ProviderScope(
-          key: index == widget.index ? _initialItemKey : null,
+          key: item.entryId == _initialEntryId
+              ? _initialItemKey
+              : ValueKey(item.entryId),
           child: ProviderScope(
             key: ValueKey(item.entryId),
             overrides: [feedItemProvider.overrideWithValue(item)],

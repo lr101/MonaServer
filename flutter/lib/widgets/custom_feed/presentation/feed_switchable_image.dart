@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_map_state.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,35 +48,41 @@ class FeedSwitchableImage extends ConsumerWidget {
                 ),
           child: ColoredBox(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: FadeInImage(
-              fadeInDuration: const Duration(milliseconds: 100),
-              fit: BoxFit.contain,
-              placeholder: MemoryImage(kTransparentImage),
-              image: item.photoUrl != null
-                  ? NetworkImage(item.photoUrl!)
-                  : image == null
-                  ? MemoryImage(kTransparentImage)
-                  : memoryImageForDisplay(
+            child: image == null || item.photoUrl != null
+                ? RemotePinImage(
+                    pinId: item.pinId,
+                    photoId: item.photoId,
+                    thumbnailUrl: item.photoThumbnailUrl,
+                    imageUrl: item.photoUrl,
+                    blurhash: item.imageBlurhash,
+                    fit: BoxFit.contain,
+                    policy: RemoteImagePolicy.previewThenFull,
+                  )
+                : FadeInImage(
+                    fadeInDuration: const Duration(milliseconds: 100),
+                    fit: BoxFit.contain,
+                    placeholder: MemoryImage(kTransparentImage),
+                    image: memoryImageForDisplay(
                       image!,
                       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
                       logicalWidth: constraints.maxWidth,
                       maximumCacheWidth: 720,
                     ),
-              imageErrorBuilder: (context, error, stack) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.image_not_supported_outlined),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Photo unavailable',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    imageErrorBuilder: (context, error, stack) => Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.image_not_supported_outlined),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Photo unavailable',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              width: double.infinity,
-            ),
+                    width: double.infinity,
+                  ),
           ),
         ),
       ),

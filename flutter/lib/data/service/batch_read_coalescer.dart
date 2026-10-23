@@ -269,10 +269,11 @@ class BatchReadCoalescer {
 }
 
 class _SuppliedImageUrl {
-  const _SuppliedImageUrl(this.value, this.expiresAt);
+  const _SuppliedImageUrl(this.value, this.expiresAt, this.renewed);
 
   final String value;
   final DateTime expiresAt;
+  final bool renewed;
 }
 
 /// A small LRU registry for short-lived URLs supplied with sync/list DTOs.
@@ -287,31 +288,66 @@ class SuppliedImageUrlRegistry {
   final Duration urlTtl;
   final LinkedHashMap<BatchReadKey, _SuppliedImageUrl> _urls = LinkedHashMap();
 
-  void register(BatchReadKind kind, String id, String? url) {
+  final _changes = StreamController<BatchReadKey>.broadcast();
+
+  Stream<BatchReadKey> get changes => _changes.stream;
+
+  void dispose() => unawaited(_changes.close());
+
+  /// Publishes new metadata URLs so mounted consumers can retry. Endpoint
+  /// results are already consumed by their requesting image load and pass
+  /// [notify] as false to avoid recursively retrying a failed download.
+  void register(
+    BatchReadKind kind,
+    String id,
+    String? url, {
+    bool notify = true,
+    bool renewed = false,
+  }) {
     final key = BatchReadKey(kind, id);
     if (url == null || url.isEmpty) {
       _urls.remove(key);
       return;
     }
-    _urls.remove(key);
-    _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl));
+    final previous = _urls.remove(key);
+    _urls[key] = _SuppliedImageUrl(url, DateTime.now().add(urlTtl), renewed);
     while (_urls.length > maxEntries) {
       _urls.remove(_urls.keys.first);
     }
+    if (notify && previous?.value != url && !_changes.isClosed) {
+      _changes.add(key);
+    }
   }
 
-  String? lookup(BatchReadKind kind, String id) {
+  String? lookup(BatchReadKind kind, String id, {bool renewedOnly = false}) {
     final key = BatchReadKey(kind, id);
     final entry = _urls.remove(key);
     if (entry == null) return null;
     if (!entry.expiresAt.isAfter(DateTime.now())) return null;
     _urls[key] = entry;
+    if (renewedOnly && !entry.renewed) return null;
     return entry.value;
   }
 
   void invalidate(BatchReadKind kind, String id, String url) {
     final key = BatchReadKey(kind, id);
     if (_urls[key]?.value == url) _urls.remove(key);
+  }
+
+  /// Drops every cached original/update URL associated with pins whose group
+  /// access was revoked. Update keys use the `photo:<pinId>:<photoId>` form.
+  void invalidatePinPhotos(Iterable<String> pinIds) {
+    final ids = pinIds.toSet();
+    if (ids.isEmpty) return;
+    _urls.removeWhere((key, _) {
+      if (key.kind != BatchReadKind.pinImage &&
+          key.kind != BatchReadKind.pinImageThumbnail) {
+        return false;
+      }
+      return ids.any(
+        (pinId) => key.id == pinId || key.id.startsWith('photo:$pinId:'),
+      );
+    });
   }
 }
 
@@ -331,7 +367,7 @@ final batchReadCoalescerProvider = Provider<BatchReadCoalescer>((ref) {
       return transport.call(items);
     },
     onResult: (key, result) =>
-        suppliedUrls.register(key.kind, key.id, result.imageUrl),
+        suppliedUrls.register(key.kind, key.id, result.imageUrl, notify: false),
   );
   ref.onDispose(coalescer.dispose);
   return coalescer;
@@ -343,7 +379,9 @@ final suppliedImageUrlRegistryProvider = Provider<SuppliedImageUrlRegistry>((
   // A URL is an authenticated, short-lived credential. Rebuild the registry
   // whenever the account session changes so it cannot cross account bounds.
   watchSession(ref);
-  return SuppliedImageUrlRegistry();
+  final registry = SuppliedImageUrlRegistry();
+  ref.onDispose(registry.dispose);
+  return registry;
 });
 
 /// Watches the authenticated session and safely falls back to the user ID in
@@ -438,6 +476,28 @@ void registerPinImageUrl(Object reader, PinWithOptionalImageDto pin) {
     return;
   }
   registry.register(BatchReadKind.pinImage, pin.id, pin.image);
+}
+
+/// Original photographs use pin cache keys, while later photos use their own
+/// photo keys. Profile photo histories can supply URLs without a feed read.
+void registerOriginalPinPhotoImageUrls(
+  Object reader,
+  String pinId,
+  Iterable<PinPhotoDto> photos,
+) {
+  final registry = _readSuppliedImageUrlRegistry(reader);
+  if (registry == null) return;
+  for (final photo in photos) {
+    final ids = ['photo:$pinId:${photo.id}', if (photo.isOriginal) pinId];
+    for (final id in ids) {
+      registry.register(BatchReadKind.pinImage, id, photo.image);
+      registry.register(
+        BatchReadKind.pinImageThumbnail,
+        id,
+        photo.imageThumbnail,
+      );
+    }
+  }
 }
 
 void registerGroupImageUrls(Object reader, GroupDto group) {

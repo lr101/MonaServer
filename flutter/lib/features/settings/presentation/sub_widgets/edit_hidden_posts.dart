@@ -1,6 +1,6 @@
 import 'package:buff_lisa/data/service/filter_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/features/settings/presentation/settings_widgets.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/remote_pin_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -66,9 +66,6 @@ class _HiddenPostTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final image = ref.watch(pinImageForDetailsProvider(pinId)).value;
-    final colors = Theme.of(context).colorScheme;
-
     return SettingsPanel(
       padding: 8,
       child: ListTile(
@@ -76,26 +73,7 @@ class _HiddenPostTile extends ConsumerWidget {
           dimension: 56,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: image == null
-                ? ColoredBox(
-                    color: colors.surfaceContainerHighest,
-                    child: Icon(
-                      Icons.image_outlined,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  )
-                : Image.memory(
-                    image,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                    errorBuilder: (context, error, stackTrace) => ColoredBox(
-                      color: colors.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+            child: RemotePinImage(pinId: pinId),
           ),
         ),
         title: const Text('Hidden artwork'),

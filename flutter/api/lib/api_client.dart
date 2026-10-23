@@ -375,6 +375,10 @@ class ApiClient {
           return EmailLoginCodeExchangeRequestDto.fromJson(value);
         case 'FilterAudience':
           return FilterAudience.fromJson(value);
+        case 'GalleryPhotoDto':
+          return GalleryPhotoDto.fromJson(value);
+        case 'GalleryPhotoPageDto':
+          return GalleryPhotoPageDto.fromJson(value);
         case 'GroupAchievementsDtoInner':
           return GroupAchievementsDtoInner.fromJson(value);
         case 'GroupDto':
@@ -411,6 +415,12 @@ class ApiClient {
           return NearbyPinsDto.fromJson(value);
         case 'NotificationDto':
           return NotificationDto.fromJson(value);
+        case 'PhotoResolveItemDto':
+          return PhotoResolveItemDto.fromJson(value);
+        case 'PhotoResolveRequestDto':
+          return PhotoResolveRequestDto.fromJson(value);
+        case 'PhotoResolveResponseDto':
+          return PhotoResolveResponseDto.fromJson(value);
         case 'PinLikeDto':
           return PinLikeDto.fromJson(value);
         case 'PinPhotoDto':

@@ -253,6 +253,94 @@ func (q *Queries) FindUsersWithNewPinsSinceLastActive(ctx context.Context) ([]Fi
 	return items, nil
 }
 
+const galleryPhotos = `-- name: GalleryPhotos :many
+SELECT pp.id, pp.pin_id, pp.contributor_id, pp.contributor_username, pp.image_key, pp.idempotency_key, pp.request_hash, pp.caption, pp.observed_at, pp.created_at, pp.is_original, pp.image_blurhash, p.id, p.creation_date, p.latitude, p.longitude, p.update_date, p.image, p.is_deleted, p.creator_id, p.group_id, p.state_province_id, p.description, p.is_gone, p.title, p.image_blurhash
+FROM pin_photos pp
+JOIN pins p ON p.id = pp.pin_id
+JOIN groups g ON g.id = p.group_id
+WHERE p.is_deleted = FALSE AND g.is_deleted = FALSE
+  AND (g.visibility = 0 OR EXISTS (
+    SELECT 1 FROM members m WHERE m.group_id = g.id
+      AND m.user_id = $1::uuid AND m.is_deleted = FALSE))
+  AND ($2::uuid IS NULL OR p.group_id = $2::uuid)
+  AND ($3::uuid IS NULL OR pp.contributor_id = $3::uuid)
+  AND (cardinality($4::uuid[]) = 0 OR pp.id = ANY($4::uuid[]))
+  AND ($5::timestamptz IS NULL OR
+    (pp.observed_at, pp.id) < ($5::timestamptz, $6::uuid))
+ORDER BY pp.observed_at DESC, pp.id DESC
+LIMIT $7
+`
+
+type GalleryPhotosParams struct {
+	CallerID      pgtype.UUID        `json:"caller_id"`
+	GroupID       pgtype.UUID        `json:"group_id"`
+	ContributorID pgtype.UUID        `json:"contributor_id"`
+	PhotoIds      []pgtype.UUID      `json:"photo_ids"`
+	BeforeDate    pgtype.Timestamptz `json:"before_date"`
+	BeforeID      pgtype.UUID        `json:"before_id"`
+	Lim           int32              `json:"lim"`
+}
+
+type GalleryPhotosRow struct {
+	PinPhoto PinPhoto `json:"pin_photo"`
+	Pin      Pin      `json:"pin"`
+}
+
+func (q *Queries) GalleryPhotos(ctx context.Context, arg GalleryPhotosParams) ([]GalleryPhotosRow, error) {
+	rows, err := q.db.Query(ctx, galleryPhotos,
+		arg.CallerID,
+		arg.GroupID,
+		arg.ContributorID,
+		arg.PhotoIds,
+		arg.BeforeDate,
+		arg.BeforeID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GalleryPhotosRow
+	for rows.Next() {
+		var i GalleryPhotosRow
+		if err := rows.Scan(
+			&i.PinPhoto.ID,
+			&i.PinPhoto.PinID,
+			&i.PinPhoto.ContributorID,
+			&i.PinPhoto.ContributorUsername,
+			&i.PinPhoto.ImageKey,
+			&i.PinPhoto.IdempotencyKey,
+			&i.PinPhoto.RequestHash,
+			&i.PinPhoto.Caption,
+			&i.PinPhoto.ObservedAt,
+			&i.PinPhoto.CreatedAt,
+			&i.PinPhoto.IsOriginal,
+			&i.PinPhoto.ImageBlurhash,
+			&i.Pin.ID,
+			&i.Pin.CreationDate,
+			&i.Pin.Latitude,
+			&i.Pin.Longitude,
+			&i.Pin.UpdateDate,
+			&i.Pin.Image,
+			&i.Pin.IsDeleted,
+			&i.Pin.CreatorID,
+			&i.Pin.GroupID,
+			&i.Pin.StateProvinceID,
+			&i.Pin.Description,
+			&i.Pin.IsGone,
+			&i.Pin.Title,
+			&i.Pin.ImageBlurhash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPinByID = `-- name: GetPinByID :one
 SELECT id, latitude, longitude, creation_date, update_date, title, description,
        creator_id, group_id, state_province_id, is_gone, image_blurhash

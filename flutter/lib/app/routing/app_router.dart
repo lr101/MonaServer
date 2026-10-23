@@ -306,6 +306,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/groups/:id/photos/:entryId',
+        name: 'groupPhotoFeed',
+        builder: (context, state) => GroupImageFeed(
+          groupId: state.pathParameters['id']!,
+          index: 0,
+          entryId: state.pathParameters['entryId'],
+        ),
+      ),
+      GoRoute(
         path: '/groups/:id/images/:index',
         name: 'groupImageFeed',
         builder: (context, state) => GroupImageFeed(
@@ -326,6 +335,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'userProfile',
         builder: (context, state) =>
             OtherUserProfile(userId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/users/:id/photos/:entryId',
+        name: 'userPhotoFeed',
+        builder: (context, state) => UserImageFeed(
+          userId: state.pathParameters['id']!,
+          index: 0,
+          entryId: state.pathParameters['entryId'],
+          userPinNotifier: userPinEntriesProvider(state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         path: '/users/:id/images/:index',

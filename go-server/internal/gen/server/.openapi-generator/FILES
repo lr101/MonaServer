@@ -10,6 +10,7 @@ api_admin_reports.go
 api_admin_session.go
 api_admin_users.go
 api_batch.go
+api_gallery.go
 api_group_pin_designs.go
 api_likes.go
 api_public.go
@@ -91,6 +92,8 @@ model_email_link_request_accepted_dto.go
 model_email_link_request_dto.go
 model_email_login_code_exchange_request_dto.go
 model_filter_audience.go
+model_gallery_photo_dto.go
+model_gallery_photo_page_dto.go
 model_group_achievements_dto_inner.go
 model_group_dto.go
 model_group_pin_design_badge.go
@@ -109,6 +112,9 @@ model_member_response_dto.go
 model_nearby_pin_dto.go
 model_nearby_pins_dto.go
 model_notification_dto.go
+model_photo_resolve_item_dto.go
+model_photo_resolve_request_dto.go
+model_photo_resolve_response_dto.go
 model_pin_like_dto.go
 model_pin_photo_dto.go
 model_pin_presence_request_dto.go

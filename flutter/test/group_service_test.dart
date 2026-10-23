@@ -13,7 +13,7 @@ import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,8 +80,6 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(<PinEntity>[])),
-          groupProfilePictureProgressiveByIdProvider('group-id')
-              .overrideWith((ref) => Stream.value(null)),
         ],
       );
       addTearDown(container.dispose);
@@ -117,8 +115,6 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(<PinEntity>[])),
-          groupProfilePictureProgressiveByIdProvider('group-id')
-              .overrideWith((ref) => Stream.value(null)),
         ],
       );
       addTearDown(container.dispose);
@@ -156,8 +152,6 @@ void main() {
           ),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => pendingPins.future),
-          groupProfilePictureProgressiveByIdProvider('group-id')
-              .overrideWith((ref) => pendingProfile.stream),
         ],
       );
       addTearDown(container.dispose);
@@ -179,7 +173,7 @@ void main() {
 
       expect(details.group?.groupId, 'group-id');
       expect(details.pins.isLoading, isTrue);
-      expect(details.mediaStatus, GroupMediaStatus.loading);
+      expect(pendingProfile.hasListener, isFalse);
     },
   );
 
@@ -240,8 +234,6 @@ void main() {
               .overrideWith((ref) => Stream.value(group)),
           pinGroupServiceProvider('group-id')
               .overrideWith((ref) => Future.value(pins)),
-          groupProfilePictureProgressiveByIdProvider('group-id')
-              .overrideWith((ref) => Stream.value(Uint8List.fromList([1]))),
         ],
       );
       addTearDown(container.dispose);
@@ -256,20 +248,10 @@ void main() {
         (_, _) {},
         fireImmediately: true,
       );
-      final profileSubscription = container.listen(
-        groupProfilePictureProgressiveByIdProvider('group-id'),
-        (_, _) {},
-        fireImmediately: true,
-      );
       addTearDown(metadataSubscription.close);
       addTearDown(pinsSubscription.close);
-      addTearDown(profileSubscription.close);
-
       await container.read(groupMetadataProvider('group-id').future);
       await container.read(pinGroupServiceProvider('group-id').future);
-      await container.read(
-        groupProfilePictureProgressiveByIdProvider('group-id').future,
-      );
 
       final states = <GroupDetailsState>[];
       final detailsSubscription = container.listen(
@@ -287,7 +269,7 @@ void main() {
       expect(details.group?.groupId, 'group-id');
       await Future<void>.delayed(Duration.zero);
       expect(states.last.pins.value, pins);
-      expect(states.last.profileImage.value, isNotNull);
+      expect(states.last.profileImage?.id, 'group-id');
     },
   );
 
@@ -317,11 +299,7 @@ void main() {
         accountSessionProvider.overrideWithValue(AccountSession(true)),
         groupDetailsProvider('group-id').overrideWith(
           (ref) => Stream.value(
-            GroupDetailsState(
-              group: null,
-              pins: AsyncData([older, newer]),
-              profileImage: const AsyncData(null),
-            ),
+            GroupDetailsState(group: null, pins: AsyncData([older, newer])),
           ),
         ),
       ],
@@ -611,7 +589,9 @@ void main() {
     final profileCache = _FakeImageRepository();
     final profileSmallCache = _FakeImageRepository();
     final pinImageCache = _FakeImageRepository();
+    late ProviderContainer container;
     final service = await _createService(
+      onContainer: (value) => container = value,
       groupsApi: _FakeGroupsApi(_groupWithImages()),
       profileCache: profileCache,
       profileSmallCache: profileSmallCache,
@@ -624,6 +604,9 @@ void main() {
     );
 
     expect(result, isNull);
+    final revisions = container.read(imageContentRevisionsProvider);
+    expect(revisions['group:group-id'], isNotEmpty);
+    expect(revisions['groupPin:group-id'], isNotEmpty);
     expect(profileCache.overrideUrls, ['https://example.com/profile.jpg']);
     expect(profileSmallCache.overrideUrls, [
       'https://example.com/profile-small.jpg',
@@ -1152,6 +1135,7 @@ Future<UserGroupService> _createService({
   IImageRepository? profileCache,
   IImageRepository? profileSmallCache,
   IImageRepository? pinImageCache,
+  void Function(ProviderContainer)? onContainer,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -1180,6 +1164,7 @@ Future<UserGroupService> _createService({
       ),
     ],
   );
+  onContainer?.call(container);
   addTearDown(container.dispose);
   final subscription = container.listen(userGroupServiceProvider, (_, _) {});
   addTearDown(subscription.close);

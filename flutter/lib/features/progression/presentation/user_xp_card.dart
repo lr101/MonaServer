@@ -53,11 +53,11 @@ class UserXpAvatarPanel extends ConsumerWidget {
   const UserXpAvatarPanel({
     super.key,
     required this.userId,
-    required this.imageCallback,
+    this.imageCallback,
   });
 
   final String userId;
-  final AsyncValue<Uint8List?> imageCallback;
+  final AsyncValue<Uint8List?>? imageCallback;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -1,0 +1,9 @@
+type: "object"
+required:
+  - "pin"
+  - "photo"
+properties:
+  pin:
+    $ref: "./pinWithOptionalImageDto.yaml"
+  photo:
+    $ref: "./pinPhotoDto.yaml"

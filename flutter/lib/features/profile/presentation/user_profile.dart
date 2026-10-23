@@ -1,15 +1,16 @@
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/data/service/image_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
+import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/progression/data/user_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
 import 'package:buff_lisa/features/progression/presentation/small_profile_picture.dart';
-import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/image_grid.dart';
 import 'package:buff_lisa/widgets/slivers/season_tile.dart';
@@ -56,10 +57,9 @@ class _UserProfileState extends ConsumerState<UserProfile>
   @override
   Widget build(BuildContext context) {
     final userId = ref.watch(userIdProvider);
-    final userPins = ref.watch(userPinEntriesProvider(userId));
+    final userPins = ref.watch(profileGridEntriesProvider(userId));
     final currentUser = ref.watch(currentUserProvider);
     final likes = ref.watch(userLikeServiceProvider(userId));
-    final profileImage = ref.watch(getUserProfileProgressiveProvider(userId));
 
     final xp = ref.watch(userXpProvider(userId)).value;
     final progress = xp == null ? null : XpLevelProgress.fromDto(xp);
@@ -71,7 +71,10 @@ class _UserProfileState extends ConsumerState<UserProfile>
               avatar: avatar,
               radius: 40,
             ),
-      avatar: profileImage,
+      remoteAvatar: RemoteImageReference(
+        kind: RemoteImageKind.user,
+        id: userId,
+      ),
       avatarEditAction: () => context.pushNamed("profileSettings"),
       title: _buildTitle(currentUser),
       actions: _buildActions(context),
@@ -99,11 +102,11 @@ class _UserProfileState extends ConsumerState<UserProfile>
         controller: _tabController,
         children: [
           ImageGrid(
-            pinProvider: userPinEntriesProvider(userId),
-            onTap: (index) => context.pushNamed(
-              'userImageFeed',
-              pathParameters: {'id': userId, 'index': '$index'},
-            ),
+            pinProvider: profileGridEntriesProvider(userId),
+            userId: userId,
+            onRefresh: () => ref
+                .read(photoLibraryProvider)
+                .refreshGallery(PhotoScope(userId: userId)),
           ),
           const UserAchievementsTab(),
         ],

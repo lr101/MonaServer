@@ -3,7 +3,7 @@ description: A new Flutter project.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 4.4.0+69
+version: 4.5.0+70
 
 
 environment:
@@ -12,6 +12,7 @@ environment:
 dependencies:
   app_links: ^7.2.1
   cached_network_image:
+  cached_network_image_platform_interface:
   camera:
   # The web discovery adapter uses this version's metadata bridge.
   camera_web: 0.3.5+5
@@ -20,6 +21,7 @@ dependencies:
   camera_avfoundation: ^0.10.2
   choice:
   collection:
+  crypto: ^3.0.7
   connectivity_plus:
   drift: ^2.34.3
   drift_dev: ^2.34.5
@@ -88,7 +90,6 @@ dependencies:
   share_plus: ^13.3.0
 
 dev_dependencies:
-  crypto: ^3.0.7
   analyzer: ^13.3.0
   build_runner: ^2.16.0
   change_app_package_name:
