@@ -2,7 +2,7 @@
 go = "1.27.3"
 flutter = "3.47.8"
 node = "24.21.0"
-oapi-codegen = "2.8.0"
+oapi-codegen = "2.8.1"
 sqlc = "1.31.1"
 
 [tasks.test]
