@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine AS api-build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS api-build
 WORKDIR /src
 RUN apk add --no-cache git ca-certificates
 COPY go-server/go.mod go-server/go.sum ./
