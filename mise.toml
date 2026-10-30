@@ -1,6 +1,6 @@
 [tools]
 go = "1.27.3"
-flutter = "3.47.8"
+flutter = "3.47.9"
 node = "24.22.1"
 oapi-codegen = "2.8.1"
 sqlc = "1.31.1"
