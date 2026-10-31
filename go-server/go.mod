@@ -11,7 +11,7 @@ require (
 	github.com/aws/smithy-go v1.28.7
 	github.com/bbrks/go-blurhash v1.2.0
 	github.com/disintegration/imaging v1.6.2
-	github.com/getkin/kin-openapi v0.149.0
+	github.com/getkin/kin-openapi v0.152.0
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-chi/cors v1.2.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
