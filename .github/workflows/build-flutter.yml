@@ -65,7 +65,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
 
       - name: Cache pinned OpenAPI generator
         if: steps.generator.outputs.changed == 'true'
@@ -221,7 +221,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v6
