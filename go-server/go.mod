@@ -22,8 +22,8 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.8.1
-	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.58.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/net v0.60.0
 	google.golang.org/api v0.298.0
 )
 
@@ -102,9 +102,9 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
