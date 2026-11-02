@@ -71,6 +71,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
             ),
       getNextPageKey: (state) {
         final count = state.items?.length ?? 0;
+        if (state.pages == null) return 0;
         return count < _pins.length ? count : null;
       },
       fetchPage: _fetchPage,
@@ -179,6 +180,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       end = pageKey + pageSize;
     }
     final idList = _pins.getRange(pageKey, end).toList();
+    if (idList.isEmpty) return idList;
     final coalescer = ref.read(batchReadCoalescerProvider);
     for (final pin in idList) {
       // Hydrate metadata while the page is assembled. Object bytes remain

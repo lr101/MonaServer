@@ -27,5 +27,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(CustomScrollView), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('No items found'), findsOneWidget);
   });
 }
