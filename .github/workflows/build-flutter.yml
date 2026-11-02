@@ -324,34 +324,6 @@ jobs:
           compression-level: 1
           retention-days: 1
 
-  build-ios:
-    runs-on: macos-26
-    env:
-      # Flutter 3.44+ uses Swift Package Manager for compatible plugins and
-      # falls back to CocoaPods only for plugins that still require it.
-      FLUTTER_SWIFT_PACKAGE_MANAGER: "true"
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.47.4
-          cache: true
-
-      - name: Select Xcode 16.4
-        run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
-
-      - name: Install dependencies
-        working-directory: flutter
-        run: flutter pub get
-
-      - name: Build iOS release
-        working-directory: flutter
-        run: flutter build ios --release --no-codesign --no-pub
-
   publish-web:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     needs: [analyze-and-build, validate-web-container]
