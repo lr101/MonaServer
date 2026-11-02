@@ -1,5 +1,5 @@
 # ---- build stage ----
-FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 WORKDIR /src
 
 # Install build tools for CGO-free build (we don't use CGO but keep ca-certs).

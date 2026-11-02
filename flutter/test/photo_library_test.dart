@@ -56,6 +56,42 @@ void main() {
     publish: (_, _) {},
     revokePinUrls: revokePinUrls,
   );
+  test(
+    'publishes the first gallery page while the next page is pending',
+    () async {
+      final nextPage = Completer<GalleryPhotoPage>();
+      final secondPageStarted = Completer<void>();
+      final firstPagePublished = Completer<PhotoGallerySnapshot>();
+      final owner = library(
+        fetch: (_, cursor) async {
+          if (cursor == null) {
+            return GalleryPhotoPage(
+              items: [GalleryPhotoRecord(pin, photo('pin'))],
+              nextCursor: 'next',
+            );
+          }
+          secondPageStarted.complete();
+          return nextPage.future;
+        },
+      );
+      addTearDown(owner.dispose);
+      const scope = PhotoScope(userId: 'alice');
+      final subscription = owner.watchGallery(scope).listen((snapshot) {
+        if (snapshot.photos.isNotEmpty && !firstPagePublished.isCompleted) {
+          firstPagePublished.complete(snapshot);
+        }
+      });
+      addTearDown(subscription.cancel);
+      await secondPageStarted.future;
+      final snapshot = await firstPagePublished.future.timeout(
+        const Duration(seconds: 5),
+      );
+      expect(snapshot.photos.map((p) => p.id), ['pin']);
+      nextPage.complete(const GalleryPhotoPage(items: []));
+      await owner.refreshGallery(scope);
+    },
+  );
+
   test('group last-good updates survive failure, retry, and authoritative deletion', () async {
     var fail = false;
     var items = [photo('pin'), photo('update')];

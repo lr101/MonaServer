@@ -197,10 +197,12 @@ void main() {
     };
     final sub = container.listen(groupPinEntriesProvider('group'), (_, __) {});
     addTearDown(sub.close);
-    final entries = await container.read(
-      groupPinEntriesProvider('group').future,
-    );
+    await container.read(groupPinEntriesProvider('group').future);
     await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+    await Future<void>.delayed(Duration.zero);
+    final entries = container
+        .read(groupPinEntriesProvider('group'))
+        .requireValue;
     expect(entries.map((p) => p.entryId), ['next', 'first']);
     expect(cursors, [null, 'next']);
     expect(historyRequests, 0);
