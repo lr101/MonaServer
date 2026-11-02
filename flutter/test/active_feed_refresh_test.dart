@@ -6,7 +6,6 @@ import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/feed/presentation/active_group_feed.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
-import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
 import 'package:flutter/material.dart';
@@ -49,18 +48,18 @@ void main() {
         ),
       ),
     );
-    final controller = tester
-        .widget<CustomFeed>(find.byType(CustomFeed))
-        .pagingController;
     updates.add(pins);
     await tester.pump();
-    controller.value = PagingState(
-      itemList: pins.take(9).toList(),
-      nextPageKey: 9,
-    );
+    await tester.pump();
+    final controller = tester
+        .widget<PagingListener<int, PinEntity>>(
+          find.byType(PagingListener<int, PinEntity>),
+        )
+        .controller;
+    controller.value = PagingState(pages: [pins.take(9).toList()], keys: [0]);
     updates.add(List.of(pins));
     await tester.idle();
-    expect(controller.itemList?.length, 9);
-    expect(controller.nextPageKey, 9);
+    expect(controller.value.items?.length, 9);
+    expect(controller.value.hasNextPage, isTrue);
   });
 }

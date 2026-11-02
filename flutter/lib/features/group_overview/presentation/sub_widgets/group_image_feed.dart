@@ -4,7 +4,6 @@ import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class GroupImageFeed extends ConsumerStatefulWidget {
   const GroupImageFeed({
@@ -23,12 +22,10 @@ class GroupImageFeed extends ConsumerStatefulWidget {
 }
 
 class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
-  PagingController<int, PinEntity>? _pagingController;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void dispose() {
-    _pagingController?.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -46,17 +43,6 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
             (item) => item.entryId == widget.entryId,
           );
           final initialIndex = selected < 0 ? widget.index : selected;
-          final initialItems = items.take(initialIndex + 1).toList();
-          final pagingController = _pagingController ??=
-              PagingController.fromValue(
-                PagingState<int, PinEntity>(
-                  nextPageKey: initialItems.length < items.length
-                      ? initialItems.length
-                      : null,
-                  itemList: initialItems,
-                ),
-                firstPageKey: 0,
-              );
           return CustomScrollView(
             controller: _scrollController,
             scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
@@ -65,7 +51,6 @@ class _GroupImageFeedState extends ConsumerState<GroupImageFeed> {
                 pinProvider: groupPinEntriesProvider(widget.groupId),
                 index: initialIndex,
                 entryId: widget.entryId,
-                pagingController: pagingController,
                 scrollController: _scrollController,
                 thumbnailsOnly: true,
               ),

@@ -20,7 +20,14 @@ class GroupSearch extends ConsumerStatefulWidget {
 }
 
 class _GroupSearchState extends ConsumerState<GroupSearch> {
-  final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
+  late final _pagingController = PagingController<int, GroupEntity>(
+    getNextPageKey: (state) => state.pages == null
+        ? 0
+        : state.pages!.last.length < _pageSize
+        ? null
+        : state.keys!.last + 1,
+    fetchPage: updatePage,
+  );
 
   final _textEditController = TextEditingController();
 
@@ -33,7 +40,6 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   @override
   void initState() {
     super.initState();
-    _pagingController.addPageRequestListener(updatePage);
     _textEditController.addListener(listener);
   }
 
@@ -76,25 +82,13 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
     );
   }
 
-  Future<void> updatePage(int pageKey) async {
-    try {
-      final groups = await _fetchPage(pageKey);
-      if (groups == null) {
-        _pagingController.error = "Groups could not be fetched";
-        return;
-      }
-      final groupDtos = groups.items.map((e) {
-        registerGroupImageUrls(ref, e);
-        return GroupEntity.fromGroupDto(e, true, false);
-      }).toList();
-      if (groupDtos.length < _pageSize) {
-        _pagingController.appendLastPage(groupDtos);
-      } else {
-        _pagingController.appendPage(groupDtos, pageKey + 1);
-      }
-    } catch (_) {
-      _pagingController.error = "Groups could not be fetched";
-    }
+  Future<List<GroupEntity>> updatePage(int pageKey) async {
+    final groups = await _fetchPage(pageKey);
+    if (groups == null) throw Exception("Groups could not be fetched");
+    return groups.items.map((e) {
+      registerGroupImageUrls(ref, e);
+      return GroupEntity.fromGroupDto(e, true, false);
+    }).toList();
   }
 
   Future<GroupsSyncDto?> _fetchPage(int pageKey) async {
