@@ -13,12 +13,12 @@ dependencies:
   app_links: ^7.2.1
   cached_network_image:
   cached_network_image_platform_interface:
-  camera:
+  camera: ^0.12.2
   # The web discovery adapter uses this version's metadata bridge.
   camera_web: 0.3.5+5
   camera_platform_interface: ^2.12.0
   web: ^1.1.1
-  camera_avfoundation: ^0.10.2
+  camera_avfoundation: ^0.11.1
   choice:
   collection:
   crypto: ^3.0.7
