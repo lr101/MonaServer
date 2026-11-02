@@ -144,6 +144,19 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         );
       }
     });
+    final pinState = ref.watch(widget.pinProvider);
+    if (!pinState.hasValue && !pinState.hasError) {
+      return const SliverToBoxAdapter(child: _FeedPlaceholder());
+    }
+    if (!pinState.hasValue && pinState.hasError) {
+      return PagedSliverList<int, PinEntity>(
+        state: PagingState(error: pinState.error),
+        fetchNextPage: () => _pagingController.refresh(),
+        builderDelegate: PagedChildBuilderDelegate<PinEntity>(
+          itemBuilder: (context, item, index) => const SizedBox.shrink(),
+        ),
+      );
+    }
     return PagingListener<int, PinEntity>(
       controller: _pagingController,
       builder: (context, state, fetchNextPage) =>
@@ -153,6 +166,9 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
             addAutomaticKeepAlives: false,
             builderDelegate: PagedChildBuilderDelegate<PinEntity>(
               animateTransitions: true,
+              firstPageProgressIndicatorBuilder: (_) =>
+                  const _FeedPlaceholder(),
+              newPageProgressIndicatorBuilder: (_) => const _FeedPlaceholder(),
               invisibleItemsThreshold: widget.invisibleItemsThreshold,
               itemBuilder: (context, item, index) => ProviderScope(
                 key: item.entryId == _initialEntryId
@@ -297,5 +313,27 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       // Prefetch is an optimization; page assembly must remain usable while
       // the application bootstrap is still being installed.
     }
+  }
+}
+
+class _FeedPlaceholder extends StatelessWidget {
+  const _FeedPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+    return Semantics(
+      label: 'Loading pins',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 3 / 4,
+            child: ColoredBox(color: color),
+          ),
+        ),
+      ),
+    );
   }
 }
