@@ -16,8 +16,10 @@ class UserGroups extends ConsumerStatefulWidget {
 }
 
 class _UserGroupsState extends ConsumerState<UserGroups> {
-
-  final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _pagingController = PagingController<int, GroupEntity>(
+    getNextPageKey: (_) => null,
+    fetchPage: (_) => <GroupEntity>[],
+  );
 
   @override
   void initState() {
@@ -32,29 +34,35 @@ class _UserGroupsState extends ConsumerState<UserGroups> {
     _pagingController.dispose();
     super.dispose();
   }
-  
-  
+
   @override
   Widget build(BuildContext context) {
-    ref.listen(orderedGroupsProvider, (_, next) => updatePage(next.value ?? []));
+    ref.listen(
+      orderedGroupsProvider,
+      (_, next) => updatePage(next.value ?? []),
+    );
     return CustomScaffold<GroupEntity>(
-        title: const Text("Your groups", style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: const [PopUpMenuCreateGroup()],
-        listBuilder: (context, item, index) => GroupTile(
-          groupDto: item,
-          onTap: () => openGroupOverview(item),
-        ),
-        pagingController: _pagingController,
+      title: const Text(
+        "Your groups",
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      actions: const [PopUpMenuCreateGroup()],
+      listBuilder: (context, item, index) =>
+          GroupTile(groupDto: item, onTap: () => openGroupOverview(item)),
+      pagingController: _pagingController,
     );
   }
-  
+
   void updatePage(List<GroupEntity> groups) {
-    _pagingController.refresh();
-    _pagingController.appendLastPage(groups);
+    _pagingController.cancel();
+    _pagingController.value = PagingState(
+      pages: [groups],
+      keys: [0],
+      hasNextPage: false,
+    );
   }
 
   void openGroupOverview(GroupEntity group) {
     context.pushNamed('groupOverview', pathParameters: {"id": group.groupId});
   }
-
 }
