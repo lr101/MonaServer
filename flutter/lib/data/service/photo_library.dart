@@ -274,12 +274,42 @@ class PhotoLibrary {
     if (_closed) return;
     try {
       final records = <GalleryPhotoRecord>[];
+      final pageMutations = <String, int>{};
       String? cursor;
       final seen = <String>{};
       do {
         final page = await fetchPage(scope, cursor);
         if (_closed) return;
         records.addAll(page.items);
+        final affected = <String>{};
+        final previousPhotos = <PinPhotoDto>[];
+        for (final record in page.items) {
+          if ((_deletedPins[record.pin.pinId] ?? 0) > started ||
+              (_removedGroups[record.pin.groupId] ?? 0) > started ||
+              (_mutations[record.photo.id] ?? 0) > started) {
+            continue;
+          }
+          final previous = _photos[record.photo.id];
+          if (previous != null) previousPhotos.add(previous);
+          final version = ++_revision;
+          _pins[record.pin.pinId] = record.pin;
+          _photos[record.photo.id] = record.photo;
+          _mutations[record.photo.id] = version;
+          pageMutations[record.photo.id] = version;
+          _metadataUpdates[record.pin.pinId] = version;
+          _historyErrors.remove(record.pin.pinId);
+          affected.add(record.pin.pinId);
+        }
+        for (final id in affected) {
+          publish(id, history(id));
+        }
+        _notify(
+          pinIds: affected,
+          scopes: _scopesMatching([
+            ...previousPhotos,
+            for (final id in affected) ...history(id),
+          ])..add(scope),
+        );
         cursor = page.nextCursor;
         if (cursor != null && cursor.isNotEmpty && !seen.add(cursor)) {
           throw StateError('Repeated gallery cursor');
@@ -315,7 +345,9 @@ class PhotoLibrary {
       for (final record in records) {
         if ((_deletedPins[record.pin.pinId] ?? 0) > started ||
             (_removedGroups[record.pin.groupId] ?? 0) > started ||
-            (_mutations[record.photo.id] ?? 0) > started) {
+            ((_mutations[record.photo.id] ?? 0) > started &&
+                _mutations[record.photo.id] !=
+                    pageMutations[record.photo.id])) {
           continue;
         }
         _pins[record.pin.pinId] = record.pin;
