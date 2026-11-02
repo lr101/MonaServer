@@ -31,10 +31,6 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
   Widget build(BuildContext context) {
     super.build(context);
 
-    ref.listen(activePinEntriesProvider, (previous, next) {
-      _pagingController.refresh();
-    });
-
     return SafeArea(
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
