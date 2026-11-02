@@ -49,7 +49,7 @@ dependencies:
   geocoding:
   geolocator: ^14.0.3
   http:
-  image_cropper: ^12.0.0
+  image_cropper: ^13.0.0
   image_picker:
   in_app_review:
   in_app_update: ^5.0.0
