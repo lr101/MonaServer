@@ -1,5 +1,3 @@
-import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
-
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -9,6 +7,7 @@ import 'package:buff_lisa/data/service/pin_thumbnail_prefetch_coordinator.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
+import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +60,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     _pageRequestListener = (pageKey) => _fetchPage(pageKey);
     widget.pagingController.addPageRequestListener(_pageRequestListener);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(widget.pinProvider).whenData((data) => _pins = data ?? []);
       _initialEntryId =
           widget.entryId ??
@@ -111,12 +111,18 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   @override
   Widget build(BuildContext context) {
     ref.listen(widget.pinProvider, (previous, next) {
+      if (!next.hasValue && next.hasError) {
+        widget.pagingController.error = next.error;
+        return;
+      }
       if (!next.hasValue || next.isLoading || next.hasError) return;
       final incoming = next.value ?? <PinEntity>[];
       final loaded = widget.pagingController.itemList?.length ?? 0;
       _pins = reconcileFeedEntries(_pins, incoming, loaded);
       if (loaded == 0) {
         widget.pagingController.refresh();
+        final key = widget.pagingController.nextPageKey;
+        if (key != null) _fetchPage(key);
       } else {
         final count = loaded.clamp(0, _pins.length);
         widget.pagingController.value = PagingState(
@@ -130,6 +136,20 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       addAutomaticKeepAlives: false,
       builderDelegate: PagedChildBuilderDelegate<PinEntity>(
         animateTransitions: true,
+        firstPageProgressIndicatorBuilder: (_) => const _FeedPlaceholder(),
+        newPageProgressIndicatorBuilder: (_) {
+          final pageKey = widget.pagingController.nextPageKey;
+          if (pageKey != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  widget.pagingController.nextPageKey == pageKey &&
+                  widget.pagingController.error == null) {
+                _fetchPage(pageKey);
+              }
+            });
+          }
+          return const _FeedPlaceholder();
+        },
         itemBuilder: (context, item, index) => ProviderScope(
           key: item.entryId == _initialEntryId
               ? _initialItemKey
@@ -146,6 +166,12 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
 
   Future<void> _fetchPage(int pageKey, {int pageSize = _pageSize}) async {
     try {
+      if (widget.pagingController.nextPageKey != pageKey) return;
+      final pinState = ref.read(widget.pinProvider);
+      if (!pinState.hasValue) {
+        if (pinState.hasError) widget.pagingController.error = pinState.error;
+        return;
+      }
       int end;
       if (pageKey + pageSize > _pins.length) {
         end = _pins.length;
@@ -153,6 +179,10 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
         end = pageKey + pageSize;
       }
       final idList = _pins.getRange(pageKey, end).toList();
+      if (idList.isEmpty && end == _pins.length) {
+        widget.pagingController.appendLastPage(idList);
+        return;
+      }
       final coalescer = ref.read(batchReadCoalescerProvider);
       for (final pin in idList) {
         // Hydrate metadata while the page is assembled. Object bytes remain
@@ -277,5 +307,27 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       // Prefetch is an optimization; page assembly must remain usable while
       // the application bootstrap is still being installed.
     }
+  }
+}
+
+class _FeedPlaceholder extends StatelessWidget {
+  const _FeedPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+    return Semantics(
+      label: 'Loading pins',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: AspectRatio(
+            aspectRatio: 3 / 4,
+            child: ColoredBox(color: color),
+          ),
+        ),
+      ),
+    );
   }
 }
