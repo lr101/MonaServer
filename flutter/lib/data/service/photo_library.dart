@@ -268,6 +268,20 @@ class PhotoLibrary {
         _galleryRequests.remove(scope);
         _notify(scopes: [scope]);
       });
+  Future<GalleryPhotoPage> _fetchGalleryPage(
+    PhotoScope scope,
+    String? cursor,
+  ) async {
+    try {
+      return await fetchPage(scope, cursor);
+    } on ApiException catch (error) {
+      if (error.code < 500 || error.code > 599 || _closed) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (_closed) rethrow;
+      return fetchPage(scope, cursor);
+    }
+  }
+
   Future<void> _refreshGallery(PhotoScope scope) async {
     final started = _revision;
     await hydrate();
@@ -278,7 +292,7 @@ class PhotoLibrary {
       String? cursor;
       final seen = <String>{};
       do {
-        final page = await fetchPage(scope, cursor);
+        final page = await _fetchGalleryPage(scope, cursor);
         if (_closed) return;
         records.addAll(page.items);
         final affected = <String>{};

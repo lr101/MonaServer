@@ -99,6 +99,42 @@ void main() {
     expect(find.byType(SquareImage), findsWidgets);
   });
 
+  testWidgets('shows retry when a refresh fails with cached images', (
+    tester,
+  ) async {
+    final updates = StreamController<List<PinEntity>?>();
+    addTearDown(updates.close);
+    final pins = StreamProvider<List<PinEntity>?>((ref) => updates.stream);
+    var retries = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinImageSourceProvider.overrideWith(
+            (ref, _) => Completer<PinImageSource?>().future,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ImageGrid(
+              pinProvider: pins,
+              onRefresh: () async {
+                retries++;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    updates.add(_pins());
+    await tester.pumpAndSettle();
+    updates.addError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SquareImage), findsWidgets);
+    expect(find.text('Unable to refresh images'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    expect(retries, 1);
+  });
+
   testWidgets('shows empty and failure states without requesting images', (
     tester,
   ) async {

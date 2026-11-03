@@ -69,7 +69,7 @@ Stream<List<PinEntity>> _gallery(Ref ref, PhotoScope scope) {
               sink.add([]);
               return;
             }
-            if (error != null && entries.isEmpty) {
+            if (error != null) {
               sink.addError(error);
               return;
             }

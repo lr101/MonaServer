@@ -43,6 +43,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   static const int _thumbnailPrefetchPageCount = 2;
 
   List<PinEntity> _pins = [];
+  List<PinEntity>? _pendingSortedPins;
+  ScrollPosition? _scrollPosition;
   String? _initialEntryId;
   final GlobalKey _initialItemKey = GlobalKey();
   final Set<String> _thumbnailPrefetchTargets = {};
@@ -93,7 +95,49 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final position = Scrollable.maybeOf(context)?.position;
+    if (identical(position, _scrollPosition)) return;
+    _scrollPosition?.removeListener(_restoreSortedOrderAtTop);
+    _scrollPosition = position;
+    _scrollPosition?.addListener(_restoreSortedOrderAtTop);
+  }
+
+  bool get _atTop {
+    final position = _scrollPosition;
+    return position == null ||
+        !position.hasPixels ||
+        !position.hasContentDimensions ||
+        position.pixels <= position.minScrollExtent + 0.5;
+  }
+
+  void _restoreSortedOrderAtTop() {
+    final pending = _pendingSortedPins;
+    if (pending == null || !_atTop || !mounted) return;
+    _pendingSortedPins = null;
+    _pins = pending;
+    _updatePagingSnapshot();
+  }
+
+  void _updatePagingSnapshot() {
+    final loaded = _pagingController.value.items?.length ?? 0;
+    if (loaded == 0) {
+      _pagingController.refresh();
+    } else {
+      final count = loaded.clamp(0, _pins.length);
+      _pagingController.cancel();
+      _pagingController.value = PagingState(
+        pages: [_pins.take(count).toList()],
+        keys: [0],
+        hasNextPage: count < _pins.length,
+      );
+    }
+  }
+
+  @override
   void dispose() {
+    _scrollPosition?.removeListener(_restoreSortedOrderAtTop);
     _thumbnailPrefetchTargets.clear();
     _thumbnailPrefetchCoordinator?.cancelWindow(this);
     _pagingController.dispose();
@@ -131,18 +175,16 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       if (!next.hasValue || next.isLoading || next.hasError) return;
       final incoming = next.value ?? <PinEntity>[];
       final loaded = _pagingController.value.items?.length ?? 0;
-      _pins = reconcileFeedEntries(_pins, incoming, loaded);
-      if (loaded == 0) {
-        _pagingController.refresh();
+      if (widget.index == null && widget.entryId == null && _atTop) {
+        _pendingSortedPins = null;
+        _pins = List.of(incoming);
       } else {
-        final count = loaded.clamp(0, _pins.length);
-        _pagingController.cancel();
-        _pagingController.value = PagingState(
-          pages: [_pins.take(count).toList()],
-          keys: [0],
-          hasNextPage: count < _pins.length,
-        );
+        _pendingSortedPins = widget.index == null && widget.entryId == null
+            ? List.of(incoming)
+            : null;
+        _pins = reconcileFeedEntries(_pins, incoming, loaded);
       }
+      _updatePagingSnapshot();
     });
     final pinState = ref.watch(widget.pinProvider);
     if (!pinState.hasValue && !pinState.hasError) {
