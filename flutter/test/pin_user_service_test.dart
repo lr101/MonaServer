@@ -218,7 +218,7 @@ void main() {
   });
 
   test(
-    'refreshes cached public group pins when the provider is loaded',
+    'fetches a complete group snapshot when the cache may be partial',
     () async {
       final repository = FakePinRepository(
         {},
@@ -228,7 +228,14 @@ void main() {
           ],
         },
       );
-      final api = RecordingPinsApi();
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(
+          items: [
+            _remotePin(id: 'cached-pin'),
+            _remotePin(id: 'older-missing-pin'),
+          ],
+        ),
+      );
       final container = ProviderContainer(
         overrides: [
           accountSessionProvider.overrideWithValue(AccountSession(true)),
@@ -250,10 +257,98 @@ void main() {
         const Duration(milliseconds: 100),
       );
 
+      await repository.putStarted.future.timeout(const Duration(seconds: 1));
+      expect(
+        repository.putItems.map((pin) => pin.pinId),
+        containsAll(['cached-pin', 'older-missing-pin']),
+      );
       expect(api.requestedGroupId, 'group');
-      expect(api.requestedUpdatedAfter, DateTime.utc(2024, 1, 1));
+      expect(api.requestedUpdatedAfter, isNull);
     },
   );
+
+  test(
+    'removes stale group pins after a complete snapshot but preserves drafts',
+    () async {
+      final repository = FakePinRepository(
+        {},
+        pinsByGroup: {
+          'group': [
+            _pin('stale-pin', 'creator', lastSynced: DateTime.utc(2024)),
+            _pin('draft', 'creator'),
+          ],
+        },
+      );
+      final api = RecordingPinsApi(
+        response: PinsSyncDto(items: [_remotePin()]),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          accountSessionProvider.overrideWithValue(AccountSession(true)),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          pinRepositoryProvider.overrideWithValue(repository),
+          pinApiProvider.overrideWithValue(api),
+        ],
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        pinGroupServiceUnfilteredProvider('group'),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await repository.deleteStarted.future.timeout(const Duration(seconds: 1));
+      expect(repository.deletedIds, ['stale-pin']);
+    },
+  );
+
+  test('does not remove cached group pins when a later page fails', () async {
+    final repository = FakePinRepository(
+      {},
+      pinsByGroup: {
+        'group': [
+          _pin('cached-pin', 'creator', lastSynced: DateTime.utc(2024)),
+        ],
+      },
+    );
+    final secondPage = Completer<void>();
+    final api = RecordingPinsApi(
+      pagedResponse: (page) async {
+        if (page == 0) {
+          return PinsSyncDto(
+            items: List.generate(20, (i) => _remotePin(id: 'pin-$i')),
+          );
+        }
+        secondPage.complete();
+        throw StateError('offline');
+      },
+    );
+    final container = ProviderContainer(
+      overrides: [
+        accountSessionProvider.overrideWithValue(AccountSession(true)),
+        userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+        pinRepositoryProvider.overrideWithValue(repository),
+        pinApiProvider.overrideWithValue(api),
+      ],
+    );
+    addTearDown(container.dispose);
+    final errors = container.listen(
+      pinGroupRefreshErrorStateProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(errors.close);
+    final subscription = container.listen(
+      pinGroupServiceUnfilteredProvider('group'),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await secondPage.future.timeout(const Duration(seconds: 1));
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.deletedIds, isEmpty);
+    expect(
+      container.read(pinGroupRefreshErrorStateProvider('group')),
+      isNotNull,
+    );
+  });
 
   test('keeps cached public group pins when refresh fails', () async {
     final repository = FakePinRepository(

@@ -99,7 +99,6 @@ class OtherUserProfile extends ConsumerWidget {
           children: [
             ImageGrid(
               pinProvider: profileGridEntriesProvider(userId),
-              userId: userId,
               onRefresh: () => ref
                   .read(photoLibraryProvider)
                   .refreshGallery(PhotoScope(userId: userId)),
