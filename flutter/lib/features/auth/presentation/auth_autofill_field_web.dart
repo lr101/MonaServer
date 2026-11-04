@@ -1,6 +1,7 @@
 import 'dart:js_interop';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:web/web.dart' as web;
 
 const _webLoginFormId = 'stick-it-login-autofill-form';
@@ -205,16 +206,30 @@ class _AuthAutofillFieldState extends State<AuthAutofillField> {
     }
   }
 
+  void _refreshFocusStyle() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
   void _handleFocus() {
+    // The DOM input owns browser focus. Requesting the Flutter FocusNode here
+    // can move focus to its semantics node and immediately blur the input.
+    // Programmatic FocusNode requests are still forwarded by the listener.
     _hasFocus = true;
-    if (!widget.focusNode.hasFocus) widget.focusNode.requestFocus();
-    if (mounted) setState(() {});
+    _refreshFocusStyle();
   }
 
   void _handleBlur() {
     _hasFocus = false;
     if (widget.focusNode.hasFocus) widget.focusNode.unfocus();
-    if (mounted) setState(() {});
+    _refreshFocusStyle();
   }
 
   void _handleFocusNodeChanged() {
@@ -223,12 +238,18 @@ class _AuthAutofillFieldState extends State<AuthAutofillField> {
     final input = _input;
     if (input != null) {
       if (hasFocus && !input.matches(':focus')) {
-        input.focus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              widget.focusNode.hasFocus &&
+              !input.matches(':focus')) {
+            input.focus();
+          }
+        });
       } else if (!hasFocus && input.matches(':focus')) {
         input.blur();
       }
     }
-    if (mounted) setState(() {});
+    _refreshFocusStyle();
   }
 
   void _handleKeyDown(web.KeyboardEvent event) {

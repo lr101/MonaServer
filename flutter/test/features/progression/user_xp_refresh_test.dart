@@ -241,12 +241,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('Root screen'), findsNothing);
-    expect(find.text('Upload'), findsOneWidget);
-    expect(find.text('Saving post'), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    await tester.pumpAndSettle();
+    expect(find.text('Saving photo…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Approve'), findsOneWidget);
-    expect(find.text('Upload'), findsOneWidget);
+    expect(find.text('Saving photo…'), findsOneWidget);
     expect(
       await fixture.database.select(fixture.database.pendingPinCreates).get(),
       isEmpty,

@@ -42,14 +42,20 @@ class CustomScaffold<T> extends ConsumerWidget {
             bottom: bottom,
           ),
           ...boxes.map((e) => SliverToBoxAdapter(child: e)),
-          PagingListener<int, T>(
-            controller: pagingController,
-            builder: (context, state, fetchNextPage) => PagedSliverList<int, T>(
-              state: state,
-              fetchNextPage: fetchNextPage,
-              builderDelegate: PagedChildBuilderDelegate<T>(
-                itemBuilder: listBuilder,
-              ),
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: PagingListener<int, T>(
+              controller: pagingController,
+              builder: (context, state, fetchNextPage) =>
+                  PagedSliverList<int, T>(
+                    state: state,
+                    fetchNextPage: fetchNextPage,
+                    builderDelegate: PagedChildBuilderDelegate<T>(
+                      itemBuilder: listBuilder,
+                    ),
+                  ),
             ),
           ),
         ],

@@ -3,18 +3,17 @@ import 'dart:convert';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
-import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/repository/user_pins_repository.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/camera/data/app_review_state.dart';
 import 'package:buff_lisa/features/camera/data/camera_state.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
-import 'package:buff_lisa/widgets/buttons/presentation/custom_submit_button.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_close_keyboard_scaffold.dart';
 import 'package:buff_lisa/widgets/group_selector/service/group_order_service.dart';
@@ -47,6 +46,10 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
 
   late int _groupIndexWhenOpened;
   bool _approvalStarted = false;
+  bool _leavingApproval = false;
+  String? _approvalError;
+  final _uploadActionKey = GlobalKey();
+  double _uploadActionHeight = 56;
   bool _checkingLocation = true;
   bool _markSelectedPinGone = false;
   Position? _presencePosition;
@@ -59,6 +62,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     super.initState();
     _groupIndexWhenOpened = ref.read(cameraGroupIndexProvider);
     unawaited(_refreshPresencePosition());
+    WidgetsBinding.instance.addPostFrameCallback(_measureUploadAction);
   }
 
   @override
@@ -78,9 +82,9 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     final nearbyPins = _nearbySyncedPins(groupPins?.value ?? const []);
     final locked =
         _photoUploadRetry.pendingRequest != null ||
-        _uploadedUpdatePinId != null;
+        _uploadedUpdatePinId != null ||
+        _approvalStarted;
 
-    final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     return CustomCloseKeyboardScaffold(
       appBar: AppBar(
         title: const Text(
@@ -88,136 +92,217 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  children: [
-                    Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: Container(
-                        width: double.infinity,
+          SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              10,
+              10,
+              10,
+              _uploadActionHeight + MediaQuery.paddingOf(context).bottom + 24,
+            ),
+            child: Column(
+              children: [
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.height * 0.33,
+                    alignment: Alignment.center,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10.0),
+                      child: Image.memory(
+                        widget.image,
                         height: MediaQuery.of(context).size.height * 0.33,
-                        alignment: Alignment.center,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10.0),
-                          child: Image.memory(
-                            widget.image,
-                            height: MediaQuery.of(context).size.height * 0.33,
-                            fit: BoxFit.fitHeight,
-                          ),
-                        ),
+                        fit: BoxFit.fitHeight,
                       ),
                     ),
-                    if (group.value != null)
-                      Card(
-                        child: GroupTile(
-                          groupDto: group.value!,
-                          onTap: locked ? null : handleEdit,
-                        ),
-                      )
-                    else
-                      const Card(),
-                    _nearbyPinPicker(
-                      nearbyPins,
-                      pinsLoading: groupPins?.isLoading ?? false,
-                      locked: locked,
-                    ),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            if (_selectedUpdatePinId == null)
-                              TextFormField(
-                                controller: _titleController,
-                                maxLength: 120,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Title',
-                                  hintText: 'Give this pin a short title',
-                                  counterText: '',
-                                  border: OutlineInputBorder(),
-                                ),
-                              ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _descriptionController,
-                              minLines: 1,
-                              maxLines: 10,
-                              textInputAction: TextInputAction.newline,
-                              decoration: InputDecoration(
-                                labelText: _selectedUpdatePinId == null
-                                    ? 'Description'
-                                    : 'Photo note (optional)',
-                                hintText: _selectedUpdatePinId == null
-                                    ? 'Add a note about this place'
-                                    : 'Add a note about this photo',
-                                border: const OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.multiline,
-                            ),
-                            if (_selectedUpdatePinId case final pinId?) ...[
-                              const SizedBox(height: 8),
-                              if (_selectedPinIsGone(nearbyPins, pinId))
-                                const ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.location_off_outlined),
-                                  title: Text(
-                                    'This place is already marked gone',
-                                  ),
-                                )
-                              else
-                                SwitchListTile.adaptive(
-                                  contentPadding: EdgeInsets.zero,
-                                  value: _markSelectedPinGone,
-                                  onChanged: locked
-                                      ? null
-                                      : (value) => setState(
-                                          () => _markSelectedPinGone = value,
-                                        ),
-                                  title: const Text('Mark this place as gone'),
-                                  subtitle: const Text(
-                                    'The photo will be added before its status changes.',
-                                  ),
-                                  secondary: const Icon(
-                                    Icons.location_off_outlined,
-                                  ),
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+                if (group.value != null)
+                  Card(
+                    child: GroupTile(
+                      groupDto: group.value!,
+                      onTap: locked ? null : handleEdit,
+                    ),
+                  )
+                else
+                  const Card(),
+                _nearbyPinPicker(
+                  nearbyPins,
+                  pinsLoading: groupPins?.isLoading ?? false,
+                  locked: locked,
+                ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      children: [
+                        if (_selectedUpdatePinId == null)
+                          TextFormField(
+                            controller: _titleController,
+                            enabled: !locked,
+                            maxLength: 120,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Title',
+                              hintText: 'Give this pin a short title',
+                              counterText: '',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _descriptionController,
+                          enabled: !locked,
+                          minLines: 1,
+                          maxLines: 10,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            labelText: _selectedUpdatePinId == null
+                                ? 'Description'
+                                : 'Photo note (optional)',
+                            hintText: _selectedUpdatePinId == null
+                                ? 'Add a note about this place'
+                                : 'Add a note about this photo',
+                            border: const OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.multiline,
+                        ),
+                        if (_selectedUpdatePinId case final pinId?) ...[
+                          const SizedBox(height: 8),
+                          if (_selectedPinIsGone(nearbyPins, pinId))
+                            const ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.location_off_outlined),
+                              title: Text('This place is already marked gone'),
+                            )
+                          else
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              value: _markSelectedPinGone,
+                              onChanged: locked
+                                  ? null
+                                  : (value) => setState(
+                                      () => _markSelectedPinGone = value,
+                                    ),
+                              title: const Text('Mark this place as gone'),
+                              subtitle: const Text(
+                                'The photo will be added before its status changes.',
+                              ),
+                              secondary: const Icon(
+                                Icons.location_off_outlined,
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          Visibility(
-            visible: !isKeyboardVisible,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: SubmitButton(
-                onPressed: handleApprove,
-                text: _uploadedUpdatePinId != null
-                    ? 'Retry mark as gone'
-                    : _photoUploadRetry.pendingRequest != null
-                    ? 'Retry photo update'
-                    : _selectedUpdatePinId == null
-                    ? 'Upload'
-                    : _markSelectedPinGone
-                    ? 'Update and mark gone'
-                    : 'Add photo update',
-                showLoadingIndicator: false,
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.paddingOf(context).bottom + 12,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: NotificationListener<SizeChangedLayoutNotification>(
+                  onNotification: (_) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      _measureUploadAction,
+                    );
+                    return false;
+                  },
+                  child: SizeChangedLayoutNotifier(
+                    child: _buildUploadAction(context),
+                  ),
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _measureUploadAction(Duration _) {
+    if (!mounted) return;
+    final height = _uploadActionKey.currentContext?.size?.height;
+    if (height != null && (height - _uploadActionHeight).abs() > .5) {
+      setState(() => _uploadActionHeight = height);
+    }
+  }
+
+  void _showApprovalError(String message) {
+    if (mounted) setState(() => _approvalError = message);
+  }
+
+  Widget _buildUploadAction(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final label = _uploadedUpdatePinId != null
+        ? 'Retry mark as gone'
+        : _photoUploadRetry.pendingRequest != null
+        ? 'Retry photo update'
+        : _selectedUpdatePinId == null
+        ? 'Upload'
+        : _markSelectedPinGone
+        ? 'Update and mark gone'
+        : 'Add photo update';
+    return Column(
+      key: _uploadActionKey,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_approvalError case final message?) ...[
+          Material(
+            color: colors.errorContainer,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: colors.onErrorContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(color: colors.onErrorContainer),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Dismiss upload error',
+                    onPressed: () => setState(() => _approvalError = null),
+                    icon: Icon(Icons.close, color: colors.onErrorContainer),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        FilledButton.icon(
+          key: const ValueKey('approval-upload-action'),
+          onPressed: _approvalStarted ? null : handleApprove,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: const StadiumBorder(),
+          ),
+          icon: _approvalStarted
+              ? const ExcludeSemantics(
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : const Icon(Icons.cloud_upload_outlined),
+          label: Text(_approvalStarted ? 'Saving photo…' : label),
+        ),
+      ],
     );
   }
 
@@ -406,42 +491,51 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
   }
 
   Future<void> handleApprove() async {
-    if (_approvalStarted) return Future<void>.value();
-    final groupId = groupIdAt(
-      ref.read(groupOrderServiceProvider),
-      ref.read(cameraGroupIndexProvider),
-    );
-    if (groupId == null) return Future<void>.value();
-    _approvalStarted = true;
-    if (_selectedUpdatePinId case final selectedId?) {
-      final pins =
-          ref.read(groupDetailsPinsProvider(groupId)).value ?? const [];
-      final pin = _nearbySyncedPins(pins)
-          .where((candidate) => candidate.pinId == selectedId)
-          .firstOrNull;
-      if (pin == null) {
-        _approvalStarted = false;
-        CustomErrorSnackBar.message(
-          message: 'That pin is no longer nearby. Choose another pin.',
-          type: CustomErrorSnackBarType.error,
-        );
+    if (_approvalStarted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _approvalStarted = true;
+      _approvalError = null;
+    });
+    try {
+      final groupId = groupIdAt(
+        ref.read(groupOrderServiceProvider),
+        ref.read(cameraGroupIndexProvider),
+      );
+      if (groupId == null) {
+        _showApprovalError('Choose a group before uploading.');
         return;
       }
-      await _submitPhotoUpdate(pin);
-      return;
+      if (_selectedUpdatePinId case final selectedId?) {
+        final pins =
+            ref.read(groupDetailsPinsProvider(groupId)).value ?? const [];
+        final pin = _nearbySyncedPins(pins)
+            .where((candidate) => candidate.pinId == selectedId)
+            .firstOrNull;
+        if (pin == null) {
+          _showApprovalError(
+            'That pin is no longer nearby. Choose another pin.',
+          );
+          return;
+        }
+        await _submitPhotoUpdate(pin);
+      } else {
+        await _saveNewPin(groupId);
+      }
+    } catch (_) {
+      _showApprovalError('Could not save this photo. Please try again.');
+    } finally {
+      if (mounted && !_leavingApproval) {
+        setState(() => _approvalStarted = false);
+      }
     }
-
-    await _saveNewPin(groupId);
   }
 
   Future<void> _submitPhotoUpdate(PinEntity pin) async {
     final position = _presencePosition;
     if (!canAddPinPhotoHere(position, pin)) {
-      _approvalStarted = false;
-      CustomErrorSnackBar.message(
-        message:
-            'A precise location within 50 m is required to update this pin.',
-        type: CustomErrorSnackBarType.error,
+      _showApprovalError(
+        'A precise location within 50 m is required to update this pin.',
       );
       return;
     }
@@ -485,20 +579,14 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
         }
       } on ApiException catch (error) {
         _photoUploadRetry.handleApiFailure(error);
-        _approvalStarted = false;
-        CustomErrorSnackBar.message(
-          message: error.code == 403
+        _showApprovalError(
+          error.code == 403
               ? 'You need to be within 50 m of this pin to add a photo.'
               : 'Could not add the photo. Please try again.',
-          type: CustomErrorSnackBarType.error,
         );
         return;
       } catch (_) {
-        _approvalStarted = false;
-        CustomErrorSnackBar.message(
-          message: 'Could not add the photo. Please try again.',
-          type: CustomErrorSnackBarType.error,
-        );
+        _showApprovalError('Could not add the photo. Please try again.');
         return;
       }
     }
@@ -512,10 +600,8 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
       }
       if (!mounted) return;
       if (error != null) {
-        _approvalStarted = false;
-        CustomErrorSnackBar.message(
-          message: 'Photo added, but the place could not be marked gone. Tap to retry.',
-          type: CustomErrorSnackBarType.error,
+        _showApprovalError(
+          'Photo added, but the place could not be marked gone. Tap to retry.',
         );
         return;
       }
@@ -546,8 +632,13 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     if (uploadedPhoto == null) {
       await repository.refreshHistory(pin.pinId);
     } else {
-      if (!await repository.accept(pin, uploadedPhoto, startedAt: writeStarted))
+      if (!await repository.accept(
+        pin,
+        uploadedPhoto,
+        startedAt: writeStarted,
+      )) {
         return;
+      }
     }
 
     final cachedPin = await pinRepository.get(pin.pinId);
@@ -596,10 +687,8 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     }
     if (!mounted) return;
     if (saveError != null) {
-      _approvalStarted = false;
-      CustomErrorSnackBar.message(
-        message: 'Could not save post on this device. Please try again.',
-        type: CustomErrorSnackBarType.error,
+      _showApprovalError(
+        'Could not save post on this device. Please try again.',
       );
       return;
     }
@@ -614,6 +703,7 @@ class _ImageUploadState extends ConsumerState<ImageUpload> {
     ref
         .read(cameraGroupIndexProvider.notifier)
         .updateIndex(_groupIndexWhenOpened);
+    _leavingApproval = true;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 

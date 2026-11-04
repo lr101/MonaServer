@@ -1,10 +1,10 @@
 import 'dart:convert';
 
+import 'package:buff_lisa/data/entity/group_entity.dart';
+import 'package:buff_lisa/data/entity/member_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
-import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/features/group_edit/service/group_edit_service.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/group_edit_template/presentation/group_edit_template.dart';
 import 'package:flutter/material.dart';
@@ -12,25 +12,51 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart' as api;
 
 class GroupEdit extends ConsumerStatefulWidget {
-  const GroupEdit({super.key, required this.groupid});
+  const GroupEdit({
+    super.key,
+    required this.groupid,
+    this.group,
+    this.embedded = false,
+    this.footerItems = const [],
+  });
 
   final String groupid;
+  final GroupEntity? group;
+  final bool embedded;
+  final List<Widget> footerItems;
 
   @override
   ConsumerState<GroupEdit> createState() => _GroupEditState();
 }
 
 class _GroupEditState extends ConsumerState<GroupEdit> {
+  String? _selectedAdminId;
+
+  @override
+  void didUpdateWidget(covariant GroupEdit oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.groupid != widget.groupid) {
+      _selectedAdminId = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final groupDto = ref.watch(groupMetadataProvider(widget.groupid)).value;
+    final groupDto =
+        widget.group ?? ref.watch(groupMetadataProvider(widget.groupid)).value;
     final global = ref.watch(globalDataServiceProvider);
-    final adminId = ref.watch(groupEditServiceProvider);
     if (groupDto == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final adminId = _selectedAdminId ?? groupDto.groupAdmin;
+    final members =
+        ref.watch(memberServiceProvider(groupDto.groupId)).value ??
+        const <MemberEntity>[];
     return GroupEditTemplate(
+      key: ValueKey(groupDto.groupId),
       groupDto: groupDto,
+      embedded: widget.embedded,
+      footerItems: widget.footerItems,
       title: "Edit group ${groupDto.name}",
       onSubmit: (name, description, link, profileImage, visibility) async {
         final result = await ref
@@ -47,7 +73,12 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
               groupDto.groupId,
             );
         if (result == null && context.mounted) {
-          Navigator.of(context).pop();
+          if (widget.embedded) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Group updated.')));
+          } else {
+            Navigator.of(context).pop();
+          }
         } else if (result != null) {
           CustomErrorSnackBar.message(message: result);
         }
@@ -73,30 +104,23 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
                     labelText: 'Group admin',
                     border: OutlineInputBorder(),
                   ),
-                  items:
-                      ref
-                          .watch(memberServiceProvider(groupDto.groupId))
-                          .value
-                          ?.map(
-                            (e) => DropdownMenuItem<String>(
-                              value: e.userId,
-                              child: Text(e.username),
-                            ),
-                          )
-                          .toList() ??
-                      [
-                        DropdownMenuItem<String>(
-                          value: global.userId,
-                          child: Text(
-                            ref.watch(currentUserProvider).value!.username,
-                          ),
+                  items: [
+                    for (final member in members)
+                      DropdownMenuItem<String>(
+                        value: member.userId,
+                        child: Text(member.username),
+                      ),
+                    if (!members.any((member) => member.userId == adminId))
+                      DropdownMenuItem<String>(
+                        value: adminId,
+                        child: Text(
+                          adminId == global.userId ? 'You' : 'Selected admin',
                         ),
-                      ],
+                      ),
+                  ],
                   onChanged: (String? value) {
                     if (value != null) {
-                      ref
-                          .read(groupEditServiceProvider.notifier)
-                          .updateAdminId(value);
+                      setState(() => _selectedAdminId = value);
                     }
                   },
                 ),

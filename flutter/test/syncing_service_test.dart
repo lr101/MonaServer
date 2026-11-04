@@ -972,11 +972,11 @@ void main() {
         ),
       );
     await f.container.read(syncingServiceProvider.notifier).syncToBackend();
-    expect(f.api.galleryCalls[scope], 1);
+    expect(f.api.galleryCalls[scope], 2);
 
     await owner.refreshActive();
 
-    expect(f.api.galleryCalls[scope], 2);
+    expect(f.api.galleryCalls[scope], 3);
     expect(
       owner.history('server-pin').map((photo) => photo.id),
       contains(update.id),

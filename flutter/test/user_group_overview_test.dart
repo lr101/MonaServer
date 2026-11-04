@@ -8,8 +8,8 @@ import 'package:buff_lisa/data/repository/global_data_repository.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
+import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
-import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/pop_up_menu_leave.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/default_group_image.dart';
 import 'package:flutter/material.dart';
@@ -42,10 +42,13 @@ void main() {
           builder: (context, state) => ValueListenableBuilder<bool>(
             valueListenable: visible,
             builder: (context, isVisible, child) => Scaffold(
-              appBar: isVisible
-                  ? AppBar(actions: [PopUpMenuLeave(groupDto: group)])
-                  : null,
-              body: isVisible ? null : const Text('Group not found'),
+              body: isVisible
+                  ? GroupActionButton(
+                      group: group,
+                      action: GroupAction.leave,
+                      expanded: true,
+                    )
+                  : const Text('Group not found'),
             ),
           ),
         ),
@@ -75,10 +78,7 @@ void main() {
     );
 
     await tester.pump();
-    await tester.tap(find.byType(PopupMenuButton<int>));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.text('Leave Group'));
+    await tester.tap(find.text('Leave group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Leave'));
@@ -138,10 +138,13 @@ void main() {
                 builder: (context, state) => ValueListenableBuilder<bool>(
                   valueListenable: visible,
                   builder: (context, isVisible, child) => Scaffold(
-                    appBar: isVisible
-                        ? AppBar(actions: [PopUpMenuLeave(groupDto: group)])
-                        : null,
-                    body: isVisible ? null : const Text('Group not found'),
+                    body: isVisible
+                        ? GroupActionButton(
+                            group: group,
+                            action: GroupAction.leave,
+                            expanded: true,
+                          )
+                        : const Text('Group not found'),
                   ),
                 ),
               ),
@@ -155,10 +158,98 @@ void main() {
     await tester.tap(find.text('Open group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byType(PopupMenuButton<int>));
+    await tester.tap(find.text('Leave group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.text('Leave Group'));
+    await tester.tap(find.text('Leave'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open group'), findsOneWidget);
+  });
+
+  testWidgets('leaving settings returns home without reopening the group', (
+    tester,
+  ) async {
+    final group = GroupEntity(
+      groupId: 'group-id',
+      name: 'Group',
+      visibility: 0,
+      userIsMember: true,
+      groupAdmin: 'another-user',
+      ttl: DateTime.now(),
+      onlySession: false,
+    );
+
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          globalDataOnceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          memberServiceProvider('group-id')
+              .overrideWith(_EmptyMemberService.new),
+          userGroupServiceProvider.overrideWith(
+            () => _RemovingLeaveUserGroupService(
+              onLeave: () => visible.value = false,
+            ),
+          ),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/home',
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (context, state) => ElevatedButton(
+                  onPressed: () => context.push('/group'),
+                  child: const Text('Open group'),
+                ),
+              ),
+              GoRoute(
+                path: '/group',
+                builder: (context, state) => ElevatedButton(
+                  onPressed: () => context.push('/group/settings'),
+                  child: const Text('Open settings'),
+                ),
+              ),
+              GoRoute(
+                path: '/group/settings',
+                name: 'groupSettings',
+                builder: (context, state) => ValueListenableBuilder<bool>(
+                  valueListenable: visible,
+                  builder: (context, isVisible, child) => Scaffold(
+                    body: isVisible
+                        ? GroupActionButton(
+                            group: group,
+                            action: GroupAction.leave,
+                            expanded: true,
+                          )
+                        : const Text('Group not found'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.text('Open group'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Leave group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Leave'));
@@ -193,7 +284,11 @@ void main() {
         GoRoute(
           path: '/group',
           builder: (context, state) => Scaffold(
-            appBar: AppBar(actions: [PopUpMenuLeave(groupDto: group)]),
+            body: GroupActionButton(
+              group: group,
+              action: GroupAction.leave,
+              expanded: true,
+            ),
           ),
         ),
         GoRoute(
@@ -227,10 +322,7 @@ void main() {
     await tester.tap(find.text('Open group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byType(PopupMenuButton<int>));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.text('Leave Group'));
+    await tester.tap(find.text('Leave group'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Leave'));

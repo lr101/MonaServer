@@ -4,10 +4,26 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 /// Writes a service worker for the exact Flutter release bundle in [build].
-Future<void> generateOfflineWeb(
-  Directory build, {
-  File? workerTemplate,
-}) async {
+Future<void> generateOfflineWeb(Directory build, {File? workerTemplate}) async {
+  final index = File('${build.path}/index.html');
+  final source = await index.readAsString();
+  const marker = '<!-- generated-offline-registration -->';
+  if (!source.contains(marker)) {
+    if (!source.contains('</head>')) {
+      throw StateError('Missing </head> in offline web index');
+    }
+    const registration = '''
+$marker
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('offline-sw.js').catch(function () {});
+}
+</script>
+''';
+    await index.writeAsString(
+      source.replaceFirst('</head>', '$registration</head>'),
+    );
+  }
   final root = build.absolute.path;
   final files = await build
       .list(recursive: true, followLinks: false)
@@ -17,10 +33,9 @@ Future<void> generateOfflineWeb(
 
   final assets = <String, String>{};
   for (final file in files) {
-    final relative = file.absolute.path.substring(root.length + 1).replaceAll(
-      Platform.pathSeparator,
-      '/',
-    );
+    final relative = file.absolute.path
+        .substring(root.length + 1)
+        .replaceAll(Platform.pathSeparator, '/');
     if (relative == 'offline-sw.js' ||
         relative == 'flutter_service_worker.js' ||
         relative.endsWith('.map') ||
@@ -59,7 +74,9 @@ Future<void> generateOfflineWeb(
 
 Future<void> main(List<String> args) async {
   if (args.length != 1) {
-    stderr.writeln('Usage: dart run tool/generate_offline_web.dart <build/web>');
+    stderr.writeln(
+      'Usage: dart run tool/generate_offline_web.dart <build/web>',
+    );
     exitCode = 64;
     return;
   }

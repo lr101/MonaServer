@@ -92,6 +92,33 @@ void main() {
     },
   );
 
+  test('recovers a gallery when a later page temporarily fails', () async {
+    var attempts = 0;
+    final owner = library(
+      fetch: (_, cursor) async {
+        if (cursor == null) {
+          return GalleryPhotoPage(
+            items: [GalleryPhotoRecord(pin, photo('pin'))],
+            nextCursor: 'next',
+          );
+        }
+        if (attempts++ == 0) throw ApiException(503, 'temporary');
+        return GalleryPhotoPage(
+          items: [GalleryPhotoRecord(pin, photo('update'))],
+        );
+      },
+    );
+    addTearDown(owner.dispose);
+    const scope = PhotoScope(groupId: 'group');
+    await owner.refreshGallery(scope);
+    expect(
+      owner.gallery(scope).photos.map((photo) => photo.id),
+      containsAll(['pin', 'update']),
+    );
+    expect(owner.gallery(scope).error, isNull);
+    expect(owner.gallery(scope).loaded, isTrue);
+  });
+
   test('group last-good updates survive failure, retry, and authoritative deletion', () async {
     var fail = false;
     var items = [photo('pin'), photo('update')];
@@ -220,7 +247,7 @@ void main() {
       var calls = 0;
       final owner = library(
         fetch: (_, _) async {
-          if (++calls == 1) throw ApiException(503, 'offline');
+          if (++calls <= 2) throw ApiException(503, 'offline');
           return GalleryPhotoPage(
             items: [GalleryPhotoRecord(pin, photo('update'))],
           );
@@ -233,13 +260,13 @@ void main() {
 
       await owner.refreshActive();
 
-      expect(calls, 2);
+      expect(calls, 3);
       expect(owner.gallery(scope).photos.single.id, 'update');
       expect(owner.gallery(scope).error, isNull);
       await owner.refreshActive();
       expect(
         calls,
-        2,
+        3,
         reason: 'successful unwatched scopes no longer need retry',
       );
     },

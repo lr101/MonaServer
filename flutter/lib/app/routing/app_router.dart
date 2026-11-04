@@ -11,6 +11,7 @@ import 'package:buff_lisa/features/email_login/domain/email_login_models.dart';
 import 'package:buff_lisa/features/email_login/presentation/email_login_screens.dart';
 import 'package:buff_lisa/features/group_create/presentation/group_create.dart';
 import 'package:buff_lisa/features/group_edit/presentation/group_edit.dart';
+import 'package:buff_lisa/features/group_overview/presentation/group_settings_page.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_image_feed.dart';
 import 'package:buff_lisa/features/group_overview/presentation/user_group_overview.dart';
 import 'package:buff_lisa/features/group_search/presentation/group_search.dart';
@@ -304,6 +305,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             inviteUrl: state.uri.queryParameters['invite'],
           );
         },
+      ),
+      GoRoute(
+        path: '/groups/:id/settings',
+        name: 'groupSettings',
+        builder: (context, state) =>
+            GroupSettingsPage(groupId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/groups/:id/photos/:entryId',

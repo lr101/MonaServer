@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:buff_lisa/features/achievement/data/achievement_provider.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
-import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
+import 'package:buff_lisa/features/achievement/presentation/achievement_track_browser.dart';
 import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/util/types/achievement.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -72,44 +72,30 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
       child: RefreshIndicator(
         onRefresh: () =>
             ref.refresh(achievementsProvider.future).then<void>((_) {}),
-        child: ListView.separated(
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 12),
-          itemCount: tracks.isEmpty ? 1 : tracks.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
-          itemBuilder: (context, itemIndex) {
-            if (tracks.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text('No achievements yet.')),
-              );
-            }
-            final track = tracks[itemIndex];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  style: Theme.of(context).textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                AchievementTierCarousel(
-                  key: ValueKey(track.id),
-                  title: track.title,
-                  tierCount: track.achievements.length,
-                  initialPage: activeAchievementTierIndex(
-                    track.achievements,
-                    (achievement) => achievement.claimed,
+          padding: EdgeInsets.only(
+            bottom: 12 + MediaQuery.paddingOf(context).bottom,
+          ),
+          children: [
+            AchievementTrackBrowser<UserAchievementsDtoInner>(
+              tracks: [
+                for (final track in tracks)
+                  AchievementTrackData(
+                    id: track.id,
+                    title: track.title,
+                    tiers: track.achievements,
                   ),
-                  itemBuilder: (context, tierIndex) =>
-                      _AchievementMilestoneCard(
-                        achievement: track.achievements[tierIndex],
-                      ),
-                ),
               ],
-            );
-          },
+              isClaimed: (tier) => tier.claimed,
+              isReady: (tier) =>
+                  !tier.claimed &&
+                  (tier.claimable ?? _calculateProgress(tier) >= 1),
+              progress: _calculateProgress,
+              tierBuilder: (context, tier) =>
+                  _AchievementMilestoneCard(achievement: tier),
+            ),
+          ],
         ),
       ),
     );
@@ -235,7 +221,7 @@ class _AchievementRewardPreview extends StatelessWidget {
         children: [
           Icon(Icons.bolt, size: 14, color: theme.colorScheme.primaryOnSurface),
           const SizedBox(width: 4),
-          Text('${achievement.rewardXp ?? 20} XP'),
+          Flexible(child: Text('${achievement.rewardXp ?? 20} XP')),
         ],
       ),
       'color' => Row(

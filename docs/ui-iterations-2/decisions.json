@@ -1,0 +1,72 @@
+[
+  {
+    "iteration": 11,
+    "concept": "Factual group-count badge",
+    "decision": "Kept",
+    "reason": "Reviewer found the count compact, aligned and informative without competing with actions.",
+    "image": "11-group-count.png"
+  },
+  {
+    "iteration": 12,
+    "concept": "Explained group action cards",
+    "decision": "Kept",
+    "reason": "Reviewer found both paths clearer and the additional mobile space justified.",
+    "image": "12-action-cards.png"
+  },
+  {
+    "iteration": 13,
+    "concept": "Compact dock with selected label only",
+    "decision": "Reverted",
+    "reason": "Saving 8 pixels did not justify removing destination labels and reducing discoverability.",
+    "image": "13-compact-dock.png"
+  },
+  {
+    "iteration": 14,
+    "concept": "Default Material scope segments",
+    "decision": "Reverted",
+    "reason": "Reviewer found the default selected fill less obvious than the existing strong selected pill.",
+    "image": "14-material-segments.png"
+  },
+  {
+    "iteration": 15,
+    "concept": "Labeled keyboard-accessible group filter",
+    "decision": "Kept",
+    "reason": "Reviewer found the label discoverable, professional and comfortably fitted in the header.",
+    "image": "15-labeled-filter.png"
+  },
+  {
+    "iteration": 16,
+    "concept": "Outlined feed-item surface",
+    "decision": "Kept",
+    "reason": "Reviewer found the subtle outline grouped photo and metadata without distracting from content.",
+    "image": "16-outlined-feed.png"
+  },
+  {
+    "iteration": 17,
+    "concept": "Compact Map/Photo toggle",
+    "decision": "Reverted",
+    "reason": "Reverted at user request: restore the feed Map/Photo thumbnail selector.",
+    "image": "17-compact-map-button.png"
+  },
+  {
+    "iteration": 18,
+    "concept": "Flat settings sections",
+    "decision": "Kept",
+    "reason": "Reviewer found stronger scanning hierarchy and less visual weight while preserving grouped rows.",
+    "image": "18-flat-settings.png"
+  },
+  {
+    "iteration": 19,
+    "concept": "Labeled current-location action",
+    "decision": "Reverted",
+    "reason": "Reverted at user request: restore the icon-only current-location action.",
+    "image": "19-location-label.png"
+  },
+  {
+    "iteration": 20,
+    "concept": "Collapsible desktop navigation rail",
+    "decision": "Kept",
+    "reason": "Reviewer found reclaimed width useful while labels remained clear. Toggle already includes explicit Collapse/Expand tooltips.",
+    "image": "20-collapsible-rail.png"
+  }
+]

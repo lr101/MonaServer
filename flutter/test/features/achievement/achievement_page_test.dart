@@ -142,27 +142,31 @@ void main() {
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Photo updates'), findsOneWidget);
-    expect(find.text('Gone pins'), findsOneWidget);
+    expect(find.textContaining('Photo updates ·'), findsOneWidget);
+    expect(find.textContaining('Gone pins ·'), findsOneWidget);
     expect(find.text('Fresh perspective'), findsOneWidget);
     expect(find.text('Good catch'), findsOneWidget);
     expect(find.text('0/3 earned'), findsNothing);
     expect(find.text('Creator'), findsOneWidget);
     expect(find.text('Claim 20 XP'), findsNothing);
-    expect(find.text('1/1'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.textContaining('Photo updates · 1 / 1'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsWidgets);
 
     await tester.tap(find.text('Creator'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collect reward'));
     await tester.pumpAndSettle();
     expect(usersApi.claimedId, 3);
 
     // Claiming the first milestone advances this track to its next unclaimed
     // tier without moving through other achievement categories.
     expect(find.text('Collector'), findsOneWidget);
-    expect(find.text('3/40'), findsOneWidget);
+    expect(find.textContaining('Pins · 3 / 40'), findsOneWidget);
     expect(find.text('Keep going to unlock this reward'), findsNothing);
 
-    await tester.fling(find.text('Collector'), const Offset(-500, 0), 1000);
+    await tester.tap(find.text('All tiers'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pins').last);
     await tester.pumpAndSettle();
     expect(find.text('Veteran').first, findsOneWidget);
     expect(find.text('Restore badge'), findsNothing);

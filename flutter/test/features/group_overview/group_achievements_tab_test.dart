@@ -24,7 +24,8 @@ void main() {
   ) async {
     final group = GroupEntity(
       groupId: 'group-id',
-      name: 'Group',
+      name:
+          'Northern Quarter Street Art Collective with a very long group name',
       visibility: 0,
       userIsMember: true,
       groupAdmin: 'alice',
@@ -32,6 +33,8 @@ void main() {
       onlySession: false,
     );
 
+    final groupState = ValueNotifier(group);
+    addTearDown(groupState.dispose);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -85,11 +88,14 @@ void main() {
           defaultErrorImageProvider.overrideWithValue(kTransparentImage),
         ],
         child: MaterialApp(
-          home: GroupOverview(
-            groupId: 'group-id',
-            details: GroupDetailsState(
-              group: group,
-              pins: const AsyncData<List<PinEntity>>([]),
+          home: ValueListenableBuilder<GroupEntity>(
+            valueListenable: groupState,
+            builder: (_, currentGroup, _) => GroupOverview(
+              groupId: 'group-id',
+              details: GroupDetailsState(
+                group: currentGroup,
+                pins: const AsyncData<List<PinEntity>>([]),
+              ),
             ),
           ),
         ),
@@ -100,7 +106,7 @@ void main() {
     expect(find.text('Gatherer'), findsNothing);
     expect(find.text('Group level 2 · 70 XP'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Achievements'), findsOneWidget);
+    expect(find.byTooltip('Achievements'), findsOneWidget);
     expect(tester.getTopLeft(find.byType(UserXpAvatarIndicator)).dx, 17);
     expect(
       tester
@@ -120,11 +126,28 @@ void main() {
     expect(find.text('Sticks'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
 
-    await tester.tap(find.text('Achievements'));
+    await tester.tap(find.byTooltip('Achievements'));
     await tester.pumpAndSettle();
 
     expect(find.text('Gatherer'), findsOneWidget);
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
     expect(find.text('Group level 2 · 70 XP'), findsNothing);
+    expect(find.byTooltip('Group settings'), findsOneWidget);
+    expect(find.byTooltip('Share group'), findsNothing);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).tabs.length, 3);
+    groupState.value = (group.copyWith()..userIsMember = false);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Group settings'), findsNothing);
+    expect(tester.takeException(), isNull);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 2);
   });
 }
 

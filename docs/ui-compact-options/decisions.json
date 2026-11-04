@@ -1,0 +1,50 @@
+[
+  {
+    "id": "header-a",
+    "title": "Header A: consolidated menu",
+    "image": "header-a-menu.png",
+    "extra": "header-a-actions.png",
+    "decision": "Rejected",
+    "reason": "The menu still consumes title width and makes Share a two-step action."
+  },
+  {
+    "id": "header-b",
+    "title": "Header B: actions beside stats",
+    "image": "header-b-actions-row.png",
+    "extra": "header-b-actions.png",
+    "decision": "Kept",
+    "reason": "Gives the title full width while Share remains immediate and other actions stay in a familiar menu."
+  },
+  {
+    "id": "header-c",
+    "title": "Header C: avatar action sheet",
+    "image": "header-c-avatar-sheet.png",
+    "extra": "header-c-actions.png",
+    "decision": "Rejected",
+    "reason": "An avatar-attached button suggests an avatar action; the sheet adds a modal step."
+  },
+  {
+    "id": "achievements-a",
+    "title": "Achievements A: prioritized tracks",
+    "image": "achievements-a-tracks.png",
+    "extra": "personal-a-tracks.png",
+    "decision": "Kept",
+    "reason": "Shows the current goal in each category without a full catalog. Refined with an explicit All tiers entry."
+  },
+  {
+    "id": "achievements-b",
+    "title": "Achievements B: category picker",
+    "image": "achievements-b-categories.png",
+    "extra": "personal-b-categories.png",
+    "decision": "Rejected",
+    "reason": "Opening a category into every tier recreates a long, card-heavy catalog."
+  },
+  {
+    "id": "achievements-c",
+    "title": "Achievements C: status filters",
+    "image": "achievements-c-status.png",
+    "extra": "personal-c-status.png",
+    "decision": "Rejected",
+    "reason": "The icon-only statuses are less self-explanatory and separate goals from their category context."
+  }
+]

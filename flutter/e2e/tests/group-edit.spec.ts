@@ -23,8 +23,7 @@ test('editing a group refreshes its cached picture in the overview', async ({ pa
   const data = JSON.parse(readFileSync(dataPath(), 'utf8')) as E2eData;
   await login(page, data);
   await page.locator('[role="tab"][aria-label="Groups"]').click();
-  await page.getByRole('button', { name: 'Show menu' }).click();
-  await page.getByRole('menuitem', { name: 'Create a new group', exact: true }).click();
+  await page.getByRole('button', { name: 'Create group', exact: true }).click();
 
   const groupName = `Image refresh ${Date.now()}`;
   await chooseAndCropImage(page, resolve(process.cwd(), '../assets/achievements/art.jpeg'));
@@ -54,18 +53,14 @@ test('editing a group refreshes its cached picture in the overview', async ({ pa
       await page.screenshot({ clip: { x: 66, y: 60, width: 80, height: 80 } }),
     );
 
-    await page.getByRole('button', { name: 'Show menu' }).click();
-    await page.getByRole('menuitem', { name: 'Edit Group (as admin)', exact: true }).click();
+      await page.getByRole('button', { name: 'Group settings', exact: true }).click();
     await chooseAndCropImage(
       page,
       resolve(process.cwd(), '../assets/achievements/world-hero.jpeg'),
     );
 
-    const refreshedImagesPromise = Promise.all([
-      waitForGroupImage(page, group.id, 'group_profile.png'),
-      waitForGroupImage(page, group.id, 'group_profile_small.png'),
-      waitForGroupImage(page, group.id, 'group_pin.png'),
-    ]);
+    const refreshedImagePromise = waitForGroupImage(page, group.id, 'group_profile.png');
+    const refreshedThumbnailPromise = waitForGroupImage(page, group.id, 'group_profile_small.png');
     const updateResponsePromise = page.waitForResponse((response) => {
       const request = response.request();
       return (
@@ -77,7 +72,9 @@ test('editing a group refreshes its cached picture in the overview', async ({ pa
     const updateResponse = await updateResponsePromise;
     expect(updateResponse.ok()).toBe(true);
 
-    const [largeImageResponse] = await refreshedImagesPromise;
+    // Saving stays in inline settings; return to the same overview to compare.
+    await page.getByRole('button', { name: /^Back/ }).first().click();
+    const largeImageResponse = await refreshedImagePromise;
     expect(hash(await largeImageResponse.body())).not.toBe(initialImageHash);
     await expect(page.locator('body')).toContainText(groupName);
     await expect
@@ -89,6 +86,8 @@ test('editing a group refreshes its cached picture in the overview', async ({ pa
         { timeout: 10_000 },
       )
       .not.toBe(initialAvatarHash);
+    await page.getByRole('button', { name: /^Back/ }).first().click();
+    await refreshedThumbnailPromise;
     expect(errors).toEqual([]);
   } finally {
     const deleteResponse = await page.request.delete(
@@ -128,9 +127,12 @@ async function login(page: Page, data: E2eData): Promise<void> {
 async function typeFlutterField(page: Page, name: string, value: string): Promise<void> {
   const field = page.getByRole('textbox', { name, exact: true });
   await field.click();
+  await page.waitForTimeout(150);
   await page.keyboard.press('Control+A');
   await page.keyboard.press('Backspace');
-  await page.keyboard.type(value);
+  await page.keyboard.insertText(value);
+  await expect(field).toHaveValue(value);
+  await page.keyboard.press('Tab');
 }
 
 async function chooseAndCropImage(page: Page, imagePath: string): Promise<void> {

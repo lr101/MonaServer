@@ -7,17 +7,9 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
 class ImageGrid extends ConsumerStatefulWidget {
-  const ImageGrid({
-    super.key,
-    required this.pinProvider,
-    this.onTap,
-    this.userId,
-    this.onRefresh,
-  });
+  const ImageGrid({super.key, required this.pinProvider, this.onRefresh});
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
-  final ValueChanged<int>? onTap;
-  final String? userId;
   final Future<void> Function()? onRefresh;
 
   @override
@@ -92,21 +84,6 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
               index: index,
               groupId: item.groupId,
               onTap: (index) {
-                final tap = widget.onTap;
-                if (tap != null) {
-                  tap(index);
-                  return;
-                }
-                if (widget.userId != null) {
-                  context.pushNamed(
-                    'userPhotoFeed',
-                    pathParameters: {
-                      'id': widget.userId!,
-                      'entryId': item.entryId,
-                    },
-                  );
-                  return;
-                }
                 context.pushNamed(
                   'viewImage',
                   pathParameters: {'id': item.pinId},
@@ -120,8 +97,26 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
         );
       },
     );
-    return widget.onRefresh == null
+    final refreshableGrid = widget.onRefresh == null
         ? grid
         : RefreshIndicator(onRefresh: widget.onRefresh!, child: grid);
+    if (!state.hasError) return refreshableGrid;
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: ListTile(
+            title: const Text('Unable to refresh images'),
+            trailing: widget.onRefresh == null
+                ? null
+                : TextButton(
+                    onPressed: widget.onRefresh,
+                    child: const Text('Retry'),
+                  ),
+          ),
+        ),
+        Expanded(child: refreshableGrid),
+      ],
+    );
   }
 }

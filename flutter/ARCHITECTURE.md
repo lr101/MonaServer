@@ -23,7 +23,7 @@ feature-layer migrations**, not completed `domain`/`data`/`presentation` slices.
 | Local session isolation | [`AccountSession`](lib/data/database/account_session.dart) revokes old database access; [`accountDatabaseProvider`](lib/data/repository/drift_repo.dart) supplies disposable facades over the bootstrap connection. Services capture `accountOperation(ref)` before async work to suppress stale follow-up actions. | `account_cleanup_test.dart` |
 | Sync lifecycle | [`AppSyncLifecycle`](lib/app/lifecycle/sync_lifecycle.dart) owns session/resume subscriptions; the pure Dart [`SyncCoordinator`](lib/core/sync/sync_coordinator.dart) serializes triggers and revokes superseded runs. Sync provider construction is idle. | `app/sync_coordinator_test.dart`, `app/sync_lifecycle_test.dart`, `syncing_service_test.dart` |
 | Groups and sync | Group updates are awaited and preserve local activation. [`group_details_service.dart`](lib/data/service/group_details_service.dart) shares metadata, pins, and image state across entry points. Public unjoined groups load from search; media loading/failure does not block metadata or membership actions. | `group_service_test.dart`, `syncing_service_test.dart`, `group_search_test.dart`, `user_group_overview_test.dart` |
-| Feed and images | `PhotoLibrary` owns normalized photo records by stable photo ID, persisted last-good metadata, and deduplicated gallery, history, and URL requests. Sync, accepted uploads, detail history, profile/group galleries, and image renewal share this owner. Gallery discovery uses the authenticated cursor API, and expired URLs resolve in batches of at most 100 instead of one history request per pin. A transient refresh failure preserves known records and pixels; confirmed deletion or access loss clears affected records. Providers subscribe before local hydration and remote refresh, so cached entries remain visible while network metadata updates. `features/pin/data/pin_entries.dart` projects original pins and later photographs into separate feed/profile entries while map providers retain one location per pin. Profile stick totals deduplicate contributed entries by location, and profile grids omit the update label. Feed and pin details share `FeedCardImage` for photo attribution, dates, captions, per-photo likes, and map switching. The card keeps the original photo first, shows the author badge and resolved place (coordinates only as fallback) in its overlay, overlaps user/group avatars at the overlay's upper left, and places likes with group/time below the image. Display images share `RemoteImageReference`, the asset adapters in `remote_image_source.dart`, and the `RemoteImage` package-backed widget. `RemotePinImage` is a pin convenience adapter. Grids, feed thumbnails, camera/hidden-post/map preview photos, compact avatars, and profile headers use this path. Grid/compact displays stop after the first usable thumbnail; large user/group image lists, feed/detail carousels, and profile headers retain the preview until the full image decodes, with independent bounded renewal and a preview that survives full-image failure. Flutter's lazy grid mounts visible tiles and a small nearby cache window. User and group profiles wait for complete pin and update-photo metadata, then display the grid immediately and let mounted tiles load and fade in independently. Original URLs and user/group variants use the authenticated batch coalescer; photo updates renew by stable photo ID through the shared batch resolver. The bounded session URL registry distinguishes freshly renewed photo metadata and lets failed mounted displays recover when sync supplies URLs later. Full and thumbnail URLs stay independent. `cached_network_image` owns loading; native file reuse belongs to `flutter_cache_manager`, web loading to the browser, and decoded frames to Flutter's `ImageCache`. Known image URLs resolve synchronously so cached grid remounts have no placeholder frame. New thumbnails fade in over 320 ms; metadata and content replacements retain the decoded frame during loading, failure, and late sync retries. Signed-query changes preserve cache keys; persisted-login namespaces isolate accounts and logins. User/group uploads publish a persisted content revision so mutable object paths replace mounted and cached pixels across restarts. Group details own metadata and pin state, while image loading belongs to widgets. Obsolete progressive/grid display-byte providers are removed. Byte adapters and repositories remain for editing, custom marker/appearance composition, explicitly retained offline pins, and native/local image inputs. Photo saving fetches bytes on demand rather than starting a second display download. See [image loading](IMAGE_LOADING.md) for policies and migration boundaries. Profile and group tiles open feeds by photo ID, preserving selection across insertions; legacy index routes remain supported. The grid stays usable while images load. Byte streams used for composition still subscribe before refresh and preserve byte identity on metadata-only updates. | `pin_user_service_test.dart`, `features/pin/pin_entries_test.dart`, `syncing_service_test.dart`, `feed_layout_test.dart`, `image_grid_test.dart`, `image_service_test.dart`, `image_repository_test.dart`, image widget tests |
+| Feed and images | `PhotoLibrary` owns normalized photo records by stable photo ID, persisted last-good metadata, and deduplicated gallery, history, and URL requests. Sync, accepted uploads, detail history, profile/group galleries, and image renewal share this owner. Gallery discovery uses the authenticated cursor API, and expired URLs resolve in batches of at most 100 instead of one history request per pin. A transient refresh failure preserves known records and pixels; confirmed deletion or access loss clears affected records. Providers subscribe before local hydration and remote refresh, so cached entries remain visible while network metadata updates. `features/pin/data/pin_entries.dart` projects original pins and later photographs into separate feed/profile entries while map providers retain one location per pin. Profile stick totals deduplicate contributed entries by location, and profile grids omit the update label. Feed and pin details share `FeedCardImage` for photo attribution, dates, captions, per-photo likes, and map switching. The card keeps the original photo first, shows the author badge and resolved place (coordinates only as fallback) in its overlay, overlaps user/group avatars at the overlay's upper left, and places likes with group/time below the image. Display images share `RemoteImageReference`, the asset adapters in `remote_image_source.dart`, and the `RemoteImage` package-backed widget. `RemotePinImage` is a pin convenience adapter. Grids, feed thumbnails, camera/hidden-post/map preview photos, compact avatars, and profile headers use this path. Grid/compact displays stop after the first usable thumbnail; large user/group image lists, feed/detail carousels, and profile headers retain the preview until the full image decodes, with independent bounded renewal and a preview that survives full-image failure. Flutter's lazy grid mounts visible tiles and a small nearby cache window. User and group profiles wait for complete pin and update-photo metadata, then display the grid immediately and let mounted tiles load and fade in independently. Original URLs and user/group variants use the authenticated batch coalescer; photo updates renew by stable photo ID through the shared batch resolver. The bounded session URL registry distinguishes freshly renewed photo metadata and lets failed mounted displays recover when sync supplies URLs later. Full and thumbnail URLs stay independent. `cached_network_image` owns loading; native file reuse belongs to `flutter_cache_manager`, web loading to the browser, and decoded frames to Flutter's `ImageCache`. Known image URLs resolve synchronously so cached grid remounts have no placeholder frame. New thumbnails fade in over 320 ms; metadata and content replacements retain the decoded frame during loading, failure, and late sync retries. Signed-query changes preserve cache keys; persisted-login namespaces isolate accounts and logins. User/group uploads publish a persisted content revision so mutable object paths replace mounted and cached pixels across restarts. Group details own metadata and pin state, while image loading belongs to widgets. Obsolete progressive/grid display-byte providers are removed. Byte adapters and repositories remain for editing, custom marker/appearance composition, explicitly retained offline pins, and native/local image inputs. Photo saving fetches bytes on demand rather than starting a second display download. See [image loading](IMAGE_LOADING.md) for policies and migration boundaries. Profile and group tiles open pin details directly, selecting the tapped photo by ID; legacy feed routes remain supported. The grid stays usable while images load. Byte streams used for composition still subscribe before refresh and preserve byte identity on metadata-only updates. | `pin_user_service_test.dart`, `features/pin/pin_entries_test.dart`, `syncing_service_test.dart`, `feed_layout_test.dart`, `image_grid_test.dart`, `image_service_test.dart`, `image_repository_test.dart`, image widget tests |
 | Map and camera | Animation/zoom callbacks have lifecycle guards. Camera flows handle permission, empty device/group lists and device selection. After capture, the normal approval screen lets users select a synced nearby pin in the selected group for a photo update, or mark that pin gone with the photo. Native and web previews use a centered 3:4 frame with a cover crop, matching the normalized pin image. The group carousel has bounded width and a centered shutter target across phone and tablet layouts. Web stream resize remains supported and zoom is optional. A conditional camera platform adapter requests video permission once and enumerates devices without opening every lens. | `map_camera_lifecycle_test.dart`, `camera_layout_test.dart`, `camera_permissions_test.dart`, `camera_selector_test.dart`, `camera_web_capture_test.dart`, `camera_values_test.dart`, `browser/camera_preview_test.dart` |
 | Web and diagnostics | Web ships Wasm plus JavaScript fallback, with artifact/serving checks and safe-area handling. Local Playwright verifies login/group flows. PostHog integration was removed. | `web_shell_test.dart`, `docker/test_web_build.sh`, `e2e/` |
 
@@ -39,6 +39,12 @@ notice above the route. Account changes clear the ledger and notices. Missing XP
 responses never prevent a saved pin or reward claim; unavailable baselines skip
 celebration rather than estimating a gain. Profile headers own XP summaries,
 while achievement tabs own collectible rewards.
+
+The shared `AchievementTrackBrowser<T>` owns compact track ordering and catalog
+selection; personal/group adapters retain reward data and claim commands.
+Milestone details expose full requirements without repeating them on every
+card. `CustomAvatarScaffold` accepts measured toolbar/profile heights so group
+names, large text and relocated actions do not overlap tabs.
 
 ## Where code lives now
 
@@ -327,3 +333,60 @@ feed or upload) and maximum pending-upload lifetime/idempotency retention.
 Production readiness still requires measured performance/cache limits, durable
 upload recovery, deterministic session failures, localization/accessibility,
 release smoke evidence, and documented rollout/rollback ownership.
+
+### Compact achievement goals and group actions
+
+`AchievementTrackBrowser<T>` owns presentation-only prioritization and the
+all-tier catalog. It receives claim/readiness/progress selectors and existing
+tier builders; personal/group providers remain responsible for fetching,
+claims and role permissions. `AchievementTrackScope` supplies category identity
+to compact milestone rows. These expose a single semantic button and open
+requirements/reward details before collection. The unscoped card remains
+available for existing read-only/profile uses.
+
+Group members reach `GroupSettingsPage` from the profile's top-right settings
+button at `/groups/:id/settings`. `GroupOverview` has three fixed content tabs
+and its toolbar measurement reserves the settings action width. Group settings
+owns full name/description/link/season presentation, member-only Share, and
+role-gated `GroupActionButton` rows. Direct settings links also require
+membership before rendering group information. `GroupInviteShareButton` can
+render a labeled settings row while retaining native sharing and clipboard
+fallback. Successful Leave from this page returns home instead of reopening
+the departed group; the existing pending-route protection is retained.
+
+Admins edit directly within `GroupSettingsPage` via an embedded `GroupEdit`
+and the shared `GroupEditTemplate`. Embedded mode supplies a single scrollable
+form, Save changes and settings footer actions without a nested Scaffold;
+standalone create/edit routes retain their existing shell. Successful inline
+saves stay on Settings, and ownership changes switch the former admin to the
+read-only settings view. Admin selection is local to each form, initialized
+from the group, and the template is keyed by group ID to isolate drafts.
+Existing group photos may arrive asynchronously; that image only initializes
+an empty photo draft and never replaces a chosen photo.
+
+### Floating compact navigation
+
+`AdaptiveNavigation` overlays `FloatingNavigationDock` in its body Stack,
+rather than reserving an opaque Scaffold footer. The content MediaQuery
+provides dock and safe-bottom clearance for lists and controls. Scrollable
+content consumes this clearance as trailing padding rather than clipping its
+viewport above the dock. MapHome paints its tiles full bleed and offsets
+the FAB/attribution above the moving rankings tray. An extent notifier updates
+only these controls during a drag, preserving the map subtree. The rankings sheet
+shares the compact dock’s width and bottom edge, with reserved navigation
+clearance inside the tray. Wide layouts retain an edge-anchored sheet.
+`NavigationPages` owns and disposes the PageController, animates selection,
+and keeps visited pages alive with inactive tickers muted. Camera activation
+still follows navigation selection. Reduced-motion selection is immediate;
+wide/short layouts retain the scrollable rail.
+
+
+### Photo approval action
+
+`ImageUpload` owns a floating action over its scrollable form. It measures the
+action/error group to reserve trailing scroll clearance, including safe bottom
+insets, and stays visible in the keyboard-resized Scaffold body. Approval owns
+its busy/error state and releases the lock in a finally block on failure; a
+successful save retains the lock while the route closes. Inputs and target
+selection freeze during save. Errors stay within approval for retry. The
+existing durable outbox and photo-update retry ownership are unchanged.
