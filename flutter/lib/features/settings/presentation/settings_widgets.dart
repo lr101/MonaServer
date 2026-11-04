@@ -42,17 +42,19 @@ class SettingsSectionCard extends StatelessWidget {
     required this.title,
     required this.children,
     this.description,
+    this.icon,
   });
 
   final String title;
   final String? description;
+  final IconData? icon;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: theme.colorScheme.surface,
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -62,11 +64,27 @@ class SettingsSectionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    if (icon != null) ...[
+                      ExcludeSemantics(
+                        child: Icon(
+                          icon,
+                          size: 20,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (description != null) ...[
                   const SizedBox(height: 4),

@@ -10,9 +10,11 @@ The local listeners are Go API `127.0.0.1:8081`, PostGIS `127.0.0.1:5432`,
 RustFS `127.0.0.1:9100` (console `9101`), and Flutter web
 `127.0.0.1:4173`.
 
-The database and RustFS are test dependencies, not mise tools. Firebase,
-SMTP, and other production integrations are optional; leave them unset unless
-the change specifically needs one of them.
+The database and RustFS are test dependencies, not mise tools. Firebase and
+other production integrations are optional. New public signups need local
+SMTP delivery and account activation; an existing activated password fixture
+can log in without SMTP. The seeder's fallback signup is therefore not a
+replacement for provisioning and activating a local fixture.
 
 ## Prepare the toolchain
 
@@ -67,6 +69,11 @@ by Flutter's login validator; `openssl rand -hex 12` produces a valid
 
 Keep PostgreSQL running, start RustFS in a second persistent terminal, and
 run the Go API in a third.
+Before starting each listener, check whether its port is already in use and
+identify the owner. Do not start a second RustFS on the same port: its socket
+can be shared and requests may reach a different data directory. A foreground
+process may be stopped by the host between agent turns; check readiness again
+before each browser run and restart only the services owned by this stack.
 
 ### Start disposable PostGIS
 
@@ -177,6 +184,9 @@ cd go-server
 set -a
 source ../.env.test
 set +a
+# Required for report quotas. Keep a stable local value in .env.test if this
+# API is restarted during the same test session.
+export ADMIN_SESSION_HMAC_KEY="${ADMIN_SESSION_HMAC_KEY:-$(openssl rand -hex 32)}"
 DATABASE_URL="postgres://${TEST_DB_USER}:${TEST_DB_PASSWORD}@127.0.0.1:5432/${TEST_DB_NAME}?sslmode=disable" \
 RUSTFS_ENDPOINT='127.0.0.1:9100' \
 RUSTFS_EXTERNAL_ENDPOINT='127.0.0.1:9100' \
@@ -236,6 +246,10 @@ Do not paste access or refresh tokens into logs. The seeder intentionally keeps
 only user and resource IDs in `testdata/.seed-state.json`.
 
 ## Build and verify Flutter Web
+
+For an iterative debug session with a connected hot-reload browser, login and
+screenshots, see the [Flutter Web verification skill](../.agents/skills/flutter-web-verification/SKILL.md).
+That workflow does not replace the release/offline check below.
 
 The API URL is compiled into Flutter Web, so rebuild after changing
 `E2E_API_URL`:

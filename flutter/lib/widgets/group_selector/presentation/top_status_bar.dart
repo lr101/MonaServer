@@ -61,6 +61,8 @@ class TopStatusBar extends ConsumerWidget {
                   children: [
                     Text(
                       user?.username ?? "",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,

@@ -78,6 +78,22 @@ class CameraGroupSelector extends StatelessWidget {
                           color: Theme.of(context).colorScheme.primaryOnSurface,
                         ),
                       ),
+                      child: const Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black54,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 28,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

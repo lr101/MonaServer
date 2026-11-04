@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "achievement": "Badge collection",
+    "achievementNote": "Current milestones as a two-column collection. Tap a badge for requirements and rewards.",
+    "menu": "Direct icon strip",
+    "menuNote": "Share, Edit, Report and Leave beside the stats. Every action is immediately available.",
+    "extra": null
+  },
+  {
+    "id": 2,
+    "achievement": "Compact goals",
+    "achievementNote": "Ready rewards first, then nearby goals and completed tracks. One progress row per category.",
+    "menu": "Contextual split",
+    "menuNote": "Share and admin Edit stay near identity. Report and Leave move into Group information.",
+    "extra": "group-2-info.png"
+  },
+  {
+    "id": 3,
+    "achievement": "Expandable categories",
+    "achievementNote": "Open a category inline to see its complete set of tiers.",
+    "menu": "Settings tab",
+    "menuNote": "Share stays beside the stats. Edit, Report and Leave get a dedicated settings destination.",
+    "extra": "group-3-settings.png"
+  },
+  {
+    "id": 4,
+    "achievement": "Focused next goal",
+    "achievementNote": "A prominent ready or nearest reward leads, with quieter goals below.",
+    "menu": "Information hub",
+    "menuNote": "All actions move into Group information, grouped by purpose. The header has no action strip.",
+    "extra": "group-4-info.png"
+  },
+  {
+    "id": 5,
+    "achievement": "Tier ladder",
+    "achievementNote": "Choose a category, then follow the ordered milestones vertically.",
+    "menu": "Split action rows",
+    "menuNote": "Share and Edit sit beside identity. Report and Leave sit below the description.",
+    "extra": null
+  }
+]

@@ -1,6 +1,5 @@
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
-import 'package:buff_lisa/features/group_user_list/presentation/pop_up_menu_create_group.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_scaffold.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/group_tile.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +24,8 @@ class _UserGroupsState extends ConsumerState<UserGroups> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      updatePage(ref.watch(userGroupServiceProvider).value?.toList() ?? []);
+      if (!mounted) return;
+      updatePage(ref.read(userGroupServiceProvider).value?.toList() ?? []);
     });
   }
 
@@ -42,11 +42,43 @@ class _UserGroupsState extends ConsumerState<UserGroups> {
       (_, next) => updatePage(next.value ?? []),
     );
     return CustomScaffold<GroupEntity>(
-      title: const Text(
-        "Your groups",
-        style: TextStyle(fontWeight: FontWeight.bold),
+      title: Row(
+        children: [
+          const Flexible(
+            child: Text(
+              'Your groups',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (ref.watch(orderedGroupsProvider).value case final groups?)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${groups.length}',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
+        ],
       ),
-      actions: const [PopUpMenuCreateGroup()],
+      actions: [
+        IconButton(
+          tooltip: 'Find groups',
+          onPressed: () => context.pushNamed('groupSearch'),
+          icon: const Icon(Icons.search),
+        ),
+        IconButton(
+          tooltip: 'Create group',
+          onPressed: () => context.pushNamed('groupCreate'),
+          icon: const Icon(Icons.group_add_outlined),
+        ),
+      ],
       listBuilder: (context, item, index) =>
           GroupTile(groupDto: item, onTap: () => openGroupOverview(item)),
       pagingController: _pagingController,

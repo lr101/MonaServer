@@ -1,8 +1,6 @@
 import 'package:buff_lisa/data/service/group_details_service.dart';
-import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_invite_share_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_join_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_overview.dart';
-import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/pop_up_menu_leave.dart';
 import 'package:buff_lisa/widgets/custom_scaffold/presentation/custom_avatar_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,15 +20,7 @@ class UserGroupOverview extends ConsumerWidget {
         if (group == null) {
           return const Center(child: Icon(Icons.error));
         } else if (group.userIsMember) {
-          return GroupOverview(
-            groupId: groupId,
-            details: details,
-            actions: [
-              if (group.inviteUrl != null)
-                GroupInviteShareButton(groupDto: group),
-              PopUpMenuLeave(groupDto: group),
-            ],
-          );
+          return GroupOverview(groupId: groupId, details: details);
         } else if (group.visibility == 0) {
           return GroupOverview(
             groupId: group.groupId,
@@ -43,6 +33,7 @@ class UserGroupOverview extends ConsumerWidget {
           );
         } else {
           return CustomAvatarScaffold(
+            toolbarHeight: groupTitleToolbarHeight(context, group.name),
             floatingActionButton: GroupJoinActionButton(
               groupDto: group,
               inviteUrl: inviteUrl,
@@ -51,7 +42,13 @@ class UserGroupOverview extends ConsumerWidget {
             remoteAvatar: details.profileImage,
             title: Text(
               group.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                height: 1.15,
+              ),
             ),
             body: const Center(child: Icon(Icons.lock)),
           );

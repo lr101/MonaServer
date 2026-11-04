@@ -24,6 +24,86 @@ must be understandable without interpreting decoration.
 This is a description of the intended direction, not a mandate to put a map on
 every screen. A form or settings screen should still feel like the same app.
 
+Use the standard Material icon set for application chrome and section
+landmarks. The user's latest direction replaces the decorative emoji introduced
+during the first experiment series with a more professional treatment. Retain
+the warm orange accents, Signika typography, content imagery and clear labels.
+Historical experiment screenshots preserve earlier alternatives; they do not
+override this newer iconography decision.
+
+The first ten-experiment review in [UI iterations](../docs/ui-iterations/README.md)
+retains an inset navigation dock on a themed backdrop, icon-plus-label map
+scopes, a separate rankings title/status, direct group discovery/create
+actions, clearer tappable group rows, Settings section landmarks,
+labeled map/photo inset toggles, and an expanded rail from 900 logical pixels.
+The former emoji landmarks have since been replaced by Material icons. The
+black-backed dock and extra camera-control tray were rejected. Compact
+navigation keeps all five labels; the rail stays compact below the expanded
+breakpoint. Preserve these choices while checking large-text and short-window
+behavior.
+
+The second ten-round review in [UI iterations 11–20](../docs/ui-iterations-2/README.md)
+keeps a factual group count, explained Find/Create action cards, a labeled
+keyboard-accessible group filter, outlined Feed posts, flat Settings sections,
+and a collapsible wide navigation rail. Rounds 17 and 19 were reverted at user
+request: retain the feed Map/Photo thumbnail selector and icon-only location
+action. The compact dock retains all five labels; the map scope
+retains its stronger selected pill. Settings and Rankings use standard Material
+icons, and the rail brand reads “Stick-It” without decorative emoji.
+
+The small-screen comparison in [compact UI options](../docs/ui-compact-options/README.md)
+supersedes the large Find/Create cards and persistent filter/scope captions.
+Use toolbar Search/Create icons and icon-only map controls with tooltips and
+accessible names. Group profile titles have the full toolbar width; Share and
+the existing overflow live beside the profile stats below. Long names and
+large text determine the title/header height. Group tabs use recognizable
+icons; the description is a compact teaser with full information on demand.
+Achievements show the current tier per category, prioritizing ready rewards,
+then nearby goals, then collected tracks. The All tiers entry exposes future
+and collected tiers; details retain full requirements and reward collection.
+The non-map compact navigation dock floats over content with icons only,
+while the map keeps its dock integrated with the sliding rankings panel.
+
+The follow-up [five-option comparison](../docs/ui-achievement-menu-options/README.md)
+replaces the achievement carousels with full-width current-goal rows, grouped
+as Ready to collect, Next up, and Collected. Include the category and exact
+count, with requirements/reward collection in a details sheet. The labeled
+All tiers catalog retains future and collected milestones. At the user's
+follow-up direction, group profiles now mirror the personal profile's top-row
+Settings gear. Members have three content tabs; sharing and the full group
+information live on the Group settings page alongside Edit, Report and Leave.
+The member profile no longer repeats the description or Share below the stats.
+For admins, Group settings shows the edit form directly (photo, name,
+description, link, visibility and admin selection) with Save changes followed
+by sharing and the other actions. A successful save stays on Settings.
+Other members retain read-only group information. Long group titles reserve
+room for the single gear and scale their toolbar
+height. Settings remain member-only, including direct links; the public and
+locked non-member overview behavior is preserved. See
+[profile alignment](../docs/ui-profile-alignment/README.md). The earlier
+fourth settings-tab comparison is historical. Floating icon-only navigation
+outside Map remains in place in that historical comparison.
+
+The floating navigation correction supersedes the split Map/non-map dock.
+All five compact destinations use the same centered, icon-only capsule over
+the page, with no painted footer or opaque surround. Only the capsule casts a
+shadow. Its selected slot expands while the indicator slides and the icon
+grows from 24 to 28 logical pixels. Page changes slide over 320 ms; reduced
+motion selects immediately. Each target stays at least 48 logical pixels at
+the supported narrow phone sizes. The dock avoids the system bottom inset and
+hides for the keyboard. Visited page state is retained. Map tiles extend
+behind the dock. The rankings tray shares the dock width and bottom edge,
+expanding upward from behind it; ranking content stays above navigation.
+Attribution and location controls follow the tray’s top edge while it moves.
+Feed and group lists keep full-height viewports and put dock clearance at the
+end of their scrollable content, so content can pass behind the capsule.
+Wider layouts keep the existing adaptive navigation rail.
+
+Photo approval uses a centered, floating Upload pill with a transparent
+surround. The form scrolls behind it with measured trailing clearance. Keep
+the action visible above the keyboard; show saving progress and persistent,
+recoverable errors beside it. See [capture uploads](../docs/ui-capture-upload/README.md).
+
 ## Implemented foundations
 
 | Element | Current source and visual role | Guidance for new work |
@@ -33,8 +113,8 @@ every screen. A form or settings screen should still feel like the same app.
 | Supporting colors | Slate blue-gray is `secondary`; teal is `tertiary`. On-surface and outline roles are neutral. | Use these semantic roles sparingly. A group pin's customizable palette is content identity, not a second app-wide accent system. |
 | Type | [`pubspec.yaml`](pubspec.yaml) bundles variable **Signika**; the theme applies it to `TextTheme`. | Use theme text styles and deliberate weight/size hierarchy. Avoid a platform-widget default font quietly replacing the app's type. Keep labels readable when text scales. |
 | Shape and spacing | The theme uses 12px input corners, 16px card corners, and 16px input padding. Screens commonly use 16px horizontal gutters and 8/12/16px gaps. | Follow these as current working patterns, not a rigid token scale. Keep alignment and grouping consistent within a screen; do not add one-off dimensions without a layout reason. |
-| Navigation | [`Navigation`](lib/features/navigation/presentation/navigation.dart) uses five Material 3 destinations with icon and label: Groups, Camera, Map, Feed, Profile. | Keep active state recognizable by icon, text, and shape, rather than pale color alone. New secondary navigation should have a clear relationship to its content. |
-| Web frame | [`MyApp`](lib/app/app.dart) currently centers a maximum 450px app on black. | This is a current implementation constraint, not a desktop design rule. Review wide layouts intentionally; do not reproduce the black frame as a brand token. |
+| Navigation | [`Navigation`](lib/features/navigation/presentation/navigation.dart) uses five destinations: Groups, Camera, Map, Feed, Profile. Compact windows use a centered, floating icon-only capsule; windows at least 600 logical pixels wide use a scrollable labeled rail. | Keep active state recognizable through icon size, filled shape and selection pill. Keep tooltip and accessibility labels for icon-only navigation. New secondary navigation should have a clear relationship to its content. |
+| Web frame | [`MyApp`](lib/app/app.dart) centers the app on black, with a 450px cap on compact windows and a 1000px cap on wider windows. | Treat the black frame as an implementation constraint, not a brand token. Review wider layouts intentionally. |
 
 ## Component and interaction language
 
@@ -50,8 +130,8 @@ every screen. A form or settings screen should still feel like the same app.
   answer the current task. The existing achievements catalog is an example to
   improve, not a template for new progress screens.
 - **Inputs:** Keep a persistent label, a visible resting affordance, and a
-  distinct focus/error state. The current theme's nearly invisible resting
-  border and varying screen-specific outlines are unresolved. Do not treat
+  distinct focus/error state. The shared theme supplies a visible resting outline; screen-specific outlines
+  still need review. Do not treat
   loose-looking text fields as intentional minimalism.
 - **Feedback:** State changes need accurate, local confirmation and a clear
   recovery path. Place messages where they do not cover the action needed to
@@ -131,8 +211,9 @@ Do **not** infer a design rule from these current exceptions:
 
 - Light-theme peach labels have weak contrast on the light surface.
 - Settings uses a different font, blue headings, and raised white cards.
-- Primary form actions, resting text fields, and sheet heights vary by screen.
-- The desktop web view is a narrow phone column on black.
+- Primary form actions, screen-specific text fields, and sheet heights vary by screen.
+- The desktop web view still has a bounded content area on black; adaptive
+  map/detail and feed layouts need further review.
 - Achievement cards overload the page while concealing reward meaning, and
   the pin editor can preview one style while a different one is active.
 
@@ -160,8 +241,14 @@ resolves; show coordinates only when none resolves. Keep update photos
 visually consistent with original photos; do not show an update label or icon
 in the feed. When multiple photos are available, show a centered dot progress
 indicator over the photo; swiping changes photos.
-The map inset switches with the main view and is the visible way back to the
-photo while the map fills the card.
+Previous/next photo buttons also remain available for touch, keyboard and
+assistive navigation. Keep their labels explicit and their targets at least
+48 logical pixels; progress dots complement those controls.
+The Map/Photo thumbnail inset switches the main card view and provides the
+way back to the photo while the map fills the card. Its Map caption uses text
+without an extra map glyph. Keep its target at least
+48 logical pixels. Main Feed posts use a subtle outlined surface around the
+photo and metadata.
 Place likes, group name, and photo age under the image, followed by title and
 description. The attribution header reserves the same 48 px height in the main
 feed and in pin details, even when the detail view hides the feed options menu.

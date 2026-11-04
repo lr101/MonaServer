@@ -96,7 +96,7 @@ void main() {
           ),
         );
         await tester.pump();
-        await tester.tap(find.widgetWithText(Tab, 'Pins'));
+        await tester.tap(find.byTooltip('Pins'));
         await tester.pump(const Duration(milliseconds: 500));
         await pumpImageLoads(tester);
         expect(find.byType(SquareImage).hitTestable(), findsOneWidget);

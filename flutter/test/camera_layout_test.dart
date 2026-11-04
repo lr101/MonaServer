@@ -123,6 +123,7 @@ void main() {
     final ring = tester.getRect(
       find.byKey(const ValueKey('camera-group-shutter-ring')),
     );
+    expect(find.byIcon(Icons.camera_alt), findsOneWidget);
     expect(carousel.width, closeTo(420, .01));
     expect(ring.center.dx, closeTo(carousel.center.dx, .01));
     expect(ring.center.dy, closeTo(carousel.center.dy, .01));

@@ -25,7 +25,7 @@ class RoundImagePicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final editButtonSize = (editSize ?? 22) * 2;
+    final editButtonSize = (editSize ?? 14) * 2;
 
     return RoundImage(
       imageCallback: imageCallback,
@@ -54,7 +54,7 @@ class RoundImagePicker extends ConsumerWidget {
                     }
                   },
                   child: SizedBox.square(
-                    dimension: 44,
+                    dimension: 48,
                     child: Align(
                       alignment: Alignment.bottomRight,
                       child: Transform.translate(
@@ -68,7 +68,7 @@ class RoundImagePicker extends ConsumerWidget {
                           ),
                           child: Icon(
                             Icons.edit,
-                            size: editSize == null ? 24 : editSize! * 1.25,
+                            size: editSize == null ? 18 : editSize! * 1.25,
                             color: colorScheme.onPrimaryContainer,
                           ),
                         ),

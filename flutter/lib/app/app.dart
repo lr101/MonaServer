@@ -38,7 +38,11 @@ class MyApp extends ConsumerWidget {
                         .black, // Background color for web outside the app
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 450),
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.sizeOf(context).width >= 600
+                              ? 1000
+                              : 450,
+                        ),
                         child: content,
                       ),
                     ),

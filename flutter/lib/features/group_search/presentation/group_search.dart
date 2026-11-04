@@ -84,6 +84,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
 
   Future<List<GroupEntity>> updatePage(int pageKey) async {
     final groups = await _fetchPage(pageKey);
+    if (!mounted) return [];
     if (groups == null) throw Exception("Groups could not be fetched");
     return groups.items.map((e) {
       registerGroupImageUrls(ref, e);
@@ -102,6 +103,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       // Image signing is an optional optimization. Keep search usable when
       // object storage is unavailable, and let visible rows resolve through
       // the normal cache-aware image path instead.
+      if (!mounted) return null;
       return _requestPage(api, pageKey, withImages: false);
     }
   }

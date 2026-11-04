@@ -14,23 +14,34 @@ class FeedCard extends ConsumerWidget {
     final item = ref.watch(feedItemProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth;
-          final maxHeight = maxWidth * 4 / 3;
-          if (thumbnailsOnly) {
-            return FeedCardThumbnail(
-              item: item,
-              maxWidth: maxWidth,
-              maxHeight: maxHeight,
-            );
-          }
-          return FeedCardImage(
-            item: item,
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-          );
-        },
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Card.outlined(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxWidth = constraints.maxWidth;
+                  final maxHeight = maxWidth * 4 / 3;
+                  if (thumbnailsOnly) {
+                    return FeedCardThumbnail(
+                      item: item,
+                      maxWidth: maxWidth,
+                      maxHeight: maxHeight,
+                    );
+                  }
+                  return FeedCardImage(
+                    item: item,
+                    maxWidth: maxWidth,
+                    maxHeight: maxHeight,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

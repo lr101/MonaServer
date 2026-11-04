@@ -10,7 +10,7 @@ import { chromium } from '@playwright/test';
 import { createStaticServer } from './static_server.mjs';
 
 test('a completed first visit opens the Flutter app with the network offline', async () => {
-  const staticRoot = new URL('../build/web/', import.meta.url);
+  const staticRoot = process.env.WEB_ROOT ?? new URL('../build/web/', import.meta.url);
   const server = createStaticServer({ staticRoot });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

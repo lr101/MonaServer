@@ -1,5 +1,3 @@
-import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
-
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -9,6 +7,7 @@ import 'package:buff_lisa/data/service/pin_thumbnail_prefetch_coordinator.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
+import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card.dart';
 import 'package:flutter/material.dart';
@@ -155,7 +154,8 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     if (controller == null || !controller.hasClients) return;
 
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final estimatedItemExtent = screenWidth * 4 / 3 + 90;
+    final cardWidth = (screenWidth - 32).clamp(0.0, 480.0);
+    final estimatedItemExtent = cardWidth * 4 / 3 + 90;
     final estimatedOffset = estimatedItemExtent * widget.index!;
     controller.jumpTo(
       estimatedOffset.clamp(0.0, controller.position.maxScrollExtent),

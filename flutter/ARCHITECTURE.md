@@ -40,6 +40,12 @@ responses never prevent a saved pin or reward claim; unavailable baselines skip
 celebration rather than estimating a gain. Profile headers own XP summaries,
 while achievement tabs own collectible rewards.
 
+The shared `AchievementTrackBrowser<T>` owns compact track ordering and catalog
+selection; personal/group adapters retain reward data and claim commands.
+Milestone details expose full requirements without repeating them on every
+card. `CustomAvatarScaffold` accepts measured toolbar/profile heights so group
+names, large text and relocated actions do not overlap tabs.
+
 ## Where code lives now
 
 ```text
@@ -327,3 +333,60 @@ feed or upload) and maximum pending-upload lifetime/idempotency retention.
 Production readiness still requires measured performance/cache limits, durable
 upload recovery, deterministic session failures, localization/accessibility,
 release smoke evidence, and documented rollout/rollback ownership.
+
+### Compact achievement goals and group actions
+
+`AchievementTrackBrowser<T>` owns presentation-only prioritization and the
+all-tier catalog. It receives claim/readiness/progress selectors and existing
+tier builders; personal/group providers remain responsible for fetching,
+claims and role permissions. `AchievementTrackScope` supplies category identity
+to compact milestone rows. These expose a single semantic button and open
+requirements/reward details before collection. The unscoped card remains
+available for existing read-only/profile uses.
+
+Group members reach `GroupSettingsPage` from the profile's top-right settings
+button at `/groups/:id/settings`. `GroupOverview` has three fixed content tabs
+and its toolbar measurement reserves the settings action width. Group settings
+owns full name/description/link/season presentation, member-only Share, and
+role-gated `GroupActionButton` rows. Direct settings links also require
+membership before rendering group information. `GroupInviteShareButton` can
+render a labeled settings row while retaining native sharing and clipboard
+fallback. Successful Leave from this page returns home instead of reopening
+the departed group; the existing pending-route protection is retained.
+
+Admins edit directly within `GroupSettingsPage` via an embedded `GroupEdit`
+and the shared `GroupEditTemplate`. Embedded mode supplies a single scrollable
+form, Save changes and settings footer actions without a nested Scaffold;
+standalone create/edit routes retain their existing shell. Successful inline
+saves stay on Settings, and ownership changes switch the former admin to the
+read-only settings view. Admin selection is local to each form, initialized
+from the group, and the template is keyed by group ID to isolate drafts.
+Existing group photos may arrive asynchronously; that image only initializes
+an empty photo draft and never replaces a chosen photo.
+
+### Floating compact navigation
+
+`AdaptiveNavigation` overlays `FloatingNavigationDock` in its body Stack,
+rather than reserving an opaque Scaffold footer. The content MediaQuery
+provides dock and safe-bottom clearance for lists and controls. Scrollable
+content consumes this clearance as trailing padding rather than clipping its
+viewport above the dock. MapHome paints its tiles full bleed and offsets
+the FAB/attribution above the moving rankings tray. An extent notifier updates
+only these controls during a drag, preserving the map subtree. The rankings sheet
+shares the compact dock’s width and bottom edge, with reserved navigation
+clearance inside the tray. Wide layouts retain an edge-anchored sheet.
+`NavigationPages` owns and disposes the PageController, animates selection,
+and keeps visited pages alive with inactive tickers muted. Camera activation
+still follows navigation selection. Reduced-motion selection is immediate;
+wide/short layouts retain the scrollable rail.
+
+
+### Photo approval action
+
+`ImageUpload` owns a floating action over its scrollable form. It measures the
+action/error group to reserve trailing scroll clearance, including safe bottom
+insets, and stays visible in the keyboard-resized Scaffold body. Approval owns
+its busy/error state and releases the lock in a finally block on failure; a
+successful save retains the lock while the route closes. Inputs and target
+selection freeze during save. Errors stay within approval for retry. The
+existing durable outbox and photo-update retry ownership are unchanged.
