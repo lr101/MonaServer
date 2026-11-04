@@ -1,11 +1,9 @@
-import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/custom_feed.dart';
 import 'package:buff_lisa/widgets/group_selector/presentation/top_status_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class ActiveGroupFeed extends ConsumerStatefulWidget {
   const ActiveGroupFeed({super.key});
@@ -16,24 +14,9 @@ class ActiveGroupFeed extends ConsumerStatefulWidget {
 
 class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
     with AutomaticKeepAliveClientMixin {
-  final PagingController<int, PinEntity> _pagingController = PagingController(
-    firstPageKey: 0,
-    invisibleItemsThreshold: 5,
-  );
-
-  @override
-  void dispose() {
-    _pagingController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
-    ref.listen(activePinEntriesProvider, (previous, next) {
-      _pagingController.refresh();
-    });
 
     return SafeArea(
       bottom: false,
@@ -60,10 +43,7 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
             padding: EdgeInsets.only(
               bottom: MediaQuery.paddingOf(context).bottom,
             ),
-            sliver: CustomFeed(
-              pinProvider: activePinEntriesProvider,
-              pagingController: _pagingController,
-            ),
+            sliver: CustomFeed(pinProvider: activePinEntriesProvider),
           ),
         ],
       ),

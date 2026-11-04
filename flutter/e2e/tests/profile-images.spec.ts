@@ -167,7 +167,6 @@ test('group profile loads a complete gallery snapshot then fetches visible thumb
   const delayed = entries.find((photo: { caption?: string }) => photo.caption === 'Browser image 99');
   const blockedPath = new URL(delayed.imageThumbnail).pathname;
   const selected = entries.find((photo: { caption?: string }) => photo.caption === 'Browser image 99');
-  const next = entries.find((photo: { caption?: string }) => photo.caption === 'Browser image 98');
   const fullPhotos = new Set<string>();
   let releaseHistory!: () => void;
   let releaseImage!: () => void;
@@ -226,13 +225,7 @@ test('group profile loads a complete gallery snapshot then fetches visible thumb
     expect(photos.length).toBeGreaterThan(downloads);
     await page.screenshot({ path: info.outputPath('group-complete-grid.png') });
     await tile.click();
-    await expect(page.getByRole('heading', { name: 'Group images', exact: true })).toBeVisible();
     await expect.poll(() => fullPhotos.has(new URL(selected.image).pathname), { timeout: 20_000 }).toBe(true);
-    await page.mouse.wheel(0, 900);
-    await expect.poll(() => fullPhotos.has(new URL(next.image).pathname), { timeout: 20_000 }).toBe(true);
-    await page.screenshot({ path: info.outputPath('group-list-full-photos.png') });
-    await page.mouse.wheel(0, -900);
-    await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
     await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible();
   } finally {
@@ -314,9 +307,7 @@ test('a profile photo opens its selected detail while the full image loads', asy
   const tile = page.getByRole('tabpanel').getByRole('button').first();
   await tile.waitFor({ state: 'visible' });
   await tile.click();
-  await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
   await expect.poll(() => pending).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible();
   await expect.poll(() => [...fullPhotos.keys()].some((path) => path.endsWith(`/photos/${selected}.jpg`)), {
@@ -418,8 +409,6 @@ test('carousel keeps full photos available after traversing a long update histor
   await profile(page);
   await expect.poll(() => thumbnailReady, { timeout: 20_000 }).toBe(true);
   await page.getByRole('tabpanel').getByRole('button').first().click();
-  await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: /Photo 101 of 101.*Browser image 99/ })).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath('carousel-initial.png') });
@@ -463,12 +452,7 @@ test('profile update photo pixels survive opening details and returning', async 
   expect(before.length, 'fixture photograph must be visible before navigation').toBeGreaterThan(2000);
   for (let visit = 0; visit < 2; visit++) {
     await tile.click();
-    await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Open photo details', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Pin details', exact: true })).toBeVisible();
-    if (visit === 0) await appBack();
-    else await page.goBack();
-    await expect(page.getByRole('heading', { name: 'User images', exact: true })).toBeVisible();
     if (visit === 0) await appBack();
     else await page.goBack();
     await expect(tile).toBeVisible();

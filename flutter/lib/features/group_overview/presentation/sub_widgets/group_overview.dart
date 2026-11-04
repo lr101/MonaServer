@@ -3,6 +3,7 @@ import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/data/service/member_service.dart';
 import 'package:buff_lisa/data/service/photo_library.dart';
+import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/features/pin/data/pin_entries.dart';
 import 'package:buff_lisa/features/progression/data/group_xp_provider.dart';
 import 'package:buff_lisa/features/progression/domain/xp_level_progress.dart';
@@ -194,19 +195,12 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           ),
           ImageGrid(
             pinProvider: groupPinEntriesProvider(widget.groupId),
-            onRefresh: () => ref
-                .read(photoLibraryProvider)
-                .refreshGallery(PhotoScope(groupId: widget.groupId)),
-            onTap: (index) => context.pushNamed(
-              'groupPhotoFeed',
-              pathParameters: {
-                'id': widget.groupId,
-                'entryId': ref
-                    .read(groupPinEntriesProvider(widget.groupId))
-                    .requireValue[index]
-                    .entryId,
-              },
-            ),
+            onRefresh: () {
+              _retryGroupPins();
+              return ref
+                  .read(photoLibraryProvider)
+                  .refreshGallery(PhotoScope(groupId: widget.groupId));
+            },
           ),
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -217,6 +211,13 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         ],
       ),
     );
+  }
+
+  void _retryGroupPins() {
+    ref
+        .read(pinGroupRefreshErrorStateProvider(widget.groupId).notifier)
+        .clear();
+    ref.invalidate(pinGroupServiceUnfilteredProvider(widget.groupId));
   }
 
   Widget _buildQuickStats(
@@ -233,17 +234,22 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
           ),
         ),
         Expanded(
-          child: _statItem(
-            'Sticks',
-            pins.whenOrNull(
-                  data: (values) => (values ?? const <PinEntity>[])
-                      .map((entry) => entry.pinId)
-                      .toSet()
-                      .length
-                      .toString(),
-                ) ??
-                '0',
-          ),
+          child: pins.hasError
+              ? TextButton(
+                  onPressed: _retryGroupPins,
+                  child: const Text('Retry sticks'),
+                )
+              : _statItem(
+                  'Sticks',
+                  pins.whenOrNull(
+                        data: (values) => (values ?? const <PinEntity>[])
+                            .map((entry) => entry.pinId)
+                            .toSet()
+                            .length
+                            .toString(),
+                      ) ??
+                      '0',
+                ),
         ),
       ],
     );

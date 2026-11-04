@@ -265,8 +265,8 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         ref.read(pinGroupRefreshErrorStateProvider(groupId).notifier).clear();
       }
     } catch (error, stackTrace) {
-      // Keep cached pins available when a background refresh is unavailable.
-      if (cachedPins.isEmpty && isCurrentSession(ref, session)) {
+      // Keep cached pins, but do not present an incomplete count as final.
+      if (isCurrentSession(ref, session)) {
         ref
             .read(pinGroupRefreshErrorStateProvider(groupId).notifier)
             .setError(error, stackTrace);
@@ -285,9 +285,8 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final membershipBeforeFetch = _currentMembership();
     await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
 
-    // Keep a fixed watermark for the whole walk. Advancing it after each page
-    // would skip rows that changed while the refresh was in progress.
-    final updatedAfter = _oldestSyncTime(cachedPins);
+    // Cached pins can be a partial set, for example populated by the map.
+    // A full walk is needed before the group count can be trusted.
     const pageSize = 20;
     final received = <String>{};
     DateTime? beforeCreationDate;
@@ -300,7 +299,6 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         withImage: false,
         page: page,
         size: pageSize,
-        updatedAfter: updatedAfter,
         beforeCreationDate: beforeCreationDate,
         beforeId: beforeId,
       );
@@ -334,7 +332,17 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
           beforeCreationDate == last.creationDate && beforeId == last.id;
       beforeCreationDate = last.creationDate;
       beforeId = last.id;
-      if (remotePins.items.length < pageSize || cursorRepeated) break;
+      if (cursorRepeated) throw StateError('Repeated group pin cursor');
+      if (remotePins.items.length < pageSize) break;
+    }
+
+    final stale = cachedPins
+        .where((pin) => pin.lastSynced != null && !received.contains(pin.pinId))
+        .map((pin) => pin.pinId)
+        .toList();
+    if (stale.isNotEmpty) {
+      await _pinRepository.deleteMultiple(stale);
+      if (!isCurrentSession(ref, session)) return;
     }
 
     // Membership may change while the repository batch is being written.
@@ -390,16 +398,6 @@ class PinGroupRefreshErrorState extends _$PinGroupRefreshErrorState {
   void setError(Object error, StackTrace stackTrace) {
     state = PinGroupRefreshError(error, stackTrace);
   }
-}
-
-DateTime? _oldestSyncTime(List<PinEntity> pins) {
-  DateTime? oldest;
-  for (final pin in pins) {
-    final lastSynced = pin.lastSynced;
-    if (lastSynced == null) return null;
-    if (oldest == null || lastSynced.isBefore(oldest)) oldest = lastSynced;
-  }
-  return oldest;
 }
 
 @riverpod

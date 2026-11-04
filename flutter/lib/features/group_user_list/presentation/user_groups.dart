@@ -15,7 +15,10 @@ class UserGroups extends ConsumerStatefulWidget {
 }
 
 class _UserGroupsState extends ConsumerState<UserGroups> {
-  final _pagingController = PagingController<int, GroupEntity>(firstPageKey: 0);
+  final _pagingController = PagingController<int, GroupEntity>(
+    getNextPageKey: (_) => null,
+    fetchPage: (_) => <GroupEntity>[],
+  );
 
   @override
   void initState() {
@@ -83,8 +86,12 @@ class _UserGroupsState extends ConsumerState<UserGroups> {
   }
 
   void updatePage(List<GroupEntity> groups) {
-    _pagingController.refresh();
-    _pagingController.appendLastPage(groups);
+    _pagingController.cancel();
+    _pagingController.value = PagingState(
+      pages: [groups],
+      keys: [0],
+      hasNextPage: false,
+    );
   }
 
   void openGroupOverview(GroupEntity group) {

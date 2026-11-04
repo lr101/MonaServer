@@ -19,6 +19,95 @@ import 'package:transparent_image/transparent_image.dart';
 import 'support/pin_image_test_cache.dart';
 
 void main() {
+  testWidgets('search loads subsequent pages and stops after a short page', (
+    tester,
+  ) async {
+    final api = _PagedGroupsApi();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+          globalDataServiceProvider.overrideWithValue(
+            const GlobalDataDto(
+              userId: 'user-id',
+              refreshToken: null,
+              cameras: [],
+            ),
+          ),
+          userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+          groupApiProvider.overrideWithValue(api),
+          defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+        ],
+        child: const MaterialApp(home: GroupSearch()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(api.pages, [0]);
+    for (var i = 0; i < 60 && find.text('Last group').evaluate().isEmpty; i++) {
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pump();
+    expect(find.text('Last group'), findsOneWidget);
+    expect(api.pages, [0, 1]);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
+    await tester.pump();
+    expect(api.pages, [0, 1]);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+    'a refreshed search ignores a late response from the old search',
+    (tester) async {
+      final api = _DelayedGroupsApi();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            pinImageSourcesProvider.overrideWithValue(createTestImageSources()),
+            globalDataServiceProvider.overrideWithValue(
+              const GlobalDataDto(
+                userId: 'user-id',
+                refreshToken: null,
+                cameras: [],
+              ),
+            ),
+            userGroupServiceProvider.overrideWith(_EmptyUserGroupService.new),
+            groupApiProvider.overrideWithValue(api),
+            defaultErrorImageProvider.overrideWithValue(kTransparentImage),
+          ],
+          child: const MaterialApp(home: GroupSearch()),
+        ),
+      );
+      await tester.pump();
+      expect(api.pending.length, 1);
+      await tester.enterText(find.byType(SearchBar), 'new');
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(api.pending.length, 2);
+      api.pending[1].complete(
+        GroupsSyncDto(
+          items: [GroupDto(id: 'new', name: 'New result', visibility: 0)],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('New result'), findsOneWidget);
+      api.pending[0].complete(
+        GroupsSyncDto(
+          items: [GroupDto(id: 'old', name: 'Old result', visibility: 0)],
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('New result'), findsOneWidget);
+      expect(find.text('Old result'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
   testWidgets('search rows reuse thumbnail URLs from the page response', (
     tester,
   ) async {
@@ -137,4 +226,51 @@ class _RecordingGroupsApi extends GroupsApi {
 class _EmptyUserGroupService extends UserGroupService {
   @override
   Stream<List<GroupEntity>> build() => Stream.value([]);
+}
+
+class _DelayedGroupsApi extends GroupsApi {
+  _DelayedGroupsApi() : super(ApiClient());
+  final pending = <Completer<GroupsSyncDto?>>[];
+
+  @override
+  Future<GroupsSyncDto?> getGroupsByIds({
+    List<String>? ids,
+    String? search,
+    String? userId,
+    bool? withUser,
+    bool? withImages,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+  }) {
+    final request = Completer<GroupsSyncDto?>();
+    pending.add(request);
+    return request.future;
+  }
+}
+
+class _PagedGroupsApi extends GroupsApi {
+  _PagedGroupsApi() : super(ApiClient());
+  final pages = <int?>[];
+  @override
+  Future<GroupsSyncDto?> getGroupsByIds({
+    List<String>? ids,
+    String? search,
+    String? userId,
+    bool? withUser,
+    bool? withImages,
+    int? page,
+    int? size,
+    DateTime? updatedAfter,
+  }) async {
+    pages.add(page);
+    return GroupsSyncDto(
+      items: page == 0
+          ? List.generate(
+              40,
+              (i) => GroupDto(id: 'group-$i', name: 'Group $i', visibility: 0),
+            )
+          : [GroupDto(id: 'last', name: 'Last group', visibility: 0)],
+    );
+  }
 }

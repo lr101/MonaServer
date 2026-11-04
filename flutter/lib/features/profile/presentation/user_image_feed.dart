@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
-import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class UserImageFeed extends ConsumerStatefulWidget {
   const UserImageFeed({
@@ -25,12 +24,10 @@ class UserImageFeed extends ConsumerStatefulWidget {
 }
 
 class _UserImageFeedState extends ConsumerState<UserImageFeed> {
-  PagingController<int, PinEntity>? _pagingController;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void dispose() {
-    _pagingController?.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -47,17 +44,6 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
             (item) => item.entryId == widget.entryId,
           );
           final initialIndex = selected < 0 ? widget.index : selected;
-          final initialItems = data.take(initialIndex + 1).toList();
-          final pagingController = _pagingController ??=
-              PagingController.fromValue(
-                PagingState<int, PinEntity>(
-                  nextPageKey: initialItems.length < data.length
-                      ? initialItems.length
-                      : null,
-                  itemList: initialItems,
-                ),
-                firstPageKey: 0,
-              );
           return CustomScrollView(
             controller: _scrollController,
             scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
@@ -66,7 +52,6 @@ class _UserImageFeedState extends ConsumerState<UserImageFeed> {
                 pinProvider: widget.userPinNotifier,
                 index: initialIndex,
                 entryId: widget.entryId,
-                pagingController: pagingController,
                 scrollController: _scrollController,
                 thumbnailsOnly: true,
               ),

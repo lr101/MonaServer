@@ -228,9 +228,16 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final paging = PagingController<int, int>(firstPageKey: 0);
+    final paging = PagingController<int, int>(
+      getNextPageKey: (_) => null,
+      fetchPage: (_) => <int>[],
+    );
     addTearDown(paging.dispose);
-    paging.appendLastPage(List.generate(30, (index) => index));
+    paging.value = PagingState(
+      pages: [List.generate(30, (index) => index)],
+      keys: [0],
+      hasNextPage: false,
+    );
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(

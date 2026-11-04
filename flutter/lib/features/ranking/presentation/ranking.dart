@@ -22,11 +22,22 @@ class Ranking extends ConsumerStatefulWidget {
 
 class _RankingState extends ConsumerState<Ranking>
     with TickerProviderStateMixin {
-  final _pagingControllerGroup = PagingController<int, GroupRankingDtoInner>(
-    firstPageKey: 0,
-  );
-  final _pagingControllerUser = PagingController<int, UserRankingDtoInner>(
-    firstPageKey: 0,
+  late final _pagingControllerGroup =
+      PagingController<int, GroupRankingDtoInner>(
+        getNextPageKey: (state) => state.pages == null
+            ? 0
+            : state.pages!.last.length < _pageSize
+            ? null
+            : state.keys!.last + 1,
+        fetchPage: updatePageGroup,
+      );
+  late final _pagingControllerUser = PagingController<int, UserRankingDtoInner>(
+    getNextPageKey: (state) => state.pages == null
+        ? 0
+        : state.pages!.last.length < _pageSize
+        ? null
+        : state.keys!.last + 1,
+    fetchPage: updatePageUser,
   );
   late final _tabController = TabController(
     length: 2,
@@ -35,13 +46,6 @@ class _RankingState extends ConsumerState<Ranking>
   );
 
   static const int _pageSize = 40;
-
-  @override
-  void initState() {
-    super.initState();
-    _pagingControllerGroup.addPageRequestListener(updatePageGroup);
-    _pagingControllerUser.addPageRequestListener(updatePageUser);
-  }
 
   @override
   void dispose() {
@@ -106,19 +110,29 @@ class _RankingState extends ConsumerState<Ranking>
         controller: _tabController,
         children: [
           RankingListWrapper(
-            child: PagedListView<int, GroupRankingDtoInner>(
-              pagingController: _pagingControllerGroup,
-              builderDelegate: PagedChildBuilderDelegate(
-                itemBuilder: listBuilderGroup,
-              ),
+            child: PagingListener<int, GroupRankingDtoInner>(
+              controller: _pagingControllerGroup,
+              builder: (context, state, fetchNextPage) =>
+                  PagedListView<int, GroupRankingDtoInner>(
+                    state: state,
+                    fetchNextPage: fetchNextPage,
+                    builderDelegate: PagedChildBuilderDelegate(
+                      itemBuilder: listBuilderGroup,
+                    ),
+                  ),
             ),
           ),
           RankingListWrapper(
-            child: PagedListView<int, UserRankingDtoInner>(
-              pagingController: _pagingControllerUser,
-              builderDelegate: PagedChildBuilderDelegate(
-                itemBuilder: listBuilderUser,
-              ),
+            child: PagingListener<int, UserRankingDtoInner>(
+              controller: _pagingControllerUser,
+              builder: (context, state, fetchNextPage) =>
+                  PagedListView<int, UserRankingDtoInner>(
+                    state: state,
+                    fetchNextPage: fetchNextPage,
+                    builderDelegate: PagedChildBuilderDelegate(
+                      itemBuilder: listBuilderUser,
+                    ),
+                  ),
             ),
           ),
         ],
@@ -142,7 +156,7 @@ class _RankingState extends ConsumerState<Ranking>
     return UserRankingTile(user: item, height: 40);
   }
 
-  Future<void> updatePageUser(int pageKey) async {
+  Future<List<UserRankingDtoInner>> updatePageUser(int pageKey) async {
     try {
       final districts = ref.read(rankingGidProvider);
       final rankingTime = ref.read(rankingTimeSelectorProvider);
@@ -162,17 +176,12 @@ class _RankingState extends ConsumerState<Ranking>
             season: season,
           );
       if (items == null) {
-        _pagingControllerUser.error = "Ranking could not be fetched";
-        return;
+        throw Exception("Ranking could not be fetched");
       }
       _prefetchUserImages(items);
-      if (items.length < _pageSize) {
-        _pagingControllerUser.appendLastPage(items);
-      } else {
-        _pagingControllerUser.appendPage(items, pageKey + 1);
-      }
+      return items;
     } on ApiException catch (e) {
-      _pagingControllerUser.error = e.message;
+      throw Exception(e.message);
     }
   }
 
@@ -180,7 +189,7 @@ class _RankingState extends ConsumerState<Ranking>
     return i1.gid == i2.gid;
   }
 
-  Future<void> updatePageGroup(int pageKey) async {
+  Future<List<GroupRankingDtoInner>> updatePageGroup(int pageKey) async {
     try {
       final districts = ref.read(rankingGidProvider);
       final rankingTime = ref.read(rankingTimeSelectorProvider);
@@ -200,8 +209,7 @@ class _RankingState extends ConsumerState<Ranking>
             season: season,
           );
       if (items == null) {
-        _pagingControllerGroup.error = "Ranking could not be fetched";
-        return;
+        throw Exception("Ranking could not be fetched");
       }
       for (final item in items) {
         final group = item.groupInfoDto;
@@ -210,13 +218,9 @@ class _RankingState extends ConsumerState<Ranking>
           _prefetchImage(BatchReadKind.groupImageSmall, group.id);
         }
       }
-      if (items.length < _pageSize) {
-        _pagingControllerGroup.appendLastPage(items);
-      } else {
-        _pagingControllerGroup.appendPage(items, pageKey + 1);
-      }
+      return items;
     } on ApiException catch (e) {
-      _pagingControllerGroup.error = e.message;
+      throw Exception(e.message);
     }
   }
 
