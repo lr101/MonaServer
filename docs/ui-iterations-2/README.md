@@ -37,4 +37,3 @@ Earlier full iteration verification, before those user-requested reversions:
 - This is debug/browser validation, not a release/offline build or Android device run. Screenshots establish the captured visual states; browser checks do not establish native TalkBack, Android system bars, predictive back, or device lifecycle behavior.
 
 All review agents inspected rendered screenshots. A separate read-only review checked retained source changes for functional and accessibility issues. Its large-text Rankings finding was reproduced and fixed; a fresh focused review found no remaining material issue in that fix or the group-search lifecycle guard. Fixture photos and avatars can appear black; this is test content and does not establish real-media quality.
-
