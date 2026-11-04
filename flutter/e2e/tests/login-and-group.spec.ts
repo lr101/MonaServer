@@ -159,8 +159,7 @@ test('login survives a month idle and reopening the browser tab', async ({ page,
   const searched = page.waitForResponse((response) =>
     new URL(response.url()).pathname === '/api/v2/groups' && response.ok());
   await page.getByRole('tab', { name: 'Groups', exact: true }).click();
-  await page.getByRole('button', { name: 'Show menu' }).click();
-  await page.getByRole('menuitem', { name: 'Search existing groups', exact: true }).click();
+  await page.getByRole('button', { name: 'Find groups', exact: true }).click();
   await renewed;
   await searched;
   await expect(page.locator('input').first()).toBeVisible();
@@ -230,8 +229,7 @@ test('expired refresh during group creation returns to sign-in without a network
   const data = readE2eData();
   await login(page, data);
   await page.getByRole('tab', { name: 'Groups', exact: true }).click();
-  await page.getByRole('button', { name: 'Show menu' }).click();
-  await page.getByRole('menuitem', { name: 'Create a new group', exact: true }).click();
+  await page.getByRole('button', { name: 'Create group', exact: true }).click();
 
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Change image' }).click();
@@ -356,9 +354,8 @@ test('loads pins for a public group opened through group search', async ({ page 
 
   await login(page, data);
   await page.locator('[role="tab"][aria-label="Groups"]').click();
-  await page.getByRole('button', { name: 'Show menu' }).click();
   await page
-    .getByRole('menuitem', { name: 'Search existing groups' })
+    .getByRole('button', { name: 'Find groups' })
     .click();
 
   const searchRequest = page.waitForResponse((response) => {

@@ -8,7 +8,7 @@ test.use({
   actionTimeout: 15_000,
   channel: 'chromium',
   permissions: ['camera', 'geolocation'],
-  geolocation: { latitude: 48.137154, longitude: 11.576124 },
+  geolocation: { latitude: 48.137154, longitude: 11.576124, accuracy: 10 },
   launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
 });
 const errors = new WeakMap<Page, string[]>();
