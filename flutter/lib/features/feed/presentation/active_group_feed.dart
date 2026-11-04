@@ -36,6 +36,7 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
     });
 
     return SafeArea(
+      bottom: false,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
@@ -55,9 +56,14 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
             ),
           ),
 
-          CustomFeed(
-            pinProvider: activePinEntriesProvider,
-            pagingController: _pagingController,
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: CustomFeed(
+              pinProvider: activePinEntriesProvider,
+              pagingController: _pagingController,
+            ),
           ),
         ],
       ),

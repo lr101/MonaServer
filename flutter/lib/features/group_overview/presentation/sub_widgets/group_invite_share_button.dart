@@ -8,9 +8,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:share_plus/share_plus.dart';
 
 class GroupInviteShareButton extends StatefulWidget {
-  const GroupInviteShareButton({super.key, required this.groupDto});
+  const GroupInviteShareButton({
+    super.key,
+    required this.groupDto,
+    this.expanded = false,
+  });
 
   final GroupEntity groupDto;
+  final bool expanded;
 
   @override
   State<GroupInviteShareButton> createState() => _GroupInviteShareButtonState();
@@ -21,6 +26,14 @@ class _GroupInviteShareButtonState extends State<GroupInviteShareButton> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.expanded) {
+      return ListTile(
+        key: _shareButtonKey,
+        leading: const Icon(Icons.share),
+        title: const Text('Share group'),
+        onTap: _shareInviteLink,
+      );
+    }
     return IconButton(
       key: _shareButtonKey,
       tooltip: 'Share group',

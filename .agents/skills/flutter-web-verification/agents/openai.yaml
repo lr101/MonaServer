@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flutter Web Verification"
+  short_description: "Verify Flutter Web with hot reload and screenshots"
+  default_prompt: "Use $flutter-web-verification to check this Flutter Web flow with login and screenshots."

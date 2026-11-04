@@ -8,6 +8,7 @@ import 'package:buff_lisa/features/map_home/presentation/join_group_hint.dart';
 import 'package:buff_lisa/features/map_home/presentation/osm_copyright.dart';
 import 'package:buff_lisa/features/map_home/presentation/pin_cluster_preview_marker.dart';
 import 'package:buff_lisa/features/map_home/presentation/ranking_panel.dart';
+import 'package:buff_lisa/features/navigation/presentation/floating_navigation_dock.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
 import 'package:buff_lisa/widgets/custom_map_setup/presentation/custom_tile_layer.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker.dart';
@@ -46,6 +47,7 @@ class MapHome extends ConsumerStatefulWidget {
 class _MapHomeState extends ConsumerState<MapHome>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final MapController _controller = MapController();
+  final ValueNotifier<double> _rankingExtent = ValueNotifier(0);
   late final AnimationController _animateController;
   late final MapLocationAnimator _locationAnimator;
   String? _openClusterKey;
@@ -56,7 +58,6 @@ class _MapHomeState extends ConsumerState<MapHome>
   _ClusterPreviewSelection? _pendingClusterPreview;
   bool _previewInvalidationScheduled = false;
 
-  static const double panelHeaderSize = 60;
   static const double maxMapZoom = 18;
 
   @override
@@ -86,12 +87,21 @@ class _MapHomeState extends ConsumerState<MapHome>
     _locationAnimator.dispose();
     _animateController.dispose();
     _controller.dispose();
+    _rankingExtent.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final panelHeaderSize = rankingHeaderHeight(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final hasDock =
+        MediaQuery.sizeOf(context).width < 600 &&
+        MediaQuery.viewInsetsOf(context).bottom == 0;
+    final navigationClearance = hasDock
+        ? navigationDockHeight + navigationDockMargin
+        : 0.0;
     final mapState = ref.watch(mapStatesProvider);
     final mapZoom = ref.watch(mapZoomLevelProvider);
     ref.watch(markerWindowStateProvider);
@@ -207,19 +217,47 @@ class _MapHomeState extends ConsumerState<MapHome>
             ],
           ),
         ),
-        Positioned(
-          bottom: panelHeaderSize + 10,
-          right: 4, // ranking panel has 4px box shadow, so position 4px from bottom and right
-          child: FloatingActionButton(
-            heroTag: "moveToCurrentLocation",
-            onPressed: () => moveToCurrentPosition(showPermissionError: true),
-            child: const Icon(Icons.my_location),
+        Positioned.fill(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return ValueListenableBuilder<double>(
+                valueListenable: _rankingExtent,
+                builder: (context, extent, _) {
+                  final trayBottom = bottomInset - navigationClearance;
+                  final availableHeight = constraints.maxHeight - trayBottom;
+                  final trayHeight = extent == 0
+                      ? panelHeaderSize + navigationClearance
+                      : availableHeight * extent;
+                  final controlBottom = trayBottom + trayHeight;
+                  final side = hasDock
+                      ? (constraints.maxWidth -
+                                navigationDockWidth(constraints.maxWidth)) /
+                            2
+                      : 4.0;
+                  return Stack(
+                    children: [
+                      Positioned(
+                        bottom: controlBottom + 10,
+                        right: side,
+                        child: FloatingActionButton(
+                          heroTag: 'moveToCurrentLocation',
+                          tooltip: 'My location',
+                          onPressed: () =>
+                              moveToCurrentPosition(showPermissionError: true),
+                          child: const Icon(Icons.my_location),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: controlBottom + 4,
+                        left: hasDock ? side : 0,
+                        child: const OsmCopyright(),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
-        ),
-        const Positioned(
-          bottom: panelHeaderSize + 4,
-          left: 0, // ranking panel has 4px box shadow, so position 4px left
-          child: OsmCopyright(),
         ),
         const SafeArea(
           child: Padding(
@@ -228,20 +266,24 @@ class _MapHomeState extends ConsumerState<MapHome>
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Flexible(child: TopStatusBar()),
-                SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [JoinGroupHintOverlay(), ModeSelector()],
-                ),
+                SizedBox(height: 8),
+                MapScopeControls(groupHint: JoinGroupHintOverlay()),
               ],
             ),
           ),
         ),
 
-        const Positioned.fill(
+        Positioned.fill(
+          bottom: bottomInset - navigationClearance,
           child: NotificationListener<DraggableScrollableNotification>(
-            child: RankingSlidingPanel(headerPixelHeight: panelHeaderSize),
+            onNotification: (notification) {
+              _rankingExtent.value = notification.extent;
+              return false;
+            },
+            child: RankingSlidingPanel(
+              headerPixelHeight: panelHeaderSize,
+              navigationClearance: navigationClearance,
+            ),
           ),
         ),
       ],

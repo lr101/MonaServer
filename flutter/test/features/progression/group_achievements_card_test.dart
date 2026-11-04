@@ -38,8 +38,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Photo updates'), findsOneWidget);
-    expect(find.text('Gone pins'), findsOneWidget);
+    expect(find.textContaining('Photo updates ·'), findsOneWidget);
+    expect(find.textContaining('Gone pins ·'), findsOneWidget);
   });
 
   testWidgets('group hard achievement rewards are labeled Legendary', (
@@ -93,12 +93,15 @@ void main() {
     );
 
     expect(find.text('Group achievements'), findsOneWidget);
-    expect(find.text('10/40'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.textContaining('Pins · 10 / 40'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('Claim'), findsNothing);
 
     await tester.tap(find.text('Pins 1'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(claimedId, isNull);
+    await tester.tap(find.text('Collect reward'));
+    await tester.pumpAndSettle();
     expect(claimedId, 1);
   });
 
@@ -156,11 +159,12 @@ void main() {
       ),
     );
 
-    final cardWidth = tester.getSize(find.byType(AchievementCard)).width;
-    final fillWidth = tester
-        .getSize(find.byKey(const ValueKey('achievement-progress-fill')))
-        .width;
-    expect(fillWidth, closeTo(cardWidth / 2, 2));
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+          .value,
+      .5,
+    );
   });
 
   testWidgets('public progress does not let a non-member claim a reward', (
@@ -247,6 +251,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Pins 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collect reward'));
     await tester.pumpAndSettle();
     expect(groupsApi.claimedAchievementId, 1);
     expect(fetches, 2);

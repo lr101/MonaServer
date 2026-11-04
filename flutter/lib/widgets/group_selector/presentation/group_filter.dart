@@ -25,11 +25,10 @@ class GroupFilterWidget extends ConsumerWidget {
 
     final orderedIds = ref.watch(groupActiveServiceProvider);
 
-    return GestureDetector(
-      onTap: () => _showFilterSheet(context),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        color: Colors.transparent,
+    return Tooltip(
+      message: 'Filter groups',
+      child: TextButton(
+        onPressed: () => _showFilterSheet(context),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -98,7 +97,7 @@ class GroupFilterWidget extends ConsumerWidget {
             const SizedBox(width: 8),
             Icon(
               Icons.filter_list,
-              size: 16,
+              size: 24,
               color: theme.colorScheme.primaryOnSurface,
             ),
           ],

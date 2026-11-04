@@ -173,6 +173,10 @@ class MaterialTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
         // When focused, the border becomes Orange
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

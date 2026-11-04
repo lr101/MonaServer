@@ -68,6 +68,22 @@ test('email-code sign-in remains the default and can switch to password', async 
   await expect(identifier).toBeVisible();
 });
 
+test('password form keeps browser focus and advances on Enter', async ({ page }) => {
+  await page.goto('/');
+  await enableAccessibility(page);
+  await page.getByRole('button', { name: 'Sign in with password', exact: true }).click();
+  const username = page.locator('#stick-it-login-username');
+  const password = page.locator('#stick-it-login-password');
+  await username.click();
+  await expect(username).toBeFocused();
+  await username.pressSequentially('exampleuser');
+  await expect(username).toHaveValue('exampleuser');
+  await username.press('Enter');
+  await expect(password).toBeFocused();
+  await password.pressSequentially('examplepassword');
+  await expect(password).toHaveValue('examplepassword');
+});
+
 test('password sign-in publishes browser autofill metadata', async ({ page }) => {
   await page.goto('/');
   await enableAccessibility(page);
@@ -181,7 +197,9 @@ test('rejected refresh returns to login, survives reload, and permits reauthenti
       body: 'refresh token expired',
     });
   });
-  // The only expected browser error is the refresh response injected above.
+  // In-flight batch requests can be rejected after the forced session expiry.
+  ignoreExpiredBatchConsoleError(page, () => rejections > 0);
+  // The refresh response itself is injected above.
   page.on('console', (message) => {
     if (message.type() === 'error' &&
         message.location().url.endsWith('/api/v2/public/refresh') &&
@@ -245,6 +263,7 @@ test('expired refresh during group creation returns to sign-in without a network
       body: 'refresh token expired',
     });
   });
+  ignoreExpiredBatchConsoleError(page, () => refreshRequests > 0);
   for (const [pathname, status, reason] of [
     ['/api/v2/groups', 401, 'Unauthorized'],
     ['/api/v2/public/refresh', 410, 'Gone'],
@@ -428,6 +447,18 @@ async function login(
   await submitLogin(page, data);
 }
 
+function ignoreExpiredBatchConsoleError(page: Page, expired: () => boolean): void {
+  page.on('console', (message) => {
+    if (expired() && message.type() === 'error' &&
+        new URL(message.location().url || page.url()).pathname === '/api/v3/batch' &&
+        message.text() === 'Failed to load resource: the server responded with a status of 401 (Unauthorized)') {
+      const errors = uiErrors.get(page)!;
+      const index = errors.lastIndexOf(message.text());
+      if (index >= 0) errors.splice(index, 1);
+    }
+  });
+}
+
 async function enableAccessibility(page: Page): Promise<void> {
   await page.waitForFunction(
     () => document.querySelector('#splash-screen') === null,
@@ -497,7 +528,7 @@ test.describe('web camera access', () => {
     await page.getByRole('tab', { name: 'Camera', exact: true }).click();
     const video = page.locator('video');
     await expect(video).toBeVisible({ timeout: 30_000 });
-    await expect(video).toHaveCSS('object-fit', 'contain');
+    await expect(video).toHaveCSS('object-fit', 'cover');
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState)).toBe(4);
     expect(await page.evaluate(() => (window as Window & { __cameraRequests: number }).__cameraRequests)).toBe(2);
     await expect(page.getByRole('button', { name: 'Select camera' })).toBeVisible();
@@ -516,7 +547,7 @@ test.describe('web camera access', () => {
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => {
       const bounds = element.getBoundingClientRect();
       return bounds.width / bounds.height;
-    })).toBeCloseTo(4 / 3, 2);
+    })).toBeCloseTo(3 / 4, 2);
     await page.getByRole('button', { name: 'Take photo', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Select Location' })).toBeVisible({ timeout: 30_000 });
     await page.goBack();
@@ -528,7 +559,8 @@ test.describe('web camera access', () => {
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Approve' })).toBeVisible();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('heading', { name: 'Select Location' }).waitFor();
+    await page.getByRole('button', { name: /^Back/ }).click();
     await expect(video).toBeVisible();
     await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
     await expect(page.getByText('Hold steady capturing ...', { exact: true })).toHaveCount(0);

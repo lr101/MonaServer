@@ -141,9 +141,10 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
   Widget _locationLabel(BuildContext context) {
     final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: Colors.white,
-      fontStyle: FontStyle.italic,
-      fontSize: 10,
-      height: 1,
+      fontStyle: FontStyle.normal,
+      fontWeight: FontWeight.normal,
+      fontSize: 14,
+      height: 1.15,
     );
     if (widget.distance case final distance?) {
       final text = distance >= 1000
@@ -238,17 +239,27 @@ class _OverlappingProfilePictures extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(left: 0, top: 0, child: userAvatar),
+          Positioned(left: 0, top: 0, child: _avatarOutline(userAvatar)),
           Positioned(
             left: 15,
             top: 0,
-            child: ClickableGroup(
-              groupId: groupId,
-              child: SmallProfilePicture.group(groupId: groupId, radius: 9),
+            child: _avatarOutline(
+              ClickableGroup(
+                groupId: groupId,
+                child: SmallProfilePicture.group(groupId: groupId, radius: 9),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _avatarOutline(Widget child) => Container(
+    foregroundDecoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white),
+    ),
+    child: child,
+  );
 }

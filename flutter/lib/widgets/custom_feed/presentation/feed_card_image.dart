@@ -132,7 +132,7 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
               onPageChanged: (index) => _selectPhoto(index, parent, updates),
               onTap: widget.isDetail ? null : openDetails,
               onDoubleTap: () => _like(selected),
-              overlayBuilder: (context, index, count, _, _) => Stack(
+              overlayBuilder: (context, index, count, previous, next) => Stack(
                 children: [
                   if (!showPhoto) ...[
                     Positioned.fill(
@@ -160,12 +160,48 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                     ),
                   ),
                   if (showPhoto && count > 1)
+                    Positioned.fill(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _photoNavigation(
+                              'Previous photo',
+                              Icons.chevron_left,
+                              previous,
+                            ),
+                            _photoNavigation(
+                              'Next photo',
+                              Icons.chevron_right,
+                              next,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (showPhoto && count > 1)
                     Positioned(
                       left: 0,
                       right: 0,
                       bottom: 12,
                       child: Center(
-                        child: _PhotoProgressDots(index: index, count: count),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 3,
+                            ),
+                            child: _PhotoProgressDots(
+                              index: index,
+                              count: count,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   Positioned(
@@ -213,6 +249,48 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                       ),
                     ),
                   ),
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    width: 88,
+                    child: IgnorePointer(
+                      child: ExcludeSemantics(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(10),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (!showPhoto) ...[
+                                const Icon(
+                                  Icons.photo_outlined,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  showPhoto ? 'Map' : 'Photo',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -235,6 +313,23 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
       ],
     );
   }
+
+  Widget _photoNavigation(
+    String label,
+    IconData icon,
+    VoidCallback? onPressed,
+  ) => IconButton(
+    tooltip: label,
+    onPressed: onPressed,
+    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    style: IconButton.styleFrom(
+      backgroundColor: Colors.black54,
+      foregroundColor: Colors.white,
+      disabledBackgroundColor: Colors.black26,
+      disabledForegroundColor: Colors.white54,
+    ),
+    icon: Icon(icon),
+  );
 
   void _selectPhoto(int index, PinEntity parent, List<PinPhotoDto> updates) {
     setState(() => _selectedIndex = index);
@@ -398,7 +493,7 @@ class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
     final distance = (dotIndex - widget.index).abs();
     final opacity = isSelected || farthestDistance == 0
         ? 1.0
-        : 1 - .72 * distance / farthestDistance;
+        : 1 - .2 * distance / farthestDistance;
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 180),
@@ -410,7 +505,7 @@ class _PhotoProgressDotsState extends State<_PhotoProgressDots> {
         width: isSelected ? 12 : 5,
         height: 5,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: isSelected ? 1 : .55),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(4),
           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
         ),

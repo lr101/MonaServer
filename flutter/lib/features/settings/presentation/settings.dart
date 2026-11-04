@@ -32,6 +32,7 @@ class Settings extends ConsumerWidget {
         children: [
           SettingsSectionCard(
             title: 'Appearance',
+            icon: Icons.palette_outlined,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.dark_mode_outlined),
@@ -51,6 +52,7 @@ class Settings extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: 'Notifications',
+            icon: Icons.notifications_outlined,
             children: [
               SwitchListTile(
                 secondary: const Icon(Icons.notifications_outlined),
@@ -68,6 +70,7 @@ class Settings extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: 'Account',
+            icon: Icons.person_outline,
             children: [
               _navigationTile(
                 context,
@@ -92,6 +95,7 @@ class Settings extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: 'Privacy & data',
+            icon: Icons.shield_outlined,
             children: [
               _navigationTile(
                 context,
@@ -117,6 +121,7 @@ class Settings extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: 'About',
+            icon: Icons.info_outline,
             children: [
               ListTile(
                 leading: const Icon(Icons.support_agent_outlined),

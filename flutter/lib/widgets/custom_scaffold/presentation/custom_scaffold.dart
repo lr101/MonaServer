@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 class CustomScaffold<T> extends ConsumerWidget {
-
   final double? headerHeight;
   final Widget title;
   final Widget? flexibleSpace;
@@ -14,7 +13,8 @@ class CustomScaffold<T> extends ConsumerWidget {
   final ItemWidgetBuilder<T> listBuilder;
   final PagingController<int, T> pagingController;
 
-  const CustomScaffold({super.key,
+  const CustomScaffold({
+    super.key,
     required this.title,
     required this.listBuilder,
     required this.pagingController,
@@ -36,14 +36,21 @@ class CustomScaffold<T> extends ConsumerWidget {
             actions: actions,
             title: title,
             expandedHeight: headerHeight,
-            flexibleSpace: flexibleSpace != null ? SafeArea(child: flexibleSpace!) : null,
+            flexibleSpace: flexibleSpace != null
+                ? SafeArea(child: flexibleSpace!)
+                : null,
             bottom: bottom,
           ),
           ...boxes.map((e) => SliverToBoxAdapter(child: e)),
-          PagedSliverList<int, T>(
-            pagingController: pagingController,
-            builderDelegate: PagedChildBuilderDelegate<T>(
-              itemBuilder: listBuilder,
+          SliverPadding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: PagedSliverList<int, T>(
+              pagingController: pagingController,
+              builderDelegate: PagedChildBuilderDelegate<T>(
+                itemBuilder: listBuilder,
+              ),
             ),
           ),
         ],

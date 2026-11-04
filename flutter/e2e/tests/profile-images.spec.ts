@@ -70,7 +70,9 @@ async function login(page: Page) {
 
 async function profile(page: Page) {
   await login(page);
-  await page.getByRole('tab', { name: 'Profile', exact: true }).click();
+  await page.getByRole('tab', { name: 'Profile', exact: true })
+    .or(page.getByRole('button', { name: /^Profile Tab / }))
+    .click();
   await expect(page.getByText('Sticks', { exact: true })).toBeVisible();
 }
 
@@ -367,6 +369,8 @@ test('wide profile renders network images in dark mode', async ({ page }, info) 
   await profile(page);
   await expect.poll(() => loaded.size, { timeout: 15_000 }).toBeGreaterThanOrEqual(12);
   await expect(page.getByRole('tabpanel').getByRole('button').first()).toBeVisible({ timeout: 30_000 });
+  const galleryBounds = await page.getByRole('tabpanel').boundingBox();
+  expect(galleryBounds?.width).toBeGreaterThan(600);
   await page.screenshot({ path: info.outputPath('profile-wide-dark.png') });
 });
 

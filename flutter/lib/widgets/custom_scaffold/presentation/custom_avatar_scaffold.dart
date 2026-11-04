@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const double _defaultExpandedHeight = 180;
-const double _avatarTopPadding = 60;
 const double _avatarDimension = 88;
 // An 80 px image leaves room for the 86 px XP ring without changing the image
 // bounds when progression data arrives.
@@ -24,6 +23,8 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
     this.avatarBuilder,
     this.bottom,
     this.actions,
+    this.toolbarHeight = kToolbarHeight,
+    this.profileContentHeight = _avatarDimension,
     this.avatarEditAction,
     this.avatarEditTooltip = 'Edit profile',
     this.floatingActionButton,
@@ -41,6 +42,8 @@ class CustomAvatarScaffold extends ConsumerStatefulWidget {
   final PreferredSizeWidget? bottom;
   final Widget? profileQuickViewBoxes;
   final List<Widget>? actions;
+  final double toolbarHeight;
+  final double profileContentHeight;
   final VoidCallback? avatarEditAction;
   final String avatarEditTooltip;
   final Widget? floatingActionButton;
@@ -81,13 +84,17 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
   Widget build(BuildContext context) {
     final double leftPadding = widget.hasBackButton ? 66.0 : 16.0;
     // SliverAppBar's expanded height includes its bottom widget.
+    final avatarTopPadding = widget.toolbarHeight + 4;
     final bottomHeight = widget.bottom?.preferredSize.height ?? 0;
-    final expandedHeight = widget.bottom == null
+    final contentHeight =
+        avatarTopPadding +
+        widget.profileContentHeight.clamp(_avatarDimension, double.infinity) +
+        bottomHeight +
+        _bottomContentSpacing;
+    final expandedHeight =
+        widget.bottom == null && contentHeight < _defaultExpandedHeight
         ? _defaultExpandedHeight
-        : _avatarTopPadding +
-              _avatarDimension +
-              bottomHeight +
-              _bottomContentSpacing;
+        : contentHeight;
 
     return Scaffold(
       body: NestedScrollView(
@@ -97,6 +104,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
           SliverAppBar(
             floating: true,
             actions: widget.actions,
+            toolbarHeight: widget.toolbarHeight,
             expandedHeight: expandedHeight,
             centerTitle: false,
             title: widget.title,
@@ -107,7 +115,7 @@ class _CustomAvatarScaffoldState extends ConsumerState<CustomAvatarScaffold>
                 child: Padding(
                   padding: EdgeInsets.only(
                     left: leftPadding,
-                    top: _avatarTopPadding,
+                    top: avatarTopPadding,
                     right: 16,
                   ),
                   child: Row(

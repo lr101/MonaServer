@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/group_entity.dart';
 import 'package:buff_lisa/features/achievement/presentation/achievement_card.dart';
-import 'package:buff_lisa/features/achievement/presentation/achievement_tier_carousel.dart';
+import 'package:buff_lisa/features/achievement/presentation/achievement_track_browser.dart';
 import 'package:buff_lisa/util/theme/data/app_color_scheme.dart';
 import 'package:buff_lisa/widgets/custom_marker/data/group_pin_design.dart';
 import 'package:buff_lisa/widgets/custom_marker/presentation/custom_marker_content.dart';
@@ -78,57 +78,33 @@ class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Group achievements',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            AchievementTrackBrowser<GroupAchievementsDtoInner>(
+              title: 'Group achievements',
+              tracks: [
+                for (final track in tracks)
+                  AchievementTrackData(
+                    id: track.id,
+                    title: track.title,
+                    tiers: track.achievements,
+                  ),
+              ],
+              isClaimed: (tier) => tier.claimed,
+              isReady: (tier) =>
+                  !tier.claimed &&
+                  tier.claimable &&
+                  group?.userIsMember == true,
+              progress: (tier) => tier.thresholdValue <= 0
+                  ? 0
+                  : (tier.currentValue / tier.thresholdValue).clamp(0, 1),
+              tierBuilder: (context, tier) => _AchievementRow(
+                achievement: tier,
+                designCatalog: widget.designCatalog,
+                groupImage: widget.groupImage,
+                canClaim: group?.userIsMember == true,
+                isClaiming: widget.claimingAchievementId == tier.achievementId,
+                onClaim: () => widget.onClaimAchievement(tier.achievementId),
               ),
             ),
-            const SizedBox(height: 8),
-            if (tracks.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('No group achievements yet.'),
-              )
-            else
-              for (
-                var trackIndex = 0;
-                trackIndex < tracks.length;
-                trackIndex++
-              ) ...[
-                if (trackIndex > 0) const SizedBox(height: 12),
-                Text(
-                  tracks[trackIndex].title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                AchievementTierCarousel(
-                  key: ValueKey(tracks[trackIndex].id),
-                  title: tracks[trackIndex].title,
-                  tierCount: tracks[trackIndex].achievements.length,
-                  initialPage: activeAchievementTierIndex(
-                    tracks[trackIndex].achievements,
-                    (achievement) => achievement.claimed,
-                  ),
-                  itemBuilder: (context, tierIndex) {
-                    final achievement =
-                        tracks[trackIndex].achievements[tierIndex];
-                    return _AchievementRow(
-                      achievement: achievement,
-                      designCatalog: widget.designCatalog,
-                      groupImage: widget.groupImage,
-                      canClaim: group?.userIsMember == true,
-                      isClaiming:
-                          widget.claimingAchievementId ==
-                          achievement.achievementId,
-                      onClaim: () =>
-                          widget.onClaimAchievement(achievement.achievementId),
-                    );
-                  },
-                ),
-              ],
             if (isAdmin && claimedStyles.isNotEmpty) ...[
               const SizedBox(height: 16),
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
@@ -198,9 +174,11 @@ class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
                     height: 36,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Group pin appearance: ${_styleName(group.pinStyle)}',
-                    style: theme.textTheme.bodySmall,
+                  Flexible(
+                    child: Text(
+                      'Group pin appearance: ${_styleName(group.pinStyle)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),
@@ -296,7 +274,7 @@ class _AchievementRow extends StatelessWidget {
         children: [
           Icon(Icons.bolt, size: 15, color: theme.colorScheme.primaryOnSurface),
           const SizedBox(width: 4),
-          Text('${achievement.rewardXp ?? 50} Group XP'),
+          Flexible(child: Text('${achievement.rewardXp ?? 50} Group XP')),
         ],
       ),
       'color' => Row(

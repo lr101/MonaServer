@@ -113,8 +113,8 @@ void main() {
       );
       expect(find.byTooltip('Pin options'), findsOneWidget);
       expect(find.byTooltip('Post options'), findsNothing);
-      expect(find.byTooltip('Previous photo'), findsNothing);
-      expect(find.byTooltip('Next photo'), findsNothing);
+      expect(find.byTooltip('Previous photo'), findsOneWidget);
+      expect(find.byTooltip('Next photo'), findsOneWidget);
       expect(find.text('Update'), findsNothing);
       expect(find.text('Mark as gone'), findsNothing);
       expect(find.text('Waiting for a location fix.'), findsNothing);

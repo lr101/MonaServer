@@ -79,6 +79,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
   Future<void> updatePage(int pageKey) async {
     try {
       final groups = await _fetchPage(pageKey);
+      if (!mounted) return;
       if (groups == null) {
         _pagingController.error = "Groups could not be fetched";
         return;
@@ -93,6 +94,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
         _pagingController.appendPage(groupDtos, pageKey + 1);
       }
     } catch (_) {
+      if (!mounted) return;
       _pagingController.error = "Groups could not be fetched";
     }
   }
@@ -108,6 +110,7 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
       // Image signing is an optional optimization. Keep search usable when
       // object storage is unavailable, and let visible rows resolve through
       // the normal cache-aware image path instead.
+      if (!mounted) return null;
       return _requestPage(api, pageKey, withImages: false);
     }
   }

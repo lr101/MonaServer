@@ -24,11 +24,19 @@ class GroupTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listTile = ListTile(
-      trailing: tailing,
+      trailing:
+          tailing ?? (onTap == null ? null : const Icon(Icons.chevron_right)),
+      onTap: onTap,
       minTileHeight: 60,
       title: Column(
         children: [
-          Align(alignment: Alignment.centerLeft, child: Text(groupDto.name)),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              groupDto.name,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
           Align(
             alignment: Alignment.centerLeft,
             child: groupDto.description == null
@@ -38,7 +46,7 @@ class GroupTile extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: const TextStyle(
-                      fontStyle: FontStyle.italic,
+                      fontStyle: FontStyle.normal,
                       fontSize: 12,
                     ),
                   ),
@@ -54,10 +62,6 @@ class GroupTile extends ConsumerWidget {
         placeholderAvatar: !loadImage ? const CircleAvatar(radius: 25) : null,
       ),
     );
-    if (onTap == null) {
-      return listTile;
-    } else {
-      return GestureDetector(onTap: onTap, child: listTile);
-    }
+    return listTile;
   }
 }

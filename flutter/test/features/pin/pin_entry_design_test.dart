@@ -315,6 +315,12 @@ void main() {
     }
 
     checkGaps();
+    await tester.tap(find.byTooltip('Next photo'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Photo 2 of 20'), findsOneWidget);
+    await tester.tap(find.byTooltip('Previous photo'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Photo 1 of 20'), findsOneWidget);
     final controller = tester
         .widget<PageView>(find.byType(PageView))
         .controller!;
