@@ -13,9 +13,19 @@ part of openapi.api;
 class PinsSyncDto {
   /// Returns a new [PinsSyncDto] instance.
   PinsSyncDto({
+    this.syncCursor,
     this.items = const [],
     this.deleted = const [],
   });
+
+  /// Server timestamp for incremental pin synchronization. Use as the next updatedAfter value.
+  ///
+  /// Please note: This property should have been non-nullable! Since the specification file
+  /// does not include a default value (using the "default:" property), however, the generated
+  /// source code must fall back to having a nullable type.
+  /// Consider adding a "default:" property in the specification file to hide this note.
+  ///
+  DateTime? syncCursor;
 
   List<PinWithOptionalImageDto> items;
 
@@ -23,20 +33,27 @@ class PinsSyncDto {
 
   @override
   bool operator ==(Object other) => identical(this, other) || other is PinsSyncDto &&
+    other.syncCursor == syncCursor &&
     _deepEquality.equals(other.items, items) &&
     _deepEquality.equals(other.deleted, deleted);
 
   @override
   int get hashCode =>
     // ignore: unnecessary_parenthesis
+    (syncCursor == null ? 0 : syncCursor!.hashCode) +
     (items.hashCode) +
     (deleted.hashCode);
 
   @override
-  String toString() => 'PinsSyncDto[items=$items, deleted=$deleted]';
+  String toString() => 'PinsSyncDto[syncCursor=$syncCursor, items=$items, deleted=$deleted]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
+    if (this.syncCursor != null) {
+      json[r'syncCursor'] = this.syncCursor!.toUtc().toIso8601String();
+    } else {
+      json[r'syncCursor'] = null;
+    }
       json[r'items'] = this.items;
       json[r'deleted'] = this.deleted;
     return json;
@@ -61,6 +78,7 @@ class PinsSyncDto {
       }());
 
       return PinsSyncDto(
+        syncCursor: mapDateTime(json, r'syncCursor', r''),
         items: PinWithOptionalImageDto.listFromJson(json[r'items']),
         deleted: json[r'deleted'] is Iterable
             ? (json[r'deleted'] as Iterable).cast<String>().toList(growable: false)

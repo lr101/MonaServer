@@ -10,7 +10,15 @@
 
 package genserver
 
+import (
+	"time"
+)
+
 type PinsSyncDto struct {
+
+	// Server timestamp for incremental pin synchronization. Use as the next updatedAfter value.
+	SyncCursor *time.Time `json:"syncCursor,omitempty"`
+
 	Items []PinWithOptionalImageDto `json:"items"`
 
 	Deleted []string `json:"deleted"`

@@ -1,5 +1,3 @@
-import 'package:buff_lisa/data/service/photo_library.dart';
-
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
@@ -12,6 +10,8 @@ import 'package:buff_lisa/data/service/filter_service.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/pending_pin_uploader.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
+import 'package:buff_lisa/data/service/shared_preferences_service.dart';
 import 'package:buff_lisa/data/service/view_service.dart';
 import 'package:buff_lisa/features/progression/data/group_achievement_provider.dart';
 import 'package:buff_lisa/widgets/custom_interaction/presentation/custom_error_snack_bar.dart';
@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openapi/api.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 part 'pin_service.g.dart';
 
@@ -285,10 +286,27 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     final membershipBeforeFetch = _currentMembership();
     await _reconcileCachePolicy(cachedPins, membershipBeforeFetch);
 
-    // Cached pins can be a partial set, for example populated by the map.
-    // A full walk is needed before the group count can be trusted.
+    // The first fetch must establish a complete local snapshot because map
+    // caching can leave the group cache partial. Remember both its watermark
+    // and synced pin count so later refreshes can use the incremental API while
+    // still detecting a cache that was cleared or pruned.
+    final userId = ref.read(userIdProvider);
+    final preferences = _sharedPreferencesOrNull();
+    final syncKey = _groupPinSyncKey(userId, groupId);
+    final syncedPinCount = cachedPins
+        .where((pin) => pin.lastSynced != null)
+        .length;
+    final savedWatermark = preferences?.getInt(syncKey);
+    final savedPinCount = preferences?.getInt('$syncKey:count');
+    final cacheMatchesSnapshot = savedPinCount == syncedPinCount;
+    final updatedAfter = savedWatermark == null || !cacheMatchesSnapshot
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(savedWatermark, isUtc: true);
+    final fullSnapshot = updatedAfter == null;
+
     const pageSize = 20;
     final received = <String>{};
+    DateTime? nextSyncCursor;
     DateTime? beforeCreationDate;
     String? beforeId;
     var latestIsUserGroup = _currentMembership() ?? false;
@@ -299,10 +317,18 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         withImage: false,
         page: page,
         size: pageSize,
+        updatedAfter: updatedAfter,
         beforeCreationDate: beforeCreationDate,
         beforeId: beforeId,
       );
       if (remotePins == null || !isCurrentSession(ref, session)) return;
+      if (page == 0 && remotePins.syncCursor != null) {
+        // Keep an overlap for small server/database clock differences and
+        // updates committed while a multi-page snapshot is being read.
+        nextSyncCursor = remotePins.syncCursor!.subtract(
+          const Duration(minutes: 5),
+        );
+      }
 
       if (remotePins.deleted.isNotEmpty) {
         await _pinRepository.deleteMultiple(remotePins.deleted);
@@ -336,10 +362,15 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
       if (remotePins.items.length < pageSize) break;
     }
 
-    final stale = cachedPins
-        .where((pin) => pin.lastSynced != null && !received.contains(pin.pinId))
-        .map((pin) => pin.pinId)
-        .toList();
+    final stale = fullSnapshot
+        ? cachedPins
+              .where(
+                (pin) =>
+                    pin.lastSynced != null && !received.contains(pin.pinId),
+              )
+              .map((pin) => pin.pinId)
+              .toList()
+        : const <String>[];
     if (stale.isNotEmpty) {
       await _pinRepository.deleteMultiple(stale);
       if (!isCurrentSession(ref, session)) return;
@@ -357,7 +388,28 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
         !joinedAfterWrite,
       );
     }
+
+    if (userId.isNotEmpty && nextSyncCursor != null) {
+      final currentPins = await _pinRepository.getPinsByGroup(groupId).first;
+      if (!isCurrentSession(ref, session)) return;
+      final currentSyncedPinCount = currentPins
+          .where((pin) => pin.lastSynced != null)
+          .length;
+      await preferences?.setInt(
+        syncKey,
+        nextSyncCursor.millisecondsSinceEpoch,
+      );
+      await preferences?.setInt('$syncKey:count', currentSyncedPinCount);
+    }
   }
+
+  SharedPreferences? _sharedPreferencesOrNull() {
+    if (!ref.exists(sharedPreferencesProvider)) return null;
+    return ref.read(sharedPreferencesProvider);
+  }
+
+  String _groupPinSyncKey(String userId, String groupId) =>
+      'groupPinSync:$userId:$groupId';
 
   bool? _currentMembership() {
     final userGroups = ref.read(userGroupServiceProvider).value;
