@@ -7749,6 +7749,12 @@ components:
           creationDate: 2017-01-10T14:55:32+01:00
           longitude: 36.988422590534526
       properties:
+        syncCursor:
+          description: Server timestamp for incremental pin synchronization. Use as
+            the next updatedAfter value.
+          format: date-time
+          nullable: true
+          type: string
         items:
           items:
             $ref: "#/components/schemas/pinWithOptionalImageDto"
