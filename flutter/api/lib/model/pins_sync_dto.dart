@@ -19,12 +19,6 @@ class PinsSyncDto {
   });
 
   /// Server timestamp for incremental pin synchronization. Use as the next updatedAfter value.
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
   DateTime? syncCursor;
 
   List<PinWithOptionalImageDto> items;
@@ -32,20 +26,23 @@ class PinsSyncDto {
   List<String> deleted;
 
   @override
-  bool operator ==(Object other) => identical(this, other) || other is PinsSyncDto &&
-    other.syncCursor == syncCursor &&
-    _deepEquality.equals(other.items, items) &&
-    _deepEquality.equals(other.deleted, deleted);
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PinsSyncDto &&
+          other.syncCursor == syncCursor &&
+          _deepEquality.equals(other.items, items) &&
+          _deepEquality.equals(other.deleted, deleted);
 
   @override
   int get hashCode =>
-    // ignore: unnecessary_parenthesis
-    (syncCursor == null ? 0 : syncCursor!.hashCode) +
-    (items.hashCode) +
-    (deleted.hashCode);
+      // ignore: unnecessary_parenthesis
+      (syncCursor == null ? 0 : syncCursor!.hashCode) +
+      (items.hashCode) +
+      (deleted.hashCode);
 
   @override
-  String toString() => 'PinsSyncDto[syncCursor=$syncCursor, items=$items, deleted=$deleted]';
+  String toString() =>
+      'PinsSyncDto[syncCursor=$syncCursor, items=$items, deleted=$deleted]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
@@ -54,8 +51,8 @@ class PinsSyncDto {
     } else {
       json[r'syncCursor'] = null;
     }
-      json[r'items'] = this.items;
-      json[r'deleted'] = this.deleted;
+    json[r'items'] = this.items;
+    json[r'deleted'] = this.deleted;
     return json;
   }
 
@@ -71,8 +68,10 @@ class PinsSyncDto {
       // Note 2: this code is stripped in release mode!
       assert(() {
         requiredKeys.forEach((key) {
-          assert(json.containsKey(key), 'Required key "PinsSyncDto[$key]" is missing from JSON.');
-          assert(json[key] != null, 'Required key "PinsSyncDto[$key]" has a null value in JSON.');
+          assert(json.containsKey(key),
+              'Required key "PinsSyncDto[$key]" is missing from JSON.');
+          assert(json[key] != null,
+              'Required key "PinsSyncDto[$key]" has a null value in JSON.');
         });
         return true;
       }());
@@ -81,14 +80,19 @@ class PinsSyncDto {
         syncCursor: mapDateTime(json, r'syncCursor', r''),
         items: PinWithOptionalImageDto.listFromJson(json[r'items']),
         deleted: json[r'deleted'] is Iterable
-            ? (json[r'deleted'] as Iterable).cast<String>().toList(growable: false)
+            ? (json[r'deleted'] as Iterable)
+                .cast<String>()
+                .toList(growable: false)
             : const [],
       );
     }
     return null;
   }
 
-  static List<PinsSyncDto> listFromJson(dynamic json, {bool growable = false,}) {
+  static List<PinsSyncDto> listFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final result = <PinsSyncDto>[];
     if (json is List && json.isNotEmpty) {
       for (final row in json) {
@@ -116,13 +120,19 @@ class PinsSyncDto {
   }
 
   // maps a json object with a list of PinsSyncDto-objects as value to a dart map
-  static Map<String, List<PinsSyncDto>> mapListFromJson(dynamic json, {bool growable = false,}) {
+  static Map<String, List<PinsSyncDto>> mapListFromJson(
+    dynamic json, {
+    bool growable = false,
+  }) {
     final map = <String, List<PinsSyncDto>>{};
     if (json is Map && json.isNotEmpty) {
       // ignore: parameter_assignments
       json = json.cast<String, dynamic>();
       for (final entry in json.entries) {
-        map[entry.key] = PinsSyncDto.listFromJson(entry.value, growable: growable,);
+        map[entry.key] = PinsSyncDto.listFromJson(
+          entry.value,
+          growable: growable,
+        );
       }
     }
     return map;
@@ -134,4 +144,3 @@ class PinsSyncDto {
     'deleted',
   };
 }
-
