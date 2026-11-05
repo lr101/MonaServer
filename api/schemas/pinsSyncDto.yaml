@@ -3,6 +3,11 @@ required:
   - items
   - deleted
 properties:
+  syncCursor:
+    type: string
+    format: date-time
+    nullable: true
+    description: Server timestamp for incremental pin synchronization. Use as the next updatedAfter value.
   items:
     type: array
     items:

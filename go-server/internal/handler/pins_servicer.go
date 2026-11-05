@@ -101,6 +101,7 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 		// offset would reintroduce skips when rows are inserted or deleted.
 		offset = 0
 	}
+	syncCursor := time.Now().UTC()
 	pins, err := s.q.SearchPins(ctx, db.PinSearch{
 		CallerID: caller, IDs: parsedIDs, GroupID: gid, CreatorID: creatorID,
 		UpdatedAfter: after, BeforeCreationDate: beforeDate, BeforeID: beforePinID,
@@ -130,7 +131,11 @@ func (s *PinsServicer) GetPinImagesByIds(ctx context.Context, ids []string, grou
 			deleted = append(deleted, id.String())
 		}
 	}
-	return genserver.Response(http.StatusOK, genserver.PinsSyncDto{Items: items, Deleted: deleted}), nil
+	return genserver.Response(http.StatusOK, genserver.PinsSyncDto{
+		SyncCursor: &syncCursor,
+		Items:      items,
+		Deleted:    deleted,
+	}), nil
 }
 
 func (s *PinsServicer) GetNearbyPins(ctx context.Context, latitude, longitude float64, radiusMeters int32) (genserver.ImplResponse, error) {
