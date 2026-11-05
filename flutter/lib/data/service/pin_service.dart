@@ -290,7 +290,7 @@ class PinGroupServiceUnfiltered extends _$PinGroupServiceUnfiltered {
     // caching can leave the group cache partial. Remember both its watermark
     // and synced pin count so later refreshes can use the incremental API while
     // still detecting a cache that was cleared or pruned.
-    final userId = ref.read(userIdProvider);
+    final userId = session?.userId ?? '';
     final preferences = _sharedPreferencesOrNull();
     final syncKey = _groupPinSyncKey(userId, groupId);
     final syncedPinCount = cachedPins
