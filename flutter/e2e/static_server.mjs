@@ -79,6 +79,8 @@ export function createStaticServer({ staticRoot }) {
     staticRoot instanceof URL ? staticRoot : pathToFileURL(staticRoot),
   );
   return http.createServer((request, response) => {
+    response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    response.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     serveStatic(request, response, root);
   });
 }
