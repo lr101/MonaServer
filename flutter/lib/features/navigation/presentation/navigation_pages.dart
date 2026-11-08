@@ -125,6 +125,9 @@ class _RetainedNavigationPageState extends State<_RetainedNavigationPage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return TickerMode(enabled: widget.active, child: widget.child);
+    return ExcludeSemantics(
+      excluding: !widget.active,
+      child: TickerMode(enabled: widget.active, child: widget.child),
+    );
   }
 }
