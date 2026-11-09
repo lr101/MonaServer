@@ -94,6 +94,8 @@ server {
     server_name $web_host;
     root "$escaped_web_root";
     index index.html;
+    add_header Cross-Origin-Opener-Policy same-origin always;
+    add_header Cross-Origin-Embedder-Policy credentialless always;
 
     location ^~ /assets/ {
         try_files \$uri =404;

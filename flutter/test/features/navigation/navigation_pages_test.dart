@@ -3,6 +3,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'only the selected destination exposes accessibility content during transitions',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      var selected = 0;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (_, setState) {
+              update = setState;
+              return NavigationPages(
+                selectedIndex: selected,
+                children: const [
+                  Center(child: Text('First destination')),
+                  Center(child: Text('Second destination')),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+      update(() => selected = 1);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.bySemanticsLabel('First destination'), findsNothing);
+      expect(find.bySemanticsLabel('Second destination'), findsOneWidget);
+      semantics.dispose();
+    },
+  );
+
   testWidgets('destination changes slide instead of jumping', (tester) async {
     var selected = 0;
     late StateSetter update;

@@ -7,10 +7,14 @@
     "test:offline": "node --test offline-startup.test.mjs",
     "test": "npm run test:unit && playwright test",
     "test:headed": "playwright test --headed",
-    "install:browsers": "playwright install --with-deps chromium"
+    "install:browsers": "playwright install --with-deps chromium",
+    "test:performance": "E2E_PERFORMANCE=1 playwright test --config playwright.performance.config.ts",
+    "test:performance-monitor": "node --test performance/frame-monitor.test.mjs",
+    "test:performance-score": "node --test performance/score-runs.test.mjs",
+    "test:performance-isolation": "node --test performance/isolation.test.mjs"
   },
   "devDependencies": {
     "@playwright/mcp": "0.0.84",
-    "@playwright/test": "1.64.1"
+    "@playwright/test": "1.65.0"
   }
 }
