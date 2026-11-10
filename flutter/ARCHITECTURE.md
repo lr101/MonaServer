@@ -410,3 +410,5 @@ without a transport cause retain their existing handling and are not retried.
 Successful gallery pages clear an earlier attempt's error immediately, allowing
 progressive recovery before the final page arrives. Group revocation still
 purges known in-memory photos and supplied URLs if cached-pin enumeration fails.
+A targeted deletion of cached parent pins by group also prevents unhydrated
+revoked photos from being restored on restart.

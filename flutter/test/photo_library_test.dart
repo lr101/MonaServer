@@ -100,6 +100,29 @@ void main() {
     },
   );
 
+  test(
+    'group denial removes unhydrated cached photos across restart',
+    () async {
+      await pins.put(pin);
+      await histories.putMultiple({
+        'pin': [photo('pin')],
+      });
+      final owner = library(
+        pinStore: _UnreadablePins(db),
+        fetch: (_, _) async => throw ApiException(403, 'denied'),
+      );
+      addTearDown(owner.dispose);
+      await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+      final restored = library(
+        fetch: (_, _) async => const GalleryPhotoPage(items: []),
+      );
+      addTearDown(restored.dispose);
+      await restored.hydrate();
+      expect(restored.entries(const PhotoScope(userId: 'alice')), isEmpty);
+      expect(restored.history('pin'), isEmpty);
+    },
+  );
+
   test('cache write failures do not interrupt gallery pagination', () async {
     final owner = library(
       pinStore: _UnwritablePins(db),

@@ -647,10 +647,16 @@ class PhotoLibrary {
     if (_closed) return;
     _removedGroups[groupId] = ++_revision;
     _failedScopes.removeWhere((scope) => scope.groupId == groupId);
-    await removePins({
-      for (final pin in [..._pins.values, ...savedPins])
-        if (pin.groupId == groupId) pin.pinId,
-    });
+    try {
+      await removePins({
+        for (final pin in [..._pins.values, ...savedPins])
+          if (pin.groupId == groupId) pin.pinId,
+      });
+    } finally {
+      // Enumeration can fail before any persisted pin is hydrated. Remove
+      // parents by group as well so a restart cannot rehydrate their photos.
+      if (!_closed) await pins.deleteByGroupId(groupId);
+    }
   }
 
   Future<void> removePins(Iterable<String> ids) async {
