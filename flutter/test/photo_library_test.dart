@@ -7,6 +7,7 @@ import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
 PinPhotoDto photo(String id, {String pinId = 'pin'}) => PinPhotoDto(
@@ -47,15 +48,206 @@ void main() {
     Future<List<PinPhotoDto>> Function(String)? history,
     Future<Map<String, PinPhotoDto?>> Function(List<String>)? resolve,
     void Function(Iterable<String>)? revokePinUrls,
+    IPinRepository? pinStore,
   }) => PhotoLibrary(
     histories: histories,
-    pins: pins,
+    pins: pinStore ?? pins,
     fetchPage: fetch,
     fetchHistory: history ?? (_) async => [photo('pin'), photo('update')],
     resolvePhotos: resolve ?? (_) async => {},
     publish: (_, _) {},
     revokePinUrls: revokePinUrls,
   );
+  test('gallery reaches the network when local hydration fails', () async {
+    final owner = library(
+      pinStore: _UnreadablePins(db),
+      fetch: (_, _) async =>
+          GalleryPhotoPage(items: [GalleryPhotoRecord(pin, photo('pin'))]),
+    );
+    addTearDown(owner.dispose);
+    final subscription = owner.watchGallery(const PhotoScope(userId: 'alice'));
+    final loaded = await subscription
+        .firstWhere((s) => s.loaded)
+        .timeout(const Duration(seconds: 3));
+    expect(loaded.photos.single.id, 'pin');
+    expect(loaded.error, isNull);
+  });
+
+  test(
+    'group denial purges remote photos even when cache reads fail',
+    () async {
+      var denied = false;
+      final revoked = <String>{};
+      final owner = library(
+        pinStore: _UnreadablePins(db),
+        revokePinUrls: revoked.addAll,
+        fetch: (_, _) async {
+          if (denied) throw ApiException(403, 'denied');
+          return GalleryPhotoPage(
+            items: [GalleryPhotoRecord(pin, photo('pin'))],
+          );
+        },
+      );
+      addTearDown(owner.dispose);
+      const userScope = PhotoScope(userId: 'alice');
+      await owner.refreshGallery(userScope);
+      expect(owner.entries(userScope), hasLength(1));
+      denied = true;
+      await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+      expect(owner.entries(userScope), isEmpty);
+      expect(owner.history('pin'), isEmpty);
+      expect(revoked, contains('pin'));
+    },
+  );
+
+  test('cache write failures do not interrupt gallery pagination', () async {
+    final owner = library(
+      pinStore: _UnwritablePins(db),
+      fetch: (_, cursor) async => cursor == null
+          ? GalleryPhotoPage(
+              items: [GalleryPhotoRecord(pin, photo('pin'))],
+              nextCursor: 'next',
+            )
+          : GalleryPhotoPage(items: [GalleryPhotoRecord(pin, photo('update'))]),
+    );
+    addTearDown(owner.dispose);
+    const scope = PhotoScope(userId: 'alice');
+    await owner.refreshGallery(scope);
+    expect(owner.entries(scope).map((p) => p.entryId), ['update', 'pin']);
+    expect(owner.gallery(scope).loaded, isTrue);
+    expect(owner.gallery(scope).error, isNull);
+  });
+
+  for (final code in [400, 401, 403, 404]) {
+    test('gallery does not retry HTTP $code', () async {
+      var calls = 0;
+      final owner = library(
+        fetch: (_, _) {
+          calls++;
+          throw ApiException(code, 'rejected');
+        },
+      );
+      addTearDown(owner.dispose);
+      await owner.refreshGallery(const PhotoScope(userId: 'alice'));
+      expect(calls, 1);
+    });
+  }
+
+  test(
+    'retry publishes a recovered page before later pages complete',
+    () async {
+      var fail = true;
+      final next = Completer<GalleryPhotoPage>();
+      final owner = library(
+        fetch: (_, cursor) async {
+          if (fail) throw ApiException(400, 'failed');
+          if (cursor != null) return next.future;
+          return GalleryPhotoPage(
+            items: [GalleryPhotoRecord(pin, photo('pin'))],
+            nextCursor: 'next',
+          );
+        },
+      );
+      addTearDown(owner.dispose);
+      const scope = PhotoScope(userId: 'alice');
+      await owner.refreshGallery(scope);
+      fail = false;
+      final recovered = owner
+          .watchGallery(scope)
+          .firstWhere((s) => s.photos.isNotEmpty && s.error == null);
+      try {
+        final snapshot = await recovered.timeout(const Duration(seconds: 2));
+        expect(snapshot.photos.single.id, 'pin');
+        expect(snapshot.loaded, isFalse);
+      } finally {
+        next.complete(const GalleryPhotoPage(items: []));
+        await owner.refreshGallery(scope);
+      }
+    },
+  );
+
+  test('completed pages survive restart when a later page fails', () async {
+    final owner = library(
+      fetch: (_, cursor) async {
+        if (cursor != null) throw ApiException(503, 'offline');
+        return GalleryPhotoPage(
+          items: [GalleryPhotoRecord(pin, photo('pin'))],
+          nextCursor: 'next',
+        );
+      },
+    );
+    addTearDown(owner.dispose);
+    const scope = PhotoScope(userId: 'alice');
+    await owner.refreshGallery(scope);
+    expect(owner.gallery(scope).error, isNotNull);
+    final restored = library(
+      fetch: (_, _) async => throw ApiException(503, 'offline'),
+    );
+    addTearDown(restored.dispose);
+    await restored.hydrate();
+    expect(restored.entries(scope).single.pinId, 'pin');
+  });
+
+  for (final failure in <Exception>[
+    http.ClientException('connection closed'),
+    TimeoutException('request timed out'),
+    ApiException.withInner(
+      400,
+      'socket failed',
+      http.ClientException('offline'),
+      StackTrace.current,
+    ),
+  ]) {
+    test('gallery retries transport failure ${failure.runtimeType}', () async {
+      var calls = 0;
+      final owner = library(
+        fetch: (_, _) async {
+          if (++calls == 1) throw failure;
+          return GalleryPhotoPage(
+            items: [GalleryPhotoRecord(pin, photo('pin'))],
+          );
+        },
+      );
+      addTearDown(owner.dispose);
+      const scope = PhotoScope(userId: 'alice');
+      await owner.refreshGallery(scope);
+      expect(owner.gallery(scope).photos.single.id, 'pin');
+      expect(owner.gallery(scope).error, isNull);
+      expect(calls, 2);
+    });
+  }
+
+  test('reading all pin histories scans the photo library only once', () async {
+    const count = 200;
+    final owner = library(
+      fetch: (_, _) async => GalleryPhotoPage(
+        items: [
+          for (var i = 0; i < count; i++)
+            GalleryPhotoRecord(
+              PinEntity(
+                pinId: 'photo-$i',
+                latitude: 0,
+                longitude: 0,
+                creator: 'alice',
+                groupId: 'group',
+                creationDate: DateTime.utc(2026),
+                ttl: DateTime.utc(2026),
+                onlySession: false,
+              ),
+              _CountedPhoto('photo-$i'),
+            ),
+        ],
+      ),
+    );
+    addTearDown(owner.dispose);
+    await owner.refreshGallery(const PhotoScope(userId: 'alice'));
+    _CountedPhoto.parentReads = 0;
+    for (var i = 0; i < count; i++) {
+      expect(owner.history('photo-$i').single.id, 'photo-$i');
+    }
+    expect(_CountedPhoto.parentReads, lessThanOrEqualTo(count * 2));
+  });
+
   test(
     'publishes the first gallery page while the next page is pending',
     () async {
@@ -738,4 +930,36 @@ void main() {
       expect(historyCalls['active-pin'], activeHistoryBefore + 1);
     },
   );
+}
+
+class _CountedPhoto extends PinPhotoDto {
+  _CountedPhoto(String id)
+    : super(
+        id: id,
+        pinId: id,
+        contributorId: 'alice',
+        contributorUsername: 'Alice',
+        observedAt: DateTime.utc(2026),
+        isOriginal: true,
+      );
+  static int parentReads = 0;
+  @override
+  String get pinId {
+    parentReads++;
+    return super.pinId;
+  }
+}
+
+class _UnreadablePins extends PinRepository {
+  _UnreadablePins(super.db);
+  @override
+  Future<List<PinEntity>> getAll() async =>
+      throw StateError('cache unavailable');
+}
+
+class _UnwritablePins extends PinRepository {
+  _UnwritablePins(super.db);
+  @override
+  Future<void> putMultiple(Iterable<PinEntity> items) async =>
+      throw StateError('cache unavailable');
 }

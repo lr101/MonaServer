@@ -390,3 +390,23 @@ its busy/error state and releases the lock in a finally block on failure; a
 successful save retains the lock while the route closes. Inputs and target
 selection freeze during save. Errors stay within approval for retry. The
 existing durable outbox and photo-update retry ownership are unchanged.
+
+### Photo history lookup cost
+
+`PhotoLibrary` groups photo metadata by parent pin once per in-memory revision.
+Gallery publication and persistence reuse that index rather than scanning the
+entire library for each pin. Hydration invalidates the index after loading saved
+photos; mutations advance the revision. History callers still receive independent
+lists sorted by observation date. This reduces synchronous response-processing
+work; Android frame timing and the reported gallery failure still need device
+evidence.
+
+Gallery loads now treat local cache reads/writes as best effort: cache errors
+are logged by type only and do not prevent remote pagination. Completed pages
+are persisted before requesting the next page so a later-page failure retains
+usable metadata across restart. Transport failures (including generated-client
+wrapped I/O failures) and HTTP 5xx receive one bounded retry; HTTP 4xx responses
+without a transport cause retain their existing handling and are not retried.
+Successful gallery pages clear an earlier attempt's error immediately, allowing
+progressive recovery before the final page arrives. Group revocation still
+purges known in-memory photos and supplied URLs if cached-pin enumeration fails.
