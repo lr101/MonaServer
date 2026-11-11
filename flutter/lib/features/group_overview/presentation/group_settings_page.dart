@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/features/group_edit/presentation/group_edit.dart';
+import 'package:buff_lisa/features/group_overview/presentation/group_pin_settings.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_invite_share_button.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
@@ -46,6 +47,8 @@ class GroupSettingsPage extends ConsumerWidget {
               group: group,
               embedded: true,
               footerItems: [
+                GroupPinSettings(group: group),
+                const Divider(),
                 if (group.bestSeason != null)
                   SeasonTile(bestSeason: group.bestSeason!),
                 if (group.inviteUrl != null)

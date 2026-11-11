@@ -126,7 +126,8 @@ jobs:
         run: flutter test --no-pub
 
   build-web:
-    runs-on: ubuntu-latest
+    # Keep Chromium system dependencies on a fixed Ubuntu LTS image.
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
