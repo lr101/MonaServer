@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_entity.dart';
@@ -7,6 +8,7 @@ import 'package:buff_lisa/data/repository/pin_photo_history_repository.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
 
 class PhotoScope {
@@ -92,6 +94,8 @@ class PhotoLibrary {
   final Map<String, int> _metadataUpdates = {};
   final Set<String> _urlsInFlight = {};
   int _revision = 0;
+  int _historyIndexRevision = -1;
+  final Map<String, List<PinPhotoDto>> _historyIndex = {};
   bool _closed = false;
   Future<void>? _hydration;
   Future<void> _writes = Future.value();
@@ -202,7 +206,10 @@ class PhotoLibrary {
           changedPins.add(photo.pinId);
         }
       }
-      publish(item.key, history(item.key));
+    }
+    _historyIndexRevision = -1;
+    for (final pinId in saved.keys) {
+      publish(pinId, history(pinId));
     }
     _notify(
       pinIds: changedPins,
@@ -211,9 +218,20 @@ class PhotoLibrary {
   }
 
   PinEntity? parent(String pinId) => _pins[pinId];
-  List<PinPhotoDto> history(String pinId) =>
-      _photos.values.where((p) => p.pinId == pinId).toList()
-        ..sort((a, b) => a.observedAt.compareTo(b.observedAt));
+  List<PinPhotoDto> history(String pinId) {
+    // Response publication and persistence read many histories at the same
+    // revision. Group once instead of rescanning every photo for each pin.
+    if (_historyIndexRevision != _revision) {
+      _historyIndex.clear();
+      for (final photo in _photos.values) {
+        (_historyIndex[photo.pinId] ??= []).add(photo);
+      }
+      _historyIndexRevision = _revision;
+    }
+    return List<PinPhotoDto>.of(_historyIndex[pinId] ?? const [])
+      ..sort((a, b) => a.observedAt.compareTo(b.observedAt));
+  }
+
   PhotoGallerySnapshot gallery(PhotoScope scope) {
     final photos =
         _photos.values.where((p) {
@@ -248,12 +266,7 @@ class PhotoLibrary {
           if (!stream.isClosed) stream.add(gallery(scope));
         });
         stream.add(gallery(scope));
-        unawaited(() async {
-          await hydrate();
-          if (_closed) return;
-          stream.add(gallery(scope));
-          await refreshGallery(scope);
-        }());
+        unawaited(refreshGallery(scope));
       },
       onCancel: () async {
         await sub?.cancel();
@@ -274,8 +287,14 @@ class PhotoLibrary {
   ) async {
     try {
       return await fetchPage(scope, cursor);
-    } on ApiException catch (error) {
-      if (error.code < 500 || error.code > 599 || _closed) rethrow;
+    } catch (error) {
+      final transient =
+          error is http.ClientException ||
+          error is TimeoutException ||
+          (error is ApiException &&
+              (error.innerException != null ||
+                  (error.code >= 500 && error.code <= 599)));
+      if (!transient || _closed) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 300));
       if (_closed) rethrow;
       return fetchPage(scope, cursor);
@@ -284,7 +303,11 @@ class PhotoLibrary {
 
   Future<void> _refreshGallery(PhotoScope scope) async {
     final started = _revision;
-    await hydrate();
+    try {
+      await hydrate();
+    } catch (error) {
+      _reportGalleryCacheFailure(error);
+    }
     if (_closed) return;
     try {
       final records = <GalleryPhotoRecord>[];
@@ -317,6 +340,9 @@ class PhotoLibrary {
         for (final id in affected) {
           publish(id, history(id));
         }
+        // Successful pages recover a previous attempt immediately, even while
+        // subsequent pages are still loading.
+        _errors.remove(scope);
         _notify(
           pinIds: affected,
           scopes: _scopesMatching([
@@ -324,6 +350,9 @@ class PhotoLibrary {
             for (final id in affected) ...history(id),
           ])..add(scope),
         );
+        // A later-page failure must not lose already loaded pages on restart.
+        await _saveGalleryPins(affected);
+        if (_closed) return;
         cursor = page.nextCursor;
         if (cursor != null && cursor.isNotEmpty && !seen.add(cursor)) {
           throw StateError('Repeated gallery cursor');
@@ -379,11 +408,7 @@ class PhotoLibrary {
       }
       _notify(pinIds: affected, scopes: changedScopes);
       if (_closed) return;
-      await pins.putMultiple(
-        _pins.values.where((p) => affected.contains(p.pinId)).toList(),
-      );
-      if (_closed) return;
-      await _persist({for (final id in affected) id: history(id)});
+      await _saveGalleryPins(affected);
     } catch (error) {
       if (_closed) return;
       _errors[scope] = error;
@@ -415,6 +440,30 @@ class PhotoLibrary {
         ],
         allGalleries: changedPins.isNotEmpty,
       );
+    }
+  }
+
+  void _reportGalleryCacheFailure(Object error) {
+    // Keep credentials, signed image URLs, and cached content out of logs.
+    developer.log(
+      'Gallery cache unavailable (${error.runtimeType})',
+      name: 'PhotoLibrary',
+    );
+  }
+
+  Future<void> _saveGalleryPins(Set<String> ids) async {
+    if (_closed || ids.isEmpty) return;
+    try {
+      await pins.putMultiple([
+        for (final id in ids)
+          if (_pins[id] case final PinEntity pin) pin,
+      ]);
+      if (_closed) return;
+      await _persist({for (final id in ids) id: history(id)});
+    } catch (error) {
+      // A local write failure must not turn a successful remote page into a
+      // gallery error or stop the remaining pages from loading.
+      _reportGalleryCacheFailure(error);
     }
   }
 
@@ -588,14 +637,26 @@ class PhotoLibrary {
     // Fence pages that began before the membership change, including records
     // for pins that were not yet present in this session's cache.
     _removedGroups[groupId] = ++_revision;
-    final savedPins = await pins.getAll();
+    var savedPins = <PinEntity>[];
+    try {
+      savedPins = await pins.getAll();
+    } catch (error) {
+      // Cache availability must not prevent revoking known in-memory photos.
+      _reportGalleryCacheFailure(error);
+    }
     if (_closed) return;
     _removedGroups[groupId] = ++_revision;
     _failedScopes.removeWhere((scope) => scope.groupId == groupId);
-    await removePins({
-      for (final pin in [..._pins.values, ...savedPins])
-        if (pin.groupId == groupId) pin.pinId,
-    });
+    try {
+      await removePins({
+        for (final pin in [..._pins.values, ...savedPins])
+          if (pin.groupId == groupId) pin.pinId,
+      });
+    } finally {
+      // Enumeration can fail before any persisted pin is hydrated. Remove
+      // parents by group as well so a restart cannot rehydrate their photos.
+      if (!_closed) await pins.deleteByGroupId(groupId);
+    }
   }
 
   Future<void> removePins(Iterable<String> ids) async {
@@ -725,6 +786,8 @@ class PhotoLibrary {
     if (_closed) return;
     _closed = true;
     _photos.clear();
+    _historyIndex.clear();
+    _historyIndexRevision = -1;
     _pins.clear();
     _galleries.clear();
     _scopes.clear();
