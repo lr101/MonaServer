@@ -14,7 +14,7 @@
     "test:performance-isolation": "node --test performance/isolation.test.mjs"
   },
   "devDependencies": {
-    "@playwright/mcp": "0.0.85",
+    "@playwright/mcp": "0.0.86",
     "@playwright/test": "1.65.1"
   }
 }
