@@ -253,10 +253,10 @@ packages:
     dependency: "direct main"
     description:
       name: camera_web
-      sha256: "081441bd2f92b5841aa70ff4d6eddfe34078d97f9d085cc9e0f9d0102f145925"
+      sha256: "54183db5a296cf29478dd150d7685b761f9e8eeb4a11114bcbc2792adea7cb3b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.5+5"
+    version: "0.3.6"
   change_app_package_name:
     dependency: "direct dev"
     description:
