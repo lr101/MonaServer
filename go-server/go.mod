@@ -24,7 +24,7 @@ require (
 	github.com/wneessen/go-mail v0.8.2
 	golang.org/x/crypto v0.59.0
 	golang.org/x/net v0.63.0
-	google.golang.org/api v0.316.0
+	google.golang.org/api v0.317.0
 )
 
 require (
@@ -111,7 +111,7 @@ require (
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20261110000943-09e21b237f2c // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261110000943-09e21b237f2c // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261110000943-09e21b237f2c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261118221215-c8830f628b3f // indirect
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
