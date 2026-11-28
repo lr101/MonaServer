@@ -73,6 +73,8 @@ class PhotoLibrary {
   final Map<String, PinPhotoDto> _photos = {};
   final Map<String, PinEntity> _pins = {};
   final Map<PhotoScope, Set<String>> _galleries = {};
+  final Map<PhotoScope, DateTime> _galleryLoadedAt = {};
+  static const Duration _galleryHistoryFreshness = Duration(minutes: 2);
   final Map<PhotoScope, Object> _errors = {};
   final Set<PhotoScope> _scopes = {};
   // Sync can discover updates for the map/feed without mounting a gallery.
@@ -249,11 +251,25 @@ class PhotoLibrary {
     );
   }
 
+  List<PinEntity> entriesForPhotos(Iterable<PinPhotoDto> photos) => [
+    for (final photo in photos)
+      if (_pins[photo.pinId] case final pin?)
+        photo.isOriginal ? pin : pin.withPhotoUpdate(photo),
+  ];
+
   List<PinEntity> entries(PhotoScope scope) =>
-      gallery(scope).photos.map((photo) {
-        final pin = _pins[photo.pinId]!;
-        return photo.isOriginal ? pin : pin.withPhotoUpdate(photo);
-      }).toList();
+      entriesForPhotos(gallery(scope).photos);
+
+  static const Duration _galleryWatchFreshness = Duration(seconds: 60);
+
+  bool _isGalleryFresh(PhotoScope scope) {
+    if (!_galleries.containsKey(scope) || _errors.containsKey(scope)) {
+      return false;
+    }
+    final loadedAt = _galleryLoadedAt[scope];
+    if (loadedAt == null) return false;
+    return DateTime.now().difference(loadedAt) < _galleryWatchFreshness;
+  }
 
   Stream<PhotoGallerySnapshot> watchGallery(PhotoScope scope) {
     late StreamController<PhotoGallerySnapshot> stream;
@@ -266,7 +282,9 @@ class PhotoLibrary {
           if (!stream.isClosed) stream.add(gallery(scope));
         });
         stream.add(gallery(scope));
-        unawaited(refreshGallery(scope));
+        if (!_isGalleryFresh(scope)) {
+          unawaited(refreshGallery(scope));
+        }
       },
       onCancel: () async {
         await sub?.cancel();
@@ -310,17 +328,16 @@ class PhotoLibrary {
     }
     if (_closed) return;
     try {
-      final records = <GalleryPhotoRecord>[];
-      final pageMutations = <String, int>{};
+      final fetchedIds = <String>{};
       String? cursor;
       final seen = <String>{};
       do {
         final page = await _fetchGalleryPage(scope, cursor);
         if (_closed) return;
-        records.addAll(page.items);
         final affected = <String>{};
         final previousPhotos = <PinPhotoDto>[];
         for (final record in page.items) {
+          fetchedIds.add(record.photo.id);
           if ((_deletedPins[record.pin.pinId] ?? 0) > started ||
               (_removedGroups[record.pin.groupId] ?? 0) > started ||
               (_mutations[record.photo.id] ?? 0) > started) {
@@ -332,7 +349,6 @@ class PhotoLibrary {
           _pins[record.pin.pinId] = record.pin;
           _photos[record.photo.id] = record.photo;
           _mutations[record.photo.id] = version;
-          pageMutations[record.photo.id] = version;
           _metadataUpdates[record.pin.pinId] = version;
           _historyErrors.remove(record.pin.pinId);
           affected.add(record.pin.pinId);
@@ -343,23 +359,24 @@ class PhotoLibrary {
         // Successful pages recover a previous attempt immediately, even while
         // subsequent pages are still loading.
         _errors.remove(scope);
-        _notify(
-          pinIds: affected,
-          scopes: _scopesMatching([
-            ...previousPhotos,
-            for (final id in affected) ...history(id),
-          ])..add(scope),
-        );
-        // A later-page failure must not lose already loaded pages on restart.
-        await _saveGalleryPins(affected);
-        if (_closed) return;
+        if (affected.isNotEmpty) {
+          _notify(
+            pinIds: affected,
+            scopes: _scopesMatching([
+              ...previousPhotos,
+              for (final id in affected) ...history(id),
+            ])..add(scope),
+          );
+          // A later-page failure must not lose already loaded pages on restart.
+          await _saveGalleryPins(affected);
+          if (_closed) return;
+        }
         cursor = page.nextCursor;
         if (cursor != null && cursor.isNotEmpty && !seen.add(cursor)) {
           throw StateError('Repeated gallery cursor');
         }
       } while (cursor != null && cursor.isNotEmpty);
-      final ids = records.map((r) => r.photo.id).toSet();
-      final version = ++_revision;
+      final ids = Set<String>.of(fetchedIds);
       for (final photo in _photos.values) {
         final pin = _pins[photo.pinId];
         if (pin != null &&
@@ -376,45 +393,33 @@ class PhotoLibrary {
             !ids.contains(p.id) &&
             (_mutations[p.id] ?? 0) <= started;
       }).toList();
-      final changedScopes = _scopesMatching([
-        ...removed,
-        for (final record in records) record.photo,
-      ])..add(scope);
-      final affected = <String>{for (final p in removed) p.pinId};
-      for (final p in removed) {
-        _photos.remove(p.id);
-        _mutations[p.id] = version;
-      }
-      for (final record in records) {
-        if ((_deletedPins[record.pin.pinId] ?? 0) > started ||
-            (_removedGroups[record.pin.groupId] ?? 0) > started ||
-            ((_mutations[record.photo.id] ?? 0) > started &&
-                _mutations[record.photo.id] !=
-                    pageMutations[record.photo.id])) {
-          continue;
-        }
-        _pins[record.pin.pinId] = record.pin;
-        affected.add(record.pin.pinId);
-        _photos[record.photo.id] = record.photo;
-        _mutations[record.photo.id] = version;
-        _historyErrors.remove(record.pin.pinId);
-      }
       _galleries[scope] = ids;
+      _galleryLoadedAt[scope] = DateTime.now();
       _errors.remove(scope);
       _failedScopes.remove(scope);
-      for (final id in affected) {
-        _metadataUpdates[id] = version;
-        publish(id, history(id));
+      if (removed.isNotEmpty) {
+        final version = ++_revision;
+        final changedScopes = _scopesMatching(removed)..add(scope);
+        final affected = <String>{for (final p in removed) p.pinId};
+        for (final p in removed) {
+          _photos.remove(p.id);
+          _mutations[p.id] = version;
+        }
+        for (final id in affected) {
+          _metadataUpdates[id] = version;
+          publish(id, history(id));
+        }
+        _notify(pinIds: affected, scopes: changedScopes);
+        if (_closed) return;
+        await _saveGalleryPins(affected);
       }
-      _notify(pinIds: affected, scopes: changedScopes);
-      if (_closed) return;
-      await _saveGalleryPins(affected);
     } catch (error) {
       if (_closed) return;
       _errors[scope] = error;
       final changedPins = <String>{};
       if (error is ApiException && (error.code == 403 || error.code == 404)) {
         _failedScopes.remove(scope);
+        _galleryLoadedAt.remove(scope);
         final affected = _photos.values
             .where((photo) {
               final pin = _pins[photo.pinId];
@@ -533,7 +538,18 @@ class PhotoLibrary {
         unawaited(() async {
           await hydrate();
           if (_closed) return;
-          if (history(pinId).isNotEmpty) stream.add(history(pinId));
+          final cached = history(pinId);
+          if (cached.isNotEmpty) stream.add(cached);
+          final pin = _pins[pinId];
+          final loadedAt = pin == null
+              ? null
+              : _galleryLoadedAt[PhotoScope(groupId: pin.groupId)];
+          final freshFromGallery =
+              loadedAt != null &&
+              cached.isNotEmpty &&
+              _historyErrors[pinId] == null &&
+              DateTime.now().difference(loadedAt) < _galleryHistoryFreshness;
+          if (freshFromGallery) return;
           try {
             await refreshHistory(pinId);
           } catch (e, s) {
@@ -596,6 +612,9 @@ class PhotoLibrary {
   void restoreGroupAccess(String groupId, {required int startedAt}) {
     if (!_closed && (_removedGroups[groupId] ?? 0) <= startedAt) {
       _restoredGroups[groupId] = ++_revision;
+      _galleryLoadedAt.removeWhere(
+        (scope, _) => scope.groupId == null || scope.groupId == groupId,
+      );
     }
   }
 
@@ -647,6 +666,7 @@ class PhotoLibrary {
     if (_closed) return;
     _removedGroups[groupId] = ++_revision;
     _failedScopes.removeWhere((scope) => scope.groupId == groupId);
+    _galleryLoadedAt.removeWhere((scope, _) => scope.groupId == groupId);
     try {
       await removePins({
         for (final pin in [..._pins.values, ...savedPins])
@@ -790,6 +810,7 @@ class PhotoLibrary {
     _historyIndexRevision = -1;
     _pins.clear();
     _galleries.clear();
+    _galleryLoadedAt.clear();
     _scopes.clear();
     _failedScopes.clear();
     _galleryWatchers.clear();

@@ -1,9 +1,8 @@
-import 'package:buff_lisa/data/service/photo_library.dart';
-import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/entity/user_entity.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/user_achievements_tab.dart';
@@ -18,7 +17,6 @@ import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:openapi/api.dart';
 
 class UserProfile extends ConsumerStatefulWidget {
   const UserProfile({
@@ -57,9 +55,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
   @override
   Widget build(BuildContext context) {
     final userId = ref.watch(userIdProvider);
-    final userPins = ref.watch(profileGridEntriesProvider(userId));
     final currentUser = ref.watch(currentUserProvider);
-    final likes = ref.watch(userLikeServiceProvider(userId));
 
     final xp = ref.watch(userXpProvider(userId)).value;
     final progress = xp == null ? null : XpLevelProgress.fromDto(xp);
@@ -79,21 +75,30 @@ class _UserProfileState extends ConsumerState<UserProfile>
       title: _buildTitle(currentUser),
       actions: _buildActions(context),
       hasBackButton: widget.hasBackButton,
-      profileQuickViewBoxes: _buildQuickStats(userPins, likes, ref),
+      profileQuickViewBoxes: _buildQuickStats(userId),
       bottom: TabBar(
         controller: _tabController,
         labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-        dividerColor: Colors.transparent,
         tabs: const [
           Tab(
-            icon: Icon(Icons.image_outlined),
-            text: 'Pins',
-            iconMargin: EdgeInsets.zero,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.grid_on_rounded, size: 17),
+                SizedBox(width: 6),
+                Text('Pins'),
+              ],
+            ),
           ),
           Tab(
-            icon: Icon(Icons.emoji_events_outlined),
-            text: 'Achievements',
-            iconMargin: EdgeInsets.zero,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.emoji_events_outlined, size: 18),
+                SizedBox(width: 6),
+                Text('Achievements'),
+              ],
+            ),
           ),
         ],
       ),
@@ -103,6 +108,7 @@ class _UserProfileState extends ConsumerState<UserProfile>
         children: [
           ImageGrid(
             pinProvider: profileGridEntriesProvider(userId),
+            header: _buildBioHeader(currentUser),
             onRefresh: () => ref
                 .read(photoLibraryProvider)
                 .refreshGallery(PhotoScope(userId: userId)),
@@ -139,50 +145,109 @@ class _UserProfileState extends ConsumerState<UserProfile>
   }
 
   List<Widget> _buildActions(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return [
-      IconButton(
-        tooltip: "Settings",
-        onPressed: () => context.pushNamed("settings"),
-        icon: const Icon(Icons.settings),
+      Padding(
+        padding: const EdgeInsets.only(right: 16),
+        child: IconButton.filledTonal(
+          tooltip: "Settings",
+          onPressed: () => context.pushNamed("settings"),
+          style: IconButton.styleFrom(
+            backgroundColor: colors.surfaceContainerHigh,
+            foregroundColor: colors.onSurface,
+          ),
+          icon: const Icon(Icons.settings_outlined),
+        ),
       ),
     ];
   }
 
-  Widget _buildQuickStats(
-    AsyncValue<List<PinEntity>> userPins,
-    AsyncValue<UserLikesDto> likes,
-    WidgetRef ref,
-  ) {
+  Widget _buildQuickStats(String userId) {
+    final isWide = MediaQuery.sizeOf(context).width >= 840;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: isWide
+          ? MainAxisAlignment.spaceBetween
+          : MainAxisAlignment.spaceEvenly,
       children: [
-        _statItem(
-          "Sticks",
-          userPins.whenOrNull(
-                data: (entries) =>
-                    countUniqueContributedSticks(entries).toString(),
-              ) ??
-              "---",
+        Consumer(
+          builder: (context, ref, _) {
+            final sticks = ref.watch(
+              profileGridEntriesProvider(userId).select(
+                (pins) => pins.whenOrNull(
+                  data: (entries) =>
+                      countUniqueContributedSticks(entries).toString(),
+                ),
+              ),
+            );
+            return _statItem("Sticks", sticks ?? "---", isWide: isWide);
+          },
         ),
-        _statItem(
-          "Groups",
-          ref.watch(userGroupServiceProvider).value?.length.toString() ?? "---",
+        Consumer(
+          builder: (context, ref, _) {
+            final groups = ref.watch(
+              userGroupServiceProvider.select(
+                (value) => value.value?.length.toString(),
+              ),
+            );
+            return _statItem("Groups", groups ?? "---", isWide: isWide);
+          },
         ),
-        _statItem("Likes", likes.value?.likeCount.toString() ?? "-"),
+        Consumer(
+          builder: (context, ref, _) {
+            final likeCount = ref.watch(
+              userLikeServiceProvider(
+                userId,
+              ).select((value) => value.value?.likeCount.toString()),
+            );
+            return _statItem("Likes", likeCount ?? "-", isWide: isWide);
+          },
+        ),
       ],
     );
   }
 
-  Widget _statItem(String label, String value) {
+  Widget _statItem(String label, String value, {bool isWide = false}) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: isWide ? 22 : 20,
+            height: 1.15,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isWide ? 13.5 : 12.5,
+            fontWeight: FontWeight.w500,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget? _buildBioHeader(AsyncValue<UserEntity?> currentUser) {
+    final theme = Theme.of(context);
+    final description = currentUser.value?.description?.trim();
+    if (description == null || description.isEmpty) return null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+      child: Text(
+        description,
+        softWrap: true,
+        maxLines: 10,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          height: 1.4,
+        ),
+      ),
     );
   }
 
@@ -190,21 +255,6 @@ class _UserProfileState extends ConsumerState<UserProfile>
     AsyncValue<UserEntity?> currentUser,
   ) {
     return [
-      if (currentUser.value?.description != null)
-        SliverToBoxAdapter(
-          child: ListTile(
-            title: const Text(
-              "Description",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              currentUser.value!.description!,
-              softWrap: true,
-              maxLines: 10,
-              style: const TextStyle(fontStyle: FontStyle.italic),
-            ),
-          ),
-        ),
       if (currentUser.value?.bestSeason != null)
         SliverToBoxAdapter(
           child: SeasonTile(bestSeason: currentUser.value!.bestSeason!),

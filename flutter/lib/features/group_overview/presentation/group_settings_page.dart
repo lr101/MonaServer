@@ -1,6 +1,7 @@
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/group_details_service.dart';
 import 'package:buff_lisa/features/group_edit/presentation/group_edit.dart';
+import 'package:buff_lisa/features/group_overview/presentation/group_pin_settings.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_action_button.dart';
 import 'package:buff_lisa/features/group_overview/presentation/sub_widgets/group_invite_share_button.dart';
 import 'package:buff_lisa/util/routing/routing.dart';
@@ -46,67 +47,123 @@ class GroupSettingsPage extends ConsumerWidget {
               group: group,
               embedded: true,
               footerItems: [
-                if (group.bestSeason != null)
-                  SeasonTile(bestSeason: group.bestSeason!),
-                if (group.inviteUrl != null)
-                  GroupInviteShareButton(groupDto: group, expanded: true),
-                const Divider(),
-                GroupActionButton(
-                  group: group,
-                  action: GroupAction.report,
-                  expanded: true,
-                ),
-                GroupActionButton(
-                  group: group,
-                  action: GroupAction.leave,
-                  expanded: true,
+                GroupPinSettings(group: group),
+                if (group.bestSeason != null) ...[
+                  const SizedBox(height: 16),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    clipBehavior: Clip.antiAlias,
+                    child: SeasonTile(bestSeason: group.bestSeason!),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      if (group.inviteUrl != null) ...[
+                        GroupInviteShareButton(groupDto: group, expanded: true),
+                        const Divider(height: 1),
+                      ],
+                      GroupActionButton(
+                        group: group,
+                        action: GroupAction.report,
+                        expanded: true,
+                      ),
+                      const Divider(height: 1),
+                      GroupActionButton(
+                        group: group,
+                        action: GroupAction.leave,
+                        expanded: true,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             );
           }
           return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      group.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    if (group.description?.isNotEmpty == true) ...[
-                      const SizedBox(height: 12),
-                      Text(group.description!),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                group.name,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              if (group.description?.isNotEmpty == true) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  group.description!,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                              if (group.link?.isNotEmpty == true) ...[
+                                const SizedBox(height: 8),
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.open_in_new),
+                                  title: Text(group.link!),
+                                  onTap: () => clickedOnLink(group.link),
+                                ),
+                              ],
+                              if (group.bestSeason != null)
+                                SeasonTile(bestSeason: group.bestSeason!),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (member) ...[
+                        const SizedBox(height: 16),
+                        Card(
+                          margin: EdgeInsets.zero,
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            children: [
+                              if (group.inviteUrl != null)
+                                GroupInviteShareButton(
+                                  groupDto: group,
+                                  expanded: true,
+                                ),
+                              if (group.inviteUrl != null)
+                                const Divider(height: 1),
+                              GroupActionButton(
+                                group: group,
+                                action: GroupAction.report,
+                                expanded: true,
+                              ),
+                              const Divider(height: 1),
+                              GroupActionButton(
+                                group: group,
+                                action: GroupAction.leave,
+                                expanded: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-              if (group.link?.isNotEmpty == true)
-                ListTile(
-                  leading: const Icon(Icons.open_in_new),
-                  title: Text(group.link!),
-                  onTap: () => clickedOnLink(group.link),
-                ),
-              if (group.bestSeason != null)
-                SeasonTile(bestSeason: group.bestSeason!),
-              if (member) ...[
-                const SizedBox(height: 16),
-                if (group.inviteUrl != null)
-                  GroupInviteShareButton(groupDto: group, expanded: true),
-                const Divider(),
-                GroupActionButton(
-                  group: group,
-                  action: GroupAction.report,
-                  expanded: true,
-                ),
-                GroupActionButton(
-                  group: group,
-                  action: GroupAction.leave,
-                  expanded: true,
-                ),
-              ],
             ],
           );
         },

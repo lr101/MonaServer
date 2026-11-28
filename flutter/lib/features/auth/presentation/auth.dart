@@ -32,6 +32,7 @@ class _AuthState extends ConsumerState<Auth> {
   final _email = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   bool _showPassword = false;
+  bool _obscureLoginPassword = true;
   bool _showSignupPassword = false;
   bool _acceptedTerms = false;
   bool _acceptedPrivacy = false;
@@ -230,6 +231,7 @@ class _AuthState extends ConsumerState<Auth> {
   Widget build(BuildContext context) {
     final global = ref.watch(globalDataServiceProvider);
     final theme = Theme.of(context);
+    final isLight = theme.brightness == Brightness.light;
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
@@ -238,19 +240,37 @@ class _AuthState extends ConsumerState<Auth> {
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
-              child: Card(
-                elevation: 0,
-                color: theme.colorScheme.surfaceContainerLowest,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: isLight
+                      ? theme.colorScheme.surfaceContainerLowest
+                      : theme.colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
                     color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.45,
+                      alpha: isLight ? 0.35 : 0.65,
                     ),
                   ),
+                  boxShadow: isLight
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 26,
+                    vertical: 28,
+                  ),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 260),
                     reverseDuration: const Duration(milliseconds: 180),
@@ -286,41 +306,47 @@ class _AuthState extends ConsumerState<Auth> {
     );
   }
 
-  Widget _brand(ThemeData theme, {required String title, String? subtitle}) =>
-      Column(
-        key: ValueKey(title),
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              shape: BoxShape.circle,
+  Widget _brand(ThemeData theme, {required String title, String? subtitle}) {
+    final isLight = theme.brightness == Brightness.light;
+    return Column(
+      key: ValueKey(title),
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withValues(
+              alpha: isLight ? 0.16 : 0.22,
             ),
-            child: ClipOval(
-              child: Image.asset('assets/icon/logo-rounded-corners.png'),
-            ),
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 20),
+          child: ClipOval(
+            child: Image.asset('assets/icon/logo-rounded-corners.png'),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
           Text(
-            title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+            subtitle,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
             textAlign: TextAlign.center,
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-          const SizedBox(height: 28),
         ],
-      );
+        const SizedBox(height: 22),
+      ],
+    );
+  }
 
   Widget _loginForm(ThemeData theme, SessionStatus status) => AutofillGroup(
     onDisposeAction: AutofillContextAction.cancel,
@@ -338,7 +364,7 @@ class _AuthState extends ConsumerState<Auth> {
           title: 'Sign in',
           subtitle: status == SessionStatus.expired
               ? 'Your session expired. Sign in again to continue.'
-              : null,
+              : 'Capture & map stickers with your crew.',
         ),
         AuthAutofillField(
           key: const Key('auth-identifier'),
@@ -360,10 +386,12 @@ class _AuthState extends ConsumerState<Auth> {
               : _requestEmailLink(),
           decoration: InputDecoration(
             labelText: _showPassword ? 'Username' : 'Email or username',
-            helperText: _showPassword ? 'Use your account username.' : null,
+            hintText: _showPassword
+                ? 'Enter your username'
+                : 'name@example.com or handle',
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: _showPassword ? 14 : 16),
         AnimatedSize(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
@@ -378,17 +406,50 @@ class _AuthState extends ConsumerState<Auth> {
                   controller: _password,
                   focusNode: _passwordFocusNode,
                   enabled: !_busy,
-                  obscureText: true,
+                  obscureText: _obscureLoginPassword,
                   name: 'password',
                   autocomplete: 'current-password',
                   autofillHints: const [AutofillHints.password],
                   keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _loginWithPassword(),
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    hintText: 'Enter your password',
+                    suffixIcon: IconButton(
+                      tooltip: _obscureLoginPassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      onPressed: _busy
+                          ? null
+                          : () => setState(
+                              () => _obscureLoginPassword =
+                                  !_obscureLoginPassword,
+                            ),
+                      icon: Icon(
+                        _obscureLoginPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _busy ? null : _recoverPassword,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
+                      minimumSize: const Size(0, 36),
+                    ),
+                    child: const Text('Forgot password?'),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
-              const SizedBox(height: 8),
               SizedBox(
                 height: 48,
                 child: FilledButton(
@@ -414,23 +475,17 @@ class _AuthState extends ConsumerState<Auth> {
           alignment: Alignment.topCenter,
           child: _error == null ? const SizedBox.shrink() : _errorText(theme),
         ),
-        if (_showPassword)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _busy ? null : _recoverPassword,
-              child: const Text('Forgot password?'),
-            ),
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
+        const SizedBox(height: 8),
+        Center(
           child: TextButton(
             key: const Key('auth-toggle-signin-method'),
             onPressed: _busy ? null : _togglePasswordSignIn,
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              minimumSize: const Size(0, 48),
-              visualDensity: VisualDensity.standard,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              minimumSize: const Size(0, 44),
             ),
             child: Text(
               _showPassword
@@ -439,25 +494,36 @@ class _AuthState extends ConsumerState<Auth> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+          ),
+        ),
         Wrap(
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            const Text('Need an account?'),
+            Text(
+              'Need an account?',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             TextButton(
               key: const Key('auth-open-signup'),
               onPressed: _busy ? null : () => _switchMode(_AuthMode.signup),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 48),
+                minimumSize: const Size(0, 44),
                 visualDensity: VisualDensity.standard,
               ),
               child: const Text('Create account'),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         _legalLinks(),
       ],
     ),
@@ -479,7 +545,6 @@ class _AuthState extends ConsumerState<Auth> {
           enabled: !_busy,
           autofillHints: const [AutofillHints.newUsername],
           decoration: const InputDecoration(
-            border: OutlineInputBorder(),
             labelText: 'Username',
             prefixIcon: Icon(Icons.person_outline),
           ),
@@ -495,7 +560,6 @@ class _AuthState extends ConsumerState<Auth> {
           keyboardType: TextInputType.emailAddress,
           autofillHints: const [AutofillHints.email],
           decoration: const InputDecoration(
-            border: OutlineInputBorder(),
             labelText: 'Email address',
             prefixIcon: Icon(Icons.mail_outline),
           ),
@@ -511,7 +575,6 @@ class _AuthState extends ConsumerState<Auth> {
           obscureText: !_showSignupPassword,
           autofillHints: const [AutofillHints.newPassword],
           decoration: InputDecoration(
-            border: const OutlineInputBorder(),
             labelText: 'Password',
             prefixIcon: const Icon(Icons.lock_outline),
             helperText: 'At least 8 characters. You can change it later.',
@@ -604,7 +667,6 @@ class _AuthState extends ConsumerState<Auth> {
           keyboardType: TextInputType.emailAddress,
           autofillHints: const [AutofillHints.email],
           decoration: const InputDecoration(
-            border: OutlineInputBorder(),
             labelText: 'Email address',
             prefixIcon: Icon(Icons.mail_outline),
           ),
@@ -670,20 +732,29 @@ class _AuthState extends ConsumerState<Auth> {
       padding: EdgeInsets.zero,
       minimumSize: Size.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+        fontWeight: FontWeight.w600,
+      ),
     ),
     onPressed: () => _openLegal(path == 'agb' ? 'agb' : path, label),
     child: Text(label),
   );
 
-  Widget _legalLinks() => Wrap(
-    alignment: WrapAlignment.center,
-    children: [
-      const Text('By continuing, you agree to our '),
-      _legalButton('Terms of Service', 'agb'),
-      const Text(' and '),
-      _legalButton('Privacy Policy', 'privacy-policy'),
-    ],
-  );
+  Widget _legalLinks() {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text('By continuing, you agree to our ', style: style),
+        _legalButton('Terms of Service', 'agb'),
+        Text(' and ', style: style),
+        _legalButton('Privacy Policy', 'privacy-policy'),
+      ],
+    );
+  }
 }
 
 class _BusyLabel extends StatelessWidget {

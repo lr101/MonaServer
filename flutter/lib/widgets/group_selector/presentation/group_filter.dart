@@ -57,7 +57,11 @@ class GroupFilterWidget extends ConsumerWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: theme.colorScheme.surfaceContainer,
+                              color: theme.colorScheme.brightness ==
+                                      Brightness.light
+                                  ? theme.colorScheme.surfaceContainerLowest
+                                  : theme.colorScheme.surfaceContainerHigh,
+                              width: 2,
                             ),
                           ),
                           child: SmallProfilePicture.group(
@@ -70,20 +74,24 @@ class GroupFilterWidget extends ConsumerWidget {
                       Positioned(
                         left: 3 * 12.0,
                         child: Container(
-                          width: 30,
-                          height: 30,
+                          width: 28,
+                          height: 28,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: theme.colorScheme.primary,
                             border: Border.all(
-                              color: theme.colorScheme.surfaceContainer,
+                              color: theme.colorScheme.brightness ==
+                                      Brightness.light
+                                  ? theme.colorScheme.surfaceContainerLowest
+                                  : theme.colorScheme.surfaceContainerHigh,
+                              width: 2,
                             ),
                           ),
                           child: Center(
                             child: Text(
                               "+${orderedIds.length - 3}",
                               style: TextStyle(
-                                fontSize: 8,
+                                fontSize: 9,
                                 color: theme.colorScheme.onPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -94,10 +102,10 @@ class GroupFilterWidget extends ConsumerWidget {
                   ],
                 ),
               ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Icon(
-              Icons.filter_list,
-              size: 24,
+              Icons.tune_rounded,
+              size: 21,
               color: theme.colorScheme.primaryOnSurface,
             ),
           ],
@@ -117,7 +125,6 @@ class GroupFilterWidget extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-
       builder: (context) => const _FilterSheetContent(),
     );
   }
@@ -135,171 +142,240 @@ class _FilterSheetContentState extends ConsumerState<_FilterSheetContent> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isLight = colors.brightness == Brightness.light;
     final orderedIds = ref.watch(groupOrderServiceProvider);
+    final activeIds = ref.watch(groupActiveServiceProvider);
+    final allSelected =
+        orderedIds.isNotEmpty &&
+        orderedIds.every((id) => activeIds.contains(id));
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      height: MediaQuery.of(context).size.height * 0.6,
-      child: Column(
-        children: [
-          // --- HEADER ---
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.68,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surfaceContainer,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                "Filter Groups",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                  color: theme.colorScheme.onSurface,
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  for (final groupId in orderedIds) {
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Filter groups",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Tap to toggle · drag to reorder",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: allSelected
+                        ? null
+                        : () {
+                            for (final groupId in orderedIds) {
+                              ref
+                                  .read(groupActiveServiceProvider.notifier)
+                                  .toggle(groupId, true);
+                            }
+                          },
+                    style: TextButton.styleFrom(
+                      backgroundColor: allSelected
+                          ? Colors.transparent
+                          : colors.primary.withValues(
+                              alpha: isLight ? 0.22 : 0.18,
+                            ),
+                      foregroundColor: allSelected
+                          ? colors.onSurfaceVariant
+                          : colors.primaryOnSurface,
+                      disabledForegroundColor: colors.onSurfaceVariant,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: Text(allSelected ? "All active" : "Select all"),
+                  ),
+                  const SizedBox(width: 6),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: const Text("Done"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: ReorderableListView.builder(
+                  key: const ValueKey('group_filter_reorder_list'),
+                  shrinkWrap: true,
+                  buildDefaultDragHandles: false,
+                  itemCount: orderedIds.length,
+                  proxyDecorator: (child, index, animation) {
+                    return Material(
+                      elevation: 6,
+                      color: Colors.transparent,
+                      shadowColor: Colors.black26,
+                      borderRadius: BorderRadius.circular(16),
+                      child: child,
+                    );
+                  },
+                  onReorderItem: (oldIndex, newIndex) {
+                    final newOrder = reorderGroupIds(
+                      orderedIds,
+                      oldIndex,
+                      newIndex,
+                    );
                     ref
-                        .read(groupActiveServiceProvider.notifier)
-                        .toggle(groupId, true);
-                  }
-                },
-                child: const Text("Select All"),
+                        .read(groupOrderServiceProvider.notifier)
+                        .setList(newOrder);
+                  },
+                  itemBuilder: (context, index) {
+                    final groupId = orderedIds[index];
+                    final groupData = ref
+                        .watch(groupMetadataProvider(groupId))
+                        .value;
+
+                    if (groupData == null) {
+                      return SizedBox.shrink(key: ValueKey('empty_$groupId'));
+                    }
+
+                    final bool isActive = groupData.isActivated;
+
+                    return Container(
+                      key: ValueKey("${groupId}_group_filter_reorder_list"),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isLight
+                            ? colors.surfaceContainerLow
+                            : colors.surfaceContainerHigh.withValues(
+                                alpha: isActive ? 0.9 : 0.45,
+                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: colors.outlineVariant.withValues(
+                            alpha: isActive ? 0.85 : 0.55,
+                          ),
+                        ),
+                      ),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        leading: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isActive
+                                    ? colors.primaryContainer
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: isActive
+                                      ? colors.primaryContainer
+                                      : colors.outline,
+                                  width: 1.8,
+                                ),
+                              ),
+                              child: isActive
+                                  ? Icon(
+                                      Icons.check_rounded,
+                                      size: 14,
+                                      color: colors.onPrimaryContainer,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Opacity(
+                              opacity: isActive ? 1.0 : 0.55,
+                              child: SmallProfilePicture.group(
+                                groupId: groupId,
+                                radius: 17,
+                              ),
+                            ),
+                          ],
+                        ),
+                        title: Text(
+                          groupData.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: isActive
+                                ? colors.onSurface
+                                : colors.onSurfaceVariant,
+                          ),
+                        ),
+                        onTap: () => _toggleGroup(groupId, isActive),
+                        trailing: ReorderableDragStartListener(
+                          index: index,
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: Icon(
+                                Icons.drag_indicator_rounded,
+                                size: 22,
+                                color: colors.onSurfaceVariant.withValues(
+                                  alpha: 0.78,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            "Long press to reorder groups",
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // --- REORDERABLE LIST ---
-          Expanded(
-            child: ReorderableListView.builder(
-              key: const ValueKey('group_filter_reorder_list'),
-              itemCount: orderedIds.length,
-              proxyDecorator: (child, index, animation) {
-                return Material(
-                  elevation: 8,
-                  color: Colors.transparent,
-                  shadowColor: Colors.black26,
-                  borderRadius: BorderRadius.circular(12),
-                  child: child,
-                );
-              },
-              onReorderItem: (oldIndex, newIndex) {
-                final newOrder = reorderGroupIds(
-                  orderedIds,
-                  oldIndex,
-                  newIndex,
-                );
-                ref.read(groupOrderServiceProvider.notifier).setList(newOrder);
-              },
-              itemBuilder: (context, index) {
-                final groupId = orderedIds[index];
-
-                final groupData = ref
-                    .watch(groupMetadataProvider(groupId))
-                    .value;
-
-                if (groupData == null) {
-                  return SizedBox.shrink(key: ValueKey('empty_$groupId'));
-                }
-
-                final bool isActive = groupData.isActivated;
-
-                return Container(
-                  key: ValueKey("${groupId}_group_filter_reorder_list"),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? theme.colorScheme.primaryContainer.withValues(
-                            alpha: 0.1,
-                          )
-                        : theme.colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isActive
-                          ? theme.colorScheme.primaryOnSurface.withValues(
-                              alpha: 0.5,
-                            )
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-
-                    // LEFT: Toggle Visibility
-                    leading: GestureDetector(
-                      onTap: () => _toggleGroup(groupId, isActive),
-                      child: Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          SmallProfilePicture.group(
-                            groupId: groupId,
-                            radius: 17,
-                          ),
-                          if (isActive)
-                            Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: theme.colorScheme.surface,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.check,
-                                size: 8,
-                                color: theme.colorScheme.onPrimary,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    // CENTER: Name
-                    title: Text(
-                      groupData.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isActive
-                            ? theme.colorScheme.onSurface
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-
-                    // Tap tile to toggle
-                    onTap: () => _toggleGroup(groupId, isActive),
-
-                    // RIGHT: Drag Handle
-                    trailing: ReorderableDragStartListener(
-                      index: index,
-                      child: Icon(
-                        Icons.drag_handle,
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
+        ),
       ),
     );
   }

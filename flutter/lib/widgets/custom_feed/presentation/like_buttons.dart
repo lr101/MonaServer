@@ -41,17 +41,21 @@ class FeedCardSubtitle extends ConsumerWidget {
               isLikedProvider: likeServiceProvider(pin.entryId)
                   .select((e) => e.value?.likedByUser),
               isLiked: pinLike.value?.likedByUser ?? false,
+              size: 22,
+              likeCountPadding: const EdgeInsets.only(left: 5),
               likeBuilder: (isLiked) {
                 return Icon(
                   isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked ? Colors.red : theme.colorScheme.onSurface,
-                  size: 26,
+                  color: isLiked
+                      ? const Color(0xFFE53935)
+                      : theme.colorScheme.onSurfaceVariant,
+                  size: 21,
                 );
               },
               likeCount: pinLike.value?.likeCount ?? 0,
               animateLikeChanges: animateLikeChanges,
               mainAxisAlignment: MainAxisAlignment.start,
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
               onTap: userId == null || !pinLike.hasValue
                   ? null
                   : (isLiked) async {
@@ -79,12 +83,15 @@ class FeedCardSubtitle extends ConsumerWidget {
 
             if (showContext) ...[
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
-                  "•",
+                  "·",
                   style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.72,
+                    ),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -97,10 +104,12 @@ class FeedCardSubtitle extends ConsumerWidget {
                       group?.name ?? "",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.84,
+                        ),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
                   ),
@@ -116,12 +125,15 @@ class FeedCardSubtitle extends ConsumerWidget {
 
               // Separator dot
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
-                  "•",
+                  "·",
                   style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.72,
+                    ),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -129,9 +141,9 @@ class FeedCardSubtitle extends ConsumerWidget {
               // Time Ago
               Text(
                 _formatTimeAgo(pin.creationDate),
-                style: theme.textTheme.labelSmall?.copyWith(
+                style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 12,
+                  fontSize: 13,
                 ),
               ),
             ],

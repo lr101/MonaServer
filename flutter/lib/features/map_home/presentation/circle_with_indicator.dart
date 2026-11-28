@@ -21,39 +21,40 @@ class CircleWithIndicator extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          width: 30,
-          height: 30,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [colorScheme.primary, colorScheme.primary.withAlpha(220)],
-            ),
+            color: const Color(0xFFD97706),
             border: Border.all(
-              color: colorScheme.onPrimary.withAlpha(40),
-              width: 2,
+              color: Colors.white,
+              width: 2.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withAlpha(80),
+                color: Colors.black.withValues(alpha: 0.28),
                 blurRadius: 8,
-                offset: const Offset(0, 2),
+                offset: const Offset(0, 3),
+              ),
+              BoxShadow(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.25),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
               ),
             ],
           ),
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(4.0),
+              padding: const EdgeInsets.all(3.0),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   number.toString(),
-                  style: TextStyle(
-                    fontSize: 12.0, // max size
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onPrimary,
-                    letterSpacing: 0.5,
+                  style: const TextStyle(
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
               ),

@@ -159,6 +159,81 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
     oldController.dispose();
   }
 
+  Widget _cameraStatusCard({
+    required IconData icon,
+    required String title,
+    required String message,
+    VoidCallback? onRetry,
+  }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    return _cameraDiscoveryStatus(
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(
+                        alpha: isLight ? 0.16 : 0.22,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 24,
+                      color: isLight
+                          ? const Color(0xFF9A5B00)
+                          : colors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                      height: 1.38,
+                    ),
+                  ),
+                  if (onRetry != null) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: onRetry,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Retry'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.isActive) return const SizedBox.shrink();
@@ -174,29 +249,25 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
               error.code == 'CameraAccessRestricted');
       final timedOut =
           error is CameraException && error.code == 'CameraAccessTimeout';
-      return _cameraDiscoveryStatus(
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              timedOut
-                  ? 'Camera access is taking too long. Check the browser permission prompt or settings, then retry.'
-                  : denied
-                  ? 'Allow camera access in your browser or device settings, then retry.'
-                  : 'Could not access the camera. Check that it is connected and available.',
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _discoveryError = null;
-                  _discoveringCameras = true;
-                });
-                unawaited(_discoverCameras());
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+      return _cameraStatusCard(
+        icon: Icons.no_photography_outlined,
+        title: timedOut
+            ? 'Camera timed out'
+            : denied
+            ? 'Camera permission needed'
+            : 'Camera unavailable',
+        message: timedOut
+            ? 'Camera access is taking too long. Check the browser permission prompt or settings, then try again.'
+            : denied
+            ? 'Allow camera access in your browser or device settings, then try again.'
+            : 'Allow camera access in your browser settings or connect a camera, then try again.',
+        onRetry: () {
+          setState(() {
+            _discoveryError = null;
+            _discoveringCameras = true;
+          });
+          unawaited(_discoverCameras());
+        },
       );
     }
     ref.listen(cameraTorchProvider, (_, next) {
@@ -219,12 +290,10 @@ class _CameraState extends ConsumerState<Camera> with WidgetsBindingObserver {
         ) ??
         0;
     if (cameras.isEmpty) {
-      return Scaffold(
-        body: const SafeArea(
-          child: Center(
-            child: Text('No cameras are available on this device.'),
-          ),
-        ),
+      return _cameraStatusCard(
+        icon: Icons.no_photography_outlined,
+        title: 'No camera found',
+        message: 'No cameras are available on this device.',
       );
     }
     final controllerAsync = ref.watch(cameraControllerProvider);

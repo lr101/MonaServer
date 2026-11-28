@@ -40,7 +40,6 @@ class GroupAchievementsCard extends StatefulWidget {
 class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final tracks = _groupAchievementTracks
         .map(
           (track) => _GroupAchievementTrack(
@@ -62,13 +61,7 @@ class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
         )
         .where((track) => track.achievements.isNotEmpty)
         .toList();
-    final claimedStyles = widget.achievements
-        .where((achievement) => achievement.claimed)
-        .map((achievement) => achievement.rewardPinStyle?.value)
-        .whereType<String>()
-        .toSet();
     final group = widget.group;
-    final isAdmin = group?.groupAdmin == widget.currentUserId;
 
     return Semantics(
       container: true,
@@ -105,84 +98,6 @@ class _GroupAchievementsCardState extends State<GroupAchievementsCard> {
                 onClaim: () => widget.onClaimAchievement(tier.achievementId),
               ),
             ),
-            if (isAdmin && claimedStyles.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Divider(height: 1, color: theme.colorScheme.outlineVariant),
-              const SizedBox(height: 12),
-              Text(
-                'Pin appearance',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Choose an earned shape and color combination for group pins.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: _PinDesignPreview(
-                  style: group?.pinStyle ?? 'classic',
-                  designCatalog: widget.designCatalog,
-                  groupImage: widget.groupImage,
-                  width: 58,
-                  height: 66,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children:
-                    [
-                      'classic',
-                      ..._pinStyles.where(claimedStyles.contains),
-                    ].map((style) {
-                      final selected = group?.pinStyle == style;
-                      return ChoiceChip(
-                        avatar: _PinDesignPreview(
-                          style: style,
-                          designCatalog: widget.designCatalog,
-                          groupImage: widget.groupImage,
-                          width: 26,
-                          height: 32,
-                        ),
-                        label: Text(_styleName(style)),
-                        selected: selected,
-                        onSelected: widget.updatingPinStyle || selected
-                            ? null
-                            : (_) => widget.onPinStyleSelected(style),
-                      );
-                    }).toList(),
-              ),
-              if (widget.updatingPinStyle) ...[
-                const SizedBox(height: 8),
-                const LinearProgressIndicator(minHeight: 2),
-              ],
-            ] else if (!isAdmin && group != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _PinDesignPreview(
-                    style: group.pinStyle,
-                    designCatalog: widget.designCatalog,
-                    groupImage: widget.groupImage,
-                    width: 30,
-                    height: 36,
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Group pin appearance: ${_styleName(group.pinStyle)}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
@@ -217,21 +132,6 @@ class _GroupAchievementTrack {
   final List<GroupAchievementsDtoInner> achievements;
 }
 
-const _pinStyles = [
-  'moss',
-  'sunset',
-  'aurora',
-  'seafoam',
-  'honey',
-  'orchid',
-  'copper',
-  'jade',
-  'ember',
-  'glacier',
-  'rose',
-  'midnight',
-];
-
 class _AchievementRow extends StatelessWidget {
   const _AchievementRow({
     required this.achievement,
@@ -265,8 +165,7 @@ class _AchievementRow extends StatelessWidget {
     final rewardDescription = switch (rewardType) {
       'xp' => '${achievement.rewardXp ?? 50} group XP',
       'color' => '${style == null ? 'Group pin' : _styleName(style)} color',
-      _ =>
-        '${_groupRewardRarity(achievement.difficulty?.value)} ${style == null ? 'pin' : _styleName(style)} badge design',
+      _ => '${MapPinDesign.forStyle(style ?? 'classic').shape} shape',
     };
     final reward = switch (rewardType) {
       'xp' => Row(
@@ -352,12 +251,6 @@ String _groupRewardType(String? difficulty) => switch (difficulty) {
   'hard' => 'badge',
   'medium' => 'color',
   _ => 'xp',
-};
-
-String _groupRewardRarity(String? difficulty) => switch (difficulty) {
-  'hard' => 'Legendary',
-  'medium' => 'Rare',
-  _ => 'Signature',
 };
 
 class _PinDesignPreview extends StatelessWidget {

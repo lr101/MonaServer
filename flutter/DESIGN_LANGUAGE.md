@@ -261,3 +261,12 @@ people select a synced pin within 50 m from the selected group, or leave the
 new-pin option selected. Show each nearby pin's photo to the left of its title;
 tapping the thumbnail opens pin details. A selected pin can optionally be
 marked gone with the photo, off by default.
+
+## Group pin builder
+
+Group admins configure pin appearance in Group settings, after the group edit
+form. The builder previews a combination of earned colors and geometric shapes
+and saves it explicitly. Achievement rows describe color and shape rewards;
+editing no longer lives in the achievements tab. Group pins omit decorative
+sun, star and spark badges, including legacy designs, following the user's
+color-and-shape-only direction (November 2026).

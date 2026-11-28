@@ -17,11 +17,13 @@ class FeedCardImageHeader extends ConsumerStatefulWidget {
     required this.pin,
     this.distance,
     this.showOptions = true,
+    this.showLocation = true,
   });
 
   final PinEntity pin;
   final double? distance;
   final bool showOptions;
+  final bool showLocation;
 
   @override
   ConsumerState<FeedCardImageHeader> createState() =>
@@ -42,13 +44,14 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.pin.latitude != widget.pin.latitude ||
         oldWidget.pin.longitude != widget.pin.longitude ||
-        oldWidget.distance != widget.distance) {
+        oldWidget.distance != widget.distance ||
+        oldWidget.showLocation != widget.showLocation) {
       _loadLocation();
     }
   }
 
   void _loadLocation() {
-    _location = widget.distance == null && !kIsWeb
+    _location = widget.showLocation && widget.distance == null && !kIsWeb
         ? Future<List<Placemark>>.sync(
             () => placemarkFromCoordinates(
               widget.pin.latitude,
@@ -97,8 +100,17 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
+                              color: Colors.white,
                               fontWeight: FontWeight.w700,
-                              height: 1,
+                              fontSize: 14,
+                              height: 1.1,
+                              shadows: [
+                                Shadow(
+                                  color: Color(0x73000000),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 1),
+                                ),
+                              ],
                             ),
                           )
                         : ClickableUser(
@@ -108,8 +120,17 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.w700,
-                                height: 1,
+                                fontSize: 14,
+                                height: 1.1,
+                                shadows: [
+                                  Shadow(
+                                    color: Color(0x73000000),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -124,7 +145,10 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
                   ],
                 ],
               ),
-              _locationLabel(context),
+              if (widget.showLocation) ...[
+                const SizedBox(height: 1),
+                _locationLabel(context),
+              ],
             ],
           ),
         ),
@@ -140,11 +164,18 @@ class _FeedCardImageHeaderState extends ConsumerState<FeedCardImageHeader> {
 
   Widget _locationLabel(BuildContext context) {
     final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Colors.white,
+      color: Colors.white.withValues(alpha: 0.86),
       fontStyle: FontStyle.normal,
-      fontWeight: FontWeight.normal,
-      fontSize: 14,
-      height: 1.15,
+      fontWeight: FontWeight.w500,
+      fontSize: 12,
+      height: 1.2,
+      shadows: const [
+        Shadow(
+          color: Color(0x73000000),
+          blurRadius: 4,
+          offset: Offset(0, 1),
+        ),
+      ],
     );
     if (widget.distance case final distance?) {
       final text = distance >= 1000

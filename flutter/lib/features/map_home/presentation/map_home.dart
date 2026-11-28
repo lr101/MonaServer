@@ -103,7 +103,7 @@ class _MapHomeState extends ConsumerState<MapHome>
         ? navigationDockHeight + navigationDockMargin
         : 0.0;
     final mapState = ref.watch(mapStatesProvider);
-    final mapZoom = ref.watch(mapZoomLevelProvider);
+    final initialZoom = ref.read(mapZoomLevelProvider);
     ref.watch(markerWindowStateProvider);
     final markerSignature = _markerSignature(mapState.markers);
     _closePreviewWhenMarkerDataChanges(markerSignature);
@@ -120,11 +120,15 @@ class _MapHomeState extends ConsumerState<MapHome>
           child: FlutterMap(
             mapController: _controller,
             options: MapOptions(
+              backgroundColor:
+                  Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1A2029)
+                  : const Color(0xFFEAECE8),
               minZoom: 2,
               maxZoom: maxMapZoom,
-              initialZoom: mapZoom,
+              initialZoom: initialZoom,
               keepAlive: true,
-              initialCenter: ref.watch(lastKnownLocationProvider),
+              initialCenter: ref.read(lastKnownLocationProvider),
               onPointerUp: (event, point) {
                 ref.read(districtServiceProvider.notifier).refetch();
               },
@@ -160,7 +164,6 @@ class _MapHomeState extends ConsumerState<MapHome>
             ),
             children: [
               CustomTileLayer(),
-              const CurrentLocationLayer(),
               MarkerClusterLayerWidget(
                 options: MarkerClusterLayerOptions(
                   disableClusteringAtZoom: maxMapZoom.toInt(),
@@ -194,6 +197,7 @@ class _MapHomeState extends ConsumerState<MapHome>
                   },
                 ),
               ),
+              const CurrentLocationLayer(),
               if (_previewPins.isNotEmpty && _previewCenter != null)
                 MarkerLayer(
                   markers: [
@@ -229,27 +233,37 @@ class _MapHomeState extends ConsumerState<MapHome>
                       ? panelHeaderSize + navigationClearance
                       : availableHeight * extent;
                   final controlBottom = trayBottom + trayHeight;
-                  final side = hasDock
-                      ? (constraints.maxWidth -
-                                navigationDockWidth(constraints.maxWidth)) /
-                            2
-                      : 4.0;
+                  final isWideMap = !hasDock && constraints.maxWidth >= 600;
                   return Stack(
                     children: [
                       Positioned(
-                        bottom: controlBottom + 10,
-                        right: side,
-                        child: FloatingActionButton(
-                          heroTag: 'moveToCurrentLocation',
-                          tooltip: 'My location',
-                          onPressed: () =>
-                              moveToCurrentPosition(showPermissionError: true),
-                          child: const Icon(Icons.my_location),
+                        bottom: isWideMap ? 16 : controlBottom + 12,
+                        right: 16,
+                        child: Builder(
+                          builder: (context) {
+                            final colors = Theme.of(context).colorScheme;
+                            final isLight =
+                                colors.brightness == Brightness.light;
+                            return FloatingActionButton(
+                              heroTag: 'moveToCurrentLocation',
+                              tooltip: 'My location',
+                              shape: const CircleBorder(),
+                              backgroundColor: isLight
+                                  ? colors.surfaceContainerLowest
+                                  : colors.surfaceContainerHigh,
+                              foregroundColor: colors.onSurface,
+                              elevation: 4,
+                              onPressed: () => moveToCurrentPosition(
+                                showPermissionError: true,
+                              ),
+                              child: const Icon(Icons.my_location_rounded),
+                            );
+                          },
                         ),
                       ),
                       Positioned(
-                        bottom: controlBottom + 4,
-                        left: hasDock ? side : 0,
+                        bottom: isWideMap ? 16 : controlBottom + 6,
+                        left: isWideMap ? 388 : 16,
                         child: const OsmCopyright(),
                       ),
                     ],
@@ -259,16 +273,30 @@ class _MapHomeState extends ConsumerState<MapHome>
             },
           ),
         ),
-        const SafeArea(
+        SafeArea(
           child: Padding(
-            padding: EdgeInsets.all(4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Flexible(child: TopStatusBar()),
-                SizedBox(height: 8),
-                MapScopeControls(groupHint: JoinGroupHintOverlay()),
-              ],
+            padding: EdgeInsets.fromLTRB(
+              hasDock ? 16 : 16,
+              hasDock ? 8 : 16,
+              hasDock ? 16 : 16,
+              0,
+            ),
+            child: Align(
+              alignment: hasDock ? Alignment.topCenter : Alignment.topLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: hasDock ? 560 : 360,
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    TopStatusBar(),
+                    SizedBox(height: 8),
+                    MapScopeControls(groupHint: JoinGroupHintOverlay()),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -283,6 +311,9 @@ class _MapHomeState extends ConsumerState<MapHome>
             child: RankingSlidingPanel(
               headerPixelHeight: panelHeaderSize,
               navigationClearance: navigationClearance,
+              onRefreshRegion: () {
+                ref.read(districtServiceProvider.notifier).refetch();
+              },
             ),
           ),
         ),

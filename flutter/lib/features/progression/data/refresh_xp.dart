@@ -42,6 +42,6 @@ Future<void> readXpBestEffort(
 
   await Future.wait([
     readUser(),
-    if (readGroupXp && groupId != null) readGroup(groupId),
+    if (groupId != null) readGroup(groupId),
   ]);
 }

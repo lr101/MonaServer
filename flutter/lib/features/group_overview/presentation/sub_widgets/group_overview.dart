@@ -57,6 +57,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
     final group = widget.details.group;
     final xp = ref.watch(groupProgressionProvider(widget.groupId)).value;
     final progress = xp == null ? null : XpLevelProgress.fromGroupDto(xp);
+    final colors = Theme.of(context).colorScheme;
     return CustomAvatarScaffold(
       toolbarHeight: groupTitleToolbarHeight(
         context,
@@ -65,12 +66,19 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
       ),
       actions: group?.userIsMember == true
           ? [
-              IconButton(
-                tooltip: 'Group settings',
-                icon: const Icon(Icons.settings),
-                onPressed: () => context.pushNamed(
-                  'groupSettings',
-                  pathParameters: {'id': widget.groupId},
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: IconButton.filledTonal(
+                  tooltip: 'Group settings',
+                  style: IconButton.styleFrom(
+                    backgroundColor: colors.surfaceContainerHigh,
+                    foregroundColor: colors.onSurface,
+                  ),
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => context.pushNamed(
+                    'groupSettings',
+                    pathParameters: {'id': widget.groupId},
+                  ),
                 ),
               ),
             ]
@@ -100,26 +108,56 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
       profileQuickViewBoxes: _buildQuickStats(members, pins),
       bottom: TabBar(
         controller: _tabController,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-        dividerColor: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
         tabs: const [
           Tab(
-            icon: Tooltip(
+            child: Tooltip(
               message: 'Members',
-              child: Icon(Icons.groups_outlined),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.groups_outlined, size: 18),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text('Members', overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
             ),
-            iconMargin: EdgeInsets.zero,
           ),
           Tab(
-            icon: Tooltip(message: 'Pins', child: Icon(Icons.image_outlined)),
-            iconMargin: EdgeInsets.zero,
+            child: Tooltip(
+              message: 'Pins',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.grid_on_rounded, size: 17),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text('Pins', overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
           ),
           Tab(
-            icon: Tooltip(
+            child: Tooltip(
               message: 'Achievements',
-              child: Icon(Icons.emoji_events_outlined),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.emoji_events_outlined, size: 18),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Achievements',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            iconMargin: EdgeInsets.zero,
           ),
         ],
       ),
@@ -183,6 +221,7 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
         children: [
           members.when(
             data: (data) => ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               itemBuilder: (context, index) => MemberTile(
                 memberDto: data[index],
                 adminId: group?.groupAdmin ?? "",
@@ -257,22 +296,30 @@ class _GroupOverviewState extends ConsumerState<GroupOverview>
   }
 
   Widget _statItem(String label, String value) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            height: 1.2,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            height: 1.15,
+            fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, height: 1.2),
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.2,
+            fontWeight: FontWeight.w500,
+            color: colors.onSurfaceVariant,
+          ),
         ),
       ],
     );

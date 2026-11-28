@@ -99,6 +99,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final hasExtraItems = widget.rowItems?.isNotEmpty ?? false;
+    final pickedImage = ref.watch(createGroupProfileImageProvider);
 
     final form = Form(
       key: _formKey,
@@ -112,16 +113,15 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                 Row(
                   children: [
                     RoundImagePicker(
-                      size: 40,
+                      size: 38,
+                      useBrandPlaceholder: _isCreating,
                       imageUpload: (image) {
                         groupNotifier.updateProfileImage(image);
                         if (_showImageError && mounted) {
                           setState(() => _showImageError = false);
                         }
                       },
-                      imageCallback: AsyncData(
-                        ref.watch(createGroupProfileImageProvider),
-                      ),
+                      imageCallback: AsyncData(pickedImage),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -131,12 +131,14 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                           Text(
                             'Group photo',
                             style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
-                            'Tap the pencil to choose or change it.',
+                            _isCreating && pickedImage == null
+                                ? 'Tap to add a group photo.'
+                                : 'Tap the pencil to change it.',
                             style: textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),
@@ -168,7 +170,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _textEditControllerName,
                   textCapitalization: TextCapitalization.words,
@@ -185,7 +187,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _sectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -193,10 +195,10 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                 Text(
                   'About your group',
                   style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _textEditControllerDescription,
                   keyboardType: TextInputType.multiline,
@@ -214,7 +216,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                     alignLabelWithHint: true,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _textEditControllerLink,
                   keyboardType: TextInputType.url,
@@ -236,7 +238,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           _sectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -244,34 +246,20 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
                 Text(
                   'Who can join?',
                   style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ChoiceChip(
-                      avatar: const Icon(Icons.public, size: 18),
-                      label: const Text('Public'),
-                      selected: group.visibility == 0,
-                      onSelected: (_) => groupNotifier.updateVisibility(0),
-                    ),
-                    ChoiceChip(
-                      avatar: const Icon(Icons.lock_outline, size: 18),
-                      label: const Text('Private'),
-                      selected: group.visibility == 1,
-                      onSelected: (_) => groupNotifier.updateVisibility(1),
-                    ),
-                  ],
+                const SizedBox(height: 10),
+                _VisibilityToggle(
+                  selectedVisibility: group.visibility,
+                  onChanged: groupNotifier.updateVisibility,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   group.visibility == 1
                       ? 'People need an invite to join this group.'
                       : 'Anyone can find and join this group.',
-                  style: textTheme.bodyMedium?.copyWith(
+                  style: textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -279,20 +267,23 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
             ),
           ),
           if (hasExtraItems) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             ...widget.rowItems!,
           ],
         ],
       ),
     );
+    final isLight = Theme.of(context).brightness == Brightness.light;
     final submitBar = SafeArea(
       top: false,
       child: Container(
         decoration: BoxDecoration(
-          color: colorScheme.surface,
+          color: isLight
+              ? colorScheme.surfaceContainerLowest
+              : colorScheme.surfaceContainer,
           border: Border(
             top: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.55),
             ),
           ),
         ),
@@ -303,7 +294,7 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
             constraints: const BoxConstraints(maxWidth: 620),
             child: SizedBox(
               width: double.infinity,
-              height: 54,
+              height: 50,
               child: FilledButton.icon(
                 onPressed: _isSubmitting ? null : _submit,
                 icon: _isSubmitting
@@ -334,17 +325,38 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            form,
-            const SizedBox(height: 16),
-            submitBar,
-            if (widget.footerItems.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              ...widget.footerItems,
-            ],
-          ],
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                form,
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: _isSubmitting ? null : _submit,
+                    icon: _isSubmitting
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(_isSubmitting ? 'Saving…' : 'Save changes'),
+                  ),
+                ),
+                if (widget.footerItems.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  ...widget.footerItems,
+                ],
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -354,7 +366,12 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: form,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: form,
+          ),
+        ),
       ),
       bottomNavigationBar: submitBar,
     );
@@ -363,7 +380,10 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
   Widget _sectionCard({required Widget child}) {
     return Card(
       margin: EdgeInsets.zero,
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: child,
+      ),
     );
   }
 
@@ -373,29 +393,10 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
     required String hint,
     bool alignLabelWithHint = false,
   }) {
-    final borderRadius = BorderRadius.circular(12);
     return InputDecoration(
       labelText: label,
       hintText: hint,
       alignLabelWithHint: alignLabelWithHint,
-      filled: true,
-      fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: borderRadius,
-        borderSide: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: borderRadius,
-        borderSide: BorderSide(color: colorScheme.primaryOnSurface, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: borderRadius,
-        borderSide: BorderSide(color: colorScheme.error),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: borderRadius,
-        borderSide: BorderSide(color: colorScheme.error, width: 2),
-      ),
     );
   }
 
@@ -425,5 +426,128 @@ class _GroupEditTemplateState extends ConsumerState<GroupEditTemplate> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+}
+
+class _VisibilityToggle extends StatelessWidget {
+  const _VisibilityToggle({
+    required this.selectedVisibility,
+    required this.onChanged,
+  });
+
+  final int selectedVisibility;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _VisibilitySegment(
+              icon: Icons.public_outlined,
+              label: 'Public',
+              selected: selectedVisibility == 0,
+              isLight: isLight,
+              onTap: () => onChanged(0),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _VisibilitySegment(
+              icon: Icons.lock_outline,
+              label: 'Private',
+              selected: selectedVisibility == 1,
+              isLight: isLight,
+              onTap: () => onChanged(1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VisibilitySegment extends StatelessWidget {
+  const _VisibilitySegment({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.isLight,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool isLight;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final fg = selected ? colors.primaryOnSurface : colors.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Material(
+        color: selected
+            ? colors.primary.withValues(alpha: isLight ? 0.44 : 0.32)
+            : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: selected
+              ? BorderSide(
+                  color: colors.primaryOnSurface.withValues(
+                    alpha: isLight ? 0.28 : 0.36,
+                  ),
+                )
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 17, color: fg),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: fg,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

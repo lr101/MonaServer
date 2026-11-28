@@ -7,20 +7,44 @@ class ModeSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final isLight = colors.brightness == Brightness.light;
     final current = ref.watch(viewServiceProvider);
     return IntrinsicWidth(
-      child: Material(
-        color: theme.colorScheme.surfaceContainer,
-        shape: StadiumBorder(
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Wrap(
-          alignment: WrapAlignment.end,
-          children: [
-            _option(context, ref, current, ViewState.group, 'Groups'),
-            _option(context, ref, current, ViewState.personal, 'Personal'),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isLight ? 0.07 : 0.24),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
           ],
+        ),
+        child: Material(
+          color: isLight
+              ? colors.surfaceContainerLow.withValues(alpha: 0.96)
+              : colors.surfaceContainer.withValues(alpha: 0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: StadiumBorder(
+            side: BorderSide(
+              color: colors.outlineVariant.withValues(
+                alpha: isLight ? 0.65 : 0.72,
+              ),
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              children: [
+                _option(context, ref, current, ViewState.group, 'Groups'),
+                _option(context, ref, current, ViewState.personal, 'Mine'),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -35,31 +59,52 @@ class ModeSelector extends ConsumerWidget {
   ) {
     final selected = current == mode;
     final colors = Theme.of(context).colorScheme;
+    final fg = selected ? colors.onPrimary : colors.onSurfaceVariant;
+    final semanticLabel = mode == ViewState.personal ? 'Personal' : label;
     return Tooltip(
-      message: label,
+      message: semanticLabel,
       excludeFromSemantics: true,
       child: Semantics(
-        label: label,
+        label: semanticLabel,
         selected: selected,
         button: true,
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           onTap: () {
             if (!selected) {
               ref.read(viewServiceProvider.notifier).toggleViewState();
             }
           },
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 52, minHeight: 48),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minHeight: 34),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
             decoration: ShapeDecoration(
               color: selected ? colors.primary : Colors.transparent,
               shape: const StadiumBorder(),
             ),
-            child: Icon(
-              mode == ViewState.group
-                  ? Icons.groups_outlined
-                  : Icons.person_outline,
-              color: selected ? colors.onPrimary : colors.onSurfaceVariant,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  mode == ViewState.group
+                      ? (selected ? Icons.groups : Icons.groups_outlined)
+                      : (selected ? Icons.person : Icons.person_outline),
+                  size: 17,
+                  color: fg,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'Signika',
+                    fontSize: 12.5,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

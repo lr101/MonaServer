@@ -50,6 +50,10 @@ class AchievementCard extends StatelessWidget {
     if (scope != null) return _compact(context, scope);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
+    final cardSurface = isLight
+        ? colors.surfaceContainerLowest
+        : colors.surfaceContainer;
     final fillColor = claimed ? colors.tertiary : colors.primary;
     final value = progress.clamp(0.0, 1.0);
     return Semantics(
@@ -61,17 +65,23 @@ class AchievementCard extends StatelessWidget {
               ? ', reward earned'
               : ''}${rewardDescription == null ? '' : ', unlocks $rewardDescription'}',
       child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        color: cardSurface,
+        elevation: isLight ? 1 : 0,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 64),
+            constraints: const BoxConstraints(minHeight: 68),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: claimable ? fillColor : colors.outlineVariant,
+                color: claimable
+                    ? fillColor
+                    : colors.outlineVariant.withValues(
+                        alpha: isLight ? 0.55 : 0.7,
+                      ),
                 width: claimable ? 1.5 : 1,
               ),
             ),
@@ -94,7 +104,7 @@ class AchievementCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
-                    vertical: 8,
+                    vertical: 10,
                   ),
                   child: Row(
                     children: [
@@ -108,7 +118,7 @@ class AchievementCard extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -131,6 +141,9 @@ class AchievementCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.labelMedium?.copyWith(
                                 fontWeight: FontWeight.w700,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
                             ),
                             IconButton(
@@ -200,13 +213,17 @@ class AchievementCard extends StatelessWidget {
   Widget _compact(BuildContext context, AchievementTrackScope scope) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
     final ready = claimable && !claimed;
     final color = claimed
         ? colors.tertiary
         : ready
         ? colors.primaryOnSurface
         : colors.onSurfaceVariant;
-    final status = claimed ? 'Collected' : '$currentValue / $thresholdValue';
+    final shownValue = thresholdValue > 0 && currentValue > thresholdValue
+        ? thresholdValue
+        : currentValue;
+    final status = claimed ? 'Collected' : '$shownValue / $thresholdValue';
     return Semantics(
       button: true,
       container: true,
@@ -219,32 +236,40 @@ class AchievementCard extends StatelessWidget {
               ? ', collected'
               : ''}${rewardDescription == null ? '' : ', unlocks $rewardDescription'}',
       child: Material(
-        color: colors.surface,
+        color: isLight
+            ? colors.surfaceContainerLowest
+            : colors.surfaceContainer,
+        elevation: isLight ? 1 : 0,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: ready ? colors.primaryOnSurface : colors.outlineVariant,
+            color: ready
+                ? colors.primary.withValues(alpha: isLight ? 0.42 : 0.50)
+                : colors.outlineVariant.withValues(
+                    alpha: isLight ? 0.55 : 0.72,
+                  ),
           ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _showDetails(context),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: .13),
+                    color: color.withValues(alpha: isLight ? 0.16 : 0.22),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     claimed ? Icons.check_circle_outline : scope.icon,
                     color: color,
-                    size: 21,
+                    size: 18,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -258,37 +283,63 @@ class AchievementCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         '${scope.title} · $status',
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: colors.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      if (!claimed) ...[
-                        const SizedBox(height: 8),
+                      if (!claimed &&
+                          !(ready && currentValue >= thresholdValue)) ...[
+                        const SizedBox(height: 7),
                         LinearProgressIndicator(
                           value: progress.clamp(0, 1),
-                          color: colors.primaryOnSurface,
-                          minHeight: 4,
-                          borderRadius: BorderRadius.circular(4),
+                          color: ready
+                              ? colors.primary
+                              : colors.primary.withValues(alpha: 0.8),
+                          backgroundColor: colors.surfaceContainerHighest,
+                          minHeight: 3.5,
+                          borderRadius: BorderRadius.circular(999),
                           semanticsLabel: '$title progress',
                         ),
                       ],
                       if (reward != null) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 5),
                         reward!,
                       ],
                     ],
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: Icon(Icons.chevron_right, size: 18),
-                ),
+                const SizedBox(width: 10),
+                if (ready)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Collect',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colors.onPrimary,
+                      ),
+                    ),
+                  )
+                else
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: colors.onSurfaceVariant,
+                  ),
               ],
             ),
           ),

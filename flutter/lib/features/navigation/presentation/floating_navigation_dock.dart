@@ -34,6 +34,7 @@ class FloatingNavigationDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final isLight = colors.brightness == Brightness.light;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : navigationTransitionDuration;
@@ -47,37 +48,70 @@ class FloatingNavigationDock extends StatelessWidget {
         final itemWidth =
             (innerWidth - expansion) / navigationDestinations.length;
         return Center(
-          child: Material(
-            key: const ValueKey('floating-navigation-dock'),
-            color: colors.surfaceContainer,
-            surfaceTintColor: Colors.transparent,
-            elevation: 6,
-            shadowColor: Colors.black26,
-            borderRadius: BorderRadius.circular(32),
-            clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              width: width,
-              height: navigationDockHeight,
-              child: Semantics(
-                role: SemanticsRole.tabBar,
-                label: 'Main navigation',
-                child: Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: duration,
-                      curve: Curves.easeOutCubic,
-                      left: padding + selectedIndex * itemWidth,
-                      top: 6,
-                      bottom: 6,
-                      width: itemWidth + expansion,
-                      child: DecoratedBox(
-                        key: const ValueKey('floating-dock-indicator'),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: .2),
-                          borderRadius: BorderRadius.circular(28),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isLight ? 0.13 : 0.44),
+                  blurRadius: 18,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.24),
+                  blurRadius: 4,
+                  offset: const Offset(0, -1),
+                ),
+              ],
+            ),
+            child: Material(
+              key: const ValueKey('floating-navigation-dock'),
+              color: isLight
+                  ? colors.surfaceContainerLowest
+                  : colors.surfaceContainerHigh,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(32),
+                side: BorderSide(
+                  color: colors.outlineVariant.withValues(
+                    alpha: isLight ? 0.85 : 0.85,
+                  ),
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: SizedBox(
+                width: width,
+                height: navigationDockHeight,
+                child: Semantics(
+                  role: SemanticsRole.tabBar,
+                  label: 'Main navigation',
+                  child: Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: duration,
+                        curve: Curves.easeOutCubic,
+                        left: padding + selectedIndex * itemWidth,
+                        top: 6,
+                        bottom: 6,
+                        width: itemWidth + expansion,
+                        child: DecoratedBox(
+                          key: const ValueKey('floating-dock-indicator'),
+                          decoration: BoxDecoration(
+                            color: colors.primary.withValues(
+                              alpha: isLight ? 0.30 : 0.28,
+                            ),
+                            borderRadius: BorderRadius.circular(28),
+                            border: isLight
+                                ? null
+                                : Border.all(
+                                    color: colors.primary.withValues(
+                                      alpha: 0.36,
+                                    ),
+                                  ),
+                          ),
                         ),
                       ),
-                    ),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: padding),
                       child: Row(
@@ -122,7 +156,9 @@ class FloatingNavigationDock extends StatelessWidget {
                                           size: size,
                                           color: index == selectedIndex
                                               ? colors.primaryOnSurface
-                                              : colors.onSurfaceVariant,
+                                              : colors.onSurface.withValues(
+                                                  alpha: isLight ? 0.78 : 0.84,
+                                                ),
                                         ),
                                       ),
                                     ),
@@ -138,6 +174,7 @@ class FloatingNavigationDock extends StatelessWidget {
               ),
             ),
           ),
+        ),
         );
       },
     );

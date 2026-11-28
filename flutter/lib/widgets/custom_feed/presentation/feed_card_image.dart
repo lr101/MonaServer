@@ -120,13 +120,13 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
           width: widget.maxWidth,
           height: widget.maxHeight,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             child: PinPhotoCarousel(
               key: ValueKey(widget.item.entryId),
               pinId: parent.pinId,
               originalImageBlurhash:
                   parent.imageBlurhash ?? originalPhoto?.imageBlurhash,
-
+              fit: BoxFit.cover,
               photos: photos,
               initialPhotoId: initialId,
               onPageChanged: (index) => _selectPhoto(index, parent, updates),
@@ -140,20 +140,31 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                     ),
                   ],
                   Positioned(
-                    left: 8,
-                    right: 8,
-                    top: 8,
-                    child: Theme(
-                      data: overlayTheme,
-                      child: Material(
-                        color: Colors.black.withValues(alpha: .65),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.56),
+                            Colors.black.withValues(alpha: 0.24),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.64, 1.0],
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 4, 14),
+                        child: Theme(
+                          data: overlayTheme,
                           child: FeedCardImageHeader(
                             pin: selected,
                             distance: widget.distance,
                             showOptions: !widget.isDetail,
+                            showLocation: !widget.isDetail,
                           ),
                         ),
                       ),
@@ -205,12 +216,27 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                       ),
                     ),
                   Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: SizedBox.square(
-                      dimension: 88,
+                    right: 10,
+                    bottom: 10,
+                    child: Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(11.5),
                         child: Material(
                           color: Theme.of(context)
                               .colorScheme
@@ -250,17 +276,17 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                     ),
                   ),
                   Positioned(
-                    right: 8,
-                    bottom: 8,
-                    width: 88,
+                    right: 11.5,
+                    bottom: 11.5,
+                    width: 81,
                     child: IgnorePointer(
                       child: ExcludeSemantics(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          decoration: const BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.vertical(
-                              bottom: Radius.circular(10),
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.60),
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(11),
                             ),
                           ),
                           child: Row(
@@ -269,7 +295,7 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                               if (!showPhoto) ...[
                                 const Icon(
                                   Icons.photo_outlined,
-                                  size: 13,
+                                  size: 12,
                                   color: Colors.white,
                                 ),
                                 const SizedBox(width: 4),
@@ -281,7 +307,8 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 12,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -296,20 +323,56 @@ class _FeedCardImageState extends ConsumerState<FeedCardImage> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        FeedCardSubtitle(
-          pin: selected,
-          showDescription: false,
-          animateLikeChanges: false,
-        ),
         if (selected.title?.trim().isNotEmpty ?? false)
-          Text(
-            selected.title!.trim(),
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+            child: Text(
+              selected.title!.trim(),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         if (selected.description?.trim().isNotEmpty ?? false)
-          FeedDescriptionExpandable(pin: selected),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              4,
+              (selected.title?.trim().isNotEmpty ?? false) ? 3 : 10,
+              4,
+              0,
+            ),
+            child: DefaultTextStyle.merge(
+              style: (selected.title?.trim().isNotEmpty ?? false)
+                  ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.35,
+                    )
+                  : Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      height: 1.3,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              child: FeedDescriptionExpandable(pin: selected),
+            ),
+          ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            4,
+            (selected.title?.trim().isNotEmpty ?? false) ||
+                    (selected.description?.trim().isNotEmpty ?? false)
+                ? 2
+                : 4,
+            4,
+            2,
+          ),
+          child: FeedCardSubtitle(
+            pin: selected,
+            showDescription: false,
+            showContext: !widget.isDetail,
+            animateLikeChanges: false,
+          ),
+        ),
       ],
     );
   }
