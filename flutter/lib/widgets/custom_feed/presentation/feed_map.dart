@@ -25,17 +25,34 @@ class FeedMap extends ConsumerStatefulWidget {
 }
 
 class FeedMapState extends ConsumerState<FeedMap> {
-  late MapController _mapController;
+  MapController? _mapController;
   late LatLng center;
   late double _zoom;
 
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
     center = LatLng(widget.item.latitude, widget.item.longitude);
     _zoom = 5;
   }
+
+  @override
+  void didUpdateWidget(covariant FeedMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.latitude != widget.item.latitude ||
+        oldWidget.item.longitude != widget.item.longitude) {
+      center = LatLng(widget.item.latitude, widget.item.longitude);
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    _mapController = null;
+    super.dispose();
+  }
+
+  MapController _ensureMapController() => _mapController ??= MapController();
 
   @override
   Widget build(BuildContext context) {
@@ -43,20 +60,29 @@ class FeedMapState extends ConsumerState<FeedMap> {
     final switchFun = ref
         .read(feedMapStateProvider(widget.item.entryId).notifier)
         .update;
+    if (!isExpanded) {
+      return GestureDetector(
+        onTap: switchFun,
+        child: const _CollapsedMapPreview(),
+      );
+    }
+    final mapController = _ensureMapController();
     return Stack(
       children: [
         GestureDetector(
-          onTap: isExpanded ? null : switchFun,
-          onDoubleTap: isExpanded ? like : null,
+          onDoubleTap: like,
           child: AbsorbPointer(
             child: FlutterMap(
-              mapController: _mapController,
+              mapController: mapController,
               options: MapOptions(
+                backgroundColor:
+                    Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1A2029)
+                    : const Color(0xFFEAECE8),
                 minZoom: 2,
                 maxZoom: 18,
                 initialZoom: _zoom,
                 initialCenter: center,
-                keepAlive: true,
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.pinchZoom,
                 ),
@@ -68,44 +94,48 @@ class FeedMapState extends ConsumerState<FeedMap> {
             ),
           ),
         ),
-        if (isExpanded)
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _MapControlButton(
-                    onTap: () => zoomIn(center),
-                    theme: Theme.of(context),
-                    icon: Icons.zoom_in,
-                  ),
-                  const SizedBox(height: 5),
-                  _MapControlButton(
-                    onTap: () => zoomOut(center),
-                    theme: Theme.of(context),
-                    icon: Icons.zoom_out_rounded,
-                  ),
-                ],
-              ),
+        Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _MapControlButton(
+                  onTap: () => zoomIn(center),
+                  theme: Theme.of(context),
+                  icon: Icons.zoom_in,
+                ),
+                const SizedBox(height: 5),
+                _MapControlButton(
+                  onTap: () => zoomOut(center),
+                  theme: Theme.of(context),
+                  icon: Icons.zoom_out_rounded,
+                ),
+              ],
             ),
           ),
+        ),
       ],
     );
   }
 
   void zoomIn(LatLng center) {
-    _mapController.move(center, _mapController.camera.zoom + 1);
+    final controller = _mapController;
+    if (controller == null) return;
+    controller.move(center, controller.camera.zoom + 1);
   }
 
   void zoomOut(LatLng center) {
-    _mapController.move(center, _mapController.camera.zoom - 1);
+    final controller = _mapController;
+    if (controller == null) return;
+    controller.move(center, controller.camera.zoom - 1);
   }
 
   void like() {
-    final userId = ref.watch(globalDataServiceProvider).userId!;
+    final userId = ref.read(globalDataServiceProvider).userId;
+    if (userId == null) return;
     ref
         .read(likeServiceProvider(widget.item.entryId).notifier)
         .addLike(
@@ -113,6 +143,111 @@ class FeedMapState extends ConsumerState<FeedMap> {
           CreateLikeDto(userId: userId, like: true),
         );
   }
+}
+
+class _CollapsedMapPreview extends StatelessWidget {
+  const _CollapsedMapPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLight = theme.brightness == Brightness.light;
+    final colors = theme.colorScheme;
+    final bgStart = isLight ? const Color(0xFFE6F0EC) : const Color(0xFF1B242C);
+    final bgEnd = isLight ? const Color(0xFFD6E4EC) : const Color(0xFF24303B);
+    final roadColor = isLight
+        ? Colors.white.withValues(alpha: 0.72)
+        : Colors.white.withValues(alpha: 0.12);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [bgStart, bgEnd],
+        ),
+      ),
+      child: CustomPaint(
+        painter: _MiniMapLinesPainter(roadColor: roadColor),
+        child: Align(
+          alignment: const Alignment(0, -0.26),
+          child: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.22),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isLight ? Colors.white : colors.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.16),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.location_on_rounded,
+                  color: isLight ? const Color(0xFFD97706) : colors.primary,
+                  size: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniMapLinesPainter extends CustomPainter {
+  const _MiniMapLinesPainter({required this.roadColor});
+
+  final Color roadColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final major = Paint()
+      ..color = roadColor
+      ..strokeWidth = 2.2
+      ..style = PaintingStyle.stroke;
+    final minor = Paint()
+      ..color = roadColor.withValues(alpha: roadColor.a * 0.65)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(
+      Offset(-4, size.height * 0.28),
+      Offset(size.width + 4, size.height * 0.48),
+      major,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.26, -4),
+      Offset(size.width * 0.56, size.height + 4),
+      major,
+    );
+    canvas.drawLine(
+      Offset(-4, size.height * 0.64),
+      Offset(size.width + 4, size.height * 0.52),
+      minor,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.72, -4),
+      Offset(size.width * 0.60, size.height + 4),
+      minor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniMapLinesPainter oldDelegate) =>
+      oldDelegate.roadColor != roadColor;
 }
 
 class _MapControlButton extends StatelessWidget {

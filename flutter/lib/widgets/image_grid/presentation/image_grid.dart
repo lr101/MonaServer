@@ -1,16 +1,21 @@
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/widgets/image_grid/presentation/square_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
 class ImageGrid extends ConsumerStatefulWidget {
-  const ImageGrid({super.key, required this.pinProvider, this.onRefresh});
+  const ImageGrid({
+    super.key,
+    required this.pinProvider,
+    this.onRefresh,
+    this.header,
+  });
 
   final ProviderListenable<AsyncValue<List<PinEntity>?>> pinProvider;
   final Future<void> Function()? onRefresh;
+  final Widget? header;
 
   @override
   ConsumerState<ImageGrid> createState() => _ImageGridState();
@@ -18,16 +23,25 @@ class ImageGrid extends ConsumerStatefulWidget {
 
 class _ImageGridState extends ConsumerState<ImageGrid> {
   static const int _columns = 3;
-  static const double _spacing = 5;
+  static const double _spacing = 6;
   List<PinEntity> _images = const [];
+  Map<String, int> _indexByEntryId = const {};
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(widget.pinProvider);
-    if (state.hasValue) _images = state.value ?? const <PinEntity>[];
+    if (state.hasValue) {
+      final nextImages = state.value ?? const <PinEntity>[];
+      if (!identical(_images, nextImages)) {
+        _images = nextImages;
+        _indexByEntryId = {
+          for (var i = 0; i < _images.length; i++) _images[i].entryId: i,
+        };
+      }
+    }
 
     if (_images.isEmpty) {
-      return Center(
+      final emptyBody = Center(
         child: state.hasError
             ? Column(
                 mainAxisSize: MainAxisSize.min,
@@ -44,38 +58,44 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
             ? const CircularProgressIndicator()
             : const Text('No images found'),
       );
+      if (widget.header == null) return emptyBody;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          widget.header!,
+          Expanded(child: emptyBody),
+        ],
+      );
     }
 
     final grid = LayoutBuilder(
       builder: (context, constraints) {
         final padding = MediaQuery.paddingOf(context);
-        final contentWidth = (constraints.maxWidth - padding.horizontal).clamp(
-          1.0,
-          double.infinity,
+        final columns = constraints.maxWidth >= 680 ? 4 : _columns;
+        const horizontalInset = 16.0;
+        final gridPadding = EdgeInsets.fromLTRB(
+          padding.left + horizontalInset,
+          10,
+          padding.right + horizontalInset,
+          padding.bottom + 20,
         );
-        final tileWidth = (contentWidth - _spacing * (_columns - 1)) / _columns;
-        return GridView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          primary: true,
-          padding: padding,
-          // Keep nearby rows mounted; each tile loads and fades in its image as
-          // it approaches the view. RemoteImage shares downloads and cache.
-          scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
-          itemCount: _images.length,
-          findChildIndexCallback: (key) {
-            if (key is! ValueKey<String>) return null;
-            final index = _images.indexWhere((pin) => pin.entryId == key.value);
-            return index < 0 ? null : index;
-          },
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _columns,
-            crossAxisSpacing: _spacing,
-            mainAxisSpacing: _spacing,
-          ),
-          itemBuilder: (context, index) {
-            final item = _images[index];
-            return SquareImage(
-              key: ValueKey(item.entryId),
+        final contentWidth =
+            (constraints.maxWidth - gridPadding.horizontal).clamp(
+              1.0,
+              double.infinity,
+            );
+        final tileWidth = (contentWidth - _spacing * (columns - 1)) / columns;
+        final delegate = SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          crossAxisSpacing: _spacing,
+          mainAxisSpacing: _spacing,
+        );
+        Widget itemBuilder(BuildContext context, int index) {
+          final item = _images[index];
+          return ClipRRect(
+            key: ValueKey(item.entryId),
+            borderRadius: BorderRadius.circular(10),
+            child: SquareImage(
               pinId: item.pinId,
               imageBlurhash: item.imageBlurhash,
               photoUrl: item.photoUrl,
@@ -92,8 +112,49 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
                       : {'photo': item.photoId},
                 );
               },
-            );
+            ),
+          );
+        }
+
+        if (widget.header != null) {
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            primary: true,
+            scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
+            slivers: [
+              SliverToBoxAdapter(child: widget.header),
+              SliverPadding(
+                padding: gridPadding,
+                sliver: SliverGrid(
+                  gridDelegate: delegate,
+                  delegate: SliverChildBuilderDelegate(
+                    itemBuilder,
+                    childCount: _images.length,
+                    findChildIndexCallback: (key) {
+                      if (key is! ValueKey<String>) return null;
+                      return _indexByEntryId[key.value];
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return GridView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          primary: true,
+          padding: gridPadding,
+          // Keep nearby rows mounted; each tile loads and fades in its image as
+          // it approaches the view. RemoteImage shares downloads and cache.
+          scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
+          itemCount: _images.length,
+          findChildIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            return _indexByEntryId[key.value];
           },
+          gridDelegate: delegate,
+          itemBuilder: itemBuilder,
         );
       },
     );

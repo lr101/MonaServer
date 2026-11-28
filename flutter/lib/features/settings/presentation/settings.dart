@@ -42,14 +42,30 @@ class Settings extends ConsumerWidget {
                 onChanged: (isDark) =>
                     ref.read(themeStateProvider.notifier).setTheme(!isDark),
               ),
-              const ListTile(
-                leading: Icon(Icons.language_outlined),
-                title: Text('Language'),
-                subtitle: Text('English'),
+              ListTile(
+                leading: const Icon(Icons.language_outlined),
+                title: const Text('Language'),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'English',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           SettingsSectionCard(
             title: 'Notifications',
             icon: Icons.notifications_outlined,

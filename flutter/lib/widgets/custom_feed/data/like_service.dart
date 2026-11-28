@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:buff_lisa/data/config/openapi_config.dart';
 import 'package:buff_lisa/data/entity/pin_like_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
@@ -34,7 +36,13 @@ class LikeService extends _$LikeService {
           if (!isCurrentSession(ref, session)) {
             return PinLikeDto();
           }
-          await pinLikeRepo.put(PinLikeEntity.fromDto(pinLikeDto, pinId));
+          unawaited(
+            pinLikeRepo
+                .putBatched(PinLikeEntity.fromDto(pinLikeDto, pinId))
+                .catchError((Object error) {
+                  if (kDebugMode) print(error);
+                }),
+          );
           return pinLikeDto;
         } catch (error) {
           // Keep retryable transport/item failures out of the negative cache.

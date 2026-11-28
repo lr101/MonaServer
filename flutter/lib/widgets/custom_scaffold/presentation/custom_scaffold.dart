@@ -12,6 +12,11 @@ class CustomScaffold<T> extends ConsumerWidget {
   final PreferredSizeWidget? bottom;
   final ItemWidgetBuilder<T> listBuilder;
   final PagingController<int, T> pagingController;
+  final double? maxWidth;
+  final Widget? footer;
+  final Widget? emptyState;
+  final int Function(double width)? gridColumnsBuilder;
+  final double gridMainAxisExtent;
 
   const CustomScaffold({
     super.key,
@@ -23,43 +28,89 @@ class CustomScaffold<T> extends ConsumerWidget {
     this.actions,
     this.bottom,
     this.headerHeight,
+    this.maxWidth,
+    this.footer,
+    this.emptyState,
+    this.gridColumnsBuilder,
+    this.gridMainAxisExtent = 96,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return CustomCloseKeyboardScaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            snap: true,
-            floating: true,
-            actions: actions,
-            title: title,
-            expandedHeight: headerHeight,
-            flexibleSpace: flexibleSpace != null
-                ? SafeArea(child: flexibleSpace!)
-                : null,
-            bottom: bottom,
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final columns = gridColumnsBuilder?.call(screenWidth) ?? 1;
+    final bottomPadding = footer != null
+        ? 8.0
+        : MediaQuery.paddingOf(context).bottom + 16;
+
+    final scrollView = CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          snap: true,
+          floating: true,
+          centerTitle: false,
+          actions: actions,
+          title: title,
+          expandedHeight: headerHeight,
+          flexibleSpace: flexibleSpace != null
+              ? SafeArea(child: flexibleSpace!)
+              : null,
+          bottom: bottom,
+        ),
+        ...boxes.map((e) => SliverToBoxAdapter(child: e)),
+        SliverPadding(
+          padding: columns > 1
+              ? EdgeInsets.fromLTRB(16, 8, 16, bottomPadding)
+              : EdgeInsets.only(bottom: bottomPadding),
+          sliver: PagingListener<int, T>(
+            controller: pagingController,
+            builder: (context, state, fetchNextPage) {
+              final delegate = PagedChildBuilderDelegate<T>(
+                itemBuilder: listBuilder,
+                noItemsFoundIndicatorBuilder: emptyState != null
+                    ? (_) => emptyState!
+                    : null,
+              );
+              if (columns > 1) {
+                return PagedSliverGrid<int, T>(
+                  state: state,
+                  fetchNextPage: fetchNextPage,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    mainAxisExtent: gridMainAxisExtent,
+                  ),
+                  builderDelegate: delegate,
+                );
+              }
+              return PagedSliverList<int, T>(
+                state: state,
+                fetchNextPage: fetchNextPage,
+                builderDelegate: delegate,
+              );
+            },
           ),
-          ...boxes.map((e) => SliverToBoxAdapter(child: e)),
+        ),
+        if (footer != null)
           SliverPadding(
             padding: EdgeInsets.only(
-              bottom: MediaQuery.paddingOf(context).bottom,
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
             ),
-            sliver: PagingListener<int, T>(
-              controller: pagingController,
-              builder: (context, state, fetchNextPage) =>
-                  PagedSliverList<int, T>(
-                    state: state,
-                    fetchNextPage: fetchNextPage,
-                    builderDelegate: PagedChildBuilderDelegate<T>(
-                      itemBuilder: listBuilder,
-                    ),
-                  ),
-            ),
+            sliver: SliverToBoxAdapter(child: footer),
           ),
-        ],
-      ),
+      ],
+    );
+
+    return CustomCloseKeyboardScaffold(
+      body: maxWidth == null
+          ? scrollView
+          : Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth!),
+                child: scrollView,
+              ),
+            ),
     );
   }
 }

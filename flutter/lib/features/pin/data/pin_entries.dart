@@ -46,18 +46,61 @@ List<PinEntity> buildPinEntries(
   return entries;
 }
 
+bool _sameEntryList(List<PinEntity> a, List<PinEntity> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    final left = a[i];
+    final right = b[i];
+    if (left.entryId != right.entryId ||
+        left.pinId != right.pinId ||
+        left.photoId != right.photoId ||
+        left.photoUrl != right.photoUrl ||
+        left.photoThumbnailUrl != right.photoThumbnailUrl ||
+        left.imageBlurhash != right.imageBlurhash ||
+        left.title != right.title ||
+        left.description != right.description ||
+        left.creationDate != right.creationDate ||
+        left.creator != right.creator ||
+        left.contributorUsername != right.contributorUsername ||
+        left.isGone != right.isGone ||
+        left.isHidden != right.isHidden) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Stream<List<PinEntity>> _gallery(Ref ref, PhotoScope scope) {
   final owner = ref.watch(photoLibraryProvider);
   final hiddenPins = ref.watch(hiddenPostsServiceProvider).toSet();
   final hiddenUsers = ref.watch(hiddenUserServiceProvider).toSet();
+  List<PinEntity>? lastEmitted;
+  var lastWasError = false;
   return owner
       .watchGallery(scope)
       .transform(
         StreamTransformer.fromHandlers(
           handleData: (snapshot, sink) {
             final error = snapshot.error;
+            if (error is ApiException && [403, 404].contains(error.code)) {
+              const empty = <PinEntity>[];
+              if (lastWasError ||
+                  lastEmitted == null ||
+                  lastEmitted!.isNotEmpty) {
+                lastEmitted = empty;
+                lastWasError = false;
+                sink.add(empty);
+              }
+              return;
+            }
+            if (error != null) {
+              lastWasError = true;
+              sink.addError(error);
+              return;
+            }
             final entries = owner
-                .entries(scope)
+                .entriesForPhotos(snapshot.photos)
                 .where(
                   (p) =>
                       !hiddenPins.contains(p.pinId) &&
@@ -65,15 +108,14 @@ Stream<List<PinEntity>> _gallery(Ref ref, PhotoScope scope) {
                       !hiddenUsers.contains(owner.parent(p.pinId)?.creator),
                 )
                 .toList();
-            if (error is ApiException && [403, 404].contains(error.code)) {
-              sink.add([]);
-              return;
-            }
-            if (error != null) {
-              sink.addError(error);
-              return;
-            }
             if (entries.isEmpty && !snapshot.loaded) return;
+            if (!lastWasError &&
+                lastEmitted != null &&
+                _sameEntryList(lastEmitted!, entries)) {
+              return;
+            }
+            lastEmitted = entries;
+            lastWasError = false;
             sink.add(entries);
           },
         ),
@@ -96,14 +138,17 @@ final activePinEntriesProvider = StreamProvider<List<PinEntity>>((ref) {
   final hiddenUsers = ref.watch(hiddenUserServiceProvider).toSet();
   late StreamController<List<PinEntity>> stream;
   StreamSubscription<void>? sub;
+  List<PinEntity>? lastEmitted;
   void emit() {
-    stream.add(
-      buildPinEntries(
-        pins.where((p) => !hiddenPins.contains(p.pinId)).toList(),
-        {for (final p in pins) p.pinId: owner.history(p.pinId)},
-        hiddenUserIds: hiddenUsers,
-      ),
+    if (stream.isClosed) return;
+    final next = buildPinEntries(
+      pins.where((p) => !hiddenPins.contains(p.pinId)).toList(),
+      {for (final p in pins) p.pinId: owner.history(p.pinId)},
+      hiddenUserIds: hiddenUsers,
     );
+    if (lastEmitted != null && _sameEntryList(lastEmitted!, next)) return;
+    lastEmitted = next;
+    stream.add(next);
   }
 
   stream = StreamController(

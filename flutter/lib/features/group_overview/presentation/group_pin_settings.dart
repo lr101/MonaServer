@@ -30,10 +30,27 @@ class GroupPinSettings extends ConsumerWidget {
                     .toList() ??
                 <GroupPinDesignDto>[];
             if (earned.isEmpty) {
-              return const ListTile(
-                title: Text('Pin appearance'),
-                subtitle: Text(
-                  'Collect group achievement rewards to unlock pin colors and shapes.',
+              return Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pin appearance',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Collect group achievement rewards to unlock pin colors and shapes.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }

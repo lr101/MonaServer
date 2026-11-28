@@ -1,14 +1,17 @@
 import 'dart:typed_data';
 
+import 'package:buff_lisa/data/service/group_service.dart';
 import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/pin_service.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/features/pin/platform/pin_photo_saver.dart';
 import 'package:buff_lisa/features/pin/presentation/pin_photo_history.dart';
+import 'package:buff_lisa/widgets/clickable_names/presentation/clickable_group.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/feed_card_image.dart';
 import 'package:buff_lisa/widgets/custom_feed/presentation/pop_up_menu_feed.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:openapi/api.dart';
@@ -71,24 +74,29 @@ class _ViewImageState extends ConsumerState<ViewImage> {
         currentUserId.isNotEmpty &&
         currentUserId == selectedPhotoContributor &&
         hasSelectedPhotoBytes;
+    final theme = Theme.of(context);
+    final viewport = MediaQuery.sizeOf(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pin details'),
         actions: [
           if (toolbarPin != null)
-            PopUpMenuFeed(
-              pinDto: toolbarPin,
-              onDownloadPhoto: canDownloadSelectedPhoto
-                  ? () => _downloadPhoto(
-                      pinId: toolbarPin.pinId,
-                      pinCreatorId: toolbarPin.creator,
-                      photo: selectedPhoto,
-                      isOriginal: isOriginalSelected,
-                    )
-                  : null,
-              isDownloadingPhoto: _isDownloadingPhoto,
-              tooltip: 'Pin options',
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: PopUpMenuFeed(
+                pinDto: toolbarPin,
+                onDownloadPhoto: canDownloadSelectedPhoto
+                    ? () => _downloadPhoto(
+                        pinId: toolbarPin.pinId,
+                        pinCreatorId: toolbarPin.creator,
+                        photo: selectedPhoto,
+                        isOriginal: isOriginalSelected,
+                      )
+                    : null,
+                isDownloadingPhoto: _isDownloadingPhoto,
+                tooltip: 'Pin options',
+              ),
             ),
         ],
       ),
@@ -99,34 +107,119 @@ class _ViewImageState extends ConsumerState<ViewImage> {
           if (currentPin == null) {
             return const Center(child: Text('This pin is unavailable.'));
           }
+          final groupName = ref
+              .watch(groupMetadataProvider(currentPin.groupId))
+              .value
+              ?.name;
+          final photoCount = photos.isEmpty ? 1 : photos.length;
+          final coordinateLabel =
+              '${currentPin.latitude.abs().toStringAsFixed(4)}° ${currentPin.latitude < 0 ? 'S' : 'N'} · '
+              '${currentPin.longitude.abs().toStringAsFixed(4)}° ${currentPin.longitude < 0 ? 'W' : 'E'}';
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             children: [
               Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+                  constraints: const BoxConstraints(maxWidth: 520),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final width = constraints.maxWidth;
-                          return FeedCardImage(
-                            key: ValueKey(currentPin.pinId),
-                            item: currentPin,
-                            maxWidth: width,
-                            maxHeight: width * 4 / 3,
-                            initialPhotoId: widget.initialPhotoId,
-                            isDetail: true,
-                            onPhotoChanged: (photo) {
-                              if (_selectedPhotoId != photo.photoId) {
-                                setState(
-                                  () => _selectedPhotoId = photo.photoId,
-                                );
-                              }
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final width = constraints.maxWidth;
+                              final defaultHeight = width * 4 / 3;
+                              final maxHeight = viewport.width >= 600
+                                  ? defaultHeight.clamp(
+                                      280.0,
+                                      viewport.height * 0.56,
+                                    )
+                                  : defaultHeight;
+                              return FeedCardImage(
+                                key: ValueKey(currentPin.pinId),
+                                item: currentPin,
+                                maxWidth: width,
+                                maxHeight: maxHeight,
+                                initialPhotoId: widget.initialPhotoId,
+                                isDetail: true,
+                                onPhotoChanged: (photo) {
+                                  if (_selectedPhotoId != photo.photoId) {
+                                    setState(
+                                      () => _selectedPhotoId = photo.photoId,
+                                    );
+                                  }
+                                },
+                              );
                             },
-                          );
-                        },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _DetailRow(
+                                icon: Icons.location_on_outlined,
+                                label: 'Location',
+                                value: coordinateLabel,
+                                trailing: Icon(
+                                  Icons.content_copy_rounded,
+                                  size: 16,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                onTap: () {
+                                  final raw =
+                                      '${currentPin.latitude.toStringAsFixed(5)}, '
+                                      '${currentPin.longitude.toStringAsFixed(5)}';
+                                  Clipboard.setData(ClipboardData(text: raw));
+                                  _showMessage('Coordinates copied.');
+                                },
+                              ),
+                              if (groupName != null && groupName.isNotEmpty) ...[
+                                Divider(
+                                  height: 18,
+                                  color: theme.colorScheme.outlineVariant
+                                      .withValues(alpha: 0.5),
+                                ),
+                                ClickableGroup(
+                                  groupId: currentPin.groupId,
+                                  child: _DetailRow(
+                                    icon: Icons.groups_outlined,
+                                    label: 'Group',
+                                    value: groupName,
+                                    trailing: Icon(
+                                      Icons.chevron_right_rounded,
+                                      size: 20,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              Divider(
+                                height: 18,
+                                color: theme.colorScheme.outlineVariant
+                                    .withValues(alpha: 0.5),
+                              ),
+                              _DetailRow(
+                                icon: Icons.schedule_rounded,
+                                label: 'Recorded',
+                                value:
+                                    '${_formatRelativeAge(currentPin.creationDate)} · '
+                                    '${photoCount == 1 ? '1 photo' : '$photoCount photos'}',
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -137,6 +230,30 @@ class _ViewImageState extends ConsumerState<ViewImage> {
         },
       ),
     );
+  }
+
+  String _formatRelativeAge(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays >= 365) {
+      final years = (diff.inDays / 365).floor();
+      return years == 1 ? '1 year ago' : '$years years ago';
+    }
+    if (diff.inDays >= 30) {
+      final months = (diff.inDays / 30).floor();
+      return months == 1 ? '1 month ago' : '$months months ago';
+    }
+    if (diff.inDays > 0) {
+      return diff.inDays == 1 ? '1 day ago' : '${diff.inDays} days ago';
+    }
+    if (diff.inHours > 0) {
+      return diff.inHours == 1 ? '1 hour ago' : '${diff.inHours} hours ago';
+    }
+    if (diff.inMinutes > 0) {
+      return diff.inMinutes == 1
+          ? '1 minute ago'
+          : '${diff.inMinutes} minutes ago';
+    }
+    return 'Just now';
   }
 
   Future<void> _downloadPhoto({
@@ -264,6 +381,76 @@ class _ViewImageState extends ConsumerState<ViewImage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message), duration: duration));
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.trailing,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final row = Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          trailing!,
+        ],
+      ],
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: row,
+      ),
+    );
   }
 }
 

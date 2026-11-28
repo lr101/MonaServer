@@ -263,8 +263,8 @@ final remoteImageMetadataProvider = StreamProvider.autoDispose
         },
         RemoteImageKind.groupPin => {BatchReadKind.groupPinImage},
       };
-      return registry.changes
-          .where((key) => key.id == id && kinds.contains(key.kind))
+      return registry
+          .watchKeys(id, kinds)
           .map((key) => (key: key, sequence: ++sequence));
     });
 

@@ -47,6 +47,7 @@ void main() {
     required Future<GalleryPhotoPage> Function(PhotoScope, String?) fetch,
     Future<List<PinPhotoDto>> Function(String)? history,
     Future<Map<String, PinPhotoDto?>> Function(List<String>)? resolve,
+    void Function(String, List<PinPhotoDto>)? publish,
     void Function(Iterable<String>)? revokePinUrls,
     IPinRepository? pinStore,
   }) => PhotoLibrary(
@@ -55,7 +56,7 @@ void main() {
     fetchPage: fetch,
     fetchHistory: history ?? (_) async => [photo('pin'), photo('update')],
     resolvePhotos: resolve ?? (_) async => {},
-    publish: (_, _) {},
+    publish: publish ?? (_, _) {},
     revokePinUrls: revokePinUrls,
   );
   test('gallery reaches the network when local hydration fails', () async {
@@ -951,6 +952,97 @@ void main() {
       await owner.refreshActive();
       expect(galleryCalls[activeScope], activeGalleryBefore + 1);
       expect(historyCalls['active-pin'], activeHistoryBefore + 1);
+    },
+  );
+
+  test(
+    'watchHistory reuses freshly loaded group gallery without a network fetch',
+    () async {
+      var historyFetches = 0;
+      final owner = library(
+        fetch: (_, _) async => GalleryPhotoPage(
+          items: [
+            GalleryPhotoRecord(pin, photo('pin')),
+            GalleryPhotoRecord(pin, photo('update')),
+          ],
+        ),
+        history: (_) async {
+          historyFetches++;
+          return [photo('pin'), photo('update')];
+        },
+      );
+      addTearDown(owner.dispose);
+
+      await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+      final events = <List<PinPhotoDto>>[];
+      final sub = owner.watchHistory('pin').listen(events.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(historyFetches, 0);
+      expect(events, isNotEmpty);
+      expect(events.last.map((p) => p.id), ['pin', 'update']);
+    },
+  );
+
+  test(
+    'refreshGallery publishes each page once without duplicate post-loop write',
+    () async {
+      var publishCount = 0;
+      final owner = library(
+        fetch: (_, _) async => GalleryPhotoPage(
+          items: [GalleryPhotoRecord(pin, photo('pin'))],
+        ),
+        publish: (_, _) => publishCount++,
+      );
+      addTearDown(owner.dispose);
+
+      await owner.refreshGallery(const PhotoScope(groupId: 'group'));
+      expect(publishCount, 1);
+    },
+  );
+
+  test(
+    'watchGallery reuses fresh gallery on resubscribe until invalidated or explicitly refreshed',
+    () async {
+      var pageFetches = 0;
+      const scope = PhotoScope(userId: 'alice');
+      final owner = library(
+        fetch: (_, _) async {
+          pageFetches++;
+          return GalleryPhotoPage(
+            items: [GalleryPhotoRecord(pin, photo('pin'))],
+          );
+        },
+      );
+      addTearDown(owner.dispose);
+
+      final firstSub = owner.watchGallery(scope).listen((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(pageFetches, 1);
+      await firstSub.cancel();
+
+      // Re-subscribing immediately (e.g. switching back to Profile tab) reuses
+      // the in-memory gallery without re-fetching or rewriting Drift rows.
+      final snapshots = <PhotoGallerySnapshot>[];
+      final secondSub = owner.watchGallery(scope).listen(snapshots.add);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(pageFetches, 1);
+      expect(snapshots, isNotEmpty);
+      expect(snapshots.last.loaded, isTrue);
+      expect(snapshots.last.photos.map((p) => p.id), ['pin']);
+      await secondSub.cancel();
+
+      // Explicit refresh always fetches.
+      await owner.refreshGallery(scope);
+      expect(pageFetches, 2);
+
+      // Joining/restoring a group invalidates user-scoped freshness.
+      owner.restoreGroupAccess('group-2', startedAt: owner.beginWrite());
+      final thirdSub = owner.watchGallery(scope).listen((_) {});
+      addTearDown(thirdSub.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(pageFetches, 3);
     },
   );
 }
