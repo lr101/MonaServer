@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
-import 'package:buff_lisa/data/service/pin_thumbnail_prefetch_coordinator.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
-import 'package:buff_lisa/util/image/memory_image_provider.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_item_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/feed_snapshot.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
@@ -39,15 +36,12 @@ class CustomFeed extends ConsumerStatefulWidget {
 
 class _CustomFeedState extends ConsumerState<CustomFeed> {
   static const int _pageSize = 3;
-  static const int _thumbnailPrefetchPageCount = 2;
 
   List<PinEntity> _pins = [];
   List<PinEntity>? _pendingSortedPins;
   ScrollPosition? _scrollPosition;
   String? _initialEntryId;
   final GlobalKey _initialItemKey = GlobalKey();
-  final Set<String> _thumbnailPrefetchTargets = {};
-  PinThumbnailPrefetchCoordinator? _thumbnailPrefetchCoordinator;
   late final PagingController<int, PinEntity> _pagingController;
 
   @override
@@ -67,7 +61,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
           ? null
           : PagingState(
               pages: [_pins.take(initialCount).toList()],
-              keys: [0],
+              keys: const [0],
               hasNextPage: initialCount < _pins.length,
             ),
       getNextPageKey: (state) {
@@ -115,30 +109,62 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final pending = _pendingSortedPins;
     if (pending == null || !_atTop || !mounted) return;
     _pendingSortedPins = null;
+    if (_samePinList(_pins, pending)) return;
     _pins = pending;
     _updatePagingSnapshot();
   }
 
   void _updatePagingSnapshot() {
-    final loaded = _pagingController.value.items?.length ?? 0;
+    final currentItems = _pagingController.value.items;
+    final loaded = currentItems?.length ?? 0;
     if (loaded == 0) {
       _pagingController.refresh();
     } else {
       final count = loaded.clamp(0, _pins.length);
+      final nextItems = _pins.take(count).toList();
+      final nextHasNextPage = count < _pins.length;
+      if (currentItems != null &&
+          _pagingController.value.hasNextPage == nextHasNextPage &&
+          _samePinList(currentItems, nextItems)) {
+        return;
+      }
       _pagingController.cancel();
       _pagingController.value = PagingState(
-        pages: [_pins.take(count).toList()],
-        keys: [0],
-        hasNextPage: count < _pins.length,
+        pages: [nextItems],
+        keys: const [0],
+        hasNextPage: nextHasNextPage,
       );
     }
+  }
+
+  bool _samePinList(List<PinEntity> a, List<PinEntity> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final left = a[i];
+      final right = b[i];
+      if (left.entryId != right.entryId ||
+          left.pinId != right.pinId ||
+          left.photoId != right.photoId ||
+          left.photoUrl != right.photoUrl ||
+          left.photoThumbnailUrl != right.photoThumbnailUrl ||
+          left.imageBlurhash != right.imageBlurhash ||
+          left.title != right.title ||
+          left.description != right.description ||
+          left.creationDate != right.creationDate ||
+          left.creator != right.creator ||
+          left.contributorUsername != right.contributorUsername ||
+          left.isGone != right.isGone ||
+          left.isHidden != right.isHidden) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
   void dispose() {
     _scrollPosition?.removeListener(_restoreSortedOrderAtTop);
-    _thumbnailPrefetchTargets.clear();
-    _thumbnailPrefetchCoordinator?.cancelWindow(this);
     _pagingController.dispose();
     super.dispose();
   }
@@ -175,34 +201,53 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       if (!next.hasValue || next.isLoading || next.hasError) return;
       final incoming = next.value ?? <PinEntity>[];
       final loaded = _pagingController.value.items?.length ?? 0;
+      final List<PinEntity> nextPins;
       if (widget.index == null && widget.entryId == null && _atTop) {
         _pendingSortedPins = null;
-        _pins = List.of(incoming);
+        nextPins = List.of(incoming);
       } else {
         _pendingSortedPins = widget.index == null && widget.entryId == null
             ? List.of(incoming)
             : null;
-        _pins = reconcileFeedEntries(_pins, incoming, loaded);
+        nextPins = reconcileFeedEntries(_pins, incoming, loaded);
       }
+      if (_samePinList(_pins, nextPins) &&
+          _pagingController.value.items != null) {
+        return;
+      }
+      _pins = nextPins;
       _updatePagingSnapshot();
     });
-    final pinState = ref.watch(widget.pinProvider);
-    if (!pinState.hasValue && !pinState.hasError) {
+    final pinStatus = ref.watch(
+      widget.pinProvider.select(
+        (value) => (
+          hasValue: value.hasValue,
+          hasError: value.hasError,
+          error: value.hasValue ? null : value.error,
+        ),
+      ),
+    );
+    if (!pinStatus.hasValue && !pinStatus.hasError) {
       return const SliverToBoxAdapter(child: _FeedPlaceholder());
     }
-    if (!pinState.hasValue && pinState.hasError) {
+    if (!pinStatus.hasValue && pinStatus.hasError) {
       return PagedSliverList<int, PinEntity>(
-        state: PagingState(error: pinState.error),
+        state: PagingState(error: pinStatus.error),
         fetchNextPage: () => _pagingController.refresh(),
         builderDelegate: PagedChildBuilderDelegate<PinEntity>(
           itemBuilder: (context, item, index) => const SizedBox.shrink(),
         ),
       );
     }
+    final useTwoColumns =
+        widget.index == null &&
+        widget.entryId == null &&
+        MediaQuery.sizeOf(context).width >= 900;
     return PagingListener<int, PinEntity>(
       controller: _pagingController,
-      builder: (context, state, fetchNextPage) =>
-          PagedSliverList<int, PinEntity>(
+      builder: (context, state, fetchNextPage) {
+        if (!useTwoColumns) {
+          return PagedSliverList<int, PinEntity>(
             state: state,
             fetchNextPage: fetchNextPage,
             addAutomaticKeepAlives: false,
@@ -216,14 +261,60 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
                 key: item.entryId == _initialEntryId
                     ? _initialItemKey
                     : ValueKey(item.entryId),
-                child: ProviderScope(
-                  key: ValueKey(item.entryId),
-                  overrides: [feedItemProvider.overrideWithValue(item)],
-                  child: FeedCard(thumbnailsOnly: widget.thumbnailsOnly),
-                ),
+                overrides: [feedItemProvider.overrideWithValue(item)],
+                child: FeedCard(thumbnailsOnly: widget.thumbnailsOnly),
               ),
             ),
-          ),
+          );
+        }
+        return SliverLayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.crossAxisExtent;
+            final sidePadding = ((availableWidth - 848.0) / 2).clamp(
+              16.0,
+              double.infinity,
+            );
+            final gridWidth = availableWidth - sidePadding * 2;
+            final columnWidth = (gridWidth - 16.0) / 2;
+            final imageWidth = (columnWidth - 16.0).clamp(160.0, 500.0);
+            final imageHeight = (imageWidth * 1.05).clamp(240.0, 420.0);
+            final tileHeight = imageHeight + 90.0;
+            return SliverPadding(
+              padding: EdgeInsets.fromLTRB(sidePadding, 8, sidePadding, 16),
+              sliver: PagedSliverGrid<int, PinEntity>(
+                state: state,
+                fetchNextPage: fetchNextPage,
+                addAutomaticKeepAlives: false,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  mainAxisExtent: tileHeight,
+                ),
+                builderDelegate: PagedChildBuilderDelegate<PinEntity>(
+                  animateTransitions: true,
+                  firstPageProgressIndicatorBuilder: (_) =>
+                      const _FeedPlaceholder(),
+                  newPageProgressIndicatorBuilder: (_) =>
+                      const _FeedPlaceholder(),
+                  invisibleItemsThreshold: widget.invisibleItemsThreshold,
+                  itemBuilder: (context, item, index) => ProviderScope(
+                    key: item.entryId == _initialEntryId
+                        ? _initialItemKey
+                        : ValueKey(item.entryId),
+                    overrides: [feedItemProvider.overrideWithValue(item)],
+                    child: FeedCard(
+                      thumbnailsOnly: widget.thumbnailsOnly,
+                      inGrid: true,
+                      gridImageHeight: imageHeight,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -254,72 +345,7 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
       ref.read(likeServiceProvider(pin.entryId));
     }
     _prefetchNextPageMetadata(end, pageSize);
-    _prefetchNextPageThumbnails(end, pageSize);
     return idList;
-  }
-
-  void _prefetchNextPageThumbnails(int start, int pageSize) {
-    final end = (start + pageSize * _thumbnailPrefetchPageCount).clamp(
-      0,
-      _pins.length,
-    );
-    final lookAheadIds = _pins
-        .getRange(start, end)
-        .where((pin) => !pin.isPhotoUpdate)
-        .map((pin) => pin.pinId)
-        .toSet();
-
-    _thumbnailPrefetchTargets
-      ..clear()
-      ..addAll(lookAheadIds);
-    final logicalWidth = (MediaQuery.sizeOf(context).width - 36).clamp(
-      1.0,
-      double.infinity,
-    );
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final imageSize = Size(logicalWidth, logicalWidth * 4 / 3);
-    final requests = <String, PinThumbnailWarmer>{
-      for (final id in lookAheadIds)
-        id: (bytes) => _precacheThumbnail(
-          id,
-          bytes,
-          logicalWidth: logicalWidth,
-          devicePixelRatio: devicePixelRatio,
-          imageSize: imageSize,
-        ),
-    };
-    _currentPrefetchCoordinator().updateWindow(this, requests);
-  }
-
-  PinThumbnailPrefetchCoordinator _currentPrefetchCoordinator() {
-    final current = ref.read(pinThumbnailPrefetchCoordinatorProvider);
-    if (!identical(current, _thumbnailPrefetchCoordinator)) {
-      _thumbnailPrefetchCoordinator?.cancelWindow(this);
-      _thumbnailPrefetchCoordinator = current;
-    }
-    return current;
-  }
-
-  Future<void> _precacheThumbnail(
-    String pinId,
-    Uint8List bytes, {
-    required double logicalWidth,
-    required double devicePixelRatio,
-    required Size imageSize,
-  }) async {
-    if (!mounted || !_thumbnailPrefetchTargets.contains(pinId)) return;
-    final imageProvider = memoryImageForDisplay(
-      bytes,
-      devicePixelRatio: devicePixelRatio,
-      logicalWidth: logicalWidth,
-      maximumCacheWidth: 720,
-    );
-    await precacheImage(
-      imageProvider,
-      context,
-      size: imageSize,
-      onError: (error, stackTrace) {},
-    );
   }
 
   void _prefetchNextPageMetadata(int start, int pageSize) {
@@ -327,8 +353,11 @@ class _CustomFeedState extends ConsumerState<CustomFeed> {
     final coalescer = ref.read(batchReadCoalescerProvider);
     final pins = _pins.getRange(start, end).toList(growable: false);
     for (final pin in pins) {
-      if (!pin.isPhotoUpdate && !widget.thumbnailsOnly) {
-        _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+      if (!pin.isPhotoUpdate) {
+        if (!widget.thumbnailsOnly) {
+          _prefetchKey(coalescer, BatchReadKind.pinImage, pin.pinId);
+        }
+        _prefetchKey(coalescer, BatchReadKind.pinImageThumbnail, pin.pinId);
       }
       _prefetchKey(coalescer, BatchReadKind.userImageSmall, pin.creator);
       if (pin.creator.isNotEmpty) ref.read(userServiceProvider(pin.creator));

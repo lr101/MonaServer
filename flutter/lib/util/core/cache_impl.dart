@@ -97,12 +97,7 @@ abstract class CacheImpl<T extends CacheEntity> implements CacheApi<T> {
     return await doGetList(ids.map(cacheIdFor).toList());
   }
 
-  Future<void> startup() async {
-    DateTime? ttlTime;
-    if (ttlDuration != null) {
-      ttlTime = DateTime.now().subtract(ttlDuration!);
-    }
-
+  Future<void> doDeleteExpired(DateTime? ttlTime) async {
     final all = await doGetAll();
     final filtered = all.where(
       (entry) =>
@@ -111,7 +106,18 @@ abstract class CacheImpl<T extends CacheEntity> implements CacheApi<T> {
               entry.keepAlive == false &&
               entry.ttl.isBefore(ttlTime)),
     );
-    await doDeleteMultiple(filtered.map((e) => e.isarId).toList());
+    final ids = filtered.map((e) => e.isarId).toList();
+    if (ids.isNotEmpty) {
+      await doDeleteMultiple(ids);
+    }
+  }
+
+  Future<void> startup() async {
+    DateTime? ttlTime;
+    if (ttlDuration != null) {
+      ttlTime = DateTime.now().subtract(ttlDuration!);
+    }
+    await doDeleteExpired(ttlTime);
   }
 
   @override

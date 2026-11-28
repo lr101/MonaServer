@@ -39,12 +39,14 @@ class RankingSlidingPanel extends ConsumerStatefulWidget {
     super.key,
     required this.headerPixelHeight,
     this.navigationClearance = 0,
+    this.onRefreshRegion,
   });
 
   final double headerPixelHeight;
 
   /// Space occupied by navigation overlaid on this tray.
   final double navigationClearance;
+  final VoidCallback? onRefreshRegion;
 
   @override
   ConsumerState<RankingSlidingPanel> createState() =>
@@ -81,7 +83,7 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
     final theme = Theme.of(context);
     final gid = ref.watch(zoomGidProvider);
     final currentGid = gid.$1;
-    final regionName = gid.$2 ?? 'Region unavailable';
+    final regionName = gid.$2 ?? 'Local leaderboard';
 
     final view = ref.watch(viewServiceProvider);
     AsyncValue<List<dynamic>?> asyncRankings;
@@ -94,23 +96,43 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
       asyncRankings = ref.watch(userRankingProvider(currentGid));
     }
 
+    final hasRankings = asyncRankings.value?.isNotEmpty == true;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final height = constraints.maxHeight;
+        final isWideCard =
+            widget.navigationClearance == 0 && constraints.maxWidth >= 600;
         final headerHeight = rankingHeaderHeight(
           context,
           minimum: widget.headerPixelHeight,
         );
+        final bottomMargin = isWideCard ? 16.0 : 0.0;
         final clearance = widget.navigationClearance.clamp(
           0.0,
           (height - headerHeight).clamp(0.0, double.infinity),
         );
-        final maxSize = height <= 0
-            ? 1.0
-            : ((headerHeight + clearance + 48) / height).clamp(0.6, 1.0);
         final minSize = height <= 0
             ? 0.01
-            : ((headerHeight + clearance) / height).clamp(0.01, maxSize);
+            : ((headerHeight + clearance + bottomMargin) / height).clamp(
+                0.01,
+                1.0,
+              );
+        final compactEmptyTarget = height <= 0
+            ? 1.0
+            : ((headerHeight + clearance + bottomMargin + 84) / height).clamp(
+                minSize,
+                1.0,
+              );
+        final fullTarget = height <= 0
+            ? 1.0
+            : ((headerHeight + clearance + bottomMargin + 48) / height).clamp(
+                0.60,
+                1.0,
+              );
+        final maxSize = hasRankings
+            ? fullTarget.clamp(minSize, 1.0)
+            : compactEmptyTarget;
         final snapSizes = <double>[minSize, if (minSize < maxSize) maxSize];
         return NotificationListener<DraggableScrollableNotification>(
           onNotification: (notification) {
@@ -133,110 +155,148 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
             snapSizes: snapSizes,
             builder: (context, scrollController) {
               final double screenHeight = constraints.maxHeight;
+              final isLight = theme.brightness == Brightness.light;
+              final traySurface = isLight
+                  ? (widget.navigationClearance > 0
+                        ? theme.colorScheme.surfaceContainerLow
+                        : theme.colorScheme.surfaceContainerLowest)
+                  : theme.colorScheme.surfaceContainerLow;
+              final trayRadius = isWideCard
+                  ? BorderRadius.circular(24)
+                  : widget.navigationClearance > 0
+                  ? BorderRadius.circular(32)
+                  : const BorderRadius.vertical(top: Radius.circular(28));
               return Align(
-                alignment: Alignment.bottomCenter,
-                child: SizedBox(
-                  width: widget.navigationClearance > 0
-                      ? navigationDockWidth(constraints.maxWidth)
-                      : constraints.maxWidth,
-                  child: Container(
-                    key: const ValueKey('ranking-tray'),
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerLow,
-                      borderRadius: widget.navigationClearance > 0
-                          ? BorderRadius.circular(32)
-                          : const BorderRadius.vertical(
-                              top: Radius.circular(24),
+                alignment: isWideCard
+                    ? Alignment.bottomLeft
+                    : Alignment.bottomCenter,
+                child: Padding(
+                  padding: isWideCard
+                      ? const EdgeInsets.fromLTRB(16, 0, 16, 16)
+                      : EdgeInsets.zero,
+                  child: SizedBox(
+                    width: isWideCard
+                        ? 360
+                        : widget.navigationClearance > 0
+                        ? navigationDockWidth(constraints.maxWidth)
+                        : constraints.maxWidth,
+                    child: Container(
+                      key: const ValueKey('ranking-tray'),
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: traySurface,
+                        borderRadius: trayRadius,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isLight ? 0.08 : 0.34,
                             ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 10,
-                          offset: const Offset(0, -4),
+                            blurRadius: 16,
+                            offset: const Offset(0, -3),
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isLight ? 0.04 : 0.18,
+                            ),
+                            blurRadius: 4,
+                            offset: const Offset(0, -1),
+                          ),
+                        ],
+                      ),
+                      foregroundDecoration: BoxDecoration(
+                        borderRadius: trayRadius,
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: isLight ? 0.65 : 0.60,
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Semantics(
-                          button: true,
-                          label: _expanded
-                              ? 'Collapse rankings'
-                              : 'Expand rankings',
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () =>
-                                  _settle(_expanded ? minSize : maxSize),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onVerticalDragUpdate: (details) {
-                                  // Convert pixel drag to percentage change
-                                  final double delta =
-                                      details.primaryDelta! / screenHeight;
-                                  final double newSize =
-                                      (_sheetController.size - delta).clamp(
-                                        minSize,
-                                        maxSize,
-                                      );
-                                  _sheetController.jumpTo(newSize);
-                                },
-                                onVerticalDragEnd: (details) {
-                                  // Simple snap logic on release
-                                  final double currentSize =
-                                      _sheetController.size;
-                                  final double velocity =
-                                      details.velocity.pixelsPerSecond.dy;
+                      ),
+                      child: Column(
+                        children: [
+                          Semantics(
+                            button: true,
+                            label: _expanded
+                                ? 'Collapse rankings'
+                                : 'Expand rankings',
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () =>
+                                    _settle(_expanded ? minSize : maxSize),
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onVerticalDragUpdate: (details) {
+                                    // Convert pixel drag to percentage change
+                                    final double delta =
+                                        details.primaryDelta! / screenHeight;
+                                    final double newSize =
+                                        (_sheetController.size - delta).clamp(
+                                          minSize,
+                                          maxSize,
+                                        );
+                                    _sheetController.jumpTo(newSize);
+                                  },
+                                  onVerticalDragEnd: (details) {
+                                    // Simple snap logic on release
+                                    final double currentSize =
+                                        _sheetController.size;
+                                    final double velocity =
+                                        details.velocity.pixelsPerSecond.dy;
 
-                                  double target = minSize;
-                                  if (velocity < -500) {
-                                    target = maxSize; // Fast flick up
-                                  } else if (velocity > 500) {
-                                    target = minSize; // Fast flick down
-                                  } else {
-                                    // Closest snap point
-                                    target =
-                                        (currentSize - minSize).abs() <
-                                            (currentSize - maxSize).abs()
-                                        ? minSize
-                                        : maxSize;
-                                  }
+                                    double target = minSize;
+                                    if (velocity < -500) {
+                                      target = maxSize; // Fast flick up
+                                    } else if (velocity > 500) {
+                                      target = minSize; // Fast flick down
+                                    } else {
+                                      // Closest snap point
+                                      target =
+                                          (currentSize - minSize).abs() <
+                                              (currentSize - maxSize).abs()
+                                          ? minSize
+                                          : maxSize;
+                                    }
 
-                                  _settle(target);
-                                },
-                                child: _buildHeaderContent(
-                                  context,
-                                  theme,
-                                  regionName,
-                                  asyncRankings,
-                                  view,
+                                    _settle(target);
+                                  },
+                                  child: _buildHeaderContent(
+                                    context,
+                                    theme,
+                                    regionName,
+                                    asyncRankings,
+                                    view,
+                                    traySurface,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-
-                        Expanded(
-                          child: ClipRect(
-                            child: CustomScrollView(
-                              controller:
-                                  scrollController, // Linked to sheet logic
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              slivers: [
-                                const SliverToBoxAdapter(
-                                  child: SizedBox(height: 10),
-                                ),
-                                _buildRankingList(asyncRankings, view),
-                                const SliverPadding(
-                                  padding: EdgeInsets.only(bottom: 16),
-                                ),
-                              ],
+                          Expanded(
+                            child: ClipRect(
+                              child: CustomScrollView(
+                                controller:
+                                    scrollController, // Linked to sheet logic
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  const SliverToBoxAdapter(
+                                    child: SizedBox(height: 6),
+                                  ),
+                                  _buildRankingList(
+                                    context,
+                                    theme,
+                                    asyncRankings,
+                                    view,
+                                  ),
+                                  const SliverPadding(
+                                    padding: EdgeInsets.only(bottom: 12),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        SizedBox(height: clearance),
-                      ],
+                          SizedBox(height: clearance),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -283,44 +343,63 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
     String title,
     AsyncValue<List<dynamic>?> asyncRankings,
     ViewState view,
+    Color headerBg,
   ) {
     // Extract the specific ranking item for "Me"
     final myRankItem = asyncRankings.value != null
         ? _getMyRanking(asyncRankings.value, view)
         : null;
 
+    final isLight = theme.brightness == Brightness.light;
+
     return Container(
       width: double.infinity,
       height: rankingHeaderHeight(context, minimum: widget.headerPixelHeight),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        color: headerBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           // Handle
           Container(
-            width: 40,
+            width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
                 // 1. LEFT SIDE: Icon + Title (Flexible to avoid overflow)
                 Expanded(
                   child: Row(
                     children: [
-                      const ExcludeSemantics(
-                        child: Icon(Icons.leaderboard_outlined, size: 20),
+                      ExcludeSemantics(
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: isLight ? 0.16 : 0.20,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.leaderboard_outlined,
+                            size: 17,
+                            color: isLight
+                                ? const Color(0xFF9A5B00)
+                                : theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       // Flexible allows Text to shrink and show ellipsis
                       Flexible(
                         child: Column(
@@ -357,7 +436,7 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
                   semanticLabel: '',
                 ),
                 if (myRankItem != null) ...[
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 12),
                   Flexible(
                     child: _buildMyRankBadge(
                       context,
@@ -398,38 +477,81 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
     }
     if (rank == null || points == null || id == null) return const SizedBox();
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (item is GroupRankingDtoInner)
-          SmallProfilePicture.group(groupId: id, radius: 9)
-        else
-          SmallProfilePicture.user(userId: id, radius: 9),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            "#$rank of ${length ?? 0}",
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.colorScheme.onSurfaceVariant,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (item is GroupRankingDtoInner)
+            SmallProfilePicture.group(groupId: id, radius: 9)
+          else
+            SmallProfilePicture.user(userId: id, radius: 9),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              "#$rank of ${length ?? 0}",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildRankingList(
+    BuildContext context,
+    ThemeData theme,
     AsyncValue<List<dynamic>?> asyncRankings,
     ViewState view,
   ) {
     return asyncRankings.when(
       data: (rankings) {
         if (rankings == null || rankings.isEmpty) {
-          return const SliverFillRemaining(
-            child: Center(child: Text("No ranking data available")),
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Pan to a mapped city to view local rankings.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                  if (widget.onRefreshRegion != null) ...[
+                    const SizedBox(width: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: widget.onRefreshRegion,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                        foregroundColor: theme.colorScheme.onSurface,
+                        minimumSize: const Size(0, 34),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        shape: const StadiumBorder(),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 15),
+                      label: const Text('Refresh'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           );
         }
         return SliverList(
@@ -450,13 +572,43 @@ class _RankingSlidingPanelState extends ConsumerState<RankingSlidingPanel> {
           }, childCount: rankings.length),
         );
       },
-      loading: () => const SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (err, stack) => const SliverToBoxAdapter(
+      loading: () => const SliverToBoxAdapter(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Center(child: Text("Currently unavailable")),
+          padding: EdgeInsets.symmetric(vertical: 28),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (err, stack) => SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Currently unavailable',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (widget.onRefreshRegion != null) ...[
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: widget.onRefreshRegion,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: const StadiumBorder(),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 16),
+                  label: const Text('Try again'),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

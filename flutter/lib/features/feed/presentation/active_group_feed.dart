@@ -24,7 +24,7 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
         physics: const AlwaysScrollableScrollPhysics(),
         scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
         slivers: [
-          const SliverAppBar(
+          SliverAppBar(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
@@ -32,10 +32,15 @@ class _ActiveGroupFeedState extends ConsumerState<ActiveGroupFeed>
             floating: true,
             snap: true,
             automaticallyImplyLeading: false,
-            toolbarHeight: 60,
-            flexibleSpace: Padding(
-              padding: EdgeInsets.all(4),
-              child: TopStatusBar(showUserLevel: false),
+            toolbarHeight: 64,
+            flexibleSpace: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 880),
+                child: const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
+                  child: TopStatusBar(showUserLevel: false),
+                ),
+              ),
             ),
           ),
 

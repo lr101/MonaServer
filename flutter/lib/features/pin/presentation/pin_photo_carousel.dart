@@ -23,6 +23,7 @@ class PinPhotoCarousel extends StatefulWidget {
     this.onDoubleTap,
     this.onTap,
     this.overlayBuilder,
+    this.fit = BoxFit.contain,
   });
 
   final String? pinId;
@@ -37,6 +38,7 @@ class PinPhotoCarousel extends StatefulWidget {
   final VoidCallback? onTap;
   final Widget Function(BuildContext, int, int, VoidCallback?, VoidCallback?)?
   overlayBuilder;
+  final BoxFit fit;
 
   @override
   State<PinPhotoCarousel> createState() => _PinPhotoCarouselState();
@@ -289,7 +291,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
         thumbnailUrl: original?.imageThumbnail,
         imageUrl: original?.image,
         blurhash: blurhash,
-        fit: BoxFit.contain,
+        fit: thumbnailOnly ? BoxFit.cover : widget.fit,
         alignment: Alignment.center,
         policy: thumbnailOnly
             ? RemoteImagePolicy.thumbnail
@@ -345,7 +347,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
       thumbnailUrl: photo.imageThumbnail,
       imageUrl: photo.image,
       blurhash: photo.imageBlurhash,
-      fit: BoxFit.contain,
+      fit: thumbnailOnly ? BoxFit.cover : widget.fit,
       alignment: Alignment.center,
       policy: thumbnailOnly
           ? RemoteImagePolicy.thumbnail
@@ -364,7 +366,7 @@ class _PinPhotoCarouselState extends State<PinPhotoCarousel> {
       _photoPlaceholder(context, blurhash),
       Image(
         image: imageProvider,
-        fit: BoxFit.contain,
+        fit: widget.fit,
         gaplessPlayback: true,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
             AnimatedOpacity(

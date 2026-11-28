@@ -67,36 +67,37 @@ class _UserAchievementsTabState extends ConsumerState<UserAchievementsTab> {
         .where((track) => track.achievements.isNotEmpty)
         .toList();
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: RefreshIndicator(
-        onRefresh: () =>
-            ref.refresh(achievementsProvider.future).then<void>((_) {}),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.only(
-            bottom: 12 + MediaQuery.paddingOf(context).bottom,
-          ),
-          children: [
-            AchievementTrackBrowser<UserAchievementsDtoInner>(
-              tracks: [
-                for (final track in tracks)
-                  AchievementTrackData(
-                    id: track.id,
-                    title: track.title,
-                    tiers: track.achievements,
-                  ),
-              ],
-              isClaimed: (tier) => tier.claimed,
-              isReady: (tier) =>
-                  !tier.claimed &&
-                  (tier.claimable ?? _calculateProgress(tier) >= 1),
-              progress: _calculateProgress,
-              tierBuilder: (context, tier) =>
-                  _AchievementMilestoneCard(achievement: tier),
-            ),
-          ],
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.refresh(achievementsProvider.future).then<void>((_) {}),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          44 + MediaQuery.paddingOf(context).bottom,
         ),
+        children: [
+          AchievementTrackBrowser<UserAchievementsDtoInner>(
+            showTitle: false,
+            tracks: [
+              for (final track in tracks)
+                AchievementTrackData(
+                  id: track.id,
+                  title: track.title,
+                  tiers: track.achievements,
+                ),
+            ],
+            isClaimed: (tier) => tier.claimed,
+            isReady: (tier) =>
+                !tier.claimed &&
+                (tier.claimable ?? _calculateProgress(tier) >= 1),
+            progress: _calculateProgress,
+            tierBuilder: (context, tier) =>
+                _AchievementMilestoneCard(achievement: tier),
+          ),
+        ],
       ),
     );
   }

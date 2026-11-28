@@ -41,59 +41,134 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (wide)
-                SafeArea(
-                  child: NavigationRail(
-                    selectedIndex: widget.selectedIndex,
-                    onDestinationSelected: widget.onDestinationSelected,
-                    extended: expandedRail,
-                    minExtendedWidth: 180,
-                    labelType: expandedRail
-                        ? NavigationRailLabelType.none
-                        : NavigationRailLabelType.all,
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerLow,
-                    leading: canExpand
-                        ? Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: expandedRail
-                                      ? 'Collapse navigation'
-                                      : 'Expand navigation',
-                                  icon: Icon(
-                                    expandedRail ? Icons.menu_open : Icons.menu,
+              if (wide) ...[
+                ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  child: SafeArea(
+                    child: Builder(
+                      builder: (context) {
+                        final theme = Theme.of(context);
+                        final colors = theme.colorScheme;
+                        final isLight = theme.brightness == Brightness.light;
+                        final activeColor = isLight
+                            ? const Color(0xFF9A5B00)
+                            : colors.primary;
+                        final activePillBg = colors.primary.withValues(
+                          alpha: isLight ? 0.28 : 0.24,
+                        );
+                        return NavigationRail(
+                          selectedIndex: widget.selectedIndex,
+                          onDestinationSelected: widget.onDestinationSelected,
+                          extended: expandedRail,
+                          minExtendedWidth: 216,
+                          useIndicator: true,
+                          indicatorColor: activePillBg,
+                          indicatorShape: const StadiumBorder(),
+                          selectedIconTheme: IconThemeData(
+                            color: activeColor,
+                            size: 22,
+                          ),
+                          unselectedIconTheme: IconThemeData(
+                            color: colors.onSurfaceVariant,
+                            size: 22,
+                          ),
+                          selectedLabelTextStyle: TextStyle(
+                            fontFamily: 'Signika',
+                            fontSize: expandedRail ? 15 : 12,
+                            fontWeight: FontWeight.w700,
+                            color: activeColor,
+                          ),
+                          unselectedLabelTextStyle: TextStyle(
+                            fontFamily: 'Signika',
+                            fontSize: expandedRail ? 15 : 12,
+                            fontWeight: FontWeight.w500,
+                            color: colors.onSurfaceVariant,
+                          ),
+                          labelType: expandedRail
+                              ? NavigationRailLabelType.none
+                              : NavigationRailLabelType.all,
+                          backgroundColor: colors.surfaceContainerLowest,
+                          leading: canExpand
+                              ? Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    12,
+                                    12,
+                                    16,
                                   ),
-                                  onPressed: () => setState(
-                                    () => _railCollapsed = !_railCollapsed,
+                                  child: SizedBox(
+                                    width: expandedRail ? 184 : null,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          tooltip: expandedRail
+                                              ? 'Collapse navigation'
+                                              : 'Expand navigation',
+                                          icon: Icon(
+                                            expandedRail
+                                                ? Icons.menu_open
+                                                : Icons.menu,
+                                          ),
+                                          onPressed: () => setState(
+                                            () => _railCollapsed =
+                                                !_railCollapsed,
+                                          ),
+                                        ),
+                                        if (expandedRail) ...[
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              'Stick-It',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.titleLarge
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 20,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ),
+                                )
+                              : null,
+                          scrollable: true,
+                          destinations: [
+                            for (final destination in navigationDestinations)
+                              NavigationRailDestination(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
                                 ),
-                                if (expandedRail)
-                                  Text(
-                                    'Stick-It',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                              ],
-                            ),
-                          )
-                        : null,
-                    scrollable: true,
-                    destinations: [
-                      for (final item in navigationDestinations)
-                        NavigationRailDestination(
-                          icon: Icon(item.$1),
-                          selectedIcon: Icon(item.$2),
-                          label: Text(item.$3),
-                        ),
-                    ],
+                                icon: Icon(destination.$1),
+                                selectedIcon: Icon(destination.$2),
+                                label: expandedRail
+                                    ? SizedBox(
+                                        width: 112,
+                                        child: Text(
+                                          destination.$3,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                    : Text(destination.$3),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
+                VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.7),
+                ),
+              ],
               Expanded(
                 key: const ValueKey('navigation-content'),
                 child: Builder(

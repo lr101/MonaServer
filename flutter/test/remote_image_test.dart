@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/pin_image_source.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
+import 'package:buff_lisa/widgets/pin_image/presentation/pin_image_placeholder.dart';
 import 'package:buff_lisa/widgets/remote_image/remote_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -809,6 +810,123 @@ void main() {
         tester.widget<RawImage>(find.byType(RawImage)).image!.isCloneOf(pixels),
         isFalse,
       );
+      await finish(tester);
+    },
+  );
+
+  test(
+    'SuppliedImageUrlRegistry.watchKeys only notifies matching id and kind',
+    () async {
+      final registry = SuppliedImageUrlRegistry();
+      addTearDown(registry.dispose);
+      final received = <BatchReadKey>[];
+      final sub = registry
+          .watchKeys('pin-a', const {
+            BatchReadKind.pinImageThumbnail,
+            BatchReadKind.pinImage,
+          })
+          .listen(received.add);
+      addTearDown(sub.cancel);
+
+      registry.register(
+        BatchReadKind.pinImageThumbnail,
+        'pin-b',
+        'https://test/b',
+      );
+      registry.register(
+        BatchReadKind.userImageSmall,
+        'pin-a',
+        'https://test/user-a',
+      );
+      registry.register(
+        BatchReadKind.pinImageThumbnail,
+        'pin-a',
+        'https://test/a-thumb',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(received, [
+        const BatchReadKey(BatchReadKind.pinImageThumbnail, 'pin-a'),
+      ]);
+    },
+  );
+
+  testWidgets('PinImagePlaceholder reuses value-equal cached ImageProvider', (
+    tester,
+  ) async {
+    const hash = 'L6PZfSi_.AyE_3t7';
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Row(
+          children: [
+            SizedBox.square(
+              dimension: 64,
+              child: PinImagePlaceholder(blurhash: hash),
+            ),
+            SizedBox.square(
+              dimension: 64,
+              child: PinImagePlaceholder(blurhash: hash),
+            ),
+          ],
+        ),
+      ),
+    );
+    await frames(tester);
+
+    final images = tester.widgetList<Image>(find.byType(Image)).toList();
+    expect(images.length, 2);
+    expect(images[0].image, equals(images[1].image));
+    expect(images[0].gaplessPlayback, isTrue);
+  });
+
+  testWidgets(
+    'RemoteImage pins decoded streams across unmount/remount and clears cleanly',
+    (tester) async {
+      clearPinnedRemoteImages();
+      addTearDown(clearPinnedRemoteImages);
+      final widget = ProviderScope(
+        overrides: [pinImageSourcesProvider.overrideWithValue(pins)],
+        child: const MaterialApp(
+          home: SizedBox(
+            width: 200,
+            height: 200,
+            child: RemoteImage(
+              image: RemoteImageReference(
+                kind: RemoteImageKind.pin,
+                id: 'pin-pinned',
+                thumbnailUrl: 'https://test/pin-pinned-thumb',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(widget);
+      await frames(tester);
+      expect(pinnedRemoteImageCount, greaterThanOrEqualTo(1));
+      final firstFrame = tester
+          .widget<RawImage>(find.byType(RawImage))
+          .image!
+          .clone();
+      addTearDown(firstFrame.dispose);
+
+      // Unmount and remount: pinned listener prevents cached_network_image
+      // from re-decoding the cached static frame on remount.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(pinnedRemoteImageCount, greaterThanOrEqualTo(1));
+      await tester.pumpWidget(widget);
+      await frames(tester);
+      expect(cache.urls, ['https://test/pin-pinned-thumb']);
+      expect(
+        tester
+            .widget<RawImage>(find.byType(RawImage))
+            .image!
+            .isCloneOf(firstFrame),
+        isTrue,
+      );
+
+      clearPinnedRemoteImages();
+      expect(pinnedRemoteImageCount, 0);
       await finish(tester);
     },
   );
