@@ -120,7 +120,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           return CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             primary: true,
-            scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
+            cacheExtent: tileWidth * 2,
             slivers: [
               SliverToBoxAdapter(child: widget.header),
               SliverPadding(
@@ -147,7 +147,7 @@ class _ImageGridState extends ConsumerState<ImageGrid> {
           padding: gridPadding,
           // Keep nearby rows mounted; each tile loads and fades in its image as
           // it approaches the view. RemoteImage shares downloads and cache.
-          scrollCacheExtent: ScrollCacheExtent.pixels(tileWidth * 2),
+          cacheExtent: tileWidth * 2,
           itemCount: _images.length,
           findChildIndexCallback: (key) {
             if (key is! ValueKey<String>) return null;
