@@ -25,7 +25,9 @@ abstract class IPinRepository implements CacheApi<PinEntity> {
   );
 }
 
-abstract class IPinLikeRepository implements CacheApi<PinLikeEntity> {}
+abstract class IPinLikeRepository implements CacheApi<PinLikeEntity> {
+  Future<void> putBatched(PinLikeEntity item);
+}
 
 class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
   final AppDatabase db;
@@ -191,31 +193,183 @@ class PinRepository extends CacheImpl<PinEntity> implements IPinRepository {
   }
 
   @override
+  Future<void> doDeleteExpired(DateTime? ttlTime) async {
+    await (db.delete(db.pinEntities)..where((tbl) {
+          final sessionExpired =
+              tbl.onlySession.equals(true) & tbl.keepAlive.equals(false);
+          if (ttlTime == null) return sessionExpired;
+          return sessionExpired |
+              (tbl.keepAlive.equals(false) &
+                  tbl.ttl.isSmallerThanValue(ttlTime));
+        }))
+        .go();
+  }
+
+  @override
   Future<void> updateKeepAlive(
     String groupId,
     bool keepAlive,
     bool onlySession,
   ) async {
-    final items = await (db.select(
+    await ready;
+    await (db.update(
       db.pinEntities,
-    )..where((tbl) => tbl.groupId.equals(groupId))).get();
-    final updated = items
-        .map(
-          (e) =>
-              _fromDb(e)
-                      .copyWith(keepAlive: keepAlive, onlySession: onlySession)
-                  as PinEntity,
-        )
-        .toList();
-    await putMultiple(updated);
+    )..where((tbl) => tbl.groupId.equals(groupId))).write(
+      PinEntitiesCompanion(
+        keepAlive: Value(keepAlive),
+        onlySession: Value(onlySession),
+      ),
+    );
   }
 }
 
 class PinLikeRepository extends CacheImpl<PinLikeEntity>
     implements IPinLikeRepository {
   final AppDatabase db;
+  final Duration batchWindow;
+  final Map<String, PinLikeEntity> _memoryCache = {};
+  final Map<String, PinLikeEntity> _pendingBatch = {};
+  List<Completer<void>> _batchWaiters = [];
+  Timer? _batchTimer;
+  bool _disposed = false;
 
-  PinLikeRepository(this.db, {super.maxItems, super.ttlDuration});
+  PinLikeRepository(
+    this.db, {
+    super.maxItems,
+    super.ttlDuration,
+    this.batchWindow = const Duration(milliseconds: 16),
+  });
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _batchTimer?.cancel();
+    _batchTimer = null;
+    _pendingBatch.clear();
+    _memoryCache.clear();
+    final waiters = _batchWaiters;
+    _batchWaiters = [];
+    for (final waiter in waiters) {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+  }
+
+  void _remember(PinLikeEntity item) {
+    _memoryCache.remove(item.id);
+    _memoryCache[item.id] = item;
+    final limit = maxItems;
+    if (limit != null) {
+      while (_memoryCache.length > limit) {
+        _memoryCache.remove(_memoryCache.keys.first);
+      }
+    }
+  }
+
+  bool _isExpired(PinLikeEntity item) {
+    if (item.keepAlive || ttlDuration == null) return false;
+    return item.ttl.isBefore(DateTime.now().subtract(ttlDuration!));
+  }
+
+  @override
+  Future<PinLikeEntity?> get(String id) async {
+    final pending = _pendingBatch[id];
+    if (pending != null) return pending;
+    final cached = _memoryCache[id];
+    if (cached != null) {
+      if (!_isExpired(cached)) {
+        _remember(cached);
+        return cached;
+      }
+      _memoryCache.remove(id);
+    }
+    final stored = await super.get(id);
+    if (stored != null && !_disposed) {
+      _remember(stored);
+    }
+    return stored;
+  }
+
+  @override
+  Future<void> put(PinLikeEntity item) async {
+    _pendingBatch.remove(item.id);
+    _remember(item);
+    await super.put(item);
+  }
+
+  @override
+  Future<void> putMultiple(Iterable<PinLikeEntity> items) async {
+    final list = items.toList();
+    for (final item in list) {
+      _pendingBatch.remove(item.id);
+      _remember(item);
+    }
+    await super.putMultiple(list);
+  }
+
+  @override
+  Future<void> putBatched(PinLikeEntity item) {
+    if (_disposed) return Future.value();
+    _pendingBatch[item.id] = item;
+    _remember(item);
+    final completer = Completer<void>();
+    _batchWaiters.add(completer);
+    _batchTimer ??= Timer(batchWindow, () => unawaited(_flushBatch()));
+    return completer.future;
+  }
+
+  Future<void> _flushBatch() async {
+    _batchTimer = null;
+    final items = _pendingBatch.values.toList(growable: false);
+    final waiters = _batchWaiters;
+    _pendingBatch.clear();
+    _batchWaiters = [];
+    if (_disposed || items.isEmpty) {
+      for (final waiter in waiters) {
+        if (!waiter.isCompleted) waiter.complete();
+      }
+      return;
+    }
+    try {
+      await super.putMultiple(items);
+      for (final waiter in waiters) {
+        if (!waiter.isCompleted) waiter.complete();
+      }
+    } catch (error, stackTrace) {
+      for (final waiter in waiters) {
+        if (!waiter.isCompleted) waiter.completeError(error, stackTrace);
+      }
+    }
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _pendingBatch.remove(id);
+    _memoryCache.remove(id);
+    await super.delete(id);
+  }
+
+  @override
+  Future<void> deleteMultiple(List<String> ids) async {
+    for (final id in ids) {
+      _pendingBatch.remove(id);
+      _memoryCache.remove(id);
+    }
+    await super.deleteMultiple(ids);
+  }
+
+  @override
+  Future<void> deleteAll() async {
+    _batchTimer?.cancel();
+    _batchTimer = null;
+    _pendingBatch.clear();
+    _memoryCache.clear();
+    final waiters = _batchWaiters;
+    _batchWaiters = [];
+    for (final waiter in waiters) {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+    await super.deleteAll();
+  }
 
   PinLikeEntitiesCompanion _toCompanion(PinLikeEntity entity) {
     return PinLikeEntitiesCompanion(
@@ -258,6 +412,19 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity>
     await (db.delete(
       db.pinLikeEntities,
     )..where((tbl) => tbl.isarId.isIn(isarIds))).go();
+  }
+
+  @override
+  Future<void> doDeleteExpired(DateTime? ttlTime) async {
+    await (db.delete(db.pinLikeEntities)..where((tbl) {
+          final sessionExpired =
+              tbl.onlySession.equals(true) & tbl.keepAlive.equals(false);
+          if (ttlTime == null) return sessionExpired;
+          return sessionExpired |
+              (tbl.keepAlive.equals(false) &
+                  tbl.ttl.isSmallerThanValue(ttlTime));
+        }))
+        .go();
   }
 
   @override
@@ -307,6 +474,7 @@ class PinLikeRepository extends CacheImpl<PinLikeEntity>
 
   @override
   Future<void> doPutMultiple(List<PinLikeEntity> items) async {
+    if (_disposed || items.isEmpty) return;
     await db.batch((batch) {
       batch.insertAllOnConflictUpdate(
         db.pinLikeEntities,
@@ -333,9 +501,11 @@ IPinRepository pinRepository(Ref ref) {
 @Riverpod(keepAlive: true)
 IPinLikeRepository pinLikeRepository(Ref ref) {
   final db = ref.watch(accountDatabaseProvider);
-  return PinLikeRepository(
+  final repository = PinLikeRepository(
     db,
     maxItems: 50,
     ttlDuration: const Duration(hours: 1),
   );
+  ref.onDispose(repository.dispose);
+  return repository;
 }

@@ -289,10 +289,42 @@ class SuppliedImageUrlRegistry {
   final LinkedHashMap<BatchReadKey, _SuppliedImageUrl> _urls = LinkedHashMap();
 
   final _changes = StreamController<BatchReadKey>.broadcast();
+  final Map<String, Set<void Function(BatchReadKey)>> _idListeners = {};
 
   Stream<BatchReadKey> get changes => _changes.stream;
 
-  void dispose() => unawaited(_changes.close());
+  /// Subscribes only to URL registrations matching [id] and one of [kinds].
+  Stream<BatchReadKey> watchKeys(String id, Set<BatchReadKind> kinds) {
+    late StreamController<BatchReadKey> controller;
+    void onKey(BatchReadKey key) {
+      if (kinds.contains(key.kind) && !controller.isClosed) {
+        controller.add(key);
+      }
+    }
+
+    controller = StreamController<BatchReadKey>(
+      onListen: () {
+        if (_changes.isClosed) {
+          unawaited(controller.close());
+          return;
+        }
+        _idListeners.putIfAbsent(id, () => {}).add(onKey);
+      },
+      onCancel: () {
+        final listeners = _idListeners[id];
+        if (listeners != null) {
+          listeners.remove(onKey);
+          if (listeners.isEmpty) _idListeners.remove(id);
+        }
+      },
+    );
+    return controller.stream;
+  }
+
+  void dispose() {
+    _idListeners.clear();
+    unawaited(_changes.close());
+  }
 
   /// Publishes new metadata URLs so mounted consumers can retry. Endpoint
   /// results are already consumed by their requesting image load and pass
@@ -315,7 +347,15 @@ class SuppliedImageUrlRegistry {
       _urls.remove(_urls.keys.first);
     }
     if (notify && previous?.value != url && !_changes.isClosed) {
-      _changes.add(key);
+      if (_changes.hasListener) {
+        _changes.add(key);
+      }
+      final listeners = _idListeners[id];
+      if (listeners != null && listeners.isNotEmpty) {
+        for (final listener in listeners.toList(growable: false)) {
+          listener(key);
+        }
+      }
     }
   }
 

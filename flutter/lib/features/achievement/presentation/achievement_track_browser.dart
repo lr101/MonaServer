@@ -30,6 +30,7 @@ class AchievementTrackBrowser<T> extends StatefulWidget {
     super.key,
     required this.tracks,
     this.title = 'Achievements',
+    this.showTitle = true,
     required this.tierBuilder,
     required this.isClaimed,
     required this.isReady,
@@ -37,6 +38,7 @@ class AchievementTrackBrowser<T> extends StatefulWidget {
   });
   final List<AchievementTrackData<T>> tracks;
   final String title;
+  final bool showTitle;
   final Widget Function(BuildContext context, T tier) tierBuilder;
   final bool Function(T tier) isClaimed;
   final bool Function(T tier) isReady;
@@ -61,14 +63,21 @@ class _AchievementTrackBrowserState<T>
     title: track.title,
     child: Builder(builder: (context) => widget.tierBuilder(context, tier)),
   );
-  Widget _heading(String text) => Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 10),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall
-          ?.copyWith(fontWeight: FontWeight.w600),
-    ),
-  );
+  Widget _heading(BuildContext context, String text, {double topPadding = 16}) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding, bottom: 8),
+      child: Text(
+        text,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.25,
+        ),
+      ),
+    );
+  }
+
   List<Widget> _rows(List<AchievementTrackData<T>> tracks) => [
     for (final track in tracks)
       Padding(
@@ -79,6 +88,8 @@ class _AchievementTrackBrowserState<T>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final available = widget.tracks.where((t) => t.tiers.isNotEmpty).toList();
     if (available.isEmpty) {
       return const Padding(
@@ -101,6 +112,15 @@ class _AchievementTrackBrowserState<T>
     final ready = tracks.where((t) => _priority(t) == 0).toList();
     final next = tracks.where((t) => _priority(t) == 1).toList();
     final collected = tracks.where((t) => _priority(t) == 2).toList();
+    final firstSection = ready.isNotEmpty
+        ? 'Ready to collect'
+        : next.isNotEmpty
+        ? 'Next up'
+        : 'Collected';
+    final headerText = selected?.title ??
+        (widget.showTitle ? widget.title : firstSection);
+    final useTitleStyle = selected != null || widget.showTitle;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -114,9 +134,16 @@ class _AchievementTrackBrowserState<T>
               ),
             Expanded(
               child: Text(
-                selected?.title ?? widget.title,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                headerText,
+                style: useTitleStyle
+                    ? theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      )
+                    : theme.textTheme.labelLarge?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.25,
+                      ),
               ),
             ),
             Semantics(
@@ -129,28 +156,42 @@ class _AchievementTrackBrowserState<T>
                   for (final t in available)
                     PopupMenuItem(value: t.id, child: Text(t.title)),
                 ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: SizedBox(
-                    height: 48,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.view_list_outlined, size: 20),
-                        if (MediaQuery.textScalerOf(context).scale(14) <=
-                            20) ...[
-                          const SizedBox(width: 6),
-                          const Text('All tiers'),
-                        ],
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 38),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.view_list_outlined,
+                        size: 17,
+                        color: colors.onSurface,
+                      ),
+                      if (MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'All tiers',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.onSurface,
+                          ),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (selected != null) ...[
           for (final tier in selected.tiers)
             Padding(
@@ -159,12 +200,25 @@ class _AchievementTrackBrowserState<T>
             ),
         ] else ...[
           if (ready.isNotEmpty) ...[
-            _heading('Ready to collect'),
+            if (widget.showTitle) _heading(context, 'Ready to collect', topPadding: 4),
             ..._rows(ready),
           ],
-          if (next.isNotEmpty) ...[_heading('Next up'), ..._rows(next)],
+          if (next.isNotEmpty) ...[
+            if (widget.showTitle || ready.isNotEmpty)
+              _heading(
+                context,
+                'Next up',
+                topPadding: ready.isNotEmpty ? 16 : 4,
+              ),
+            ..._rows(next),
+          ],
           if (collected.isNotEmpty) ...[
-            _heading('Collected'),
+            if (widget.showTitle || ready.isNotEmpty || next.isNotEmpty)
+              _heading(
+                context,
+                'Collected',
+                topPadding: (ready.isNotEmpty || next.isNotEmpty) ? 16 : 4,
+              ),
             ..._rows(collected),
           ],
         ],

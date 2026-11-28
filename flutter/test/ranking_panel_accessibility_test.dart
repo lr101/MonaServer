@@ -29,7 +29,7 @@ void main() {
     final header = find.bySemanticsLabel(RegExp('Expand rankings'));
     expect(header, findsOneWidget);
     expect(find.text('Rankings'), findsOneWidget);
-    expect(find.text('Region unavailable'), findsOneWidget);
+    expect(find.text('Local leaderboard'), findsOneWidget);
     expect(find.byIcon(Icons.expand_less), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

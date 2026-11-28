@@ -42,7 +42,7 @@ void main() {
     expect(find.textContaining('Gone pins ·'), findsOneWidget);
   });
 
-  testWidgets('group hard achievement rewards are labeled Legendary', (
+  testWidgets('group hard achievement rewards describe geometric shapes', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -71,7 +71,7 @@ void main() {
     );
 
     final semantics = tester.getSemantics(find.byType(AchievementCard));
-    expect(semantics.label, contains('unlocks Legendary Moss badge design'));
+    expect(semantics.label, contains('unlocks teardrop shape'));
   });
 
   testWidgets('shows progress and claims a ready group achievement', (
@@ -105,9 +105,7 @@ void main() {
     expect(claimedId, 1);
   });
 
-  testWidgets('admins can choose only pin designs the group has unlocked', (
-    tester,
-  ) async {
+  testWidgets('pin editing lives in group settings', (tester) async {
     String? selectedStyle;
     await tester.pumpWidget(
       MaterialApp(
@@ -135,13 +133,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Pin appearance'), findsOneWidget);
-    expect(find.text('Moss'), findsOneWidget);
-    expect(find.text('Sunset'), findsNothing);
-
-    await tester.tap(find.text('Moss'));
-    await tester.pump();
-    expect(selectedStyle, 'moss');
+    expect(find.text('Pin appearance'), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(selectedStyle, isNull);
   });
 
   testWidgets('a half-finished milestone fills half its card', (tester) async {
@@ -211,7 +205,7 @@ void main() {
     expect(find.text('Claim'), findsNothing);
   });
 
-  testWidgets('panel claims a reward and saves the shared pin design', (
+  testWidgets('panel claims a reward and leaves pin editing to settings', (
     tester,
   ) async {
     final groupsApi = _RecordingGroupsApi();
@@ -258,10 +252,8 @@ void main() {
     expect(fetches, 2);
     expect(find.text('Pins 1'), findsOneWidget);
 
-    await tester.tap(find.text('Moss'));
-    await tester.pumpAndSettle();
-    expect(groupServiceCalls.updatedStyle, UpdateGroupDtoPinStyleEnum.moss);
-    expect(groupServiceCalls.updatedGroupId, 'group-1');
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(groupServiceCalls.updatedStyle, isNull);
   });
 }
 

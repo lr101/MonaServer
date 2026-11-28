@@ -100,10 +100,7 @@ class _GroupEditState extends ConsumerState<GroupEdit> {
                 DropdownButtonFormField<String>(
                   initialValue: adminId,
                   isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Group admin',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Group admin'),
                   items: [
                     for (final member in members)
                       DropdownMenuItem<String>(

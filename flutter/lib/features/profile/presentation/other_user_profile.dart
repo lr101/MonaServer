@@ -1,6 +1,5 @@
-import 'package:buff_lisa/data/service/photo_library.dart';
-import 'package:buff_lisa/data/entity/pin_entity.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
+import 'package:buff_lisa/data/service/photo_library.dart';
 import 'package:buff_lisa/data/service/remote_image_source.dart';
 import 'package:buff_lisa/data/service/user_service.dart';
 import 'package:buff_lisa/features/achievement/presentation/other_user_achievements_tab.dart';
@@ -14,7 +13,6 @@ import 'package:buff_lisa/widgets/slivers/season_tile.dart';
 import 'package:buff_lisa/widgets/tiles/presentation/batch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:openapi/api.dart';
 
 class OtherUserProfile extends ConsumerWidget {
   const OtherUserProfile({super.key, required this.userId});
@@ -23,7 +21,6 @@ class OtherUserProfile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userPins = ref.watch(profileGridEntriesProvider(userId));
     final username = ref.watch(userByIdUsernameProvider(userId));
     final description = ref.watch(userByIdDescriptionProvider(userId));
     final bestSeason = ref.watch(userByIdBestSeasonProvider(userId));
@@ -34,7 +31,6 @@ class OtherUserProfile extends ConsumerWidget {
             userServiceProvider(userId)
                 .select((user) => user.value?.selectedBatchColor),
           );
-    final likes = ref.watch(userLikeServiceProvider(userId));
     final progression = ref.watch(publicUserProgressionProvider(userId)).value;
     return DefaultTabController(
       length: 2,
@@ -67,26 +63,45 @@ class OtherUserProfile extends ConsumerWidget {
           ],
         ),
         actions: [PopUpMenuOtherUser(userId: userId)],
-        profileQuickViewBoxes: _buildQuickStats(userPins, likes),
+        profileQuickViewBoxes: _buildQuickStats(context),
         bottom: const TabBar(
+          labelPadding: EdgeInsets.symmetric(horizontal: 8),
           tabs: [
-            Tab(icon: Icon(Icons.image_outlined), text: 'Pins'),
-            Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Achievements'),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.grid_on_rounded, size: 17),
+                  SizedBox(width: 6),
+                  Text('Pins'),
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.emoji_events_outlined, size: 18),
+                  SizedBox(width: 6),
+                  Text('Achievements'),
+                ],
+              ),
+            ),
           ],
         ),
         boxes: [
-          if (description.value != null)
+          if (description.value != null && description.value!.trim().isNotEmpty)
             SliverToBoxAdapter(
-              child: ListTile(
-                title: const Text(
-                  "Description",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  description.value!,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  description.value!.trim(),
                   softWrap: true,
                   maxLines: 10,
-                  style: const TextStyle(fontStyle: FontStyle.italic),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ),
@@ -110,35 +125,60 @@ class OtherUserProfile extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuickStats(
-    AsyncValue<List<PinEntity>> userPins,
-    AsyncValue<UserLikesDto> likes,
-  ) {
+  Widget _buildQuickStats(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _statItem(
-          'Sticks',
-          userPins.whenOrNull(
-                data: (entries) =>
-                    countUniqueContributedSticks(entries).toString(),
-              ) ??
-              '---',
+        Consumer(
+          builder: (context, ref, _) {
+            final sticks = ref.watch(
+              profileGridEntriesProvider(userId).select(
+                (pins) => pins.whenOrNull(
+                  data: (entries) =>
+                      countUniqueContributedSticks(entries).toString(),
+                ),
+              ),
+            );
+            return _statItem(context, 'Sticks', sticks ?? '---');
+          },
         ),
-        _statItem('Likes', likes.value?.likeCount.toString() ?? '-'),
+        Consumer(
+          builder: (context, ref, _) {
+            final likeCount = ref.watch(
+              userLikeServiceProvider(
+                userId,
+              ).select((value) => value.value?.likeCount.toString()),
+            );
+            return _statItem(context, 'Likes', likeCount ?? '-');
+          },
+        ),
       ],
     );
   }
 
-  Widget _statItem(String label, String value) {
+  Widget _statItem(BuildContext context, String label, String value) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            height: 1.15,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
         ),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }

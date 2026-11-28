@@ -53,22 +53,42 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isLight = theme.brightness == Brightness.light;
     return CustomScaffold<GroupEntity>(
+      maxWidth: 680,
       title: SizedBox(
-        height: 40,
+        height: 44,
         child: SearchBar(
           controller: _textEditController,
-          shadowColor: WidgetStateProperty.all(Colors.transparent),
-          leading: const Icon(Icons.search),
-          trailing: <Widget>[
-            Tooltip(
-              message: 'Delete search term',
-              child: IconButton(
-                onPressed: () => _textEditController.clear(),
-                icon: const Icon(Icons.delete),
-              ),
-            ),
-          ],
+          hintText: 'Search groups…',
+          backgroundColor: WidgetStatePropertyAll(
+            isLight ? colors.surfaceContainerLowest : colors.surfaceContainer,
+          ),
+          elevation: WidgetStatePropertyAll(isLight ? 1 : 0),
+          shadowColor: WidgetStatePropertyAll(
+            Colors.black.withValues(alpha: 0.08),
+          ),
+          side: WidgetStatePropertyAll(
+            BorderSide(color: colors.outlineVariant.withValues(alpha: 0.75)),
+          ),
+          leading: Icon(Icons.search_rounded, color: colors.onSurfaceVariant),
+          trailing: searchText.isEmpty
+              ? null
+              : <Widget>[
+                  Tooltip(
+                    message: 'Clear search',
+                    child: IconButton(
+                      onPressed: () => _textEditController.clear(),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
         ),
       ),
       listBuilder: (context, item, index) => GroupTile(
@@ -125,7 +145,11 @@ class _GroupSearchState extends ConsumerState<GroupSearch> {
 
   void listener() {
     if (_textEditController.text != searchText) {
+      final wasEmpty = searchText.isEmpty;
       searchText = _textEditController.text;
+      if (wasEmpty != searchText.isEmpty && mounted) {
+        setState(() {});
+      }
       if (_debounceTimer?.isActive ?? false) {
         _debounceTimer?.cancel();
       }

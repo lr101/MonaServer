@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/lrprojects/monaserver/internal/service"
 )
 
-const maxBatchReadRequests = 100
+const (
+	maxBatchReadRequests    = 100
+	maxBatchReadConcurrency = 8
+)
 
 var batchReadKinds = map[string]struct{}{
 	"pinImage":          {},
@@ -86,26 +90,78 @@ func (s *BatchServicer) BatchRead(ctx context.Context, request genserver.BatchRe
 		groupProgressions = loaded
 	}
 
-	results := make([]genserver.BatchReadResult, 0, len(request.Requests))
 	cache := make(map[string]genserver.BatchReadResult, len(request.Requests))
+	uniqueItems := make([]genserver.BatchReadItem, 0, len(request.Requests))
+	uniqueKeys := make([]string, 0, len(request.Requests))
+	uniqueSeen := make(map[string]struct{}, len(request.Requests))
 	for _, item := range request.Requests {
+		key := item.Kind + "\x00" + item.Id
+		switch item.Kind {
+		case "userProgression":
+			if _, ok := cache[key]; !ok {
+				cache[key] = readUserProgression(item, userProgressions)
+			}
+		case "groupProgression":
+			if _, ok := cache[key]; !ok {
+				cache[key] = readGroupProgression(item, groupProgressions)
+			}
+		default:
+			if _, ok := uniqueSeen[key]; !ok {
+				uniqueSeen[key] = struct{}{}
+				uniqueItems = append(uniqueItems, item)
+				uniqueKeys = append(uniqueKeys, key)
+			}
+		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+
+	if len(uniqueItems) == 1 {
+		cache[uniqueKeys[0]] = s.readOne(ctx, uniqueItems[0])
+	} else if len(uniqueItems) > 1 {
+		uniqueResults := make([]genserver.BatchReadResult, len(uniqueItems))
+		workers := maxBatchReadConcurrency
+		if len(uniqueItems) < workers {
+			workers = len(uniqueItems)
+		}
+		jobs := make(chan int, len(uniqueItems))
+		for idx := range uniqueItems {
+			jobs <- idx
+		}
+		close(jobs)
+
+		var wg sync.WaitGroup
+		wg.Add(workers)
+		for range workers {
+			go func() {
+				defer wg.Done()
+				for idx := range jobs {
+					if ctx.Err() != nil {
+						return
+					}
+					uniqueResults[idx] = s.readOne(ctx, uniqueItems[idx])
+				}
+			}()
+		}
+		wg.Wait()
 		if err := ctx.Err(); err != nil {
 			return serviceErrResp(ctx, err), nil
 		}
-		key := item.Kind + "\x00" + item.Id
-		result, ok := cache[key]
-		if !ok {
-			switch item.Kind {
-			case "userProgression":
-				result = readUserProgression(item, userProgressions)
-			case "groupProgression":
-				result = readGroupProgression(item, groupProgressions)
-			default:
-				result = s.readOne(ctx, item)
-			}
-			cache[key] = result
+		for idx, key := range uniqueKeys {
+			cache[key] = uniqueResults[idx]
 		}
-		results = append(results, result)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return serviceErrResp(ctx, err), nil
+	}
+
+	results := make([]genserver.BatchReadResult, 0, len(request.Requests))
+	for _, item := range request.Requests {
+		key := item.Kind + "\x00" + item.Id
+		results = append(results, cache[key])
 	}
 	return genserver.Response(http.StatusOK, genserver.BatchReadResponse{Results: results}), nil
 }

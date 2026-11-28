@@ -5,7 +5,6 @@ import 'package:buff_lisa/app/routing/app_router.dart';
 import 'package:buff_lisa/features/progression/presentation/xp_gain_banner.dart';
 import 'package:buff_lisa/util/theme/data/material_theme.dart';
 import 'package:buff_lisa/util/theme/service/theme_state.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,23 +30,7 @@ class MyApp extends ConsumerWidget {
           routerConfig: router,
           builder: (context, child) {
             final content = XpGainBannerHost(child: child!);
-            final appContent = !kIsWeb
-                ? content
-                : ColoredBox(
-                    color: Colors
-                        .black, // Background color for web outside the app
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width >= 600
-                              ? 1000
-                              : 450,
-                        ),
-                        child: content,
-                      ),
-                    ),
-                  );
-            return PlayStoreUpdateGuard(child: appContent);
+            return PlayStoreUpdateGuard(child: content);
           },
         ),
       ),

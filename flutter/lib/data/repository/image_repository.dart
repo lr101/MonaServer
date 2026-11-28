@@ -732,13 +732,14 @@ class ImageRepository extends CacheImpl<ImageEntity>
   @override
   Future<void> startup() async {
     final now = DateTime.now();
-    final all = await doGetAll();
-    final expired = all.where(
-      (entry) =>
-          (entry.onlySession && !entry.keepAlive) ||
-          (!entry.keepAlive && entry.ttl.isBefore(now)),
-    );
-    await doDeleteMultiple(expired.map((entry) => entry.isarId).toList());
+    await (db.delete(db.imageEntities)..where(
+          (table) =>
+              table.type.equalsValue(type) &
+              table.keepAlive.equals(false) &
+              (table.onlySession.equals(true) |
+                  table.ttl.isSmallerThanValue(now)),
+        ))
+        .go();
   }
 
   @override

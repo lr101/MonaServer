@@ -1,8 +1,8 @@
 [tools]
 go = "1.27.4"
-flutter = "3.47.9"
-node = "26.13.0"
-oapi-codegen = "2.8.2"
+flutter = "3.50.1"
+node = "26.13.1"
+oapi-codegen = "2.9.0"
 sqlc = "1.31.1"
 
 [tasks.test]

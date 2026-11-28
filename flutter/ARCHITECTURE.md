@@ -43,8 +43,12 @@ while achievement tabs own collectible rewards.
 The shared `AchievementTrackBrowser<T>` owns compact track ordering and catalog
 selection; personal/group adapters retain reward data and claim commands.
 Milestone details expose full requirements without repeating them on every
-card. `CustomAvatarScaffold` accepts measured toolbar/profile heights so group
-names, large text and relocated actions do not overlap tabs.
+card. Group admin Settings owns the group pin builder: it combines earned
+colors and geometric shapes, persists the catalog with its revision, then applies
+the selected style through the group service. Achievements retains reward
+collection and describes colors/shapes; it no longer edits pin appearance.
+`CustomAvatarScaffold` accepts measured toolbar/profile heights so group names,
+large text and relocated actions do not overlap tabs.
 
 ## Where code lives now
 

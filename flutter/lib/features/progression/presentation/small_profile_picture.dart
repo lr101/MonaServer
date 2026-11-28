@@ -173,7 +173,7 @@ class UserXpAvatarIndicator extends StatelessWidget {
               ),
               SizedBox.square(dimension: avatarDiameter, child: avatar),
               Positioned(
-                left: 0,
+                left: radius < 24 ? -4 : 0,
                 bottom: 0,
                 child: _levelBadge(
                   context,
@@ -204,7 +204,7 @@ Widget _levelBadge(
   required double radius,
 }) {
   final theme = Theme.of(context);
-  final badgeHeight = (radius * 0.70).clamp(12.0, 26.0);
+  final badgeHeight = (radius * 0.72).clamp(15.0, 28.0);
   return DecoratedBox(
     key: const ValueKey('profile-level-badge'),
     decoration: ShapeDecoration(
@@ -213,7 +213,7 @@ Widget _levelBadge(
         borderRadius: BorderRadius.circular(100),
         side: BorderSide(
           color: theme.colorScheme.surfaceContainer,
-          width: (radius * 0.09).clamp(1.0, 1.75),
+          width: (radius * 0.09).clamp(1.25, 1.75),
         ),
       ),
     ),
@@ -221,7 +221,7 @@ Widget _levelBadge(
       constraints: BoxConstraints(minHeight: badgeHeight),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: (radius * 0.09).clamp(2.0, 4.0),
+          horizontal: (radius * 0.13).clamp(3.0, 6.0),
           vertical: 1,
         ),
         child: Center(
@@ -230,8 +230,9 @@ Widget _levelBadge(
               'Lv $level',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onPrimary,
-                fontSize: (radius * 0.22).clamp(6.5, 9.0),
-                fontWeight: FontWeight.bold,
+                fontSize: (radius * 0.28).clamp(9.0, 11.5),
+                fontWeight: FontWeight.w800,
+                height: 1.0,
               ),
             ),
           ),

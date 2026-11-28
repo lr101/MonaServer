@@ -1,5 +1,6 @@
 import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/repository/drift_repo.dart';
+import 'package:buff_lisa/widgets/remote_image/remote_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Platform caches are separate from the account's Drift rows.
 final clearPlatformCachesProvider = Provider<Future<void> Function()>((ref) {
   return () async {
+    clearPinnedRemoteImages();
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
     await Future.wait([

@@ -42,7 +42,7 @@ class MapPinDesign {
     imageAlignmentX: dto.imageAlignmentX.toDouble(),
     imageAlignmentY: dto.imageAlignmentY.toDouble(),
     imageBorderColor: _color(dto.imageBorderColor),
-    badge: dto.badge.value,
+    badge: 'none',
   );
 
   factory MapPinDesign.forStyle(String style) {
@@ -133,12 +133,7 @@ class MapPinDesign {
       imageAlignmentX: 0,
       imageAlignmentY: 0,
       imageBorderColor: Colors.white,
-      badge: switch (style) {
-        'aurora' || 'ember' => 'spark',
-        'honey' => 'sun',
-        'orchid' || 'midnight' => 'star',
-        _ => 'none',
-      },
+      badge: 'none',
     );
   }
 

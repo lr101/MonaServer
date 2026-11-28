@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:buff_lisa/data/config/openapi_config.dart';
+import 'package:buff_lisa/data/database/database.dart';
 import 'package:buff_lisa/data/entity/pin_like_entity.dart';
 import 'package:buff_lisa/data/repository/pin_repository.dart';
 import 'package:buff_lisa/data/service/batch_read_coalescer.dart';
 import 'package:buff_lisa/data/service/global_data_service.dart';
 import 'package:buff_lisa/data/service/like_service.dart';
 import 'package:buff_lisa/widgets/custom_feed/data/like_service.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openapi/api.dart';
@@ -238,6 +240,51 @@ void main() {
     expect(value.likeCount, isNull);
     expect(repository.putCount, 0);
   });
+
+  test(
+    'PinLikeRepository.putBatched coalesces writes into one batch and serves immediate reads',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final repo = _CountingPinLikeRepository(
+        db,
+        batchWindow: const Duration(milliseconds: 10),
+      );
+      addTearDown(repo.dispose);
+      await repo.ready;
+
+      final f1 = repo.putBatched(
+        PinLikeEntity.fromDto(
+          PinLikeDto(likeCount: 3, likedByUser: true),
+          'pin-1',
+        ),
+      );
+      final f2 = repo.putBatched(
+        PinLikeEntity.fromDto(
+          PinLikeDto(likeCount: 7, likedByUser: false),
+          'pin-2',
+        ),
+      );
+      // Immediate read hits pending memory cache before the SQLite batch flushes.
+      final immediate = await repo.get('pin-1');
+      expect(immediate?.likeCount, 3);
+      expect(immediate?.hasLike, isTrue);
+      expect(repo.doGetCount, 0);
+
+      await Future.wait([f1, f2]);
+      expect(repo.batchWrites, 1);
+      expect(repo.batchSizes, [2]);
+
+      // Subsequent read also hits memory cache with zero SQLite queries.
+      final cached = await repo.get('pin-2');
+      expect(cached?.likeCount, 7);
+      expect(repo.doGetCount, 0);
+
+      // Verify rows actually persisted to SQLite.
+      final persisted = await repo.doGetAll();
+      expect(persisted.map((e) => e.id).toSet(), {'pin-1', 'pin-2'});
+    },
+  );
 }
 
 class _FakePinLikeRepository implements IPinLikeRepository {
@@ -274,6 +321,9 @@ class _FakePinLikeRepository implements IPinLikeRepository {
   }
 
   @override
+  Future<void> putBatched(PinLikeEntity item) => put(item);
+
+  @override
   Future<void> putMultiple(List<PinLikeEntity> items) async {}
 
   @override
@@ -294,5 +344,25 @@ class _RecordingUserLikes extends UserLikeService {
   @override
   Future<void> updateLikeCount(CreateLikeDto dto) async {
     recordedUpdate = dto;
+  }
+}
+
+class _CountingPinLikeRepository extends PinLikeRepository {
+  _CountingPinLikeRepository(super.db, {super.batchWindow});
+  int batchWrites = 0;
+  final List<int> batchSizes = [];
+  int doGetCount = 0;
+
+  @override
+  Future<PinLikeEntity?> doGet(int isarId) {
+    doGetCount++;
+    return super.doGet(isarId);
+  }
+
+  @override
+  Future<void> doPutMultiple(List<PinLikeEntity> items) {
+    batchWrites++;
+    batchSizes.add(items.length);
+    return super.doPutMultiple(items);
   }
 }
